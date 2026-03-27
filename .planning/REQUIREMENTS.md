@@ -7,10 +7,10 @@
 
 ### Core Tools
 
-- [ ] **CORE-01**: `remember()` — Appends memory to JSONL, batches git commits by lines/time
+- [x] **CORE-01**: `remember()` — Appends memory to JSONL, batches git commits by lines/time
 - [x] **CORE-02**: `recall()` — DuckDB queries with semantic search (vss), path globs, exact key lookup
 - [x] **CORE-03**: `list_keys()` — Hierarchical key explorer with pagination and depth limits
-- [ ] **CORE-04**: `forget()` — Appends tombstone records (never deletes)
+- [x] **CORE-04**: `forget()` — Appends tombstone records (never deletes)
 
 ### Schema
 
@@ -22,7 +22,7 @@
 
 - [x] **STORAGE-01**: Partitioned storage — Domains map to folders (`memory/person/`, `memory/event/`, etc.)
 - [x] **STORAGE-02**: Manifest file — Lightweight index tracking active partition paths
-- [ ] **STORAGE-03**: DuckDB initialization — Load vss extension, configure for JSONL/Parquet queries
+- [x] **STORAGE-03**: DuckDB initialization — Load vss extension, configure for JSONL/Parquet queries
 
 ### Git
 
@@ -69,16 +69,16 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | Phase 1 | Pending |
+| CORE-01 | Phase 1 | **Complete** |
 | CORE-02 | Phase 1 | **Complete** |
 | CORE-03 | Phase 1 | **Complete** |
-| CORE-04 | Phase 1 | Pending |
+| CORE-04 | Phase 1 | **Complete** |
 | SCHEMA-01 | Phase 1 | **Complete** |
 | SCHEMA-02 | Phase 1 | **Complete** |
 | SCHEMA-03 | Phase 1 | **Complete** |
 | STORAGE-01 | Phase 1 | **Complete** |
 | STORAGE-02 | Phase 1 | **Complete** |
-| STORAGE-03 | Phase 1 | Pending |
+| STORAGE-03 | Phase 1 | **Complete** |
 | GIT-01 | Phase 2 | Pending |
 | GIT-02 | Phase 2 | Pending |
 | GIT-03 | Phase 2 | Pending |
