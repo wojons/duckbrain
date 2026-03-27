@@ -69,6 +69,9 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 | **Zod v4.1.8 for runtime validation** | ✓ Implemented |
 | **Atomic writes (tmp+rename) for config/manifest** | ✓ Implemented |
 | **Chunked JSONL (1000 lines or 1MB max)** | ✓ Implemented |
+| **DuckDB singleton connection pattern** | ✓ Implemented |
+| **Time-based partitioning (YYYY-MM)** | ✓ Implemented |
+| **Hybrid MCP tool responses** | ✓ Implemented |
 | **MCP stdio transport for local Claude** | ✓ Implemented |
 | **Tombstone filtering at query layer** | ✓ Implemented |
 | **Singleton DuckDB connection caching** | ✓ Implemented |
@@ -84,14 +87,15 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 ## Session Continuity
 
 **Last Session:** 2026-03-27
-**Stopped At:** Completed Phase 1 Plan 03 - recall() and list_keys() MCP tools
+**Stopped At:** Completed Phase 1 Plan 02 — DuckDB + remember/forget Tools
 
 **Resume Context:**
 - Schema, storage, manifest, config, duckdb, and mcp modules implemented
-- Commits: df57af8, b2fd2b3, 3b3943c, d9626f9, e1796af (Plan 01), 24909f6 (Plan 03)
-- SUMMARY.md files: 01-core-mvp-01-SUMMARY.md, 01-core-mvp-03-SUMMARY.md
-- Ready for Plan 02: remember() tool implementation
+- Commits: df57af8, b2fd2b3, 3b3943c, d9626f9, e1796af (Plan 01), 88c0561, 3ab6542, a6c3c9e (Plan 02)
+- SUMMARY.md files: 01-core-mvp-01-SUMMARY.md, 01-core-mvp-02-SUMMARY.md
+- Plan 03 summary exists (01-core-mvp-03-SUMMARY.md) — verify integration
+- Ready for Plan 04: Git commit batching
 
 ---
 
-*Last updated: 2026-03-27 after Plan 03 completion*
+*Last updated: 2026-03-27 after Plan 02 completion*
