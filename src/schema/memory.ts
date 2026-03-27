@@ -77,7 +77,7 @@ export const MemorySchema = z.object({
   embedding_text: z.string(),
 
   /** Flexible attributes as arbitrary JSON */
-  attributes: z.record(z.unknown()).default({})
+  attributes: z.record(z.string(), z.any()).default({})
 });
 
 export type MemoryType = z.infer<typeof MemorySchema>;
