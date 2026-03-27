@@ -24,9 +24,12 @@ must_haves:
     - path: "src/storage/jsonl.ts"
       provides: "JSONL append/read utilities"
       exports: ["appendToJsonl", "readFromJsonl", "createPartition"]
+    - path: "src/config/index.ts"
+      provides: "Config file management with Zod validation"
+      exports: ["getConfig", "updateConfig", "DuckBrainConfig interface"]
     - path: "package.json"
       provides: "Dependency declarations"
-      contains: "@modelcontextprotocol/server, duckdb, simple-git, zod, uuid"
+      contains: "@modelcontextprotocol/server, duckdb, simple-git, zod, uuid, conf, glob"
   key_links:
     - from: "src/schema/memory.ts"
       to: "src/storage/jsonl.ts"

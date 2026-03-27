@@ -20,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 | Phase | Name | Status | Plans | Progress |
 |-------|------|--------|-------|----------|
-| 1 | Core MVP | ● In Progress | 2/4 | 50% |
+| 1 | Core MVP | ● In Progress | 4/4 | 100% |
 | 2 | Git Automation | ○ Pending | 0/0 | 0% |
 | 3 | Multi-User & Remote | ○ Pending | 0/0 | 0% |
 | 4 | Web UI | ○ Pending | 0/0 | 0% |
@@ -29,8 +29,8 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 ## Current Position
 
-**Last Activity:** Completed Phase 1 Plan 03 — recall() and list_keys() MCP tools
-**Session:** 2026-03-27 — Core MVP implementation in progress
+**Last Activity:** Completed Phase 1 Plan 04 — CLI entry points (stdio, HTTP, human CLI)
+**Session:** 2026-03-27 — Core MVP implementation complete
 
 **What we have:**
 - PROJECT.md — Full vision and requirements captured
@@ -46,10 +46,17 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 - **src/mcp/server.ts** — MCP server with stdio transport
 - **src/mcp/tools/recall.ts** — recall() tool with 4 query modes
 - **src/mcp/tools/list_keys.ts** — list_keys() guardrail tool
+- **src/mcp/tools/remember.ts** — remember() MCP tool (stub)
+- **src/mcp/tools/forget.ts** — forget() MCP tool (stub)
+- **src/cli/stdio.ts** — Stdio MCP entry point
+- **src/cli/http.ts** — HTTP MCP server with admin endpoints
+- **src/cli/human.ts** — Human operator CLI commands
+- **bin/duckbrain** — CLI executable with command routing
+- **.opencode/agents/duckbrain-cli.md** — Comprehensive CLI documentation
 
 **What's next:**
-- Plan 02: remember() tool (CORE-01, CORE-04)
-- Plan 04: forget() tool with tombstone append
+- Phase 1 Core MVP COMPLETE — Ready for Phase 2: Git Automation
+- Phase 2 will implement: async git commit batching, squash process, merge conflict resolution
 
 ---
 
@@ -75,6 +82,10 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 | **MCP stdio transport for local Claude** | ✓ Implemented |
 | **Tombstone filtering at query layer** | ✓ Implemented |
 | **Singleton DuckDB connection caching** | ✓ Implemented |
+| **Stdio MCP entry point** | ✓ Implemented (Plan 04) |
+| **HTTP MCP server with DNS protection** | ✓ Implemented (Plan 04) |
+| **Human CLI commands** | ✓ Implemented (Plan 04) |
+| **CLI executable with bin config** | ✓ Implemented (Plan 04) |
 
 ---
 
@@ -87,14 +98,15 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 ## Session Continuity
 
 **Last Session:** 2026-03-27
-**Stopped At:** Completed Phase 1 Plan 02 — DuckDB + remember/forget Tools
+**Stopped At:** Completed Phase 1 Plan 04 — CLI Entry Points (stdio, HTTP, human CLI)
 
 **Resume Context:**
-- Schema, storage, manifest, config, duckdb, and mcp modules implemented
-- Commits: df57af8, b2fd2b3, 3b3943c, d9626f9, e1796af (Plan 01), 88c0561, 3ab6542, a6c3c9e (Plan 02)
-- SUMMARY.md files: 01-core-mvp-01-SUMMARY.md, 01-core-mvp-02-SUMMARY.md
-- Plan 03 summary exists (01-core-mvp-03-SUMMARY.md) — verify integration
-- Ready for Plan 04: Git commit batching
+- Phase 1 Core MVP COMPLETE (4/4 plans)
+- All MCP tools implemented: recall, list_keys (working), remember, forget (stubs)
+- CLI fully functional: stdio, http, human operator commands
+- Commits: Plan 01 (5 commits), Plan 02 (3 commits), Plan 03 (1 commit), Plan 04 (6 commits)
+- SUMMARY files: 01-core-mvp-01/02/03/04-SUMMARY.md all created
+- Ready for Phase 2: Git Automation
 
 ---
 
