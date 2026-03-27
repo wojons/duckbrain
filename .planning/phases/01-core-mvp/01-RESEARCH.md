@@ -1157,6 +1157,13 @@ app.get('/session/:sessionId/isolate', async (req, res) => {
 - **OpenCode Agent Skills** — `https://opencode.ai/docs/skills` — Skill structure, frontmatter, discovery, permissions
 - **Git Worktrees** — `https://git-scm.com/docs/git-worktree` — Multiple working trees, branch isolation
 
+### Primary - Updated Research (HIGH confidence)
+- **`conf` v15.1.0** — Official docs: `https://github.com/sindresorhus/conf` — Atomic writes, Zod schema validation, migrations, stores in `~/.config/duckbrain/`
+- **Express + Helmet for DNS rebinding** — `https://helmetjs.github.io/` + `https://expressjs.com/en/advanced/best-practice-security.html` — Host header validation, middleware stack
+- **DuckDB REGEXP_matches()** — `https://duckdb.org/docs/stable/sql/functions/regular_expressions.html` — RE2 engine, pattern syntax, performance characteristics
+- **Git worktrees for multi-user isolation** — `https://git-scm.com/docs/git-worktree` + simple-git implementation — Per-session branch checkout
+- **Opencode skill structure** — `https://opencode.ai/docs/skills` — `.opencode/skills/{name}/SKILL.md` format, frontmatter requirements
+
 ### Secondary (MEDIUM confidence)
 - **Host Validation Middleware** — `https://github.com/brannondorsey/host-validation` — DNS rebinding protection patterns
 - **simple-git npm** — `https://www.npmjs.com/package/simple-git` — Worktree commands, error handling
