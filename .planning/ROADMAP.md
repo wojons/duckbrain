@@ -48,7 +48,7 @@
 **Plans:** 4 plans
 
 **Plan list:**
-- [ ] 01-core-mvp-01-PLAN.md — Schema + storage foundation (SCHEMA-01..03, STORAGE-01..02)
+- [x] 01-core-mvp-01-PLAN.md — Schema + storage foundation (SCHEMA-01..03, STORAGE-01..02)
 - [ ] 01-core-mvp-02-PLAN.md — DuckDB + remember/forget tools (CORE-01, CORE-04, STORAGE-03)
 - [ ] 01-core-mvp-03-PLAN.md — Recall/list_keys + MCP server (CORE-02, CORE-03, SCHEMA-03)
 - [ ] 01-core-mvp-04-PLAN.md — CLI entry points (CLI-01, CLI-02)

@@ -20,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 | Phase | Name | Status | Plans | Progress |
 |-------|------|--------|-------|----------|
-| 1 | Core MVP | ○ Pending | 0/0 | 0% |
+| 1 | Core MVP | ● In Progress | 1/4 | 25% |
 | 2 | Git Automation | ○ Pending | 0/0 | 0% |
 | 3 | Multi-User & Remote | ○ Pending | 0/0 | 0% |
 | 4 | Web UI | ○ Pending | 0/0 | 0% |
@@ -29,17 +29,21 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 ## Current Position
 
-**Last Activity:** Project initialization
-**Session:** 2026-03-27 — Deep questioning and architecture design completed
+**Last Activity:** Completed Phase 1 Plan 01 — Schema + Storage Foundation
+**Session:** 2026-03-27 — Core MVP implementation started
 
 **What we have:**
 - PROJECT.md — Full vision and requirements captured
 - REQUIREMENTS.md — 24 requirements across v1/v2
 - ROADMAP.md — 4 phases with success criteria
 - Codebase map — `.planning/codebase/` (7 documents)
+- **src/schema/memory.ts** — Hybrid memory schema with Zod validation
+- **src/storage/jsonl.ts** — Partitioned JSONL storage utilities
+- **src/storage/manifest.ts** — Manifest file tracking
+- **src/config/index.ts** — Configuration management
 
 **What's next:**
-- Plan Phase 1: Create detailed execution plan for Core MVP
+- Plan 02: DuckDB + remember/forget tools (CORE-01, CORE-04, STORAGE-03)
 
 ---
 
@@ -56,6 +60,9 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 | Manifest index for partition tracking | ✓ Confirmed |
 | SSH tunneling for remote access | ✓ Confirmed |
 | Namespace = Git repo | ✓ Confirmed |
+| **Zod v4.1.8 for runtime validation** | ✓ Implemented |
+| **Atomic writes (tmp+rename) for config/manifest** | ✓ Implemented |
+| **Chunked JSONL (1000 lines or 1MB max)** | ✓ Implemented |
 
 ---
 
@@ -68,13 +75,14 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 ## Session Continuity
 
 **Last Session:** 2026-03-27
-**Stopped At:** PROJECT.md, REQUIREMENTS.md, ROADMAP.md created and committed
+**Stopped At:** Completed Phase 1 Plan 01 - Schema + Storage Foundation
 
 **Resume Context:**
-- Ready to plan Phase 1
-- All architecture decisions captured
-- MCP tool schemas designed (remember, recall, list_keys, forget)
+- Schema, storage, manifest, and config modules implemented
+- 5 commits made (df57af8, b2fd2b3, 3b3943c, d9626f9, e1796af)
+- SUMMARY.md created at `.planning/phases/01-core-mvp/01-core-mvp-01-SUMMARY.md`
+- Ready for Plan 02: DuckDB integration and MCP tools
 
 ---
 
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-27 after Plan 01 completion*

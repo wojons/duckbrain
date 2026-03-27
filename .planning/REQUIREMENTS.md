@@ -14,14 +14,14 @@
 
 ### Schema
 
-- [ ] **SCHEMA-01**: Hybrid schema — Strict base (id, key, domain, timestamp, author, action, embedding_text) + flexible attributes JSON
-- [ ] **SCHEMA-02**: Hierarchical key field — Filesystem-style paths (`/projects/mcp/schema`) for glob queries and partitioning
+- [x] **SCHEMA-01**: Hybrid schema — Strict base (id, key, domain, timestamp, author, action, embedding_text) + flexible attributes JSON
+- [x] **SCHEMA-02**: Hierarchical key field — Filesystem-style paths (`/projects/mcp/schema`) for glob queries and partitioning
 - [ ] **SCHEMA-03**: Zod validation — Enforce schemas on all MCP tool inputs
 
 ### Storage
 
-- [ ] **STORAGE-01**: Partitioned storage — Domains map to folders (`memory/person/`, `memory/event/`, etc.)
-- [ ] **STORAGE-02**: Manifest file — Lightweight index tracking active partition paths
+- [x] **STORAGE-01**: Partitioned storage — Domains map to folders (`memory/person/`, `memory/event/`, etc.)
+- [x] **STORAGE-02**: Manifest file — Lightweight index tracking active partition paths
 - [ ] **STORAGE-03**: DuckDB initialization — Load vss extension, configure for JSONL/Parquet queries
 
 ### Git
@@ -73,11 +73,11 @@
 | CORE-02 | Phase 1 | Pending |
 | CORE-03 | Phase 1 | Pending |
 | CORE-04 | Phase 1 | Pending |
-| SCHEMA-01 | Phase 1 | Pending |
-| SCHEMA-02 | Phase 1 | Pending |
+| SCHEMA-01 | Phase 1 | **Complete** |
+| SCHEMA-02 | Phase 1 | **Complete** |
 | SCHEMA-03 | Phase 1 | Pending |
-| STORAGE-01 | Phase 1 | Pending |
-| STORAGE-02 | Phase 1 | Pending |
+| STORAGE-01 | Phase 1 | **Complete** |
+| STORAGE-02 | Phase 1 | **Complete** |
 | STORAGE-03 | Phase 1 | Pending |
 | GIT-01 | Phase 2 | Pending |
 | GIT-02 | Phase 2 | Pending |
@@ -102,4 +102,4 @@
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-27 after Plan 01 completion*
