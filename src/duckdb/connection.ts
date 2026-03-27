@@ -5,8 +5,7 @@
  * Supports singleton, pool, and per-query modes.
  */
 
-import duckdb from 'duckdb';
-export type Database = duckdb.Database;
+import duckdb, { Database } from 'duckdb';
 import path from 'path';
 import fs from 'fs';
 import { loadVSSExtension, enablePersistence } from './vss';
