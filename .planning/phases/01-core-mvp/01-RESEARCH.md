@@ -88,6 +88,8 @@ DuckBrain is an MCP server providing AI agents with persistent, queryable memory
 | `node-fetch` | 3.x | HTTP client | HTTP MCP transport (if not using Express) |
 | `express` | 4.x | HTTP server | HTTP MCP mode with DNS rebinding protection |
 | `@modelcontextprotocol/node` | 1.x | Node.js HTTP transport | Streamable HTTP over Node.js http module |
+| `conf` | 10.x | Config file management | ~/.duckbrain/config.json with schema validation |
+| `glob` | 10.x | Glob pattern matching | list_keys() glob filters, partition discovery |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
@@ -331,7 +333,168 @@ class PartitionedStorage {
 }
 ```
 
-### Pattern 4: Async Git Write Queue
+### Pattern 4: HTTP Server with Multi-User Support
+**What:** Express-based HTTP server with MCP transport + admin endpoints + Web UI prep
+**When to use:** Remote hosting, multi-agent deployments
+**Example:**
+```typescript
+// DuckBrain HTTP Server - Multi-user ready
+import express from 'express';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { McpServer } from '@modelcontextprotocol/server';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// MCP endpoints
+app.post('/mcp', async (req, res) => {
+  const transport = new StreamableHTTPServerTransport({ sessionId: req.headers['x-session-id'] });
+  const server = new McpServer({ name: 'duckbrain', version: '1.0.0' });
+  // ... tool registration
+  await server.connect(transport);
+});
+
+// Health & Stats endpoints
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    uptime: process.uptime(),
+    namespaces: getLoadedNamespaces(),
+    memory: process.memoryUsage()
+  });
+});
+
+app.get('/stats', async (req, res) => {
+  const stats = {
+    totalMemories: await countMemories(),
+    byNamespace: await getNamespaceStats(),
+    byDomain: await getDomainStats(),
+    gitStatus: await getGitStatus(),
+    recentActivity: await getRecentActivity(10)
+  };
+  res.json(stats);
+});
+
+app.get('/namespaces', (req, res) => {
+  res.json(getLoadedNamespaces());
+});
+
+app.get('/users', async (req, res) => {
+  const users = await getUniqueAuthors(); // Git emails from memories
+  res.json(users);
+});
+
+app.get('/activity', async (req, res) => {
+  const activity = await getRecentActivity(req.query.limit || 50);
+  res.json(activity);
+});
+
+// Web UI prep endpoints (Phase 4)
+app.get('/api/tree', async (req, res) => {
+  // Return hierarchical memory tree parsed from keys
+  const tree = await buildMemoryTree(req.query.namespace);
+  res.json(tree);
+});
+
+app.get('/api/timeline', async (req, res) => {
+  const timeline = await queryMemories({
+    domain: req.query.domain,
+    keyPrefix: req.query.prefix,
+    startDate: req.query.start,
+    endDate: req.query.end,
+    limit: req.query.limit || 100
+  });
+  res.json(timeline);
+});
+
+app.get('/api/search', async (req, res) => {
+  const results = await searchMemories({
+    query: req.query.q,
+    domain: req.query.domain,
+    keyGlob: req.query.key,
+    regex: req.query.regex
+  });
+  res.json(results);
+});
+
+// DNS rebinding protection (required for remote hosting)
+app.use((req, res, next) => {
+  const host = req.headers.host?.split(':')[0];
+  const allowedHosts = ['localhost', '127.0.0.1', ...(process.env.ALLOWED_HOSTS?.split(',') || [])];
+  if (host && !allowedHosts.includes(host)) {
+    return res.status(403).json({ error: 'Forbidden: DNS rebinding protection' });
+  }
+  next();
+});
+
+app.listen(PORT, () => {
+  console.log(`DuckBrain HTTP server running on http://localhost:${PORT}`);
+});
+```
+
+### Pattern 5: Config File Management
+**What:** YAML/JSON config file for namespaces, git thresholds, HTTP/SSH settings
+**When to use:** All DuckBrain installations
+**Example:**
+```typescript
+// Source: https://github.com/sindresorhus/conf
+import Conf from 'conf';
+import { z } from 'zod';
+
+interface DuckBrainConfig {
+  namespaces: Record<string, string>; // name -> path/git-url
+  defaultNamespace: string;
+  git: {
+    commitLines: number;
+    commitInterval: number;
+  };
+  http: {
+    port: number;
+    host: string;
+    corsOrigins: string[];
+  };
+  ssh: {
+    enabled: boolean;
+    command: string;
+  };
+}
+
+const configSchema = z.object({
+  namespaces: z.record(z.string()),
+  defaultNamespace: z.string().default('personal'),
+  git: z.object({
+    commitLines: z.number().default(50),
+    commitInterval: z.number().default(30)
+  }),
+  http: z.object({
+    port: z.number().default(3000),
+    host: z.string().default('0.0.0.0'),
+    corsOrigins: z.array(z.string()).default([])
+  }),
+  ssh: z.object({
+    enabled: z.boolean().default(true),
+    command: z.string().default('duckbrain stdio')
+  })
+});
+
+const config = new Conf<DuckBrainConfig>({
+  projectName: 'duckbrain',
+  schema: configSchema,
+  defaults: {
+    namespaces: {
+      personal: '~/.duckbrain/memory-personal'
+    },
+    defaultNamespace: 'personal'
+  }
+});
+
+// Usage:
+const namespaces = config.get('namespaces');
+const defaultNs = config.get('defaultNamespace');
+const gitConfig = config.get('git');
+```
+
+### Pattern 6: Async Git Write Queue
 **What:** Single-threaded git commit queue to avoid index.lock collisions
 **When to use:** Concurrent write scenarios
 **Example:**
@@ -463,6 +626,37 @@ import { McpServer } from '@modelcontextprotocol/server/mcp.js';
 import { z } from 'zod';
 
 const server = new McpServer({ name: 'duckbrain', version: '1.0.0' });
+
+// list_keys() with glob, regex, pagination
+server.registerTool(
+  'list_keys',
+  {
+    title: 'List Memory Keys',
+    description: 'Explore hierarchical memory structure with glob/regex filters',
+    inputSchema: {
+      prefix: z.string().default('/').describe('Prefix or glob pattern (e.g., /projects/*/schema)'),
+      domain: z.enum(['person', 'event', 'concept', 'message', 'config', 'raw_note']).optional(),
+      regex: z.string().optional().describe('Regex filter for advanced matching'),
+      depth: z.number().min(1).max(10).default(5).describe('Max depth to traverse'),
+      page: z.number().min(1).default(1),
+      limit: z.number().min(1).max(100).default(50),
+      namespace: z.string().optional().describe('Target namespace (default: configured default)')
+    },
+    outputSchema: {
+      keys: z.array(z.string()),
+      pagination: z.object({
+        page: z.number(),
+        total: z.number(),
+        hasMore: z.boolean()
+      })
+    }
+  },
+  async ({ prefix, domain, regex, depth, page, limit, namespace }) => {
+    // Implementation uses DuckDB with glob/regex filters
+    // SELECT DISTINCT key FROM read_json_auto(...) WHERE key LIKE ? OR key ~ ?
+    return { keys: [], pagination: { page: 1, total: 0, hasMore: false } };
+  }
+);
 
 server.registerTool(
   'recall',

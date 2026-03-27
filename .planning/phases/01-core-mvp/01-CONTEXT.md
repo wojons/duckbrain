@@ -15,7 +15,7 @@ Working MCP server with basic `remember()`/`recall()`/`list_keys()`/`forget()` t
 
 ### Storage Structure
 - **D-01:** Three-level hierarchy: `namespace/domain/partition/` — enables clean separation for multi-repo and domain-based organization
-- **D-02:** Partitions are time-based by default (e.g., `2026-03/`, `2026-W14/`) — bounds file sizes, enables natural pruning
+- **D-02:** Support both time-based AND key-based partitioning — time-based by default (e.g., `2026-03/`, `2026-W14/`), key-based for categorical grouping (e.g., `projects/`, `contacts/`)
 - **D-03:** Files chunked within partition folders — prevents massive files that are hard to parse, size-based splits when files exceed threshold
 - **D-04:** Manifest file (`manifest.json`) tracks active partition paths — lightweight index for efficient DuckDB glob queries
 
@@ -49,6 +49,19 @@ Working MCP server with basic `remember()`/`recall()`/`list_keys()`/`forget()` t
 ### CLI & Remote Access
 - **D-22:** SSH tunneling support — transparent remote access without opening ports (`ssh user@host "duckbrain stdio"` pipes local stdin/stdout)
 - **D-23:** Dual interface: stdio MCP (local Claude) + HTTP MCP (remote hosting) + CLI (human operators)
+
+### Configuration System
+- **D-24:** Config file (`~/.duckbrain/config.json`) — namespaces, git thresholds, HTTP/SSH settings, default namespace
+- **D-25:** MCP server accepts `--namespaces` flag — loads multiple namespaces, routes per-tool requests
+- **D-26:** Opencode skill provided — teaches CLI usage, connection setup, troubleshooting
+
+### HTTP API (Multi-User Ready)
+- **D-27:** HTTP endpoints beyond MCP: `/health`, `/stats`, `/namespaces`, `/users`, `/activity` — admin & monitoring
+- **D-28:** Web UI prep endpoints: `/api/tree` (memory tree), `/api/timeline` (chronological feed), `/api/search` (filtered search)
+- **D-29:** Git worktrees per user/session — isolates branches in HTTP mode for multi-agent hosting
+
+### list_keys() Enhanced
+- **D-30:** Supports glob patterns (`/projects/*/schema`), regex filters (`^/projects/[^/]+/schema$`), pagination (page, limit, hasMore)
 
 ### the agent's Discretion
 - Exact chunk size thresholds within partitions
