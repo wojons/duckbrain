@@ -8,15 +8,15 @@
 ### Core Tools
 
 - [ ] **CORE-01**: `remember()` — Appends memory to JSONL, batches git commits by lines/time
-- [ ] **CORE-02**: `recall()` — DuckDB queries with semantic search (vss), path globs, exact key lookup
-- [ ] **CORE-03**: `list_keys()` — Hierarchical key explorer with pagination and depth limits
+- [x] **CORE-02**: `recall()` — DuckDB queries with semantic search (vss), path globs, exact key lookup
+- [x] **CORE-03**: `list_keys()` — Hierarchical key explorer with pagination and depth limits
 - [ ] **CORE-04**: `forget()` — Appends tombstone records (never deletes)
 
 ### Schema
 
 - [x] **SCHEMA-01**: Hybrid schema — Strict base (id, key, domain, timestamp, author, action, embedding_text) + flexible attributes JSON
 - [x] **SCHEMA-02**: Hierarchical key field — Filesystem-style paths (`/projects/mcp/schema`) for glob queries and partitioning
-- [ ] **SCHEMA-03**: Zod validation — Enforce schemas on all MCP tool inputs
+- [x] **SCHEMA-03**: Zod validation — Enforce schemas on all MCP tool inputs
 
 ### Storage
 
@@ -70,12 +70,12 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CORE-01 | Phase 1 | Pending |
-| CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
+| CORE-02 | Phase 1 | **Complete** |
+| CORE-03 | Phase 1 | **Complete** |
 | CORE-04 | Phase 1 | Pending |
 | SCHEMA-01 | Phase 1 | **Complete** |
 | SCHEMA-02 | Phase 1 | **Complete** |
-| SCHEMA-03 | Phase 1 | Pending |
+| SCHEMA-03 | Phase 1 | **Complete** |
 | STORAGE-01 | Phase 1 | **Complete** |
 | STORAGE-02 | Phase 1 | **Complete** |
 | STORAGE-03 | Phase 1 | Pending |
