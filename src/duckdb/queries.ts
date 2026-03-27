@@ -82,19 +82,30 @@ export function queryMemories(
   `;
 
   try {
-    const result = db.all(sql, ...params);
-    return result.map(row => ({
-      id: row.id,
-      key: row.key,
-      domain: row.domain,
-      timestamp: row.timestamp,
-      author: row.author,
-      action: row.action,
-      embedding_text: row.embedding_text,
-      attributes: typeof row.attributes === 'string' 
-        ? JSON.parse(row.attributes) 
-        : row.attributes
-    }));
+    // Use connection for async query with callback
+    const conn = db.connect();
+    let queryResult: MemoryType[] = [];
+    
+    conn.all(sql, ...params, (err, result) => {
+      if (err) {
+        console.error('DuckDB query error:', err);
+        return;
+      }
+      queryResult = (result as any[]).map(row => ({
+        id: row.id,
+        key: row.key,
+        domain: row.domain,
+        timestamp: row.timestamp,
+        author: row.author,
+        action: row.action,
+        embedding_text: row.embedding_text,
+        attributes: typeof row.attributes === 'string' 
+          ? JSON.parse(row.attributes) 
+          : row.attributes
+      }));
+    });
+    
+    return queryResult;
   } catch (error) {
     console.error('DuckDB query error:', error);
     return [];
@@ -110,6 +121,16 @@ export function queryMemories(
  */
 export function insertMemory(
   db: Database,
+  memory: MemoryType,
+  partitionPath: string
+): void {
+  insertMemoryToPartition(memory, partitionPath);
+}
+
+/**
+ * Insert memory to partition (shared utility)
+ */
+function insertMemoryToPartition(
   memory: MemoryType,
   partitionPath: string
 ): void {
@@ -142,6 +163,58 @@ export function insertMemory(
   // Append memory as JSON line
   const line = JSON.stringify(memory) + '\n';
   fs.appendFileSync(chunkPath, line, 'utf-8');
+}
+
+/**
+ * Create tombstone record for a memory
+ *
+ * Appends a tombstone record with the same ID as the original memory.
+ * Never deletes files - preserves git history.
+ *
+ * @param db - DuckDB database instance
+ * @param memoryId - ID of memory to tombstone
+ * @param partitionPath - Partition path to search and append to
+ * @param reason - Optional reason for deletion (stored in attributes)
+ */
+export function tombstoneMemory(
+  db: Database,
+  memoryId: string,
+  partitionPath: string,
+  reason?: string
+): void {
+  // Find the original memory in the partition
+  const memories = queryMemories(db, [partitionPath]);
+  const originalMemory = memories.find(m => m.id === memoryId);
+
+  if (!originalMemory) {
+    // Memory not found - create tombstone anyway with minimal data
+    // This handles cases where the memory might be in a different partition
+    const tombstone: MemoryType = {
+      id: memoryId,
+      key: '/unknown',
+      domain: 'raw_note',
+      timestamp: new Date().toISOString(),
+      author: 'system',
+      action: 'tombstone',
+      embedding_text: '',
+      attributes: reason ? { tombstone_reason: reason } : {}
+    };
+    insertMemoryToPartition(tombstone, partitionPath);
+    return;
+  }
+
+  // Create tombstone record copying all fields from original
+  const tombstone: MemoryType = {
+    ...originalMemory,
+    action: 'tombstone',
+    timestamp: new Date().toISOString(),
+    attributes: {
+      ...originalMemory.attributes,
+      ...(reason ? { tombstone_reason: reason } : {})
+    }
+  };
+
+  insertMemoryToPartition(tombstone, partitionPath);
 }
 
 /**
