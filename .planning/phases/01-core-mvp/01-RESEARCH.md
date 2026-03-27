@@ -116,6 +116,27 @@ npm view simple-git version  # Should return 3.33.0
 
 ## Architecture Patterns
 
+### CRITICAL: DuckDB Usage Pattern for DuckBrain
+
+**DuckDB is embedded-only** — it has no server mode (unlike PostgreSQL/MySQL). For DuckBrain, we use:
+
+```typescript
+// ✅ CORRECT: In-memory DuckDB + direct file queries
+const db = new duckdb.Database(':memory:');
+db.all(`SELECT * FROM read_json_auto('memory/**/*.jsonl')`, callback);
+
+// ❌ WRONG: Persistent mode creates binary .duckdb file
+const db = new duckdb.Database('my_data.duckdb'); // DON'T DO THIS
+```
+
+**Why in-memory + direct queries:**
+1. **Git-compatible** — No binary file that changes on every write
+2. **Zero data loss** — Data lives in JSONL files, DuckDB is stateless lens
+3. **Always synced** — Sees new lines immediately, no import step needed
+4. **Crash-safe** — Server crash doesn't corrupt database file
+
+**This is non-negotiable** — persistent mode breaks the Git-backed architecture.
+
 ### Recommended Project Structure
 ```
 src/
@@ -189,15 +210,23 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 ```
 
-### Pattern 2: DuckDB with VSS Extension
-**What:** Embedded DuckDB with vector similarity search extension
-**When to use:** Semantic search, vector queries
+### Pattern 2: DuckDB with VSS Extension (In-Memory + Direct File Queries)
+**What:** Embedded DuckDB in in-memory mode, querying JSONL files directly (NO persistent .duckdb file)
+**When to use:** ALL DuckBrain queries — this is the core architecture
+**Critical:** DuckDB is embedded-only (no server mode). We use `:memory:` database + `read_json_auto()` to query Git-tracked files directly.
+
+**Why this way:**
+- **Stateless:** Crash = zero data loss (JSONL files hold data, not DuckDB)
+- **Always in sync:** Instantly sees new lines appended by ingestion worker
+- **Git-friendly:** No binary .duckdb file to track
+
 **Example:**
 ```typescript
 // Source: https://duckdb.org/docs/stable/core_extensions/vss.html
+// DuckBrain Pattern: In-memory DuckDB querying Git-tracked JSONL files
 import duckdb from 'duckdb';
 
-const db = new duckdb.Database(':memory:');
+const db = new duckdb.Database(':memory:'); // NO .duckdb file created!
 
 // Load vss extension
 db.run('INSTALL vss;', (err) => {
@@ -205,21 +234,34 @@ db.run('INSTALL vss;', (err) => {
   db.run('LOAD vss;', (err) => {
     if (err) throw err;
     
-    // Create table with vector column
+    // Query JSONL files DIRECTLY - no import needed!
+    // DuckDB reads the Git-tracked files at query time
+    db.all(`
+      SELECT id, key, domain, attributes, timestamp
+      FROM read_json_auto('memory/person/**/*.jsonl', format = 'json_lines')
+      WHERE key LIKE '/contacts/%'
+      AND action != 'tombstone'
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `, (err, results) => {
+      if (err) throw err;
+      console.log("Memories from Git-tracked JSONL:", results);
+    });
+    
+    // For vector search, first load embeddings into temp table
     db.run(`
-      CREATE TABLE memories (
-        id VARCHAR,
-        key VARCHAR,
-        domain VARCHAR,
-        embedding FLOAT[384]
-      )
+      CREATE TEMP TABLE memories_with_vectors AS
+      SELECT id, key, domain, attributes, timestamp,
+             json_extract(attributes, '$.embedding')::FLOAT[384] AS embedding
+      FROM read_json_auto('memory/concept/**/*.jsonl', format = 'json_lines')
+      WHERE attributes->>'embedding' IS NOT NULL
     `, (err) => {
       if (err) throw err;
       
-      // Create HNSW index for vector search
+      // Create HNSW index for fast vector search
       db.run(`
         CREATE INDEX idx_embedding 
-        ON memories 
+        ON memories_with_vectors 
         USING HNSW (embedding) 
         WITH (metric = 'cosine')
       `, (err) => {
@@ -227,12 +269,12 @@ db.run('INSTALL vss;', (err) => {
         
         // Query with vector similarity
         db.all(`
-          SELECT * FROM memories
+          SELECT * FROM memories_with_vectors
           ORDER BY array_cosine_distance(embedding, ?::FLOAT[384])
           LIMIT 10
         `, [queryEmbedding], (err, results) => {
           if (err) throw err;
-          console.log(results);
+          console.log("Semantic search results:", results);
         });
       });
     });
