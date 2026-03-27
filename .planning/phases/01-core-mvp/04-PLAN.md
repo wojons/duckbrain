@@ -17,6 +17,9 @@ must_haves:
     - path: "src/cli/stdio.ts"
       provides: "Stdio MCP entry point"
       exports: ["startStdioMode"]
+    - path: "src/cli/http.ts"
+      provides: "HTTP MCP server with multi-user endpoints"
+      exports: ["startHttpMode", "createHttpServer"]
     - path: "src/cli/human.ts"
       provides: "Human operator CLI commands"
       exports: ["runHumanCLI"]
@@ -125,38 +128,91 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetResponse>;
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: Create human operator CLI commands</name>
+  <name>Task 2: Create HTTP MCP server with multi-user endpoints</name>
+  <files>src/cli/http.ts</files>
+  <action>
+    Create HTTP server per D-27 (admin endpoints), D-28 (Web UI prep), D-29 (git worktrees):
+    
+    Functions:
+    - startHttpMode(options: { port?: number, host?: string }): Promise<void>
+      Starts Express server with MCP transport + admin endpoints
+    
+    - createHttpServer(namespaces: Namespace[]): Express
+      Creates Express app with all routes
+    
+    Endpoints to implement:
+    1. MCP transport: POST /mcp, GET /mcp (Streamable HTTP)
+    2. Health: GET /health - status, uptime, loaded namespaces, memory usage
+    3. Stats: GET /stats - memory counts, namespace sizes, git status
+    4. Namespaces: GET /namespaces - list loaded namespaces
+    5. Users: GET /users - list unique authors (git emails from memories)
+    6. Activity: GET /activity?limit=50 - recent writes/commits
+    7. Web UI prep:
+       - GET /api/tree - hierarchical memory tree from keys
+       - GET /api/timeline - chronological feed with filters
+       - GET /api/search - search with domain/key/regex filters
+    
+    Include DNS rebinding protection middleware (required for remote hosting).
+    Support git worktrees for multi-agent isolation (per-branch checkout).
+    
+    Reference: RESEARCH.md "Pattern 4: HTTP Server with Multi-User Support"
+  </action>
+  <verify>
+    <automated>curl http://localhost:3000/health | jq '.status'</automated>
+    <automated>curl http://localhost:3000/stats | jq 'keys'</automated>
+  </verify>
+  <done>HTTP server running with all endpoints, health check returns "healthy"</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task 3: Create human CLI commands</name>
   <files>src/cli/human.ts</files>
   <action>
-    Create human-readable CLI per CLI-02 (CLI commands for human operators):
+    Create human-readable CLI per CLI-02 (CLI commands for human operators), D-24 (config system), D-25 (namespace flag), D-30 (list_keys with glob/regex):
     
     Commands to implement:
     
-    1. `duckbrain remember <key> --domain=<domain> --attr=<json>`
+    1. `duckbrain remember <key> --domain=<domain> --attr=<json> [--namespace=<name>]`
        - Parses key, domain, attributes from CLI args
        - Calls rememberTool() internally
        - Outputs human-readable result: "✓ Remembered {key} (ID: {id})"
     
     2. `duckbrain recall [options]`
-       - Options: --key=, --prefix=, --domain=, --query=, --limit=
+       - Options: --key=, --prefix=, --domain=, --query=, --limit=, --namespace=
        - Calls recallTool() internally
        - Outputs formatted memories (pretty-printed JSON or table)
     
     3. `duckbrain list-keys [options]`
-       - Options: --prefix=, --depth=, --limit=
-       - Calls listKeysTool() internally
-       - Outputs key tree structure
+       - Options: --prefix=, --regex=, --depth=, --limit=, --page=, --namespace=
+       - Calls listKeysTool() internally with glob/regex support
+       - Outputs key tree structure with pagination info
     
-    4. `duckbrain forget <id> [--reason=<reason>]`
+    4. `duckbrain forget <id> [--reason=<reason>] [--namespace=<name>]`
        - Calls forgetTool() internally
        - Outputs: "✓ Forgotten {id}"
     
-    5. `duckbrain status`
-       - Shows: namespace path, manifest stats (partition count), git status
+    5. `duckbrain config show`
+       - Shows full config from ~/.duckbrain/config.json
+    
+    6. `duckbrain config set <key> <value>`
+       - Updates config value
+    
+    7. `duckbrain namespaces list`
+       - Lists configured namespaces from config
+    
+    8. `duckbrain namespaces add <name> <path-or-git-url>`
+       - Adds new namespace to config
+    
+    9. `duckbrain status [--namespace=<name>]`
+       - Shows: namespace path, manifest stats, git status, memory count
+    
+    10. `duckbrain ssh-test --host=<user@server>`
+        - Tests SSH tunnel setup, shows command to run
     
     Implementation:
-    - Use commander.js or minimal arg parsing (no external dependency needed for simple parsing)
+    - Use commander.js or minimal arg parsing
     - Each command: parse args → call tool function → format output
+    - Support --namespace flag on all memory commands for multi-namespace operation
     - Namespace selection: --namespace flag (default: 'default')
     - Error messages: human-friendly, not stack traces
     
@@ -236,7 +292,40 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetResponse>;
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 4: Configure package.json bin entry</name>
+  <name>Task 4: Create Opencode skill for CLI usage</name>
+  <files>.opencode/agents/duckbrain-cli.md</files>
+  <action>
+    Create Opencode skill per D-26 (Opencode skill provided — teaches CLI usage):
+    
+    Skill should include:
+    1. Installation instructions (npm install -g duckbrain)
+    2. Initial setup (duckbrain config init, first namespace)
+    3. Connection modes:
+       - stdio: Claude Desktop config snippet
+       - HTTP: curl examples, browser access
+       - SSH: ssh tunnel command, Claude Desktop config
+       - CLI: direct terminal usage
+    4. Command examples:
+       - duckbrain remember /projects/myproj "Memory text" --domain=concept
+       - duckbrain recall --query "MCP protocol" --limit=5
+       - duckbrain list-keys --prefix="/projects/*" --regex="^/projects/[^/]+/schema$"
+       - duckbrain namespaces add team git@github.com:team/memory.git
+    5. Troubleshooting:
+       - Connection refused (HTTP/SSH)
+       - Namespace not found
+       - Git auth errors
+    6. Config file location and format
+    
+    Format: Markdown with clear sections, code examples, troubleshooting flowchart.
+  </action>
+  <verify>
+    <manual>Review skill for completeness</manual>
+  </verify>
+  <done>Opencode skill published, users can learn CLI usage</done>
+</task>
+
+<task type="auto" tdd="true">
+  <name>Task 5: Configure package.json bin entry</name>
   <files>package.json</files>
   <action>
     Add bin configuration to package.json:
@@ -245,36 +334,18 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetResponse>;
     {
       "bin": {
         "duckbrain": "./bin/duckbrain"
-      },
-      "files": [
-        "bin/",
-        "src/"
-      ]
+      }
     }
     ```
     
-    After bun install, this creates symlink: node_modules/.bin/duckbrain → bin/duckbrain
+    Make bin/duckbrain executable: chmod +x bin/duckbrain
     
-    Test installation:
-    ```bash
-    bun link
-    duckbrain help
-    ```
-    
-    Or run directly:
-    ```bash
-    ./bin/duckbrain help
-    ```
-    
-    Verify:
-    - bin/duckbrain has shebang (#!/usr/bin/env node)
-    - bin/duckbrain is executable (chmod +x)
-    - package.json bin field points to correct path
+    Test: npm link && duckbrain --help
   </action>
   <verify>
-    <automated>test -x bin/duckbrain && echo "✓ Executable" || echo "✗ Not executable"</automated>
+    <automated>npm link && duckbrain --help</automated>
   </verify>
-  <done>package.json bin configured, CLI accessible via ./bin/duckbrain or bun link</done>
+  <done>Global duckbrain command works</done>
 </task>
 
 </tasks>
