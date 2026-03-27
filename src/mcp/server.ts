@@ -9,6 +9,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { recallTool, recallToolMetadata } from './tools/recall';
 import { listKeysTool, listKeysToolMetadata } from './tools/list_keys';
+import { rememberToolDef } from './tools/remember';
+import { forgetToolDef } from './tools/forget';
 import path from 'path';
 import fs from 'fs';
 
@@ -21,32 +23,9 @@ export const server = new McpServer({
 });
 
 /**
- * Remember tool stub - to be implemented in Plan 02
- */
-async function rememberTool(input: unknown) {
-  return {
-    success: false,
-    error: 'remember() tool not yet implemented - coming in Plan 02'
-  };
-}
-
-/**
- * Forget tool stub - to be implemented in Plan 04
- */
-async function forgetTool(input: unknown) {
-  return {
-    success: false,
-    error: 'forget() tool not yet implemented - coming in Plan 04'
-  };
-}
-
-// listKeysTool imported from ./tools/list_keys
-
-/**
  * Register all tools with the MCP server
  */
 function registerTools(): void {
-  // Register recall tool
   server.registerTool(recallToolMetadata.name, {
     title: recallToolMetadata.title,
     description: recallToolMetadata.description,
@@ -54,15 +33,13 @@ function registerTools(): void {
     handler: recallTool
   });
 
-  // Register remember tool (stub)
-  server.registerTool('remember', {
-    title: 'Remember',
-    description: 'Store a new memory',
-    inputSchema: {},
-    handler: rememberTool
+  server.registerTool(rememberToolDef.name, {
+    title: rememberToolDef.title,
+    description: rememberToolDef.description,
+    inputSchema: rememberToolDef.inputSchema,
+    handler: rememberToolDef.handler
   });
 
-  // Register list_keys tool
   server.registerTool(listKeysToolMetadata.name, {
     title: listKeysToolMetadata.title,
     description: listKeysToolMetadata.description,
@@ -70,12 +47,11 @@ function registerTools(): void {
     handler: listKeysTool
   });
 
-  // Register forget tool (stub)
-  server.registerTool('forget', {
-    title: 'Forget',
-    description: 'Soft-delete a memory by appending tombstone',
-    inputSchema: {},
-    handler: forgetTool
+  server.registerTool(forgetToolDef.name, {
+    title: forgetToolDef.title,
+    description: forgetToolDef.description,
+    inputSchema: forgetToolDef.inputSchema,
+    handler: forgetToolDef.handler
   });
 }
 
