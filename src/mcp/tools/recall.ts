@@ -151,7 +151,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     }
 
     // Execute query
-    const memories = queryMemories(db, partitionPaths, filters);
+    const memories = await queryMemories(db, partitionPaths, filters);
 
     return {
       memories,

@@ -23,21 +23,22 @@ const MAX_LINES_PER_CHUNK = 1000;
 const MAX_BYTES_PER_CHUNK = 1024 * 1024;
 
 /**
- * Get partition directory path based on namespace, domain, and partition value
+ * Get partition directory path based on domain and partition value
+ * (namespace path is resolved separately)
  *
- * @param namespace - Namespace folder (e.g., 'default', user email)
+ * @param namespace - Namespace folder (unused, kept for API compatibility)
  * @param domain - Memory domain (person, event, concept, etc.)
  * @param partitionType - 'time' or 'key' based partitioning
  * @param partitionValue - Time period (YYYY-MM) or key prefix
- * @returns Full partition path: namespace/domain/partitionValue/
+ * @returns Relative partition path: domain/partitionValue/
  *
  * @example
  * getPartitionPath('default', 'person', 'time', '2026-03')
- * // Returns: 'default/person/2026-03/'
+ * // Returns: 'person/2026-03/'
  *
  * @example
  * getPartitionPath('default', 'event', 'key', 'projects/mcp')
- * // Returns: 'default/event/projects/mcp/'
+ * // Returns: 'event/projects/mcp/'
  */
 export function getPartitionPath(
   namespace: string,
@@ -46,12 +47,11 @@ export function getPartitionPath(
   partitionValue: string
 ): string {
   // Sanitize inputs to prevent path traversal
-  const safeNamespace = namespace.replace(/[^a-zA-Z0-9._-]/g, '_');
   const safeDomain = domain.replace(/[^a-zA-Z0-9_]/g, '_');
   // Allow slashes in partition value for key-based partitioning
   const safePartition = partitionValue.replace(/[^a-zA-Z0-9._/-]/g, '_');
 
-  return path.join(safeNamespace, safeDomain, safePartition) + path.sep;
+  return path.join(safeDomain, safePartition) + path.sep;
 }
 
 /**

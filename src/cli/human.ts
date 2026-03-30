@@ -85,6 +85,7 @@ async function rememberCommand(args: string[]): Promise<void> {
   const key = positional[0];
   const domain = flags.domain || 'general';
   const namespace = flags.namespace || 'default';
+  const embeddingText = flags['embedding-text'] || key;
   let attributes = {};
   
   if (flags.attr) {
@@ -101,6 +102,7 @@ async function rememberCommand(args: string[]): Promise<void> {
       key,
       domain,
       attributes,
+      embedding_text: embeddingText,
       namespace
     });
     

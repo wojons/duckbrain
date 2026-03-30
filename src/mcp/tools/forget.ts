@@ -114,7 +114,7 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     const db = getDuckDBConnection('singleton', namespacePath);
 
     // Find memory by ID across all partitions
-    const memories = queryMemories(db, partitionPaths);
+    const memories = await queryMemories(db, partitionPaths);
     const originalMemory = memories.find(m => m.id === id);
 
     if (!originalMemory) {
@@ -130,7 +130,7 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     const partitionPath = path.join(namespacePath, partitionRelPath);
 
     // Create tombstone record
-    tombstoneMemory(db, id, partitionPath, reason);
+    await tombstoneMemory(db, id, partitionPath, reason);
 
     return {
       success: true,

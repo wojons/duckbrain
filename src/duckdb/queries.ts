@@ -30,7 +30,7 @@ export function queryMemories(
     embedding?: number[];
     limit?: number;
   }
-): MemoryType[] {
+): MemoryType[] | Promise<MemoryType[]> {
   if (partitionPaths.length === 0) {
     return [];
   }
@@ -75,41 +75,41 @@ export function queryMemories(
 
   const sql = `
     SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
-    FROM read_json_auto('${globPattern}', format='json_lines', hive_partitioning=0)
+    FROM read_json_auto('${globPattern}', format='newline_delimited', hive_partitioning=0)
     ${whereClause}
     ${orderByClause}
     ${limitClause}
   `;
 
-  try {
-    // Use connection for async query with callback
-    const conn = db.connect();
-    let queryResult: MemoryType[] = [];
-    
-    conn.all(sql, ...params, (err, result) => {
-      if (err) {
-        console.error('DuckDB query error:', err);
-        return;
-      }
-      queryResult = (result as any[]).map(row => ({
-        id: row.id,
-        key: row.key,
-        domain: row.domain,
-        timestamp: row.timestamp,
-        author: row.author,
-        action: row.action,
-        embedding_text: row.embedding_text,
-        attributes: typeof row.attributes === 'string' 
-          ? JSON.parse(row.attributes) 
-          : row.attributes
-      }));
-    });
-    
-    return queryResult;
-  } catch (error) {
-    console.error('DuckDB query error:', error);
-    return [];
-  }
+  // Use prepared statement with callback (DuckDB Node.js is async-only for queries)
+  return new Promise((resolve) => {
+    try {
+      const stmt = db.prepare(sql);
+      stmt.all(...params, (err, result) => {
+        if (err) {
+          console.error('DuckDB query error:', err);
+          resolve([]);
+          return;
+        }
+        
+        resolve((result as any[]).map(row => ({
+          id: row.id,
+          key: row.key,
+          domain: row.domain,
+          timestamp: row.timestamp,
+          author: row.author,
+          action: row.action,
+          embedding_text: row.embedding_text,
+          attributes: typeof row.attributes === 'string' 
+            ? JSON.parse(row.attributes) 
+            : row.attributes
+        })));
+      });
+    } catch (error) {
+      console.error('DuckDB query error:', error);
+      resolve([]);
+    }
+  });
 }
 
 /**
@@ -176,14 +176,14 @@ function insertMemoryToPartition(
  * @param partitionPath - Partition path to search and append to
  * @param reason - Optional reason for deletion (stored in attributes)
  */
-export function tombstoneMemory(
+export async function tombstoneMemory(
   db: Database,
   memoryId: string,
   partitionPath: string,
   reason?: string
-): void {
+): Promise<void> {
   // Find the original memory in the partition
-  const memories = queryMemories(db, [partitionPath]);
+  const memories = await queryMemories(db, [partitionPath]);
   const originalMemory = memories.find(m => m.id === memoryId);
 
   if (!originalMemory) {
