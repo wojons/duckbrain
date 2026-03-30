@@ -128,7 +128,7 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
     // Query distinct keys matching prefix, excluding tombstones
     const sql = `
       SELECT DISTINCT key
-      FROM read_json_auto('${partitionPaths}', format='json_lines', hive_partitioning=0)
+      FROM read_json_auto('${partitionPaths}', format='newline_delimited', hive_partitioning=0)
       WHERE key LIKE ? || '%' AND action != 'tombstone'
       ORDER BY key
       LIMIT ? OFFSET ?
@@ -138,7 +138,13 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       ? validated.prefix.slice(0, -1) 
       : validated.prefix;
     
-    const results = db.all(sql, prefix, validated.limit + 1, validated.offset);
+    const results = await new Promise<any[]>((resolve, reject) => {
+      const stmt = db.prepare(sql);
+      stmt.all(prefix, validated.limit + 1, validated.offset, (err, res) => {
+        if (err) reject(err);
+        else resolve(res || []);
+      });
+    });
     
     // Check if there are more results
     const hasMore = results.length > validated.limit;
