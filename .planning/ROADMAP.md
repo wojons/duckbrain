@@ -8,7 +8,7 @@
 |------|-------------|--------|---------|
 | 01 | Memory Schema & Storage | ✅ Complete | 5 commits |
 | 02 | 3/2 | Complete    | 2026-03-31 |
-| 03 | MCP Server & Tools | ✅ Complete | 1 commit |
+| 03 | 2/3 | In Progress|  |
 | 04 | CLI Entry Points | ✅ Complete | 6 commits |
 
 **Success Criteria:**
