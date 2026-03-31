@@ -19,7 +19,9 @@ import { recallTool } from '../mcp/tools/recall';
 import { listKeysTool } from '../mcp/tools/list_keys';
 import { rememberTool } from '../mcp/tools/remember';
 import { forgetTool } from '../mcp/tools/forget';
+import { squashTool, getCompactionStatsTool } from '../mcp/tools/squash';
 import { getConfig, setConfig } from '../config/index';
+import { getGitWorker } from '../git/worker';
 
 /**
  * Parse command-line arguments
@@ -78,7 +80,7 @@ async function rememberCommand(args: string[]): Promise<void> {
   const { positional, flags } = parseArgs(args);
   
   if (positional.length < 1) {
-    console.error('Usage: duckbrain remember <key> --domain=<domain> [--attr=<json>] [--namespace=<name>]');
+    console.error('Usage: duckbrain remember <key> --domain=<domain> [--attr=<json>] [--namespace=<name>] [--wait]');
     process.exit(1);
   }
   
@@ -86,6 +88,7 @@ async function rememberCommand(args: string[]): Promise<void> {
   const domain = flags.domain || 'general';
   const namespace = flags.namespace || 'default';
   const embeddingText = flags['embedding-text'] || key;
+  const waitForCommit = flags.wait !== undefined;
   let attributes = {};
   
   if (flags.attr) {
@@ -100,14 +103,18 @@ async function rememberCommand(args: string[]): Promise<void> {
   try {
     const result = await rememberTool({
       key,
-      domain,
+      domain: domain as 'message' | 'person' | 'event' | 'concept' | 'config' | 'raw_note',
       attributes,
       embedding_text: embeddingText,
       namespace
-    });
+    }, waitForCommit);
     
     if (result.success) {
-      console.log(`✓ Remembered ${key} (ID: ${result.id})`);
+      if (waitForCommit) {
+        console.log(`✓ Remembered ${key} (ID: ${result.id}) - committed`);
+      } else {
+        console.log(`✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`);
+      }
     } else {
       console.error('✗ Failed to remember:', result.error);
       process.exit(1);
@@ -191,7 +198,7 @@ async function listKeysCommand(args: string[]): Promise<void> {
     const result = await listKeysTool(input);
     
     if (result.keys) {
-      console.log(`Keys (${result.total || result.keys.length} total):`);
+      console.log(`Keys (${result.keys.length} total):`);
       console.log(formatKeyTree(result.keys, input.depth || 2));
       
       if (result.hasMore) {
@@ -221,7 +228,7 @@ async function forgetCommand(args: string[]): Promise<void> {
   const reason = flags.reason || 'User requested';
   
   try {
-    const result = await forgetTool({ id, reason });
+    const result = await forgetTool({ id, namespace: 'default', reason });
     
     if (result.success) {
       console.log(`✓ Forgotten ${id}`);
@@ -239,18 +246,18 @@ async function forgetCommand(args: string[]): Promise<void> {
  * Config command
  */
 async function configCommand(args: string[]): Promise<void> {
-  const { positional } = parseArgs(args);
+  const { positional, flags } = parseArgs(args);
   const subcommand = positional[0];
   
   if (!subcommand) {
-    console.error('Usage: duckbrain config <show|set> [key] [value]');
+    console.error('Usage: duckbrain config <show|set>');
     process.exit(1);
   }
   
   if (subcommand === 'show') {
     try {
-      const config = await getConfig();
-      console.log('Current configuration:');
+      const config = getConfig();
+      console.log('DuckBrain Configuration:');
       console.log(JSON.stringify(config, null, 2));
     } catch (error) {
       console.error('Error reading config:', error instanceof Error ? error.message : error);
@@ -260,17 +267,30 @@ async function configCommand(args: string[]): Promise<void> {
     const key = positional[1];
     const value = positional[2];
     
-    if (!key || !value) {
+    if (!key || value === undefined) {
       console.error('Usage: duckbrain config set <key> <value>');
       process.exit(1);
     }
     
-    try {
-      await setConfig(key as any, value);
-      console.log(`✓ Set ${key} = ${value}`);
-    } catch (error) {
-      console.error('Error setting config:', error instanceof Error ? error.message : error);
-      process.exit(1);
+    // Handle nested keys like git.batchLines
+    if (key === 'git.batchLines') {
+      const config = getConfig();
+      config.gitBatching.maxLines = parseInt(value, 10);
+      setConfig('gitBatching', config.gitBatching);
+      console.log(`✓ Config git.batchLines set to ${value}`);
+    } else if (key === 'git.batchIntervalMs') {
+      const config = getConfig();
+      config.gitBatching.maxSeconds = Math.floor(parseInt(value, 10) / 1000);
+      setConfig('gitBatching', config.gitBatching);
+      console.log(`✓ Config git.batchIntervalMs set to ${value}`);
+    } else if (key === 'git.batching.enabled') {
+      const config = getConfig();
+      config.gitBatching.enabled = value === 'true';
+      setConfig('gitBatching', config.gitBatching);
+      console.log(`✓ Config git.batching.enabled set to ${value}`);
+    } else {
+      setConfig(key as any, value);
+      console.log(`✓ Config ${key} set to ${value}`);
     }
   } else {
     console.error(`Unknown config subcommand: ${subcommand}`);
@@ -292,8 +312,8 @@ async function namespacesCommand(args: string[]): Promise<void> {
   
   if (subcommand === 'list') {
     try {
-      const config = await getConfig();
-      const namespaces = config.namespaces || { default: './memory/default' };
+      const config = getConfig();
+      const namespaces = config.namespaceMappings || { default: './memory/default' };
       
       console.log('Configured namespaces:');
       for (const [name, path] of Object.entries(namespaces)) {
@@ -327,8 +347,8 @@ async function statusCommand(args: string[]): Promise<void> {
   const namespace = flags.namespace || 'default';
   
   try {
-    const config = await getConfig();
-    const nsPath = config.namespaces?.[namespace] || './memory/default';
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace] || './memory/default';
     
     console.log(`DuckBrain Status`);
     console.log(`================`);
@@ -372,38 +392,156 @@ async function sshTestCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * Squash command
+ */
+async function squashCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+
+  const input: any = {
+    dryRun: flags['dry-run'] || false,
+    aggressive: flags.aggressive || false
+  };
+
+  if (flags.partition) {
+    input.partition = flags.partition;
+  }
+
+  // Handle --stats flag separately
+  if (flags.stats) {
+    try {
+      const result = await getCompactionStatsTool({});
+
+      if (result.success && result.stats) {
+        const stats = result.stats;
+        console.log('DuckBrain Compaction Statistics');
+        console.log('================================');
+        console.log(`Total Size: ${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`Total Partitions: ${stats.totalPartitions}`);
+        console.log(`  - JSONL: ${stats.jsonlPartitions}`);
+        console.log(`  - Parquet: ${stats.parquetPartitions}`);
+        console.log(``);
+        console.log(`Total Records: ${stats.totalRecords.toLocaleString()}`);
+        console.log(`Tombstones: ${stats.tombstoneRecords.toLocaleString()} (${stats.tombstonePercent}%)`);
+        console.log(`Parquet Ratio: ${stats.parquetRatio}%`);
+        console.log(``);
+
+        if (stats.oldPartitions.length > 0) {
+          console.log(`Old Partitions (>30 days): ${stats.oldPartitions.length}`);
+          for (const p of stats.oldPartitions.slice(0, 5)) {
+            console.log(`  - ${p}`);
+          }
+          if (stats.oldPartitions.length > 5) {
+            console.log(`  ... and ${stats.oldPartitions.length - 5} more`);
+          }
+        }
+
+        if (stats.largePartitions.length > 0) {
+          console.log(``);
+          console.log(`Large Partitions (>1000 records): ${stats.largePartitions.length}`);
+          for (const p of stats.largePartitions.slice(0, 5)) {
+            console.log(`  - ${p.path}: ${p.records.toLocaleString()} records, ${(p.size / 1024).toFixed(2)} KB`);
+          }
+          if (stats.largePartitions.length > 5) {
+            console.log(`  ... and ${stats.largePartitions.length - 5} more`);
+          }
+        }
+      } else {
+        console.error('Error getting stats:', result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+    return;
+  }
+
+  try {
+    const result = await squashTool(input);
+
+    if (result.success) {
+      console.log(result.message);
+      if (result.stats) {
+        console.log('');
+        console.log('Statistics:');
+        if (result.stats.partitionsCompacted !== undefined) {
+          console.log(`  Partitions compacted: ${result.stats.partitionsCompacted}`);
+        }
+        if (result.stats.totalRecordsKept !== undefined) {
+          console.log(`  Records kept: ${result.stats.totalRecordsKept.toLocaleString()}`);
+        }
+        if (result.stats.totalRecordsRemoved !== undefined) {
+          console.log(`  Records removed: ${result.stats.totalRecordsRemoved.toLocaleString()}`);
+        }
+      }
+      if (result.errors && result.errors.length > 0) {
+        console.log('');
+        console.log('Warnings:');
+        for (const err of result.errors) {
+          console.log(`  - ${err}`);
+        }
+      }
+    } else {
+      console.error('✗ Squash failed:', result.message);
+      if (result.errors) {
+        for (const err of result.errors) {
+          console.error(`  - ${err}`);
+        }
+      }
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('Error:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
  * Show help message
  */
 function showHelp(): void {
   console.log(`
-DuckBrain v1.0.0 - AI Memory System
+ DuckBrain v1.0.0 - AI Memory System
 
-Usage: duckbrain <command> [options]
+ Usage: duckbrain <command> [options]
 
-Commands:
-  stdio              Start MCP server for local Claude
-  remember <key>     Remember a memory
-  recall             Query memories
-  list-keys          Browse memory structure
-  forget <id>        Delete a memory
-  config             Show or set configuration
-  namespaces         Manage namespaces
-  status             Show system status
-  ssh-test           Test SSH tunnel setup
-  help               Show this help
+ Commands:
+   stdio              Start MCP server for local Claude
+   remember <key>     Remember a memory
+   recall             Query memories
+   list-keys          Browse memory structure
+   forget <id>        Delete a memory
+   config             Show or set configuration
+   namespaces         Manage namespaces
+   status             Show system status
+   squash             Compact old partitions
+   ssh-test           Test SSH tunnel setup
+   help               Show this help
 
-Options:
-  --namespace=NAME   Select namespace (default: default)
-  --help             Show this help
+ Options:
+   --namespace=NAME   Select namespace (default: default)
+   --wait             Wait for git commit (remember command only)
+   --help             Show this help
 
-Examples:
-  duckbrain stdio
-  duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
-  duckbrain recall --prefix=/projects/
-  duckbrain list-keys --depth=3 --limit=20
-  duckbrain forget abc-123 --reason="obsolete"
-  duckbrain status --namespace=default
-`.trim());
+ Squash Options:
+   --partition=PATH   Target specific partition
+   --dry-run          Preview without modifying files
+   --aggressive       Include git history squashing
+   --stats            Show compaction statistics
+
+ Examples:
+   duckbrain stdio
+   duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
+   duckbrain remember /notes/test --domain=raw_note --wait
+   duckbrain recall --prefix=/projects/
+   duckbrain list-keys --depth=3 --limit=20
+   duckbrain forget abc-123 --reason="obsolete"
+   duckbrain status --namespace=default
+   duckbrain config set git.batchLines 100
+   duckbrain squash --stats
+   duckbrain squash --dry-run
+   duckbrain squash --partition=person/2025-01 --aggressive
+ `.trim());
 }
 
 /**
@@ -421,7 +559,8 @@ export async function runHumanCLI(command: string, args: string[]): Promise<void
     namespaces: namespacesCommand,
     status: statusCommand,
     'ssh-test': sshTestCommand,
-    help: () => showHelp()
+    squash: squashCommand,
+    help: async () => showHelp()
   };
   
   const handler = commands[command];
