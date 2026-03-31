@@ -645,6 +645,22 @@ async function remoteCommand(args: string[]): Promise<void> {
  * Squash command
  */
 async function squashCommand(args: string[]): Promise<void> {
+  // Handle --help before any namespace checks
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(`Usage: duckbrain squash [options]`);
+    console.log('');
+    console.log('Options:');
+    console.log('  --stats           Show compaction statistics');
+    console.log('  --dry-run         Preview what would be compacted without making changes');
+    console.log('  --partition <id>  Compact specific partition only');
+    console.log('  --aggressive      More aggressive compaction (lower thresholds)');
+    console.log('  --help, -h        Show this help message');
+    console.log('');
+    console.log('Squashes/compacts memory partitions by converting old JSONL files to Parquet');
+    console.log('and removing tombstoned records. Also squashes git history for compacted partitions.');
+    return;
+  }
+
   const { flags } = parseArgs(args);
 
   const input: any = {
