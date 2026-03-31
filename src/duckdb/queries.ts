@@ -35,9 +35,21 @@ export function queryMemories(
     return [];
   }
 
-  // Build glob pattern for partition paths
-  const globPattern = partitionPaths.map(p => `${p}/*.jsonl`).join(',');
+  // Build file list for DuckDB (use read_json instead of glob for reliability)
+  const jsonlFiles: string[] = [];
+  for (const partitionPath of partitionPaths) {
+    if (!fs.existsSync(partitionPath)) continue;
+    
+    const files = fs.readdirSync(partitionPath)
+      .filter(f => f.endsWith('.jsonl'))
+      .map(f => path.join(partitionPath, f).replace(/\\/g, '/'));
+    jsonlFiles.push(...files);
+  }
   
+  if (jsonlFiles.length === 0) {
+    return [];
+  }
+
   // Build WHERE clause based on filters
   const whereClauses: string[] = ["action != 'tombstone'"];
   const params: Array<string | number> = [];
@@ -73,9 +85,11 @@ export function queryMemories(
   
   const limitClause = filters?.limit ? `LIMIT ${filters.limit}` : '';
 
+  // Use read_json with explicit file list instead of glob pattern
+  const fileList = jsonlFiles.map(f => `'${f}'`).join(', ');
   const sql = `
     SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
-    FROM read_json_auto('${globPattern}', format='newline_delimited', hive_partitioning=0)
+    FROM read_json([${fileList}], format='newline_delimited')
     ${whereClause}
     ${orderByClause}
     ${limitClause}
@@ -85,14 +99,14 @@ export function queryMemories(
   return new Promise((resolve) => {
     try {
       const stmt = db.prepare(sql);
-      stmt.all(...params, (err, result) => {
+      stmt.all(...params, (err: any, result: any) => {
         if (err) {
           console.error('DuckDB query error:', err);
           resolve([]);
           return;
         }
         
-        resolve((result as any[]).map(row => ({
+        resolve((result as any[]).map((row: any) => ({
           id: row.id,
           key: row.key,
           domain: row.domain,

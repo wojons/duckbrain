@@ -23,36 +23,62 @@ export const server = new McpServer({
 });
 
 /**
+ * Wrap a tool handler to convert output to MCP format
+ */
+function wrapHandler<T>(handler: (input: any) => Promise<T>) {
+  return async (args: any) => {
+    try {
+      const result = await handler(args);
+      // Convert result to MCP format
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error) {
+      console.error('[MCP Handler Error]', error);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          }
+        ]
+      };
+    }
+  };
+}
+
+/**
  * Register all tools with the MCP server
  */
 function registerTools(): void {
   server.registerTool(recallToolMetadata.name, {
     title: recallToolMetadata.title,
     description: recallToolMetadata.description,
-    inputSchema: recallToolMetadata.inputSchema,
-    handler: recallTool
-  });
+    inputSchema: recallToolMetadata.inputSchema
+  }, wrapHandler(recallTool));
 
   server.registerTool(rememberToolDef.name, {
     title: rememberToolDef.title,
     description: rememberToolDef.description,
-    inputSchema: rememberToolDef.inputSchema,
-    handler: rememberToolDef.handler
-  });
+    inputSchema: rememberToolDef.inputSchema
+  }, wrapHandler(rememberToolDef.handler));
 
   server.registerTool(listKeysToolMetadata.name, {
     title: listKeysToolMetadata.title,
     description: listKeysToolMetadata.description,
-    inputSchema: listKeysToolMetadata.inputSchema,
-    handler: listKeysTool
-  });
+    inputSchema: listKeysToolMetadata.inputSchema
+  }, wrapHandler(listKeysTool));
 
   server.registerTool(forgetToolDef.name, {
     title: forgetToolDef.title,
     description: forgetToolDef.description,
-    inputSchema: forgetToolDef.inputSchema,
-    handler: forgetToolDef.handler
-  });
+    inputSchema: forgetToolDef.inputSchema
+  }, wrapHandler(forgetToolDef.handler));
 }
 
 /**
@@ -61,6 +87,11 @@ function registerTools(): void {
 export async function startServer(): Promise<void> {
   // Register all tools
   registerTools();
+
+  // Log debug info to stderr
+  console.error('DuckBrain MCP server starting...');
+  console.error('CWD:', process.cwd());
+  console.error('Expected .duckbrain path:', path.join(process.cwd(), '.duckbrain'));
 
   // Create stdio transport
   const transport = new StdioServerTransport();

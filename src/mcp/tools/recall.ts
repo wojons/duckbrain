@@ -79,17 +79,21 @@ function generateEmbedding(_text: string): number[] | null {
  * @returns Query results with memories and count
  */
 export async function recallTool(input: unknown): Promise<RecallOutput> {
+  console.error('[recall] Tool called with input:', JSON.stringify(input));
+  
   // Validate input
   const parseResult = RecallInputSchema.safeParse(input);
   if (!parseResult.success) {
+    console.error('[recall] Validation failed:', parseResult.error);
     return {
       memories: [],
       count: 0,
-      error: `Invalid input: ${parseResult.error.errors.map(e => e.message).join('; ')}`
+      error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
     };
   }
 
   const validated = parseResult.data;
+  console.error('[recall] Validated input:', validated);
 
   // Resolve namespace path
   const namespacePath = resolveNamespacePath(validated.namespace);

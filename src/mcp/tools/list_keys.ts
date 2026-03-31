@@ -74,18 +74,23 @@ function extractPrefixes(key: string, maxDepth: number): string[] {
  * @returns Structured key listing with pagination
  */
 export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
+  console.error('[list_keys] Tool called with input:', JSON.stringify(input));
+  
   // Validate input
   const parseResult = ListKeysInputSchema.safeParse(input);
   if (!parseResult.success) {
+    console.error('[list_keys] Validation failed:', parseResult.error);
     return {
       keys: [],
       hasMore: false,
       nextOffset: null,
-      prefixes: {}
+      prefixes: {},
+      error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
     };
   }
 
   const validated = parseResult.data;
+  console.error('[list_keys] Validated input:', validated);
 
   // Resolve namespace path
   const namespacePath = resolveNamespacePath(validated.namespace);
@@ -104,16 +109,23 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
   try {
     // Get manifest to find partition paths
     const manifestPath = path.join(namespacePath, 'manifest.json');
-    let partitionPaths: string[] = [];
+    let jsonlFiles: string[] = [];
     
     if (fs.existsSync(manifestPath)) {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-      partitionPaths = manifest.partitions
-        .map((p: string) => path.join(namespacePath, p, '*.jsonl'))
-        .join(',');
+      // Build explicit file list instead of glob pattern
+      for (const p of manifest.partitions) {
+        const partitionPath = path.join(namespacePath, p);
+        if (!fs.existsSync(partitionPath)) continue;
+        
+        const files = fs.readdirSync(partitionPath)
+          .filter(f => f.endsWith('.jsonl'))
+          .map(f => path.join(partitionPath, f).replace(/\\/g, '/'));
+        jsonlFiles.push(...files);
+      }
     }
 
-    if (partitionPaths.length === 0) {
+    if (jsonlFiles.length === 0) {
       return {
         keys: [],
         hasMore: false,
@@ -125,10 +137,13 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
     // Get DuckDB connection
     const db = getDuckDBConnection('singleton', namespacePath);
 
+    // Use explicit file list instead of glob
+    const fileList = jsonlFiles.map(f => `'${f}'`).join(', ');
+    
     // Query distinct keys matching prefix, excluding tombstones
     const sql = `
       SELECT DISTINCT key
-      FROM read_json_auto('${partitionPaths}', format='newline_delimited', hive_partitioning=0)
+      FROM read_json([${fileList}], format='newline_delimited')
       WHERE key LIKE ? || '%' AND action != 'tombstone'
       ORDER BY key
       LIMIT ? OFFSET ?
@@ -139,11 +154,19 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       : validated.prefix;
     
     const results = await new Promise<any[]>((resolve, reject) => {
-      const stmt = db.prepare(sql);
-      stmt.all(prefix, validated.limit + 1, validated.offset, (err, res) => {
-        if (err) reject(err);
-        else resolve(res || []);
-      });
+      try {
+        const stmt = db.prepare(sql);
+        stmt.all(prefix, validated.limit + 1, validated.offset, (err: any, res: any) => {
+          if (err) {
+            console.error('DuckDB list_keys error:', err);
+            reject(err);
+          }
+          else resolve(res || []);
+        });
+      } catch (error) {
+        console.error('DuckDB list_keys prepare error:', error);
+        reject(error);
+      }
     });
     
     // Check if there are more results

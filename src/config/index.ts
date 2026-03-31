@@ -43,7 +43,7 @@ export const DuckBrainConfigSchema = z.object({
     .default({ maxLinesPerChunk: 1000, maxBytesPerChunk: 1024 * 1024 }),
 
   /** Namespace mappings (alias -> path) */
-  namespaceMappings: z.record(z.string()).default({})
+  namespaceMappings: z.record(z.string(), z.string()).default({})
 });
 
 export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
@@ -85,7 +85,7 @@ export function getConfig(configDir: string = '.'): DuckBrainConfig {
     if (error instanceof z.ZodError) {
       console.warn(
         `Warning: Config validation failed at ${configPath}:`,
-        error.errors.map(e => e.message).join(', ')
+        (error as any).issues.map((i: any) => i.message).join(', ')
       );
       // Return defaults on validation failure
       return DuckBrainConfigSchema.parse({});
@@ -178,4 +178,18 @@ export function registerNamespace(
   const config = getConfig(configDir);
   config.namespaceMappings[alias] = fullPath;
   return updateConfig(configDir, config);
+}
+
+/**
+ * Set a single config key
+ *
+ * @param key - Config key to set
+ * @param value - Value to set
+ * @returns Updated configuration
+ */
+export function setConfig(
+  key: keyof DuckBrainConfig,
+  value: any
+): DuckBrainConfig {
+  return updateConfig('.', { [key]: value });
 }
