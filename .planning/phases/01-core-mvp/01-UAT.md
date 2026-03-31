@@ -8,10 +8,7 @@ updated: 2026-03-31T03:46:00Z
 
 ## Current Test
 
-number: 6
-name: Stdio MCP Mode
-expected: Local Claude Desktop can call tools via MCP protocol
-result: testing - Opencode MCP integration working
+[testing complete]
 
 ## Tests
 
@@ -41,7 +38,9 @@ result: pass - Opencode integration verified (remember, recall, list_keys all wo
 
 ### 7. HTTP MCP Mode
 expected: Remote HTTP server with DNS rebinding protection
-result: pending
+result: blocked
+blocked_by: server
+reason: HTTP mode implementation exists but needs dedicated testing - separate from core MCP functionality
 
 ### 8. Human CLI — Remember
 expected: duckbrain remember command stores memory
@@ -57,7 +56,8 @@ result: pass
 
 ### 11. Human CLI — Forget
 expected: duckbrain forget command soft-deletes
-result: pending
+result: pass
+notes: Tombstone appended successfully (original remains for git history - by design)
 
 ### 12. Human CLI — Help
 expected: duckbrain help shows all commands
@@ -66,10 +66,14 @@ result: pass
 ## Summary
 
 total: 12
-passed: 9
+passed: 11
 issues: 0
-pending: 3
+pending: 0
 skipped: 0
-blocked: 0
+blocked: 1
+
+status: partial
+outstanding:
+  - Test 7: HTTP MCP Mode (blocked - server needs dedicated testing separate from core functionality)
 
 ## Gaps
