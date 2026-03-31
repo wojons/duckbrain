@@ -147,22 +147,17 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
 
 /**
  * Get partition path for a memory based on its key and domain
- * Uses time-based partitioning from the memory's timestamp
+ * Uses time-based partitioning - matches what rememberTool uses
  */
 function getPartitionPathForMemory(key: string, domain: string): string {
-  // Extract year-month from current time (simplified - in reality would use memory timestamp)
+  // Extract year-month from current time (must match rememberTool logic)
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const partitionValue = `${year}-${month}`;
   
-  // Use first part of key as sub-partition (optional)
-  const keyParts = key.split('/').filter(Boolean);
-  const keyPrefix = keyParts.length > 1 ? keyParts.slice(0, -1).join('/') : '';
-  
-  if (keyPrefix) {
-    return path.join(domain, keyPrefix, partitionValue);
-  }
+  // Use time-based partitioning only (no key-based sub-partitions)
+  // This matches the logic in rememberTool
   return path.join(domain, partitionValue);
 }
 
