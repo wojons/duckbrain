@@ -242,6 +242,19 @@ async function forgetCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * Get a config value by dot-notation key
+ */
+async function getConfigValue(key: string): Promise<string | number | boolean | undefined> {
+  const config = getConfig();
+  const keys = key.split('.');
+  let value: any = config;
+  for (const k of keys) {
+    value = value?.[k];
+  }
+  return value;
+}
+
+/**
  * Config command
  */
 async function configCommand(args: string[]): Promise<void> {
@@ -249,7 +262,7 @@ async function configCommand(args: string[]): Promise<void> {
   const subcommand = positional[0];
   
   if (!subcommand) {
-    console.error('Usage: duckbrain config <show|set>');
+    console.error('Usage: duckbrain config <show|set|get>');
     process.exit(1);
   }
   
@@ -290,6 +303,26 @@ async function configCommand(args: string[]): Promise<void> {
     } else {
       setConfig(key as any, value);
       console.log(`✓ Config ${key} set to ${value}`);
+    }
+  } else if (subcommand === 'get') {
+    const key = positional[1];
+    
+    if (!key) {
+      console.error('Usage: duckbrain config get <key>');
+      process.exit(1);
+    }
+    
+    try {
+      const value = await getConfigValue(key);
+      if (value !== undefined) {
+        console.log(value);
+      } else {
+        console.error(`Config key '${key}' not found`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('Error reading config:', error instanceof Error ? error.message : error);
+      process.exit(1);
     }
   } else {
     console.error(`Unknown config subcommand: ${subcommand}`);
