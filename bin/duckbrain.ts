@@ -42,9 +42,13 @@ Commands:
   list-keys          Browse memory structure
   forget <id>        Delete a memory
   config             Show or set configuration
-  namespaces         Manage namespaces
+  namespace(s)       Manage namespaces
+  pull               Pull changes from remote
+  push               Push changes to remote
+  remote             Configure remote repository
   status             Show system status
   ssh-test           Test SSH tunnel setup
+  squash             Compact old partitions
   help               Show this help
 
 Options:
@@ -94,7 +98,11 @@ async function main() {
       case 'list-keys':
       case 'forget':
       case 'config':
+      case 'namespace':
       case 'namespaces':
+      case 'pull':
+      case 'push':
+      case 'remote':
       case 'status':
       case 'squash':
       case 'ssh-test':
