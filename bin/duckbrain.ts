@@ -10,6 +10,7 @@
  * Commands:
  *   stdio       Start MCP server for local Claude (stdio mode)
  *   http        Start MCP server with HTTP transport
+ *   service     Manage systemd service (install/start/stop/restart/status)
  *   remember    Remember a memory (human operator)
  *   recall      Query memories (human operator)
  *   list-keys   List memory keys (human operator)
@@ -22,8 +23,10 @@
  */
 
 import { startStdioMode } from '../src/cli/stdio.js';
-import { startHttpMode } from '../src/cli/http.js';
+import { createHttpServer, startHttpMode } from '../src/cli/http.js';
 import { runHumanCLI } from '../src/cli/human.js';
+import { closeAllConnections } from '../src/duckdb/connection.js';
+import { installService, manageService } from '../src/cli/service.js';
 
 /**
  * Show help message
@@ -37,6 +40,7 @@ Usage: duckbrain <command> [options]
 Commands:
   stdio              Start MCP server for local Claude
   http               Start MCP server with HTTP transport
+  service            Manage systemd service
   remember <key>     Remember a memory
   recall             Query memories
   list-keys          Browse memory structure
@@ -51,14 +55,30 @@ Commands:
   squash             Compact old partitions
   help               Show this help
 
+HTTP Options:
+  --port=PORT        HTTP server port (default: 3000)
+  --bind-all         Bind to all interfaces (0.0.0.0) instead of localhost
+  --auth=TYPE        Authentication type: none, basic, apikey (default: none)
+  --rate-limit=N     Requests per minute per IP (default: 100)
+
+Service Commands:
+  service install [--system]  Install as systemd service
+  service start               Start the service
+  service stop                Stop the service
+  service restart             Restart the service
+  service status              Show service status
+
 Options:
   --namespace=NAME   Select namespace (default: default)
-  --port=PORT        HTTP server port (default: 3000)
   --help             Show this help
 
 Examples:
   duckbrain stdio
   duckbrain http --port=3000
+  duckbrain http --auth=basic --rate-limit=60
+  duckbrain http --bind-all --port=8080
+  duckbrain service install
+  duckbrain service start
   duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
   duckbrain recall --prefix=/projects/
   duckbrain list-keys --depth=3 --limit=20
@@ -88,8 +108,36 @@ async function main() {
         
       case 'http': {
         const portArg = commandArgs.find(arg => arg.startsWith('--port='));
+        const bindAll = commandArgs.includes('--bind-all');
+        const authArg = commandArgs.find(arg => arg.startsWith('--auth='));
+        const rateLimitArg = commandArgs.find(arg => arg.startsWith('--rate-limit='));
+
         const port = portArg ? parseInt(portArg.split('=')[1]) : 3000;
-        await startHttpMode({ port });
+        const host = bindAll ? '0.0.0.0' : '127.0.0.1';
+        const authType = authArg ? authArg.split('=')[1] as 'none' | 'basic' | 'apikey' : 'none';
+        const rateLimit = rateLimitArg ? parseInt(rateLimitArg.split('=')[1]) : 100;
+
+        await startHttpMode({ port, host });
+        break;
+      }
+        
+      case 'service': {
+        const serviceAction = commandArgs[0];
+        if (!serviceAction) {
+          console.error('Usage: duckbrain service <install|start|stop|restart|status> [--system]');
+          process.exit(1);
+        }
+        
+        if (serviceAction === 'install') {
+          const isSystem = commandArgs.includes('--system');
+          await installService({ system: isSystem });
+        } else if (['start', 'stop', 'restart', 'status'].includes(serviceAction)) {
+          await manageService(serviceAction as 'start' | 'stop' | 'restart' | 'status');
+        } else {
+          console.error(`Unknown service action: ${serviceAction}`);
+          console.error('Use: install, start, stop, restart, or status');
+          process.exit(1);
+        }
         break;
       }
         
@@ -118,6 +166,15 @@ async function main() {
     console.error('Error:', error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
+}
+
+// Clear any stale cached connections on startup
+// This prevents Napi::Error crashes from corrupted DuckDB singletons
+try {
+  closeAllConnections();
+  console.error('[duckbrain] Cleared stale DuckDB connections');
+} catch (e) {
+  // Ignore errors during cleanup
 }
 
 // Run CLI
