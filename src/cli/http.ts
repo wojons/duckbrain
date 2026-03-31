@@ -190,11 +190,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
  *
  * @param options Server options
  */
-export async function startHttpMode(options: { port?: number; host?: string } = {}): Promise<void> {
-  const { port = 3000, host = '127.0.0.1' } = options;
+export async function startHttpMode(options: HttpServerOptions = {}): Promise<void> {
+  const { port = 3000, bindAll = false } = options;
+  const host = bindAll ? '0.0.0.0' : '127.0.0.1';
   
   try {
-    const app = createHttpServer();
+    const app = createHttpServer(options);
     
     // Start server
     await new Promise<void>((resolve, reject) => {
