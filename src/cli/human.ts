@@ -242,11 +242,45 @@ async function forgetCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * Key mapping for user-friendly flat keys to schema structure
+ * Maps: git.batchLines -> gitBatching.maxLines
+ */
+const KEY_MAP: Record<string, string> = {
+  'git.batchLines': 'gitBatching.maxLines',
+  'git.batchIntervalSeconds': 'gitBatching.maxSeconds',
+  'git.batchIntervalMs': 'gitBatching.maxSeconds',
+  'git.batching.enabled': 'gitBatching.enabled',
+};
+
+/**
+ * Resolve user-friendly key to schema key
+ */
+function resolveKey(userKey: string): string {
+  return KEY_MAP[userKey] || userKey;
+}
+
+/**
+ * Set nested config value by dot-notation key
+ */
+function setNestedValue(obj: any, keyPath: string, value: any): void {
+  const keys = keyPath.split('.');
+  let current = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!(keys[i] in current)) {
+      current[keys[i]] = {};
+    }
+    current = current[keys[i]];
+  }
+  current[keys[keys.length - 1]] = value;
+}
+
+/**
  * Get a config value by dot-notation key
  */
 async function getConfigValue(key: string): Promise<string | number | boolean | undefined> {
   const config = getConfig();
-  const keys = key.split('.');
+  const resolvedKey = resolveKey(key);
+  const keys = resolvedKey.split('.');
   let value: any = config;
   for (const k of keys) {
     value = value?.[k];
@@ -285,6 +319,7 @@ async function configCommand(args: string[]): Promise<void> {
     }
     
     // Handle nested keys like git.batchLines
+    // Handle nested keys like git.batchLines
     if (key === 'git.batchLines') {
       const config = getConfig();
       config.gitBatching.maxLines = parseInt(value, 10);
@@ -295,6 +330,11 @@ async function configCommand(args: string[]): Promise<void> {
       config.gitBatching.maxSeconds = Math.floor(parseInt(value, 10) / 1000);
       setConfig('gitBatching', config.gitBatching);
       console.log(`✓ Config git.batchIntervalMs set to ${value}`);
+    } else if (key === 'git.batchIntervalSeconds') {
+      const config = getConfig();
+      config.gitBatching.maxSeconds = parseInt(value, 10);
+      setConfig('gitBatching', config.gitBatching);
+      console.log(`✓ Config git.batchIntervalSeconds set to ${value}`);
     } else if (key === 'git.batching.enabled') {
       const config = getConfig();
       config.gitBatching.enabled = value === 'true';
