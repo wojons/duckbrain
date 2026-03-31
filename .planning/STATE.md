@@ -20,8 +20,8 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 | Phase | Name | Status | Plans | Progress |
 |-------|------|--------|-------|----------|
-| 1 | Core MVP | ● In Progress | 4/4 | 100% |
-| 2 | Git Automation | ○ Pending | 0/0 | 0% |
+| 1 | Core MVP | ● Complete | 4/4 | 100% |
+| 2 | Git Automation | ◐ In Progress | 1/3 | 33% |
 | 3 | Multi-User & Remote | ○ Pending | 0/0 | 0% |
 | 4 | Web UI | ○ Pending | 0/0 | 0% |
 
@@ -29,8 +29,8 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 ## Current Position
 
-**Last Activity:** Completed Phase 1 Plan 04 — CLI entry points (stdio, HTTP, human CLI)
-**Session:** 2026-03-27 — Core MVP implementation complete
+**Last Activity:** Completed Phase 2 Plan 02 — Squash/compaction process
+**Session:** 2026-03-31 — Git Automation in progress
 
 **What we have:**
 - PROJECT.md — Full vision and requirements captured
@@ -53,10 +53,13 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 - **src/cli/human.ts** — Human operator CLI commands
 - **bin/duckbrain** — CLI executable with command routing
 - **.opencode/agents/duckbrain-cli.md** — Comprehensive CLI documentation
+- **src/git/squash.ts** — Squash/compaction with Parquet conversion
+- **src/mcp/tools/squash.ts** — MCP squash tool for agents
+- **src/config/index.ts** — Squash configuration options
 
 **What's next:**
-- Phase 1 Core MVP COMPLETE — Ready for Phase 2: Git Automation
-- Phase 2 will implement: async git commit batching, squash process, merge conflict resolution
+- Phase 2 Plan 01: Async git commit batching (GIT-01)
+- Phase 2 Plan 03: Merge conflict resolution (GIT-03)
 
 ---
 
@@ -86,6 +89,10 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 | **HTTP MCP server with DNS protection** | ✓ Implemented (Plan 04) |
 | **Human CLI commands** | ✓ Implemented (Plan 04) |
 | **CLI executable with bin config** | ✓ Implemented (Plan 04) |
+| **Squash/compaction with Parquet** | ✓ Implemented (Phase 2 Plan 02) |
+| **MCP squash tool** | ✓ Implemented (Phase 2 Plan 02) |
+| **CLI squash command** | ✓ Implemented (Phase 2 Plan 02) |
+| **Squash configuration** | ✓ Implemented (Phase 2 Plan 02) |
 
 ---
 
@@ -97,17 +104,19 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 ## Session Continuity
 
-**Last Session:** 2026-03-27
-**Stopped At:** Completed Phase 1 Plan 04 — CLI Entry Points (stdio, HTTP, human CLI)
+**Last Session:** 2026-03-31
+**Stopped At:** Completed Phase 2 Plan 02 — Squash/Compaction (GIT-02)
 
 **Resume Context:**
-- Phase 1 Core MVP COMPLETE (4/4 plans)
-- All MCP tools implemented: recall, list_keys (working), remember, forget (stubs)
-- CLI fully functional: stdio, http, human operator commands
-- Commits: Plan 01 (5 commits), Plan 02 (3 commits), Plan 03 (1 commit), Plan 04 (6 commits)
-- SUMMARY files: 01-core-mvp-01/02/03/04-SUMMARY.md all created
-- Ready for Phase 2: Git Automation
+- Phase 2 Git Automation IN PROGRESS (1/3 plans complete)
+- Squash module implemented: squashPartition, compactHistory, removeTombstones, getCompactionStats
+- MCP tools: squash, get_compaction_stats registered and working
+- CLI command: duckbrain squash --stats|--dry-run|--partition|--aggressive
+- Config options: squash.maxAgeDays, squash.thresholdRecords, squash.autoCompact, etc.
+- Commits: 5 (746e292, fdd351d, aea770a, 2c654e6, 65c44d8)
+- SUMMARY: 02-git-auto-02-SUMMARY.md created
+- Remaining: Plan 01 (git batching), Plan 03 (merge conflicts)
 
 ---
 
-*Last updated: 2026-03-27 after Plan 02 completion*
+*Last updated: 2026-03-31 after Phase 2 Plan 02 completion*
