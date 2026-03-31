@@ -6,21 +6,19 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { spawnSync, execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
-import path from 'path';
-import os from 'os';
 
-// Mock child_process
+// Mock child_process - implementation uses spawnSync for all SSH calls
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(),
   execSync: vi.fn(),
   spawn: vi.fn(),
 }));
 
-// Mock fs for SSH config reading
+// Mock fs for SSH config reading - preserve actual fs for most ops
 vi.mock('fs', async () => {
-  const actual = await vi.importActual('fs');
+  const actual = await vi.importActual<typeof import('fs')>('fs');
   return {
     ...actual,
     default: {
@@ -37,16 +35,41 @@ vi.mock('fs', async () => {
 
 import {
   SSHConnectionConfig,
-  RemoteStatus,
   connectToRemote,
   checkRemoteInstall,
   installRemote,
   parseSSHConfig,
 } from './client';
 
+/** Helper to create a successful spawnSync result */
+function mockSpawnSuccess(stdout: string = '') {
+  return {
+    status: 0,
+    stdout: Buffer.from(stdout),
+    stderr: Buffer.from(''),
+    pid: 12345,
+    output: [null, Buffer.from(stdout), Buffer.from('')] as (Buffer | null)[],
+    signal: null as string | null,
+  };
+}
+
+/** Helper to create a failed spawnSync result */
+function mockSpawnFailure(stderr: string = 'error') {
+  return {
+    status: 1,
+    stdout: Buffer.from(''),
+    stderr: Buffer.from(stderr),
+    pid: 12345,
+    output: [null, Buffer.from(''), Buffer.from(stderr)] as (Buffer | null)[],
+    signal: null as string | null,
+  };
+}
+
 describe('SSH Client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: fs.existsSync returns true (SSH config exists)
+    vi.mocked(fs.existsSync).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -74,7 +97,7 @@ Host another
         host: 'server.example.com',
         user: 'admin',
         port: 2222,
-        identityFile: path.expandTilde?.('~/.ssh/id_custom') || expect.any(String),
+        identityFile: expect.stringContaining('.ssh/id_custom'),
       });
     });
 
@@ -100,14 +123,7 @@ Host myserver
 
   describe('connectToRemote', () => {
     it('should establish SSH connection and return true on success', async () => {
-      vi.mocked(spawnSync).mockReturnValue({
-        status: 0,
-        stdout: Buffer.from(''),
-        stderr: Buffer.from(''),
-        pid: 12345,
-        output: [null, Buffer.from(''), Buffer.from('')],
-        signal: null,
-      });
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnSuccess('connected'));
 
       const config: SSHConnectionConfig = {
         host: 'user@server.example.com',
@@ -118,14 +134,7 @@ Host myserver
     });
 
     it('should return false on connection failure', async () => {
-      vi.mocked(spawnSync).mockReturnValue({
-        status: 1,
-        stdout: Buffer.from(''),
-        stderr: Buffer.from('Connection refused'),
-        pid: 12345,
-        output: [null, Buffer.from(''), Buffer.from('Connection refused')],
-        signal: null,
-      });
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnFailure('Connection refused'));
 
       const config: SSHConnectionConfig = {
         host: 'user@unreachable.example.com',
@@ -136,14 +145,7 @@ Host myserver
     });
 
     it('should use identity file when provided', async () => {
-      vi.mocked(spawnSync).mockReturnValue({
-        status: 0,
-        stdout: Buffer.from(''),
-        stderr: Buffer.from(''),
-        pid: 12345,
-        output: [null, Buffer.from(''), Buffer.from('')],
-        signal: null,
-      });
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnSuccess('connected'));
 
       const config: SSHConnectionConfig = {
         host: 'user@server.example.com',
@@ -155,17 +157,16 @@ Host myserver
       const spawnCall = vi.mocked(spawnSync).mock.calls[0];
       const sshArgs = spawnCall[1] as string[];
       expect(sshArgs).toContain('-i');
-      expect(sshArgs).toContain(expect.stringContaining('id_custom'));
+      // The identityFile gets expanded via expandTilde
+      const idIndex = sshArgs.indexOf('-i');
+      expect(sshArgs[idIndex + 1]).toContain('id_custom');
     });
   });
 
   describe('checkRemoteInstall', () => {
     it('should return installed:false when duckbrain not found', async () => {
-      // Mock "which duckbrain" to fail
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => {
-          throw new Error('not found');
-        });
+      // "which duckbrain" returns failure
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnFailure());
 
       const result = await checkRemoteInstall('user@server.example.com');
 
@@ -176,11 +177,11 @@ Host myserver
     });
 
     it('should detect version from duckbrain --version output', async () => {
-      // Mock "which duckbrain" succeeds
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => Buffer.from('/usr/local/bin/duckbrain'))
-        // Mock "duckbrain --version" succeeds
-        .mockImplementationOnce(() => Buffer.from('duckbrain v1.0.0'));
+      // First call: "which duckbrain" succeeds
+      // Second call: "duckbrain --version" succeeds
+      vi.mocked(spawnSync)
+        .mockReturnValueOnce(mockSpawnSuccess('/usr/local/bin/duckbrain'))
+        .mockReturnValueOnce(mockSpawnSuccess('duckbrain v1.0.0'));
 
       const result = await checkRemoteInstall('user@server.example.com');
 
@@ -190,11 +191,11 @@ Host myserver
     });
 
     it('should detect when update is needed', async () => {
-      // Mock "which duckbrain" succeeds
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => Buffer.from('/usr/local/bin/duckbrain'))
-        // Mock "duckbrain --version" returns old version
-        .mockImplementationOnce(() => Buffer.from('duckbrain v0.1.0'));
+      // First call: "which duckbrain" succeeds
+      // Second call: "duckbrain --version" returns old version
+      vi.mocked(spawnSync)
+        .mockReturnValueOnce(mockSpawnSuccess('/usr/local/bin/duckbrain'))
+        .mockReturnValueOnce(mockSpawnSuccess('duckbrain v0.1.0'));
 
       const result = await checkRemoteInstall('user@server.example.com');
 
@@ -207,27 +208,26 @@ Host myserver
   describe('installRemote', () => {
     it('should attempt user-space installation (~/.local/bin)', async () => {
       // Mock successful user-space install
-      vi.mocked(execSync).mockReturnValue(Buffer.from('installed'));
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnSuccess('installed'));
 
       const result = await installRemote('user@server.example.com');
 
       expect(result).toBe(true);
 
       // Verify it tried user-space install (no sudo)
-      const calls = vi.mocked(execSync).mock.calls;
-      const firstCall = calls[0][0] as string;
-      expect(firstCall).not.toContain('sudo');
-      expect(firstCall).toContain('.local');
+      const calls = vi.mocked(spawnSync).mock.calls;
+      const firstCallArgs = calls[0][1] as string[];
+      // The command is the last arg in the SSH command
+      const remoteCmd = firstCallArgs[firstCallArgs.length - 1];
+      expect(remoteCmd).not.toContain('sudo');
+      expect(remoteCmd).toContain('.local');
     });
 
     it('should print sudo command when user-space install fails and system-wide needed', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       // Mock user-space install failure
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => {
-          throw new Error('permission denied');
-        });
+      vi.mocked(spawnSync).mockReturnValue(mockSpawnFailure('permission denied'));
 
       const result = await installRemote('user@server.example.com');
 
