@@ -38,9 +38,13 @@ result: pass - Opencode integration verified (remember, recall, list_keys all wo
 
 ### 7. HTTP MCP Mode
 expected: Remote HTTP server with DNS rebinding protection
-result: blocked
-blocked_by: server
-reason: HTTP mode implementation exists but needs dedicated testing - separate from core MCP functionality
+result: pass
+verified:
+  - Server starts on specified port
+  - Health endpoint returns status
+  - DNS rebinding protection rejects invalid hosts (403)
+  - Namespaces endpoint lists available namespaces
+  - MCP endpoint accepts connections
 
 ### 8. Human CLI — Remember
 expected: duckbrain remember command stores memory
@@ -66,14 +70,14 @@ result: pass
 ## Summary
 
 total: 12
-passed: 11
+passed: 12
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
-status: partial
-outstanding:
-  - Test 7: HTTP MCP Mode (blocked - server needs dedicated testing separate from core functionality)
+status: complete
 
 ## Gaps
+
+[none - all tests passing]
