@@ -79,6 +79,13 @@
 5. Merge conflicts are resolved by appending both versions (UUIDs prevent collisions)
 6. Repository stays lean after compaction
 
+**Plans:** 3 plans
+
+**Plan list:**
+- [x] 02-git-auto-01-PLAN.md — Git batching worker (GIT-01) ✓
+- [ ] 02-git-auto-02-PLAN.md — Squash/compaction process (GIT-02)
+- [ ] 02-git-auto-03-PLAN.md — Merge resolution + namespaces (GIT-03, NAMESPACE-01..03)
+
 **Canonical refs:**
 - `.planning/codebase/ARCHITECTURE.md` — Git workflow patterns (after Phase 1)
 - `.planning/codebase/CONVENTIONS.md` — Code patterns (after Phase 1)
