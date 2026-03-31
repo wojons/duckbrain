@@ -96,6 +96,7 @@ async function main() {
       case 'config':
       case 'namespaces':
       case 'status':
+      case 'squash':
       case 'ssh-test':
         await runHumanCLI(command, commandArgs);
         break;
