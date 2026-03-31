@@ -54,20 +54,27 @@
 
 ---
 
-## Phase 3: Multi-User & Remote — Pending
+## Phase 3: Multi-User & Remote — Planned
 
 **Goal:** Namespace support, SSH tunneling, remote access
 
-| Plan | Description | Status | Commits |
-|------|-------------|--------|---------|
-| 01 | Namespace Support | ⏳ Pending | - |
-| 02 | SSH Tunneling | ⏳ Pending | - |
-| 03 | Remote Hosting | ⏳ Pending | - |
+**Plans:** 3 plans
+
+| Plan | Description | Status | Wave |
+|------|-------------|--------|------|
+| 01 | SSH Tunneling | 📝 Planned | 1 |
+| 02 | Docker Containerization | 📝 Planned | 1 |
+| 03 | HTTP Auth & Service Management | 📝 Planned | 1 |
 
 **Success Criteria:**
-- [ ] Multiple namespaces (git repos) with independent queries
-- [ ] SSH tunneling for secure remote access
-- [ ] Remote MCP server hosting
+- [ ] SSH tunneling for secure remote access (REMOTE-02, REMOTE-03)
+- [ ] Docker deployment with Alpine and Debian variants
+- [ ] HTTP server with auth, rate limiting, systemd service
+
+**Plan Files:**
+- `.planning/phases/03-multi-user-remote/03-01-PLAN.md` — SSH tunneling with named Unix sockets
+- `.planning/phases/03-multi-user-remote/03-02-PLAN.md` — Docker images and compose configurations
+- `.planning/phases/03-multi-user-remote/03-03-PLAN.md` — HTTP auth, rate limiting, systemd service
 
 ---
 
