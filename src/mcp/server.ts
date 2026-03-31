@@ -11,6 +11,7 @@ import { recallTool, recallToolMetadata } from './tools/recall';
 import { listKeysTool, listKeysToolMetadata } from './tools/list_keys';
 import { rememberToolDef } from './tools/remember';
 import { forgetToolDef } from './tools/forget';
+import { squashToolDef, compactionStatsToolDef } from './tools/squash';
 import path from 'path';
 import fs from 'fs';
 
@@ -79,6 +80,18 @@ function registerTools(): void {
     description: forgetToolDef.description,
     inputSchema: forgetToolDef.inputSchema
   }, wrapHandler(forgetToolDef.handler));
+
+  server.registerTool(squashToolDef.name, {
+    title: squashToolDef.title,
+    description: squashToolDef.description,
+    inputSchema: squashToolDef.inputSchema
+  }, wrapHandler(squashToolDef.handler));
+
+  server.registerTool(compactionStatsToolDef.name, {
+    title: compactionStatsToolDef.title,
+    description: compactionStatsToolDef.description,
+    inputSchema: compactionStatsToolDef.inputSchema
+  }, wrapHandler(compactionStatsToolDef.handler));
 }
 
 /**
