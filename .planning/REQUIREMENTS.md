@@ -27,7 +27,7 @@
 ### Git
 
 - [ ] **GIT-01**: Async commit batching — Background worker commits when N lines or T seconds elapsed
-- [ ] **GIT-02**: Squash process — Compacts JSONL to Parquet, cleans tombstones, squash-commits old history
+- [x] **GIT-02**: Squash process — Compacts JSONL to Parquet, cleans tombstones, squash-commits old history
 - [ ] **GIT-03**: Merge conflict resolution — UUID-based rows, append-only merges, script-assisted handling
 
 ### CLI
@@ -80,7 +80,7 @@
 | STORAGE-02 | Phase 1 | **Complete** |
 | STORAGE-03 | Phase 1 | **Complete** |
 | GIT-01 | Phase 2 | Pending |
-| GIT-02 | Phase 2 | Pending |
+| GIT-02 | Phase 2 | Complete |
 | GIT-03 | Phase 2 | Pending |
 | CLI-01 | Phase 1 | Pending |
 | CLI-02 | Phase 1 | Pending |

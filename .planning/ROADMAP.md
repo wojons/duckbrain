@@ -83,7 +83,7 @@
 
 **Plan list:**
 - [x] 02-git-auto-01-PLAN.md — Git batching worker (GIT-01) ✓
-- [ ] 02-git-auto-02-PLAN.md — Squash/compaction process (GIT-02)
+- [x] 02-git-auto-02-PLAN.md — Squash/compaction process (GIT-02)
 - [ ] 02-git-auto-03-PLAN.md — Merge resolution + namespaces (GIT-03, NAMESPACE-01..03)
 
 **Canonical refs:**
