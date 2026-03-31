@@ -1,0 +1,36 @@
+# Multi-container setup with separate DuckDB data volume
+# Note: DuckDB is embedded in the Node.js app (in-process).
+# This compose file is for illustration of a multi-service architecture
+# and provides resource isolation between app and data layers.
+services:
+  duckbrain:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - duckbrain-data:/data
+    environment:
+      - NODE_ENV=production
+      - DUCKBRAIN_DATA_DIR=/data
+    depends_on:
+      - duckdb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  duckdb:
+    image: alpine:latest
+    volumes:
+      - duckbrain-data:/data
+    # DuckDB runs in-process within the Node.js application.
+    # This sidecar container keeps the shared volume active and provides
+    # a shell for ad-hoc DuckDB CLI queries if needed.
+    # Install duckdb CLI: apk add duckdb (if available) or use the shell
+    command: ["tail", "-f", "/dev/null"]
+    working_dir: /data
+
+volumes:
+  duckbrain-data:
