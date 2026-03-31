@@ -80,6 +80,8 @@ Plan: 2 of 3 (Plan 02 complete)
 | Namespace = Git repo | ✓ Confirmed |
 | **Mutex-protected queue for thread safety** | ✓ Implemented (Plan 01) |
 | **Dual threshold batching (lines + time)** | ✓ Implemented (Plan 01) |
+| **Debian-slim for DuckDB glibc compatibility** | ✓ Implemented (Plan 02) |
+| **tsx runtime (no build step in Docker)** | ✓ Implemented (Plan 02) |
 
 ---
 
@@ -92,15 +94,16 @@ Plan: 2 of 3 (Plan 02 complete)
 ## Session Continuity
 
 **Last Session:** 2026-03-31T10:37:40.425Z
-**Stopped At:** Completed 03-03-PLAN.md
+**Stopped At:** Completed 03-02-PLAN.md
 
 **Resume Context:**
 
-- Worker infrastructure complete (Wave 1)
-- Waves 2-3 deferred: integration with remember.ts, human.ts, tests, config CLI
-- Commit: 6dc77eb (worker implementation), bc54291 (summary)
-- Ready to continue with Waves 2-3 or proceed to Plan 02
+- Docker containerization complete (Plan 02)
+- Production + dev Docker images build successfully
+- Compose files for single and multi-container setups
+- Commits: 2fafc17, 6b5413c, 48505c6
+- Ready for Plan 03: Remote access / HTTP server
 
 ---
 
-*Last updated: 2026-03-31 after Plan 01 completion*
+*Last updated: 2026-03-31 after Plan 02 completion*
