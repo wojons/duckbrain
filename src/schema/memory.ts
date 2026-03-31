@@ -104,7 +104,7 @@ export function safeValidateMemory(
   if (!result.success) {
     return {
       success: false,
-      error: result.error.errors.map(e => e.message).join('; ')
+      error: (result.error as any).issues.map((i: any) => i.message).join('; ')
     };
   }
   return { success: true, data: result.data };

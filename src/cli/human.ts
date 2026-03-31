@@ -266,7 +266,7 @@ async function configCommand(args: string[]): Promise<void> {
     }
     
     try {
-      await setConfig(key, value);
+      await setConfig(key as any, value);
       console.log(`✓ Set ${key} = ${value}`);
     } catch (error) {
       console.error('Error setting config:', error instanceof Error ? error.message : error);

@@ -83,7 +83,7 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     if (!parseResult.success) {
       return {
         success: false,
-        error: `Invalid input: ${parseResult.error.errors.map(e => e.message).join('; ')}`
+        error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
       };
     }
 

@@ -88,7 +88,7 @@ export async function rememberTool(input: RememberInput): Promise<RememberOutput
     if (!parseResult.success) {
       return {
         success: false,
-        error: `Invalid input: ${parseResult.error.errors.map(e => e.message).join('; ')}`
+        error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
       };
     }
 

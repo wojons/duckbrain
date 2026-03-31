@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": {
+      "/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}

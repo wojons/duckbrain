@@ -3,15 +3,15 @@ status: testing
 phase: 01-core-mvp
 source: 01-core-mvp-01-SUMMARY.md, 01-core-mvp-02-SUMMARY.md, 01-core-mvp-03-SUMMARY.md, 01-core-mvp-04-SUMMARY.md
 started: 2026-03-30T12:00:00Z
-updated: 2026-03-30T12:05:00Z
+updated: 2026-03-31T03:46:00Z
 ---
 
 ## Current Test
 
-number: 2
-name: Store Memory
-expected: duckbrain remember /test/uat/key --domain=project --attr='{"test":"uat-phase-1"}' --embedding-text="UAT test memory" stores a memory and returns confirmation with id, key, partition, and author.
-awaiting: issue found - missing embedding_text parameter
+number: 6
+name: Stdio MCP Mode
+expected: Local Claude Desktop can call tools via MCP protocol
+result: testing - Opencode MCP integration working
 
 ## Tests
 
@@ -37,7 +37,7 @@ result: pass
 
 ### 6. Stdio MCP Mode
 expected: Local Claude Desktop can call tools via MCP protocol
-result: pending
+result: pass - Opencode integration verified (remember, recall, list_keys all working)
 
 ### 7. HTTP MCP Mode
 expected: Remote HTTP server with DNS rebinding protection
@@ -45,15 +45,15 @@ result: pending
 
 ### 8. Human CLI — Remember
 expected: duckbrain remember command stores memory
-result: pending
+result: pass
 
 ### 9. Human CLI — Recall
 expected: duckbrain recall command queries memories
-result: pending
+result: pass
 
 ### 10. Human CLI — List Keys
 expected: duckbrain list-keys command browses tree
-result: pending
+result: pass
 
 ### 11. Human CLI — Forget
 expected: duckbrain forget command soft-deletes
@@ -66,9 +66,9 @@ result: pass
 ## Summary
 
 total: 12
-passed: 5
+passed: 9
 issues: 0
-pending: 7
+pending: 3
 skipped: 0
 blocked: 0
 
