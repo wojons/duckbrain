@@ -16,26 +16,28 @@ If everything else fails, this must work: `remember()` appends to disk, `recall(
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] **CORE-01**: `remember()` tool — Validated in Phase 1
+- [x] **CORE-02**: `recall()` tool — Validated in Phase 1
+- [x] **CORE-03**: `list_keys()` tool — Validated in Phase 1
+- [x] **CORE-04**: `forget()` tool — Validated in Phase 1
+- [x] **SCHEMA-01**: Hybrid schema — Validated in Phase 1
+- [x] **SCHEMA-02**: Hierarchical key field — Validated in Phase 1
+- [x] **STORAGE-01**: Partitioned storage — Validated in Phase 1
+- [x] **STORAGE-02**: Manifest file — Validated in Phase 1
+- [x] **GIT-01**: Async commit batching — Validated in Phase 2
+- [x] **CLI-01**: Stdio MCP — Validated in Phase 1
+- [x] **CLI-02**: HTTP MCP — Validated in Phase 1
+- [x] **CLI-03**: SSH tunneling — Validated in Phase 3
+- [x] **REMOTE-01**: Docker containerization — Validated in Phase 3
+- [x] **REMOTE-02**: SSH client with auto-install — Validated in Phase 3
+- [x] **REMOTE-03**: Unix socket tunneling — Validated in Phase 3
 
 ### Active
 
-- [ ] **CORE-01**: `remember()` tool — appends memory to JSONL, batches git commits by lines/time
-- [ ] **CORE-02**: `recall()` tool — DuckDB queries with semantic search (vss extension), path globs, exact key lookup
-- [ ] **CORE-03**: `list_keys()` tool — hierarchical key explorer with pagination and depth limits
-- [ ] **CORE-04**: `forget()` tool — appends tombstone records (never deletes)
-- [ ] **SCHEMA-01**: Hybrid schema — strict base fields (id, key, domain, timestamp, author, action, embedding_text) + flexible attributes JSON
-- [ ] **SCHEMA-02**: Hierarchical key field — filesystem-style paths (`/projects/mcp/schema`) for glob queries and partitioning
-- [ ] **STORAGE-01**: Partitioned storage — domains map to folders (`memory/person/`, `memory/event/`, etc.)
-- [ ] **STORAGE-02**: Manifest file — lightweight index tracking active partition paths
-- [ ] **GIT-01**: Async commit batching — background worker commits when N lines or T seconds elapsed
 - [ ] **GIT-02**: Squash process — compacts JSONL to Parquet, cleans tombstones, squash-commits old history
 - [ ] **GIT-03**: Merge conflict resolution — UUID-based rows, append-only merges, script-assisted conflict handling
 - [ ] **NAMESPACE-01**: Multi-repo support — each namespace is a separate git repo, queried independently
 - [ ] **NAMESPACE-02**: Multi-user attribution — stamps writes with git email, enables shared namespaces
-- [ ] **CLI-01**: Stdio MCP — local Claude integration
-- [ ] **CLI-02**: HTTP MCP — remote hosting for multiple agents
-- [ ] **CLI-03**: SSH tunneling — transparent remote access without opening ports
 - [ ] **UI-01**: Web interface — file-explorer-style UI showing memory tree and timeline (DuckDB-WASM or embedded Express + React)
 
 ### Out of Scope
@@ -103,4 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-31 after Phase 3 completion*
