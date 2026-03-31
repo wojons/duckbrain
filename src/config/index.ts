@@ -28,9 +28,11 @@ export const DuckBrainConfigSchema = z.object({
       /** Max lines before forcing commit */
       maxLines: z.number().default(100),
       /** Max seconds before forcing commit */
-      maxSeconds: z.number().default(30)
+      maxSeconds: z.number().default(30),
+      /** Enable/disable background worker */
+      enabled: z.boolean().default(true)
     })
-    .default({ maxLines: 100, maxSeconds: 30 }),
+    .default({ maxLines: 100, maxSeconds: 30, enabled: true }),
 
   /** Storage settings */
   storage: z
@@ -41,6 +43,28 @@ export const DuckBrainConfigSchema = z.object({
       maxBytesPerChunk: z.number().default(1024 * 1024)
     })
     .default({ maxLinesPerChunk: 1000, maxBytesPerChunk: 1024 * 1024 }),
+
+  /** Squash/compaction settings */
+  squash: z
+    .object({
+      /** Compact partitions older than N days */
+      maxAgeDays: z.number().default(30),
+      /** Only compact if partition has > N records */
+      thresholdRecords: z.number().default(1000),
+      /** Enable background compaction */
+      autoCompact: z.boolean().default(false),
+      /** Rewrite git history during compaction */
+      squashGitHistory: z.boolean().default(true),
+      /** Parquet compression level (1-9) */
+      compressionLevel: z.number().min(1).max(9).default(6)
+    })
+    .default({
+      maxAgeDays: 30,
+      thresholdRecords: 1000,
+      autoCompact: false,
+      squashGitHistory: true,
+      compressionLevel: 6
+    }),
 
   /** Namespace mappings (alias -> path) */
   namespaceMappings: z.record(z.string(), z.string()).default({})
@@ -141,11 +165,19 @@ export function initializeConfig(
     namespacesPath: './namespaces',
     gitBatching: {
       maxLines: 100,
-      maxSeconds: 30
+      maxSeconds: 30,
+      enabled: true
     },
     storage: {
       maxLinesPerChunk: 1000,
       maxBytesPerChunk: 1024 * 1024
+    },
+    squash: {
+      maxAgeDays: 30,
+      thresholdRecords: 1000,
+      autoCompact: false,
+      squashGitHistory: true,
+      compressionLevel: 6
     },
     namespaceMappings: {}
   };
