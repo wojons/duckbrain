@@ -20,8 +20,11 @@ import { listKeysTool } from '../mcp/tools/list_keys';
 import { rememberTool } from '../mcp/tools/remember';
 import { forgetTool } from '../mcp/tools/forget';
 import { squashTool, getCompactionStatsTool } from '../mcp/tools/squash';
-import { getConfig, setConfig } from '../config/index';
+import { getConfig, setConfig, updateConfig, registerNamespace } from '../config/index';
 import { getGitWorker } from '../git/worker';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Parse command-line arguments
@@ -107,14 +110,10 @@ async function rememberCommand(args: string[]): Promise<void> {
       attributes,
       embedding_text: embeddingText,
       namespace
-    }, waitForCommit);
+    });
     
     if (result.success) {
-      if (waitForCommit) {
-        console.log(`✓ Remembered ${key} (ID: ${result.id}) - committed`);
-      } else {
-        console.log(`✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`);
-      }
+      console.log(`✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`);
     } else {
       console.error('✗ Failed to remember:', result.error);
       process.exit(1);
@@ -299,42 +298,186 @@ async function configCommand(args: string[]): Promise<void> {
 }
 
 /**
- * Namespaces command
+ * Namespaces command - Full namespace management
  */
 async function namespacesCommand(args: string[]): Promise<void> {
-  const { positional } = parseArgs(args);
+  const { positional, flags } = parseArgs(args);
   const subcommand = positional[0];
   
   if (!subcommand) {
-    console.error('Usage: duckbrain namespaces <list|add>');
+    console.error('Usage: duckbrain namespace <create|list|delete|use|set-remote>');
     process.exit(1);
   }
   
-  if (subcommand === 'list') {
+  // Alias 'switch' to 'use'
+  const cmd = subcommand === 'switch' ? 'use' : subcommand;
+  
+  if (cmd === 'list') {
     try {
       const config = getConfig();
       const namespaces = config.namespaceMappings || { default: './memory/default' };
+      const currentNs = config.defaultNamespace;
       
       console.log('Configured namespaces:');
-      for (const [name, path] of Object.entries(namespaces)) {
-        console.log(`  ${name}: ${path}`);
+      for (const [name, nsPath] of Object.entries(namespaces)) {
+        const marker = name === currentNs ? ' (active)' : '';
+        const isDefault = name === 'default' ? ' (default)' : '';
+        console.log(`  ${name}${marker}${isDefault}: ${nsPath}`);
       }
     } catch (error) {
       console.error('Error reading namespaces:', error instanceof Error ? error.message : error);
       process.exit(1);
     }
-  } else if (subcommand === 'add') {
+  } else if (cmd === 'create') {
     const name = positional[1];
-    const path = positional[2];
+    const setDefault = flags.default !== undefined;
     
-    if (!name || !path) {
-      console.error('Usage: duckbrain namespaces add <name> <path-or-git-url>');
+    if (!name) {
+      console.error('Usage: duckbrain namespace create <name> [--default]');
       process.exit(1);
     }
     
-    console.log(`✓ Namespace "${name}" added (config update not yet implemented)`);
+    try {
+      const config = getConfig();
+      const nsPath = path.join(config.namespacesPath, name);
+      
+      // Create namespace directory
+      if (!fs.existsSync(nsPath)) {
+        fs.mkdirSync(nsPath, { recursive: true });
+      }
+      
+      // Initialize git repo
+      try {
+        execSync('git init', { cwd: nsPath, stdio: 'pipe' });
+      } catch (gitError) {
+        console.warn(`Warning: Could not init git: ${(gitError as Error).message}`);
+      }
+      
+      // Create initial manifest
+      const manifestPath = path.join(nsPath, 'manifest.json');
+      if (!fs.existsSync(manifestPath)) {
+        fs.writeFileSync(manifestPath, JSON.stringify({
+          version: '1.0',
+          createdAt: new Date().toISOString(),
+          partitions: []
+        }, null, 2));
+      }
+      
+      // Update config
+      registerNamespace('.', name, nsPath);
+      
+      if (setDefault) {
+        setConfig('defaultNamespace', name);
+      }
+      
+      console.log(`✓ Created namespace '${name}' at ${nsPath}`);
+    } catch (error) {
+      console.error('Error creating namespace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  } else if (cmd === 'delete') {
+    const name = positional[1];
+    const force = flags.force !== undefined;
+    const purge = flags.purge !== undefined;
+    
+    if (!name) {
+      console.error('Usage: duckbrain namespace delete <name> --force [--purge]');
+      process.exit(1);
+    }
+    
+    if (!force) {
+      console.error('Error: --force flag required to delete namespace');
+      console.error('This is a destructive operation. Use --purge to also delete the directory.');
+      process.exit(1);
+    }
+    
+    try {
+      const config = getConfig();
+      const nsPath = config.namespaceMappings?.[name];
+      
+      if (!nsPath) {
+        console.error(`Error: Namespace '${name}' not found`);
+        process.exit(1);
+      }
+      
+      // Remove from config
+      if (config.namespaceMappings && name in config.namespaceMappings) {
+        const { [name]: _, ...rest } = config.namespaceMappings;
+        updateConfig('.', { namespaceMappings: rest });
+      }
+      
+      // Optionally delete directory
+      if (purge && fs.existsSync(nsPath)) {
+        fs.rmSync(nsPath, { recursive: true, force: true });
+        console.log(`✓ Deleted namespace '${name}' and removed directory`);
+      } else {
+        console.log(`✓ Deleted namespace '${name}' (directory preserved)`);
+      }
+    } catch (error) {
+      console.error('Error deleting namespace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  } else if (cmd === 'use') {
+    const name = positional[1];
+    
+    if (!name) {
+      console.error('Usage: duckbrain namespace use <name>');
+      process.exit(1);
+    }
+    
+    try {
+      const config = getConfig();
+      
+      if (!config.namespaceMappings?.[name]) {
+        console.error(`Error: Namespace '${name}' not found. Run 'duckbrain namespace list' to see available namespaces.`);
+        process.exit(1);
+      }
+      
+      setConfig('defaultNamespace', name);
+      console.log(`✓ Switched to namespace '${name}'`);
+    } catch (error) {
+      console.error('Error switching namespace:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  } else if (cmd === 'set-remote') {
+    const name = positional[1];
+    const url = positional[2];
+    
+    if (!name || !url) {
+      console.error('Usage: duckbrain namespace set-remote <name> <url>');
+      process.exit(1);
+    }
+    
+    try {
+      const config = getConfig();
+      const nsPath = config.namespaceMappings?.[name];
+      
+      if (!nsPath) {
+        console.error(`Error: Namespace '${name}' not found`);
+        process.exit(1);
+      }
+      
+      // Configure git remote
+      execSync(`git remote add origin ${url}`, { cwd: nsPath, stdio: 'pipe' });
+      console.log(`✓ Set remote for '${name}' to ${url}`);
+    } catch (error) {
+      // Remote might already exist - try to update it
+      try {
+        const config = getConfig();
+        const nsPath = config.namespaceMappings?.[name];
+        if (nsPath) {
+          execSync(`git remote set-url origin ${url}`, { cwd: nsPath, stdio: 'pipe' });
+          console.log(`✓ Updated remote for '${name}' to ${url}`);
+          return;
+        }
+      } catch {}
+      
+      console.error('Error setting remote:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
   } else {
-    console.error(`Unknown namespaces subcommand: ${subcommand}`);
+    console.error(`Unknown namespace subcommand: ${cmd}`);
+    console.error('Valid: create, list, delete, use, set-remote');
     process.exit(1);
   }
 }
@@ -389,6 +532,113 @@ async function sshTestCommand(args: string[]): Promise<void> {
   console.log(`      }`);
   console.log(`    }`);
   console.log(`  }`);
+}
+
+/**
+ * Pull command - Pull from remote with auto-merge
+ */
+async function pullCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const namespace = positional[0] || 'default';
+  
+  try {
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace];
+    
+    if (!nsPath) {
+      console.error(`Error: Namespace '${namespace}' not found`);
+      process.exit(1);
+    }
+    
+    console.log(`Pulling ${namespace}...`);
+    
+    // Pull without committing (allows us to merge conflicts)
+    execSync('git pull --no-commit', { cwd: nsPath, stdio: 'inherit' });
+    
+    // If we get here, pull succeeded (possibly with conflicts auto-resolved)
+    console.log(`✓ Pulled ${namespace}`);
+  } catch (error) {
+    console.error('Error pulling:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Push command - Push to remote
+ */
+async function pushCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const namespace = positional[0] || 'default';
+  
+  try {
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace];
+    
+    if (!nsPath) {
+      console.error(`Error: Namespace '${namespace}' not found`);
+      process.exit(1);
+    }
+    
+    console.log(`Pushing ${namespace}...`);
+    execSync('git push', { cwd: nsPath, stdio: 'inherit' });
+    console.log(`✓ Pushed ${namespace}`);
+  } catch (error) {
+    console.error('Error pushing:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Remote command - Manage remotes
+ */
+async function remoteCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const subcommand = positional[0];
+  
+  if (!subcommand) {
+    console.error('Usage: duckbrain remote <add|remove> <namespace> [url]');
+    process.exit(1);
+  }
+  
+  if (subcommand === 'add') {
+    const namespace = positional[1];
+    const url = positional[2];
+    
+    if (!namespace || !url) {
+      console.error('Usage: duckbrain remote add <namespace> <url>');
+      process.exit(1);
+    }
+    
+    // Delegate to namespace set-remote
+    await namespacesCommand(['set-remote', namespace, url]);
+  } else if (subcommand === 'remove') {
+    const namespace = positional[1];
+    
+    if (!namespace) {
+      console.error('Usage: duckbrain remote remove <namespace>');
+      process.exit(1);
+    }
+    
+    try {
+      const config = getConfig();
+      const nsPath = config.namespaceMappings?.[namespace];
+      
+      if (!nsPath) {
+        console.error(`Error: Namespace '${namespace}' not found`);
+        process.exit(1);
+      }
+      
+      execSync('git remote remove origin', { cwd: nsPath, stdio: 'pipe' });
+      console.log(`✓ Removed remote from '${namespace}'`);
+    } catch (error) {
+      console.error('Error removing remote:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  } else {
+    console.error(`Unknown remote subcommand: ${subcommand}`);
+    console.error('Valid: add, remove');
+    process.exit(1);
+  }
 }
 
 /**
@@ -505,18 +755,21 @@ function showHelp(): void {
 
  Usage: duckbrain <command> [options]
 
- Commands:
-   stdio              Start MCP server for local Claude
-   remember <key>     Remember a memory
-   recall             Query memories
-   list-keys          Browse memory structure
-   forget <id>        Delete a memory
-   config             Show or set configuration
-   namespaces         Manage namespaces
-   status             Show system status
-   squash             Compact old partitions
-   ssh-test           Test SSH tunnel setup
-   help               Show this help
+  Commands:
+    stdio              Start MCP server for local Claude
+    remember <key>     Remember a memory
+    recall             Query memories
+    list-keys          Browse memory structure
+    forget <id>        Delete a memory
+    config             Show or set configuration
+    namespace          Manage namespaces (create|list|delete|use|set-remote)
+    pull               Pull from remote (auto-merge conflicts)
+    push               Push to remote
+    remote             Manage remotes (add|remove)
+    status             Show system status
+    squash             Compact old partitions
+    ssh-test           Test SSH tunnel setup
+    help               Show this help
 
  Options:
    --namespace=NAME   Select namespace (default: default)
@@ -556,10 +809,14 @@ export async function runHumanCLI(command: string, args: string[]): Promise<void
     'list-keys': listKeysCommand,
     forget: forgetCommand,
     config: configCommand,
-    namespaces: namespacesCommand,
+    namespace: namespacesCommand,
+    namespaces: namespacesCommand, // alias
     status: statusCommand,
     'ssh-test': sshTestCommand,
     squash: squashCommand,
+    pull: pullCommand,
+    push: pushCommand,
+    remote: remoteCommand,
     help: async () => showHelp()
   };
   
