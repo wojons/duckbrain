@@ -88,8 +88,8 @@
 | NAMESPACE-02 | Phase 3 | Complete |
 | NAMESPACE-03 | Phase 3 | Complete |
 | REMOTE-01 | Phase 3 | Complete |
-| REMOTE-02 | Phase 3 | Pending |
-| REMOTE-03 | Phase 3 | Pending |
+| REMOTE-02 | Phase 3 | Complete |
+| REMOTE-03 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
