@@ -32,16 +32,20 @@
 | Plan | Description | Status | Commits |
 |------|-------------|--------|---------|
 | 01 | Git Batching Worker | 🟡 Partial | 2 commits |
-| 02 | Squash Process | ⏳ Pending | - |
-| 03 | Merge Conflict Resolution | ⏳ Pending | - |
+| 02 | Squash Process | ✅ Complete | 2026-03-31 |
+| 03 | Merge Conflict Resolution | ✅ Complete | 2026-03-31 |
+| 04 | Gap Closure: Namespace MCP Tools | ⏳ Pending | - |
 
 **Success Criteria:**
 - [🟡] Background worker commits when N lines or T seconds elapsed (GIT-01) — Core implemented, integration deferred
-- [ ] Squash process compacts JSONL to Parquet (GIT-02)
-- [ ] Script-assisted merge conflict resolution (GIT-03)
+- [✓] Squash process compacts JSONL to Parquet (GIT-02)
+- [✓] Script-assisted merge conflict resolution (GIT-03)
+- [ ] Namespace MCP tools registered and callable (NAMESPACE-01, NAMESPACE-02)
 
 **Summary Files:**
 - `.planning/phases/02-git-automation/02-git-auto-01-SUMMARY.md`
+- `.planning/phases/02-git-automation/02-git-auto-02-SUMMARY.md`
+- `.planning/phases/02-git-automation/02-git-auto-03-SUMMARY.md`
 
 ---
 
