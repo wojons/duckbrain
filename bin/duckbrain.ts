@@ -120,11 +120,10 @@ async function main() {
         const rateLimitArg = commandArgs.find(arg => arg.startsWith('--rate-limit='));
 
         const port = portArg ? parseInt(portArg.split('=')[1]) : 3000;
-        const host = bindAll ? '0.0.0.0' : '127.0.0.1';
         const authType = authArg ? authArg.split('=')[1] as 'none' | 'basic' | 'apikey' : 'none';
         const rateLimit = rateLimitArg ? parseInt(rateLimitArg.split('=')[1]) : 100;
 
-        await startHttpMode({ port, host });
+        await startHttpMode({ port, authType, rateLimit, bindAll });
         break;
       }
         
