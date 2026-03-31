@@ -52,6 +52,8 @@ Commands:
   remote             Configure remote repository
   status             Show system status
   ssh-test           Test SSH tunnel setup
+  ssh-connect        Connect to remote DuckBrain via SSH tunnel
+  servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
   help               Show this help
 
@@ -70,6 +72,7 @@ Service Commands:
 
 Options:
   --namespace=NAME   Select namespace (default: default)
+  --socket=NAME      Use remote connection via Unix socket
   --help             Show this help
 
 Examples:
@@ -84,6 +87,10 @@ Examples:
   duckbrain list-keys --depth=3 --limit=20
   duckbrain forget abc-123 --reason="obsolete"
   duckbrain status --namespace=default
+  duckbrain ssh-connect --host=user@server --name=prod
+  duckbrain --socket=prod status
+  duckbrain servers list
+  duckbrain servers add --name=prod --host=user@server
 `.trim());
 }
 
@@ -154,6 +161,8 @@ async function main() {
       case 'status':
       case 'squash':
       case 'ssh-test':
+      case 'ssh-connect':
+      case 'servers':
         await runHumanCLI(command, commandArgs);
         break;
         
