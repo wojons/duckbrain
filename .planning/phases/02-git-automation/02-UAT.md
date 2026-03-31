@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 02-git-automation
 source: [02-git-auto-01-SUMMARY.md, 02-git-auto-02-SUMMARY.md, 02-git-auto-03-SUMMARY.md, 02-git-auto-04-SUMMARY.md]
 started: 2026-03-31T00:00:00Z
@@ -77,29 +77,55 @@ blocked: 0
   reason: "User reported: Config subcommand 'get' doesn't exist (only 'show' and 'set'). Also config show fails with validation error about missing authorEmail. Git batch config options not found in schema."
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Config schema has gitBatching object but CLI uses flat keys (git.batchLines). Config command handlers exist for git.batchLines but schema doesn't expose them as top-level keys. Also authorEmail has no default, causing validation failures on empty config."
+  artifacts:
+    - path: "src/config/Index.ts"
+      issue: "authorEmail field has no .default() value, causing validation failure on first use"
+    - path: "src/cli/human.ts"
+      issue: "Config CLI has git.batchLines handler but schema uses nested gitBatching.maxLines"
+  missing:
+    - "Add .default() to authorEmail in schema or provide bootstrap mechanism"
+    - "Align config CLI key names with schema structure"
+  debug_session: ""
 
 - truth: "Squash CLI command works with --help flag"
   status: failed
   reason: "User reported: Command fails with 'Compaction failed: Default namespace not found' - shouldn't fail on --help. Command exists but requires namespace to be set up first."
   severity: major
   test: 2
-  artifacts: []
-  missing: []
+  root_cause: "squashCommand doesn't check for --help flag before executing. It immediately calls squash MCP tool which requires namespace to exist."
+  artifacts:
+    - path: "src/cli/human.ts"
+      issue: "squashCommand lacks help flag handling"
+  missing:
+    - "Add help flag check at start of squashCommand"
+    - "Print usage without executing compaction when --help is passed"
+  debug_session: ""
 
 - truth: "Namespace CLI command accessible as 'duckbrain namespace'"
   status: failed
   reason: "User reported: Command exists (duckbrain namespaces --help shows usage) but 'namespace' singular is unknown. Help text shows correct subcommands."
   severity: minor
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "CLI entry point (bin/duckbrain.ts) help text and switch statement only include 'namespaces' (plural), not 'namespace' (singular). human.ts has both aliases but CLI router doesn't."
+  artifacts:
+    - path: "bin/duckbrain.ts"
+      issue: "Missing 'namespace' case in switch statement and help text"
+  missing:
+    - "Add 'namespace' to CLI switch statement alongside 'namespaces'"
+    - "Update help text to show 'namespace(s)' as alias"
+  debug_session: ""
 
 - truth: "Pull/push commands available in CLI"
   status: failed
   reason: "User reported: Commands unknown - not wired in CLI entry point (bin/duckbrain.ts). Handlers exist in human.ts but not reachable."
   severity: major
   test: 9
-  artifacts: []
-  missing: []
+  root_cause: "Handlers (pullCommand, pushCommand, remoteCommand) exist in human.ts and are exported, but bin/duckbrain.ts switch statement doesn't include cases for them. Also missing from help text."
+  artifacts:
+    - path: "bin/duckbrain.ts"
+      issue: "Missing pull/push/remote cases in switch statement (lines 95-102)"
+  missing:
+    - "Add pull, push, remote to CLI switch statement"
+    - "Add pull, push, remote to help text"
+  debug_session: ""
