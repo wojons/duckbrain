@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { DomainEnum, ActionEnum, safeValidateMemory, createMemory } from '../../schema/memory';
 import { getPartitionPath, createPartition, appendToJsonl } from '../../storage/jsonl';
 import { addPartition } from '../../storage/manifest';
-import { execSync } from 'child_process';
+import { getAuthorEmail } from '../../git/attribution';
 import path from 'path';
 import fs from 'fs';
 
@@ -44,14 +44,11 @@ interface RememberOutput {
 }
 
 /**
- * Get git config value
+ * Get git author email (deprecated - use getAuthorEmail from git/attribution)
+ * Kept for backwards compatibility
  */
 function getGitConfig(key: string): string {
-  try {
-    return execSync(`git config ${key}`, { encoding: 'utf-8' }).trim();
-  } catch (error) {
-    throw new Error(`Git config '${key}' not set. Run: git config ${key} "value"`);
-  }
+  return getAuthorEmail();
 }
 
 /**
