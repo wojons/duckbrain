@@ -22,9 +22,13 @@ import { forgetTool } from '../mcp/tools/forget';
 import { squashTool, getCompactionStatsTool } from '../mcp/tools/squash';
 import { getConfig, setConfig, updateConfig, registerNamespace } from '../config/index';
 import { getGitWorker } from '../git/worker';
+import { connectToRemote, checkRemoteInstall, installRemote } from '../ssh/client';
+import { createTunnel, closeTunnel, listTunnels } from '../ssh/tunnel';
 import { execSync } from 'child_process';
+import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 /**
  * Parse command-line arguments
@@ -51,9 +55,16 @@ function parseArgs(args: string[]): { positional: string[]; flags: Record<string
 
 /**
  * Format memory output for human readability
+ * Handles BigInt serialization that DuckDB may return
  */
 function formatMemory(memory: any): string {
-  return JSON.stringify(memory, null, 2);
+  return JSON.stringify(memory, (key, value) => {
+    // Convert BigInt to string
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    return value;
+  }, 2);
 }
 
 /**
@@ -608,6 +619,248 @@ async function sshTestCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * SSH connect command - Full SSH tunnel with auto-install
+ */
+async function sshConnectCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+  const host = flags.host;
+  const name = flags.name || host.split('@').pop()?.replace(/\./g, '-') || 'default';
+  const identityFile = flags['identity-file'];
+  const port = flags.port ? parseInt(flags.port) : undefined;
+
+  if (!host) {
+    console.error('Usage: duckbrain ssh-connect --host=<user@server> [--name=<name>] [--identity-file=<path>] [--port=<port>]');
+    process.exit(1);
+  }
+
+  console.log(`SSH Connect`);
+  console.log(`===========`);
+  console.log(`Host: ${host}`);
+  console.log(`Name: ${name}`);
+
+  // Step 1: Verify SSH connectivity
+  console.log(`\nConnecting via SSH...`);
+  const connected = await connectToRemote({ host, identityFile, port });
+  if (!connected) {
+    console.error('✗ Failed to connect via SSH. Check host and credentials.');
+    process.exit(1);
+  }
+  console.log('✓ SSH connection established');
+
+  // Step 2: Check remote DuckBrain installation
+  console.log(`\nChecking remote DuckBrain installation...`);
+  const status = await checkRemoteInstall(host);
+
+  if (!status.installed) {
+    console.log('DuckBrain not found on remote. Installing...');
+    const installed = await installRemote(host);
+    if (!installed) {
+      console.error('✗ Could not auto-install DuckBrain on remote. See instructions above.');
+      process.exit(1);
+    }
+    console.log('✓ DuckBrain installed on remote');
+  } else if (status.needsUpdate) {
+    console.log(`DuckBrain v${status.version} found (update available)`);
+    console.log('Run: duckbrain ssh-connect --host=... to reinstall');
+  } else {
+    console.log(`✓ DuckBrain v${status.version} found`);
+  }
+
+  // Step 3: Create SSH tunnel
+  const socketPath = path.join(os.homedir(), '.duckbrain', 'sockets', `${name}.sock`);
+  console.log(`\nCreating SSH tunnel...`);
+
+  try {
+    const tunnelPath = await createTunnel({
+      remoteHost: host,
+      localSocketPath: socketPath,
+      remotePort: 3000,
+    });
+    console.log(`✓ SSH tunnel established`);
+    console.log(`\nSocket: ${tunnelPath}`);
+    console.log(`\nTo use this connection:`);
+    console.log(`  duckbrain --socket=${name} status`);
+    console.log(`  duckbrain --socket=${name} recall --prefix=/`);
+  } catch (error) {
+    console.error('✗ Failed to create tunnel:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Socket connect command - Run CLI commands via Unix socket
+ */
+async function socketConnectCommand(args: string[]): Promise<void> {
+  const { flags, positional } = parseArgs(args);
+  const socketName = flags.socket;
+
+  if (!socketName) {
+    console.error('Usage: duckbrain --socket=<name> <command> [options]');
+    console.error('\nAvailable sockets:');
+    const tunnels = listTunnels();
+    if (tunnels.length === 0) {
+      console.error('  No active tunnels. Run: duckbrain ssh-connect --host=<server>');
+    } else {
+      for (const t of tunnels) {
+        console.error(`  ${t.name} -> ${t.remoteHost}`);
+      }
+    }
+    process.exit(1);
+  }
+
+  const socketPath = path.join(os.homedir(), '.duckbrain', 'sockets', `${socketName}.sock`);
+
+  if (!fs.existsSync(socketPath)) {
+    console.error(`Error: Socket '${socketName}' not found at ${socketPath}`);
+    console.error('\nAvailable sockets:');
+    const tunnels = listTunnels();
+    if (tunnels.length === 0) {
+      console.error('  No active tunnels. Run: duckbrain ssh-connect --host=<server>');
+    } else {
+      for (const t of tunnels) {
+        console.error(`  ${t.name} -> ${t.remoteHost}`);
+      }
+    }
+    process.exit(1);
+  }
+
+  // Forward command to remote DuckBrain via HTTP over Unix socket
+  const command = positional.join(' ');
+  if (!command) {
+    console.error('Error: No command specified');
+    console.error('Usage: duckbrain --socket=<name> <command> [options]');
+    process.exit(1);
+  }
+
+  // Build request body for remote CLI execution
+  const requestBody = JSON.stringify({ command, args: positional.slice(1) });
+
+  // HTTP request over Unix socket
+  const options = {
+    socketPath,
+    path: '/cli',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(requestBody),
+    },
+  };
+
+  return new Promise<void>((resolve, reject) => {
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.output) {
+            console.log(response.output);
+          }
+          if (response.error) {
+            console.error(response.error);
+          }
+          resolve();
+        } catch {
+          console.log(data);
+          resolve();
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error(`Error connecting to remote DuckBrain: ${err.message}`);
+      console.error('Make sure the remote DuckBrain HTTP server is running.');
+      process.exit(1);
+    });
+
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+/**
+ * Servers command - Manage named server connections
+ */
+async function serversCommand(args: string[]): Promise<void> {
+  const { positional, flags } = parseArgs(args);
+  const subcommand = positional[0];
+
+  if (!subcommand) {
+    console.error('Usage: duckbrain servers <list|add|remove>');
+    process.exit(1);
+  }
+
+  const serversPath = path.join(os.homedir(), '.duckbrain', 'servers.json');
+
+  // Load or initialize servers config
+  function loadServers(): Record<string, { host: string; addedAt: string }> {
+    if (fs.existsSync(serversPath)) {
+      return JSON.parse(fs.readFileSync(serversPath, 'utf-8'));
+    }
+    return {};
+  }
+
+  function saveServers(servers: Record<string, { host: string; addedAt: string }>): void {
+    const dir = path.dirname(serversPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(serversPath, JSON.stringify(servers, null, 2));
+  }
+
+  if (subcommand === 'list') {
+    const servers = loadServers();
+    const entries = Object.entries(servers);
+
+    if (entries.length === 0) {
+      console.log('No servers configured.');
+      console.log('Add one with: duckbrain servers add --name=<name> --host=<user@server>');
+      return;
+    }
+
+    console.log('Configured servers:');
+    for (const [name, info] of entries) {
+      console.log(`  ${name} -> ${info.host} (added: ${info.addedAt})`);
+    }
+  } else if (subcommand === 'add') {
+    const name = flags.name;
+    const host = flags.host;
+
+    if (!name || !host) {
+      console.error('Usage: duckbrain servers add --name=<name> --host=<user@server>');
+      process.exit(1);
+    }
+
+    const servers = loadServers();
+    servers[name] = { host, addedAt: new Date().toISOString() };
+    saveServers(servers);
+
+    console.log(`✓ Added server '${name}' -> ${host}`);
+  } else if (subcommand === 'remove') {
+    const name = positional[1] || flags.name;
+
+    if (!name) {
+      console.error('Usage: duckbrain servers remove <name>');
+      process.exit(1);
+    }
+
+    const servers = loadServers();
+    if (!(name in servers)) {
+      console.error(`Error: Server '${name}' not found`);
+      process.exit(1);
+    }
+
+    delete servers[name];
+    saveServers(servers);
+    console.log(`✓ Removed server '${name}'`);
+  } else {
+    console.error(`Unknown servers subcommand: ${subcommand}`);
+    console.error('Valid: list, add, remove');
+    process.exit(1);
+  }
+}
+
+/**
  * Pull command - Pull from remote with auto-merge
  */
 async function pullCommand(args: string[]): Promise<void> {
@@ -858,32 +1111,45 @@ function showHelp(): void {
     status             Show system status
     squash             Compact old partitions
     ssh-test           Test SSH tunnel setup
+    ssh-connect        Connect to remote DuckBrain via SSH tunnel
+    servers            Manage server connections (list|add|remove)
     help               Show this help
 
- Options:
-   --namespace=NAME   Select namespace (default: default)
-   --wait             Wait for git commit (remember command only)
-   --help             Show this help
+  Options:
+    --namespace=NAME   Select namespace (default: default)
+    --socket=NAME      Use remote connection via Unix socket
+    --wait             Wait for git commit (remember command only)
+    --help             Show this help
 
- Squash Options:
-   --partition=PATH   Target specific partition
-   --dry-run          Preview without modifying files
-   --aggressive       Include git history squashing
-   --stats            Show compaction statistics
+  SSH Options:
+    --host=USER@HOST   Remote host for SSH connection
+    --name=NAME        Name for the tunnel/socket (default: derived from host)
+    --identity-file=PATH  SSH identity file (key)
+    --port=PORT        SSH port (default: 22)
 
- Examples:
-   duckbrain stdio
-   duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
-   duckbrain remember /notes/test --domain=raw_note --wait
-   duckbrain recall --prefix=/projects/
-   duckbrain list-keys --depth=3 --limit=20
-   duckbrain forget abc-123 --reason="obsolete"
-   duckbrain status --namespace=default
-   duckbrain config set git.batchLines 100
-   duckbrain squash --stats
-   duckbrain squash --dry-run
-   duckbrain squash --partition=person/2025-01 --aggressive
- `.trim());
+  Squash Options:
+    --partition=PATH   Target specific partition
+    --dry-run          Preview without modifying files
+    --aggressive       Include git history squashing
+    --stats            Show compaction statistics
+
+  Examples:
+    duckbrain stdio
+    duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
+    duckbrain remember /notes/test --domain=raw_note --wait
+    duckbrain recall --prefix=/projects/
+    duckbrain list-keys --depth=3 --limit=20
+    duckbrain forget abc-123 --reason="obsolete"
+    duckbrain status --namespace=default
+    duckbrain config set git.batchLines 100
+    duckbrain ssh-connect --host=user@server --name=prod
+    duckbrain --socket=prod status
+    duckbrain servers list
+    duckbrain servers add --name=prod --host=user@server
+    duckbrain squash --stats
+    duckbrain squash --dry-run
+    duckbrain squash --partition=person/2025-01 --aggressive
+  `.trim());
 }
 
 /**
@@ -892,6 +1158,13 @@ function showHelp(): void {
  * @param args Command arguments
  */
 export async function runHumanCLI(command: string, args: string[]): Promise<void> {
+  // Check for --socket flag to route through remote connection
+  const { flags: globalFlags } = parseArgs(args);
+  if (globalFlags.socket && command !== 'ssh-connect' && command !== 'ssh-test' && command !== 'servers') {
+    await socketConnectCommand(args);
+    return;
+  }
+
   const commands: Record<string, (args: string[]) => Promise<void>> = {
     remember: rememberCommand,
     recall: recallCommand,
@@ -902,6 +1175,8 @@ export async function runHumanCLI(command: string, args: string[]): Promise<void
     namespaces: namespacesCommand, // alias
     status: statusCommand,
     'ssh-test': sshTestCommand,
+    'ssh-connect': sshConnectCommand,
+    servers: serversCommand,
     squash: squashCommand,
     pull: pullCommand,
     push: pushCommand,
