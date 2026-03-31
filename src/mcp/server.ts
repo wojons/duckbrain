@@ -12,6 +12,16 @@ import { listKeysTool, listKeysToolMetadata } from './tools/list_keys';
 import { rememberToolDef } from './tools/remember';
 import { forgetToolDef } from './tools/forget';
 import { squashToolDef, compactionStatsToolDef } from './tools/squash';
+import { 
+  createNamespaceTool, 
+  listNamespacesTool, 
+  switchNamespaceTool, 
+  deleteNamespaceTool,
+  CreateNamespaceInputSchema,
+  ListNamespacesInputSchema,
+  SwitchNamespaceInputSchema,
+  DeleteNamespaceInputSchema
+} from './tools/namespace';
 import path from 'path';
 import fs from 'fs';
 
@@ -92,6 +102,30 @@ function registerTools(): void {
     description: compactionStatsToolDef.description,
     inputSchema: compactionStatsToolDef.inputSchema
   }, wrapHandler(compactionStatsToolDef.handler));
+
+  server.registerTool('create_namespace', {
+    title: 'Create Namespace',
+    description: 'Create a new memory namespace (separate git repo)',
+    inputSchema: CreateNamespaceInputSchema
+  }, wrapHandler(createNamespaceTool));
+
+  server.registerTool('list_namespaces', {
+    title: 'List Namespaces',
+    description: 'List all available namespaces',
+    inputSchema: ListNamespacesInputSchema
+  }, wrapHandler(listNamespacesTool));
+
+  server.registerTool('switch_namespace', {
+    title: 'Switch Namespace',
+    description: 'Switch to a different namespace',
+    inputSchema: SwitchNamespaceInputSchema
+  }, wrapHandler(switchNamespaceTool));
+
+  server.registerTool('delete_namespace', {
+    title: 'Delete Namespace',
+    description: 'Delete a namespace (requires confirmation)',
+    inputSchema: DeleteNamespaceInputSchema
+  }, wrapHandler(deleteNamespaceTool));
 }
 
 /**
