@@ -1,0 +1,19 @@
+services:
+  duckbrain:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"  # Bind to localhost only for security
+    volumes:
+      - duckbrain-data:/data    # Named volume for persistent storage
+    environment:
+      - NODE_ENV=production
+      - DUCKBRAIN_DATA_DIR=/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  duckbrain-data:

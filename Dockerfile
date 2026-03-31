@@ -27,6 +27,10 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bin ./bin
 COPY --from=builder /app/src ./src
 
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
 # Create data directory with proper ownership for node user
 RUN mkdir -p /data && chown -R node:node /data
 VOLUME /data
@@ -40,6 +44,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://localhost:3000/').catch(()=>process.exit(1))" || exit 1
 
-# Run via tsx (TypeScript execution without build step)
-ENTRYPOINT ["npx", "tsx", "bin/duckbrain.ts"]
+# Run via entrypoint (initializes git repo) then tsx for TypeScript execution
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh", "npx", "tsx", "bin/duckbrain.ts"]
 CMD ["http", "--port=3000", "--bind=0.0.0.0"]
