@@ -7,7 +7,7 @@
 | Plan | Description | Status | Commits |
 |------|-------------|--------|---------|
 | 01 | Memory Schema & Storage | ✅ Complete | 5 commits |
-| 02 | DuckDB Query Layer | ✅ Complete | 3 commits |
+| 02 | 3/2 | Complete   | 2026-03-31 |
 | 03 | MCP Server & Tools | ✅ Complete | 1 commit |
 | 04 | CLI Entry Points | ✅ Complete | 6 commits |
 
