@@ -1,0 +1,33 @@
+# Development Dockerfile — Debian-based for easy debugging
+FROM node:20-slim
+
+# Install git and debugging tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    vim \
+    htop \
+    && rm -rf /var/lib/apt/lists/*
+
+# The node:20-slim base already has a 'node' user with UID 1000
+
+WORKDIR /app
+
+# Copy package files and install all dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy source (mount will override in dev via volume)
+COPY . .
+
+# Create data directory with proper ownership
+RUN mkdir -p /data && chown -R node:node /data
+VOLUME /data
+
+USER node
+
+EXPOSE 3000
+
+# Development: use tsx with --watch for auto-reload
+ENTRYPOINT ["npx", "tsx", "--watch", "bin/duckbrain.ts"]
+CMD ["http", "--port=3000", "--bind=0.0.0.0"]
