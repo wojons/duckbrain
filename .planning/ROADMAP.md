@@ -54,27 +54,29 @@
 
 ---
 
-## Phase 3: Multi-User & Remote — Planned
+## Phase 3: Multi-User & Remote — In Progress
 
 **Goal:** Namespace support, SSH tunneling, remote access
 
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 | Plan | Description | Status | Wave |
 |------|-------------|--------|------|
-| 01 | SSH Tunneling | 📝 Planned | 1 |
-| 02 | Docker Containerization | 📝 Planned | 1 |
-| 03 | HTTP Auth & Service Management | 📝 Planned | 1 |
+| 01 | SSH Tunneling | ✓ Complete | 1 |
+| 02 | Docker Containerization | ✓ Complete | 1 |
+| 03 | HTTP Auth & Service Management | ✓ Complete | 1 |
+| 04 | Gap Closure: Wire CLI Flags to HTTP Server | 📝 Planned | 2 |
 
 **Success Criteria:**
-- [ ] SSH tunneling for secure remote access (REMOTE-02, REMOTE-03)
-- [ ] Docker deployment with Alpine and Debian variants
-- [ ] HTTP server with auth, rate limiting, systemd service
+- [x] SSH tunneling for secure remote access (REMOTE-02, REMOTE-03)
+- [x] Docker deployment with Alpine and Debian variants
+- [ ] HTTP server with auth, rate limiting, systemd service (CLI flags not wired — gap closure pending)
 
 **Plan Files:**
 - `.planning/phases/03-multi-user-remote/03-01-PLAN.md` — SSH tunneling with named Unix sockets
 - `.planning/phases/03-multi-user-remote/03-02-PLAN.md` — Docker images and compose configurations
 - `.planning/phases/03-multi-user-remote/03-03-PLAN.md` — HTTP auth, rate limiting, systemd service
+- `.planning/phases/03-multi-user-remote/03-04-PLAN.md` — Gap closure: wire --auth/--rate-limit/--bind-all CLI flags
 
 ---
 
