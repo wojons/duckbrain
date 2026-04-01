@@ -1,0 +1,27 @@
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash testuser && echo "testuser:testpass" | chpasswd
+
+RUN mkdir -p /home/testuser/.ssh && chown testuser:testuser /home/testuser/.ssh && chmod 700 /home/testuser/.ssh
+RUN mkdir -p /run/sshd
+
+RUN sed -i 's/#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+COPY bin/ bin/
+COPY src/ src/
+COPY tsconfig.json* ./
+
+RUN echo '#!/bin/bash\n/usr/sbin/sshd -D -e &' > /app/start.sh && \
+    echo 'echo "SSH server started"' >> /app/start.sh && \
+    echo 'tail -f /dev/null' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+EXPOSE 22 3000
+
+CMD ["/app/start.sh"]

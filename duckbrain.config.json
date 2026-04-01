@@ -1,0 +1,26 @@
+{
+  "defaultNamespace": "test-namespace",
+  "authorEmail": "test@example.com",
+  "namespacesPath": "./namespaces",
+  "gitBatching": {
+    "maxLines": 100,
+    "maxSeconds": 30,
+    "enabled": true
+  },
+  "storage": {
+    "maxLinesPerChunk": 1000,
+    "maxBytesPerChunk": 1048576
+  },
+  "squash": {
+    "maxAgeDays": 30,
+    "thresholdRecords": 1000,
+    "autoCompact": false,
+    "squashGitHistory": true,
+    "compressionLevel": 6
+  },
+  "namespaceMappings": {
+    "test-ns": "namespaces/test-ns",
+    "test-namespace": "namespaces/test-namespace",
+    "temp-trigger": "namespaces/temp-trigger"
+  }
+}
