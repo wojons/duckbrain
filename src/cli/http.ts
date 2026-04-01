@@ -23,6 +23,7 @@ import { authMiddleware, AuthConfig } from '../auth/middleware.js';
 import { rateLimitMiddleware, RateLimitConfig } from '../auth/ratelimit.js';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 /**
  * HTTP server configuration options
@@ -110,10 +111,20 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
   
-  // 3. Authentication
+  // 3. Authentication — read credentials from ~/.duckbrain/auth.json if available
   const authConfig: AuthConfig = {
     type: options.authType ?? 'none'
   };
+  const authFilePath = path.join(os.homedir(), '.duckbrain', 'auth.json');
+  if (fs.existsSync(authFilePath)) {
+    try {
+      const authFile = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
+      if (authFile.users) authConfig.users = authFile.users;
+      if (authFile.apiKeys) authConfig.apiKeys = authFile.apiKeys;
+    } catch {
+      console.error('[duckbrain] Warning: Could not parse auth.json');
+    }
+  }
   app.use(authMiddleware(authConfig));
   
   // 4. JSON body parser (after rate limit and auth)
@@ -156,6 +167,39 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     res.json({ results: [] });
   });
   
+  // CLI remote execution endpoint (for --socket usage)
+  app.post('/cli', async (req: Request, res: Response) => {
+    try {
+      const { command, args: cmdArgs } = req.body;
+      if (!command) {
+        res.status(400).json({ error: 'Missing command' });
+        return;
+      }
+
+      const { execFile } = await import('child_process');
+      const binPath = path.resolve(process.cwd(), 'bin/duckbrain.ts');
+      const fullArgs = [binPath, command, ...(cmdArgs || [])];
+
+      const child = execFile('npx', ['tsx', ...fullArgs], {
+        timeout: 30000,
+        maxBuffer: 1024 * 1024,
+        cwd: process.cwd(),
+        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+      }, (err: any, stdout: string, stderr: string) => {
+        if (err) {
+          const output = [stderr, stdout].filter(Boolean).join('\n').trim();
+          res.json({ error: output || err.message, exitCode: err.code || 1 });
+          return;
+        }
+        const output = stdout.trim();
+        const errOutput = stderr.trim();
+        res.json({ output, error: errOutput || undefined, exitCode: 0 });
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Internal error' });
+    }
+  });
+
   // Streamable HTTP transport for MCP
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
@@ -203,7 +247,7 @@ export async function startHttpMode(options: HttpServerOptions = {}): Promise<vo
         console.error(`[duckbrain] HTTP server started at http://${host}:${port}`);
         
         // Write PID to local file for easy management
-        const pidFile = path.join(process.cwd(), 'duckbrain-http.pid');
+        const pidFile = path.join(process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(), 'duckbrain-http.pid');
         fs.writeFileSync(pidFile, process.pid.toString());
         console.error(`[duckbrain] PID written to: ${pidFile}`);
         
@@ -215,7 +259,7 @@ export async function startHttpMode(options: HttpServerOptions = {}): Promise<vo
       // Graceful shutdown
       const shutdown = () => {
         // Remove PID file on shutdown
-        const pidFile = path.join(process.cwd(), 'duckbrain-http.pid');
+        const pidFile = path.join(process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(), 'duckbrain-http.pid');
         try {
           if (fs.existsSync(pidFile)) {
             fs.unlinkSync(pidFile);

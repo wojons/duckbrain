@@ -30,4 +30,4 @@ EXPOSE 3000
 
 # Development: use tsx with --watch for auto-reload
 ENTRYPOINT ["npx", "tsx", "--watch", "bin/duckbrain.ts"]
-CMD ["http", "--port=3000", "--bind=0.0.0.0"]
+CMD ["http", "--port=3000", "--bind-all"]

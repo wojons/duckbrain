@@ -27,6 +27,10 @@ import { createHttpServer, startHttpMode } from '../src/cli/http.js';
 import { runHumanCLI } from '../src/cli/human.js';
 import { closeAllConnections } from '../src/duckdb/connection.js';
 import { installService, manageService } from '../src/cli/service.js';
+import http from 'http';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 
 /**
  * Show help message
@@ -95,12 +99,97 @@ Examples:
 }
 
 /**
+ * Run a command on a remote DuckBrain via Unix socket
+ */
+function runRemoteCLI(socketName: string, command: string, commandArgs: string[]): Promise<void> {
+  const socketPath = path.join(os.homedir(), '.duckbrain', 'sockets', `${socketName}.sock`);
+
+  if (!fs.existsSync(socketPath)) {
+    console.error(`Error: Socket '${socketName}' not found at ${socketPath}`);
+    console.error('Active sockets:');
+    const socketsDir = path.join(os.homedir(), '.duckbrain', 'sockets');
+    if (fs.existsSync(socketsDir)) {
+      const socks = fs.readdirSync(socketsDir).filter(f => f.endsWith('.sock'));
+      if (socks.length === 0) {
+        console.error('  (none — run: duckbrain ssh-connect --host=<server>)');
+      } else {
+        for (const s of socks) {
+          console.error(`  ${s.replace('.sock', '')}`);
+        }
+      }
+    }
+    process.exit(1);
+  }
+
+  const requestBody = JSON.stringify({ command, args: commandArgs });
+
+  const options = {
+    socketPath,
+    path: '/cli',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(requestBody),
+    },
+  };
+
+  return new Promise<void>((resolve, reject) => {
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.output) console.log(response.output);
+          if (response.error) console.error(response.error);
+          process.exit(response.exitCode ?? 0);
+          resolve();
+        } catch {
+          console.log(data);
+          resolve();
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error(`Error: Cannot reach remote DuckBrain via socket '${socketName}': ${err.message}`);
+      console.error('Ensure the remote server is running and the SSH tunnel is active.');
+      process.exit(1);
+    });
+
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+/**
  * Main CLI entry point
  */
 async function main() {
-  const args = process.argv.slice(2);
+  let args = process.argv.slice(2);
+
+  // Extract --socket flag before command routing
+  let socketName: string | undefined;
+  const socketIdx = args.findIndex(a => a.startsWith('--socket='));
+  if (socketIdx !== -1) {
+    socketName = args[socketIdx].split('=')[1];
+    args = [...args.slice(0, socketIdx), ...args.slice(socketIdx + 1)];
+  } else {
+    const bareIdx = args.indexOf('--socket');
+    if (bareIdx !== -1 && args[bareIdx + 1]) {
+      socketName = args[bareIdx + 1];
+      args = [...args.slice(0, bareIdx), ...args.slice(bareIdx + 2)];
+    }
+  }
+
   const command = args[0];
   const commandArgs = args.slice(1);
+
+  // Route --socket commands to remote CLI execution
+  if (socketName && command) {
+    await runRemoteCLI(socketName, command, commandArgs);
+    return;
+  }
   
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     showHelp();
