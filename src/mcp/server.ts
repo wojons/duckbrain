@@ -66,7 +66,7 @@ function wrapHandler<T>(handler: (input: any) => Promise<T>) {
 /**
  * Register all tools with the MCP server
  */
-function registerTools(): void {
+export function registerTools(): void {
   server.registerTool(recallToolMetadata.name, {
     title: recallToolMetadata.title,
     description: recallToolMetadata.description,

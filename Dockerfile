@@ -46,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Run via entrypoint (initializes git repo) then tsx for TypeScript execution
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh", "npx", "tsx", "bin/duckbrain.ts"]
-CMD ["http", "--port=3000", "--bind=0.0.0.0"]
+CMD ["http", "--port=3000", "--bind-all"]
