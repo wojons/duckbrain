@@ -11,20 +11,24 @@
  *   duckbrain stdio
  */
 
-import { server, stopServer } from '../mcp/server.js';
+import { server, stopServer, registerTools } from '../mcp/server.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 /**
  * Start DuckBrain MCP server in stdio mode
  *
  * This function:
- * 1. Creates a StdioServerTransport for stdin/stdout communication
- * 2. Connects the MCP server to the transport
- * 3. Logs startup message to stderr (stdout reserved for MCP protocol)
- * 4. Sets up graceful shutdown handlers
+ * 1. Registers all MCP tools
+ * 2. Creates a StdioServerTransport for stdin/stdout communication
+ * 3. Connects the MCP server to the transport
+ * 4. Logs startup message to stderr (stdout reserved for MCP protocol)
+ * 5. Sets up graceful shutdown handlers
  */
 export async function startStdioMode(): Promise<void> {
   try {
+    // Register all tools first
+    registerTools();
+
     // Create stdio transport for MCP protocol
     const transport = new StdioServerTransport();
 

@@ -108,9 +108,6 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   }
 
   try {
-    // Get DuckDB connection
-    const db = getDuckDBConnection('singleton', namespacePath);
-
     // Get partition paths, filtered by domain if provided
     let partitionPaths: string[];
     if (validated.domain) {
@@ -126,6 +123,17 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         partitionPaths = [];
       }
     }
+
+    // Workaround: Use per-query connection for multi-partition queries
+    // BUG FIX: Singleton cached connections can get corrupted when querying 
+    // across multiple partitions with key/prefix filters, causing Napi::Error 
+    // crashes in DuckDB Node.js bindings.
+    // See: .planning/debug/duckdb-cli-recall-crash.md
+    const needsMultiplePartitions = partitionPaths.length > 1;
+    const connectionMode = needsMultiplePartitions ? 'per-query' : 'singleton';
+
+    // Get DuckDB connection
+    const db = getDuckDBConnection(connectionMode, namespacePath);
 
     // Build query filters
     const filters: Parameters<typeof queryMemories>[2] = {

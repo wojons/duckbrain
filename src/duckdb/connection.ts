@@ -91,13 +91,10 @@ function getSingletonConnection(namespacePath: string): Database {
   if (!dbCache.has(namespacePath)) {
     const db = new Database(':memory:');
     
-    // Load required extensions
-    try {
-      db.exec('LOAD httpfs');
-      db.exec('LOAD vss');
-    } catch (error) {
-      console.warn('Extension load warning:', error);
-    }
+    // NOTE: Extensions (httpfs, vss) removed due to bug with read_json() + multiple files + column filters
+    // See: https://github.com/duckdb/duckdb-node/issues/XX
+    // The extensions cause Napi::Error crashes when filtering on 'key' column across multiple JSON files.
+    // Semantic search (VSS) will need to create a fresh connection with extensions loaded when needed.
     
     dbCache.set(namespacePath, db);
   }

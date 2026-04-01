@@ -12,6 +12,80 @@ import path from 'path';
 import fs from 'fs';
 
 /**
+ * Parse DuckDB STRUCT format string into a JavaScript object
+ * 
+ * DuckDB returns STRUCT columns as strings like: {key1='value1', key2='value2'}
+ * This parser handles the STRUCT format and converts to valid JSON
+ * 
+ * @param structStr - The STRUCT format string from DuckDB
+ * @returns Parsed JavaScript object
+ */
+function parseDuckDBStruct(structStr: string): Record<string, unknown> {
+  if (!structStr || typeof structStr !== 'string') {
+    return {};
+  }
+  
+  try {
+    // Try to parse as JSON first (in case it's already JSON)
+    return JSON.parse(structStr);
+  } catch {
+    // It's in STRUCT format, parse manually
+  }
+  
+  const result: Record<string, unknown> = {};
+  
+  // Remove outer braces and whitespace
+  const content = structStr.trim().replace(/^\{|\}$/g, '').trim();
+  if (!content) {
+    return result;
+  }
+  
+  // Split by commas, but be careful with nested structures
+  // Simple parsing: key='value' pairs
+  const pairs = content.split(',');
+  
+  for (const pair of pairs) {
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+    
+    // Find the = separator
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) continue;
+    
+    const key = trimmed.substring(0, eqIndex).trim();
+    let value = trimmed.substring(eqIndex + 1).trim();
+    
+    // Remove quotes from value
+    if ((value.startsWith("'") && value.endsWith("'")) || 
+        (value.startsWith('"') && value.endsWith('"'))) {
+      value = value.slice(1, -1);
+    }
+    
+    // Try to parse as JSON if it looks like a nested object or array
+    if ((value.startsWith('{') && value.endsWith('}')) || 
+        (value.startsWith('[') && value.endsWith(']'))) {
+      try {
+        result[key] = JSON.parse(value);
+      } catch {
+        result[key] = value;
+      }
+    } else if (value === 'true') {
+      result[key] = true;
+    } else if (value === 'false') {
+      result[key] = false;
+    } else if (value === 'null') {
+      result[key] = null;
+    } else if (!isNaN(Number(value)) && value !== '') {
+      result[key] = Number(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Query memories from DuckDB with optional filters
  *
  * @param db - DuckDB database instance
@@ -50,23 +124,24 @@ export function queryMemories(
     return [];
   }
 
-  // Build WHERE clause based on filters
-  const whereClauses: string[] = ["action != 'tombstone'"];
-  const params: Array<string | number> = [];
+  // Build WHERE clause based on filters - use template literals instead of prepared statements
+  // to avoid DuckDB Node.js binding issues with parameter placeholders
+  const conditions: string[] = ["action != 'tombstone'"];
   
   if (filters?.key) {
-    whereClauses.push('key = ?');
-    params.push(filters.key);
+    // Escape single quotes in key to prevent SQL injection
+    const escapedKey = filters.key.replace(/'/g, "''");
+    conditions.push(`key = '${escapedKey}'`);
   }
   
   if (filters?.keyPrefix) {
-    whereClauses.push("key LIKE ? || '%'");
-    params.push(filters.keyPrefix);
+    // Escape single quotes in prefix and add LIKE pattern
+    const escapedPrefix = filters.keyPrefix.replace(/'/g, "''");
+    conditions.push(`key LIKE '${escapedPrefix}%%'`);
   }
   
   if (filters?.domain) {
-    whereClauses.push('domain = ?');
-    params.push(filters.domain);
+    conditions.push(`domain = '${filters.domain}'`);
   }
 
   let orderByClause = '';
@@ -75,12 +150,12 @@ export function queryMemories(
   if (filters?.query && filters?.embedding) {
     // Use DuckDB VSS extension for cosine similarity
     const embeddingStr = `[${filters.embedding.join(',')}]`;
-    whereClauses.push('embedding IS NOT NULL');
+    conditions.push('embedding IS NOT NULL');
     orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC`;
   }
 
-  const whereClause = whereClauses.length > 0 
-    ? `WHERE ${whereClauses.join(' AND ')}` 
+  const whereClause = conditions.length > 0 
+    ? `WHERE ${conditions.join(' AND ')}` 
     : '';
   
   const limitClause = filters?.limit ? `LIMIT ${filters.limit}` : '';
@@ -95,13 +170,18 @@ export function queryMemories(
     ${limitClause}
   `;
 
-  // Use prepared statement with callback (DuckDB Node.js is async-only for queries)
+  // Use db.all() directly instead of prepared statements to avoid parameter binding issues
   return new Promise((resolve) => {
     try {
-      const stmt = db.prepare(sql);
-      stmt.all(...params, (err: any, result: any) => {
+      db.all(sql, (err: any, result: any) => {
         if (err) {
           console.error('DuckDB query error:', err);
+          resolve([]);
+          return;
+        }
+        
+        // Handle case where result is undefined or not an array
+        if (!result || !Array.isArray(result)) {
           resolve([]);
           return;
         }
@@ -115,7 +195,7 @@ export function queryMemories(
           action: row.action,
           embedding_text: row.embedding_text,
           attributes: typeof row.attributes === 'string' 
-            ? JSON.parse(row.attributes) 
+            ? parseDuckDBStruct(row.attributes)
             : row.attributes
         })));
       });
