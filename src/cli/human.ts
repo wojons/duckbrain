@@ -30,6 +30,10 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+function getDefaultNamespace(): string {
+  return getConfig().defaultNamespace || 'default';
+}
+
 /**
  * Parse command-line arguments
  * Returns object with positional args and named flags
@@ -100,7 +104,7 @@ async function rememberCommand(args: string[]): Promise<void> {
   
   const key = positional[0];
   const domain = flags.domain || 'general';
-  const namespace = flags.namespace || 'default';
+  const namespace = flags.namespace || getDefaultNamespace();
   const embeddingText = flags['embedding-text'] || key;
   const waitForCommit = flags.wait !== undefined;
   let attributes = {};
@@ -142,7 +146,7 @@ async function recallCommand(args: string[]): Promise<void> {
   const { flags } = parseArgs(args);
   
   const input: any = {
-    namespace: flags.namespace || 'default',
+    namespace: flags.namespace || getDefaultNamespace(),
     limit: parseInt(flags.limit) || 10
   };
   
@@ -187,7 +191,7 @@ async function listKeysCommand(args: string[]): Promise<void> {
   const { flags } = parseArgs(args);
   
   const input: any = {
-    namespace: flags.namespace || 'default',
+    namespace: flags.namespace || getDefaultNamespace(),
     limit: parseInt(flags.limit) || 50,
     offset: parseInt(flags.offset) || 0
   };
@@ -571,7 +575,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
  */
 async function statusCommand(args: string[]): Promise<void> {
   const { flags } = parseArgs(args);
-  const namespace = flags.namespace || 'default';
+  const namespace = flags.namespace || getDefaultNamespace();
   
   try {
     const config = getConfig();
