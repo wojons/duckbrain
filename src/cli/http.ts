@@ -21,6 +21,11 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { server, stopServer, registerTools } from '../mcp/server.js';
 import { authMiddleware, AuthConfig } from '../auth/middleware.js';
 import { rateLimitMiddleware, RateLimitConfig } from '../auth/ratelimit.js';
+import { errorHandler, notFoundHandler } from '../http/middleware/errorHandler.js';
+import { createMemoryRoutes } from '../http/routes/memories.js';
+import { createKeyRoutes } from '../http/routes/keys.js';
+import { createNamespaceRoutes } from '../http/routes/namespaces.js';
+import { createEventsRoutes } from '../http/routes/events.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -127,7 +132,22 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   }
   app.use(authMiddleware(authConfig));
   
-  // 4. JSON body parser (after rate limit and auth)
+  // 4. CORS middleware for UI development
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+    
+    next();
+  });
+  
+  // 5. JSON body parser (after rate limit and auth)
   app.use(express.json());
   
   // Health check (bypasses auth via middleware, must be registered here)
@@ -136,7 +156,13 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // Stats
   app.get('/stats', statsHandler);
   
-  // Namespaces list (stub - to be implemented)
+  // API Routes (new REST API)
+  app.use('/api/memories', createMemoryRoutes);
+  app.use('/api/keys', createKeyRoutes);
+  app.use('/api/namespaces', createNamespaceRoutes);
+  app.use('/api/events', createEventsRoutes);
+  
+  // Legacy stubs (to be deprecated - keep for backwards compatibility)
   app.get('/namespaces', (req: Request, res: Response) => {
     res.json({ namespaces: ['default'] });
   });
@@ -152,20 +178,22 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     res.json({ activities: [], limit });
   });
   
-  // API: Memory tree (stub - to be implemented)
+  // Legacy API stubs (redirect to new endpoints)
   app.get('/api/tree', (req: Request, res: Response) => {
-    res.json({ tree: [] });
+    res.redirect(301, '/api/keys?prefix=' + (req.query.prefix || '/'));
   });
   
-  // API: Timeline (stub - to be implemented)
   app.get('/api/timeline', (req: Request, res: Response) => {
-    res.json({ timeline: [] });
+    res.redirect(301, '/api/memories?limit=' + (req.query.limit || '50'));
   });
   
-  // API: Search (stub - to be implemented)
   app.get('/api/search', (req: Request, res: Response) => {
-    res.json({ results: [] });
+    res.redirect(301, '/api/memories?q=' + (req.query.q || ''));
   });
+  
+  // Error handling (must be after all routes)
+  app.use(errorHandler);
+  app.use(notFoundHandler);
   
   // CLI remote execution endpoint (for --socket usage)
   app.post('/cli', async (req: Request, res: Response) => {
