@@ -1,4 +1,4 @@
-import { Clock, GitCommit, User, MessageSquare, Settings, Brain, FolderOpen } from 'lucide-react'
+import { GitCommit, User, MessageSquare, Settings, Brain, FolderOpen } from 'lucide-react'
 
 export default function Timeline() {
   return (
