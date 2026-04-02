@@ -80,20 +80,35 @@
 
 ---
 
-## Phase 4: Web UI — Pending
+## Phase 4: Web UI — In Progress
 
 **Goal:** Browser-based interface for memory exploration
 
-| Plan | Description | Status | Commits |
-|------|-------------|--------|---------|
-| 01 | UI Foundation | ⏳ Pending | - |
-| 02 | Memory Explorer | ⏳ Pending | - |
-| 03 | Timeline View | ⏳ Pending | - |
+**Plans:** 3 plans in 3 waves
+
+| Wave | Plans | Description | Status |
+|------|-------|-------------|--------|
+| 1 | 01 | UI Foundation — Vite, React, Tailwind with glassmorphism theme | ✅ Complete 2026-04-02 |
+| 2 | 02 | API Backend — Express routes wrapping MCP tools | 📝 Planned |
+| 3 | 03 | Memory Explorer UI — Tree, Timeline, Inspector, SSE | 📝 Planned |
+
+**Requirements:** [UI-01, UI-02, UI-03, UI-04, UI-05]
 
 **Success Criteria:**
-- [ ] File-explorer-style memory tree navigation
-- [ ] Timeline view of memories
+- [✓] File-explorer-style memory tree navigation (placeholder)
+- [✓] Timeline view of memories (placeholder)
 - [ ] Search and filtering capabilities
+- [ ] Memory editing with version history
+- [ ] Namespace management via UI
+- [ ] Real-time updates via SSE
+
+**Summary Files:**
+- `.planning/phases/04-web-ui/04-01-SUMMARY.md` — UI Foundation Complete
+
+**Plan Files:**
+- `.planning/phases/04-web-ui/04-01-PLAN.md` — UI Foundation
+- `.planning/phases/04-web-ui/04-02-PLAN.md` — API Backend
+- `.planning/phases/04-web-ui/04-03-PLAN.md` — Memory Explorer UI
 
 ---
 
@@ -105,8 +120,8 @@
 
 - Phase 1: ✓ Complete
 - Phase 2: In Progress (1/3 plans partial)
-- Phase 3: Pending
-- Phase 4: Pending
+- Phase 3: In Progress (2/3 plans complete)
+- Phase 4: In Progress (1/3 plans complete)
 
 **Requirements Validated:**
 - CORE-01: remember() tool — Partially implemented
@@ -116,8 +131,9 @@
 - STORAGE-01: Partitioned storage — ✓ Implemented
 - STORAGE-02: Manifest file — ✓ Implemented
 - GIT-01: Async commit batching — Core implemented, integration deferred
+- UI-01: Web interface foundation — ✓ Implemented 2026-04-02
 
 ---
 
 *Milestones tracked in STATE.md*
-*Last updated: 2026-03-31*
+*Last updated: 2026-04-02*
