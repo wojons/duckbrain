@@ -51,9 +51,9 @@
 
 ### Web UI
 
-- **UI-01**: Web interface — File-explorer-style UI showing memory tree and timeline
+- [x] **UI-01**: Web interface — File-explorer-style UI showing memory tree and timeline (✓ Foundation complete 2026-04-02)
 - **UI-02**: DuckDB-WASM mode — Browser-only querying, zero hosting costs
-- **UI-03**: Embedded Express — Optional bundled web server with MCP
+- [x] **UI-03**: Embedded Express — Optional bundled web server with MCP (✓ Foundation complete 2026-04-02)
 
 ## Out of Scope
 
@@ -90,9 +90,9 @@
 | REMOTE-01 | Phase 3 | Complete |
 | REMOTE-02 | Phase 3 | Complete |
 | REMOTE-03 | Phase 3 | Complete |
-| UI-01 | Phase 4 | Pending |
+| UI-01 | Phase 4 | **Complete** 2026-04-02 |
 | UI-02 | Phase 4 | Pending |
-| UI-03 | Phase 4 | Pending |
+| UI-03 | Phase 4 | **Complete** 2026-04-02 |
 
 **Coverage:**
 - v1 requirements: 15 total
