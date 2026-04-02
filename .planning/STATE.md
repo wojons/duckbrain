@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Core MVP
-status: planning
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-04-02T21:25:00.000Z"
+status: executing
+stopped_at: Completed 02-git-auto-07-PLAN.md
+last_updated: "2026-04-02T21:31:04.440Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 15
-  completed_plans: 16
+  total_plans: 17
+  completed_plans: 17
 ---
 
 # DuckBrain — Project State
@@ -38,16 +38,16 @@ See: `.planning/PROJECT.md`
 | 1 | Core MVP | ● Complete | 4/4 | 100% |
 | 2 | Git Automation | ● In Progress | 1/3 partial | 33% |
 | 3 | Multi-User & Remote | ● In Progress | 2/3 | 67% |
-| 4 | Web UI | ● In Progress | 1/1 | 100% |
+| 4 | Web UI | ● In Progress | 2/3 | 67% |
 
 ---
 
 ## Current Position
 
 Phase: 04
-Plan: 01
+Plan: 02
 **Last Activity:** 2026-04-02
-**Session:** 2026-04-02 — UI Foundation complete
+**Session:** 2026-04-02 — HTTP API routes complete
 
 **What we have:**
 
@@ -57,11 +57,15 @@ Plan: 01
 - **Glassmorphism theme** — CSS custom properties for glass-panel, glass-button, glass-input
 - **React Router v7** — Client-side navigation with Home, Tree, Timeline routes
 - **TanStack Query v5** — Data fetching with QueryClientProvider
-- UI-01 requirement implemented (Web interface foundation)
+- **HTTP API routes** — Express endpoints wrapping MCP tools:
+  - Memory CRUD (GET/POST/PUT/DELETE /api/memories)
+  - Key tree (GET /api/keys)
+  - Namespace management (GET/POST /api/namespaces, /api/namespaces/switch)
+  - SSE events (GET /api/events/:namespace)
+- UI-01, UI-02, UI-03 requirements implemented
 
 **What's next:**
 
-- Plan 02: Connect UI to memory API for live data
 - Plan 03: Memory visualization and search
 
 ---
@@ -85,6 +89,9 @@ Plan: 01
 | **tsx runtime (no build step in Docker)** | ✓ Implemented (Plan 02) |
 | **Tailwind CSS v4 CSS-first configuration** | ✓ Implemented (Plan 04-01) |
 | **Glassmorphism theme via CSS custom properties** | ✓ Implemented (Plan 04-01) |
+| **HTTP API wraps MCP tools (centralized architecture)** | ✓ Implemented (Plan 04-02) |
+| **PUT uses forget+remember for versioning** | ✓ Implemented (Plan 04-02) |
+| **CORS for localhost:5173 development** | ✓ Implemented (Plan 04-02) |
 
 ---
 
@@ -96,17 +103,17 @@ Plan: 01
 
 ## Session Continuity
 
-**Last Session:** 2026-04-02T16:53:03.540Z
-**Stopped At:** Completed 02-git-auto-07-PLAN.md
+**Last Session:** 2026-04-02T21:27:13Z
+**Stopped At:** Completed 04-02-PLAN.md
 
 **Resume Context:**
 
-- Docker containerization complete (Plan 02)
-- Production + dev Docker images build successfully
-- Compose files for single and multi-container setups
-- Commits: 2fafc17, 6b5413c, 48505c6
-- Ready for Plan 03: Remote access / HTTP server
+- HTTP API routes complete with all MCP tool wrappers
+- Memory CRUD, Key tree, Namespace management, SSE events endpoints
+- CORS configured for localhost:5173 UI development
+- Commits: 1499e3d, 6f92b69, d1bf80d
+- Ready for Plan 03: Memory visualization and search
 
 ---
 
-*Last updated: 2026-04-02 after Plan 04-01 completion*
+*Last updated: 2026-04-02 after Plan 04-02 completion*

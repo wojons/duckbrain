@@ -9,7 +9,7 @@
 | 01 | Memory Schema & Storage | ✅ Complete | 5 commits |
 | 02 | 7/6 | Complete    | 2026-04-02 |
 | 03 | 4/4 | Complete    | 2026-03-31 |
-| 04 | CLI Entry Points | ✅ Complete | 6 commits |
+| 04 | 2/3 | In Progress|  |
 
 **Success Criteria:**
 - [x] JSONL partitioned storage with manifest
