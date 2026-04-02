@@ -1093,13 +1093,61 @@ async function squashCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * Token command - Generate API token for HTTP authentication
+ */
+async function tokenCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+  const crypto = await import('crypto');
+  
+  // Generate secure random token
+  const token = crypto.randomBytes(32).toString('hex');
+  
+  // Determine auth config path
+  const authPath = path.join(os.homedir(), '.duckbrain', 'auth.json');
+  
+  // Load or create auth config
+  let authConfig: any = { apiKeys: [] };
+  if (fs.existsSync(authPath)) {
+    try {
+      authConfig = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+    } catch {
+      // Ignore parse errors
+    }
+  }
+  
+  // Add new token
+  const tokenName = flags.name || `token-${Date.now()}`;
+  if (!authConfig.apiKeys) {
+    authConfig.apiKeys = [];
+  }
+  authConfig.apiKeys.push({ key: token, name: tokenName });
+  
+  // Ensure directory exists
+  const authDir = path.dirname(authPath);
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+  }
+  
+  // Write config
+  fs.writeFileSync(authPath, JSON.stringify(authConfig, null, 2));
+  
+  console.log('Generated API token:');
+  console.log(token);
+  console.log('');
+  console.log('Use with HTTP requests:');
+  console.log(`  curl -H "X-API-Key: ${token}" http://localhost:3000/health`);
+  console.log('');
+  console.log(`Token saved to ${authPath}`);
+}
+
+/**
  * Show help message
  */
 function showHelp(): void {
   console.log(`
- DuckBrain v1.0.0 - AI Memory System
+  DuckBrain v1.0.0 - AI Memory System
 
- Usage: duckbrain <command> [options]
+  Usage: duckbrain <command> [options]
 
   Commands:
     stdio              Start MCP server for local Claude
@@ -1108,24 +1156,23 @@ function showHelp(): void {
     list-keys          Browse memory structure
     forget <id>        Delete a memory
     config             Show or set configuration
-    namespace          Manage namespaces (create|list|delete|use|set-remote)
+    namespace(s)       Manage namespaces
     pull               Pull from remote (auto-merge conflicts)
     push               Push to remote
     remote             Manage remotes (add|remove)
     status             Show system status
-    squash             Compact old partitions
+    token              Generate API token for HTTP authentication
     ssh-test           Test SSH tunnel setup
     ssh-connect        Connect to remote DuckBrain via SSH tunnel
     servers            Manage server connections (list|add|remove)
+    squash             Compact old partitions
     help               Show this help
 
   Options:
     --namespace=NAME   Select namespace (default: default)
     --socket=NAME      Use remote connection via Unix socket
     --wait             Wait for git commit (remember command only)
-    --help             Show this help
-
-  SSH Options:
+    SSH Options:
     --host=USER@HOST   Remote host for SSH connection
     --name=NAME        Name for the tunnel/socket (default: derived from host)
     --identity-file=PATH  SSH identity file (key)
@@ -1178,6 +1225,7 @@ export async function runHumanCLI(command: string, args: string[]): Promise<void
     namespace: namespacesCommand,
     namespaces: namespacesCommand, // alias
     status: statusCommand,
+    token: tokenCommand,
     'ssh-test': sshTestCommand,
     'ssh-connect': sshConnectCommand,
     servers: serversCommand,

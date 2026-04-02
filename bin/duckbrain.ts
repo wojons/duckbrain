@@ -55,6 +55,7 @@ Commands:
   push               Push changes to remote
   remote             Configure remote repository
   status             Show system status
+  token              Generate API token for HTTP authentication
   ssh-test           Test SSH tunnel setup
   ssh-connect        Connect to remote DuckBrain via SSH tunnel
   servers            Manage server connections (list|add|remove)
@@ -247,6 +248,7 @@ async function main() {
       case 'push':
       case 'remote':
       case 'status':
+      case 'token':
       case 'squash':
       case 'ssh-test':
       case 'ssh-connect':
