@@ -1,164 +1,122 @@
-import React from 'react'
-import { Folder, FileText, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+import { Database, GitCommit, Layers, Activity } from 'lucide-react'
+import { Sidebar } from '../components/layout/sidebar'
+import { Header } from '../components/layout/header'
+import { InspectorPanel } from '../components/layout/inspector'
+import { MemoryTree } from '../components/memory-tree'
+import { MemoryTable } from '../components/memory-table'
+import { useSSE } from '../hooks/use-sse'
+import { useCurrentNamespace } from '../hooks/use-namespaces'
 
-export default function Tree() {
+/**
+ * Tree View Page
+ *
+ * Hierarchical tree view of memory keys.
+ * Shows MemoryTree in main content area with inspector panel.
+ */
+export default function TreePage() {
+  const currentNamespace = useCurrentNamespace()
+  const [view, setView] = useState<'tree' | 'timeline'>('tree')
+
+  // Connect to SSE for real-time updates
+  useSSE({ namespace: currentNamespace })
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold mb-1" style={{ color: 'var(--color-pristine)' }}>
-            Memory Tree
-          </h2>
-          <p style={{ color: 'var(--color-clinical)' }}>
-            Hierarchical view of all memory keys
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Search keys..."
-            className="glass-input px-4 py-2 text-sm w-64"
-          />
-        </div>
+    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-midnight)' }}>
+      <Sidebar namespace={currentNamespace} />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header view={view} onViewChange={setView} />
+
+        <main className="flex-1 p-4 overflow-auto">
+          <div className="space-y-4">
+            {/* Vitals Row */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <VitalCard
+                icon={<Database className="w-5 h-5" style={{ color: 'var(--color-azure)' }} />}
+                label="Active Memories"
+                value="—"
+              />
+              <VitalCard
+                icon={<GitCommit className="w-5 h-5" style={{ color: 'var(--color-amber)' }} />}
+                label="Git Queue"
+                value="—"
+              />
+              <VitalCard
+                icon={<Layers className="w-5 h-5" style={{ color: 'var(--color-pristine)' }} />}
+                label="Tombstone Ratio"
+                value="—"
+              />
+              <VitalCard
+                icon={<Activity className="w-5 h-5" style={{ color: 'var(--color-success)' }} />}
+                label="Query Rate"
+                value="—"
+              />
+            </div>
+
+            {/* Tree View */}
+            <div className="glass-panel p-4">
+              <div className="mb-4">
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--color-pristine)' }}
+                >
+                  Memory Tree
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--color-clinical)' }}>
+                  Browse memories hierarchically by key path
+                </p>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden" style={{ borderColor: 'var(--color-glass-border)' }}>
+                <MemoryTree namespace={currentNamespace} />
+              </div>
+            </div>
+
+            {/* Optional: Show table below tree */}
+            <div className="glass-panel p-4">
+              <div className="mb-4">
+                <h2
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--color-pristine)' }}
+                >
+                  Recent Memories
+                </h2>
+              </div>
+              <MemoryTable namespace={currentNamespace} />
+            </div>
+          </div>
+        </main>
       </div>
 
-      <div className="glass-panel p-4">
-        <div className="flex items-center gap-2 mb-4 pb-3 border-b" style={{ borderColor: 'var(--color-glass-border)' }}>
-          <span className="text-sm" style={{ color: 'var(--color-clinical)' }}>Root</span>
-          <ChevronRight className="w-4 h-4" style={{ color: 'var(--color-clinical)' }} />
-          <span className="text-sm" style={{ color: 'var(--color-pristine)' }}>/</span>
-        </div>
-
-        <div className="space-y-1">
-          <TreeItem
-            name="chat"
-            type="folder"
-            children={[
-              { name: 'sessions', type: 'folder', count: 3 },
-              { name: 'archived', type: 'folder', count: 0 },
-            ]}
-          />
-          <TreeItem
-            name="config"
-            type="folder"
-            children={[
-              { name: 'settings', type: 'file' },
-              { name: 'preferences', type: 'file' },
-            ]}
-          />
-          <TreeItem
-            name="concepts"
-            type="folder"
-            children={[
-              { name: 'architecture', type: 'folder', count: 5 },
-              { name: 'patterns', type: 'folder', count: 12 },
-            ]}
-          />
-          <TreeItem
-            name="events"
-            type="folder"
-            expanded={false}
-          />
-          <TreeItem
-            name="people"
-            type="folder"
-            expanded={false}
-          />
-          <TreeItem
-            name="projects"
-            type="folder"
-            children={[
-              { name: 'mcp', type: 'folder', count: 8 },
-              { name: 'memory-system', type: 'folder', count: 42 },
-              { name: 'ui', type: 'folder', count: 3 },
-            ]}
-          />
-          <TreeItem
-            name="system"
-            type="folder"
-            children={[
-              { name: 'status', type: 'file' },
-              { name: 'metrics', type: 'file' },
-            ]}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div className="glass-panel p-4 text-center">
-          <div className="text-2xl font-semibold mb-1" style={{ color: 'var(--color-azure)' }}>6</div>
-          <div className="text-sm" style={{ color: 'var(--color-clinical)' }}>Top-level domains</div>
-        </div>
-        <div className="glass-panel p-4 text-center">
-          <div className="text-2xl font-semibold mb-1" style={{ color: 'var(--color-amber)' }}>12</div>
-          <div className="text-sm" style={{ color: 'var(--color-clinical)' }}>Subdirectories</div>
-        </div>
-        <div className="glass-panel p-4 text-center">
-          <div className="text-2xl font-semibold mb-1" style={{ color: 'var(--color-success)' }}>73</div>
-          <div className="text-sm" style={{ color: 'var(--color-clinical)' }}>Total memories</div>
-        </div>
-      </div>
+      <InspectorPanel namespace={currentNamespace} />
     </div>
   )
 }
 
-interface TreeItemProps {
-  name: string
-  type: 'folder' | 'file'
-  expanded?: boolean
-  children?: { name: string; type: 'folder' | 'file'; count?: number }[]
-}
-
-function TreeItem({ name, type, expanded = true, children }: TreeItemProps) {
+function VitalCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+}) {
   return (
-    <div>
-      <div className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer glass-panel-hover">
-        {type === 'folder' ? (
-          <React.Fragment>
-            <ChevronRight
-              className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
-              style={{ color: 'var(--color-clinical)' }}
-            />
-            <Folder className="w-4 h-4" style={{ color: 'var(--color-azure)' }} />
-          </React.Fragment>
-        ) : (
-          <FileText className="w-4 h-4" style={{ color: 'var(--color-amber)' }} />
-        )}
-        <span className="text-sm flex-1" style={{ color: 'var(--color-pristine)' }}>{name}</span>
-        
-        {children && children.length > 0 && (
-          <span className="text-xs px-2 py-0.5 rounded glass-panel" style={{ color: 'var(--color-clinical)' }}>
-            {children.reduce((acc, child) => acc + (child.count || 1), 0)}
-          </span>
-        )}
+    <div className="glass-panel p-4 glass-panel-hover">
+      <div className="flex items-center gap-3 mb-2">
+        {icon}
+        <span className="text-sm" style={{ color: 'var(--color-clinical)' }}>
+          {label}
+        </span>
       </div>
-      
-      {expanded && children && children.length > 0 && (
-        <div className="ml-6 mt-1 space-y-1 border-l pl-3" style={{ borderColor: 'var(--color-glass-border)' }}>
-          {children.map((child) => (
-            <div
-              key={child.name}
-              className="flex items-center gap-2 py-1.5 px-3 rounded cursor-pointer glass-panel-hover"
-            >
-              {child.type === 'folder' ? (
-                <React.Fragment>
-                  <ChevronRight className="w-3 h-3" style={{ color: 'var(--color-clinical)' }} />
-                  <Folder className="w-3.5 h-3.5" style={{ color: 'var(--color-azure)' }} />
-                </React.Fragment>
-              ) : (
-                <FileText className="w-3.5 h-3.5" style={{ color: 'var(--color-amber)' }} />
-              )}
-              <span className="text-sm flex-1" style={{ color: 'var(--color-clinical)' }}>{child.name}</span>
-              
-              {child.count !== undefined && child.count > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded glass-panel" style={{ color: 'var(--color-clinical)' }}>
-                  {child.count}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <div
+        className="text-2xl font-semibold"
+        style={{ color: 'var(--color-pristine)' }}
+      >
+        {value}
+      </div>
     </div>
   )
 }
