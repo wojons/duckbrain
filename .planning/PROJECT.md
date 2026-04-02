@@ -34,11 +34,14 @@ If everything else fails, this must work: `remember()` appends to disk, `recall(
 
 ### Active
 
-- [ ] **GIT-02**: Squash process — compacts JSONL to Parquet, cleans tombstones, squash-commits old history
-- [ ] **GIT-03**: Merge conflict resolution — UUID-based rows, append-only merges, script-assisted conflict handling
-- [ ] **NAMESPACE-01**: Multi-repo support — each namespace is a separate git repo, queried independently
-- [ ] **NAMESPACE-02**: Multi-user attribution — stamps writes with git email, enables shared namespaces
 - [ ] **UI-01**: Web interface — file-explorer-style UI showing memory tree and timeline (DuckDB-WASM or embedded Express + React)
+
+### Validated in Phase 2
+
+- [x] **GIT-02**: Squash process — compacts JSONL to Parquet, cleans tombstones, squash-commits old history
+- [x] **GIT-03**: Merge conflict resolution — UUID-based rows, append-only merges, script-assisted conflict handling
+- [x] **NAMESPACE-01**: Multi-repo support — each namespace is a separate git repo, queried independently
+- [x] **NAMESPACE-02**: Multi-user attribution — stamps writes with git email, enables shared namespaces
 
 ### Out of Scope
 
@@ -105,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after Phase 3 completion*
+*Last updated: 2026-04-02 after Phase 2 verification*
