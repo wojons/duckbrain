@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Custom Theme Configuration */
+@theme {
+  /* Colors - Architectural Cybernetics Theme */
+  --color-midnight: #0B101E;
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-glass-hover: rgba(255, 255, 255, 0.06);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-glass-border-subtle: rgba(255, 255, 255, 0.04);
+  
+  --color-azure: #00D4FF;
+  --color-azure-dim: rgba(0, 212, 255, 0.7);
+  --color-azure-glow: rgba(0, 212, 255, 0.3);
+  
+  --color-amber: #FFB020;
+  --color-amber-dim: rgba(255, 176, 32, 0.7);
+  --color-amber-glow: rgba(255, 176, 32, 0.3);
+  
+  --color-pristine: #F8FAFC;
+  --color-clinical: #94A3B8;
+  --color-success: #00FF66;
+  --color-success-glow: rgba(0, 255, 102, 0.6);
+  --color-error: #FF4444;
+  
+  /* Font Families */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Base Styles */
+html {
+  font-family: var(--font-sans);
+  background-color: var(--color-midnight);
+  color: var(--color-pristine);
+}
+
+body {
+  background-color: var(--color-midnight);
+  color: var(--color-pristine);
+  min-height: 100vh;
+}
+
+/* Component Layer - Glassmorphism Utilities */
+@layer components {
+  .glass-panel {
+    background-color: var(--color-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 0.75rem;
+    background-image: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(255, 255, 255, 0.01) 100%
+    );
+  }
+  
+  .glass-panel-hover:hover {
+    background-color: var(--color-glass-hover);
+    border-color: rgba(255, 255, 255, 0.12);
+    transition: all 200ms ease-out;
+  }
+  
+  .glass-button {
+    background-color: var(--color-glass);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 0.5rem;
+    color: var(--color-pristine);
+    transition: all 150ms ease-out;
+  }
+  
+  .glass-button:hover {
+    background-color: var(--color-glass-hover);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  
+  .glass-input {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-glass-border);
+    border-radius: 0.5rem;
+    color: var(--color-pristine);
+    padding: 0.5rem 0.75rem;
+    transition: border-color 150ms ease-out;
+  }
+  
+  .glass-input:focus {
+    outline: none;
+    border-color: var(--color-azure);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+  }
+  
+  /* Status Indicators */
+  .status-dot-active {
+    background-color: var(--color-success);
+    box-shadow: 0 0 8px var(--color-success-glow);
+  }
+  
+  .status-dot-idle {
+    background-color: var(--color-clinical);
+  }
+  
+  .status-dot-busy {
+    background-color: var(--color-amber);
+    box-shadow: 0 0 8px var(--color-amber-glow);
+  }
+  
+  /* Neon Glow Effects */
+  .neon-azure {
+    box-shadow: 0 0 12px var(--color-azure-glow);
+  }
+  
+  .neon-amber {
+    box-shadow: 0 0 12px var(--color-amber-glow);
+  }
+  
+  .inner-azure {
+    box-shadow: inset 0 0 12px rgba(0, 212, 255, 0.05);
+  }
+  
+  /* Typography */
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Utility Layer */
+@layer utilities {
+  .text-gradient-azure {
+    background: linear-gradient(135deg, var(--color-azure) 0%, var(--color-pristine) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .border-glass-subtle {
+    border-color: var(--color-glass-border-subtle);
+  }
+}
