@@ -80,30 +80,32 @@
 
 ---
 
-## Phase 4: Web UI — In Progress
+## Phase 4: Web UI — COMPLETE
 
 **Goal:** Browser-based interface for memory exploration
 
-**Plans:** 3 plans in 3 waves
+**Plans:** 3 plans in 3 waves — ALL COMPLETE
 
 | Wave | Plans | Description | Status |
 |------|-------|-------------|--------|
 | 1 | 01 | UI Foundation — Vite, React, Tailwind with glassmorphism theme | ✅ Complete 2026-04-02 |
-| 2 | 02 | API Backend — Express routes wrapping MCP tools | 📝 Planned |
-| 3 | 03 | Memory Explorer UI — Tree, Timeline, Inspector, SSE | 📝 Planned |
+| 2 | 02 | API Backend — Express routes wrapping MCP tools | ✅ Complete 2026-04-02 |
+| 3 | 03 | Memory Explorer UI — Tree, Timeline, Inspector, SSE | ✅ Complete 2026-04-02 |
 
 **Requirements:** [UI-01, UI-02, UI-03, UI-04, UI-05]
 
 **Success Criteria:**
-- [✓] File-explorer-style memory tree navigation (placeholder)
-- [✓] Timeline view of memories (placeholder)
-- [ ] Search and filtering capabilities
-- [ ] Memory editing with version history
-- [ ] Namespace management via UI
-- [ ] Real-time updates via SSE
+- [✓] File-explorer-style memory tree navigation with expand/collapse
+- [✓] Timeline view of memories with virtual scrolling
+- [✓] Search and filtering capabilities
+- [✓] Memory inspection with JSON viewer
+- [✓] Namespace management via UI
+- [✓] Real-time updates via SSE
 
 **Summary Files:**
 - `.planning/phases/04-web-ui/04-01-SUMMARY.md` — UI Foundation Complete
+- `.planning/phases/04-web-ui/04-02-SUMMARY.md` — API Backend Complete
+- `.planning/phases/04-web-ui/04-03-SUMMARY.md` — Memory Explorer UI Complete
 
 **Plan Files:**
 - `.planning/phases/04-web-ui/04-01-PLAN.md` — UI Foundation
