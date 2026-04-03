@@ -9,7 +9,7 @@
 | 01 | Memory Schema & Storage | ✅ Complete | 5 commits |
 | 02 | 7/6 | Complete    | 2026-04-02 |
 | 03 | 4/4 | Complete    | 2026-03-31 |
-| 04 | 2/3 | In Progress|  |
+| 04 | 2/3 | Complete    | 2026-04-02 |
 
 **Success Criteria:**
 - [x] JSONL partitioned storage with manifest
@@ -139,3 +139,27 @@
 
 *Milestones tracked in STATE.md*
 *Last updated: 2026-04-02*
+
+### Phase 04.1: UI data integration polish (INSERTED)
+
+**Goal:** Fix mock data and hardcoded values in DuckBrain UI
+**Requirements**: UI polish, data integration
+**Depends on:** Phase 4
+**Plans:** 3 plans in 2 waves
+
+**Success Criteria:**
+- [ ] Vitals widgets show real data instead of "—"
+- [ ] Tree expand/collapse and memory click work reliably
+- [ ] Proper loading skeletons and error boundaries
+- [ ] No mock or placeholder data in any component
+- [ ] Data flows end-to-end from API to UI
+
+**Plan Files:**
+- `.planning/phases/04.1-ui-data-integration-polish/04.1-01-PLAN.md` — Fix Vitals widgets, connect to real data
+- `.planning/phases/04.1-ui-data-integration-polish/04.1-02-PLAN.md` — Fix Tree/Table click handlers, add skeletons and error boundaries
+- `.planning/phases/04.1-ui-data-integration-polish/04.1-03-PLAN.md` — Data flow validation and cleanup
+
+| Wave | Plans | Description | Status |
+|------|-------|-------------|--------|
+| 1 | 01, 02 | Vitals real data + UI fixes | 📝 Planned |
+| 2 | 03 | Data flow validation | 📝 Planned |
