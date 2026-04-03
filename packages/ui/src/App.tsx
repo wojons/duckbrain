@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TreePage from './routes/Tree'
 import TimelinePage from './routes/Timeline'
+import { OfflineBanner } from './components/ui/offline-banner'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <OfflineBanner />
         <Routes>
           <Route path="/" element={<Navigate to="/timeline" replace />} />
           <Route path="/tree" element={<TreePage />} />
