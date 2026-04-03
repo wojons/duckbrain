@@ -98,11 +98,93 @@ This phase does NOT include: memory editing (Phase 5), user management (future),
   - POST `/api/forget` — tombstone memory
   - Reuse existing MCP tool implementations
 
+### Visual Design & Aesthetic
+- **D-19:** "Architectural Cybernetics" theme — clinical lab meets cyberpunk
+  - Dark mode only (no light theme for Phase 4)
+  - Glassmorphism panels with subtle transparency and blur
+  - Glowing accent colors (azure, amber) against dark backgrounds
+- **D-20:** Specific color palette locked
+  - Background: Midnight Slate (`#0B101E`)
+  - Primary accent: Hologram Azure (`#00D4FF`) — links, active states, icons
+  - Secondary accent: Neural Amber (`#FFB020`) — warnings, CTAs, highlights
+  - Text: Pristine white (`#F8FAFC`) for primary, Clinical gray (`#94A3B8`) for secondary
+  - Glass surfaces: `rgba(255,255,255,0.03)` background, `rgba(255,255,255,0.08)` borders
+  - Success: Neon green (`#00FF66`) for active/online indicators
+- **D-21:** Typography system
+  - UI text: Inter (weights 400, 500, 600, 700)
+  - Data/monospace: JetBrains Mono (weights 400, 500) — for keys, JSON, timestamps
+  - Google Fonts CDN for loading
+- **D-22:** Glassmorphism component system
+  - Panels: `backdrop-filter: blur(16px)`, gradient overlay, 1px border
+  - Hover states: subtle brightness increase (`rgba(255,255,255,0.06)`)
+  - Active states: inner shadow with azure glow
+  - Shadows: Neon glows for accents (`0 0 12px rgba(0,212,255,0.3)`)
+- **D-23:** Lucide icons throughout
+  - Consistent 16px-24px sizing
+  - Color-matched to context (azure for active, amber for warnings, clinical for inactive)
+
+### Layout Structure (Three-Panel)
+- **D-24:** Left sidebar (256px) — Archive Navigation
+  - Fixed width, collapsible on mobile
+  - Sections: Namespaces (with status dots), Memory Tree (file-explorer style)
+  - Bottom: System Config button
+  - Scrollbar: Thin (6px), transparent track, subtle white thumb
+- **D-25:** Main stage (flexible) — Operating Table
+  - Top: Omnibar search (centered, rounded-full, Cmd+K shortcut)
+  - Vitals widgets row: Active Memories, Git Batch Queue, Tombstone Ratio
+  - Content: Timeline feed or Tree view (switchable)
+- **D-26:** Right inspector (450px, slide-out) — The Microscope
+  - Slides in from right over main content
+  - Header: Memory Inspector title with close button
+  - Content: Memory details grid + JSON payload viewer
+  - Footer: Copy JSON + Forget buttons
+  - Glass panel with left border accent
+
+### Components & Interactions
+- **D-27:** Memory Tree navigation
+  - Collapsible folders with chevron indicators
+  - Nested items indented with left border line
+  - Active folder: subtle inner glow, border highlight
+  - Icons: `folder`/`folder-open` for containers, `file-json` for memories
+- **D-28:** Timeline table (The Grid)
+  - Columns: State (dot), Key Path (mono), Domain (badge), Action (badge), Timestamp (mono)
+  - Tombstone rows: 40% opacity, strikethrough key
+  - Hover: Row highlight with glass effect
+  - Click row: Opens inspector panel
+- **D-29:** Vitals widgets
+  - Three-card grid above table
+  - Glass panel with rounded-xl corners
+  - Large numeric values with trend indicators
+  - Progress bar for Git Batch (azure fill)
+  - Interactive: Tombstone Ratio card has "Squash & Compact" CTA
+- **D-30:** Memory Inspector (slide-out)
+  - Fixed width 450px, full height
+  - Form-like layout: Label (uppercase, tracking-widest) + Value
+  - JSON viewer: Darker background (`#060913`), syntax highlighted
+    - Keys: Azure (`#00D4FF`)
+    - Strings: Amber (`#FFB020`)
+    - Numbers: Purple (`#A78BFA`)
+    - Booleans: Green (`#34D399`)
+    - Null: Red (`#FB7185`)
+- **D-31:** Search Omnibar
+  - Centered in header, max-width 2xl
+  - Rounded-full input with glass panel
+  - Search icon (clinical, turns azure on focus)
+  - Placeholder: "Cmd+K to search keys, glob patterns, or semantic vectors..."
+  - Shortcut badge (⌘K) on right
+  - Focus ring: Azure glow shadow
+
+### Animations & Transitions
+- **D-32:** Smooth, purposeful motion
+  - Inspector slide: 300ms ease-in-out transform
+  - Hover states: 150ms color/background transitions
+  - Row selection: Instant for responsiveness
+  - Loading states: Subtle pulse on skeleton elements
+
 ### the agent's Discretion
-- Exact component library choice (could use shadcn/ui, Headless UI, or custom)
-- Color scheme and visual design details
-- Animation/transition specifics
-- Error boundary handling strategies
+- Exact timing curves for animations (easing functions)
+- Responsive breakpoints for mobile/tablet (desktop-first for Phase 4)
+- Error boundary fallback UI design
 - Service worker for offline capability (optional enhancement)
 </decisions>
 
@@ -176,6 +258,41 @@ This phase does NOT include: memory editing (Phase 5), user management (future),
 │ Status: 1,234 memories | Namespace: default | Online ✓     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### HTML/CSS Prototype Reference
+User provided working HTML/CSS prototype demonstrating exact aesthetic. Key elements:
+
+**Color Variables (Tailwind config):**
+```javascript
+colors: {
+  midnight: '#0B101E',
+  glass: 'rgba(255, 255, 255, 0.03)',
+  glassHover: 'rgba(255, 255, 255, 0.06)',
+  glassBorder: 'rgba(255, 255, 255, 0.08)',
+  amber: '#FFB020',
+  azure: '#00D4FF',
+  pristine: '#F8FAFC',
+  clinical: '#94A3B8',
+  success: '#00FF66'
+}
+```
+
+**Shadows:**
+- `neon-azure`: `0 0 12px rgba(0, 212, 255, 0.3)`
+- `neon-amber`: `0 0 12px rgba(255, 176, 32, 0.3)`
+- `inner-azure`: `inset 0 0 12px rgba(0, 212, 255, 0.05)`
+
+**Typography Classes:**
+- Labels: `text-[10px] font-bold text-clinical uppercase tracking-widest`
+- Data: `font-mono text-sm`
+- Headings: `text-lg font-semibold text-pristine`
+
+**Key Component Classes:**
+- Panel: `glass-panel rounded-xl` (gradient + blur + border)
+- Button primary: `bg-glass border border-glassBorder hover:bg-glassHover`
+- Button CTA: `hover:border-amber/50 hover:text-amber`
+- Active state: `bg-glassHover border border-glassBorder shadow-inner-azure`
+- Status dot active: `bg-success shadow-[0_0_8px_rgba(0,255,102,0.6)]`
 
 ### URL Structure
 - `/` — Tree view (root)

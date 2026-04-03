@@ -163,3 +163,47 @@
 |------|-------|-------------|--------|
 | 1 | 01, 02 | Vitals real data + UI fixes | 📝 Planned |
 | 2 | 03 | Data flow validation | 📝 Planned |
+
+### Phase 04.2: UI/UX Polish & Gap Closure (INSERTED)
+
+**Goal:** Close critical UI/UX gaps discovered during Phase 4.1 UAT testing
+**Requirements**: UI-04, UI-05
+**Depends on:** Phase 04.1
+**Plans:** 1 comprehensive plan with 12 tasks
+
+**Success Criteria:**
+- [ ] Tree click opens inspector with memory details (no 404s)
+- [ ] Route-level error boundaries catch and display errors
+- [ ] Pagination loads more than 100 items
+- [ ] Column sorting works for all sortable columns
+- [ ] Keyboard shortcuts work: `/` (search), `esc` (close), `?` (help)
+- [ ] URL contains search query for shareable links
+- [ ] Bulk actions work (select multiple, forget selected)
+- [ ] All touch targets ≥44px on mobile
+- [ ] Offline indicator shows when connection lost
+- [ ] All empty states have illustration and helpful copy
+
+**Gaps Addressed:**
+1. Tree → Inspector flow broken (key paths vs UUIDs)
+2. Missing route error boundaries
+3. Hardcoded 100-item limit, no pagination
+4. Incomplete empty states
+5. No column sorting
+6. Non-functional bulk actions
+7. Zero keyboard shortcuts
+8. Mobile touch targets too small
+9. No search filters
+10. No URL state sync
+11. Non-functional buttons
+12. Missing loading/error states
+13. No context menus
+14. No offline detection
+15. Inconsistent patterns
+
+**Plan Files:**
+- `.planning/phases/04.2-ui-ux-polish/04.2-CONTEXT.md` — Phase scope, decisions, requirements
+- `.planning/phases/04.2-ui-ux-polish/04.2-01-PLAN.md` — UI/UX Polish & Gap Closure (12 tasks)
+
+| Wave | Plans | Description | Status |
+|------|-------|-------------|--------|
+| 1 | 01 | UI/UX Polish & Gap Closure | 📝 Planned |

@@ -149,6 +149,15 @@ export const memoriesApi = {
   },
 
   /**
+   * Get a single memory by key path (used by Tree view)
+   * Key should NOT have leading slash
+   */
+  getByKey: (key: string, namespace?: string): Promise<MemoryResponse> => {
+    const cleanKey = key.startsWith('/') ? key.slice(1) : key
+    return apiFetch<MemoryResponse>(`/memories/key/${encodeURIComponent(cleanKey)}${buildQuery({ namespace })}`)
+  },
+
+  /**
    * Create a new memory
    */
   create: (

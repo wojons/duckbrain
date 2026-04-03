@@ -1,11 +1,13 @@
 import { X, Copy, Trash2, Clock, User, Tag, FileJson } from 'lucide-react'
 import { useUIStore } from '../../stores/ui-store'
-import { useMemory } from '../../hooks/use-memories'
+import { useMemory, useMemoryByKey } from '../../hooks/use-memories'
 import { useForgetMemory } from '../../hooks/use-memories'
 
 interface InspectorPanelProps {
   namespace?: string
 }
+
+
 
 /**
  * Inspector Panel Component
@@ -19,7 +21,23 @@ export function InspectorPanel({ namespace }: InspectorPanelProps) {
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen)
   const setSelectedMemory = useUIStore((state) => state.setSelectedMemory)
 
-  const { data: memory, isLoading } = useMemory(selectedMemory || '', namespace)
+  // Determine if selectedMemory is a UUID or a key path
+  const isKeyPath = selectedMemory?.startsWith('/')
+  
+  // Fetch by ID (UUID) or by key path
+  const { data: memoryById, isLoading: isLoadingById } = useMemory(
+    !isKeyPath ? selectedMemory || '' : '',
+    namespace
+  )
+  const { data: memoryByKey, isLoading: isLoadingByKey } = useMemoryByKey(
+    isKeyPath ? selectedMemory || '' : '',
+    namespace
+  )
+  
+  // Use the appropriate data
+  const memory = isKeyPath ? memoryByKey : memoryById
+  const isLoading = isKeyPath ? isLoadingByKey : isLoadingById
+  
   const forgetMutation = useForgetMemory(namespace)
 
   const handleClose = () => {
@@ -50,17 +68,17 @@ export function InspectorPanel({ namespace }: InspectorPanelProps) {
         />
       )}
 
-      {/* Inspector Panel */}
+      {/* Inspector Panel - Fixed position, slides in from right */}
       <aside
         className={`
-          fixed lg:static inset-y-0 right-0 z-50
-          w-full sm:w-[450px] h-full
+          fixed inset-y-0 z-50
+          w-[450px] h-full
           glass-panel border-l
-          transform transition-transform duration-300 ease-out
-          ${inspectorOpen ? 'translate-x-0' : 'translate-x-full'}
+          transform transition-all duration-300 ease-out
           flex flex-col
         `}
         style={{
+          right: inspectorOpen ? '0' : '-450px',
           borderColor: 'var(--color-glass-border)',
           backgroundColor: 'rgba(11, 16, 30, 0.95)',
         }}

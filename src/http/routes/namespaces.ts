@@ -115,7 +115,7 @@ router.post('/switch', asyncHandler(async (req: Request, res: Response) => {
     success: true,
     previous: result.previous,
     current: result.current
-  }));
+  });
 }));
 
 export { router as createNamespaceRoutes };
