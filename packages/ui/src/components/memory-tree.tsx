@@ -130,8 +130,8 @@ function TreeNodeComponent({
     <div>
       <div
         className={`
-          flex items-center gap-2 py-1.5 px-2 cursor-pointer 
-          glass-panel-hover rounded transition-colors
+          flex items-center gap-2 py-3 px-3 md:py-1.5 md:px-2 cursor-pointer 
+          glass-panel-hover rounded transition-colors min-h-[48px] md:min-h-[40px]
           ${isSelected ? 'bg-white/10 border border-azure/30' : ''}
         `}
         style={{
@@ -149,7 +149,7 @@ function TreeNodeComponent({
              */}
             <button
               onClick={handleToggleFolder}
-              className="p-0.5 rounded hover:bg-white/10 flex-shrink-0"
+              className="p-2 md:p-0.5 min-h-[44px] min-w-[44px] md:min-h-[28px] md:min-w-[28px] rounded hover:bg-white/10 flex-shrink-0 touch-manipulation"
               title={isExpanded ? 'Collapse folder' : 'Expand folder'}
             >
               {isExpanded ? (
