@@ -36,3 +36,6 @@ coverage/
 # Temp files
 *.tmp
 *.temp
+
+# Compiled JavaScript (source is TypeScript)
+packages/ui/src/**/*.js
