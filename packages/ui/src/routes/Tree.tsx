@@ -9,6 +9,7 @@ import { useSSE } from '../hooks/use-sse'
 import { useCurrentNamespace } from '../hooks/use-namespaces'
 import { useUIStore } from '../stores/ui-store'
 import { useVitals } from '../hooks/use-vitals'
+import { useUrlState } from '../hooks/use-url-state'
 import { ErrorBoundary, ErrorCard } from '../components/ui/error-boundary'
 
 /**
@@ -28,6 +29,9 @@ export default function TreePage() {
 
   // Fetch vitals data
   const { data: vitals } = useVitals(currentNamespace)
+
+  // Sync URL state with UI store
+  useUrlState()
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-midnight)' }}>
