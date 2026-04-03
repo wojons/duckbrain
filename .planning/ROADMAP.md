@@ -207,3 +207,37 @@
 | Wave | Plans | Description | Status |
 |------|-------|-------------|--------|
 | 1 | 01 | UI/UX Polish & Gap Closure | ✅ Complete 2026-04-03 |
+
+---
+
+## Phase 5: Documentation, Branding & Public Release
+
+**Goal:** Create user-facing documentation, generate brand assets (logo, mascot), capture UI screenshots, and prepare for public release
+
+**Requirements**: Documentation, branding, marketing
+**Depends on:** Phase 04.2
+**Plans:** 0 plans (not yet planned)
+
+**Success Criteria:**
+- [ ] README.md with features, quickstart, screenshots
+- [ ] Generated logo from design/prompts/logo.md
+- [ ] Generated mascot from design/prompts/mascot.md
+- [ ] UI screenshots showing Tree, Timeline, Inspector
+- [ ] Installation guide
+- [ ] API documentation
+- [ ] GitHub Pages site or docs folder
+- [ ] Contributing guide
+- [ ] Changelog for v1.0
+
+**Plan Files:**
+- `.planning/phases/05-documentation-branding-assets-and-public-release-preparation/05-CONTEXT.md` — Phase scope
+- `.planning/phases/05-documentation-branding-assets-and-public-release-preparation/05-01-PLAN.md` — TBD
+
+| Wave | Plans | Description | Status |
+|------|-------|-------------|--------|
+| 1 | TBD | TBD | 📝 Planned |
+
+---
+
+*Milestones tracked in STATE.md*
+*Last updated: 2026-04-03*
