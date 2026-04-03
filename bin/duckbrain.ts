@@ -204,14 +204,28 @@ async function main() {
         break;
         
       case 'http': {
-        const portArg = commandArgs.find(arg => arg.startsWith('--port='));
-        const bindAll = commandArgs.includes('--bind-all');
-        const authArg = commandArgs.find(arg => arg.startsWith('--auth='));
-        const rateLimitArg = commandArgs.find(arg => arg.startsWith('--rate-limit='));
+        // Support both --port=9000 and --port 9000 formats
+        const portIdx = commandArgs.findIndex(arg => arg === '--port' || arg.startsWith('--port='));
+        const bindAllIdx = commandArgs.findIndex(arg => arg === '--bind-all');
+        const authIdx = commandArgs.findIndex(arg => arg === '--auth' || arg.startsWith('--auth='));
+        const rateLimitIdx = commandArgs.findIndex(arg => arg === '--rate-limit' || arg.startsWith('--rate-limit='));
 
-        const port = portArg ? parseInt(portArg.split('=')[1]) : 3000;
-        const authType = authArg ? authArg.split('=')[1] as 'none' | 'basic' | 'apikey' : 'none';
-        const rateLimit = rateLimitArg ? parseInt(rateLimitArg.split('=')[1]) : 100;
+        const port = portIdx !== -1 
+          ? (commandArgs[portIdx].includes('=') 
+              ? parseInt(commandArgs[portIdx].split('=')[1]) 
+              : parseInt(commandArgs[portIdx + 1]))
+          : 3000;
+        const bindAll = bindAllIdx !== -1;
+        const authType = authIdx !== -1 
+          ? (commandArgs[authIdx].includes('=') 
+              ? commandArgs[authIdx].split('=')[1] 
+              : commandArgs[authIdx + 1]) as 'none' | 'basic' | 'apikey'
+          : 'none';
+        const rateLimit = rateLimitIdx !== -1 
+          ? (commandArgs[rateLimitIdx].includes('=') 
+              ? parseInt(commandArgs[rateLimitIdx].split('=')[1]) 
+              : parseInt(commandArgs[rateLimitIdx + 1]))
+          : 100;
 
         await startHttpMode({ port, authType, rateLimit, bindAll });
         break;

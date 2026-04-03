@@ -94,6 +94,40 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
+ * GET /api/memories/key/:key
+ * Get single memory by key path
+ * Must be defined BEFORE /:id route to avoid conflicts
+ */
+router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
+  const { key } = req.params;
+  const namespace = (req.query.namespace as string) || 'default';
+
+  // Call recallTool with exact key lookup
+  const result = await recallTool({
+    limit: 100,
+    namespace
+  });
+
+  if (result.error) {
+    throw new ApiError(result.error, 500);
+  }
+
+  // Find the latest memory by key (not tombstoned if possible)
+  const memories = result.memories
+    .filter(m => m.key === `/${key}`)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  if (memories.length === 0) {
+    throw new NotFoundError('Memory', key);
+  }
+
+  // Return the most recent non-tombstoned memory, or the most recent
+  const memory = memories.find(m => m.action !== 'tombstone') || memories[0];
+
+  res.json(transformMemory(memory));
+}));
+
+/**
  * GET /api/memories/:id
  * Get single memory by ID
  */

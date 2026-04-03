@@ -23,7 +23,13 @@ const memoriesKeys = {
   list: (filters: Record<string, unknown>) =>
     [...memoriesKeys.lists(), filters] as const,
   details: () => [...memoriesKeys.all, 'detail'] as const,
-  detail: (id: string) => [...memoriesKeys.details(), id] as const,
+  detail: (id: string) => [...memoriesKeys.details(), 'by-id-v2', id] as const,  // Changed key to break old cache
+}
+
+// Query keys for key-based lookups
+const memoryByKeyKeys = {
+  all: ['memory-by-key'] as const,
+  detail: (key: string) => [...memoryByKeyKeys.all, 'by-key', key] as const,
 }
 
 interface UseMemoriesParams {
@@ -68,13 +74,34 @@ export function useMemories(params: UseMemoriesParams = {}) {
 }
 
 /**
- * Hook to fetch a single memory by ID
+ * Check if a string looks like a UUID
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+/**
+ * Hook to fetch a single memory by ID (UUID only)
  */
 export function useMemory(id: string, namespace?: string) {
   return useQuery({
     queryKey: memoriesKeys.detail(id),
     queryFn: () => memoriesApi.get(id, namespace),
-    enabled: !!id, // Only run if ID is provided
+    enabled: !!id && isUUID(id), // Only run if ID looks like a UUID
+    staleTime: 60 * 1000, // 1 minute
+  })
+}
+
+/**
+ * Hook to fetch a single memory by key path (used by Tree)
+ * Key path example: /test/batch-1
+ */
+export function useMemoryByKey(key: string, namespace?: string) {
+  return useQuery({
+    queryKey: memoryByKeyKeys.detail(key),
+    queryFn: () => memoriesApi.getByKey(key, namespace),
+    enabled: !!key && key.startsWith('/'), // Only run if key looks like a path
     staleTime: 60 * 1000, // 1 minute
   })
 }

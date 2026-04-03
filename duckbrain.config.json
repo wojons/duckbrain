@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "test-namespace",
+  "defaultNamespace": "temp-trigger",
   "authorEmail": "test@example.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
