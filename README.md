@@ -7,7 +7,7 @@
 
 > A distributed, event-sourced, version-controlled memory system for AI agents. Built on DuckDB + Git.
 
-![DuckBrain Logo](assets/brand/logo/logo.png)
+![DuckBrain Banner](assets/brand/banner/banner.png)
 
 ## What is DuckBrain?
 
