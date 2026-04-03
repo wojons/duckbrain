@@ -17,7 +17,8 @@ services:
       - DUCKBRAIN_DATA_DIR=/data
       - DUCKBRAIN_API_PORT=8490
       - DUCKBRAIN_UI_PORT=8989
-    command: ["npx", "tsx", "bin/duckbrain.ts", "http", "--port=8490", "--bind-all"]
+    entrypoint: ["npx", "tsx", "bin/duckbrain.ts"]
+    command: ["http", "--port=8490", "--bind-all"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8490/api/namespaces"]
       interval: 10s
