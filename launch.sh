@@ -14,8 +14,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default ports
-API_PORT=${DUCKBRAIN_API_PORT:-9444}
-UI_PORT=${DUCKBRAIN_UI_PORT:-5173}
+API_PORT=${DUCKBRAIN_API_PORT:-8490}
+UI_PORT=${DUCKBRAIN_UI_PORT:-8989}
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -306,8 +306,8 @@ main() {
             echo "  help       Show this help message"
             echo ""
             echo "Environment Variables:"
-            echo "  DUCKBRAIN_API_PORT   API server port (default: 9444)"
-            echo "  DUCKBRAIN_UI_PORT    UI dev server port (default: 5173)"
+    echo "  DUCKBRAIN_API_PORT   API server port (default: 8490)"
+    echo "  DUCKBRAIN_UI_PORT    UI dev server port (default: 8989)"
             echo ""
             echo "Examples:"
             echo "  ./launch.sh              # Start everything"

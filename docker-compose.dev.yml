@@ -1,15 +1,13 @@
 # Docker Compose for DuckBrain Development
 # Usage: docker-compose -f docker-compose.dev.yml up --build
 
-version: '3.8'
-
 services:
   duckbrain-api:
     build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "9444:9444"
+      - "8490:8490"
     volumes:
       - duckbrain-data:/data
       - ./:/app
@@ -17,11 +15,11 @@ services:
     environment:
       - NODE_ENV=development
       - DUCKBRAIN_DATA_DIR=/data
-      - DUCKBRAIN_API_PORT=9444
-      - DUCKBRAIN_UI_PORT=5173
-    command: ["npx", "tsx", "bin/duckbrain.ts", "http", "--port=9444", "--bind-all"]
+      - DUCKBRAIN_API_PORT=8490
+      - DUCKBRAIN_UI_PORT=8989
+    command: ["npx", "tsx", "bin/duckbrain.ts", "http", "--port=8490", "--bind-all"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9444/api/namespaces"]
+      test: ["CMD", "curl", "-f", "http://localhost:8490/api/namespaces"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,18 +32,18 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "5173:5173"
+      - "8989:8989"
     volumes:
       - ./:/app
       - /app/node_modules
       - ./packages/ui:/app/packages/ui
     environment:
       - NODE_ENV=development
-      - DUCKBRAIN_API_PORT=9444
-      - DUCKBRAIN_UI_PORT=5173
+      - DUCKBRAIN_API_PORT=8490
+      - DUCKBRAIN_UI_PORT=8989
       - DUCKBRAIN_API_HOST=duckbrain-api
     working_dir: /app/packages/ui
-    command: ["npx", "vite", "--port", "5173", "--host", "0.0.0.0"]
+    command: ["npx", "vite", "--port", "8989", "--host", "0.0.0.0"]
     depends_on:
       duckbrain-api:
         condition: service_healthy
