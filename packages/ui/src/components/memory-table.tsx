@@ -20,6 +20,7 @@ import { SkeletonTable } from './ui/skeleton'
 import { ErrorCard } from './ui/error-boundary'
 import { EmptyState } from './ui/empty-state'
 import { BulkActionBar } from './bulk-action-bar'
+import { ContextMenu, createMemoryContextMenuItems } from './ui/context-menu'
 
 interface MemoryTableProps {
   namespace?: string
@@ -56,6 +57,39 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
 
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [sorting, setSorting] = useState<SortingState>([])
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ position: { x: number; y: number }; memory: MemoryResponse } | null>(null)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, memory: MemoryResponse) => {
+    e.preventDefault()
+    setContextMenu({ position: { x: e.clientX, y: e.clientY }, memory })
+  }, [])
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  const handleOpenInspector = useCallback((memory: MemoryResponse) => {
+    setSelectedMemory(memory.id)
+    setInspectorOpen(true)
+  }, [setSelectedMemory, setInspectorOpen])
+
+  const handleCopyKey = useCallback(async (memory: MemoryResponse) => {
+    try {
+      await navigator.clipboard.writeText(memory.key)
+    } catch (err) {
+      console.error('Failed to copy key:', err)
+    }
+  }, [])
+
+  const handleCopyJson = useCallback(async (memory: MemoryResponse) => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(memory, null, 2))
+    } catch (err) {
+      console.error('Failed to copy JSON:', err)
+    }
+  }, [])
 
   // Flatten paginated data
   const memories = useMemo(() => {
@@ -374,6 +408,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
                 <tr
                   key={row.id}
                   onClick={(e) => handleRowClick(e, memory)}
+                  onContextMenu={(e) => handleContextMenu(e, memory)}
                   className={`
                     cursor-pointer glass-panel-hover border-b last:border-0
                     transition-colors
@@ -432,6 +467,21 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
       <BulkActionBar
         selectedRows={table.getSelectedRowModel().rows.map(row => row.original)}
         onClearSelection={() => setRowSelection({})}
+      />
+
+      {/* Context Menu */}
+      <ContextMenu
+        items={contextMenu ? createMemoryContextMenuItems(
+          { id: contextMenu.memory.id, key: contextMenu.memory.key, content: contextMenu.memory.content },
+          {
+            onOpen: () => handleOpenInspector(contextMenu.memory),
+            onCopyKey: () => handleCopyKey(contextMenu.memory),
+            onCopyJson: () => handleCopyJson(contextMenu.memory),
+            onForget: () => { /* TODO: Implement forget */ },
+          }
+        ) : []}
+        position={contextMenu ? contextMenu.position : null}
+        onClose={handleCloseContextMenu}
       />
     </div>
   )
