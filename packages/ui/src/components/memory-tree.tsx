@@ -5,6 +5,7 @@ import { useUIStore } from '../stores/ui-store'
 import { KeyNode } from '../../../../src/http/types/api'
 import { SkeletonTree } from './ui/skeleton'
 import { ErrorCard } from './ui/error-boundary'
+import { EmptyState } from './ui/empty-state'
 
 interface MemoryTreeProps {
   namespace?: string
@@ -58,9 +59,11 @@ export function MemoryTree({ namespace, onSelectKey }: MemoryTreeProps) {
   return (
     <div className="h-full overflow-y-auto custom-scrollbar">
       {tree.length === 0 ? (
-        <div className="p-4 text-sm" style={{ color: 'var(--color-clinical)' }}>
-          No memories yet.
-        </div>
+        <EmptyState
+          variant="empty"
+          title="No memories yet"
+          description="Memories will appear here once you start using the system."
+        />
       ) : (
         tree.map((node) => (
           <TreeNodeComponent

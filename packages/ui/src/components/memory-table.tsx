@@ -18,6 +18,7 @@ import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
 import { SkeletonTable } from './ui/skeleton'
 import { ErrorCard } from './ui/error-boundary'
+import { EmptyState } from './ui/empty-state'
 import { BulkActionBar } from './bulk-action-bar'
 
 interface MemoryTableProps {
@@ -34,6 +35,7 @@ const columnHelper = createColumnHelper<MemoryResponse>()
  */
 export function MemoryTable({ namespace }: MemoryTableProps) {
   const searchQuery = useUIStore((state) => state.searchQuery)
+  const setSearchQuery = useUIStore((state) => state.setSearchQuery)
   const setSelectedMemory = useUIStore((state) => state.setSelectedMemory)
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen)
   const selectedMemory = useUIStore((state) => state.selectedMemory)
@@ -258,7 +260,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
   if (isLoading) {
     return (
       <div className="p-4">
-        <SkeletonTable rows={10} columns={6} />
+        <SkeletonTable rows={10} columns={7} />
       </div>
     )
   }
@@ -273,6 +275,32 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           retryLabel="Retry"
         />
       </div>
+    )
+  }
+
+  // Show empty state when no memories and there's a search query
+  if (memories.length === 0 && searchQuery) {
+    return (
+      <EmptyState
+        variant="search"
+        title={`No memories found for "${searchQuery}"`}
+        description="Try different search terms or clear your search."
+        action={{
+          label: 'Clear Search',
+          onClick: () => setSearchQuery(''),
+        }}
+      />
+    )
+  }
+
+  // Show empty state when no memories at all
+  if (memories.length === 0) {
+    return (
+      <EmptyState
+        variant="empty"
+        title="No memories yet"
+        description="Memories will appear here once you start using the system."
+      />
     )
   }
 
