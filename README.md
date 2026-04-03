@@ -1,7 +1,7 @@
 # DuckBrain 🧠🦆
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/wojons/duckbrain)
-[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-v1.4-orange.svg)](https://duckdb.org/)
 
@@ -138,7 +138,71 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for detail
 
 ## License
 
-ISC License — see [LICENSE](LICENSE) for details.
+DuckBrain uses **Split Licensing** to protect the project while remaining open source:
+
+### Code: Apache License 2.0
+
+All source code in this repository is licensed under the **Apache License 2.0** — a permissive license with explicit patent protection.
+
+```
+Copyright 2025 DuckBrain Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+**Why Apache 2.0?**
+- ✅ Permissive — use in commercial and private projects
+- ✅ Patent protection — includes explicit patent grant
+- ✅ Compatible with GPLv3 — can be combined
+- ✅ Industry standard — used by Kubernetes, TensorFlow, Android
+
+### Brand Assets: CC BY-NC-ND 4.0
+
+The brand assets (logo, mascot, banners) in `/assets/brand/` are **excluded** from the Apache 2.0 license.
+
+They are licensed under **Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International**:
+
+- ✅ **Attribution (BY)** — You must give credit to DuckBrain
+- ✅ **NonCommercial (NC)** — You may not use commercially
+- ✅ **NoDerivatives (ND)** — You may not modify or create derivatives
+
+**What this means:**
+- You CAN view and download assets as part of the repository
+- You CAN refer to DuckBrain in documentation and tutorials
+- You CANNOT use the logo for your own projects without permission
+- You CANNOT sell merchandise with the DuckBrain logo
+- You CANNOT create modified versions of the mascot
+
+See [`assets/brand/LICENSE-ASSETS.md`](assets/brand/LICENSE-ASSETS.md) for full details.
+
+### Trademarks
+
+"DuckBrain" and the DuckBrain logo are trademarks of the DuckBrain project. See [`TRADEMARK_POLICY.md`](TRADEMARK_POLICY.md) for usage guidelines.
+
+### ⚠️ Experimental Licensing — Feedback Requested
+
+We're currently evaluating our licensing strategy and would love your input!
+
+**Open questions:**
+- Is CC BY-NC-ND too restrictive for community use?
+- Should we provide explicit fair-use guidelines for tutorials?
+- Would a "Community Assets" license be beneficial for forks?
+
+**Share your thoughts:**
+- Open an issue with label `licensing`
+- Start a discussion on GitHub Discussions
+
+Your feedback will directly shape our licensing approach.
 
 ## Acknowledgments
 

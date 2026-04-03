@@ -10,7 +10,16 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts tests/",
-    "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/rate-limit.int.test.ts"
+    "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/rate-limit.int.test.ts",
+    "start": "node bin/duckbrain.js",
+    "start:http": "node bin/duckbrain.js http --port 9444",
+    "start:ui": "npm run dev --prefix packages/ui",
+    "dev": "concurrently \"npm run start:http\" \"npm run start:ui\"",
+    "dev:docker": "docker-compose -f docker-compose.dev.yml up",
+    "build": "npm run build --prefix packages/ui",
+    "docker:build": "docker build -t duckbrain .",
+    "docker:run": "docker run -p 9444:9444 -p 5173:5173 -v duckbrain-data:/data duckbrain",
+    "stop": "pkill -f 'duckbrain.*http' || true; pkill -f 'vite' || true"
   },
   "repository": {
     "type": "git",
