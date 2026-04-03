@@ -1,0 +1,17 @@
+A premium, high-end SaaS enterprise technology logo isolated perfectly in the center of a pitch-black, deep midnight slate background (exact hex code #0B101E). The image contains absolutely no text, no typography, no watermarks, and no background clutter.
+
+The Core Brain Geometry: The focal point of the image is an oversized, hyper-detailed, highly intelligent-looking brain. It is heavily stylized, geometric, and perfectly symmetrical in its complexity. It is reminiscent of the exaggerated, bulbous brain of Mojo Jojo from Powerpuff Girls, but rendered as serious, high-end tech art. The brain features deep, intricate, undulating sulci (the dark grooves) and thick, pronounced, mathematically perfect gyri (the glowing ridges). It does not look organic or fleshy in any way. Instead, it looks like a highly advanced quantum neural network.
+
+The Bioluminescent Cybernetics & Lighting Physics: The brain is bioluminescent and cybernetic, glowing brilliantly from within the deep grooves. The primary light source is internal, radiating a vibrant, electric 'Hologram Azure' (a piercing, cool cyan-blue, hex #00D4FF). The ridges of the brain are slightly darker, creating intense contrast with the glowing valleys. The brain emits a soft, ethereal, volumetric cyan halo that gently fades into the dark midnight background, creating a profound sense of deep, negative space and three-dimensionality without relying on cheap 3D drop shadows.
+
+The Duck Bill Material & Attachment: Protruding seamlessly and organically from the lower-left frontal lobe of this glowing blue cybernetic brain is a classic, sharp duck bill. The transition from the glowing brain matter to the solid bill is seamless, looking engineered rather than surgical. The bill itself is perfectly smooth with a matte, high-grade industrial polymer finish. It is shaped like a classic mallard's beak—wide at the base, tapering to a slight, confident, aerodynamic, and highly calculated upward curve at the tip.
+
+The Amber Reflection: The bill is colored in a striking, high-contrast 'Neural Amber' (a rich, vibrant traffic-cone orange/yellow, hex #FFB020). Because the bill has a matte finish, it catches the glowing cyan light from the overhanging brain in a soft, diffused reflection across its top ridge, creating a stunning display of color theory (orange and cyan contrast).
+
+The Overall Aesthetic & Rendering: The contrast between the matte, solid orange bill and the glowing, translucent, mechanical blue brain must be stark, razor-sharp, and visually arresting. The design must be clean, flat vector-style art, utilizing crisp, razor-sharp lines and subtle neon glows. It should look like an elite, modern developer tool icon, executing a flawless cyberpunk laboratory aesthetic.
+
+Technical Modifiers: 8k resolution, flat vector logo design, esports team logo quality, dribbble trending, behance award winner, neo-morphism, crisp edges, stark contrast, masterpiece, minimal, negative space, pure vector art, symmetrical perfection, Octane Render style lighting on 2D art.
+
+Negative Prompt (Crucial—What to strictly exclude):
+
+No text, no fonts, no letters, no photorealism, no fleshy textures, no pink brains, no biological matter, no traditional feathers, no cartoon eyes, no Disney elements, no Donald Duck references, no 3D rendering artifacts, no muddy gradients, no messy backgrounds, no pixelation.
