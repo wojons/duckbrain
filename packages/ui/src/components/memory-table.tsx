@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useCallback } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,7 +9,8 @@ import {
   Cell,
 } from '@tanstack/react-table'
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual'
-import { useMemories } from '../hooks/use-memories'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import { useInfiniteMemories } from '../hooks/use-memories'
 import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
 import { SkeletonTable } from './ui/skeleton'
@@ -33,17 +34,38 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen)
   const selectedMemory = useUIStore((state) => state.selectedMemory)
 
-  const { data, isLoading, error, refetch } = useMemories({
+  const { 
+    data, 
+    isLoading, 
+    error, 
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteMemories({
     namespace,
     query: searchQuery || undefined,
-    limit: 100,
+    limit: 50,
   })
 
   const [rowSelection, setRowSelection] = useState({})
 
+  // Flatten paginated data
   const memories = useMemo(() => {
-    return data?.items || []
+    return data?.pages.flatMap(page => page.items) || []
   }, [data])
+
+  // Detect when user scrolls near bottom and load more
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget
+    const { scrollTop, scrollHeight, clientHeight } = target
+    const scrollBottom = scrollHeight - scrollTop - clientHeight
+    
+    // Load more when within 200px of bottom
+    if (scrollBottom < 200 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const columns = useMemo(
     () => [
@@ -214,84 +236,110 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
   }
 
   return (
-    <div
-      ref={parentRef}
-      className="glass-panel overflow-auto"
-      style={{ height: 'calc(100vh - 280px)' }}
-    >
-      <table className="w-full">
-        <thead className="sticky top-0 z-10">
-          {table.getHeaderGroups().map((headerGroup: HeaderGroup<MemoryResponse>) => (
-            <tr
-              key={headerGroup.id}
-              className="border-b"
-              style={{ borderColor: 'var(--color-glass-border)' }}
-            >
-              {headerGroup.headers.map((header: Header<MemoryResponse, unknown>) => (
-                <th
-                  key={header.id}
-                  className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider"
-                  style={{
-                    color: 'var(--color-clinical)',
-                    width: header.getSize(),
-                    backgroundColor: 'var(--color-midnight)',
-                  }}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow: VirtualItem) => {
-            const row = rows[virtualRow.index]
-            const memory = row.original
-            const isSelected = selectedMemory === memory.id
-
-            return (
+    <div className="flex flex-col h-full">
+      <div
+        ref={parentRef}
+        className="glass-panel overflow-auto flex-1"
+        style={{ height: 'calc(100vh - 340px)' }}
+        onScroll={handleScroll}
+      >
+        <table className="w-full">
+          <thead className="sticky top-0 z-10">
+            {table.getHeaderGroups().map((headerGroup: HeaderGroup<MemoryResponse>) => (
               <tr
-                key={row.id}
-                onClick={(e) => handleRowClick(e, memory)}
-                className={`
-                  cursor-pointer glass-panel-hover border-b last:border-0
-                  transition-colors
-                  ${isSelected ? 'bg-white/10 border-azure/30' : ''}
-                `}
-                style={{
-                  borderColor: isSelected ? 'var(--color-azure)' : 'var(--color-glass-border)',
-                  transform: `translateY(${virtualRow.start}px)`,
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: `${virtualRow.size}px`,
-                  backgroundColor: isSelected ? 'rgba(0, 212, 255, 0.05)' : undefined,
-                }}
+                key={headerGroup.id}
+                className="border-b"
+                style={{ borderColor: 'var(--color-glass-border)' }}
               >
-                {row.getVisibleCells().map((cell: Cell<MemoryResponse, unknown>) => (
-                  <td
-                    key={cell.id}
-                    className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis"
+                {headerGroup.headers.map((header: Header<MemoryResponse, unknown>) => (
+                  <th
+                    key={header.id}
+                    className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider"
+                    style={{
+                      color: 'var(--color-clinical)',
+                      width: header.getSize(),
+                      backgroundColor: 'var(--color-midnight)',
+                    }}
                   >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </th>
                 ))}
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            ))}
+          </thead>
+          <tbody
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow: VirtualItem) => {
+              const row = rows[virtualRow.index]
+              const memory = row.original
+              const isSelected = selectedMemory === memory.id
+
+              return (
+                <tr
+                  key={row.id}
+                  onClick={(e) => handleRowClick(e, memory)}
+                  className={`
+                    cursor-pointer glass-panel-hover border-b last:border-0
+                    transition-colors
+                    ${isSelected ? 'bg-white/10 border-azure/30' : ''}
+                  `}
+                  style={{
+                    borderColor: isSelected ? 'var(--color-azure)' : 'var(--color-glass-border)',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    backgroundColor: isSelected ? 'rgba(0, 212, 255, 0.05)' : undefined,
+                  }}
+                >
+                  {row.getVisibleCells().map((cell: Cell<MemoryResponse, unknown>) => (
+                    <td
+                      key={cell.id}
+                      className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      
+      {/* Load More Button */}
+      {hasNextPage && (
+        <div className="py-3 border-t flex justify-center" style={{ borderColor: 'var(--color-glass-border)' }}>
+          <button
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="glass-button flex items-center gap-2 px-6 py-2 text-sm"
+          >
+            {isFetchingNextPage ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                Load More
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
