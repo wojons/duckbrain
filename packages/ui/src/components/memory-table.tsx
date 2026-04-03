@@ -2,14 +2,16 @@ import { useMemo, useState, useRef, useCallback } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
+  getSortedRowModel,
   flexRender,
   createColumnHelper,
   HeaderGroup,
   Header,
   Cell,
+  SortingState,
 } from '@tanstack/react-table'
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual'
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronDown, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
 import { useInfiniteMemories } from '../hooks/use-memories'
 import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
@@ -49,6 +51,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
   })
 
   const [rowSelection, setRowSelection] = useState({})
+  const [sorting, setSorting] = useState<SortingState>([])
 
   // Flatten paginated data
   const memories = useMemo(() => {
@@ -89,6 +92,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           )
         },
         size: 60,
+        enableSorting: false,
       }),
       columnHelper.accessor('key', {
         header: 'Key Path',
@@ -106,6 +110,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           )
         },
         size: 300,
+        enableSorting: true,
       }),
       columnHelper.accessor('domain', {
         header: 'Domain',
@@ -132,6 +137,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           )
         },
         size: 100,
+        enableSorting: true,
       }),
       columnHelper.accessor('action', {
         header: 'Action',
@@ -155,6 +161,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           )
         },
         size: 100,
+        enableSorting: true,
       }),
       columnHelper.accessor('timestamp', {
         header: 'Timestamp',
@@ -167,6 +174,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           )
         },
         size: 180,
+        enableSorting: true,
       }),
       columnHelper.accessor('author', {
         header: 'Author',
@@ -176,6 +184,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           </span>
         ),
         size: 150,
+        enableSorting: true,
       }),
     ],
     []
@@ -185,10 +194,13 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     data: memories,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     state: {
       rowSelection,
+      sorting,
     },
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
   })
 
   const { rows } = table.getRowModel()
@@ -245,32 +257,50 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
       >
         <table className="w-full">
           <thead className="sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup: HeaderGroup<MemoryResponse>) => (
-              <tr
-                key={headerGroup.id}
-                className="border-b"
-                style={{ borderColor: 'var(--color-glass-border)' }}
-              >
-                {headerGroup.headers.map((header: Header<MemoryResponse, unknown>) => (
+          {table.getHeaderGroups().map((headerGroup: HeaderGroup<MemoryResponse>) => (
+            <tr
+              key={headerGroup.id}
+              className="border-b"
+              style={{ borderColor: 'var(--color-glass-border)' }}
+            >
+              {headerGroup.headers.map((header: Header<MemoryResponse, unknown>) => {
+                const isSortable = header.column.getCanSort()
+                const sortDirection = header.column.getIsSorted()
+                
+                return (
                   <th
                     key={header.id}
-                    className="text-left px-4 py-3 text-xs font-medium uppercase tracking-wider"
+                    className={`
+                      text-left px-4 py-3 text-xs font-medium uppercase tracking-wider
+                      ${isSortable ? 'cursor-pointer select-none hover:bg-white/5' : ''}
+                    `}
                     style={{
                       color: 'var(--color-clinical)',
                       width: header.getSize(),
                       backgroundColor: 'var(--color-midnight)',
                     }}
+                    onClick={isSortable ? header.column.getToggleSortingHandler() : undefined}
                   >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                    <div className="flex items-center gap-2">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                      {isSortable && sortDirection && (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3" style={{ color: 'var(--color-azure)' }} />
+                        ) : (
+                          <ArrowDown className="w-3 h-3" style={{ color: 'var(--color-azure)' }} />
+                        )
+                      )}
+                    </div>
                   </th>
-                ))}
-              </tr>
-            ))}
+                )
+              })}
+            </tr>
+          ))}
           </thead>
           <tbody
             style={{
