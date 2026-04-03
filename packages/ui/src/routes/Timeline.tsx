@@ -27,7 +27,7 @@ export default function TimelinePage() {
   useSSE({ namespace: currentNamespace })
 
   // Fetch vitals data
-  const { data: vitals } = useVitals(currentNamespace)
+  const { data: vitals, isLoading: isVitalsLoading, error: vitalsError } = useVitals(currentNamespace)
 
   // Sync URL state with UI store
   useUrlState()
@@ -63,22 +63,22 @@ export default function TimelinePage() {
                   <VitalCard
                     icon={<Database className="w-5 h-5" style={{ color: 'var(--color-azure)' }} />}
                     label="Active Memories"
-                    value={vitals?.activeMemories?.toLocaleString() ?? '—'}
+                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.activeMemories?.toLocaleString() ?? '—'}
                   />
                   <VitalCard
                     icon={<GitCommit className="w-5 h-5" style={{ color: 'var(--color-amber)' }} />}
                     label="Git Queue"
-                    value={vitals?.gitQueueSize?.toString() ?? '—'}
+                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.gitQueueSize?.toString() ?? '—'}
                   />
                   <VitalCard
                     icon={<Layers className="w-5 h-5" style={{ color: 'var(--color-pristine)' }} />}
                     label="Tombstone Ratio"
-                    value={vitals?.tombstoneRatio ?? '—'}
+                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.tombstoneRatio != null ? `${vitals.tombstoneRatio.toFixed(1)}%` : '—'}
                   />
                   <VitalCard
                     icon={<Activity className="w-5 h-5" style={{ color: 'var(--color-success)' }} />}
                     label="Key Count"
-                    value={vitals?.queryRate?.toLocaleString() ?? '—'}
+                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.queryRate?.toLocaleString() ?? '—'}
                   />
                 </div>
 
