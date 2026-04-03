@@ -411,7 +411,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
                   onContextMenu={(e) => handleContextMenu(e, memory)}
                   className={`
                     cursor-pointer glass-panel-hover border-b last:border-0
-                    transition-colors
+                    transition-colors min-h-[48px] md:min-h-[40px]
                     ${isSelected ? 'bg-white/10 border-azure/30' : ''}
                   `}
                   style={{
@@ -428,7 +428,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
                   {row.getVisibleCells().map((cell: Cell<MemoryResponse, unknown>) => (
                     <td
                       key={cell.id}
-                      className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis"
+                      className="px-4 py-4 md:py-3 whitespace-nowrap overflow-hidden text-ellipsis"
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
@@ -446,7 +446,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           <button
             onClick={() => fetchNextPage()}
             disabled={isFetchingNextPage}
-            className="glass-button flex items-center gap-2 px-6 py-2 text-sm"
+            className="glass-button flex items-center gap-2 px-6 py-3 md:py-2 text-sm min-h-[44px] md:min-h-[36px]"
           >
             {isFetchingNextPage ? (
               <>
