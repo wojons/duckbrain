@@ -6,7 +6,7 @@
  */
 
 import { WifiOff, RefreshCw } from 'lucide-react'
-import { useOnlineStatus } from '../hooks/use-online-status'
+import { useOnlineStatus } from '../../hooks/use-online-status'
 
 /**
  * Offline Banner
