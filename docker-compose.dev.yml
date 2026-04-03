@@ -1,0 +1,60 @@
+# Docker Compose for DuckBrain Development
+# Usage: docker-compose -f docker-compose.dev.yml up --build
+
+version: '3.8'
+
+services:
+  duckbrain-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "9444:9444"
+    volumes:
+      - duckbrain-data:/data
+      - ./:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DUCKBRAIN_DATA_DIR=/data
+      - DUCKBRAIN_API_PORT=9444
+      - DUCKBRAIN_UI_PORT=5173
+    command: ["npx", "tsx", "bin/duckbrain.ts", "http", "--port=9444", "--bind-all"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9444/api/namespaces"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - duckbrain-net
+
+  duckbrain-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - ./packages/ui:/app/packages/ui
+    environment:
+      - NODE_ENV=development
+      - DUCKBRAIN_API_PORT=9444
+      - DUCKBRAIN_UI_PORT=5173
+      - DUCKBRAIN_API_HOST=duckbrain-api
+    working_dir: /app/packages/ui
+    command: ["npx", "vite", "--port", "5173", "--host", "0.0.0.0"]
+    depends_on:
+      duckbrain-api:
+        condition: service_healthy
+    networks:
+      - duckbrain-net
+
+volumes:
+  duckbrain-data:
+
+networks:
+  duckbrain-net:
+    driver: bridge
