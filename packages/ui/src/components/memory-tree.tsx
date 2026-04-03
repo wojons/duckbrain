@@ -3,6 +3,8 @@ import { Folder, FolderOpen, FileJson, ChevronRight, ChevronDown } from 'lucide-
 import { useKeys } from '../hooks/use-keys'
 import { useUIStore } from '../stores/ui-store'
 import { KeyNode } from '../../../../src/http/types/api'
+import { SkeletonTree } from './ui/skeleton'
+import { ErrorCard } from './ui/error-boundary'
 
 interface MemoryTreeProps {
   namespace?: string
@@ -16,8 +18,9 @@ interface MemoryTreeProps {
  * Supports lazy loading and expand/collapse.
  */
 export function MemoryTree({ namespace, onSelectKey }: MemoryTreeProps) {
-  const { data, isLoading, error } = useKeys({ namespace })
+  const { data, isLoading, error, refetch } = useKeys({ namespace })
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const selectedMemory = useUIStore((state) => state.selectedMemory)
 
   const toggleNode = (path: string) => {
     const newExpanded = new Set(expandedNodes)
@@ -31,16 +34,21 @@ export function MemoryTree({ namespace, onSelectKey }: MemoryTreeProps) {
 
   if (isLoading) {
     return (
-      <div className="p-4 text-sm" style={{ color: 'var(--color-clinical)' }}>
-        Loading keys...
+      <div className="h-full overflow-y-auto custom-scrollbar p-2">
+        <SkeletonTree depth={3} itemsPerLevel={3} />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="p-4 text-sm" style={{ color: 'var(--color-error)' }}>
-        Error loading keys: {error.message}
+      <div className="h-full overflow-y-auto custom-scrollbar p-4">
+        <ErrorCard
+          title="Failed to load keys"
+          error={error}
+          onRetry={() => refetch()}
+          retryLabel="Retry"
+        />
       </div>
     )
   }
@@ -62,6 +70,7 @@ export function MemoryTree({ namespace, onSelectKey }: MemoryTreeProps) {
             expandedNodes={expandedNodes}
             onToggle={toggleNode}
             onSelect={onSelectKey}
+            selectedMemory={selectedMemory}
           />
         ))
       )}
@@ -75,6 +84,7 @@ interface TreeNodeComponentProps {
   expandedNodes: Set<string>
   onToggle: (path: string) => void
   onSelect?: (key: string) => void
+  selectedMemory: string | null
 }
 
 function TreeNodeComponent({
@@ -83,6 +93,7 @@ function TreeNodeComponent({
   expandedNodes,
   onToggle,
   onSelect,
+  selectedMemory,
 }: TreeNodeComponentProps) {
   const isExpanded = expandedNodes.has(node.path)
   const hasChildren = node.children && node.children.length > 0
@@ -90,10 +101,13 @@ function TreeNodeComponent({
   const setSelectedMemory = useUIStore((state) => state.setSelectedMemory)
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen)
 
-  const handleClick = () => {
-    if (isFolder) {
-      onToggle(node.path)
-    } else {
+  // Check if this node or any of its children is selected
+  const isSelected = !isFolder && selectedMemory === node.id
+
+  const handleSelectMemory = (e: React.MouseEvent) => {
+    // Stop propagation to prevent parent handlers
+    e.stopPropagation()
+    if (!isFolder) {
       // Select this memory
       setSelectedMemory(node.id)
       setInspectorOpen(true)
@@ -101,24 +115,39 @@ function TreeNodeComponent({
     }
   }
 
+  const handleToggleFolder = (e: React.MouseEvent) => {
+    // Stop propagation to prevent row click
+    e.stopPropagation()
+    if (isFolder) {
+      onToggle(node.path)
+    }
+  }
+
   return (
     <div>
       <div
-        onClick={handleClick}
-        className="flex items-center gap-2 py-1.5 px-2 cursor-pointer glass-panel-hover rounded"
+        className={`
+          flex items-center gap-2 py-1.5 px-2 cursor-pointer 
+          glass-panel-hover rounded transition-colors
+          ${isSelected ? 'bg-white/10 border border-azure/30' : ''}
+        `}
         style={{
           paddingLeft: `${depth * 12 + 8}px`,
           minWidth: 0,
+          borderColor: isSelected ? 'var(--color-azure)' : undefined,
         }}
+        onClick={handleSelectMemory}
       >
         {isFolder ? (
           <>
+            {/**
+             * Chevron button - ONLY this toggles the folder
+             * Stops propagation to prevent row click
+             */}
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle(node.path)
-              }}
-              className="p-0.5 rounded hover:bg-white/10"
+              onClick={handleToggleFolder}
+              className="p-0.5 rounded hover:bg-white/10 flex-shrink-0"
+              title={isExpanded ? 'Collapse folder' : 'Expand folder'}
             >
               {isExpanded ? (
                 <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--color-clinical)' }} />
@@ -126,32 +155,59 @@ function TreeNodeComponent({
                 <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--color-clinical)' }} />
               )}
             </button>
-            {isExpanded ? (
-              <FolderOpen className="w-4 h-4" style={{ color: 'var(--color-azure)' }} />
-            ) : (
-              <Folder className="w-4 h-4" style={{ color: 'var(--color-azure)' }} />
-            )}
+            
+            {/**
+             * Folder icon and name
+             * For folders: clicking here opens the first memory in the folder
+             * or we can make it just visual (no click action)
+             */}
+            <div
+              className="flex items-center gap-2 flex-1 min-w-0"
+              onClick={(e) => {
+                // If clicking folder content, toggle folder
+                // Don't open inspector for folders
+                e.stopPropagation()
+                onToggle(node.path)
+              }}
+            >
+              {isExpanded ? (
+                <FolderOpen className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-azure)' }} />
+              ) : (
+                <Folder className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-azure)' }} />
+              )}
+              <span
+                className="text-sm truncate"
+                style={{ color: 'var(--color-pristine)' }}
+                title={node.name}
+              >
+                {node.name}
+              </span>
+            </div>
           </>
         ) : (
           <>
-            <span className="w-5" />
-            <FileJson className="w-4 h-4" style={{ color: 'var(--color-amber)' }} />
+            {/**
+             * Memory file (leaf node)
+             * The entire row is clickable to open inspector
+             */}
+            <span className="w-5 flex-shrink-0" />
+            <FileJson
+              className="w-4 h-4 flex-shrink-0"
+              style={{ color: 'var(--color-amber)' }}
+            />
+            <span
+              className="text-sm truncate flex-1"
+              style={{ color: 'var(--color-clinical)' }}
+              title={node.name}
+            >
+              {node.name}
+            </span>
           </>
         )}
 
-        <span
-          className="text-sm truncate flex-1"
-          style={{
-            color: isFolder ? 'var(--color-pristine)' : 'var(--color-clinical)',
-          }}
-          title={node.name}
-        >
-          {node.name}
-        </span>
-
         {(node.memoryCount || 0) > 0 && (
           <span
-            className="text-xs px-1.5 py-0.5 rounded glass-panel"
+            className="text-xs px-1.5 py-0.5 rounded glass-panel flex-shrink-0"
             style={{ color: 'var(--color-clinical)' }}
           >
             {node.memoryCount}
@@ -169,6 +225,7 @@ function TreeNodeComponent({
               expandedNodes={expandedNodes}
               onToggle={onToggle}
               onSelect={onSelect}
+              selectedMemory={selectedMemory}
             />
           ))}
         </div>
