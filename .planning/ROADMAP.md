@@ -214,9 +214,9 @@
 
 **Goal:** Create user-facing documentation, generate brand assets (logo, mascot), capture UI screenshots, and prepare for public release
 
-**Requirements**: Documentation, branding, marketing
+**Requirements**: [DOC-01, DOC-02, DOC-03, DOC-04, BRAND-01, BRAND-02, RELEASE-01]
 **Depends on:** Phase 04.2
-**Plans:** 0 plans (not yet planned)
+**Plans:** 1 plan
 
 **Success Criteria:**
 - [ ] README.md with features, quickstart, screenshots
@@ -230,12 +230,11 @@
 - [ ] Changelog for v1.0
 
 **Plan Files:**
-- `.planning/phases/05-documentation-branding-assets-and-public-release-preparation/05-CONTEXT.md` — Phase scope
-- `.planning/phases/05-documentation-branding-assets-and-public-release-preparation/05-01-PLAN.md` — TBD
+- `.planning/phases/05-documentation-branding-assets-and-public-release-preparation/05-01-PLAN.md` — Documentation, Branding & Public Release (11 tasks)
 
 | Wave | Plans | Description | Status |
 |------|-------|-------------|--------|
-| 1 | TBD | TBD | 📝 Planned |
+| 1 | 01 | Brand assets, docs, README, CONTRIBUTING, CHANGELOG | 📝 Planned |
 
 ---
 
