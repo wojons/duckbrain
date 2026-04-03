@@ -9,6 +9,7 @@ import {
   Header,
   Cell,
   SortingState,
+
 } from '@tanstack/react-table'
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual'
 import { ChevronDown, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
@@ -17,6 +18,7 @@ import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
 import { SkeletonTable } from './ui/skeleton'
 import { ErrorCard } from './ui/error-boundary'
+import { BulkActionBar } from './bulk-action-bar'
 
 interface MemoryTableProps {
   namespace?: string
@@ -50,7 +52,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     limit: 50,
   })
 
-  const [rowSelection, setRowSelection] = useState({})
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [sorting, setSorting] = useState<SortingState>([])
 
   // Flatten paginated data
@@ -72,6 +74,32 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
 
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: 'select',
+        header: ({ table }) => (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={table.getIsAllRowsSelected()}
+              onChange={table.getToggleAllRowsSelectedHandler()}
+              className="w-4 h-4 rounded border-gray-400 bg-transparent cursor-pointer"
+            />
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={row.getIsSelected()}
+              onChange={row.getToggleSelectedHandler()}
+              onClick={(e) => e.stopPropagation()}
+              className="w-4 h-4 rounded border-gray-400 bg-transparent cursor-pointer"
+            />
+          </div>
+        ),
+        size: 48,
+        enableSorting: false,
+      }),
       columnHelper.accessor('isTombstone', {
         header: 'State',
         cell: (info: { getValue: () => boolean }) => {
@@ -195,6 +223,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    enableRowSelection: true,
     state: {
       rowSelection,
       sorting,
@@ -370,6 +399,12 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           </button>
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedRows={table.getSelectedRowModel().rows.map(row => row.original)}
+        onClearSelection={() => setRowSelection({})}
+      />
     </div>
   )
 }
