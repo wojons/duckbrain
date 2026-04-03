@@ -9,6 +9,7 @@ import {
   useQuery,
   useMutation,
   useQueryClient,
+  useInfiniteQuery,
 } from '@tanstack/react-query'
 import { memoriesApi } from '../lib/api-client'
 import {
@@ -40,6 +41,7 @@ interface UseMemoriesParams {
   author?: string
   query?: string
   namespace?: string
+  cursor?: string
 }
 
 /**
@@ -69,6 +71,38 @@ export function useMemories(params: UseMemoriesParams = {}) {
         namespace,
       }),
     staleTime: 30 * 1000, // 30 seconds
+    refetchOnWindowFocus: false,
+  })
+}
+
+/**
+ * Hook for infinite scroll pagination
+ */
+export function useInfiniteMemories(params: Omit<UseMemoriesParams, 'cursor'> = {}) {
+  const { prefix, limit = 50, domain, author, query, namespace } = params
+
+  return useInfiniteQuery({
+    queryKey: [...memoriesKeys.lists(), 'infinite', { prefix, limit, domain, author, query, namespace }],
+    queryFn: async ({ pageParam }) => {
+      const result = await memoriesApi.list({
+        prefix,
+        limit,
+        offset: pageParam || 0,
+        domain,
+        author,
+        query,
+        namespace,
+      })
+      return result
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.hasMore) {
+        return lastPage.nextOffset || (lastPage.offset + lastPage.limit)
+      }
+      return undefined
+    },
+    initialPageParam: 0,
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: false,
   })
 }
