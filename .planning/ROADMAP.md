@@ -145,7 +145,7 @@
 **Goal:** Fix mock data and hardcoded values in DuckBrain UI
 **Requirements**: UI polish, data integration
 **Depends on:** Phase 4
-**Plans:** 3 plans in 2 waves
+**Plans:** 3/3 plans complete
 
 **Success Criteria:**
 - [ ] Vitals widgets show real data instead of "—"
