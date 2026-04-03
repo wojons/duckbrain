@@ -12,6 +12,8 @@ import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual'
 import { useMemories } from '../hooks/use-memories'
 import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
+import { SkeletonTable } from './ui/skeleton'
+import { ErrorCard } from './ui/error-boundary'
 
 interface MemoryTableProps {
   namespace?: string
@@ -29,8 +31,9 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
   const searchQuery = useUIStore((state) => state.searchQuery)
   const setSelectedMemory = useUIStore((state) => state.setSelectedMemory)
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen)
+  const selectedMemory = useUIStore((state) => state.selectedMemory)
 
-  const { data, isLoading, error } = useMemories({
+  const { data, isLoading, error, refetch } = useMemories({
     namespace,
     query: searchQuery || undefined,
     limit: 100,
@@ -178,28 +181,34 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     overscan: 10,
   })
 
-  const handleRowClick = (memory: MemoryResponse) => {
-    setSelectedMemory(memory.id)
-    setInspectorOpen(true)
+  const handleRowClick = (e: React.MouseEvent, memory: MemoryResponse) => {
+    // Stop propagation to prevent parent handlers
+    e.stopPropagation()
+    e.preventDefault()
+    
+    if (memory.id) {
+      setSelectedMemory(memory.id)
+      setInspectorOpen(true)
+    }
   }
 
   if (isLoading) {
     return (
-      <div className="glass-panel p-8 text-center">
-        <div className="inline-block animate-spin w-6 h-6 border-2 border-azure border-t-transparent rounded-full" />
-        <p className="mt-4 text-sm" style={{ color: 'var(--color-clinical)' }}>
-          Loading memories...
-        </p>
+      <div className="p-4">
+        <SkeletonTable rows={10} columns={6} />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="glass-panel p-8 text-center">
-        <p style={{ color: 'var(--color-error)' }}>
-          Error loading memories: {error.message}
-        </p>
+      <div className="p-8">
+        <ErrorCard
+          title="Failed to load memories"
+          error={error}
+          onRetry={() => refetch()}
+          retryLabel="Retry"
+        />
       </div>
     )
   }
@@ -248,20 +257,26 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
           {virtualizer.getVirtualItems().map((virtualRow: VirtualItem) => {
             const row = rows[virtualRow.index]
             const memory = row.original
+            const isSelected = selectedMemory === memory.id
 
             return (
               <tr
                 key={row.id}
-                onClick={() => handleRowClick(memory)}
-                className="cursor-pointer glass-panel-hover border-b last:border-0"
+                onClick={(e) => handleRowClick(e, memory)}
+                className={`
+                  cursor-pointer glass-panel-hover border-b last:border-0
+                  transition-colors
+                  ${isSelected ? 'bg-white/10 border-azure/30' : ''}
+                `}
                 style={{
-                  borderColor: 'var(--color-glass-border)',
+                  borderColor: isSelected ? 'var(--color-azure)' : 'var(--color-glass-border)',
                   transform: `translateY(${virtualRow.start}px)`,
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: `${virtualRow.size}px`,
+                  backgroundColor: isSelected ? 'rgba(0, 212, 255, 0.05)' : undefined,
                 }}
               >
                 {row.getVisibleCells().map((cell: Cell<MemoryResponse, unknown>) => (
