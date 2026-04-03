@@ -14,18 +14,36 @@ import {
   CreateMemoryRequest,
   UpdateMemoryRequest,
 } from '../../../../src/http/types/api'
+import {
+  validateMemoryListResponse,
+  validateKeyTreeResponse,
+  validateNamespaceListResponse,
+  validateMemoryResponse,
+} from './validators'
+import {
+  logApiRequest,
+  logApiResponse,
+  debugLog,
+} from './api-health'
 
 const API_BASE = '/api'
 
+// Validation flag - can be disabled in production for performance
+const ENABLE_VALIDATION = import.meta.env?.VITE_VALIDATE_API !== 'false'
+
 /**
- * Base fetch wrapper with error handling
+ * Base fetch wrapper with error handling and validation
  */
 async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`
-  
+  const startTime = performance.now()
+
+  // Log request in dev mode
+  logApiRequest(options?.method || 'GET', endpoint, options?.body)
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -36,6 +54,7 @@ async function apiFetch<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+    debugLog('ERROR', `${endpoint} failed: ${error.error || `HTTP ${response.status}`}`)
     throw new Error(error.error || `HTTP ${response.status}`)
   }
 
@@ -44,7 +63,49 @@ async function apiFetch<T>(
     return undefined as T
   }
 
-  return response.json()
+  const data = await response.json()
+  const duration = Math.round(performance.now() - startTime)
+
+  // Log response in dev mode
+  logApiResponse(endpoint, data, duration)
+
+  // Validate response shape if enabled
+  if (ENABLE_VALIDATION) {
+    validateResponse(endpoint, data)
+  }
+
+  return data
+}
+
+/**
+ * Validate response based on endpoint
+ */
+function validateResponse(endpoint: string, data: unknown): void {
+  if (endpoint.includes('/memories') && !endpoint.includes('/versions')) {
+    if (endpoint.match(/\/memories\/[^\/]+$/)) {
+      // Single memory
+      const result = validateMemoryResponse(data)
+      if (!result.valid) {
+        console.warn(`[API Validation] ${endpoint}: ${result.error}`)
+      }
+    } else {
+      // Memory list
+      const result = validateMemoryListResponse(data)
+      if (!result.valid) {
+        console.warn(`[API Validation] ${endpoint}: ${result.error}`)
+      }
+    }
+  } else if (endpoint.includes('/keys')) {
+    const result = validateKeyTreeResponse(data)
+    if (!result.valid) {
+      console.warn(`[API Validation] ${endpoint}: ${result.error}`)
+    }
+  } else if (endpoint.includes('/namespaces')) {
+    const result = validateNamespaceListResponse(data)
+    if (!result.valid) {
+      console.warn(`[API Validation] ${endpoint}: ${result.error}`)
+    }
+  }
 }
 
 /**
