@@ -1,0 +1,21 @@
+# These owners will be the default owners for everything in the repo
+* @wojons
+
+# MCP server code
+/src/mcp/ @wojons
+
+# HTTP API
+/src/http/ @wojons
+
+# Storage layer
+/src/storage/ @wojons
+/src/duckdb/ @wojons
+
+# Web UI
+/packages/ui/ @wojons
+
+# Documentation
+/docs/ @wojons
+
+# Examples
+/examples/ @wojons

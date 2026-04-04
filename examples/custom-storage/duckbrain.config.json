@@ -1,0 +1,20 @@
+{
+  "storage": {
+    "dataDir": "./custom-data",
+    "namespace": "production",
+    "git": {
+      "enabled": true,
+      "remote": "origin",
+      "autoCommit": true
+    }
+  },
+  "api": {
+    "port": 3000,
+    "auth": {
+      "enabled": true
+    }
+  },
+  "ui": {
+    "port": 8080
+  }
+}
