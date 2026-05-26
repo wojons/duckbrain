@@ -1,6 +1,6 @@
 {
   "defaultNamespace": "temp-trigger",
-  "authorEmail": "test@example.com",
+  "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
     "maxLines": 100,
@@ -21,6 +21,7 @@
   "namespaceMappings": {
     "test-ns": "namespaces/test-ns",
     "test-namespace": "namespaces/test-namespace",
-    "temp-trigger": "namespaces/temp-trigger"
+    "temp-trigger": "namespaces/temp-trigger",
+    "hermes-memory": "namespaces/hermes-memory"
   }
 }

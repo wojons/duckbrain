@@ -50,7 +50,7 @@ function getGitConfig(key: string, envVar: string, defaultValue: string): string
  * @returns Author email address
  */
 export function getAuthorEmail(): string {
-  return getGitConfig('user.email', 'GIT_AUTHOR_EMAIL', 'duckbrain@local');
+  return getGitConfig('user.email', 'GIT_AUTHOR_EMAIL', 'duckbrain@localhost');
 }
 
 /**
