@@ -10,6 +10,7 @@ import { DomainEnum } from '../../schema/memory';
 import { getDuckDBConnection } from '../../duckdb/connection';
 import { queryMemories } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
+import { getConfig } from '../../config/index';
 import path from 'path';
 import fs from 'fs';
 
@@ -52,14 +53,12 @@ interface RecallOutput {
 }
 
 /**
- * Resolve namespace path from namespace name
+ * Resolve namespace path from namespace name using config
  */
 function resolveNamespacePath(namespace: string): string {
-  // Default namespace is in the project root
-  if (namespace === 'default') {
-    return path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
-  }
-  return path.join(process.cwd(), '.duckbrain', 'namespaces', namespace);
+  const config = getConfig('.');
+  const nsPath = config.namespacesPath || './namespaces';
+  return path.join(nsPath, namespace);
 }
 
 /**

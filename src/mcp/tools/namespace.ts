@@ -186,7 +186,7 @@ export async function listNamespacesTool(
     if (!namespaceList.some(n => n.name === 'default')) {
       namespaceList.unshift({
         name: 'default',
-        path: './memory/default',
+        path: path.join(config.namespacesPath || './namespaces', 'default'),
         isDefault: currentNamespace === 'default'
       });
     }

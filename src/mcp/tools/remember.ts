@@ -12,6 +12,7 @@ import { addPartition } from '../../storage/manifest';
 import { getAuthorEmail } from '../../git/attribution';
 import path from 'path';
 import fs from 'fs';
+import { getConfig } from '../../config/index';
 
 /**
  * Input schema for remember tool
@@ -44,21 +45,12 @@ interface RememberOutput {
 }
 
 /**
- * Get git author email (deprecated - use getAuthorEmail from git/attribution)
- * Kept for backwards compatibility
- */
-function getGitConfig(key: string): string {
-  return getAuthorEmail();
-}
-
-/**
- * Resolve namespace path from namespace name
+ * Resolve namespace path from namespace name using config
  */
 function resolveNamespacePath(namespace: string): string {
-  if (namespace === 'default') {
-    return path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
-  }
-  return path.join(process.cwd(), '.duckbrain', 'namespaces', namespace);
+  const config = getConfig('.');
+  const nsPath = config.namespacesPath || './namespaces';
+  return path.join(nsPath, namespace);
 }
 
 /**
@@ -92,7 +84,7 @@ export async function rememberTool(input: RememberInput): Promise<RememberOutput
     const { key, domain, attributes, embedding_text, namespace } = parseResult.data;
 
     // Get author from git config
-    const author = getGitConfig('user.email');
+    const author = getAuthorEmail();
 
     // Create memory with defaults
     const memory = createMemory({
