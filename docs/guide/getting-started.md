@@ -177,15 +177,16 @@ duckbrain namespace use my-new-project
 DuckBrain automatically versions your memories with Git:
 
 ```bash
-# Memories are stored in:
-./memory/[namespace]/**/*.jsonl
+# Memories are stored per-namespace:
+./namespaces/[namespace]/**/*.jsonl
 
-# DuckBrain auto-commits changes every 30 seconds
-# Or manually:
-duckbrain commit
+# Each namespace has its own git repo — DuckBrain auto-commits
+# immediately after every write (remember/forget).
+# The gitBatching config controls the CLI worker; MCP tools
+# commit synchronously on each operation.
 
-# View git log
-cd memory/my-project && git log
+# View git log for a namespace
+cd namespaces/my-project && git log
 ```
 
 ## Web UI
