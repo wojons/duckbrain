@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getDuckDBConnection } from '../../duckdb/connection';
 import { queryMemories, tombstoneMemory } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
+import { getConfig } from '../../config/index';
 import path from 'path';
 import fs from 'fs';
 
@@ -39,13 +40,12 @@ interface ForgetOutput {
 }
 
 /**
- * Resolve namespace path from namespace name
+ * Resolve namespace path from namespace name using config
  */
 function resolveNamespacePath(namespace: string): string {
-  if (namespace === 'default') {
-    return path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
-  }
-  return path.join(process.cwd(), '.duckbrain', 'namespaces', namespace);
+  const config = getConfig('.');
+  const nsPath = config.namespacesPath || './namespaces';
+  return path.join(nsPath, namespace);
 }
 
 /**
