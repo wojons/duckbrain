@@ -10,6 +10,7 @@ import { DomainEnum, ActionEnum, safeValidateMemory, createMemory } from '../../
 import { getPartitionPath, createPartition, appendToJsonl } from '../../storage/jsonl';
 import { addPartition } from '../../storage/manifest';
 import { getAuthorEmail } from '../../git/attribution';
+import { commitNamespace } from '../../git/autocommit';
 import path from 'path';
 import fs from 'fs';
 import { getConfig } from '../../config/index';
@@ -127,6 +128,9 @@ export async function rememberTool(input: RememberInput): Promise<RememberOutput
 
     // Update manifest
     addPartition(namespacePath, partitionRelPath);
+
+    // Auto-commit to namespace git repo
+    commitNamespace(namespacePath);
 
     // Return hybrid response
     return {

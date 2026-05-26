@@ -10,6 +10,7 @@ import { getDuckDBConnection } from '../../duckdb/connection';
 import { queryMemories, tombstoneMemory } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
 import { getConfig } from '../../config/index';
+import { commitNamespace } from '../../git/autocommit';
 import path from 'path';
 import fs from 'fs';
 
@@ -131,6 +132,9 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
 
     // Create tombstone record
     await tombstoneMemory(db, id, partitionPath, reason);
+
+    // Auto-commit to namespace git repo
+    commitNamespace(namespacePath);
 
     return {
       success: true,
