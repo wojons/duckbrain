@@ -29,8 +29,17 @@ export function commitNamespace(
     const gitDir = path.join(namespacePath, '.git');
     if (!fs.existsSync(gitDir)) {
       execSync('git init', { cwd: namespacePath, stdio: 'pipe' });
-      // Set author identity for the repo
+    }
+
+    // Ensure git user identity is set (newly inited repos + pre-existing ones)
+    try {
+      execSync('git config user.email', { cwd: namespacePath, stdio: 'pipe' });
+    } catch {
       execSync('git config user.email "duckbrain@localhost"', { cwd: namespacePath, stdio: 'pipe' });
+    }
+    try {
+      execSync('git config user.name', { cwd: namespacePath, stdio: 'pipe' });
+    } catch {
       execSync('git config user.name "DuckBrain"', { cwd: namespacePath, stdio: 'pipe' });
     }
 
