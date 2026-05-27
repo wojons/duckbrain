@@ -1,0 +1,59 @@
+# Gitleaks configuration — shared across all repos
+# Install: copy to repo root, then run: scripts/install-hooks.sh
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+title = "Hermes4Friends / wojons — Shared Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Known-safe patterns that look like secrets but aren't"
+
+  # Placeholder patterns used in compose/env template files
+  regexes = [
+    '''\$\$[A-Z_]+\\$\\$''',           # $$VAR$$ placeholders
+    '''PLACEHOLDER_KEY_HERE''',
+    '''YOUR_[A-Z_]+_HERE''',
+    '''CHANGE_ME''',
+    '''REPLACE_WITH_REAL_[A-Z_]+''',
+    '''sk-xxx+''',                       # truncated API keys in docs
+    '''[Rr][Ee][Dd][Aa][Cc][Tt][Ee][Dd]''',
+  ]
+
+  # Docs / test fixtures / example values
+  paths = [
+    '''tests/.*''',
+    '''\.test\.''',
+    '''\.spec\.''',
+    '''\.md$''',
+    '''docs/.*''',
+    '''examples/.*''',
+    '''fixtures/.*''',
+    '''\.gitleaks\.toml''',
+    '''\.pre-commit-config\.yaml''',
+  ]
+
+  # Specific known-safe values (add repo-specific ones in each repo's .gitleaks.toml)
+  stops = [
+    '''admin:PASS''',
+    '''test@example.com''',
+    '''user@example.com''',
+    '''localhost:8080''',
+    '''127.0.0.1''',
+    '''0.0.0.0''',
+  ]
+
+# Allowlist per-rule (rule IDs from default gitleaks rules)
+[[rules]]
+  id = "generic-api-key"
+  [rules.allowlist]
+    description = "Allow $$VAR$$ placeholders and redacted keys in config templates"
+    regexes = ['''.*''']
+    paths = [
+      '''\\.env\\.example$''',
+      '''\\.env\\.template$''',
+      '''config\\.example\\.yaml$''',
+      '''docker-compose\\.example\\.yml$''',
+      '''\\*-dc\\.yml\\.example$''',
+    ]
