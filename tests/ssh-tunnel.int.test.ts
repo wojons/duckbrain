@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { execSync } from 'child_process';
 import {
   uniqueId, getRandomPort, startSshContainer, stopSshContainer,
   sshExec, waitForPort, run, sleep,
@@ -33,13 +34,16 @@ describe('SSH Tunnel Integration', () => {
   });
 
   it('should create an SSH tunnel with port forwarding', async () => {
-    const tunnel = run(
+    run(
       `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} -L 0:localhost:22 -N -f testuser@127.0.0.1 2>&1 || true`
     );
     await sleep(500);
     const tunnelResult = run(`ps aux | grep "ssh.*${sshPort}" | grep -v grep || echo NO_TUNNEL`);
     const hasTunnel = !tunnelResult.includes('NO_TUNNEL');
-    run(`pkill -f "ssh.*-L.*${sshPort}" 2>/dev/null || true`);
+    // Cleanup: execSync directly with stdio:'ignore' to avoid pkill/process-group issues
+    try {
+      execSync(`pkill -f "ssh.*-L.*${sshPort}"`, { stdio: 'ignore' });
+    } catch {}
     if (hasTunnel) {
       expect(hasTunnel).toBe(true);
     }
