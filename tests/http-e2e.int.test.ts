@@ -56,25 +56,22 @@ describe('HTTP Server E2E Integration', () => {
     expect(body.activities).toBeDefined();
   });
 
-  it('should respond to /api/tree', async () => {
+  it('should respond to /api/tree with redirect to /api/keys', async () => {
     const res = await curl(`http://127.0.0.1:${port}/api/tree`);
-    expect(res.status).toBe(200);
-    const body = JSON.parse(res.body);
-    expect(body.tree).toBeDefined();
+    expect(res.status).toBe(301);
+    expect(res.headers).toContain('/api/keys');
   });
 
-  it('should respond to /api/timeline', async () => {
+  it('should respond to /api/timeline with redirect to /api/memories', async () => {
     const res = await curl(`http://127.0.0.1:${port}/api/timeline`);
-    expect(res.status).toBe(200);
-    const body = JSON.parse(res.body);
-    expect(body.timeline).toBeDefined();
+    expect(res.status).toBe(301);
+    expect(res.headers).toContain('/api/memories');
   });
 
-  it('should respond to /api/search', async () => {
+  it('should respond to /api/search with redirect to /api/memories', async () => {
     const res = await curl(`http://127.0.0.1:${port}/api/search`);
-    expect(res.status).toBe(200);
-    const body = JSON.parse(res.body);
-    expect(body.results).toBeDefined();
+    expect(res.status).toBe(301);
+    expect(res.headers).toContain('/api/memories');
   });
 
   it('should reject unknown routes with 404', async () => {
