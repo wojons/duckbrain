@@ -27,8 +27,8 @@ const RememberInputSchema = z.object({
   attributes: z.record(z.string(), z.any()).describe('Memory attributes'),
   /** Text for vector embedding */
   embedding_text: z.string().describe('Text for vector embedding'),
-  /** Namespace to write to */
-  namespace: z.string().default('default').describe('Namespace to write to')
+  /** Namespace to write to (defaults to current active namespace) */
+  namespace: z.string().optional().describe('Namespace to write to')
 });
 
 type RememberInput = z.infer<typeof RememberInputSchema>;
@@ -46,12 +46,14 @@ interface RememberOutput {
 }
 
 /**
- * Resolve namespace path from namespace name using config
+ * Resolve namespace path from namespace name using config.
+ * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string): string {
+function resolveNamespacePath(namespace: string | undefined): string {
   const config = getConfig('.');
+  const ns = namespace || config.defaultNamespace || 'default';
   const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, namespace);
+  return path.join(nsPath, ns);
 }
 
 /**

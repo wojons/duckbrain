@@ -22,8 +22,8 @@ const ForgetInputSchema = z.object({
   id: z.string().uuid().describe('Memory ID to forget'),
   /** Optional reason for deletion */
   reason: z.string().optional().describe('Optional reason for deletion'),
-  /** Namespace to search */
-  namespace: z.string().default('default').describe('Namespace to search'),
+  /** Namespace to search (defaults to current active namespace) */
+  namespace: z.string().optional().describe('Namespace to search'),
   /** Domain to search (optimization) */
   domain: z.string().optional().describe('Domain to search (optimization)')
 });
@@ -41,12 +41,14 @@ interface ForgetOutput {
 }
 
 /**
- * Resolve namespace path from namespace name using config
+ * Resolve namespace path from namespace name using config.
+ * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string): string {
+function resolveNamespacePath(namespace: string | undefined): string {
   const config = getConfig('.');
+  const ns = namespace || config.defaultNamespace || 'default';
   const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, namespace);
+  return path.join(nsPath, ns);
 }
 
 /**

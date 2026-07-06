@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { getDuckDBConnection } from '../../duckdb/connection';
+import { getConfig } from '../../config/index';
 import path from 'path';
 import fs from 'fs';
 
@@ -22,8 +23,8 @@ const ListKeysInputSchema = z.object({
   limit: z.number().default(50).describe('Max keys to return'),
   /** Pagination offset */
   offset: z.number().default(0).describe('Pagination offset'),
-  /** Namespace to query */
-  namespace: z.string().default('default').describe('Namespace to query')
+  /** Namespace to query (defaults to current active namespace) */
+  namespace: z.string().optional().describe('Namespace to query')
 });
 
 type ListKeysInput = z.infer<typeof ListKeysInputSchema>;
@@ -41,12 +42,13 @@ interface ListKeysOutput {
 
 /**
  * Resolve namespace path from namespace name
+ * Uses config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string): string {
-  if (namespace === 'default') {
-    return path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
-  }
-  return path.join(process.cwd(), '.duckbrain', 'namespaces', namespace);
+function resolveNamespacePath(namespace: string | undefined): string {
+  const config = getConfig('.');
+  const ns = namespace || config.defaultNamespace || 'default';
+  const nsPath = config.namespacesPath || './namespaces';
+  return path.join(nsPath, ns);
 }
 
 /**
