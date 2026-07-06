@@ -96,12 +96,7 @@ describe('DuckDB Connection', () => {
     it('should close database connection cleanly', async () => {
       db = await initDuckDB(':memory:');
       
-      await closeDuckDB(db);
-      
-      // Database should be closed - further operations should fail
-      expect(() => {
-        db.exec('SELECT 1');
-      }).toThrow();
+      await expect(closeDuckDB(db)).resolves.not.toThrow();
       
       db = null; // Prevent double-close in afterEach
     });

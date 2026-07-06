@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('CLI executable', () => {
-  const cliPath = path.join(process.cwd(), 'bin', 'duckbrain');
+  const cliPath = path.join(process.cwd(), 'bin', 'duckbrain.js');
   
   it('should exist', () => {
     expect(fs.existsSync(cliPath)).toBe(true);
