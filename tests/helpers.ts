@@ -114,7 +114,7 @@ export function sshExec(containerName: string, cmd: string): string {
 
 export async function curl(args: string): Promise<{ status: number; body: string; headers: string }> {
   try {
-    const output = run(`curl -s -D - ${args}`);
+    const output = run(`curl -s -L -D - ${args}`);
     const headerEnd = output.indexOf('\r\n\r\n');
     if (headerEnd === -1) {
       return { status: 0, body: output, headers: output };
