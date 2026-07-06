@@ -28,8 +28,8 @@ const RecallInputSchema = z.object({
   query: z.string().optional().describe('Semantic search query (uses vss extension)'),
   /** Max results to return */
   limit: z.number().default(10).describe('Max results to return'),
-  /** Namespace to query */
-  namespace: z.string().default('default').describe('Namespace to query')
+  /** Namespace to query (defaults to current active namespace) */
+  namespace: z.string().optional().describe('Namespace to query')
 });
 
 type RecallInput = z.infer<typeof RecallInputSchema>;
@@ -53,12 +53,14 @@ interface RecallOutput {
 }
 
 /**
- * Resolve namespace path from namespace name using config
+ * Resolve namespace path from namespace name using config.
+ * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string): string {
+function resolveNamespacePath(namespace: string | undefined): string {
   const config = getConfig('.');
+  const ns = namespace || config.defaultNamespace || 'default';
   const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, namespace);
+  return path.join(nsPath, ns);
 }
 
 /**
