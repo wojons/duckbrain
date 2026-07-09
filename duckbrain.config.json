@@ -60,6 +60,10 @@
     "chimera-v2": "namespaces/chimera-v2",
     "hivemind-work": "namespaces/hivemind-work",
     "wojons-mythos": "namespaces/wojons-mythos",
-    "temporal-vector-index": "namespaces/temporal-vector-index"
+    "temporal-vector-index": "namespaces/temporal-vector-index",
+    "rethinkdb": "namespaces/rethinkdb",
+    "geopolitics": "namespaces/geopolitics",
+    "escalation-doctrine": "namespaces/escalation-doctrine",
+    "deepseek-dashboard": "namespaces/deepseek-dashboard"
   }
 }
