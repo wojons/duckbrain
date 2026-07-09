@@ -212,7 +212,10 @@ export async function connectToRemote(config: SSHConnectionConfig): Promise<bool
     }
 
     if (result.stderr) {
-      console.error(`[ssh] Connection error: ${result.stderr.trim()}`);
+      const errMsg = typeof result.stderr === 'string' 
+        ? result.stderr.trim() 
+        : String(result.stderr).trim();
+      console.error(`[ssh] Connection error: ${errMsg}`);
     }
     return false;
   } catch (error) {
