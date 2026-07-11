@@ -85,17 +85,23 @@ export function getDuckDBConnection(
 }
 
 /**
- * Get or create singleton connection for namespace
+ * Get or create singleton connection for namespace.
+ *
+ * Uses file-backed database (duckdb.db) instead of :memory: to avoid
+ * Napi::Error corruption from repeated read_json() calls across different
+ * file sets. DuckDB's in-memory mode accumulates internal state from
+ * table-function operations across multiple file lists; file-backed mode
+ * properly releases resources between operations.
+ *
+ * VSS extensions are NOT loaded — they were previously found to cause
+ * additional Napi::Error crashes with read_json() + column filters.
+ * Semantic search (VSS) will need a fresh connection with extensions
+ * loaded when the embedding stub is replaced with a real model.
  */
 function getSingletonConnection(namespacePath: string): Database {
   if (!dbCache.has(namespacePath)) {
-    const db = new Database(':memory:');
-    
-    // NOTE: Extensions (httpfs, vss) removed due to bug with read_json() + multiple files + column filters
-    // See: https://github.com/duckdb/duckdb-node/issues/XX
-    // The extensions cause Napi::Error crashes when filtering on 'key' column across multiple JSON files.
-    // Semantic search (VSS) will need to create a fresh connection with extensions loaded when needed.
-    
+    const dbPath = path.join(namespacePath, 'duckdb.db');
+    const db = new Database(dbPath);
     dbCache.set(namespacePath, db);
   }
 
