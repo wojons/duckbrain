@@ -137,9 +137,9 @@ export async function createNamespaceTool(
         version: '1.0',
         createdAt: new Date().toISOString(),
         partitions: []
-      }, null, 2));
+      }, null, 2) + '\n');
     }
-    
+
     // Update config
     registerNamespace('.', input.name, nsPath);
     

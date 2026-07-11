@@ -86,7 +86,7 @@ function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
   }
 
   // Write to temp file
-  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
 
   // Atomic rename
   fs.renameSync(tmpPath, manifestPath);

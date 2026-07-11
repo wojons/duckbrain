@@ -448,7 +448,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
           version: '1.0',
           createdAt: new Date().toISOString(),
           partitions: []
-        }, null, 2));
+        }, null, 2) + '\n');
       }
       
       // Update config
@@ -809,7 +809,7 @@ async function serversCommand(args: string[]): Promise<void> {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(serversPath, JSON.stringify(servers, null, 2));
+    fs.writeFileSync(serversPath, JSON.stringify(servers, null, 2) + '\n');
   }
 
   if (subcommand === 'list') {
@@ -1129,7 +1129,7 @@ async function tokenCommand(args: string[]): Promise<void> {
   }
   
   // Write config
-  fs.writeFileSync(authPath, JSON.stringify(authConfig, null, 2));
+  fs.writeFileSync(authPath, JSON.stringify(authConfig, null, 2) + '\n');
   
   console.log('Generated API token:');
   console.log(token);
