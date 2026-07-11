@@ -11,9 +11,23 @@ import fs from 'fs';
 import { loadVSSExtension, enablePersistence } from './vss';
 
 /**
- * Cache of database connections by namespace path
+ * Cache of database connections by namespace path.
+ * Each entry tracks creation time for lifecycle management.
  */
-const dbCache = new Map<string, Database>();
+interface ConnectionEntry {
+  db: Database;
+  createdAt: number;
+}
+const dbCache = new Map<string, ConnectionEntry>();
+
+/**
+ * Maximum age of a cached connection before it's recycled (1 hour).
+ * Prevents thread accumulation from long-lived DuckDB connections.
+ * DuckDB Node.js bindings have been observed to leak threads on
+ * long-running instances (1,359 threads after 18 days). Recycling
+ * connections periodically ensures the native binding releases resources.
+ */
+const CONNECTION_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Initialize DuckDB database with VSS extension
@@ -99,13 +113,27 @@ export function getDuckDBConnection(
  * loaded when the embedding stub is replaced with a real model.
  */
 function getSingletonConnection(namespacePath: string): Database {
-  if (!dbCache.has(namespacePath)) {
-    const dbPath = path.join(namespacePath, 'duckdb.db');
-    const db = new Database(dbPath);
-    dbCache.set(namespacePath, db);
+  const existing = dbCache.get(namespacePath);
+
+  // Recycle connection if it exceeds max age (prevents thread accumulation)
+  if (existing) {
+    const age = Date.now() - existing.createdAt;
+    if (age >= CONNECTION_MAX_AGE_MS) {
+      existing.db.close(() => {
+        // Fire-and-forget close — ignore errors on already-closed connections
+      });
+      dbCache.delete(namespacePath);
+    } else {
+      return existing.db;
+    }
   }
 
-  return dbCache.get(namespacePath)!;
+  // Create fresh connection
+  const dbPath = path.join(namespacePath, 'duckdb.db');
+  const db = new Database(dbPath);
+  dbCache.set(namespacePath, { db, createdAt: Date.now() });
+
+  return db;
 }
 
 /**
@@ -135,9 +163,9 @@ export async function closeDuckDB(db: Database): Promise<void> {
  * @param namespacePath - Path to namespace directory
  */
 export async function closeDuckDBConnection(namespacePath: string): Promise<void> {
-  const db = dbCache.get(namespacePath);
-  if (db) {
-    await closeDuckDB(db);
+  const entry = dbCache.get(namespacePath);
+  if (entry) {
+    await closeDuckDB(entry.db);
     dbCache.delete(namespacePath);
   }
 }
@@ -147,13 +175,34 @@ export async function closeDuckDBConnection(namespacePath: string): Promise<void
  */
 export async function closeAllConnections(): Promise<void> {
   const promises: Promise<void>[] = [];
-  for (const db of dbCache.values()) {
+  for (const entry of dbCache.values()) {
     promises.push(
       new Promise((resolve) => {
-        db.close(() => resolve());
+        entry.db.close(() => resolve());
       })
     );
   }
   await Promise.all(promises);
   dbCache.clear();
+}
+
+/**
+ * Get the age of a cached connection or null if not cached.
+ * Useful for monitoring and debugging thread accumulation.
+ *
+ * @param namespacePath - Path to namespace directory
+ * @returns Age in ms or null
+ */
+export function getConnectionAge(namespacePath: string): number | null {
+  const entry = dbCache.get(namespacePath);
+  if (!entry) return null;
+  return Date.now() - entry.createdAt;
+}
+
+/**
+ * Get the number of cached connections.
+ * Useful for monitoring connection accumulation.
+ */
+export function getConnectionCount(): number {
+  return dbCache.size;
 }
