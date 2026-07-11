@@ -23,13 +23,6 @@
 - **Impact:** Memory exhaustion, eventual OOM on long-running servers
 - **Fix:** Investigate thread lifecycle in DuckDB Node.js bindings; add periodic restart
 
-### DB-005: Missing trailing newline guard in config files
-- **File:** `duckbrain.config.json` + any JSON config writer
-- **Severity:** Low
-- **Status:** Fixed manually in 854a668, but no automated guard
-- **Impact:** Config writes leave files without trailing newlines; cosmetic but triggers unnecessary diffs
-- **Fix:** Add trailing newline enforcement in config write paths
-
 ## Done
 
 ### DB-000: CI test failures (9 unit + 4 integration)
@@ -38,3 +31,6 @@
 
 ### DB-002: DuckDB singleton connection corruption
 - ✅ Fixed in f1b4509 — root-caused to :memory: database accumulating state from repeated read_json() across different file sets. Switched singleton to file-backed duckdb.db (matching what the per-query workaround already proved functional). Removed the per-query workaround from recall.ts.
+
+### DB-005: Missing trailing newline guard in config files
+- ✅ Fixed in bdccbfa — appended `'\n'` to all 8 `JSON.stringify()` calls paired with `writeFileSync` across 5 files (namespace.ts, manifest.ts, config/index.ts, cli/human.ts, squash.ts).
