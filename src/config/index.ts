@@ -142,7 +142,7 @@ export function updateConfig(
   const configPath = getConfigPath(configDir);
   const tmpPath = configPath + '.tmp';
 
-  fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2), 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2) + '\n', 'utf-8');
   fs.renameSync(tmpPath, configPath);
 
   return validated;
@@ -189,7 +189,7 @@ export function initializeConfig(
 
   // Write config
   const configPath = getConfigPath(configDir);
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
 
   return config;
 }

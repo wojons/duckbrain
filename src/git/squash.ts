@@ -583,6 +583,6 @@ function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
     fs.mkdirSync(namespacePath, { recursive: true });
   }
 
-  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
   fs.renameSync(tmpPath, manifestPath);
 }
