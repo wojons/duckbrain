@@ -9,13 +9,6 @@
 - **Impact:** Semantic search (`query` parameter) always fails with "requires embedding model - configure in Phase 2"
 - **Fix:** Integrate an embedding model API (OpenAI, local model, etc.)
 
-### DB-002: DuckDB singleton connection corruption
-- **File:** `src/mcp/tools/recall.ts:129-134`
-- **Severity:** High
-- **Status:** Worked around with per-query connections for multi-partition queries
-- **Impact:** Singleton cached connections crash DuckDB Node.js bindings (Napi::Error) when querying across multiple partitions with key/prefix filters
-- **Fix:** Root-cause the DuckDB connection corruption; remove the per-query workaround
-
 ### DB-003: Write degradation — silent write failures
 - **File:** DuckDB MCP server (infrastructure)
 - **Severity:** Critical
@@ -42,3 +35,6 @@
 ### DB-000: CI test failures (9 unit + 4 integration)
 - ✅ Fixed in 520b033 + f072166 + 8672584
 - 97/97 tests passing, CI green on Node 20.x and 22.x
+
+### DB-002: DuckDB singleton connection corruption
+- ✅ Fixed in f1b4509 — root-caused to :memory: database accumulating state from repeated read_json() across different file sets. Switched singleton to file-backed duckdb.db (matching what the per-query workaround already proved functional). Removed the per-query workaround from recall.ts.
