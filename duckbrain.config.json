@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "obsidian",
+  "defaultNamespace": "coding-hermes",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -64,6 +64,10 @@
     "rethinkdb": "namespaces/rethinkdb",
     "geopolitics": "namespaces/geopolitics",
     "escalation-doctrine": "namespaces/escalation-doctrine",
-    "deepseek-dashboard": "namespaces/deepseek-dashboard"
+    "deepseek-dashboard": "namespaces/deepseek-dashboard",
+    "procurement-agent": "namespaces/procurement-agent",
+    "imhotep": "namespaces/imhotep",
+    "crier": "namespaces/crier",
+    "coding-hermes": "namespaces/coding-hermes"
   }
 }
