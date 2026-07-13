@@ -12,7 +12,7 @@ useDefault = true
 
   # Placeholder patterns used in compose/env template files
   regexes = [
-    '''\$\$[A-Z_]+\\$\\$''',           # $$VAR$$ placeholders
+    '''\$\$[A-Z_]+\$\$''',           # $$VAR$$ placeholders
     '''PLACEHOLDER_KEY_HERE''',
     '''YOUR_[A-Z_]+_HERE''',
     '''CHANGE_ME''',
@@ -57,5 +57,4 @@ useDefault = true
       '''\.env\.template$''',
       '''config\.example\.yaml$''',
       '''docker-compose\.example\.yml$''',
-      '''.*-dc\.yml\.example$''',
     ]
