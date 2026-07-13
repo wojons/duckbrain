@@ -37,7 +37,7 @@
     "@modelcontextprotocol/sdk": "1.28.0",
     "bcryptjs": "^3.0.3",
     "duckdb": "1.4.4",
-    "simple-git": "3.33.0",
+    "simple-git": "^3.36.0",
     "tsx": "^4.21.0",
     "uuid": "^13.0.0",
     "zod": "4.1.8"
