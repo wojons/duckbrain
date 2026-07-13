@@ -22,7 +22,7 @@
 ## Done
 
 ### DB-009: Pre-existing secrets guard false positive
-- ✅ Fixed in d7d3d4f — added .opencode/ and namespaces/ to gitleaks allowlist, fixed *-dc regex panic. Guard: PASS.
+- ✅ Fixed in d7d3d4f + c3471ca — added .opencode/ and namespaces/ to gitleaks allowlist. Root cause: TOML single-quoted strings are literal — `'''\\\\.opencode/.*'''` matched literal backslash, not dot. Fixed to `'''\.opencode/.*'''`. Also fixed [[rules]] section patterns. Guard: PASS.
 
 ### DB-007: Resolve 6 high-severity npm vulnerabilities
 - ✅ Fixed in 2277fa6 — simple-git 3.33.0→3.36.0 (RCE fix). 5 remaining tar vulns are transitive via duckdb→node-gyp (build-time only, no fix available). All 65 vitest tests pass.
