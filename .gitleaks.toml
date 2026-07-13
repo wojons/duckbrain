@@ -30,6 +30,7 @@ useDefault = true
     '''docs/.*''',
     '''examples/.*''',
     '''fixtures/.*''',
+    '''\.opencode/.*''',
     '''\.gitleaks\.toml''',
     '''\.pre-commit-config\.yaml''',
   ]
