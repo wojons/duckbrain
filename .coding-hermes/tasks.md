@@ -2,11 +2,6 @@
 
 ## Open
 
-### DB-009: Pre-existing secrets guard false positive in command/gsd-join-discord.md
-- **Severity:** Low
-- **Status:** `gitreins guard` flags a hash in `command/gsd-join-discord.md`. Pre-existing — not related to recent changes. File appears to be empty or contains a hash that gitleaks matches.
-- **Fix:** Add `command/gsd-join-discord.md` to `.gitleaks.toml` allowlist, or remove the flagged content.
-
 ### DB-008: Clean up 40+ pre-existing tsc strictness errors
 - **Severity:** Low
 - **Status:** `npx tsc --noEmit` reports 40+ errors (unused vars, missing @types/express, Buffer type mismatches). Pre-existing — does not block vitest or builds. Found during DB-006 discovery sweep.
@@ -25,6 +20,9 @@
 - Write test confirmed working at 2026-07-12T17:36Z.
 
 ## Done
+
+### DB-009: Pre-existing secrets guard false positive
+- ✅ Fixed in d7d3d4f — added .opencode/ and namespaces/ to gitleaks allowlist, fixed *-dc regex panic. Guard: PASS.
 
 ### DB-007: Resolve 6 high-severity npm vulnerabilities
 - ✅ Fixed in 2277fa6 — simple-git 3.33.0→3.36.0 (RCE fix). 5 remaining tar vulns are transitive via duckdb→node-gyp (build-time only, no fix available). All 65 vitest tests pass.
