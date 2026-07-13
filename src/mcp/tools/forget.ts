@@ -155,7 +155,7 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
  * Get partition path for a memory based on its key and domain
  * Uses time-based partitioning - matches what rememberTool uses
  */
-function getPartitionPathForMemory(key: string, domain: string): string {
+function getPartitionPathForMemory(_key: string, domain: string): string {
   // Extract year-month from current time (must match rememberTool logic)
   const now = new Date();
   const year = now.getFullYear();

@@ -81,7 +81,7 @@ export function detectDuplicates(records: MemoryRecord[]): {
   const unique: MemoryRecord[] = [];
   const duplicates: MemoryRecord[] = [];
   
-  for (const [id, group] of byId.entries()) {
+  for (const group of byId.values()) {
     if (group.length === 1) {
       unique.push(group[0]);
     } else {
@@ -105,16 +105,16 @@ export function detectDuplicates(records: MemoryRecord[]): {
 export function resolveMergeConflict(
   theirs: string,
   ours: string,
-  options: { preferOurs?: boolean; preferTheirs?: boolean } = {}
+  _options: { preferOurs?: boolean; preferTheirs?: boolean } = {}
 ): MergeResult {
   const oursRecords = parseJsonl(ours);
   const theirsRecords = parseJsonl(theirs);
-  
+
   // Combine all records
   const allRecords = [...oursRecords, ...theirsRecords];
-  
+
   // Deduplicate by UUID
-  const { unique, duplicates, byId } = detectDuplicates(allRecords);
+  const { unique, duplicates } = detectDuplicates(allRecords);
   
   // Count tombstones
   const tombstonesCount = unique.filter(r => r.action === 'tombstone').length;

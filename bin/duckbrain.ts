@@ -23,7 +23,7 @@
  */
 
 import { startStdioMode } from '../src/cli/stdio.js';
-import { createHttpServer, startHttpMode } from '../src/cli/http.js';
+import { startHttpMode } from '../src/cli/http.js';
 import { runHumanCLI } from '../src/cli/human.js';
 import { closeAllConnections } from '../src/duckdb/connection.js';
 import { installService, manageService } from '../src/cli/service.js';
@@ -134,7 +134,7 @@ function runRemoteCLI(socketName: string, command: string, commandArgs: string[]
     },
   };
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve) => {
     const req = http.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });

@@ -8,7 +8,7 @@ export function uniqueId(): string {
 
 export function run(cmd: string, opts?: { cwd?: string }): string {
   try {
-    const merged = { encoding: 'utf-8', ...opts };
+    const merged = { encoding: 'utf-8', ...opts } as any;
     const result = execSync(cmd + ' 2>&1', merged);
     return result.trim();
   } catch (e: any) {
@@ -93,8 +93,6 @@ export async function startSshContainer(id: string, sshPort: number): Promise<st
   run(`docker run -d --name ${containerName} -p ${sshPort}:22 ${CONTAINER_PREFIX}-ssh`);
 
   await sleep(1000);
-
-  const containerIp = run(`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${containerName}`);
 
   run(`ssh-keygen -R [127.0.0.1]:${sshPort} 2>/dev/null || true`);
   run(`ssh-keyscan -p ${sshPort} 127.0.0.1 >> ~/.ssh/known_hosts 2>/dev/null || true`);

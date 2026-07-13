@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { DomainEnum, ActionEnum, safeValidateMemory, createMemory } from '../../schema/memory';
+import { DomainEnum, safeValidateMemory, createMemory } from '../../schema/memory';
 import { getPartitionPath, createPartition, appendToJsonl } from '../../storage/jsonl';
 import { addPartition } from '../../storage/manifest';
 import { getAuthorEmail } from '../../git/attribution';
@@ -118,7 +118,7 @@ export async function rememberTool(input: RememberInput): Promise<RememberOutput
 
     // Determine partition path (time-based)
     const partitionValue = getTimeBasedPartition();
-    const partitionRelPath = getPartitionPath(namespace, domain, 'time', partitionValue);
+    const partitionRelPath = getPartitionPath(namespace!, domain, 'time', partitionValue);
     const partitionPath = path.join(namespacePath, partitionRelPath);
 
     // Create partition if not exists

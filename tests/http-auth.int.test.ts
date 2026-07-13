@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ChildProcess } from 'child_process';
 import {
-  uniqueId, getRandomPort, startDuckbrainHttp, killProcess,
-  waitForUrl, curl, run,
+  getRandomPort, startDuckbrainHttp, killProcess,
+  waitForUrl, curl,
 } from './helpers';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import bcrypt from 'bcryptjs';
 
-const id = uniqueId();
 const port = getRandomPort();
 let server: ChildProcess;
 const authDir = path.join(os.homedir(), '.duckbrain');

@@ -5,7 +5,6 @@
  * Filters tombstone records by default.
  */
 
-import duckdb from 'duckdb';
 import type { Database } from './connection';
 import type { MemoryType } from '../schema/memory';
 import path from 'path';
@@ -214,7 +213,7 @@ export function queryMemories(
  * @param partitionPath - Absolute path to partition directory
  */
 export function insertMemory(
-  db: Database,
+  _db: Database,
   memory: MemoryType,
   partitionPath: string
 ): void {

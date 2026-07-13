@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { getConfig } from '../config/index';
-import { autoMerge, logMergeActivity, resolveMergeConflict } from './merge';
+import { autoMerge, logMergeActivity } from './merge';
 
 /**
  * Remote operation result
@@ -52,14 +52,7 @@ export async function pull(namespace?: string): Promise<RemoteResult> {
     
     // Fetch first to check for changes
     execSync('git fetch', { cwd: nsPath, stdio: 'pipe' });
-    
-    // Check if there's anything to pull
-    const status = execSync('git status --porcelain', { 
-      cwd: nsPath, 
-      encoding: 'utf-8',
-      stdio: 'pipe' 
-    });
-    
+
     // Pull with no-commit to handle conflicts manually
     try {
       execSync('git pull --no-commit', { cwd: nsPath, stdio: 'pipe' });

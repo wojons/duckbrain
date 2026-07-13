@@ -23,7 +23,6 @@ import {
   DeleteNamespaceInputSchema
 } from './tools/namespace';
 import path from 'path';
-import fs from 'fs';
 
 /**
  * MCP Server instance

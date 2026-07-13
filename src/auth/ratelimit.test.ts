@@ -4,7 +4,7 @@
  * Tests for token bucket rate limiter with per-IP tracking.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { rateLimitMiddleware, RateLimitConfig } from './ratelimit.js';
 import { Request, Response, NextFunction } from 'express';
 

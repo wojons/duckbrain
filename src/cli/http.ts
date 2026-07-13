@@ -64,7 +64,7 @@ function dnsRebindingProtection(allowedHosts: string[]) {
 /**
  * Health check endpoint handler
  */
-function healthHandler(req: Request, res: Response) {
+function healthHandler(_req: Request, res: Response) {
   res.json({
     status: 'healthy',
     uptime: process.uptime(),
@@ -75,7 +75,7 @@ function healthHandler(req: Request, res: Response) {
 /**
  * Stats endpoint handler
  */
-function statsHandler(req: Request, res: Response) {
+function statsHandler(_req: Request, res: Response) {
   res.json({
     memory: process.memoryUsage(),
     uptime: process.uptime(),
@@ -103,7 +103,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   if (options.bindAll) {
     // When binding to all interfaces, allow any hostname
     // User explicitly chose to expose the server
-    app.use((req: Request, res: Response, next: NextFunction) => {
+    app.use((_req: Request, _res: Response, next: NextFunction) => {
       next(); // Skip DNS rebinding check when bindAll
     });
   } else {
@@ -163,12 +163,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use('/api/events', createEventsRoutes);
   
   // Legacy stubs (to be deprecated - keep for backwards compatibility)
-  app.get('/namespaces', (req: Request, res: Response) => {
+  app.get('/namespaces', (_req: Request, res: Response) => {
     res.json({ namespaces: ['default'] });
   });
-  
+
   // Users list (stub - to be implemented)
-  app.get('/users', (req: Request, res: Response) => {
+  app.get('/users', (_req: Request, res: Response) => {
     res.json({ users: [] });
   });
   
@@ -208,7 +208,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       const binPath = path.resolve(process.cwd(), 'bin/duckbrain.ts');
       const fullArgs = [binPath, command, ...(cmdArgs || [])];
 
-      const child = execFile('npx', ['tsx', ...fullArgs], {
+      execFile('npx', ['tsx', ...fullArgs], {
         timeout: 30000,
         maxBuffer: 1024 * 1024,
         cwd: process.cwd(),

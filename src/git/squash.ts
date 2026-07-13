@@ -11,7 +11,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { getManifest, getAllPartitionPaths, type Manifest } from '../storage/manifest';
+import { getManifest, type Manifest } from '../storage/manifest';
 import { getDuckDBConnection } from '../duckdb/connection';
 import { execSync } from 'child_process';
 
@@ -444,7 +444,6 @@ export async function getCompactionStats(
     let partitionSize = 0;
     let recordCount = 0;
     let tombstoneCount = 0;
-    let isParquet = false;
 
     const files = fs.readdirSync(partitionPath);
     const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
@@ -452,7 +451,6 @@ export async function getCompactionStats(
 
     if (parquetFiles.length > 0) {
       stats.parquetPartitions++;
-      isParquet = true;
     } else {
       stats.jsonlPartitions++;
     }
