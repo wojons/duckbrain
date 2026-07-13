@@ -39,3 +39,4 @@ coverage/
 
 # Compiled JavaScript (source is TypeScript)
 packages/ui/src/**/*.js
+.vfs/
