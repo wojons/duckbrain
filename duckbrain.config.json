@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "coding-hermes",
+  "defaultNamespace": "rabbit-hole",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -68,6 +68,8 @@
     "procurement-agent": "namespaces/procurement-agent",
     "imhotep": "namespaces/imhotep",
     "crier": "namespaces/crier",
-    "coding-hermes": "namespaces/coding-hermes"
+    "coding-hermes": "namespaces/coding-hermes",
+    "h3": "namespaces/h3",
+    "rabbit-hole": "namespaces/rabbit-hole"
   }
 }
