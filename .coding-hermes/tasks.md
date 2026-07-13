@@ -2,10 +2,10 @@
 
 ## Open
 
-### DB-007: Resolve 6 high-severity npm vulnerabilities
-- **Severity:** Medium
-- **Status:** `npm audit --audit-level=high` reports 6 high severity vulnerabilities
-- **Fix:** Run `npm audit fix` first (automatic patches). Review remaining for breaking changes.
+### DB-009: Pre-existing secrets guard false positive in command/gsd-join-discord.md
+- **Severity:** Low
+- **Status:** `gitreins guard` flags a hash in `command/gsd-join-discord.md`. Pre-existing — not related to recent changes. File appears to be empty or contains a hash that gitleaks matches.
+- **Fix:** Add `command/gsd-join-discord.md` to `.gitleaks.toml` allowlist, or remove the flagged content.
 
 ### DB-008: Clean up 40+ pre-existing tsc strictness errors
 - **Severity:** Low
@@ -25,6 +25,9 @@
 - Write test confirmed working at 2026-07-12T17:36Z.
 
 ## Done
+
+### DB-007: Resolve 6 high-severity npm vulnerabilities
+- ✅ Fixed in 2277fa6 — simple-git 3.33.0→3.36.0 (RCE fix). 5 remaining tar vulns are transitive via duckdb→node-gyp (build-time only, no fix available). All 65 vitest tests pass.
 
 ### DB-006: Fix TS6 baseUrl deprecation
 - ✅ Fixed in 291184d — added `ignoreDeprecations: "6.0"` to tsconfig.json
