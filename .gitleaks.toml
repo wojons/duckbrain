@@ -30,7 +30,7 @@ useDefault = true
     '''docs/.*''',
     '''examples/.*''',
     '''fixtures/.*''',
-    '''\\.opencode/.*''',
+    '''\.opencode/.*''',
     '''namespaces/.*''',
     '''\.gitleaks\.toml''',
     '''\.pre-commit-config\.yaml''',
@@ -53,9 +53,9 @@ useDefault = true
     description = "Allow $$VAR$$ placeholders and redacted keys in config templates"
     regexes = ['''.*''']
     paths = [
-      '''\\.env\\.example$''',
-      '''\\.env\\.template$''',
-      '''config\\.example\\.yaml$''',
-      '''docker-compose\\.example\\.yml$''',
-      '''\\*-dc\\.yml\\.example$''',
+      '''\.env\.example$''',
+      '''\.env\.template$''',
+      '''config\.example\.yaml$''',
+      '''docker-compose\.example\.yml$''',
+      '''.*-dc\.yml\.example$''',
     ]
