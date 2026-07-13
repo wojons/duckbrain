@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ChildProcess } from 'child_process';
 import {
-  uniqueId, getRandomPort, startDuckbrainHttp, killProcess,
+  getRandomPort, startDuckbrainHttp, killProcess,
   waitForUrl, curl,
 } from './helpers';
 
-const id = uniqueId();
 const port = getRandomPort();
 let server: ChildProcess;
 

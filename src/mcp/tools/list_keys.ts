@@ -27,8 +27,6 @@ const ListKeysInputSchema = z.object({
   namespace: z.string().optional().describe('Namespace to query')
 });
 
-type ListKeysInput = z.infer<typeof ListKeysInputSchema>;
-
 /**
  * Output schema for list_keys tool
  */

@@ -4,7 +4,7 @@
  * Tests for basic auth, API key auth, and health endpoint bypass.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { authMiddleware, requireAuth, AuthConfig } from './middleware.js';
 import { Request, Response, NextFunction } from 'express';
 

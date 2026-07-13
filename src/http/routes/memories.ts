@@ -5,7 +5,7 @@
  * per the centralized architecture pattern. All data flows through existing MCP tools.
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { recallTool } from '../../mcp/tools/recall';
 import { rememberTool } from '../../mcp/tools/remember';
 import { forgetTool } from '../../mcp/tools/forget';
@@ -99,7 +99,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
  * Must be defined BEFORE /:id route to avoid conflicts
  */
 router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
-  const { key } = req.params;
+  const { key } = req.params as { key: string };
   const namespace = (req.query.namespace as string) || 'default';
 
   // Call recallTool with exact key lookup
@@ -132,7 +132,7 @@ router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
  * Get single memory by ID
  */
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const { id } = req.params as { id: string };
   const namespace = (req.query.namespace as string) || 'default';
 
   // Call recallTool with exact key lookup (using the ID)
@@ -201,7 +201,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
  * Update a memory (forget + remember = new version)
  */
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const { id } = req.params as { id: string };
   const body = req.body as UpdateMemoryRequest;
   const namespace = (req.query.namespace as string) || 'default';
 
@@ -275,7 +275,7 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
  * Delete a memory (create tombstone)
  */
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const { id } = req.params as { id: string };
   const namespace = (req.query.namespace as string) || 'default';
 
   const result = await forgetTool({

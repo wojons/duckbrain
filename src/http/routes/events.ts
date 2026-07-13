@@ -20,7 +20,7 @@ const activeConnections = new Map<string, Response[]>();
  * Server-Sent Events endpoint for real-time updates
  */
 router.get('/:namespace', asyncHandler(async (req: Request, res: Response) => {
-  const { namespace } = req.params;
+  const { namespace } = req.params as { namespace: string };
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -73,7 +73,7 @@ router.get('/:namespace', asyncHandler(async (req: Request, res: Response) => {
  * Note: This is for future integration with memory operations
  */
 router.post('/:namespace/broadcast', asyncHandler(async (req: Request, res: Response) => {
-  const { namespace } = req.params;
+  const { namespace } = req.params as { namespace: string };
   const { type, data } = req.body;
 
   if (!type) {
@@ -109,7 +109,7 @@ router.post('/:namespace/broadcast', asyncHandler(async (req: Request, res: Resp
  * Get SSE connection statistics
  */
 router.get('/:namespace/stats', asyncHandler(async (req: Request, res: Response) => {
-  const { namespace } = req.params;
+  const { namespace } = req.params as { namespace: string };
   const connections = activeConnections.get(namespace) || [];
 
   res.json({

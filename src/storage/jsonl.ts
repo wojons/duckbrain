@@ -41,9 +41,9 @@ const MAX_BYTES_PER_CHUNK = 1024 * 1024;
  * // Returns: 'event/projects/mcp/'
  */
 export function getPartitionPath(
-  namespace: string,
+  _namespace: string,
   domain: string,
-  partitionType: 'time' | 'key',
+  _partitionType: 'time' | 'key',
   partitionValue: string
 ): string {
   // Sanitize inputs to prevent path traversal
@@ -99,38 +99,6 @@ function getNextChunkName(partitionPath: string): string {
 
   // Zero-pad to 4 digits
   return `${nextNum.toString().padStart(4, '0')}.jsonl`;
-}
-
-/**
- * Get current chunk file path that has room for more data
- *
- * @param partitionPath - Partition directory path
- * @returns Path to chunk file that can accept new data
- */
-function getCurrentChunkPath(partitionPath: string): string {
-  const existingChunks = fs
-    .readdirSync(partitionPath)
-    .filter(f => f.endsWith('.jsonl'))
-    .sort();
-
-  if (existingChunks.length === 0) {
-    // No chunks yet, create first one
-    const chunkName = getNextChunkName(partitionPath);
-    return path.join(partitionPath, chunkName);
-  }
-
-  // Check last chunk for capacity
-  const lastChunk = existingChunks[existingChunks.length - 1];
-  const chunkPath = path.join(partitionPath, lastChunk);
-  const stats = fs.statSync(chunkPath);
-
-  // If chunk is at capacity, return path for new chunk
-  if (stats.size >= MAX_BYTES_PER_CHUNK) {
-    const newChunkName = getNextChunkName(partitionPath);
-    return path.join(partitionPath, newChunkName);
-  }
-
-  return chunkPath;
 }
 
 /**

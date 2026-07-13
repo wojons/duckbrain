@@ -42,7 +42,7 @@ import {
 } from './client';
 
 /** Helper to create a successful spawnSync result */
-function mockSpawnSuccess(stdout: string = '') {
+function mockSpawnSuccess(stdout: string = ''): any {
   return {
     status: 0,
     stdout: Buffer.from(stdout),
@@ -50,11 +50,11 @@ function mockSpawnSuccess(stdout: string = '') {
     pid: 12345,
     output: [null, Buffer.from(stdout), Buffer.from('')] as (Buffer | null)[],
     signal: null as string | null,
-  };
+  } as any;
 }
 
 /** Helper to create a failed spawnSync result */
-function mockSpawnFailure(stderr: string = 'error') {
+function mockSpawnFailure(stderr: string = 'error'): any {
   return {
     status: 1,
     stdout: Buffer.from(''),
@@ -62,7 +62,7 @@ function mockSpawnFailure(stderr: string = 'error') {
     pid: 12345,
     output: [null, Buffer.from(''), Buffer.from(stderr)] as (Buffer | null)[],
     signal: null as string | null,
-  };
+  } as any;
 }
 
 describe('SSH Client', () => {

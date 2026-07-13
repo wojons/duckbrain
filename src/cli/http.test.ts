@@ -2,7 +2,7 @@
  * Tests for HTTP MCP server
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { startHttpMode, createHttpServer } from './http';
 
 describe('HTTP server entry point', () => {

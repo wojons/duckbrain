@@ -32,8 +32,6 @@ const RecallInputSchema = z.object({
   namespace: z.string().optional().describe('Namespace to query')
 });
 
-type RecallInput = z.infer<typeof RecallInputSchema>;
-
 /**
  * Output schema for recall tool
  */

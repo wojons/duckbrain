@@ -21,9 +21,8 @@ import { rememberTool } from '../mcp/tools/remember';
 import { forgetTool } from '../mcp/tools/forget';
 import { squashTool, getCompactionStatsTool } from '../mcp/tools/squash';
 import { getConfig, setConfig, updateConfig, registerNamespace } from '../config/index';
-import { getGitWorker } from '../git/worker';
 import { connectToRemote, checkRemoteInstall, installRemote } from '../ssh/client';
-import { createTunnel, closeTunnel, listTunnels } from '../ssh/tunnel';
+import { createTunnel, listTunnels } from '../ssh/tunnel';
 import { execSync } from 'child_process';
 import http from 'http';
 import fs from 'fs';
@@ -62,7 +61,7 @@ function parseArgs(args: string[]): { positional: string[]; flags: Record<string
  * Handles BigInt serialization that DuckDB may return
  */
 function formatMemory(memory: any): string {
-  return JSON.stringify(memory, (key, value) => {
+  return JSON.stringify(memory, (_key, value) => {
     // Convert BigInt to string
     if (typeof value === 'bigint') {
       return value.toString();
@@ -106,7 +105,6 @@ async function rememberCommand(args: string[]): Promise<void> {
   const domain = flags.domain || 'general';
   const namespace = flags.namespace || getDefaultNamespace();
   const embeddingText = flags['embedding-text'] || key;
-  const waitForCommit = flags.wait !== undefined;
   let attributes = {};
   
   if (flags.attr) {
@@ -275,21 +273,6 @@ function resolveKey(userKey: string): string {
 }
 
 /**
- * Set nested config value by dot-notation key
- */
-function setNestedValue(obj: any, keyPath: string, value: any): void {
-  const keys = keyPath.split('.');
-  let current = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (!(keys[i] in current)) {
-      current[keys[i]] = {};
-    }
-    current = current[keys[i]];
-  }
-  current[keys[keys.length - 1]] = value;
-}
-
-/**
  * Get a config value by dot-notation key
  */
 async function getConfigValue(key: string): Promise<string | number | boolean | undefined> {
@@ -307,7 +290,7 @@ async function getConfigValue(key: string): Promise<string | number | boolean | 
  * Config command
  */
 async function configCommand(args: string[]): Promise<void> {
-  const { positional, flags } = parseArgs(args);
+  const { positional } = parseArgs(args);
   const subcommand = positional[0];
   
   if (!subcommand) {
@@ -750,7 +733,7 @@ async function socketConnectCommand(args: string[]): Promise<void> {
     },
   };
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve) => {
     const req = http.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });

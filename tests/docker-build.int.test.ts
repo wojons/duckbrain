@@ -34,7 +34,7 @@ describe('Docker Build Integration', () => {
   });
 
   it('should start HTTP server and respond to health check', async () => {
-    const { getRandomPort, waitForUrl, curl } = await import('./helpers');
+    const { getRandomPort, waitForUrl, curl } = await import('./helpers.js');
     const port = getRandomPort();
     const containerName = `duckbrain-health-test-${Math.random().toString(36).slice(2, 8)}`;
 

@@ -2,7 +2,7 @@
  * Tests for stdio MCP entry point
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { startStdioMode } from './stdio';
 
 describe('stdio mode entry point', () => {
