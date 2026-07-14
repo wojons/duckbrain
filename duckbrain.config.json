@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "rabbit-hole",
+  "defaultNamespace": "default",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -70,6 +70,7 @@
     "crier": "namespaces/crier",
     "coding-hermes": "namespaces/coding-hermes",
     "h3": "namespaces/h3",
-    "rabbit-hole": "namespaces/rabbit-hole"
+    "rabbit-hole": "namespaces/rabbit-hole",
+    "github-stars": "namespaces/github-stars"
   }
 }
