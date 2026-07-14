@@ -2,11 +2,11 @@
 
 ## Open
 
-### DB-010: Fix TS6 baseUrl deprecation in packages/ui/tsconfig.json
-- **File:** `packages/ui/tsconfig.json:17`
-- **Severity:** Low — mechanical fix, same pattern as DB-006
-- **Status:** `npm run build` fails with `error TS5101: Option 'baseUrl' is deprecated`
-- **Fix:** Add `"ignoreDeprecations": "6.0"` to `compilerOptions`
+### DB-011: UI package missing node_modules — build broken
+- **File:** `packages/ui/` — no `node_modules/` directory
+- **Severity:** Medium — pre-existing, CI doesn't run `npm run build`
+- **Symptoms:** `npm run build` → 100+ TS2307 `Cannot find module 'react'` errors
+- **Fix:** Run `npm install` in `packages/ui/` to install React, react-router, @tanstack/react-query, lucide-react, clsx, tailwind-merge, zustand
 
 ### DB-001: Implement actual embedding model in recall.ts
 - **File:** `src/mcp/tools/recall.ts:68-73`
@@ -21,6 +21,9 @@
 - Write test confirmed working at 2026-07-12T17:36Z.
 
 ## Done
+
+### DB-010: Fix TS6 baseUrl deprecation in packages/ui/tsconfig.json
+- ✅ Fixed in 2145a29 — added `ignoreDeprecations: "6.0"` to packages/ui/tsconfig.json. Revealed pre-existing DB-011 (UI package missing node_modules).
 
 ### DB-008: Clean up tsc strictness errors
 - ✅ Fixed in e67b6d7 — installed @types/express + async-mutex, removed unused imports, prefixed unused params with _, exported Database from connection.ts, fixed Buffer types in client.test.ts via `: any` return type. 29 files, 156 insertions, 124 deletions. tsc: 0 errors, vitest: 65/65 pass, guard: PASS.
