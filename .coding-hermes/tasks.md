@@ -2,6 +2,12 @@
 
 ## Open
 
+### DB-010: Fix TS6 baseUrl deprecation in packages/ui/tsconfig.json
+- **File:** `packages/ui/tsconfig.json:17`
+- **Severity:** Low — mechanical fix, same pattern as DB-006
+- **Status:** `npm run build` fails with `error TS5101: Option 'baseUrl' is deprecated`
+- **Fix:** Add `"ignoreDeprecations": "6.0"` to `compilerOptions`
+
 ### DB-001: Implement actual embedding model in recall.ts
 - **File:** `src/mcp/tools/recall.ts:68-73`
 - **Severity:** Medium
