@@ -72,6 +72,7 @@
     "h3": "namespaces/h3",
     "rabbit-hole": "namespaces/rabbit-hole",
     "github-stars": "namespaces/github-stars",
-    "coding-herms-scheduler": "namespaces/coding-herms-scheduler"
+    "coding-herms-scheduler": "namespaces/coding-herms-scheduler",
+    "sdk-go": "namespaces/sdk-go"
   }
 }
