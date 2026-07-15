@@ -16,6 +16,9 @@
 
 ## Done
 
+### DB-012: Wire forget action in memory-table UI
+- ✅ Fixed in f1073e7 — wired `onForget` context-menu callback to `useForgetMemory` hook. Calls `DELETE /api/memories/:id`. Backend was already implemented; only UI needed wiring. Build: 1601 modules clean. Tests: 65/65 pass. Guard: PASS.
+
 ### DB-011: UI package missing node_modules — build broken
 - ✅ Fixed in 6b48136 — `npm install` in packages/ui/ (101 packages) + corrected ignoreDeprecations `"6.0"` → `"5.0"`. Build: 1601 modules, clean. Tests: 65/65 pass. Guard: PASS.
 
