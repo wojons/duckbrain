@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/wojons/duckbrain)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)](https://www.typescriptlang.org/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-v1.4-orange.svg)](https://duckdb.org/)
 
 > A distributed, event-sourced, version-controlled memory system for AI agents. Built on DuckDB + Git.
