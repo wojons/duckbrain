@@ -3,10 +3,7 @@
 ## Open
 
 ### DB-011: UI package missing node_modules — build broken
-- **File:** `packages/ui/` — no `node_modules/` directory
-- **Severity:** Medium — pre-existing, CI doesn't run `npm run build`
-- **Symptoms:** `npm run build` → 100+ TS2307 `Cannot find module 'react'` errors
-- **Fix:** Run `npm install` in `packages/ui/` to install React, react-router, @tanstack/react-query, lucide-react, clsx, tailwind-merge, zustand
+- ✅ Fixed in 6b48136 — `npm install` in packages/ui/ (101 packages) + corrected ignoreDeprecations `"6.0"` → `"5.0"` (tsc 5.6.3 doesn't accept "6.0"). Build: 1601 modules, clean output. Tests: 65/65 pass. Guard: PASS.
 
 ### DB-001: Implement actual embedding model in recall.ts
 - **File:** `src/mcp/tools/recall.ts:68-73`
