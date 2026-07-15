@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-table'
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual'
 import { ChevronDown, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
-import { useInfiniteMemories } from '../hooks/use-memories'
+import { useInfiniteMemories, useForgetMemory } from '../hooks/use-memories'
 import { useUIStore } from '../stores/ui-store'
 import { MemoryResponse } from '../../../../src/http/types/api'
 import { SkeletonTable } from './ui/skeleton'
@@ -55,6 +55,8 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     limit: 50,
   })
 
+  const forgetMutation = useForgetMemory(namespace)
+
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [sorting, setSorting] = useState<SortingState>([])
 
@@ -90,6 +92,11 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
       console.error('Failed to copy JSON:', err)
     }
   }, [])
+
+  const handleForget = useCallback((memory: MemoryResponse) => {
+    forgetMutation.mutate(memory.id)
+    setContextMenu(null)
+  }, [forgetMutation])
 
   // Flatten paginated data
   const memories = useMemo(() => {
@@ -477,7 +484,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
             onOpen: () => handleOpenInspector(contextMenu.memory),
             onCopyKey: () => handleCopyKey(contextMenu.memory),
             onCopyJson: () => handleCopyJson(contextMenu.memory),
-            onForget: () => { /* TODO: Implement forget */ },
+            onForget: () => handleForget(contextMenu.memory),
           }
         ) : []}
         position={contextMenu ? contextMenu.position : null}
