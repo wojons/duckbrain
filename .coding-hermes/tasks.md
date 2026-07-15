@@ -2,9 +2,6 @@
 
 ## Open
 
-### DB-011: UI package missing node_modules — build broken
-- ✅ Fixed in 6b48136 — `npm install` in packages/ui/ (101 packages) + corrected ignoreDeprecations `"6.0"` → `"5.0"` (tsc 5.6.3 doesn't accept "6.0"). Build: 1601 modules, clean output. Tests: 65/65 pass. Guard: PASS.
-
 ### DB-001: Implement actual embedding model in recall.ts
 - **File:** `src/mcp/tools/recall.ts:68-73`
 - **Severity:** Medium
@@ -18,6 +15,9 @@
 - Write test confirmed working at 2026-07-12T17:36Z.
 
 ## Done
+
+### DB-011: UI package missing node_modules — build broken
+- ✅ Fixed in 6b48136 — `npm install` in packages/ui/ (101 packages) + corrected ignoreDeprecations `"6.0"` → `"5.0"`. Build: 1601 modules, clean. Tests: 65/65 pass. Guard: PASS.
 
 ### DB-010: Fix TS6 baseUrl deprecation in packages/ui/tsconfig.json
 - ✅ Fixed in 2145a29 — added `ignoreDeprecations: "6.0"` to packages/ui/tsconfig.json. Revealed pre-existing DB-011 (UI package missing node_modules).
