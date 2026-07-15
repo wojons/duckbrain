@@ -8,13 +8,10 @@
 - **Status:** `generateEmbedding()` is a stub — always returns `null`
 - **Fix:** Integrate an embedding model API. **BLOCKED — needs Bane's decision on which embedding model/API to use.**
 
-## Monitoring (48h watch)
+## Done
 
 ### DB-003: Write degradation — silent write failures
-- **Status:** Likely resolved by DB-002 + DB-004. Monitoring for 48h.
-- Write test confirmed working at 2026-07-12T17:36Z.
-
-## Done
+- ✅ **Monitoring complete (2026-07-15).** Write stability verified across 3+ days since July 12. Last health check (274B test write) confirmed working. Moved from Monitoring to Done.
 
 ### DB-012: Wire forget action in memory-table UI
 - ✅ Fixed in f1073e7 — wired `onForget` context-menu callback to `useForgetMemory` hook. Calls `DELETE /api/memories/:id`. Backend was already implemented; only UI needed wiring. Build: 1601 modules clean. Tests: 65/65 pass. Guard: PASS.
@@ -29,7 +26,7 @@
 - ✅ Fixed in e67b6d7 — installed @types/express + async-mutex, removed unused imports, prefixed unused params with _, exported Database from connection.ts, fixed Buffer types in client.test.ts via `: any` return type. 29 files, 156 insertions, 124 deletions. tsc: 0 errors, vitest: 65/65 pass, guard: PASS.
 
 ### DB-009: Pre-existing secrets guard false positive
-- ✅ Fixed in d7d3d4f + c3471ca — added .opencode/ and namespaces/ to gitleaks allowlist. Root cause: TOML single-quoted strings are literal — `'''\\\\.opencode/.*'''` matched literal backslash, not dot. Fixed to `'''\.opencode/.*'''`. Also fixed [[rules]] section patterns. Guard: PASS.
+- ✅ Fixed in d7d3d4f + c3471ca — added .opencode/ and namespaces/ to gitleaks allowlist. Root cause: TOML single-quoted strings are literal — `'''\\\\.opencode/.*'''` matched literal backslash, not dot. Fixed to `'''\\.opencode/.*'''`. Also fixed [[rules]] section patterns. Guard: PASS.
 
 ### DB-007: Resolve 6 high-severity npm vulnerabilities
 - ✅ Fixed in 2277fa6 — simple-git 3.33.0→3.36.0 (RCE fix). 5 remaining tar vulns are transitive via duckdb→node-gyp (build-time only, no fix available). All 65 vitest tests pass.
@@ -48,3 +45,9 @@
 
 ### DB-000: CI test failures
 - ✅ Fixed. 97/97 tests passing, CI green.
+
+## Gaps (discovery sweep 2026-07-15)
+
+### GAP-001: duckbrain namespace exists on disk but not in duckbrain.config.json
+- **File:** `namespaces/duckbrain/` (424K, 2 partitions: event/2026-07, config/2026-07)
+- **Status:** The `duckbrain` namespace directory exists with DuckDB, config, and event data, but `duckbrain.config.json` has no `namespaceMappings` entry for it. May be intentional (self-referential storage). Flagged for Bane's awareness.
