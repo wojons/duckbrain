@@ -10,6 +10,9 @@
 
 ## Done
 
+### DB-013: Update minor/patch dependencies
+- ✅ Updated @modelcontextprotocol/sdk→1.29.0, vitest→4.1.10, tsx→4.23.1, zod→4.4.3. Build clean (1601 modules), 65/65 tests pass, guard PASS.
+
 ### DB-003: Write degradation — silent write failures
 - ✅ **Monitoring complete (2026-07-15).** Write stability verified across 3+ days since July 12. Last health check (274B test write) confirmed working. Moved from Monitoring to Done.
 
