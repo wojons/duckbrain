@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "kobayashi-maru",
+  "defaultNamespace": "imhotep",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -75,6 +75,7 @@
     "coding-herms-scheduler": "namespaces/coding-herms-scheduler",
     "sdk-go": "namespaces/sdk-go",
     "vip-travel-agent": "namespaces/vip-travel-agent",
-    "hermes-dagger": "namespaces/hermes-dagger"
+    "hermes-dagger": "namespaces/hermes-dagger",
+    "heading": "namespaces/heading"
   }
 }
