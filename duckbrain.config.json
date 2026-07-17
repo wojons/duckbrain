@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "mythos",
+  "defaultNamespace": "asce",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
