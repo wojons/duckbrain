@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "imhotep",
+  "defaultNamespace": "mythos",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
