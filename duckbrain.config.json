@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "default",
+  "defaultNamespace": "obsidian",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
