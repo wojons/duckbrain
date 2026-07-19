@@ -46,7 +46,7 @@ describe('HTTP Server E2E Integration', () => {
     expect(res.status).toBe(410);
     const body = JSON.parse(res.body);
     expect(body.error).toBeDefined();
-    expect(body.message).toContain('deprecated');
+    expect(body.error).toContain('removed');
   });
 
   it('should return 410 Gone for /activity (deprecated)', async () => {
@@ -54,7 +54,7 @@ describe('HTTP Server E2E Integration', () => {
     expect(res.status).toBe(410);
     const body = JSON.parse(res.body);
     expect(body.error).toBeDefined();
-    expect(body.message).toContain('deprecated');
+    expect(body.error).toContain('removed');
   });
 
   it('should respond to /api/tree with redirect to /api/keys', async () => {
