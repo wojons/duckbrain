@@ -13,6 +13,15 @@
 ### DB-013: Update minor/patch dependencies
 - ✅ Updated @modelcontextprotocol/sdk→1.29.0, vitest→4.1.10, tsx→4.23.1, zod→4.4.3. Build clean (1601 modules), 65/65 tests pass, guard PASS.
 
+### Idle tick #2 (2026-07-19 11:00)
+- ✅ Fixed `defaultNamespace` drift → `hermes-memory` (ef08e12). Discovered dirty change: `hermes-dagger→h3`, reverted + pinned. Guard PASS.
+- Board: only BLOCKED DB-001 (embedding model — awaiting Bane's decision)
+- Build: 1601 modules clean. Tests: 65/65 pass. CI: green.
+- npm outdated: @types/node 25.9.4→25.9.5 (patch), TypeScript 6.0.3→7.0.2 (major — needs decision), uuid 13.0.2→14.0.1 (major — needs decision)
+- npm audit: 5 high (transitive tar, same as DB-007, unfixable)
+- Never-done audit: no stubs, no TODOs, MCP server running, 10 tools functional
+- DuckBrain write: OK. Semantic recall: blocked by DB-001 stub. Key recall: BigInt serialization bug.
+
 ### DB-003: Write degradation — silent write failures
 - ✅ **Monitoring complete (2026-07-15).** Write stability verified across 3+ days since July 12. Last health check (274B test write) confirmed working. Moved from Monitoring to Done.
 
