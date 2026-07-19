@@ -54,6 +54,17 @@
 
 ## Done
 
+### Idle tick #5 (2026-07-19 17:56)
+- ✅ Fixed `defaultNamespace` drift → `hermes-memory` (3rd occurrence — reverted in 7967035)
+- ✅ `hermes-canopy` namespace added to mappings (legitimate — directory exists on disk)
+- ✅ @types/node 25.9.4→25.9.5 (trivial patch) in 7967035
+- Board: only BLOCKED DB-001 (embedding model — awaiting Bane's decision)
+- Build: 1601 modules clean. Tests: 65/65 pass (12.24s). CI: green. Guard: PASS.
+- npm outdated: typescript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane)
+- npm audit: 5 high transitive tar vulns (unfixable, build-time only)
+- Never-done audit completed: 0 benchmarks found (PERF gap), 10 untested directories (28 src files — chronic), no new findings
+- DuckBrain write: OK. Semantic recall: blocked by DB-001 stub.
+
 ### DB-013: Update minor/patch dependencies
 - ✅ Updated @modelcontextprotocol/sdk→1.29.0, vitest→4.1.10, tsx→4.23.1, zod→4.4.3. Build clean (1601 modules), 65/65 tests pass, guard PASS.
 
