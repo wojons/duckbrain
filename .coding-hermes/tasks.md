@@ -42,10 +42,8 @@
 - `GET /api/memories/key/:key` fetches 100 records and scans in-memory
 - Fix: add `WHERE id=?` / `WHERE key=?` to DuckDB queries
 
-### DB-020: SECURITY — No GitReins guard config
-- **Severity:** High
-- `.gitreins/config.toml` missing entirely
-- No automated secrets scanning, lint, or test guards on commit
+### DB-020: SECURITY — No GitReins guard config ✅
+- **Severity:** High → ✅ **Done.** Created `.gitreins/config.yaml` with secrets (gitleaks) + tests (vitest) guards. Guard: PASS (secrets clean, 65/65 tests).
 
 ### DB-021: PITFALL — `/cli` endpoint has no command whitelist
 - **Severity:** High

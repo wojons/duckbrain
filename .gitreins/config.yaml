@@ -1,0 +1,30 @@
+# GitReins config — DuckBrain
+# v0.3.0+ individual cap keys
+# TypeScript project using vitest
+
+guards:
+  secrets: true
+  lint: false          # eslint config not wired yet
+  tests: true
+  test_mode: diff
+  test_command: "npx vitest run"
+  test_timeout: 300
+  dead_code: false     # Python-only
+  skylos: false
+  static_analysis: false
+  lsp: false
+
+evaluator:
+  max_iterations: 50
+  max_time: "15m"
+  max_input_tokens: "0.2M"
+  max_output_tokens: "0.05M"
+  tool_call_weight: 0.1
+
+defaults:
+  model: deepseek-v4-flash
+
+history:
+  enabled: true
+  storage: git
+  max_verdicts: 500
