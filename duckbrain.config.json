@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "kobayashi-maru",
+  "defaultNamespace": "consensus",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -76,6 +76,8 @@
     "sdk-go": "namespaces/sdk-go",
     "vip-travel-agent": "namespaces/vip-travel-agent",
     "hermes-dagger": "namespaces/hermes-dagger",
-    "heading": "namespaces/heading"
+    "heading": "namespaces/heading",
+    "dexdat": "namespaces/dexdat",
+    "gitreins-poc": "namespaces/gitreins-poc"
   }
 }
