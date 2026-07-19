@@ -9,6 +9,7 @@ import type { Database } from './connection';
 import type { MemoryType } from '../schema/memory';
 import path from 'path';
 import fs from 'fs';
+import { safeJsonStringify } from '../utils/serialize';
 
 /**
  * Parse DuckDB STRUCT format string into a JavaScript object
@@ -254,7 +255,7 @@ function insertMemoryToPartition(
   const chunkPath = path.join(partitionPath, targetChunk);
 
   // Append memory as JSON line
-  const line = JSON.stringify(memory) + '\n';
+  const line = safeJsonStringify(memory) + '\n';
   fs.appendFileSync(chunkPath, line, 'utf-8');
 }
 
