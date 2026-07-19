@@ -100,6 +100,7 @@ export function queryMemories(
     key?: string;
     keyPrefix?: string;
     domain?: string;
+    id?: string;
     query?: string;
     embedding?: number[];
     limit?: number;
@@ -132,6 +133,12 @@ export function queryMemories(
     // Escape single quotes in key to prevent SQL injection
     const escapedKey = filters.key.replace(/'/g, "''");
     conditions.push(`key = '${escapedKey}'`);
+  }
+  
+  if (filters?.id) {
+    // Escape single quotes in id to prevent SQL injection
+    const escapedId = filters.id.replace(/'/g, "''");
+    conditions.push(`id = '${escapedId}'`);
   }
   
   if (filters?.keyPrefix) {

@@ -20,6 +20,8 @@ import fs from 'fs';
 const RecallInputSchema = z.object({
   /** Exact key lookup */
   key: z.string().optional().describe('Exact key lookup'),
+  /** Exact ID lookup */
+  id: z.string().optional().describe('Exact ID lookup'),
   /** Prefix glob query (e.g., /projects/) */
   keyPrefix: z.string().optional().describe('Prefix glob query (e.g., /projects/)'),
   /** Domain filter */
@@ -126,6 +128,8 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
 
     if (validated.key) {
       filters.key = validated.key;
+    } else if (validated.id) {
+      filters.id = validated.id;
     } else if (validated.keyPrefix) {
       filters.keyPrefix = validated.keyPrefix;
     } else if (validated.domain) {
