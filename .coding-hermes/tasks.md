@@ -45,12 +45,12 @@
 ### DB-020: SECURITY — No GitReins guard config ✅
 - **Severity:** High → ✅ **Done.** Created `.gitreins/config.yaml` with secrets (gitleaks) + tests (vitest) guards. Guard: PASS (secrets clean, 65/65 tests).
 
-### DB-021: PITFALL — `/cli` endpoint has no command whitelist
-- **Severity:** High
-- `POST /cli` execs arbitrary CLI commands via `npx tsx`
-- No input sanitization, no command whitelist
-- Potential RCE: malicious input could exec shell commands
-- File: `src/cli/http.ts:199-229`
+### DB-021: PITFALL — `/cli` endpoint has no command whitelist ✅
+- **Severity:** High → ✅ **Fixed in be5634e.**
+- Added `CLI_COMMAND_WHITELIST` with 16 allowed commands: remember, recall, list-keys, forget, config, namespaces/namespace, pull, push, remote, status, token, squash, ssh-test, ssh-connect, servers.
+- Blocked: `stdio` (launches MCP server), `http` (launches HTTP server), `service` (systemd control — stop/restart)
+- Added input validation: command must be non-empty string, args must be string[].
+- 65/65 tests pass, tsc clean, guard PASS. CI queued.
 
 ## Done
 
