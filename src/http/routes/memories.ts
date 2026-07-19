@@ -102,9 +102,13 @@ router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
   const { key } = req.params as { key: string };
   const namespace = (req.query.namespace as string) || 'default';
 
-  // Call recallTool with exact key lookup
+  // Normalize key to start with /
+  const normalizedKey = key.startsWith('/') ? key : `/${key}`;
+
+  // Use exact key lookup in DuckDB — no in-memory scan
   const result = await recallTool({
-    limit: 100,
+    key: normalizedKey,
+    limit: 10,
     namespace
   });
 
@@ -112,17 +116,12 @@ router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(result.error, 500);
   }
 
-  // Find the latest memory by key (not tombstoned if possible)
-  const memories = result.memories
-    .filter(m => m.key === `/${key}`)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  if (memories.length === 0) {
+  if (result.memories.length === 0) {
     throw new NotFoundError('Memory', key);
   }
 
   // Return the most recent non-tombstoned memory, or the most recent
-  const memory = memories.find(m => m.action !== 'tombstone') || memories[0];
+  const memory = result.memories.find(m => m.action !== 'tombstone') || result.memories[0];
 
   res.json(transformMemory(memory));
 }));
@@ -135,10 +134,10 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const namespace = (req.query.namespace as string) || 'default';
 
-  // Call recallTool with exact key lookup (using the ID)
-  // Note: recallTool doesn't have an ID filter, so we search all and filter
+  // Use exact ID lookup in DuckDB — no in-memory scan
   const result = await recallTool({
-    limit: 1000, // Fetch many to find by ID
+    id,
+    limit: 1,
     namespace
   });
 
@@ -209,9 +208,10 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError('No update data provided', 400, 'VALIDATION_ERROR');
   }
 
-  // Step 1: Find existing memory
+  // Step 1: Find existing memory by ID directly in DuckDB
   const findResult = await recallTool({
-    limit: 1000,
+    id,
+    limit: 1,
     namespace
   });
 

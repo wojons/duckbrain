@@ -36,11 +36,11 @@
 - Applied to 7 files: mcp/server.ts, duckdb/queries.ts, storage/jsonl.ts, cli/human.ts (replaced inline replacer), git/squash.ts, git/merge.ts, http/routes/events.ts.
 - 65/65 tests pass, tsc clean, integration tests 10/10.
 
-### DB-019: PERF — Linear-scan ID/key lookups in HTTP routes
-- **Severity:** Medium
-- `GET /api/memories/:id` fetches 1000 records and scans in-memory
-- `GET /api/memories/key/:key` fetches 100 records and scans in-memory
-- Fix: add `WHERE id=?` / `WHERE key=?` to DuckDB queries
+### DB-019: PERF — Linear-scan ID/key lookups in HTTP routes ✅
+- **Severity:** Medium → ✅ **Done.** Added `id` filter to DuckDB query layer + recall tool. HTTP routes now use direct `WHERE id=?` / `WHERE key=?` instead of fetching 100–1000 records and filtering in-memory.
+- `GET /api/memories/:id` — 1000-row scan → `LIMIT 1 WHERE id=?`
+- `GET /api/memories/key/:key` — 100-row scan → `LIMIT 10 WHERE key=?`
+- `PUT /api/memories/:id` — 1000-row scan → `LIMIT 1 WHERE id=?`
 
 ### DB-020: SECURITY — No GitReins guard config ✅
 - **Severity:** High → ✅ **Done.** Created `.gitreins/config.yaml` with secrets (gitleaks) + tests (vitest) guards. Guard: PASS (secrets clean, 65/65 tests).
