@@ -29,6 +29,11 @@
 - ~~Same function in `recall.ts`, `remember.ts`, `forget.ts`, `list_keys.ts`~~ **→ Now all import from `src/mcp/tools/shared.ts`**
 - ~~Extract to shared utility (e.g., `src/mcp/tools/shared.ts`)~~ **→ Done (+24/-40 across 6 files, 65/65 tests, 1601 modules)**
 
+### DB-022: TEST — Update integration tests for deprecated /users, /activity endpoints (410 Gone)
+- **Severity:** Medium
+- DB-016 changed `/users` and `/activity` to return 410 Gone, but integration tests (`tests/http-e2e.int.test.ts:46,53`) still expect 200
+- CI shows `AssertionError: expected 410 to be 200` — pre-existing from DB-016, not a regression
+
 ### DB-018: PITFALL — BigInt serialization bug in DuckDB query responses
 - **Severity:** Medium
 - Reported in idle tick #2: "Key recall: BigInt serialization bug"
@@ -76,6 +81,14 @@
 - Never-done audit: 27 source files without tests (pre-existing), no new TODOs, MCP server running (10 tools), no stubs beyond DB-001.
 - 🐌 **Graduated slowdown — idle tick #3 of 7.** Increased cooldown from 15min → 4h via scheduler API (`CooldownS: 14400`). Stored base interval in DuckBrain. Next: 12h at tick #5, pause at tick #7.
 - DuckBrain write: OK. Idle counter stored in `coding-hermes` namespace.
+
+### Idle tick #4 (2026-07-19 15:44)
+- ✅ Fixed DB-017 — extracted `resolveNamespacePath` to `shared.ts` (5 duplicates → 1 shared implementation)
+- ✅ **Bug fix in squash.ts:** was using `process.cwd() + '.duckbrain/namespaces/'` instead of config-based paths
+- ✅ 6 files, +28/-44. Build: 1601 modules clean. Tests: 65/65 pass (12.66s).
+- ✅ Pushed `52740b3`. CI in_progress.
+- 🔍 Created DB-022 (integration test gap from DB-016 — endpoint returns 410, tests still expect 200)
+- ⏱ **Not idle — real work done, idle counter reset to 0.** Board now has DB-001 (BLOCKED), DB-018–DB-022 pending.
 
 ### DB-003: Write degradation — silent write failures
 - ✅ **Monitoring complete (2026-07-15).** Write stability verified across 3+ days since July 12. Last health check (274B test write) confirmed working. Moved from Monitoring to Done.
