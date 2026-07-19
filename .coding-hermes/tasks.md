@@ -8,6 +8,53 @@
 - **Status:** `generateEmbedding()` is a stub — always returns `null`
 - **Fix:** Integrate an embedding model API. **BLOCKED — needs Bane's decision on which embedding model/API to use.**
 
+### DB-014: CI/CD — Add GitHub Actions workflow for tests + lint
+- **Severity:** High
+- No `.github/workflows/` exists — zero CI pipeline
+- Needs: test.yml, tsc check, build verification
+
+### DB-015: DOC — 4 missing docs pages + MCP tools out of sync
+- **Severity:** Medium
+- `docs/index.md` links to 4 non-existent pages: `api/http-api.md`, `guide/configuration.md`, `guide/deployment.md`, `guide/license.md`
+- `docs/api/mcp-tools.md` missing: squash, get_compaction_stats, namespace tools
+- Schema mismatch: docs say `content`/`status` fields but code uses `embedding_text`/`key`/`attributes`
+
+### DB-016: API — 3 HTTP endpoints return hardcoded stubs
+- **Severity:** Medium
+- `GET /users` → `{ users: [] }` stub
+- `GET /activity` → `{ activities: [] }` stub
+- `GET /namespaces` → `{ namespaces: ['default'] }` (ignores namespace tool with real data)
+- File: `src/cli/http.ts:165-182`
+
+### DB-017: QUALITY — `resolveNamespacePath` duplicated 4× across tools
+- **Severity:** Low
+- Same function in `recall.ts`, `remember.ts`, `forget.ts`, `list_keys.ts`
+- Extract to shared utility (e.g., `src/mcp/tools/shared.ts`)
+
+### DB-018: PITFALL — BigInt serialization bug in DuckDB query responses
+- **Severity:** Medium
+- Reported in idle tick #2: "Key recall: BigInt serialization bug"
+- DuckDB returns BigInt values; JSON.stringify chokes on them
+- Fix: add BigInt replacer in JSON serialization
+
+### DB-019: PERF — Linear-scan ID/key lookups in HTTP routes
+- **Severity:** Medium
+- `GET /api/memories/:id` fetches 1000 records and scans in-memory
+- `GET /api/memories/key/:key` fetches 100 records and scans in-memory
+- Fix: add `WHERE id=?` / `WHERE key=?` to DuckDB queries
+
+### DB-020: SECURITY — No GitReins guard config
+- **Severity:** High
+- `.gitreins/config.toml` missing entirely
+- No automated secrets scanning, lint, or test guards on commit
+
+### DB-021: PITFALL — `/cli` endpoint has no command whitelist
+- **Severity:** High
+- `POST /cli` execs arbitrary CLI commands via `npx tsx`
+- No input sanitization, no command whitelist
+- Potential RCE: malicious input could exec shell commands
+- File: `src/cli/http.ts:199-229`
+
 ## Done
 
 ### DB-013: Update minor/patch dependencies
@@ -73,3 +120,27 @@
 ### GAP-001: duckbrain namespace exists on disk but not in duckbrain.config.json
 - **File:** `namespaces/duckbrain/` (424K, 2 partitions: event/2026-07, config/2026-07)
 - **Status:** The `duckbrain` namespace directory exists with DuckDB, config, and event data, but `duckbrain.config.json` has no `namespaceMappings` entry for it. May be intentional (self-referential storage). Flagged for Bane's awareness.
+
+## Never-Done Audit (2026-07-19 12:28)
+
+11-point audit completed. 65/65 tests pass, tsc clean. Results:
+
+| Check | Finding | Tasks |
+|-------|---------|-------|
+| 1. Spec Alignment | MCP tools doc out of sync (missing 3 tools, wrong field names) | DB-015 |
+| 2. Doc Coverage | 4 docs pages referenced but don't exist | DB-015 |
+| 3. Test Gaps | 28 untested source files (10 test files for 38 src files) | (chronic, monitored) |
+| 4. Package Upgrades | TS 6→7, uuid 13→14 (major, needs Bane) | (deferred — major bumps) |
+| 5. Pitfall Hunt | BigInt serialization, /cli RCE, duplicated code | DB-017, DB-018, DB-021 |
+| 6. Performance | O(n) ID/key lookups in HTTP routes (1000-row scan) | DB-019 |
+| 7. Endpoint Vfy | /users, /activity, /namespaces — hardcoded stubs | DB-016 |
+| 8. CI/CD Health | No .github/workflows — zero CI | DB-014 |
+| 9. DuckBrain Sync | GAP-001 still open, BigInt bug not tracked | DB-018 |
+| 10. Code Quality | 4× duplicated function, 1231-line human.ts | DB-017 |
+| 11. Middle-Out Wiring | All routes wired, MCP tools all registered, SSH+systemd wired | ✅ PASS |
+
+**Summary:** 8 new tasks created (DB-014–DB-021). 1 pre-existing task (DB-001, blocked).
+
+## [ ] NEVER-DONE — Run coding-hermes-never-done 11-point audit
+
+Load coding-hermes-never-done skill. Run ALL 11 checks: spec alignment, doc coverage, test gaps, package upgrades, pitfall hunt, performance audit, endpoint verification, CI/CD health, DuckBrain sync, code quality, middle-out wiring. Create a task for EVERY gap found. This task is never complete — the audit always finds something.
