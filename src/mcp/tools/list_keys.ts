@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { getDuckDBConnection } from '../../duckdb/connection';
-import { getConfig } from '../../config/index';
+import { resolveNamespacePath } from './shared';
 import path from 'path';
 import fs from 'fs';
 
@@ -42,13 +42,6 @@ interface ListKeysOutput {
  * Resolve namespace path from namespace name
  * Uses config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string | undefined): string {
-  const config = getConfig('.');
-  const ns = namespace || config.defaultNamespace || 'default';
-  const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, ns);
-}
-
 /**
  * Extract hierarchical prefixes from a key
  * 

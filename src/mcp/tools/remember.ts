@@ -11,9 +11,9 @@ import { getPartitionPath, createPartition, appendToJsonl } from '../../storage/
 import { addPartition } from '../../storage/manifest';
 import { getAuthorEmail } from '../../git/attribution';
 import { commitNamespace } from '../../git/autocommit';
+import { resolveNamespacePath } from './shared';
 import path from 'path';
 import fs from 'fs';
-import { getConfig } from '../../config/index';
 
 /**
  * Input schema for remember tool
@@ -49,13 +49,6 @@ interface RememberOutput {
  * Resolve namespace path from namespace name using config.
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string | undefined): string {
-  const config = getConfig('.');
-  const ns = namespace || config.defaultNamespace || 'default';
-  const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, ns);
-}
-
 /**
  * Determine partition value (time-based partitioning)
  * Returns YYYY-MM format

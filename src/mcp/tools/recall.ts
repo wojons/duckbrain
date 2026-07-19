@@ -10,7 +10,7 @@ import { DomainEnum } from '../../schema/memory';
 import { getDuckDBConnection } from '../../duckdb/connection';
 import { queryMemories } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
-import { getConfig } from '../../config/index';
+import { resolveNamespacePath } from './shared';
 import path from 'path';
 import fs from 'fs';
 
@@ -54,13 +54,6 @@ interface RecallOutput {
  * Resolve namespace path from namespace name using config.
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string | undefined): string {
-  const config = getConfig('.');
-  const ns = namespace || config.defaultNamespace || 'default';
-  const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, ns);
-}
-
 /**
  * Placeholder embedding generation
  * TODO: Integrate actual embedding model in Phase 2

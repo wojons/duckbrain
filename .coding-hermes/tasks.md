@@ -24,10 +24,10 @@
 ### DB-016: API — 3 HTTP endpoints return hardcoded stubs
 - ✅ **Fixed in this tick.** `/namespaces` now calls `listNamespacesTool` for real data. `/users` and `/activity` converted to 410 Gone with deprecation messages (no user/activity data model in DuckBrain). 1 file (+22/-10). Build: 1601 modules clean. tsc: 0 errors. Tests: 65/65 pass. Guard: PASS.
 
-### DB-017: QUALITY — `resolveNamespacePath` duplicated 4× across tools
-- **Severity:** Low
-- Same function in `recall.ts`, `remember.ts`, `forget.ts`, `list_keys.ts`
-- Extract to shared utility (e.g., `src/mcp/tools/shared.ts`)
+~~### DB-017: QUALITY — `resolveNamespacePath` duplicated 4× across tools~~ **👉 Fixed in this tick**
+- ~~**Severity:** Low~~ **→ Fixed — extracted to shared.ts, squash.ts bug fixed too**
+- ~~Same function in `recall.ts`, `remember.ts`, `forget.ts`, `list_keys.ts`~~ **→ Now all import from `src/mcp/tools/shared.ts`**
+- ~~Extract to shared utility (e.g., `src/mcp/tools/shared.ts`)~~ **→ Done (+24/-40 across 6 files, 65/65 tests, 1601 modules)**
 
 ### DB-018: PITFALL — BigInt serialization bug in DuckDB query responses
 - **Severity:** Medium
