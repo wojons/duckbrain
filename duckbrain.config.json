@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "hermes-memory",
+  "defaultNamespace": "hermes-dagger",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -79,6 +79,7 @@
     "heading": "namespaces/heading",
     "dexdat": "namespaces/dexdat",
     "gitreins-poc": "namespaces/gitreins-poc",
-    "terminal-jail": "namespaces/terminal-jail"
+    "terminal-jail": "namespaces/terminal-jail",
+    "hermes4friends-infra": "namespaces/hermes4friends-infra"
   }
 }
