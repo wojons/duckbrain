@@ -27,14 +27,14 @@
 
 ### DB-022: TEST — Update integration tests for deprecated /users, /activity endpoints (410 Gone) ✅
 - **Severity:** Medium
-- **Fixed in this tick.** Updated `tests/http-e2e.int.test.ts`: /users and /activity tests now expect 410 Gone with deprecation message instead of 200.
-- 65/65 tests pass. CI should go green.
+- ✅ **Fixed in dbdc61a.** Updated test assertions: `body.error` (not `body.message`), checks for "removed" (not "deprecated").
+- The initial DB-022 commit (9c1265b) had wrong field name (`body.message` undefined) and wrong check string. CI revealed the failure — integration tests fixed and verified 10/10.
 
-### DB-018: PITFALL — BigInt serialization bug in DuckDB query responses
+### DB-018: PITFALL — BigInt serialization bug in DuckDB query responses ✅
 - **Severity:** Medium
-- Reported in idle tick #2: "Key recall: BigInt serialization bug"
-- DuckDB returns BigInt values; JSON.stringify chokes on them
-- Fix: add BigInt replacer in JSON serialization
+- ✅ **Fixed in 75ad0f1.** Extracted `safeJsonStringify()` to `src/utils/serialize.ts` with BigInt→string replacer.
+- Applied to 7 files: mcp/server.ts, duckdb/queries.ts, storage/jsonl.ts, cli/human.ts (replaced inline replacer), git/squash.ts, git/merge.ts, http/routes/events.ts.
+- 65/65 tests pass, tsc clean, integration tests 10/10.
 
 ### DB-019: PERF — Linear-scan ID/key lookups in HTTP routes
 - **Severity:** Medium
