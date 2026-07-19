@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { squashPartition, compactHistory, getCompactionStats } from '../../git/squash';
+import { resolveNamespacePath } from './shared';
 import path from 'path';
 
 /**
@@ -41,14 +42,6 @@ interface SquashOutput {
 /**
  * Resolve namespace path from namespace name
  */
-function resolveNamespacePath(namespace?: string): string {
-  const nsName = namespace || 'default';
-  if (nsName === 'default') {
-    return path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
-  }
-  return path.join(process.cwd(), '.duckbrain', 'namespaces', nsName);
-}
-
 /**
  * Squash tool handler
  *

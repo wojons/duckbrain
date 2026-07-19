@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { getDuckDBConnection } from '../../duckdb/connection';
 import { queryMemories, tombstoneMemory } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
-import { getConfig } from '../../config/index';
+import { resolveNamespacePath } from './shared';
 import { commitNamespace } from '../../git/autocommit';
 import path from 'path';
 import fs from 'fs';
@@ -44,13 +44,6 @@ interface ForgetOutput {
  * Resolve namespace path from namespace name using config.
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
-function resolveNamespacePath(namespace: string | undefined): string {
-  const config = getConfig('.');
-  const ns = namespace || config.defaultNamespace || 'default';
-  const nsPath = config.namespacesPath || './namespaces';
-  return path.join(nsPath, ns);
-}
-
 /**
  * Get all partition paths for a namespace
  */
