@@ -2,6 +2,17 @@
 
 ## Open
 
+### Idle tick #6 (2026-07-19 18:18)
+- ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`hermes-canopy` (4th occurrence)
+- ✅ @types/node 25.9.5→26.1.1 (minor bump) in 8837dbd
+- ✅ Cooldown escalated to 12h (43200s) per graduated slowdown — ticks 5-6. Verified via scheduler GET.
+- Board: only BLOCKED DB-001 (embedding model — awaiting Bane's decision)
+- Build: 1601 modules clean. Tests: 65/65 pass (12.22s). CI: green (5/5). Guard: N/A (no .gitreins guard configured for duckbrain).
+- npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane)
+- npm audit: 5 high transitive tar vulns (unfixable, build-time only — same as DB-007)
+- Never-done audit: 11/11 checks completed. 0 new gaps. 28 untested files (chronic). 0 benchmarks (pre-existing). No new stubs beyond DB-001.
+- DuckBrain write: OK. Idle counter = 6 in coding-hermes namespace.
+
 ### DB-001: Implement actual embedding model in recall.ts
 - **File:** `src/mcp/tools/recall.ts:68-73`
 - **Severity:** Medium
