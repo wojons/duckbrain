@@ -22,11 +22,7 @@
 - ✅ 5 files, +1,610 lines, -77 lines. 65/65 tests pass. Guard PASS.
 
 ### DB-016: API — 3 HTTP endpoints return hardcoded stubs
-- **Severity:** Medium
-- `GET /users` → `{ users: [] }` stub
-- `GET /activity` → `{ activities: [] }` stub
-- `GET /namespaces` → `{ namespaces: ['default'] }` (ignores namespace tool with real data)
-- File: `src/cli/http.ts:165-182`
+- ✅ **Fixed in this tick.** `/namespaces` now calls `listNamespacesTool` for real data. `/users` and `/activity` converted to 410 Gone with deprecation messages (no user/activity data model in DuckBrain). 1 file (+22/-10). Build: 1601 modules clean. tsc: 0 errors. Tests: 65/65 pass. Guard: PASS.
 
 ### DB-017: QUALITY — `resolveNamespacePath` duplicated 4× across tools
 - **Severity:** Low

@@ -22,6 +22,7 @@ import { server, stopServer, registerTools } from '../mcp/server.js';
 import { authMiddleware, AuthConfig } from '../auth/middleware.js';
 import { rateLimitMiddleware, RateLimitConfig } from '../auth/ratelimit.js';
 import { errorHandler, notFoundHandler } from '../http/middleware/errorHandler.js';
+import { listNamespacesTool } from '../mcp/tools/namespace.js';
 import { createMemoryRoutes } from '../http/routes/memories.js';
 import { createKeyRoutes } from '../http/routes/keys.js';
 import { createNamespaceRoutes } from '../http/routes/namespaces.js';
@@ -162,20 +163,31 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use('/api/namespaces', createNamespaceRoutes);
   app.use('/api/events', createEventsRoutes);
   
-  // Legacy stubs (to be deprecated - keep for backwards compatibility)
-  app.get('/namespaces', (_req: Request, res: Response) => {
-    res.json({ namespaces: ['default'] });
+  // Legacy namespaces — delegate to real MCP tool
+  app.get('/namespaces', async (_req: Request, res: Response) => {
+    const result = await listNamespacesTool({});
+    if (!result.success) {
+      res.status(500).json({ error: result.error || 'Failed to list namespaces' });
+      return;
+    }
+    const namespaces = result.namespaces.map((ns: any) => ns.name);
+    res.json({ namespaces, currentNamespace: result.currentNamespace });
   });
 
-  // Users list (stub - to be implemented)
+  // Users list (deprecated — no user data in DuckBrain)
   app.get('/users', (_req: Request, res: Response) => {
-    res.json({ users: [] });
+    res.status(410).json({
+      error: 'The /users endpoint has been removed. Use the MCP tools or REST API to access memory data.',
+      code: 'ENDPOINT_DEPRECATED'
+    });
   });
-  
-  // Activity feed (stub - to be implemented)
-  app.get('/activity', (req: Request, res: Response) => {
-    const limit = parseInt(req.query.limit as string) || 50;
-    res.json({ activities: [], limit });
+
+  // Activity feed (deprecated — no activity data in DuckBrain)
+  app.get('/activity', (_req: Request, res: Response) => {
+    res.status(410).json({
+      error: 'The /activity endpoint has been removed. Use the MCP tools or REST API to access event data.',
+      code: 'ENDPOINT_DEPRECATED'
+    });
   });
   
   // Legacy API stubs (redirect to new endpoints)
