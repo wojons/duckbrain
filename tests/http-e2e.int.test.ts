@@ -41,18 +41,20 @@ describe('HTTP Server E2E Integration', () => {
     expect(body.namespaces).toBeDefined();
   });
 
-  it('should respond to /users', async () => {
+  it('should return 410 Gone for /users (deprecated)', async () => {
     const res = await curl(`http://127.0.0.1:${port}/users`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     const body = JSON.parse(res.body);
-    expect(body.users).toBeDefined();
+    expect(body.error).toBeDefined();
+    expect(body.message).toContain('deprecated');
   });
 
-  it('should respond to /activity', async () => {
+  it('should return 410 Gone for /activity (deprecated)', async () => {
     const res = await curl(`http://127.0.0.1:${port}/activity`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     const body = JSON.parse(res.body);
-    expect(body.activities).toBeDefined();
+    expect(body.error).toBeDefined();
+    expect(body.message).toContain('deprecated');
   });
 
   it('should respond to /api/tree with redirect to /api/keys', async () => {
