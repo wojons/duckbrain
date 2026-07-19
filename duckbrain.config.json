@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "consensus",
+  "defaultNamespace": "terminal-jail",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -78,6 +78,7 @@
     "hermes-dagger": "namespaces/hermes-dagger",
     "heading": "namespaces/heading",
     "dexdat": "namespaces/dexdat",
-    "gitreins-poc": "namespaces/gitreins-poc"
+    "gitreins-poc": "namespaces/gitreins-poc",
+    "terminal-jail": "namespaces/terminal-jail"
   }
 }
