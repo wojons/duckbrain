@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { safeJsonStringify } from '../../utils/serialize';
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
 
 const router = Router();
@@ -92,7 +93,7 @@ router.post('/:namespace/broadcast', asyncHandler(async (req: Request, res: Resp
   // Send to all connected clients
   if (connections) {
     connections.forEach(client => {
-      client.write(`data: ${JSON.stringify(event)}\n\n`);
+      client.write(`data: ${safeJsonStringify(event)}\n\n`);
     });
   }
 

@@ -11,6 +11,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { safeJsonStringify } from '../utils/serialize';
 import { getManifest, type Manifest } from '../storage/manifest';
 import { getDuckDBConnection } from '../duckdb/connection';
 import { execSync } from 'child_process';
@@ -371,7 +372,7 @@ export async function removeTombstones(partitionPath: string): Promise<{
 
     // Rewrite JSONL without tombstones
     const newChunkPath = path.join(partitionPath, `cleaned-${Date.now()}.jsonl`);
-    const content = liveRecords.map(r => JSON.stringify(r)).join('\n') + '\n';
+    const content = liveRecords.map(r => safeJsonStringify(r)).join('\n') + '\n';
     fs.writeFileSync(newChunkPath, content, 'utf-8');
 
     // Remove old files

@@ -10,6 +10,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { safeJsonStringify } from '../utils/serialize';
 import { execSync } from 'child_process';
 
 /**
@@ -127,7 +128,7 @@ export function resolveMergeConflict(
   });
   
   // Convert back to JSONL
-  const mergedContent = unique.map(r => JSON.stringify(r)).join('\n') + '\n';
+  const mergedContent = unique.map(r => safeJsonStringify(r)).join('\n') + '\n';
   
   return {
     success: true,
@@ -213,7 +214,7 @@ export function logMergeActivity(
   };
   
   const conflictsLogPath = path.join(namespacePath, 'conflicts.log');
-  const logLine = JSON.stringify(logEntry) + '\n';
+  const logLine = safeJsonStringify(logEntry) + '\n';
   
   // Append to log (create if doesn't exist)
   fs.appendFileSync(conflictsLogPath, logLine);

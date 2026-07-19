@@ -18,6 +18,7 @@
 import { recallTool } from '../mcp/tools/recall';
 import { listKeysTool } from '../mcp/tools/list_keys';
 import { rememberTool } from '../mcp/tools/remember';
+import { safeJsonStringify } from '../utils/serialize';
 import { forgetTool } from '../mcp/tools/forget';
 import { squashTool, getCompactionStatsTool } from '../mcp/tools/squash';
 import { getConfig, setConfig, updateConfig, registerNamespace } from '../config/index';
@@ -61,13 +62,7 @@ function parseArgs(args: string[]): { positional: string[]; flags: Record<string
  * Handles BigInt serialization that DuckDB may return
  */
 function formatMemory(memory: any): string {
-  return JSON.stringify(memory, (_key, value) => {
-    // Convert BigInt to string
-    if (typeof value === 'bigint') {
-      return value.toString();
-    }
-    return value;
-  }, 2);
+  return safeJsonStringify(memory, 2);
 }
 
 /**

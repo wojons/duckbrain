@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { MemorySchema, type MemoryType } from '../schema/memory';
+import { safeJsonStringify } from '../utils/serialize';
 
 /**
  * Maximum lines per chunk file before creating new one
@@ -137,7 +138,7 @@ export function appendToJsonl(filePath: string, record: MemoryType): number {
   }
 
   // Serialize to JSON (single line, no trailing newline yet)
-  const line = JSON.stringify(record);
+  const line = safeJsonStringify(record);
 
   // Check if we need a new chunk
   let targetPath = filePath;

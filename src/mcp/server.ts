@@ -6,6 +6,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { safeJsonStringify } from '../utils/serialize';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { recallTool, recallToolMetadata } from './tools/recall';
 import { listKeysTool, listKeysToolMetadata } from './tools/list_keys';
@@ -44,7 +45,7 @@ function wrapHandler<T>(handler: (input: any) => Promise<T>) {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify(result, null, 2)
+            text: safeJsonStringify(result, 2)
           }
         ]
       };
