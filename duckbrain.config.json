@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "hermes-dagger",
+  "defaultNamespace": "hermes-memory",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
