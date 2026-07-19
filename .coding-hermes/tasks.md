@@ -22,6 +22,16 @@
 - Never-done audit: no stubs, no TODOs, MCP server running, 10 tools functional
 - DuckBrain write: OK. Semantic recall: blocked by DB-001 stub. Key recall: BigInt serialization bug.
 
+### Idle tick #3 (2026-07-19 11:39)
+- ✅ Fixed `defaultNamespace` drift → `hermes-memory` (was → `imhotep` again). DUCK-DRILL reverted + pinned.
+- Board: only BLOCKED DB-001 (embedding model — awaiting Bane's decision)
+- Build: 1601 modules clean. Tests: 65/65 pass (12.25s). CI: 3/3 green.
+- npm outdated: unchanged — @types/node 25.9.4→25.9.5 (patch, trivial), TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane)
+- npm audit: same 5 high transitive tar vulns (unfixable, build-time only)
+- Never-done audit: 27 source files without tests (pre-existing), no new TODOs, MCP server running (10 tools), no stubs beyond DB-001.
+- 🐌 **Graduated slowdown — idle tick #3 of 7.** Increased cooldown from 15min → 4h via scheduler API (`CooldownS: 14400`). Stored base interval in DuckBrain. Next: 12h at tick #5, pause at tick #7.
+- DuckBrain write: OK. Idle counter stored in `coding-hermes` namespace.
+
 ### DB-003: Write degradation — silent write failures
 - ✅ **Monitoring complete (2026-07-15).** Write stability verified across 3+ days since July 12. Last health check (274B test write) confirmed working. Moved from Monitoring to Done.
 
