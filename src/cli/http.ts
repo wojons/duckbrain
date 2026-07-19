@@ -208,11 +208,36 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use(notFoundHandler);
   
   // CLI remote execution endpoint (for --socket usage)
+  // Whitelist: only safe/non-destructive CLI commands allowed via remote socket.
+  // Blocked: stdio (launches MCP server), http (launches HTTP server),
+  //          service (systemd management — stop/restart could take down the daemon).
+  const CLI_COMMAND_WHITELIST = new Set([
+    'remember', 'recall', 'list-keys', 'forget',
+    'config', 'namespaces', 'namespace',
+    'pull', 'push', 'remote',
+    'status', 'token', 'squash',
+    'ssh-test', 'ssh-connect', 'servers',
+  ]);
+
   app.post('/cli', async (req: Request, res: Response) => {
     try {
       const { command, args: cmdArgs } = req.body;
-      if (!command) {
-        res.status(400).json({ error: 'Missing command' });
+
+      // Input validation: command must be a non-empty string
+      if (!command || typeof command !== 'string') {
+        res.status(400).json({ error: 'Missing or invalid command' });
+        return;
+      }
+
+      // Command whitelist: reject disallowed commands
+      if (!CLI_COMMAND_WHITELIST.has(command)) {
+        res.status(403).json({ error: `Command not allowed: ${command}` });
+        return;
+      }
+
+      // Args must be an array of strings (or absent)
+      if (cmdArgs !== undefined && (!Array.isArray(cmdArgs) || cmdArgs.some((a: any) => typeof a !== 'string'))) {
+        res.status(400).json({ error: 'args must be an array of strings' });
         return;
       }
 
