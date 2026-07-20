@@ -2,6 +2,22 @@
 
 ## Open
 
+### Idle tick #10 (2026-07-20 09:43)
+- ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`speclang` (8th occurrence)
+- ✅ Build: 1601 modules clean
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.76s)
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected). Top deps: react, path, lucide-react.
+- ✅ E2E: /api/memories (200), /api/namespaces (200), /api/memories?key= (200), /api/memories/:id (404 w/ JSON). /users (404), /activity (404) — routes removed (expected).
+- ✅ CI: 5/5 green. No remote commits.
+- ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: 5 high transitive tar vulns (unfixable, build-time only)
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ Never-done 11-point audit: 10 dirs without tests (chronic). No new findings. 0 benchmarks.
+- ✅ Scheduler daemon: RUNNING (uptime 2h31m, active ticks: 4, total: 15999)
+- ✅ DuckBrain write: OK. Idle counter = 5 in coding-hermes namespace.
+- 🐌 **Graduated slowdown — idle tick #5 of 7.** Cooldown should escalate to 12h. Next: pause at tick #7.
+
 ### Idle tick #9 (2026-07-20 04:56)
 - ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`pygo` (7th occurrence)
 - ✅ Added `sdk-python` + `pygo` namespace mappings (legitimate — directories exist on disk)
