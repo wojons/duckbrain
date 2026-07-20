@@ -82,6 +82,8 @@
     "terminal-jail": "namespaces/terminal-jail",
     "hermes4friends-infra": "namespaces/hermes4friends-infra",
     "hermes-canopy": "namespaces/hermes-canopy",
-    "uhlp": "namespaces/uhlp"
+    "uhlp": "namespaces/uhlp",
+    "sdk-python": "namespaces/sdk-python",
+    "pygo": "namespaces/pygo"
   }
 }
