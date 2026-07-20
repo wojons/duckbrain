@@ -2,6 +2,19 @@
 
 ## Open
 
+### 🛑 TICK #13 — SELF-PAUSE EXECUTED (2026-07-20 16:20) — idle tick #7 of 7
+
+- ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`hermes-dagger` (11th occurrence). Reverted via `git checkout`.
+- ✅ Build: 1601 modules clean
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.38s)
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected).
+- ✅ Discovery sweep: 0 new gaps. Only BLOCKED DB-001 remains.
+- ✅ Scheduler daemon: RUNNING (PID 1095462 on :9090, gateway :8642 up)
+- 🛑 **SELF-PAUSE EXECUTED:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed. Tick #12 declared self-pause but API call silently failed. Now actually disabled. **Bane must re-enable when ready.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler.**
+
 ### 🛑 IDLE TICK #12 — SELF-PAUSE (2026-07-20 13:38) — idle tick #7 of 7
 
 - ✅ DUCK-DRILL: defaultNamespace = `hermes-memory` ✅ (correct, no drift — 10th consecutive clean check)
@@ -15,11 +28,7 @@
 - ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). All `return null`/`return []` in codebase are legitimate guards, not stubs.
 - ✅ Scheduler daemon: RUNNING (gateway up, schedulerd PID 1095462 on :9090)
 - ⚠️ **Cooldown discrepancy persists:** scheduler shows CooldownS=900 (15min) despite graduated slowdown target of 12h (43200s). Same issue as tick #11 — scheduler PUT to 43200 is overwritten on daemon restart.
-- 🛑 **SELF-PAUSE:** Idle tick #7 of 7. Project is complete — only BLOCKED DB-001 remains (embedding model, needs Bane's decision). All 11 never-done audit checks clean (last full audit tick #10). 0 new gaps across 12 consecutive ticks.
-
-**Self-pause action:** Set `Enabled=false` via scheduler API. Bane must re-enable when ready to address DB-001 or when new work appears.
-
-Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001).
+- 🛑 **SELF-PAUSE declared but API call silently failed** — `Enabled` remained `true`. Fixed in tick #13.
 
 ### Idle tick #11 (2026-07-20 12:44)
 - ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`heading` (9th occurrence)
