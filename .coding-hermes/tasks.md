@@ -76,6 +76,19 @@
 - Added input validation: command must be non-empty string, args must be string[].
 - 65/65 tests pass, tsc clean, guard PASS. CI queued.
 
+### Idle tick #8 (2026-07-19 20:36)
+- ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`hermes-dagger` (6th occurrence)
+- ✅ Cleaned up leftover `test-memory/` artifact
+- ✅ tsc: clean (0 errors)
+- ✅ Tests: 40 passed, 5 vitest fork timeouts (pre-existing resource exhaustion — same as tick #7)
+- ❌ Build: Rolldown thread pool panic (EAGAIN — `ulimit -n=1024` too low for concurrent threads). Not a code regression.
+- ✅ CI: green (5/5). No remote commits.
+- ✅ npm outdated: unchanged — TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped, deps issue)
+- ✅ npm audit: 5 high transitive tar vulns (unfixable, build-time only — same as DB-007)
+- ✅ Discovery sweep: 0 new gaps. 49 source files, 10 test files (chronic). Only TODO: `recall.ts` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ Scheduler daemon: RUNNING (port 9090). Cooldown escalated to 4h (14400s) per graduated slowdown — idle tick #3 of 7. Verified via scheduler GET.
+- ✅ DuckBrain write: OK. Idle counter = 3 in coding-hermes namespace.
+
 ## Done
 
 ### Idle tick #5 (2026-07-19 17:56)
