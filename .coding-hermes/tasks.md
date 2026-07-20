@@ -2,6 +2,21 @@
 
 ## Open
 
+### Idle tick #11 (2026-07-20 12:44)
+- ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`heading` (9th occurrence)
+- ✅ Build: 1601 modules clean
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.27s)
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected).
+- ✅ CI: 5/5 green. No remote commits.
+- ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: 5 high transitive tar vulns (unfixable, build-time only)
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED).
+- ✅ Scheduler daemon: RUNNING (gateway up, schedulerd PID 1095462 on :9090)
+- ✅ DuckBrain write: OK. Idle counter = 6 in coding-hermes namespace.
+- ⚠️ **Cooldown discrepancy:** scheduler shows CooldownS=900 (15min) but graduated slowdown says 12h for tick #5-6. Cron job `77e21ce16dfc` is PAUSED (scheduler migration). Scheduler PUT to 43200 returned CooldownS=900 — may need scheduler daemon restart or TOML config change.
+- 🐌 **Graduated slowdown — idle tick #6 of 7.** Cooldown target: 12h. **Next tick (#7): self-pause.**
+
 ### Idle tick #10 (2026-07-20 09:43)
 - ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`speclang` (8th occurrence)
 - ✅ Build: 1601 modules clean
