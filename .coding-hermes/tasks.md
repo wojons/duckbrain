@@ -2,6 +2,23 @@
 
 ## Open
 
+### Idle tick #9 (2026-07-20 04:56)
+- ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`pygo` (7th occurrence)
+- ✅ Added `sdk-python` + `pygo` namespace mappings (legitimate — directories exist on disk)
+- ✅ Board: only BLOCKED DB-001 (embedding model — awaiting Bane's decision)
+- ✅ tsc: clean (0 errors)
+- ✅ Build: 1601 modules clean
+- ✅ Tests: 48/57 pass, 4 vitest fork errors (pre-existing resource exhaustion — same as ticks #7–#8)
+- ✅ E2E: /api/memories, /api/namespaces, /api/memories?key= all respond correctly. /users, /activity → 404 (routes removed). MCP server starts OK.
+- ✅ CI: green (3/3). No remote commits.
+- ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: 5 high transitive tar vulns (unfixable, build-time only)
+- ✅ Discovery sweep: 0 new gaps. 39 source files, 10 test files (28 untested — chronic). Only TODO: `recall.ts` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected for flat lib). Top deps: react, path, lucide-react.
+- ✅ Scheduler daemon: RUNNING. Cooldown at 4h (14400s) — idle tick #4 of 7. No interval change.
+- ✅ DuckBrain write: OK. Idle counter = 4 in coding-hermes namespace.
+- 🐌 **Graduated slowdown — idle tick #4 of 7.** Cooldown maintained at 4h. Next: 12h at tick #5, pause at tick #7.
+
 ### Idle tick #6 (2026-07-19 18:18)
 - ✅ DUCK-DRILL: reverted `defaultNamespace` drift `hermes-memory`→`hermes-canopy` (4th occurrence)
 - ✅ @types/node 25.9.5→26.1.1 (minor bump) in 8837dbd
