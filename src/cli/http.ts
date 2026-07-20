@@ -204,8 +204,6 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   });
   
   // Error handling (must be after all routes)
-  app.use(errorHandler);
-  app.use(notFoundHandler);
   
   // CLI remote execution endpoint (for --socket usage)
   // Whitelist: only safe/non-destructive CLI commands allowed via remote socket.
@@ -290,7 +288,10 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+ 
+  app.use(errorHandler);
+  app.use(notFoundHandler);
+
   return app;
 }
 
