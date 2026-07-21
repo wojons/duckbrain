@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "hermes-memory",
+  "defaultNamespace": "dexdat-memory",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -84,6 +84,7 @@
     "hermes-canopy": "namespaces/hermes-canopy",
     "uhlp": "namespaces/uhlp",
     "sdk-python": "namespaces/sdk-python",
-    "pygo": "namespaces/pygo"
+    "pygo": "namespaces/pygo",
+    "h3-sdk-typescript": "namespaces/h3-sdk-typescript"
   }
 }
