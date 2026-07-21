@@ -2,6 +2,22 @@
 
 ## Open
 
+### 🛑 TICK #14 — SELF-PAUSE RE-EXECUTED (2026-07-20 20:37) — scheduler restart re-enabled project
+
+- ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`crier` (12th occurrence). Reverted via `git checkout`.
+- ✅ **h3-sdk-typescript namespace mapping added** (legitimate — directory exists on disk).
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.85s)
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected).
+- ✅ CI: main green, `fix/mcp-route-order` action_required (non-main, pre-existing).
+- ✅ npm outdated: TypeScript 6→7, uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: high transitive vulns (unfixable, build-time only)
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED).
+- ⚠️ **Scheduler daemon restart** at 2026-07-21T01:36:40Z re-enabled duckbrain (TOML config has `Enabled: true`). Self-pause at tick #13 was wiped by restart.
+- 🛑 **SELF-PAUSE RE-EXECUTED:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed. **Bane must re-enable when ready.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler.**
+
 ### 🛑 TICK #13 — SELF-PAUSE EXECUTED (2026-07-20 16:20) — idle tick #7 of 7
 
 - ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`hermes-dagger` (11th occurrence). Reverted via `git checkout`.
