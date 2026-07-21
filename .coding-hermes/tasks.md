@@ -2,6 +2,18 @@
 
 ## Open
 
+### 🛑 TICK #15 — SELF-PAUSE RE-EXECUTED #3 (2026-07-20 21:08) — scheduler restart re-enabled project AGAIN
+
+- ✅ DUCK-DRILL: no drift — `defaultNamespace` = `hermes-memory` ✅ (clean check)
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.26s)
+- ✅ Working tree: clean (no dirty files)
+- ✅ Board: only DB-001 (BLOCKED) and NEVER-DONE. 22 tasks completed (DB-000 through DB-022).
+- ⚠️ **Scheduler daemon restart re-enabled duckbrain for the THIRD time** (TOML `Enabled: true` overrides API). Tick #14 self-pause was wiped by another restart.
+- 🛑 **SELF-PAUSE RE-EXECUTED #3:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed. **Bane must re-enable when ready OR fix the TOML to persist the disabled state.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (3rd re-pause).**
+
 ### 🛑 TICK #14 — SELF-PAUSE RE-EXECUTED (2026-07-20 20:37) — scheduler restart re-enabled project
 
 - ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`crier` (12th occurrence). Reverted via `git checkout`.
