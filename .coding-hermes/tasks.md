@@ -2,6 +2,22 @@
 
 ## Open
 
+### 🛑 TICK #16 — SELF-PAUSE RE-EXECUTED #4 (2026-07-21 00:22) — scheduler daemon restart re-enabled project AGAIN
+
+- ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`dexdat-memory` (13th occurrence). This time it was committed in HEAD via PR merge `2ed67df` (The-Dreamfinder/fix/mcp-route-order). Reverted in `dfc5d49`.
+- ✅ PR merge `fix/mcp-route-order` reviewed: substantive MCP endpoint fix (Streamable HTTP + mutex serialization + route ordering). 65/65 tests pass, CI green. No new gaps.
+- ✅ tsc: 0 errors
+- ✅ Tests: 65/65 pass (12.29s)
+- ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected).
+- ✅ CI: 3/3 green (including merge PR build).
+- ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped).
+- ✅ npm audit: 6 vulns, 5 high (transitive: brace-expansion NEW, tar, cacache, duckdb/node-gyp — all unfixable, build-time only).
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). PR merge introduced no new stubs.
+- ⚠️ **Scheduler daemon restart re-enabled duckbrain for the FOURTH time.** No fleet TOML found — `Enabled: true` persists across restarts in SQLite DB. Root cause unclear beyond DB-level persistence.
+- 🛑 **SELF-PAUSE RE-EXECUTED #4:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed. **Bane must re-enable when ready.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (4th re-pause).**
+
 ### 🛑 TICK #15 — SELF-PAUSE RE-EXECUTED #3 (2026-07-20 21:08) — scheduler restart re-enabled project AGAIN
 
 - ✅ DUCK-DRILL: no drift — `defaultNamespace` = `hermes-memory` ✅ (clean check)
