@@ -18,6 +18,7 @@
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Mutex } from 'async-mutex';
 import { server, stopServer, registerTools } from '../mcp/server.js';
 import { authMiddleware, AuthConfig } from '../auth/middleware.js';
 import { rateLimitMiddleware, RateLimitConfig } from '../auth/ratelimit.js';
@@ -83,6 +84,14 @@ function statsHandler(_req: Request, res: Response) {
     nodeVersion: process.version
   });
 }
+
+/**
+ * MCP tools are registered on the module-level singleton `server`, whose
+ * registerTools() throws on a second call. Guard at module scope so multiple
+ * createHttpServer() calls in one process (in-process tests, embedders) register
+ * exactly once instead of failing the second construction.
+ */
+let mcpToolsRegistered = false;
 
 /**
  * Create Express app with MCP transport, auth, and rate limiting
@@ -204,8 +213,6 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   });
   
   // Error handling (must be after all routes)
-  app.use(errorHandler);
-  app.use(notFoundHandler);
   
   // CLI remote execution endpoint (for --socket usage)
   // Whitelist: only safe/non-destructive CLI commands allowed via remote socket.
@@ -265,32 +272,75 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     }
   });
 
-  // Streamable HTTP transport for MCP
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined
-  });
-  
+  // Streamable HTTP transport for MCP.
+  //
+  // Tools are registered on the singleton server exactly once (registerTools()
+  // throws "Tool <name> is already registered" if called twice; the module-scope
+  // mcpToolsRegistered flag guards against repeat createHttpServer() calls). In
+  // stateless
+  // mode (sessionIdGenerator: undefined) the SDK requires a *fresh* transport per
+  // request — reusing one throws "Stateless transport cannot be reused across
+  // requests". So each request gets a new transport that is connected, used, and
+  // then closed, which releases the singleton server to connect again next time.
+  //
+  // Requests are serialized with a mutex because the singleton server accepts only
+  // one transport at a time — a second overlapping server.connect() throws
+  // "Already connected to a transport".
+  if (!mcpToolsRegistered) {
+    registerTools();
+    mcpToolsRegistered = true;
+  }
+  const mcpMutex = new Mutex();
+
+  const handleMcpRequest = (
+    req: Request,
+    res: Response,
+    parsedBody?: unknown
+  ): Promise<void> =>
+    mcpMutex.runExclusive(async () => {
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        // Return a single JSON response per request instead of an open SSE
+        // stream, so each stateless request completes and releases promptly.
+        enableJsonResponse: true
+      });
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, parsedBody);
+      } finally {
+        await transport.close().catch(() => {});
+      }
+    });
+
   app.post('/mcp', async (req: Request, res: Response) => {
     try {
-      // Ensure tools are registered before handling MCP requests
-      registerTools();
-      await server.connect(transport);
-      await transport.handleRequest(req, res);
+      // express.json() has already consumed the request stream, so pass the
+      // parsed body to the transport explicitly.
+      await handleMcpRequest(req, res, req.body);
     } catch (error) {
       console.error('MCP request error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   });
-  
-  app.get('/mcp', async (req: Request, res: Response) => {
-    try {
-      await transport.handleRequest(req, res);
-    } catch (error) {
-      console.error('MCP GET error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+
+  // GET opens the optional server-to-client SSE stream. DuckBrain is
+  // request/response only (no server-initiated messages) and the singleton server
+  // cannot hold a long-lived GET stream while also answering POSTs, so this
+  // endpoint does not offer it. Per the MCP spec, return 405; the Streamable HTTP
+  // client treats 405 as "no SSE stream here" and continues with POST only.
+  app.get('/mcp', (_req: Request, res: Response) => {
+    res.status(405).set('Allow', 'POST').json({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: 'Method Not Allowed: this endpoint does not offer a GET SSE stream' },
+      id: null
+    });
   });
-  
+ 
+  app.use(errorHandler);
+  app.use(notFoundHandler);
+
   return app;
 }
 
