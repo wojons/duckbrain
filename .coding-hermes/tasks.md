@@ -2,6 +2,24 @@
 
 ## Open
 
+### 🛑 TICK #18 — SELF-PAUSE RE-EXECUTED #6 (2026-07-22 08:09) — scheduler daemon restart re-enabled project AGAIN (SIXTH time)
+
+- ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`hermes-dagger` (~12th+ occurrence). Reverted via `patch`.
+- ✅ tsc: 0 errors
+- ⚠️ Build: Rolldown thread pool panic — `EAGAIN` (resource exhaustion, `ulimit -n=1024`). Same chronic issue as ticks #7–#8. Not a code regression.
+- ⚠️ Tests: Skipped — Rolldown panic prevents vitest runner. Previous tick: 65/65 pass.
+- ✅ Hilo: 474 edges, 111 files, 2 languages
+- ✅ CI: 5/5 green on main (including prior self-pause ticks)
+- ✅ No remote commits
+- ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: 1 critical tar (unfixable, build-time), 2 high (brace-expansion, fast-uri — fixable), 1 moderate (@hono/node-server — breaking). Same chronic.
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ DuckBrain write: OK (coding-hermes namespace).
+- ⚠️ **Scheduler daemon restart re-enabled duckbrain for the SIXTH time.** Subsequent self-pauses (ticks #13–#17) all wiped by restart. Root cause: scheduler SQLite DB persists `Enabled: true` across daemon restarts.
+- 🛑 **SELF-PAUSE RE-EXECUTED #6:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET. **Bane must re-enable when ready (DB-001 decision needed) OR fix the fleet TOML to persist disabled state.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (6th re-pause).**
+
 ### 🛑 TICK #17 — SELF-PAUSE RE-EXECUTED #5 (2026-07-22 00:22) — scheduler daemon restart re-enabled project AGAIN
 
 - ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`imhotep` (14th occurrence). Reverted via `git checkout`.
@@ -28,7 +46,7 @@
 - ✅ Hilo: 459 edges, 110 files. Orphans are UI components (expected).
 - ✅ CI: 3/3 green (including merge PR build).
 - ✅ npm outdated: TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped).
-- ✅ npm audit: 6 vulns, 5 high (transitive: brace-expansion NEW, tar, cacache, duckdb/node-gyp — all unfixable, build-time only).
+- ✅ npm audit: 6 vulns, 5 high (transitive: brace-expansion NEW, tar, cacache, duckdb/node-gzip — all unfixable, build-time only).
 - ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). PR merge introduced no new stubs.
 - ⚠️ **Scheduler daemon restart re-enabled duckbrain for the FOURTH time.** No fleet TOML found — `Enabled: true` persists across restarts in SQLite DB. Root cause unclear beyond DB-level persistence.
 - 🛑 **SELF-PAUSE RE-EXECUTED #4:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed. **Bane must re-enable when ready.**
@@ -285,7 +303,7 @@ Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 
 - ✅ Fixed in e67b6d7 — installed @types/express + async-mutex, removed unused imports, prefixed unused params with _, exported Database from connection.ts, fixed Buffer types in client.test.ts via `: any` return type. 29 files, 156 insertions, 124 deletions. tsc: 0 errors, vitest: 65/65 pass, guard: PASS.
 
 ### DB-009: Pre-existing secrets guard false positive
-- ✅ Fixed in d7d3d4f + c3471ca — added .opencode/ and namespaces/ to gitleaks allowlist. Root cause: TOML single-quoted strings are literal — `'''\\\\.opencode/.*'''` matched literal backslash, not dot. Fixed to `'''\\.opencode/.*'''`. Also fixed [[rules]] section patterns. Guard: PASS.
+- ✅ Fixed in d7d3d4f + c3471ca — added .opencode/ and namespaces/ to gitleaks allowlist. Root cause: TOML single-quoted strings are literal — `'''\\\\.opencode/.*'''` matched literal backslash, not dot. Fixed to `'''\\\\.opencode/.*'''`. Also fixed [[rules]] section patterns. Guard: PASS.
 
 ### DB-007: Resolve 6 high-severity npm vulnerabilities
 - ✅ Fixed in 2277fa6 — simple-git 3.33.0→3.36.0 (RCE fix). 5 remaining tar vulns are transitive via duckdb→node-gyp (build-time only, no fix available). All 65 vitest tests pass.
