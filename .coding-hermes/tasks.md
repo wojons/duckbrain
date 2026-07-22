@@ -1,6 +1,21 @@
+/usr/bin/bash: fork: retry: Resource temporarily unavailable
+/usr/bin/bash: fork: retry: Resource temporarily unavailable
+/usr/bin/bash: fork: retry: Resource temporarily unavailable
 # DuckBrain — Coding Hermes Task Board
 
 ## Open
+
+### 🛑 TICK #19 — SELF-PAUSE RE-EXECUTED #7 (2026-07-22 12:48) — scheduler daemon restart re-enabled project AGAIN (SEVENTH time)
+
+- ✅ **DUCK-DRILL:** defaultNamespace = `hermes-memory` ✅ (clean — no drift detected)
+- ⚠️ **System resource exhaustion:** `fork: retry: Resource temporarily unavailable` on git pull, tsc, build, and tests. Chronic `ulimit -n=1024` issue (same as ticks #7–#8, #17–#18). Cannot verify build/tests/CI.
+- ⚠️ **CI check failed:** `gh` CLI crashed with `pthread_create failed: Resource temporarily unavailable` (Go binary can't create threads on exhausted system).
+- ✅ **Working tree:** clean. Last commit: `ea5072d` (tick #18 self-pause).
+- ✅ **No remote commits** (git pull failed due to resource exhaustion, but no indication of new commits).
+- ⚠️ **Scheduler API:** `Enabled: false` now set via PUT. **This is the SEVENTH time** the scheduler daemon restart has wiped the self-pause. GET confirmed `"Enabled":false`.
+- 🛑 **SELF-PAUSE RE-EXECUTED #7:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET. **Bane must re-enable when ready (DB-001 decision needed) OR fix the scheduler fleet TOML to persist `Enabled:false` across restarts.**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (7th re-pause).**
 
 ### 🛑 TICK #18 — SELF-PAUSE RE-EXECUTED #6 (2026-07-22 08:09) — scheduler daemon restart re-enabled project AGAIN (SIXTH time)
 
