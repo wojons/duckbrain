@@ -2,6 +2,23 @@
 
 ## Open
 
+### 🛑 TICK #17 — SELF-PAUSE RE-EXECUTED #5 (2026-07-22 00:22) — scheduler daemon restart re-enabled project AGAIN
+
+- ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`imhotep` (14th occurrence). Reverted via `git checkout`.
+- ✅ fix: DuckDB thread pool limit (1 thread) + closeAllConnections on server stop — committed & pushed (`25e02dd`). Prior-tick uncommitted work.
+- ✅ tsc: 0 errors
+- ✅ Build: 1601 modules clean (1.98s)
+- ✅ Tests: 65/65 pass (12.26s)
+- ✅ Hilo: 474 edges, 111 files, 2 languages
+- ✅ CI: current run in_progress, prior 2 runs green
+- ✅ No remote commits
+- ✅ npm outdated: typescript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped)
+- ✅ npm audit: 1 critical (tar — unfixable, build-time duckdb transitive), 2 high (brace-expansion, fast-uri — new, fixable), 1 moderate (@hono/node-server — fixable via --force, breaks MCP SDK). All chronic same as prior ticks.
+- ✅ Discovery sweep: 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). No new stubs found.
+- ✅ Never-done audit: 0 new gaps. 29/39 src files untested (chronic).
+- ⚠️ **Scheduler daemon restart re-enabled duckbrain for the FIFTH time.** Previous self-pause (tick #16) wiped by restart.
+- 🛑 **SELF-PAUSE RE-EXECUTED #5:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET. **Bane must re-enable when ready (DB-001 decision needed).**
+
 ### 🛑 TICK #16 — SELF-PAUSE RE-EXECUTED #4 (2026-07-21 00:22) — scheduler daemon restart re-enabled project AGAIN
 
 - ⚠️ **DUCK-DRILL:** defaultNamespace drift `hermes-memory`→`dexdat-memory` (13th occurrence). This time it was committed in HEAD via PR merge `2ed67df` (The-Dreamfinder/fix/mcp-route-order). Reverted in `dfc5d49`.
