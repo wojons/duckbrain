@@ -22,6 +22,11 @@ interface ConnectionEntry {
 }
 const dbCache = new Map<string, ConnectionEntry>();
 
+// A Database instance otherwise creates a worker pool sized for the host.
+// DuckBrain caches one instance per namespace, so that default multiplies
+// into hundreds of threads in the long-lived MCP server.
+const DATABASE_CONFIG = { threads: '1' };
+
 /**
  * Maximum age of a cached connection before it's recycled (1 hour).
  * Prevents thread accumulation from long-lived DuckDB connections.
@@ -54,7 +59,7 @@ export async function initDuckDB(dbPath: string = ':memory:'): Promise<Database>
   }
 
   // Create database instance
-  const db = new Database(dbPath);
+  const db = new Database(dbPath, DATABASE_CONFIG);
 
   // Load VSS extension
   await loadVSSExtension(db);
@@ -93,7 +98,7 @@ export function getDuckDBConnection(
       const dbPath = namespacePath.startsWith(':memory:')
         ? namespacePath
         : path.join(namespacePath, 'duckdb.db');
-      return new Database(dbPath);
+      return new Database(dbPath, DATABASE_CONFIG);
 
     default:
       throw new Error(`Unknown connection mode: ${mode}`);
@@ -132,7 +137,7 @@ function getSingletonConnection(namespacePath: string): Database {
 
   // Create fresh connection
   const dbPath = path.join(namespacePath, 'duckdb.db');
-  const db = new Database(dbPath);
+  const db = new Database(dbPath, DATABASE_CONFIG);
   dbCache.set(namespacePath, { db, createdAt: Date.now() });
 
   return db;
