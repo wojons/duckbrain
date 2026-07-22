@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { safeJsonStringify } from '../utils/serialize';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { closeAllConnections } from '../duckdb/connection.js';
 import { recallTool, recallToolMetadata } from './tools/recall';
 import { listKeysTool, listKeysToolMetadata } from './tools/list_keys';
 import { rememberToolDef } from './tools/remember';
@@ -155,6 +156,7 @@ export async function startServer(): Promise<void> {
  */
 export async function stopServer(): Promise<void> {
   await server.close();
+  await closeAllConnections();
   console.error('DuckBrain MCP server stopped');
 }
 
