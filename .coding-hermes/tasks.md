@@ -5,6 +5,27 @@
 
 ## Open
 
+### 🛑 TICK #22 — SELF-PAUSE RE-EXECUTED #10 (2026-07-23 04:13) — scheduler daemon restart re-enabled project AGAIN (TENTH time)
+
+- ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`hermes-dagger` (17th occurrence). Reverted via patch.
+- ✅ **tsc:** 0 errors
+- ✅ **Build:** 1601 modules clean (1.92s — npm run build)
+- ✅ **Tests:** 65/65 pass (12.27s — 10 test files)
+- ✅ **Hilo:** 476 edges, 111 files, 2 languages (TS + JSX)
+- ✅ **CI:** 3/3 green (last 3 self-pause ticks all passed)
+- ✅ **No remote commits** (git fetch — origin/main unchanged since tick #20)
+- ✅ **npm outdated:** TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped) — unchanged
+- ✅ **npm audit:** 9 vulns (1 critical tar, 2 high brace-expansion/fast-uri, 1 moderate @hono/node-server) — all build-time transitive via duckdb→node-gyp, same chronic pattern
+- ✅ **Discovery sweep:** 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ **Working tree:** clean after reverted drift.
+- ✅ **System resources:** load 7.53, 49Gi available RAM, `ulimit -n=1024` (chronic). Build and tests succeeded despite load.
+- ✅ **DuckBrain MCP:** recovered via `hermes mcp test duckbrain` (was down at tick start).
+- ⚠️ **eduos.dexdat.com.co namespace mapping preserved** (legitimate — directory exists on disk).
+- ✅ **Scheduler API:** `Enabled: false` confirmed via GET — PUT persisted correctly.
+- 🛑 **SELF-PAUSE RE-EXECUTED #10:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET (`"Enabled":false`). **Bane must re-enable when ready (DB-001 decision needed).**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (10th re-pause).**
+
 ### 🛑 TICK #21 — SELF-PAUSE RE-EXECUTED #9 (2026-07-23 00:19) — scheduler daemon restart re-enabled project AGAIN (NINTH time)
 
 - ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`hermes-dagger` (16th occurrence). Reverted via `git checkout`.

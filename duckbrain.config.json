@@ -85,6 +85,7 @@
     "uhlp": "namespaces/uhlp",
     "sdk-python": "namespaces/sdk-python",
     "pygo": "namespaces/pygo",
-    "h3-sdk-typescript": "namespaces/h3-sdk-typescript"
+    "h3-sdk-typescript": "namespaces/h3-sdk-typescript",
+    "eduos.dexdat.com.co": "namespaces/eduos.dexdat.com.co"
   }
 }
