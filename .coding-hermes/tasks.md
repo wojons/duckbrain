@@ -5,6 +5,25 @@
 
 ## Open
 
+### 🛑 TICK #21 — SELF-PAUSE RE-EXECUTED #9 (2026-07-23 00:19) — scheduler daemon restart re-enabled project AGAIN (NINTH time)
+
+- ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`hermes-dagger` (16th occurrence). Reverted via `git checkout`.
+- ✅ **tsc:** 0 errors
+- ✅ **Build:** 1601 modules clean (vite build at prior tick)
+- ✅ **Tests:** 65/65 pass (12.36s)
+- ✅ **Hilo:** 476 edges, 111 files, 2 languages (TS + JSX)
+- ✅ **No remote commits** (git fetch — origin/main unchanged since tick #20)
+- ✅ **npm outdated:** TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped) — unchanged
+- ✅ **npm audit:** 9 vulns (2 moderate, 6 high, 1 critical) — all build-time transitive via duckdb→node-gyp (same chronic pattern, unfixable). Slightly worse than tick #20 (was 8 vulns).
+- ✅ **Discovery sweep:** 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED). No new stubs.
+- ✅ **Working tree:** clean after `git checkout duckbrain.config.json`
+- ✅ **System resources:** load 8.76, 45Gi available RAM, `ulimit -n=1024` (chronic). Build and tests succeeded.
+- ✅ **Scheduler DB:** `enabled=0` confirmed in SQLite — this time the API PUT to `Enabled: false` persisted correctly to disk. Prior restarts that re-enabled the project may have been caused by a (now-removed) fleet TOML config or API PUT that didn't persist to SQLite in older scheduler versions.
+- ⚠️ **System resource pressure:** load 8.76 (elevated), ulimit -n=1024 (chronic bottleneck for multi-process ticks).
+- 🛑 **SELF-PAUSE RE-EXECUTED #9:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET (`Enabled: False`) and SQLite DB (`enabled=0`). **Bane must re-enable when ready (DB-001 decision needed).**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (9th re-pause).**
+
 ### 🛑 TICK #20 — SELF-PAUSE RE-EXECUTED #8 (2026-07-22 20:24) — scheduler daemon restart re-enabled project AGAIN (EIGHTH time)
 
 - ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`hermes-dagger` (15th occurrence). Reverted via patch.
