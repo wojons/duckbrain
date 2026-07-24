@@ -5,6 +5,25 @@
 
 ## Open
 
+### 🛑 TICK #25 — SELF-PAUSE RE-EXECUTED #13 (2026-07-24 04:15) — scheduler daemon restart re-enabled project AGAIN (THIRTEENTH time)
+
+- ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`default` (20th+ occurrence). Reverted via patch.
+- ✅ **Build:** 1601 modules, 2.71s
+- ✅ **tsc:** 0 errors
+- ✅ **Tests:** 65/65 pass (12.32s — 10 test files)
+- ✅ **Hilo:** 476 edges, 111 files, 2 languages (TS + JSX). Orphans are UI components (expected).
+- ✅ **No remote commits** (git fetch — origin/main unchanged)
+- ✅ **npm outdated:** TypeScript 6→7 (major, needs Bane), uuid 13→14 (major, needs Bane), @types/uuid 11→10 (capped) — unchanged
+- ✅ **npm audit:** 9 vulns (build-time transitive via duckdb→node-gyp — chronic, unfixable)
+- ✅ **Discovery sweep:** 0 new gaps. Only TODO: `recall.ts:61` embedding model (DB-001, BLOCKED).
+- ✅ **System resources:** load 12.00, 46Gi available RAM, `ulimit -n=1024` (chronic). Build and tests succeeded despite load.
+- ✅ **DuckBrain MCP:** healthy (529ms, 10 tools).
+- ✅ **Working tree:** clean after DUCK-DRILL revert.
+- ✅ **DuckBrain write:** OK (coding-hermes namespace).
+- 🛑 **SELF-PAUSE RE-EXECUTED #13:** `PUT /api/v1/projects/duckbrain {"Enabled":false}` → confirmed via GET (`"Enabled":false`). **Bane must re-enable when ready (DB-001 embedding model decision needed).**
+
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Project disabled in scheduler (13th re-pause).**
+
 ### 🛑 TICK #24 — SELF-PAUSE RE-EXECUTED #12 (2026-07-23 20:26) — scheduler daemon restart re-enabled project AGAIN (TWELFTH time)
 
 - ✅ **DUCK-DRILL:** defaultNamespace drifted `hermes-memory`→`hermes-dagger` (19th+ occurrence). Reverted via `git checkout`.
