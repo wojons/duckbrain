@@ -3,20 +3,21 @@
 > **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
 > **Language:** TypeScript | **Tests:** 65/65 pass | **Build:** clean | **Status:** ALL TASKS COMPLETE 🎉
 
-### 🛑 TICK #29 — SCHEDULER RE-EXECUTED #17 (2026-07-24 13:11) — scheduler restart re-enabled project (SEVENTEENTH time)
+### 🛑 TICK #30 — SCHEDULER RE-EXECUTED #18 (2026-07-24 13:16) — third concurrent tick, 18th scheduler re-enable
 
-- ✅ **DUCK-DRILL #17:** defaultNamespace drifted `coding-hermes` → `coding-herms-scheduler` (17th occurrence). Reverted to `coding-hermes`. No runtime impact.
-- ✅ **Build:** clean
-- ✅ **Tests:** 65/65 pass consistently (cron mode resource constraint)
+- ✅ **DUCK-DRILL #18:** defaultNamespace drifted `terminal-jail`→`ai-plays-poke` (18th occurrence). Reverted to `terminal-jail`. No runtime impact.
+- ✅ **Build:** clean (tsc --noEmit, vite build)
+- ✅ **Tests:** 65/65 pass, 12.44s (threads pool)
 - ✅ **Hilo:** 476 edges, 111 files — consistent
 - ✅ **CI:** Last 3 runs all green/success
-- ✅ **npm outdated:** Same chronic — TypeScript 6→7 (major), uuid 13→14 (major), @types/uuid 11→10 (capped)
-- ✅ **npm audit:** 9 vulns (2 moderate, 6 high, 1 critical) — all transitive via duckdb→node-gyp, same as always
-- ✅ **DuckBrain:** Tick memory written (coding-hermes ns, ID: a9dc41d8)
-- ⚠️ **Self-pause policy:** Per never-done skill, foremen MUST NOT self-disable. Scheduler restart re-enables project every time (17 times). Only Bane can disable.
-- ⚠️ **DB-001 still BLOCKED** on Bane's embedding model decision. All 23 code tasks complete. Project is functionally done.
+- ✅ **test-memory/:** cleaned (8K)
+- ✅ **DuckBrain:** Tick memory written (coding-hermes ns, ID: 825e81ba)
+- ✅ **Compaction:** 0 tombstones, healthy
+- ⚠️ **Scheduler firing rapidly:** tick #29 (13:11) and #30 (13:16) dispatched within 5min of each other. Concurrent ticks burning PAYG.
+- ⚠️ **Scheduler entry has empty name field** — may be un-disableable via API. Recommend SQLite direct edit.
+- ⚠️ **DB-001 still BLOCKED** on Bane's embedding model decision. All 23 code tasks complete.
 
-Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Escalated to Bane: project is done, only DB-001 (embedding model decision) remains.**
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Escalated to Bane: project is functionally done. Recommend disabling the scheduler entry (empty name field — check scheduler.db directly) or making DB-001 decision.**
 
 ```
 ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback
