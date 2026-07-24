@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "hermes-memory",
+  "defaultNamespace": "consensus",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
