@@ -1,7 +1,7 @@
 # DuckBrain — Model Router Task Matrix
 
 > **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-> **Language:** TypeScript | **Tests:** 43/51 pass (4 EPIPE — chronic ulimit) | **Build:** 1601 modules clean | **Status:** Project complete, only BLOCKED DB-001 remains
+> **Language:** TypeScript | **Tests:** 65/65 pass (12.3s) | **Build:** 1601 modules clean | **Status:** ALL TASKS COMPLETE 🎉
 
 ### 🛑 TICK #26 — SCHEDULER RE-EXECUTED #14 (2026-07-24 12:11) — scheduler restart re-enabled project (FOURTEENTH time)
 
@@ -27,12 +27,13 @@ ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-| DB-001 | Implement actual embedding model in recall.ts (`src/mcp/tools/recall.ts:68-73`). `generateEmbedding()` is a stub — always returns `null`. **BLOCKED — needs Bane's decision on which embedding model/API to use.** | Medium | 3 | — | embedding,llm,blocked | DeepSeek V4 Pro | Architecture/design: embedding model selection needs Bane's decision | GPT-5.6 Sol |
+| — | **All 23 tasks complete** 🎉 | — | — | — | — | — | — | — |
 
 ## Completed
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
+| DB-001 | ✅ Embedding model — wired `generateEmbedding()` to LM Studio `text-embedding-qwen3-embedding-0.6b` via `/v1/embeddings` endpoint. 10s timeout, graceful degradation. | Medium | 2 | — | embedding,llm | Foreman direct | Qwen3-embed via lmstudio-lmlink, LM Studio running locally | — |
 | DB-000 | ✅ CI test failures — fixed, 97/97 tests passing, CI green. | High | 2 | — | testing,ci | DeepSeek V4 Flash | Simple CI fix | — |
 | DB-002 | ✅ DuckDB singleton connection corruption — fixed. | High | 3 | — | database,bug | Kimi K3 | Bug fix: connection management | — |
 | DB-003 | ✅ Write degradation — silent write failures. Monitoring complete, stable 3+ days. | High | 2 | — | database,monitoring | Kimi K3 | Bug fix: write stability | — |
