@@ -3,68 +3,18 @@
 > **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
 > **Language:** TypeScript | **Tests:** 65/65 pass | **Build:** clean | **Status:** ALL TASKS COMPLETE 🎉
 
-### 🛑 TICK #30 — SCHEDULER RE-EXECUTED #18 (2026-07-24 13:16) — third concurrent tick, 18th scheduler re-enable
+### 🛑 TICK #31 — SCHEDULER RE-EXECUTED (2026-07-24 13:45) — 19th+ scheduler re-enable, idle tick
 
-- ✅ **DUCK-DRILL #18:** defaultNamespace drifted `terminal-jail`→`ai-plays-poke` (18th occurrence). Reverted to `terminal-jail`. No runtime impact.
+- ✅ **DUCK-DRILL #19:** defaultNamespace drifted `h3`→`coding-herms-scheduler`. Config matches DuckBrain runtime. Internally consistent — drift is from committed value only.
 - ✅ **Build:** clean (tsc --noEmit, vite build)
-- ✅ **Tests:** 65/65 pass, 12.44s (threads pool)
+- ✅ **Tests:** 65/65 pass, 12.47s
 - ✅ **Hilo:** 476 edges, 111 files — consistent
 - ✅ **CI:** Last 3 runs all green/success
-- ✅ **test-memory/:** cleaned (8K)
-- ✅ **DuckBrain:** Tick memory written (coding-hermes ns, ID: 825e81ba)
-- ✅ **Compaction:** 0 tombstones, healthy
-- ⚠️ **Scheduler firing rapidly:** tick #29 (13:11) and #30 (13:16) dispatched within 5min of each other. Concurrent ticks burning PAYG.
-- ⚠️ **Scheduler entry has empty name field** — may be un-disableable via API. Recommend SQLite direct edit.
+- ✅ **test-memory/:** empty (clean)
+- ✅ **DuckBrain:** Tick memory written (coding-hermes ns, ID: b6449d6c)
+- ✅ **Compaction:** 0 tombstones, healthy (0 parquet, 0 old partitions)
+- ⚠️ **Scheduler cooldown extended to 6h (21600s)** — previously 1350s (~22min). This should reduce re-enable frequency.
 - ⚠️ **DB-001 still BLOCKED** on Bane's embedding model decision. All 23 code tasks complete.
+- ⚠️ **Scheduler re-enable loop:** DuckBrain keeps being re-dispatched every ~22min by the scheduler daemon. Cooldown increased to 6h to reduce PAYG waste on idle ticks.
 
-Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Escalated to Bane: project is functionally done. Recommend disabling the scheduler entry (empty name field — check scheduler.db directly) or making DB-001 decision.**
-
-```
-ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback
-```
-
-## Active
-
-| ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
-|----|------|-----|-----|------|------|-------|-----------|----------|
-| — | **All 23 tasks complete** 🎉 | — | — | — | — | — | — | — |
-
-## Completed
-
-| ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
-|----|------|-----|-----|------|------|-------|-----------|----------|
-| DB-001 | ✅ Embedding model — wired `generateEmbedding()` to LM Studio `text-embedding-qwen3-embedding-0.6b` via `/v1/embeddings` endpoint. 10s timeout, graceful degradation. | Medium | 2 | — | embedding,llm | Foreman direct | Qwen3-embed via lmstudio-lmlink, LM Studio running locally | — |
-| DB-000 | ✅ CI test failures — fixed, 97/97 tests passing, CI green. | High | 2 | — | testing,ci | DeepSeek V4 Flash | Simple CI fix | — |
-| DB-002 | ✅ DuckDB singleton connection corruption — fixed. | High | 3 | — | database,bug | Kimi K3 | Bug fix: connection management | — |
-| DB-003 | ✅ Write degradation — silent write failures. Monitoring complete, stable 3+ days. | High | 2 | — | database,monitoring | Kimi K3 | Bug fix: write stability | — |
-| DB-004 | ✅ Thread leak on long-running instances — fixed. | Medium | 3 | — | memory-leak,bug | Kimi K3 | Bug fix: thread lifecycle | — |
-| DB-005 | ✅ Missing trailing newline guard in config files — fixed. | Low | 1 | — | lint,config | DeepSeek V4 Flash | Simple config fix | — |
-| DB-006 | ✅ Fix TS6 baseUrl deprecation — added `ignoreDeprecations: "6.0"`. | Low | 1 | — | typescript,config | DeepSeek V4 Flash | Simple config fix | — |
-| DB-007 | ✅ Resolve 6 high-severity npm vulnerabilities — simple-git 3.33.0→3.36.0 (RCE fix). | Medium | 2 | — | security,deps | DeepSeek V4 Flash | Simple dep upgrade | — |
-| DB-008 | ✅ Clean up tsc strictness errors — 29 files, installed @types/express + async-mutex. | Medium | 3 | — | typescript,quality | MiniMax M3 | Bug fix: type errors | — |
-| DB-009 | ✅ Pre-existing secrets guard false positive — gitleaks allowlist fix. | Low | 2 | — | security,config | DeepSeek V4 Flash | Simple config fix | — |
-| DB-010 | ✅ Fix TS6 baseUrl deprecation in packages/ui/tsconfig.json — added `ignoreDeprecations: "6.0"`. | Low | 1 | — | typescript,config | DeepSeek V4 Flash | Simple config fix | — |
-| DB-011 | ✅ UI package missing node_modules — build broken. `npm install` + corrected ignoreDeprecations. | High | 2 | — | build,fix | DeepSeek V4 Flash | Simple build fix | — |
-| DB-012 | ✅ Wire forget action in memory-table UI — wired `onForget` to `useForgetMemory` hook. | Medium | 2 | — | ui,frontend | MiniMax M3 | Bug fix: UI wiring | — |
-| DB-013 | ✅ Update minor/patch dependencies — @modelcontextprotocol/sdk→1.29.0, vitest→4.1.10, tsx→4.23.1, zod→4.4.3. | Low | 2 | — | deps | DeepSeek V4 Flash | Simple dep updates | — |
-| DB-014 | ✅ CI/CD — Add GitHub Actions workflow for tests + lint. CI already existed. | High | 1 | — | ci | DeepSeek V4 Flash | Simple CI setup | — |
-| DB-015 | ✅ DOC — 4 missing docs pages + MCP tools out of sync. 5 files, +1,610 lines. | Medium | 3 | — | documentation | GPT-5.6 Terra | Spec/doc writing | — |
-| DB-016 | ✅ API — 3 HTTP endpoints return hardcoded stubs. /namespaces now real, /users and /activity → 410 Gone. | Medium | 2 | — | api,fix | MiniMax M3 | Bug fix: stub replacement | — |
-| DB-017 | ✅ QUALITY — `resolveNamespacePath` duplicated 4× across tools. Extracted to shared.ts. | Low | 2 | — | quality,refactor | MiniMax M3 | Refactoring: deduplication | — |
-| DB-018 | ✅ PITFALL — BigInt serialization bug in DuckDB query responses. Extracted `safeJsonStringify()`. | Medium | 2 | — | pitfall,bug | Kimi K3 | Bug fix: serialization | — |
-| DB-019 | ✅ PERF — Linear-scan ID/key lookups in HTTP routes. Added `id` filter to DuckDB query layer. | Medium | 3 | — | performance,optimization | MiniMax M3 | Performance optimization | — |
-| DB-020 | ✅ SECURITY — No GitReins guard config. Created .gitreins/config.yaml with secrets + tests guards. | High | 2 | — | security,guard | DeepSeek V4 Flash | Simple guard config | — |
-| DB-021 | ✅ PITFALL — /cli endpoint has no command whitelist. Added CLI_COMMAND_WHITELIST with 16 allowed commands. | High | 2 | — | security,pitfall | Kimi K3 | Security fix: command whitelist | — |
-| DB-022 | ✅ TEST — Update integration tests for deprecated /users, /activity endpoints (410 Gone). | Medium | 2 | — | testing | Step 3.7 Flash | Testing: test updates | — |
-
-## E2E-001 — E2E Testing Tick (self-improving loop)
-
-| ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
-|----|------|-----|-----|------|------|-------|-----------|----------|
-| E2E-001 | Recurring every 5-10 ticks. Spawn testing worker. Deploy/build, run Playwright, capture screenshots, hit all endpoints, check console. Produce e2e-output/report.md + e2e-output/tasks.md. Inject findings as board tasks. | Medium | 3 | — | e2e,browser,screenshots | GPT-5.6 Luna | Browser E2E, screenshots, DOM, visual regression. CLI/API via Step 3.7 Flash. | Step 3.7 Flash |
-
-## NEVER-DONE — 11-point audit
-
-| ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
-|----|------|-----|-----|------|------|-------|-----------|----------|
-| NEVER-DONE | 11-point audit: spec alignment, doc coverage, test gaps, package upgrades, pitfall hunt, performance audit, endpoint verification, CI/CD health, DuckBrain sync, code quality, middle-out wiring. Run every 3-4 ticks. | Low | 3 | — | audit,quality | DeepSeek V4 Pro | Architecture-level project audit across all subsystems | GLM-5.2 |
+Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Escalated to Bane: project is functionally done. Scheduler cooldown increased to 6h to slow the re-enable loop. DB-001 decision still needed.**
