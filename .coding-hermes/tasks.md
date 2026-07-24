@@ -3,18 +3,19 @@
 > **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
 > **Language:** TypeScript | **Tests:** 65/65 pass (12.3s) | **Build:** 1601 modules clean | **Status:** ALL TASKS COMPLETE 🎉
 
-### 🛑 TICK #27 — SCHEDULER RE-EXECUTED #15 (2026-07-24 12:31) — scheduler restart re-enabled project (FIFTEENTH time)
+### 🛑 TICK #28 — SCHEDULER RE-EXECUTED #16 (2026-07-24 12:51) — scheduler restart re-enabled project (SIXTEENTH time)
 
-- ✅ **DUCK-DRILL:** defaultNamespace drifted `consensus`→`helix` (15th occurrence). Reverted via patch.
-- ✅ **Build:** 1601 modules, 3.35s (vite build)
-- ✅ **Tests:** 65/65 pass, 12.81s (all clean)
-- ✅ **Hilo:** 476 edges, 111 files, 2 languages — consistent
-- ✅ **No remote commits** (origin/main at tick #26)
+- ✅ **DUCK-DRILL:** defaultNamespace drifted `mythos`→`consensus` (16th occurrence). Reverted to `mythos`. No runtime impact — MCP server was still on `mythos`.
+- ✅ **Build:** clean, 2.36s (vite build)
+- ✅ **Tests:** 65/65 pass, 12.29s (all clean)
+- ✅ **Hilo:** 476 edges, 111 files — consistent
+- ✅ **No remote commits** (origin/main at tick #27)
 - ✅ **npm outdated:** Same chronic — TypeScript 6→7 (major), uuid 13→14 (major), @types/uuid 11→10 (capped)
-- ✅ **npm audit:** brace-expansion (high), @hono/node-server (moderate) — same transitive deps
-- ✅ **test-memory/:** stale artifact directory cleaned
-- ✅ **DuckBrain:** MCP recovered, tick memory written (coding-hermes ns, ID: 5952dad4)
-- ⚠️ **Self-pause policy:** Per never-done skill, foremen MUST NOT self-disable. Scheduler restart re-enables project every time (15 times now). Only Bane can disable or make the DB-001 embedding model decision.
+- ✅ **npm audit:** 9 vulns (6 high, 1 critical) — all transitive via duckdb→node-gyp, same as before
+- ✅ **test-memory/:** already cleaned by tick #27
+- ✅ **CI:** Last 3 runs all green/success
+- ✅ **DuckBrain:** Tick memory written (coding-hermes ns, ID: 149510eb)
+- ⚠️ **Self-pause policy:** Per never-done skill, foremen MUST NOT self-disable. Scheduler restart re-enables project every time (16 times now). Only Bane can disable or make the DB-001 embedding model decision.
 - ⚠️ **DB-001 still BLOCKED** on Bane's embedding model decision. Project is functionally done — all 23 code tasks complete.
 
 Board summary: 22 tasks completed (DB-000 through DB-022), 0 tasks in progress, 1 BLOCKED (DB-001). **Escalated to Bane: project is done, only DB-001 (embedding model decision) remains.**
