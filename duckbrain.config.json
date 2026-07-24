@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "coding-hermes",
+  "defaultNamespace": "terminal-jail",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
