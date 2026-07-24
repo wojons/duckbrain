@@ -57,13 +57,38 @@ interface RecallOutput {
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
 /**
- * Placeholder embedding generation
- * TODO: Integrate actual embedding model in Phase 2
+ * Generate text embedding via LM Studio's OpenAI-compatible API.
+ * Uses qwen3-embedding model for semantic search via DuckDB VSS.
  */
-function generateEmbedding(_text: string): number[] | null {
-  // For now, return null to indicate embedding not available
-  // In Phase 2, this will call an embedding model API
-  return null;
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  try {
+    const response = await fetch('http://localhost:1234/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'text-embedding-qwen3-embedding-0.6b',
+        input: text
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      console.error(`[recall] Embedding API returned ${response.status}: ${await response.text().catch(() => '')}`);
+      return null;
+    }
+
+    const data = await response.json() as any;
+    const embedding = data?.data?.[0]?.embedding;
+    if (!embedding || !Array.isArray(embedding)) {
+      console.error('[recall] Embedding API returned no embedding vector');
+      return null;
+    }
+
+    return embedding;
+  } catch (error) {
+    console.error(`[recall] Embedding generation failed: ${error instanceof Error ? error.message : error}`);
+    return null;
+  }
 }
 
 /**
@@ -138,7 +163,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
 
     // Handle semantic search
     if (validated.query) {
-      const embedding = generateEmbedding(validated.query);
+      const embedding = await generateEmbedding(validated.query);
       if (!embedding) {
         return {
           memories: [],
