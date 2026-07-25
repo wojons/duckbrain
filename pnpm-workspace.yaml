@@ -1,0 +1,3 @@
+allowBuilds:
+  duckdb: true
+  esbuild: true

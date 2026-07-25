@@ -6,8 +6,9 @@ tasks:
   - Runs npm test on push/PR
   - Runs tsc --noEmit lint check
   - Builds successfully
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:33.832034+00:00'
+  completed_at: '2026-07-25T01:52:04.029492+00:00'
 - id: DB-015
   title: 'DOC: Create missing docs pages referenced in docs/index.md'
   criteria:
@@ -16,8 +17,9 @@ tasks:
   - docs/guide/deployment.md exists
   - docs/guide/license.md exists
   - docs/api/mcp-tools.md updated with squash/namespace/compaction_stats tools
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:34.846502+00:00'
+  completed_at: '2026-07-25T01:53:09.734961+00:00'
 - id: DB-016
   title: 'API: Replace HTTP stubs (/users, /activity, /namespaces) with real implementations'
   criteria:
@@ -36,8 +38,9 @@ tasks:
   - forget.ts uses shared version
   - list_keys.ts uses shared version
   - all 65 tests still pass
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:36.871262+00:00'
+  completed_at: '2026-07-25T01:53:41.988414+00:00'
 - id: DB-018
   title: 'PITFALL: Add BigInt serialization fix and test for DuckDB queries'
   criteria:
@@ -62,8 +65,9 @@ tasks:
   - .gitreins/config.toml has lint guard
   - .gitreins/config.toml has test guard
   - Guard run passes
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:39.918146+00:00'
+  completed_at: '2026-07-25T01:54:33.803769+00:00'
 - id: DB-021
   title: 'PITFALL: Auditing / hardening /cli endpoint against command injection'
   criteria:

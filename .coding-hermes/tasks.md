@@ -13,6 +13,21 @@
   NEVER remove the matrix header row or NEVER-DONE / E2E-001 fixtures.
 -->
 
+### 🔧 TICK #35 — BUILD FIX + DISPATCH (2026-07-24 21:00) — pnpm 11 build scripts, dispatched DB-021
+
+- 🔴 **FIXED: pnpm 11 ignores build scripts** — DuckDB native module (`duckdb.node`) was missing. 5 test suites failed (connection, queries, http CLI, human CLI, stdio CLI). Root cause: pnpm 11.0+ moved build-dependency config to `pnpm-workspace.yaml` `allowBuilds` map (replaces pnpm 10 `onlyBuiltDependencies`).
+- ✅ **Fix:** Created `pnpm-workspace.yaml` with `allowBuilds: {duckdb: true, esbuild: true}`. `duckdb.node` now downloads on install.
+- ✅ **Tests:** 65/65 pass, 10/10 suites, 12.3s
+- ✅ **Hilo:** 476 edges, 111 files — consistent
+- ✅ **GitReins guard:** secrets clean
+- ✅ **GitReins config:** evaluator configured (deepseek-v4-flash)
+- ✅ **Committed:** pnpm-workspace.yaml + pnpm-lock.yaml (was untracked since project creation)
+- 🚀 **Dispatched DB-021** (command injection audit) via worker
+- ⚠️ **Load:** 2.89 — well below dispatch threshold
+- ⚠️ **TODO/FIXME:** node_modules only (noise)
+
+Board summary: 26 tasks completed, 4 pending (DB-016, DB-018, DB-019, DB-021-dispatched), 1 BLOCKED (DB-001).
+
 ### 🛑 TICK #34 — BOARD CORRECTION (2026-07-25 01:52 UTC) — GitReins sync found 9 hidden pending tasks
 
 - ❌ **FABRICATED BOARD DETECTED:** Prior 33 ticks claimed "ALL TASKS COMPLETE" — GitReins had 9 pending tasks the board never acknowledged.
