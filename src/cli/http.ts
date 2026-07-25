@@ -28,6 +28,8 @@ import { createMemoryRoutes } from '../http/routes/memories.js';
 import { createKeyRoutes } from '../http/routes/keys.js';
 import { createNamespaceRoutes } from '../http/routes/namespaces.js';
 import { createEventsRoutes } from '../http/routes/events.js';
+import { createUsersRoutes } from '../http/routes/users.js';
+import { createActivityRoutes } from '../http/routes/activity.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -183,21 +185,11 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     res.json({ namespaces, currentNamespace: result.currentNamespace });
   });
 
-  // Users list (deprecated — no user data in DuckBrain)
-  app.get('/users', (_req: Request, res: Response) => {
-    res.status(410).json({
-      error: 'The /users endpoint has been removed. Use the MCP tools or REST API to access memory data.',
-      code: 'ENDPOINT_DEPRECATED'
-    });
-  });
+  // Users list — extracts unique authors from namespace commit history
+  app.use('/users', createUsersRoutes);
 
-  // Activity feed (deprecated — no activity data in DuckBrain)
-  app.get('/activity', (_req: Request, res: Response) => {
-    res.status(410).json({
-      error: 'The /activity endpoint has been removed. Use the MCP tools or REST API to access event data.',
-      code: 'ENDPOINT_DEPRECATED'
-    });
-  });
+  // Activity feed — returns recent memory activity across all namespaces
+  app.use('/activity', createActivityRoutes);
   
   // Legacy API stubs (redirect to new endpoints)
   app.get('/api/tree', (req: Request, res: Response) => {

@@ -41,20 +41,22 @@ describe('HTTP Server E2E Integration', () => {
     expect(body.namespaces).toBeDefined();
   });
 
-  it('should return 410 Gone for /users (deprecated)', async () => {
+  it('should respond to /users with authors array', async () => {
     const res = await curl(`http://127.0.0.1:${port}/users`);
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.error).toBeDefined();
-    expect(body.error).toContain('removed');
+    expect(body.users).toBeDefined();
+    expect(Array.isArray(body.users)).toBe(true);
+    expect(body.count).toBe(body.users.length);
   });
 
-  it('should return 410 Gone for /activity (deprecated)', async () => {
+  it('should respond to /activity with activities array', async () => {
     const res = await curl(`http://127.0.0.1:${port}/activity`);
-    expect(res.status).toBe(410);
+    expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.error).toBeDefined();
-    expect(body.error).toContain('removed');
+    expect(body.activities).toBeDefined();
+    expect(Array.isArray(body.activities)).toBe(true);
+    expect(body.count).toBe(body.activities.length);
   });
 
   it('should respond to /api/tree with redirect to /api/keys', async () => {
