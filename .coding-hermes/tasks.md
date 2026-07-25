@@ -3,8 +3,37 @@
   All tasks MUST use matrix format: | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
   Before editing this file, load the skill: skill_view(name='coding-hermes-model-router')
   Validate: python3 ~/.hermes/scripts/validate-board-format.py .coding-hermes/tasks.md
+- [ ] **GITREINS-JUDGE — Configure LLM evaluator for commit quality review**
+  | 🔴 Critical | — | — | deepseek-v4-flash @ deepseek-foreman | GITREINS_LLM_API_KEY in ~/.hermes/.env | foreman-direct |
+
+  Run: `python3 ~/.hermes/scripts/check-gitreins-judge.py .` to verify.
+  Default limits (adjust per-project based on codebase size and task complexity):
+  - Fast/small projects: `max_iterations: 50`, `max_time: 10m`, tokens: `0.2M/0.4M`
+  - Large repos (Go monorepos, 100+ files): `max_iterations: 100`, `max_time: 30m`, tokens: `1M/2M`
+  - C++/Rust (slow compiles): `max_time: 30m` minimum
+  - Scheduler/production infra: `max_time: 30m`, tokens: `1M/2M`
+  Supervisor auto-flags projects where limits are too low for codebase size.
+
+| 🔴 Critical | — | — | deepseek-v4-flash @ deepseek-foreman | GITREINS_LLM_API_KEY in ~/.hermes/.env | foreman-direct |
+
+  Run: `python3 ~/.hermes/scripts/check-gitreins-judge.py .` to verify.
+  If missing, create/edit .gitreins/config.yaml with evaluator section using deepseek-v4-flash.
+  This is CRITICAL for code quality — no automated review of worker output without it.
+
   NEVER remove the matrix header row or NEVER-DONE / E2E-001 fixtures.
 -->
+
+### 🛑 TICK #33 — IDLE VERIFICATION (2026-07-24 20:18) — 21st+ scheduler re-enable, idle tick
+
+- ✅ **Build:** clean (tsc --noEmit)
+- ✅ **Tests:** 65/65 pass, 12.2s
+- ✅ **Hilo:** 476 edges, 111 files — consistent
+- ✅ **GitReins judge:** configured (deepseek-v4-flash)
+- ✅ **DuckBrain:** healthy (no changes since tick #32)
+- ⚠️ **DB-001 still BLOCKED** on Bane's embedding model decision
+- ⚠️ **Scheduler re-enable loop:** 33 idle ticks. All code tasks complete. **Please disable/deregister, Bane.**
+
+Board summary: 22 tasks completed, 0 in progress, 1 BLOCKED (DB-001). **Escalation: project is done — no work remains.** 33 ticks of idling.
 
 # DuckBrain — Model Router Task Matrix
 
