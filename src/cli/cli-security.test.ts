@@ -359,13 +359,11 @@ describe('/cli endpoint security', () => {
     });
 
     it('rejects newline + path traversal', async () => {
-      const { status, body } = await postCli({
+      const { status } = await postCli({
         command: 'status',
         args: ['foo\n../../etc/passwd'],
       });
       expect(status).toBe(400);
-      // Newline check fires before path traversal check — either error is fine
-      expect([400]).toContain(status);
     });
 
     it('rejects semicolon in args that would enable secondary command', async () => {

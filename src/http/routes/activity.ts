@@ -6,7 +6,6 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { listNamespacesTool } from '../../mcp/tools/namespace';
 import { getDuckDBConnection } from '../../duckdb/connection';
 import { asyncHandler } from '../middleware/errorHandler';
 import { deepConvertBigInts } from '../../utils/serialize';
