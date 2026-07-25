@@ -9,7 +9,7 @@ import type { Database } from './connection';
 import type { MemoryType } from '../schema/memory';
 import path from 'path';
 import fs from 'fs';
-import { safeJsonStringify } from '../utils/serialize';
+import { safeJsonStringify, deepConvertBigInts } from '../utils/serialize';
 
 /**
  * Parse DuckDB STRUCT format string into a JavaScript object
@@ -193,7 +193,7 @@ export function queryMemories(
           return;
         }
         
-        resolve((result as any[]).map((row: any) => ({
+        resolve((result as any[]).map((row: any) => deepConvertBigInts({
           id: row.id,
           key: row.key,
           domain: row.domain,

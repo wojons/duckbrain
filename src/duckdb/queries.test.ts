@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { initDuckDB, closeDuckDB } from './connection';
 import { insertMemory, tombstoneMemory, queryMemories } from './queries';
+import { deepConvertBigInts } from '../utils/serialize';
 import { createMemory } from '../schema/memory';
 import path from 'path';
 import fs from 'fs';
@@ -178,6 +179,115 @@ describe('DuckDB Queries', () => {
       const personResults = await queryMemories(db, [testPartition], { domain: 'person' });
       expect(personResults.length).toBe(1);
       expect(personResults[0].domain).toBe('person');
+    });
+  });
+
+  describe('BigInt serialization', () => {
+    it('should convert BigInt values to safe numbers in query results', async () => {
+      // Write a raw JSONL line with a large integer that DuckDB will
+      // interpret as BIGINT when reading back via read_json.
+      // We bypass insertMemory (which uses safeJsonStringify) to ensure
+      // DuckDB sees the raw large integer and returns it as a BigInt.
+      if (!fs.existsSync(testPartition)) {
+        fs.mkdirSync(testPartition, { recursive: true });
+      }
+      const chunkPath = path.join(testPartition, 'chunk_bigint_test.jsonl');
+      // 9007199254740992 = Number.MAX_SAFE_INTEGER + 1 — within BIGINT range
+      // but beyond JavaScript safe integer. DuckDB should return this as BigInt.
+      const bigValue = 9007199254740992;
+      const rawLine = JSON.stringify({
+        id: crypto.randomUUID(),
+        key: '/test/bigint-attrs',
+        domain: 'raw_note',
+        timestamp: new Date().toISOString(),
+        author: 'test@example.com',
+        action: 'add',
+        embedding_text: 'BigInt test',
+        attributes: {
+          big_count: bigValue,
+          nested: { normal_num: 42 },
+          tags: ['a', 'b']
+        }
+      }) + '\n';
+      fs.writeFileSync(chunkPath, rawLine, 'utf-8');
+
+      const results = await queryMemories(db, [testPartition]);
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      const result = results.find(m => m.key === '/test/bigint-attrs');
+      expect(result).toBeDefined();
+
+      // Verify JSON.stringify does not throw (no BigInt values left)
+      const json = JSON.stringify(result);
+      expect(json).toBeTruthy();
+      expect(() => JSON.parse(json)).not.toThrow();
+
+      // Verify the result round-trips through JSON cleanly
+      const parsed = JSON.parse(json);
+      expect(parsed.key).toBe('/test/bigint-attrs');
+    });
+
+    it('deepConvertBigInts should handle all edge cases', () => {
+      // Safe integer — converted to Number
+      const safe = deepConvertBigInts(42n);
+      expect(typeof safe).toBe('number');
+      expect(safe).toBe(42);
+
+      // Unsafe large integer — converted to String
+      const unsafe = deepConvertBigInts(12345678901234567890n);
+      expect(typeof unsafe).toBe('string');
+      expect(unsafe).toBe('12345678901234567890');
+
+      // Negative BigInt (safe range)
+      const negSafe = deepConvertBigInts(-100n);
+      expect(typeof negSafe).toBe('number');
+      expect(negSafe).toBe(-100);
+
+      // Zero
+      const zero = deepConvertBigInts(0n);
+      expect(typeof zero).toBe('number');
+      expect(zero).toBe(0);
+
+      // Nested object with BigInts
+      const nested = deepConvertBigInts({
+        a: 1n,
+        b: { c: 2n, d: 'string' },
+        e: [3n, { f: 4n }]
+      });
+      expect(nested).toEqual({
+        a: 1,
+        b: { c: 2, d: 'string' },
+        e: [3, { f: 4 }]
+      });
+
+      // Array of BigInts
+      const arr = deepConvertBigInts([1n, 2n, 3n]);
+      expect(arr).toEqual([1, 2, 3]);
+
+      // Non-BigInt values pass through unchanged
+      expect(deepConvertBigInts('hello')).toBe('hello');
+      expect(deepConvertBigInts(42)).toBe(42);
+      expect(deepConvertBigInts(null)).toBeNull();
+      expect(deepConvertBigInts(undefined)).toBeUndefined();
+    });
+
+    it('should not throw on BigInt in direct DuckDB results', () => {
+      // Simulate what DuckDB returns: a row with a BigInt column
+      const rawRow = {
+        id: 'test-uuid',
+        key: '/test/bigint',
+        domain: 'raw_note',
+        timestamp: new Date().toISOString(),
+        author: 'test@example.com',
+        action: 'add',
+        embedding_text: 'test',
+        attributes: { count: 123456789012345n }
+      };
+
+      // This should not throw
+      const converted = deepConvertBigInts(rawRow);
+      expect(typeof converted.attributes.count).toBe('number');
+      expect(converted.attributes.count).toBe(123456789012345);
+      expect(() => JSON.stringify(converted)).not.toThrow();
     });
   });
 });
