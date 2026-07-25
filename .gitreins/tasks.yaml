@@ -47,8 +47,9 @@ tasks:
   - BigInt values serialized correctly in JSON responses
   - Test covers BigInt serialization edge case
   - recall tool returns proper numeric values
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:37.885963+00:00'
+  completed_at: '2026-07-25T02:33:28.992406+00:00'
 - id: DB-019
   title: 'PERF: Replace linear-scan ID/key lookups with DuckDB WHERE clauses'
   criteria:
@@ -75,5 +76,6 @@ tasks:
   - Only whitelisted commands allowed via /cli
   - No shell injection possible
   - Test covers malicious inputs
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:40.938913+00:00'
+  completed_at: '2026-07-25T02:26:00.366480+00:00'

@@ -13,6 +13,21 @@
   NEVER remove the matrix header row or NEVER-DONE / E2E-001 fixtures.
 -->
 
+### 🔧 TICK #36 — DB-018 COMPLETED + DISPATCH (2026-07-25 02:33 UTC) — BigInt serialization, 107 tests
+
+- 🚀 **Dispatched DB-018** (BigInt serialization) via worker → **COMPLETED (bf4692f)**: 3 files (+148/-4), new serialize.ts utility, 3 new tests
+- ✅ **DB-021 synced to GitReins** (was pending despite board saying complete — now machine-verified complete)
+- ✅ **Build:** clean
+- ✅ **Tests:** 107/107 pass, 11/11 suites, 12.6s
+- ✅ **Hilo:** 480 edges, 112 files — +1 edge from new serialize.ts
+- ✅ **GitReins guard:** secrets clean
+- ✅ **GitReins dual-source:** all in sync (DB-018, DB-021 now complete)
+- ⚠️ **Load:** 1.21 — well below dispatch threshold
+- ⚠️ **TODO/FIXME:** node_modules only (noise)
+- ⚠️ **DB-016, DB-019 still pending** — 2 real tasks remain + 1 blocked (DB-001)
+
+Board summary: 29 tasks completed, 2 pending (DB-016, DB-019), 1 BLOCKED (DB-001).
+
 ### 🔧 TICK #35 — BUILD FIX + DISPATCH (2026-07-24 21:00) — pnpm 11 build scripts, dispatched DB-021
 
 - 🔴 **FIXED: pnpm 11 ignores build scripts** — DuckDB native module (`duckdb.node`) was missing. 5 test suites failed (connection, queries, http CLI, human CLI, stdio CLI). Root cause: pnpm 11.0+ moved build-dependency config to `pnpm-workspace.yaml` `allowBuilds` map (replaces pnpm 10 `onlyBuiltDependencies`).
@@ -53,7 +68,6 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
 | DB-016 | Replace HTTP stubs (/users, /activity) with real implementations | High | 4±1 | — | +++backend, ++api | GLM-5.2 | Medium | DS-V4-Flash |
-| DB-018 | BigInt serialization fix in DuckDB queries | Medium | 2±1 | — | ++backend, +duckdb | DS-V4-Flash | Low | GLM-5.2 |
 | DB-019 | Replace linear-scan lookups with DuckDB WHERE clauses | Medium | 3±1 | — | ++backend, +perf, +duckdb | DS-V4-Flash | Medium | GLM-5.2 |
 
 ## Blocked
@@ -70,6 +84,7 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 | DB-015 | DOC: Missing docs pages | All 4 pages exist | Tick #34 |
 | DB-017 | QUALITY: Dedup resolveNamespacePath | shared.ts extraction | Tick #34 |
 | DB-020 | SECURITY: GitReins guard config | .gitreins/config.yaml | Tick #34 |
+| DB-018 | BigInt serialization fix in DuckDB queries | bf4692f | Tick #36 |
 | DB-021 | SECURITY: CLI command injection hardened | 88576c0 | Tick #35 |
 | DB-000–DB-013, DB-022 | All prior tasks | Prior ticks | Prior ticks |
 
