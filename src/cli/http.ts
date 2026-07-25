@@ -226,6 +226,74 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     'ssh-test', 'ssh-connect', 'servers',
   ]);
 
+  // Security limits for CLI arguments (prevents DoS via memory/time exhaustion)
+  const CLI_MAX_ARGS = 100;
+  const CLI_MAX_ARG_LENGTH = 4096;
+
+  /**
+   * Validate CLI arguments for security.
+   * Rejects path traversal, null bytes, newlines, and excessive sizes.
+   *
+   * @returns { valid: true } or { valid: false; error: string }
+   */
+  function validateCliArgs(args: unknown): { valid: true } | { valid: false; error: string } {
+    // Args must be an array of strings (or absent)
+    if (args === undefined || args === null) {
+      return { valid: true };
+    }
+
+    if (!Array.isArray(args)) {
+      return { valid: false, error: 'args must be an array of strings' };
+    }
+
+    // Reject too many args (DoS prevention)
+    if (args.length > CLI_MAX_ARGS) {
+      return { valid: false, error: `args exceeds maximum of ${CLI_MAX_ARGS}` };
+    }
+
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+
+      // Each arg must be a string
+      if (typeof arg !== 'string') {
+        return { valid: false, error: 'args must be an array of strings' };
+      }
+
+      // Reject excessively long args (DoS prevention)
+      if (arg.length > CLI_MAX_ARG_LENGTH) {
+        return {
+          valid: false,
+          error: `arg[${i}] exceeds maximum length of ${CLI_MAX_ARG_LENGTH} characters`,
+        };
+      }
+
+      // Reject null byte injection — can cause C-level string truncation in
+      // child processes and libraries, bypassing downstream validation.
+      if (arg.includes('\x00')) {
+        return { valid: false, error: `arg[${i}] contains null byte` };
+      }
+
+      // Reject newline injection — prevents log injection, command splitting in
+      // downstream CLI parsers, and HTTP header injection through stderr/stdout.
+      if (arg.includes('\n') || arg.includes('\r')) {
+        return { valid: false, error: `arg[${i}] contains newline character` };
+      }
+
+      // Reject path traversal — blocks attempts to read/write files outside
+      // the intended directories via subcommands that process file paths.
+      if (arg.includes('..') && (
+        arg.startsWith('..') ||
+        arg.includes('/..') ||
+        arg.includes('\\..') ||
+        arg === '..'
+      )) {
+        return { valid: false, error: `arg[${i}] contains path traversal sequence` };
+      }
+    }
+
+    return { valid: true };
+  }
+
   app.post('/cli', async (req: Request, res: Response) => {
     try {
       const { command, args: cmdArgs } = req.body;
@@ -242,9 +310,10 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         return;
       }
 
-      // Args must be an array of strings (or absent)
-      if (cmdArgs !== undefined && (!Array.isArray(cmdArgs) || cmdArgs.some((a: any) => typeof a !== 'string'))) {
-        res.status(400).json({ error: 'args must be an array of strings' });
+      // Args security validation
+      const argsValidation = validateCliArgs(cmdArgs);
+      if (!argsValidation.valid) {
+        res.status(400).json({ error: argsValidation.error });
         return;
       }
 
