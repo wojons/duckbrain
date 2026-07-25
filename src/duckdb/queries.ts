@@ -283,9 +283,9 @@ export async function tombstoneMemory(
   partitionPath: string,
   reason?: string
 ): Promise<void> {
-  // Find the original memory in the partition
-  const memories = await queryMemories(db, [partitionPath]);
-  const originalMemory = memories.find(m => m.id === memoryId);
+  // Find the original memory in the partition using DuckDB WHERE clause
+  const memories = await queryMemories(db, [partitionPath], { id: memoryId, limit: 1 });
+  const originalMemory = memories[0];
 
   if (!originalMemory) {
     // Memory not found - create tombstone anyway with minimal data

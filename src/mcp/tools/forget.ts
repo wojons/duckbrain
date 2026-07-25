@@ -109,9 +109,9 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     // Initialize DuckDB connection
     const db = getDuckDBConnection('singleton', namespacePath);
 
-    // Find memory by ID across all partitions
-    const memories = await queryMemories(db, partitionPaths);
-    const originalMemory = memories.find(m => m.id === id);
+    // Find memory by ID across all partitions using DuckDB WHERE clause
+    const memories = await queryMemories(db, partitionPaths, { id, limit: 1 });
+    const originalMemory = memories[0];
 
     if (!originalMemory) {
       return {

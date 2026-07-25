@@ -145,7 +145,8 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(result.error, 500);
   }
 
-  const memory = result.memories.find(m => m.id === id);
+  // DuckDB WHERE clause already filtered to this ID — use first result
+  const memory = result.memories[0];
 
   if (!memory) {
     throw new NotFoundError('Memory', id);
@@ -219,7 +220,8 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(findResult.error, 500);
   }
 
-  const existingMemory = findResult.memories.find(m => m.id === id);
+  // DuckDB WHERE clause already filtered to this ID — use first result
+  const existingMemory = findResult.memories[0];
 
   if (!existingMemory) {
     throw new NotFoundError('Memory', id);
