@@ -22,11 +22,11 @@
 - ✅ **GitReins guard:** secrets clean
 - ✅ **GitReins config:** evaluator configured (deepseek-v4-flash)
 - ✅ **Committed:** pnpm-workspace.yaml + pnpm-lock.yaml (was untracked since project creation)
-- 🚀 **Dispatched DB-021** (command injection audit) via worker
+- 🚀 **Dispatched DB-021** (command injection audit) via worker → **COMPLETED (88576c0)**: 39 security tests, 104/104 total
 - ⚠️ **Load:** 2.89 — well below dispatch threshold
 - ⚠️ **TODO/FIXME:** node_modules only (noise)
 
-Board summary: 26 tasks completed, 4 pending (DB-016, DB-018, DB-019, DB-021-dispatched), 1 BLOCKED (DB-001).
+Board summary: 27 tasks completed, 3 pending (DB-016, DB-018, DB-019), 1 BLOCKED (DB-001).
 
 ### 🛑 TICK #34 — BOARD CORRECTION (2026-07-25 01:52 UTC) — GitReins sync found 9 hidden pending tasks
 
@@ -55,7 +55,6 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 | DB-016 | Replace HTTP stubs (/users, /activity) with real implementations | High | 4±1 | — | +++backend, ++api | GLM-5.2 | Medium | DS-V4-Flash |
 | DB-018 | BigInt serialization fix in DuckDB queries | Medium | 2±1 | — | ++backend, +duckdb | DS-V4-Flash | Low | GLM-5.2 |
 | DB-019 | Replace linear-scan lookups with DuckDB WHERE clauses | Medium | 3±1 | — | ++backend, +perf, +duckdb | DS-V4-Flash | Medium | GLM-5.2 |
-| DB-021 | Audit/harden /cli endpoint against command injection | High | 2±1 | — | ++security, +backend | GLM-5.2 | High | DS-V4-Flash |
 
 ## Blocked
 
@@ -71,6 +70,7 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 | DB-015 | DOC: Missing docs pages | All 4 pages exist | Tick #34 |
 | DB-017 | QUALITY: Dedup resolveNamespacePath | shared.ts extraction | Tick #34 |
 | DB-020 | SECURITY: GitReins guard config | .gitreins/config.yaml | Tick #34 |
+| DB-021 | SECURITY: CLI command injection hardened | 88576c0 | Tick #35 |
 | DB-000–DB-013, DB-022 | All prior tasks | Prior ticks | Prior ticks |
 
 - [ ] E2E-001 — E2E Testing Tick (self-improving loop) 🔁 Every 5-10 ticks
