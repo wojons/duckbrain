@@ -27,8 +27,9 @@ tasks:
   - GET /activity returns real recent memory activity
   - GET /namespaces uses namespace tool instead of hardcoded stub
   - All 3 endpoints have tests
-  status: pending
+  status: complete
   created_at: '2026-07-19T17:28:35.858834+00:00'
+  completed_at: '2026-07-25T03:01:00.031599+00:00'
 - id: DB-017
   title: 'QUALITY: Extract duplicated resolveNamespacePath into shared utility'
   criteria:

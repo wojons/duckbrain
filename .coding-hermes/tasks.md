@@ -13,6 +13,19 @@
   NEVER remove the matrix header row or NEVER-DONE / E2E-001 fixtures.
 -->
 
+### 🔧 TICK #37 — DB-016 COMPLETED (2026-07-25 03:00 UTC) — /users & /activity endpoints, 118 tests
+
+- 🚀 **Dispatched DB-016** (HTTP stubs → real implementations) via worker → **COMPLETED (08a0ef4)**: 3 files (users.ts, activity.ts, users-activity.test.ts), +11 new tests
+- ✅ **Build:** clean (pnpm build, 1.63s)
+- ✅ **Tests:** 118/118 pass, 12/12 suites, 12.2s (+11 from DB-016)
+- ✅ **Hilo:** 480 edges, 112 files
+- ✅ **GitReins guard:** secrets clean
+- ✅ **GitReins dual-source:** in sync — DB-016 now complete, DB-019 sole remaining pending
+- ⚠️ **Load:** 2.20 — well below dispatch threshold
+- ⚠️ **DB-019 pending** — 1 real task remains + 1 BLOCKED (DB-001)
+
+Board summary: 30 tasks completed, 1 pending (DB-019), 1 BLOCKED (DB-001).
+
 ### 🔧 TICK #36 — DB-018 COMPLETED + DISPATCH (2026-07-25 02:33 UTC) — BigInt serialization, 107 tests
 
 - 🚀 **Dispatched DB-018** (BigInt serialization) via worker → **COMPLETED (bf4692f)**: 3 files (+148/-4), new serialize.ts utility, 3 new tests
@@ -61,13 +74,12 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 # DuckBrain — Model Router Task Matrix
 
 > **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-> **Language:** TypeScript | **Tests:** 65/65 pass | **Build:** clean | **Status:** ACTIVE (4 pending + 1 blocked)
+> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** ACTIVE (1 pending + 1 blocked)
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-| DB-016 | Replace HTTP stubs (/users, /activity) with real implementations | High | 4±1 | — | +++backend, ++api | GLM-5.2 | Medium | DS-V4-Flash |
 | DB-019 | Replace linear-scan lookups with DuckDB WHERE clauses | Medium | 3±1 | — | ++backend, +perf, +duckdb | DS-V4-Flash | Medium | GLM-5.2 |
 
 ## Blocked
@@ -85,6 +97,7 @@ Board summary: 26 tasks completed (DB-000 through DB-017, DB-020), 4 pending rea
 | DB-017 | QUALITY: Dedup resolveNamespacePath | shared.ts extraction | Tick #34 |
 | DB-020 | SECURITY: GitReins guard config | .gitreins/config.yaml | Tick #34 |
 | DB-018 | BigInt serialization fix in DuckDB queries | bf4692f | Tick #36 |
+| DB-016 | Replace HTTP stubs with real implementations | 08a0ef4 | Tick #37 |
 | DB-021 | SECURITY: CLI command injection hardened | 88576c0 | Tick #35 |
 | DB-000–DB-013, DB-022 | All prior tasks | Prior ticks | Prior ticks |
 
