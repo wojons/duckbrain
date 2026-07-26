@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #75 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #76 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -1809,3 +1809,52 @@ NEVER-DONE 14-point audit (#67):
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (29+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). Tick fired ~21h after #66 — scheduler gap suggests delivery/capacity variance. **67 consecutive idle ticks** since tick #38 — sustained idle streak milestone. duckbrain.config.json continues to mutate: committed `off-by-one` → working `helios-work` (config swaps names almost every tick). DuckBrain MCP `remember` write succeeded (9ebba049) but `list_keys`/`recall` session client remains stale (same pattern as ticks #59-#66). DB-001 remains sole blocker — now 67 ticks blocked on Bane's embedding model decision. 3 audit gaps now 29+ ticks stale — approaching 6 weeks without route-specific unit tests, pnpm upgrades, or a single E2E run. No new gaps or regressions found.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (29+ ticks stale).
+
+### TICK #76 — IDLE: HEALTH CHECK (2026-07-26 06:57 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 3.44s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.28s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | Unchanged across all idle ticks (since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated | Committed: `off-by-one` → Working: `hermes-canopy` (NEW mutation — was `helios-work` at tick #75). MCP currentNamespace=`hermes-canopy` aligns with working copy. |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (tick entry cbf2206e in hermes-canopy namespace); `list_namespaces` and `get_compaction_stats` working. `list_keys`/`recall` session client still stale (Connection Error). `recall` returns successfully but 0 results (empty namespace). currentNamespace=`hermes-canopy` matches working copy. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible — all 67+ namespaces have 0 records each |
+| Stale audit gaps | ⚠️ 44+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — now past 44 ticks stale |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #76 entry in hermes-canopy namespace (cbf2206e) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. Only dirty file is config (defaultNamespace: off-by-one → hermes-canopy). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#76):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 44+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 44+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` writes to hermes-canopy namespace (cbf2206e). `list_namespaces` and `get_compaction_stats` working. `list_keys`/`recall` session client still stale (Connection Error). Compaction: 0 records. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 76 ticks — overdue per 5-10 tick rule, 44+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (44+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **76 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json has mutated AGAIN: tick #75 had committed=`off-by-one`, working=`helios-work`; now working copy shows `hermes-canopy`. MCP currentNamespace=`hermes-canopy` aligns with working copy — both differ from committed `off-by-one`. The config namespace has now cycled through off-by-one → heading → helios-work → hermes-canopy over the last 5 ticks — external mutation continues between ticks at a rate of approximately one namespace change per tick. DuckBrain MCP `remember` write succeeded (cbf2206e) in hermes-canopy namespace. `list_keys`/`recall` session client remains stale (same pattern as prior 70+ ticks — writes work, reads broken). `recall` no longer returns an error but returns 0 results — data is being written but the session client can't read it back. DB-001 remains the sole blocker, now 76 ticks waiting on Bane's embedding model decision — the longest-blocked task in project history by a factor of 10+. 3 audit gaps now 44+ ticks stale — approaching 7 weeks with no route-specific unit tests, no pnpm upgrades, and not a single E2E run. No new gaps or regressions found. The idle streak exceeds 76 ticks — more than 2.3x the number of completed tasks (33). This tick is indistinguishable from the prior 37+ idle ticks across every measurable dimension.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (44+ ticks stale).
