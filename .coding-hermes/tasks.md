@@ -3228,7 +3228,7 @@ NEVER-DONE 14-point audit (#105):
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
 
-### TICK #106 — IDLE: HEALTH CHECK (2026-07-26 16:04 UTC) — IDLE (cooldown active, scheduler dispatch)
+### TICK #106 (refreshed) — IDLE: HEALTH CHECK (2026-07-26 16:06 UTC) — IDLE (cooldown active, scheduler dispatch)
 
 | Check | Result | Detail |
 |-------|--------|--------|
@@ -3246,15 +3246,15 @@ Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps o
 | CI/CD | ✅ Present | ci.yml + release.yml |
 | TODO/FIXME | ✅ None in src/ | Clean |
 | pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
-| duckbrain.config.json | ⚠️ **3-way split** | Committed: `off-by-one` → Working: `uhlp` → MCP: `hermes-dagger`. Three different values. Working namespace shifted: helios-work (tick #105) → uhlp (this tick). |
-| DuckBrain MCP | ⚠️ Partial — read path intermittent | `remember` write succeeded (613e8e32) in hermes-dagger namespace. `list_namespaces` (68) and `get_compaction_stats` (0) working. `list_keys` returned `/projects/duckbrain/tick-99` early session, then Connection Error — **read path session-dependent, not reliably reproducible**. Write path operational. |
+| duckbrain.config.json | ⚠️ **3-way split** | Committed: `off-by-one` → Working: `h3` (was `uhlp` at prior #106) → MCP: `uhlp`. Committed≠working≠MCP — three distinct values. Working shifted: `helios-work` (tick #105) → `uhlp` (prior #106) → `h3` (this refreshed tick). External mutation continues to cycle through namespaces. |
+| DuckBrain MCP | ⚠️ Partial — read path intermittent | `remember` write succeeded (9f3ebe8f) in uhlp namespace. `list_namespaces` (68) and `get_compaction_stats` (0) working. `list_keys` returned Connection Error — read path session-dependent (tick #105 claimed full recovery, prior #106 found it working early-session then failing, this session Connection Error from start). Write path operational. currentNamespace=`uhlp`. |
 | Compaction stats | ℹ️ 0 records | 68 namespaces, 0 records each |
 | Stale audit gaps | ⚠️ 66+ ticks stale | DB-023, DB-024, DB-026 — unchanged |
 | DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **106+ ticks** |
-| DuckBrain entry | ✅ Written | Tick #106 in hermes-dagger namespace (613e8e32) |
-| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 7 commits ahead of origin (ticks #99-#105 unpushed). Dirty: config (off-by-one → uhlp). |
+| DuckBrain entry | ✅ Written | Tick #106 refresh in uhlp namespace (9f3ebe8f) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 10 commits ahead of origin (ticks #99-#105 unpushed). Dirty: config (off-by-one → h3). |
 
-#### NEVER-DONE 14-point audit (#106)
+#### NEVER-DONE 14-point audit (#106 refreshed)
 
 | # | Check | Result | Notes |
 |---|-------|--------|-------|
@@ -3273,6 +3273,6 @@ Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps o
 | 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 106 ticks — overdue 20x |
 | 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
 
-**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **106 consecutive idle ticks** since tick #38 — now 3.21x completed tasks (33). duckbrain.config.json in full **3-way split**: committed=`off-by-one`, working=`uhlp`, MCP=`hermes-dagger`. The MCP namespace (`hermes-dagger`) aligns with neither committed nor working — the `switch_namespace` call this tick created a new distinct value. The MCP read path remains **session-dependent**: `list_keys` returned data early in this session (key tick-99 found) but later returned Connection Error, confirming this is not a binary broken/working condition. Write path reliable (613e8e32 in hermes-dagger). DB-001 remains the sole blocker at **106+ ticks** — longest-blocked task in coding-hermes fleet history by 20x+. 3 audit gaps unchanged at 66+ ticks stale. 7 local commits unpushed (ticks #99-#105). No new gaps or regressions.
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **106 consecutive idle ticks** since tick #38 — now 3.21x completed tasks (33). duckbrain.config.json in **3-way split**: committed=`off-by-one`, working=`h3`, MCP=`uhlp`. Working namespace shifted from `helios-work` (tick #105) → `uhlp` (prior #106) → `h3` (this refresh) — external mutation continues to cycle. The MCP read path remains **session-dependent**: `list_keys` returned Connection Error from session start (prior #106 found it working early-session). Write path reliable (9f3ebe8f in uhlp). DB-001 remains the sole blocker at **106+ ticks**. 3 audit gaps unchanged at 66+ ticks stale. 10 local commits unpushed (ticks #99-#105 + this #106). No new gaps or regressions.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
