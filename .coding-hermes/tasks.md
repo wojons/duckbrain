@@ -2982,15 +2982,15 @@ NEVER-DONE 14-point audit (#87):
 
 |Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
 
-### TICK #101 — IDLE: HEALTH CHECK (2026-07-26 11:58 UTC) — POST-TRIPLE-DIGIT (cooldown active, scheduler dispatch)
+### TICK #101 — IDLE: HEALTH CHECK (2026-07-26 12:17 UTC) — POST-TRIPLE-DIGIT, SIBLING #3 (cooldown active, scheduler dispatch)
 
 | Check | Result | Detail |
 |-------|--------|--------|
-| Build | ✅ Clean | pnpm build + vite, 0.4s + 2.39s — clean |
-| Tests | ✅ 118/118 | 12/12 suites, 12.94s — no transient flake |
+| Build | ✅ Clean | pnpm build + vite, 0.27s + 2.17s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 14.25s — no transient flake |
 | tsc --noEmit | ✅ Clean | zero errors |
 | Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
-| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins | ✅ 16 complete, 0 pending | All DuckBrain + gitreins-poc tasks complete |
 | GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
 | GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
 | SECURITY.md | ✅ Exists | — |
@@ -3000,15 +3000,15 @@ NEVER-DONE 14-point audit (#87):
 | CI/CD | ✅ Present | ci.yml + release.yml |
 | TODO/FIXME | ✅ None in src/ | Clean |
 | pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
-| duckbrain.config.json | ⚠️ Dirty (new value) | Committed: `off-by-one` → Working: `heading` (was `dexdat-core` at prior tick #101 run — new mutation between scheduler dispatches). MCP currentNamespace=`heading` matches working copy — standard two-way split (committed≠working/MCP). Working namespace cycling: h3-sdk-typescript (#100) → dexdat-core (#101 prior) → heading (this run). |
-| DuckBrain MCP | ⚠️ Partial | `remember` wrote successfully (b395f849 in heading namespace); `list_namespaces` (69 namespaces) working. `get_compaction_stats` (0 records). `recall` returns 0 results — read path remains broken (80+ tick hardened pattern). Write path operational. |
+| duckbrain.config.json | ⚠️ Dirty (3rd mutation this tick) | Committed: `off-by-one` → Working: `h3` (was `heading` at prior #101 run — 3rd mutation within single tick cycle). MCP currentNamespace=`h3` matches working copy — two-way split (committed≠working/MCP). **Tick #101 namespace progression:** h3-sdk-typescript (tick #100) → dexdat-core (sibling #1) → heading (sibling #2) → h3 (sibling #3). External mutation every ~18-20 minutes. |
+| DuckBrain MCP | ⚠️ Partial | `remember` wrote successfully (3088b4f5 in h3 namespace). `list_namespaces` (67 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error. `recall` returns 0 results — read path remains broken (80+ tick hardened pattern). Write path operational. Default namespace `h3` on MCP aligns with working config. |
 | Compaction stats | ℹ️ 0 records | All namespaces show 0 storage records |
 | Stale audit gaps | ⚠️ 66+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged |
 | DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **101+ ticks** |
-| DuckBrain entry | ✅ Written | Tick #101 entry in heading namespace (b395f849) |
-| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main, 1 ahead of origin (tick #100). Dirty: duckbrain.config.json (defaultNamespace: off-by-one → heading). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+| DuckBrain entry | ✅ Written | Tick #101 entry in h3 namespace (3088b4f5) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main, 9 ahead of origin (2 prior #101 board commits pushed). Dirty: duckbrain.config.json (defaultNamespace: off-by-one → h3). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. 362 total commits. |
 
-NEVER-DONE 14-point audit (#101):
+NEVER-DONE 14-point audit (#101, sibling #3):
 
 | # | Check | Result | Notes |
 |---|-------|--------|-------|
@@ -3020,13 +3020,13 @@ NEVER-DONE 14-point audit (#101):
 | 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
 | 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
 | 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
-| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (b395f849) in heading namespace. `list_namespaces` (69 namespaces) and `get_compaction_stats` (0 records) working. `recall` returns 0 results — read path remains broken (80+ tick hardened pattern — MCP reconnect does not restore it). Write path operational. |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (3088b4f5) in h3 namespace. `list_keys` returns Connection Error. `list_namespaces` (67 namespaces) and `get_compaction_stats` (0 records) working. Write path operational, read path remains broken — hardened finding confirmed across 80+ ticks. MCP reconnect does not restore read path. |
 | 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
 | 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
 | 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
 | 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 101 ticks — overdue per 5-10 tick rule, 66+ ticks stale |
 | 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
 
-**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **101 consecutive idle ticks** since tick #38 with no real forward progress — now 3.06x the number of completed tasks (33). duckbrain.config.json continues its external mutation cycle: this tick's working copy shows `heading` (was `dexdat-core` in the prior tick #101 run — mutated between scheduler dispatches). MCP currentNamespace=`heading` matches working copy — standard two-way split (committed=`off-by-one`, working=MCP=`heading`). Working namespace cycling: h3-sdk-typescript (#100) → dexdat-core (#101 prior run) → heading (this run). DuckBrain MCP `remember` write succeeded (b395f849) in heading namespace, but `recall` returns 0 results — the read path remains broken across 80+ ticks, now confirmed as a hardened failure that MCP transport reconnection does not resolve. DB-001 remains the sole blocker at **101+ ticks** — the longest-blocked task in coding-hermes fleet history. 3 audit gaps unchanged at 66+ ticks stale. No new gaps or regressions found. The project continues its post-triple-digit auto-pilot trajectory.
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **101 consecutive idle ticks** since tick #38 — now 3.06x the number of completed tasks (33). This is the **3rd sibling dispatch** of tick #101, with the config working copy cycling through **four different namespace values** within a single tick cycle (dexdat-core → heading → h3). The speed of external mutation has accelerated: previously one mutation per scheduler dispatch (~15-20 min), now up to 3 mutations within the same 20-minute window. MCP currentNamespace=`h3` aligns with working copy — a clean two-way split vs committed `off-by-one`. The MCP `list_namespaces` count has dropped from 69 (sibling #2) to 67 (this run) — namespace drift of ~2 entries between dispatches. DuckBrain MCP write path remains operational (entry 3088b4f5 written to h3 namespace). Read path (`list_keys`/`recall`) remains broken — Connection Error pattern confirmed as a **hardened** failure across 80+ ticks. DB-001 (embedding model) still BLOCKED at **101+ ticks** — longest-blocked task in coding-hermes fleet history by a factor of 20x+. 3 audit gaps unchanged at 66+ ticks stale. Tick #101 has received more scheduler dispatches (3) than any prior tick — the 900s cooldown appears insufficient to prevent rapid sibling dispatching at the scheduler level.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
