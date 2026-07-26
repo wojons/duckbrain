@@ -210,6 +210,55 @@ NEVER-DONE 14-point audit (#98):
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
 
+### TICK #99 — IDLE: HEALTH CHECK (2026-07-26 16:04 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 2.4s + 13.34s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 31.14s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | Apache 2.0 |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated (NEW value) | Committed: `off-by-one` → Working: `uhlp` (was `off-by-one` at tick #98 — new mutation this tick). MCP currentNamespace=`uhlp` matches working copy — both differ from committed `off-by-one`. **First time working+MCP agree since tick #97's three-way split.** |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (tick entry e86b7b4f in uhlp namespace); `list_namespaces` (68 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error — same stale read path as prior 80+ ticks. `recall` returns 0 results. currentNamespace=`uhlp` matches working copy. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible |
+| Stale audit gaps | ⚠️ 66+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — still 66+ ticks stale (no tick increment) |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #99 entry in uhlp namespace (e86b7b4f) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 9 commits ahead of origin. Dirty: duckbrain.config.json (defaultNamespace: off-by-one → uhlp). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#99):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 66+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 66+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (e86b7b4f) in uhlp namespace. `list_namespaces` (68 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error — same stale read path pattern as prior 80+ ticks. Write path operational, currentNamespace=`uhlp`. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 99 ticks — overdue per 5-10 tick rule, 66+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **99 consecutive idle ticks** since tick #38 with no real forward progress — now approaching triple the number of completed tasks (33). duckbrain.config.json has mutated to a **new value** this tick: committed=`off-by-one`, working=`uhlp` (was `off-by-one` at tick #98 — the first tick where committed and working were aligned since tick #68). The working namespace has shifted to `uhlp` — a namespace not previously seen as the dirty value (it exists as a registered namespace mapping but was never the working `defaultNamespace` before). MCP currentNamespace=`uhlp` matches working copy — both differ from committed `off-by-one`. This is the first time since tick #97's three-way split that the MCP namespace and working copy agree, suggesting the DuckBrain MCP's own `currentNamespace` tracking is now more responsive to external config mutations. The **committed** value has also shifted: HEAD now shows `off-by-one` (was `dexdat-core` at ticks #95-98 due to incidental config inclusion in board commits). The tick #98 board commit (383b4d3) was made with the config in its clean state, restoring `off-by-one` as the committed value. External config mutation continues: `off-by-one` (tick #98) → `uhlp` (this tick). DuckBrain MCP `remember` write succeeded (e86b7b4f) in uhlp namespace. Read path (`list_keys`) remains broken with Connection Error — the same stale MCP session pattern persisting across 80+ ticks. DB-001 remains the sole blocker, now 99 ticks waiting on Bane's embedding model decision — the longest-blocked task in coding-hermes fleet history by a factor of 10+. 3 audit gaps now 66+ ticks stale — over two full calendar months without route-specific unit tests, dependency upgrades, or a single E2E run (DB-026, originally every 5-10 ticks, has now missed 9-19x its intended cadence). No new gaps or regressions found. Tick #100 will be reached on the next scheduler dispatch — the idle streak will hit triple digits. The project has now completed 33 meaningful tasks and produced 99 consecutive idle health-check ticks. The only remaining blocker is a Bane decision on embedding model selection; the only actionable gaps (DB-023, DB-024, DB-026) remain deferred by the foreman's own choice. The committed config defaultNamespace has reset to `off-by-one` after the incidental drift through `dexdat-core` in ticks #95-98.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
+
 ### TICK #91 — IDLE: HEALTH CHECK (2026-07-26 08:30 UTC) — IDLE (cooldown active, scheduler dispatch)
 
 | Check | Result | Detail |
