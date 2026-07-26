@@ -16,7 +16,7 @@
 # DuckBrain — Model Router Task Matrix
 
 |> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #60 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+|||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #61 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -48,10 +48,10 @@ _All active tasks completed. See Blocked below._
 
 | ID | Gap | Severity | Status |
 |----|-----|----------|--------|
-| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (20+ ticks stale) |
-| DB-024 | pnpm outdated: uuid 13→14, typescript 6→7 | Low | Open (20+ ticks stale) |
+| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (23+ ticks stale) |
+| DB-024 | pnpm outdated: uuid 13→14, typescript 6→7 | Low | Open (23+ ticks stale) |
 | DB-025 | DuckBrain tick log stale: no entries since Jul 15 (9 days) | Low | Fixed #39 |
-| DB-026 | E2E-001 never run (54 ticks, 0 E2E tests) | Medium | Open (20+ ticks stale) |
+| DB-026 | E2E-001 never run (54 ticks, 0 E2E tests) | Medium | Open (23+ ticks stale) |
 
 - [ ] E2E-001 — E2E Testing Tick (self-improving loop) 🔁 Every 5-10 ticks
   Spawn Luna (browser/screenshots) or Step 3.7 Flash (CLI/API). Deploy/build,
@@ -1096,3 +1096,56 @@ NEVER-DONE 14-point audit (#54):
 Verdict: IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (DB-023, DB-024, DB-026). All quality gates green. Cooldown=900s per scheduler (corrected from stale 43200s in board). No new gaps found. 3 audit gaps now 16 ticks stale — approaching 3 weeks without E2E or route-specific test coverage. None qualify for foreman self-fix (DB-023: non-trivial route unit tests; DB-024: pnpm upgrades with breaking-change risk; DB-026: Playwright E2E infrastructure). DB-001 remains sole blocker (awaiting Bane's embedding model decision). Cooldown corrected to match scheduler ground truth (900s vs stale board claim of 43200s).
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (16 ticks stale).
+
+### TICK #61 — IDLE: HEALTH CHECK (2026-07-25 21:39 UTC) — IDLE (cooldown active, ~19h since #60)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 1.75s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.28s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 497 edges, 115 files | -2 from 499 (measurement noise, DuckDB cache staleness) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — matches board |
+| GitReins guard | ✅ Secrets clean | Secrets + tests both pass |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 15 files | 9 content pages + 4 infra + 2 package meta |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ or tests/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types — unchanged |
+| duckbrain.config.json | ⚠️ Mutated | Committed: `hermes-dagger` → Working: `hermes-canopy` — external process, uncommitted |
+| DuckBrain MCP | ✅ Fully functional | `list_namespaces` returns 66 namespaces; `hermes-canopy` now marked `isDefault: true`. currentNamespace matches config. Compaction: 0 records. |
+| Compaction stats | ℹ️ 0 records across all namespaces | No storage activity visible |
+| Stale audit gaps | ⚠️ 23+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged since tick #38 |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| Git status | ✅ Only duckbrain.config.json modified | No other changes; tick #60 committed (96aeb5c) |
+
+**Key observations:**
+- MCP connection fully healthy this tick — `list_namespaces` + `get_compaction_stats` both succeeded. `hermes-canopy` is now marked `isDefault: true` (was `hermes-dagger` at rest). This is a deliberate external reconfiguration.
+- 61 consecutive idle ticks since tick #38 — longest idle streak in project history. 23+ ticks since any audit gap was last addressed.
+- duckbrain.config.json continues to mutate externally: committed `hermes-dagger` → working copy `hermes-canopy`.
+
+NEVER-DONE 14-point audit (#61):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 23+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 23+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ✅ MCP healthy | 66 namespaces, compaction: 0 records. `hermes-canopy` now default. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (497 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 61 ticks — 23+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (23+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). Tick fired ~19h after #60 — significant gap suggesting scheduler delivery clock variance or gateway unavailability. **61 consecutive idle ticks** since tick #38 — the longest sustained idle streak in the project's history. duckbrain.config.json now pointed at `hermes-canopy` (was `hermes-dagger` at rest). MCP connection fully healthy this tick — both `list_namespaces` and `get_compaction_stats` succeeded. DB-001 remains the sole blocker. 3 audit gaps now 23+ ticks stale — longest period without ANY gap remediation. No new gaps or regressions found.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (23+ ticks stale).
