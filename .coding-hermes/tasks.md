@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 |> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #94 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+|| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #95 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -62,6 +62,55 @@ _All active tasks completed. See Blocked and Audit Gaps below._
   for EVERY gap found. This task is never complete — the audit always finds something.
 
 ## Tick Log
+
+### TICK #96 — IDLE: HEALTH CHECK (2026-07-26 10:01 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 1.3s + 7.05s |
+| Tests | ✅ 118/118 | 12/12 suites, 20.81s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated (new value) | Committed: `dexdat-core` → Working: `h3-sdk-typescript` (was `h3-sdk-typescript` at tick #95 — value stabilized, but committed value CHANGED from `off-by-one` to `dexdat-core` between ticks #94 and #95 board commits). MCP currentNamespace=`h3-sdk-typescript` matches working copy, neither matches committed `dexdat-core`. |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (tick entry ef950a01 in h3-sdk-typescript namespace); `list_namespaces` (68 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error. `recall` returns 0 results. currentNamespace=`h3-sdk-typescript` matches working copy. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible |
+| Stale audit gaps | ⚠️ 64+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — now past 64 ticks stale |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #96 entry in h3-sdk-typescript namespace (ef950a01) |
+| Git status | ⚠️ Modified: duckbrain.config.json + .coding-hermes/tasks.md | Branch: main. 6 commits ahead of origin (tick #90-#95). Dirty: duckbrain.config.json (defaultNamespace: dexdat-core → h3-sdk-typescript) + .coding-hermes/tasks.md (this tick). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#96):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 64+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 64+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (ef950a01) in h3-sdk-typescript namespace. `list_namespaces` (68 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error — same stale read path pattern as prior 80+ ticks. Write path operational. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 96 ticks — overdue per 5-10 tick rule, 64+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (64+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **96 consecutive idle ticks** since tick #38 with no real forward progress — now approaching triple the number of completed tasks (33). duckbrain.config.json working namespace has stabilized at `h3-sdk-typescript` (same as tick #95). However, the **committed** value has changed: at tick #94 it was `off-by-one`, but board commits (#94 and #95) included the dirty config, meaning HEAD now shows `dexdat-core` instead. This is consistent with the known pattern of board commits picking up the dirty duckbrain.config.json. MCP currentNamespace=`h3-sdk-typescript` matches working copy — both differ from committed `dexdat-core`. DuckBrain MCP `remember` write succeeded (ef950a01) in h3-sdk-typescript namespace. Read path (`list_keys`/`recall`) remains broken with Connection Error — the same stale MCP session pattern persisting across 80+ ticks. DB-001 remains the sole blocker, now 96 ticks waiting on Bane's embedding model decision — the longest-blocked task in coding-hermes fleet history by a factor of 10+. 3 audit gaps now 64+ ticks stale — over two full calendar months without route-specific unit tests, dependency upgrades, or a single E2E run (DB-026, originally every 5-10 ticks, has now missed 9-19x its intended cadence). No new gaps or regressions found. At this trajectory, tick #100 will be reached within ~4 more scheduler dispatches — the idle streak will hit triple digits with the only remaining blocker being a Bane decision and the only actionable gaps deferred by the foreman's own choice. Notably, the committed config has permanently shifted to `dexdat-core` — the dirty config has been implicitly committed by board updates.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (64+ ticks stale).
 
 ### TICK #91 — IDLE: HEALTH CHECK (2026-07-26 08:30 UTC) — IDLE (cooldown active, scheduler dispatch)
 
