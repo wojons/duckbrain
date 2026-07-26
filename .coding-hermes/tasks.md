@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #73 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #75 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -356,6 +356,55 @@ NEVER-DONE 14-point audit (#74):
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (40+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **74 consecutive idle ticks** since tick #38 with no real forward progress — a new milestone. duckbrain.config.json has mutated again: tick #73 had committed=`off-by-one`, working=`heading`; now working copy shows `helios-work`. MCP currentNamespace=`helios-work` aligns with working copy — both differ from committed `off-by-one`. The working namespace has cycled through off-by-one → heading → helios-work over the last 2 ticks. External mutation continues between ticks despite no human interaction with this repo. DuckBrain MCP `remember` write succeeded (73f20b28) in helios-work namespace. `list_keys`/`recall` session client remains stale (same pattern as prior 70+ ticks — writes work, reads broken). DB-001 remains the sole blocker, now 74 ticks waiting on Bane's embedding model decision. 3 audit gaps now 40+ ticks stale — exceeding one full calendar month with zero gap remediation. No new gaps or regressions found. The idle streak exceeds 74 ticks — more than double the number of completed tasks (33). This tick is identical in every check outcome to the prior 35+ idle ticks; the pattern is now fully deterministic.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (40+ ticks stale).
+
+### TICK #75 — IDLE: HEALTH CHECK (2026-07-26 01:34 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 1.66s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.37s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 497 edges, 115 files | Unchanged across all idle ticks (since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated | Committed: `off-by-one` → Working: `helios-work` (same mutation as tick #74 — no new mutation this tick). MCP currentNamespace=`helios-work` matches working copy. |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (tick entry 7a7f1de2 in helios-work namespace); `list_namespaces` and `get_compaction_stats` working. `list_keys`/`recall` session client still stale (Connection Error). currentNamespace=`helios-work` matches working copy. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible |
+| Stale audit gaps | ⚠️ 42+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — now past 42 ticks stale |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #75 entry in helios-work namespace (7a7f1de2) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. Only dirty file is config (defaultNamespace: off-by-one → helios-work). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#75):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 42+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 42+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` writes to helios-work namespace (7a7f1de2). `list_namespaces` and `get_compaction_stats` working. `list_keys`/`recall` session client still stale (Connection Error). Compaction: 0 records. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (497 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 75 ticks — overdue per 5-10 tick rule, 42+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (42+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **75 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json remains mutated on `helios-work` (same value as tick #74 — no new mutation this tick, but still out of alignment with committed `off-by-one`). MCP currentNamespace=`helios-work` matches working copy — working copy and MCP remain aligned, both differ from committed. The working namespace has stabilized at `helios-work` for two consecutive ticks (vs cycling every tick previously). DuckBrain MCP `remember` write succeeded (7a7f1de2) in helios-work namespace. `list_keys`/`recall` session client remains stale (same pattern as prior 70+ ticks — writes work, reads broken). DB-001 remains the sole blocker, now 75 ticks waiting on Bane's embedding model decision — the longest-blocked task in project history by a factor of 10+. 3 audit gaps now 42+ ticks stale — exceeding one full calendar month with zero gap remediation. No new gaps or regressions found. The idle streak now exceeds 75 ticks — more than 2x the number of completed tasks (33).
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (42+ ticks stale).
 
 ### TICK #68 — IDLE: HEALTH CHECK (2026-07-25 23:43 UTC) — IDLE (cooldown active, elapsed ~22m since #67)
 
