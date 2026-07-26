@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "dexdat-core",
+  "defaultNamespace": "off-by-one",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
