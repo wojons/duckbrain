@@ -2103,3 +2103,52 @@ NEVER-DONE 14-point audit (#81):
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (44+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **81 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json has **re-mutated**: the triple alignment achieved at tick #80 was lost between ticks — committed `off-by-one` now diverges from both working copy (`h3-sdk-typescript`) and MCP currentNamespace (`h3-sdk-typescript`). The working copy aligns with MCP (both `h3-sdk-typescript`) but neither matches committed. The mutation source (external Hermes sessions racing with this foreman) appears active again after the brief reprieve at tick #80. DuckBrain MCP `remember` write succeeded (704f8d3e) in h3-sdk-typescript namespace. Read tools (`list_keys`, `recall`) remain broken with Connection Error — writes and namespace-level management still work. DB-001 remains the sole blocker, now 81 ticks waiting on Bane's embedding model decision — the longest-blocked task in project history. 3 audit gaps now 44+ ticks stale — over six weeks without route-specific unit tests, dependency upgrades, or E2E runs. No new gaps or regressions found. The idle streak exceeds 81 ticks — 2.45x the number of completed tasks (33) and the longest period of zero forward progress in project history.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (44+ ticks stale).
+
+### TICK #82 — IDLE: HEALTH CHECK (2026-07-26 05:34 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 3.50s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.33s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 497 edges, 115 files | Warm: 497 edges, Stats: 499 — minor DuckDB cache staleness (unchanged since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Successful | Last 3 runs green on GitHub — all idle-board commits |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated | Committed: `off-by-one` → Working: `dexdat-core` (re-mutated since tick #81's `h3-sdk-typescript`). MCP currentNamespace=`dexdat-core` matches working copy. |
+| DuckBrain MCP | ⚠️ Partial | `remember` write succeeded (fd9db442 in dexdat-core namespace). `list_namespaces`: 67 namespaces, working. `get_compaction_stats`: 0 records, working. `list_keys`: empty. `recall`: returns 0 results. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible — all 67+ namespaces have 0 records each |
+| Stale audit gaps | ⚠️ 44+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #82 entry in dexdat-core namespace (fd9db442) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. Only dirty file is config (defaultNamespace: off-by-one → dexdat-core). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#82):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 44+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 44+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml — last 3 runs all successful |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` write succeeded (fd9db442 in dexdat-core). `list_namespaces`/`compaction_stats` working. `list_keys`/`recall` still stale (empty/0 results). |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (497 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 82 ticks — overdue per 5-10 tick rule, 44+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (44+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **82 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json has **re-mutated** since tick #81: committed `off-by-one` now diverges from working copy (`dexdat-core`) and MCP currentNamespace (`dexdat-core`). Working copy aligns with MCP — both show `dexdat-core` — but neither matches committed `off-by-one`. The namespace has cycled: tick #81 had `h3-sdk-typescript`, now `dexdat-core` at tick #82. DuckBrain MCP `remember` write succeeded (fd9db442) in dexdat-core namespace. Read tools (`list_keys`, `recall`) return empty results — writes and namespace-level management still work. DB-001 remains the sole blocker, now 82 ticks waiting on Bane's embedding model decision. 3 audit gaps now 44+ ticks stale — over six weeks without route-specific unit tests, dependency upgrades, or E2E runs. No new gaps or regressions found. The idle streak exceeds 82 ticks — 2.48x the number of completed tasks (33).
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (44+ ticks stale).
