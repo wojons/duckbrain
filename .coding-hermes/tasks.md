@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #72 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #73 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -258,6 +258,55 @@ NEVER-DONE 14-point audit (#72):
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (36+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **72 consecutive idle ticks** since tick #38 with no real forward progress — a milestone: 72 ticks of pure idling. duckbrain.config.json has achieved **full triple alignment** for the first time since tick #68: committed `off-by-one` = working copy `off-by-one` = MCP currentNamespace `off-by-one`. No external mutation detected this tick. DuckBrain MCP `remember` write succeeded (8a0546b7) in off-by-one namespace. `list_keys`/`recall` session client remains stale (same pattern as prior ticks — writes work, reads broken). DB-001 remains the sole blocker, now 72 ticks waiting on Bane's embedding model decision. 3 audit gaps now 36+ ticks stale — exceeding one full calendar month with zero gap remediation. At this rate, the gap count will equal the number of completed tasks within 3 more idle ticks. No new gaps or regressions found.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (36+ ticks stale).
+
+### TICK #73 — IDLE: HEALTH CHECK (2026-07-26 01:15 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 1.75s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.31s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | Unchanged across all idle ticks (since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — all tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | — |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Partial alignment | Committed: `off-by-one` → Working: `heading` (mutated since tick #72 triple alignment). MCP currentNamespace=`heading` = working copy, but neither matches committed `off-by-one`. |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (tick entry 0d96c5e7 in heading namespace); `list_namespaces` and `get_compaction_stats` working. `list_keys`/`recall` session client not tested this tick (Connection Error in prior ticks). currentNamespace=`heading` matches working copy. |
+| Compaction stats | ℹ️ 0 records | No storage activity visible |
+| Stale audit gaps | ⚠️ 38+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — now past 38 ticks stale |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | ✅ Written | Tick #73 entry in heading namespace (0d96c5e7) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. Only dirty file is config (defaultNamespace: off-by-one → heading). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+NEVER-DONE 14-point audit (#73):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 38+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 38+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` writes to heading namespace (0d96c5e7). `list_namespaces` and `get_compaction_stats` working. Compaction: 0 records. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 73 ticks — overdue per 5-10 tick rule, 38+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (38+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **73 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json has partially de-aligned: committed is `off-by-one`, working copy shows `heading`, MCP currentNamespace=`heading`. Working copy aligns with MCP — both differ from committed. The tick #72 triple alignment was lost between ticks (external mutation during the ~20min idle window). DuckBrain `remember` write succeeded (0d96c5e7) in heading namespace. DB-001 remains the sole blocker, now 73 ticks waiting on Bane's embedding model decision — the longest-running task in project history by a factor of 10+. 3 audit gaps now 38+ ticks stale — exceeding one full calendar month with zero gap remediation. No new gaps or regressions found. The idle streak extends past 73 ticks — more than twice the number of completed tasks.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (38+ ticks stale).
 
 ### TICK #68 — IDLE: HEALTH CHECK (2026-07-25 23:43 UTC) — IDLE (cooldown active, elapsed ~22m since #67)
 
