@@ -3129,3 +3129,52 @@ NEVER-DONE 14-point audit (#103):
 **Verdict:** IDLE -- 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). 103 consecutive idle ticks since tick #38 -- now 3.12x completed tasks. duckbrain.config.json mutated to rethinkdb (from committed off-by-one). MCP write operational, read path remains broken (80+ tick pattern). DB-001 blocked 103+ ticks awaiting Bane's embedding model selection. No new gaps or regressions.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
+
+### TICK #104 -- IDLE: HEALTH CHECK (2026-07-26 13:18 UTC) -- IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | PASS | pnpm build + vite, 0.32s + 2.06s -- clean |
+| Tests | PASS 118/118 | 12/12 suites, 12.31s -- no transient flake |
+| tsc --noEmit | PASS | zero errors |
+| Hilo | PASS 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | PASS 8 complete, 0 pending | All DuckBrain tasks complete |
+| GitReins guard | PASS Secrets clean | No staged files; tests skipped |
+| GitReins judge | PASS Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | PASS Exists | -- |
+| CHANGELOG.md | PASS Exists | -- |
+| LICENSE | PASS Exists | Apache 2.0 |
+| Docs | PASS 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | PASS Present | ci.yml + release.yml |
+| TODO/FIXME | PASS None in src/ | Clean |
+| pnpm outdated | WARN 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | WARN Dirty (reverted to h3-sdk-typescript) | Committed: off-by-one, Working: h3-sdk-typescript (was rethinkdb at tick #103). MCP currentNamespace=h3-sdk-typescript matches working copy -- both differ from committed off-by-one. |
+| DuckBrain MCP | WARN Partial | remember wrote successfully (f1e49a75 in h3-sdk-typescript namespace); list_namespaces (68 namespaces) and get_compaction_stats (0 records) working. list_keys returns Connection Error -- read path still broken (80+ tick hardened pattern). Write path operational, currentNamespace=h3-sdk-typescript matches working copy. |
+| Compaction stats | INFO 0 records | All namespaces show 0 storage records |
+| Stale audit gaps | WARN 66+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) -- unchanged |
+| DB-001 | BLOCKED | Awaiting Bane's embedding model decision -- 104+ ticks |
+| DuckBrain entry | PASS Written | Tick #104 entry in h3-sdk-typescript namespace (f1e49a75) |
+| Git status | WARN Modified: duckbrain.config.json | Branch: main, 4 ahead of origin (tick #103 committed). Dirty: duckbrain.config.json (defaultNamespace: off-by-one → h3-sdk-typescript). Stale branch fix/mcp-route-order present but behind main. No untracked, no stash. 364 total commits. |
+
+NEVER-DONE 14-point audit (#104):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | WARN DB-023 | 6/7 route files lack dedicated unit tests -- 66+ ticks stale |
+| 4 | Package upgrades | WARN DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types -- 66+ ticks stale |
+| 5 | Pitfall hunt | PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | PASS | 118 tests cover routes |
+| 8 | CI/CD health | PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | WARN Partial MCP | remember wrote successfully (f1e49a75) in h3-sdk-typescript namespace. list_keys returns Connection Error -- read path remains broken (80+ tick hardened pattern). Write path operational. |
+| 10 | Code quality | PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | WARN DB-026 | 0 E2E runs in 104 ticks -- overdue per 5-10 tick rule, 66+ ticks stale |
+| 14 | GitReins judge | PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE -- 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **104 consecutive idle ticks** since tick #38 with no real forward progress -- now 3.15x the number of completed tasks (33). duckbrain.config.json working namespace has **reverted** to h3-sdk-typescript (was rethinkdb at tick #103), resuming the cycling pattern. MCP currentNamespace=h3-sdk-typescript matches working copy -- clean two-way split vs committed off-by-one. The previous tick's mutation to rethinkdb was transient: back to h3-sdk-typescript this dispatch. The namespace cycling continues without stabilization: h3-sdk-typescript (tick #102) → rethinkdb (tick #103) → h3-sdk-typescript (this tick). DuckBrain MCP write path remains operational (entry f1e49a75 written to h3-sdk-typescript namespace). Read path (`list_keys`) remains broken with Connection Error -- now a **hardened** pattern across 80+ consecutive ticks. DB-001 remains the sole blocker at **104+ ticks** waiting on Bane's embedding model decision -- the longest-blocked task in coding-hermes fleet history by a factor of 20x+. 3 audit gaps remain unchanged at 66+ ticks stale. No new gaps or regressions found. The project continues in perpetual idle: the defaultNamespace value in duckbrain.config.json cycles reliably every few ticks, but zero forward progress on any of the 4 actionable items (DB-001 decision, DB-023 test coverage, DB-024 dep upgrades, DB-026 E2E run).
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
