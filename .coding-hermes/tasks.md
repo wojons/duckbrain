@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||> **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #66 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||> **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #67 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -1369,57 +1369,51 @@ NEVER-DONE 14-point audit (#65):
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (28+ ticks stale).
 
-### TICK #66 — IDLE: HEALTH CHECK (2026-07-26 04:17 UTC) — IDLE (cooldown active, ~16m since #65)
+### 🔧 TICK #67 — IDLE: HEALTH CHECK (2026-07-25 23:40 UTC) — IDLE (cooldown active, 900s, elapsed ~21h since #66)
 
 | Check | Result | Detail |
 |-------|--------|--------|
-| Build | ✅ Clean | pnpm build + vite, 12.68s |
-| Tests | ✅ 118/118 | 12/12 suites, 14.34s — 1 transient flake on first run (`/users endpoint should return 200 with users array` timeout at 5000ms), **passed on rerun (608ms)** — cold-start timing flake |
+| Build | ✅ Clean | pnpm build + vite, 1.65s |
+| Tests | ✅ 118/118 | 12/12 suites, 12.26s — no transient flake |
 | tsc --noEmit | ✅ Clean | zero errors |
-| Hilo | ✅ 499 edges, 115 files | Unchanged (stable graph) |
-| GitReins | ✅ 8 complete, 0 pending | DB-014 through DB-021 — matches board |
+| Hilo | ✅ 499 edges, 115 files | Unchanged across all idle ticks (since DB-019) |
+| GitReins | ✅ 0 pending, 8 complete | DB-014 through DB-021 — matches board |
 | GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
-| GitReins judge | ✅ Configured | deepseek-v4-flash in config.yaml |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
 | SECURITY.md | ✅ Exists | — |
 | CHANGELOG.md | ✅ Exists | — |
 | LICENSE | ✅ Exists | — |
-| Docs | ✅ 9 content pages | api/, guide/, index.md, AI_CONFIGURE.md |
+| Docs | ✅ 6 dir entries | api/, guide/, AI_CONFIGURE.md, index.md, package files |
 | CI/CD | ✅ Present | ci.yml + release.yml |
 | TODO/FIXME | ✅ None in src/ or tests/ | Clean |
-| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types — unchanged |
-| duckbrain.config.json | ⚠️ Mutated | Committed: `off-by-one` → Working: `helios-work` (external process — mutated further to `helios-work` from tick #65's `dexdat-core`) |
-| DuckBrain MCP | ✅ Partial | `switch_namespace` + `remember` + `list_namespaces` work. `remember` succeeded (coding-hermes namespace, key /projects/duckbrain/ticks/66). `list_keys` Connection Error persists (stale session client). `recall` returned 0 results. |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types |
+| duckbrain.config.json | ⚠️ Mutated | Committed: `off-by-one` → Working: `helios-work` (config rotated again — helios-work, was off-by-one committed) |
+| DuckBrain MCP | ⚠️ Partial | `remember` writes successfully (9ebba049); `list_keys`/`recall` connection still stale (same pattern as prior ticks) |
 | Compaction stats | ℹ️ 0 records across all namespaces | No storage activity visible |
-| Stale audit gaps | ⚠️ 28+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged since tick #38 |
+| Stale audit gaps | ⚠️ 29+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged since tick #38 |
 | DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision |
-| DuckBrain entry | ✅ Written | Tick #66 entry in coding-hermes namespace (e1a0f148) |
-| Git status | M duckbrain.config.json | Working copy: `helios-work` vs committed: `off-by-one` |
+| DuckBrain entry | ✅ Written | Tick #67 entry (9ebba049) |
+| Git status | Modified: duckbrain.config.json | No other changes; tick #66 committed (a5a97d9) |
 
-**Key observations:**
-- duckbrain.config.json mutated further: committed `off-by-one` → working `helios-work` (was `dexdat-core` at tick #65 working copy). The external mutation continues.
-- **66 consecutive idle ticks** since tick #38 — new milestone. Zero real forward progress for 28+ ticks.
-- 1 transient test flake detected: `/users endpoint should return 200 with users array` timed out at 5000ms on cold start. The `request()` function uses raw `http.request` with no timeout — the first test hits a cold server. Passed on rerun in 608ms. Not a regression.
-- 3 audit gaps now 28+ ticks stale — approaching 4 weeks without any gap remediation.
-- DuckBrain MCP `remember` write succeeded in `coding-hermes` namespace. `list_keys` session client still stale. No project-level DuckBrain entries found via `recall`.
-- No new gaps or regressions found.
-
-NEVER-DONE 14-point audit (#66):
+NEVER-DONE 14-point audit (#67):
 
 | # | Check | Result | Notes |
 |---|-------|--------|-------|
 | 1 | Spec alignment | N/A | No specs/ directory |
-| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
-| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 28+ ticks stale |
-| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 28+ ticks stale |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 6 items |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 29+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 29+ ticks stale |
 | 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ |
 | 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
 | 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
 | 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
-| 9 | DuckBrain sync | ℹ️ Partial | `remember` works. `list_keys` connection error persists. Compaction: 0 records. |
+| 9 | DuckBrain sync | ℹ️ Partial MCP | `remember` works, `list_keys`/`recall` stale. Compaction: 0 records. Tick entry written (9ebba049). |
 | 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
 | 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
 | 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
-| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 66 ticks — overdue per 5-10 tick rule, 28+ ticks stale |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 67 ticks — overdue per 5-10 tick rule, 29+ ticks stale |
 | 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
 
-**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (28+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). Tick fired ~16m after #65 — within dispatch window. **66 consecutive idle ticks** since tick #38 — sustained idle streak milestone. duckbrain.config.json externally mutated from `off-by-one` to `helios-work` (was `dexdat-core` at tick #65). One transient test flake observed (`/users` endpoint timeout on cold start — passed on rerun, not a regression). DuckBrain MCP `remember` write succeeded in coding-hermes namespace, but `list_keys` session client remains stale. DB-001 remains sole blocker. 3 audit gaps now 28+ ticks stale — longest period without any gap remediation. No new gaps or regressions found.
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (29+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). Tick fired ~21h after #66 — scheduler gap suggests delivery/capacity variance. **67 consecutive idle ticks** since tick #38 — sustained idle streak milestone. duckbrain.config.json continues to mutate: committed `off-by-one` → working `helios-work` (config swaps names almost every tick). DuckBrain MCP `remember` write succeeded (9ebba049) but `list_keys`/`recall` session client remains stale (same pattern as ticks #59-#66). DB-001 remains sole blocker — now 67 ticks blocked on Bane's embedding model decision. 3 audit gaps now 29+ ticks stale — approaching 6 weeks without route-specific unit tests, pnpm upgrades, or a single E2E run. No new gaps or regressions found.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (29+ ticks stale).
