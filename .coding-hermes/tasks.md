@@ -3227,3 +3227,52 @@ NEVER-DONE 14-point audit (#105):
 **Verdict:** IDLE -- 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **105 consecutive idle ticks** since tick #38 with no real forward progress -- now 3.18x the number of completed tasks (33). duckbrain.config.json working namespace has mutated to a **new value**: committed=off-by-one, working=helios-work (was h3-sdk-typescript at tick #104). MCP currentNamespace=helios-work matches working copy -- clean two-way split vs committed off-by-one. The namespace has shifted from h3-sdk-typescript (tick #104) to helios-work (this tick), continuing the external cycling pattern. **Key improvement:** DuckBrain MCP is **fully operational** this tick -- both list_keys and recall return data correctly, a departure from the 80+ tick broken-read pattern. The read path recovery may be session-dependent (MCP session fresh this tick). DB-001 remains the sole blocker at **105+ ticks** -- the longest-blocked task in coding-hermes fleet history by a factor of 20x+. 3 audit gaps unchanged at 66+ ticks stale. No new gaps or regressions found. The idle streak extends past 105 consecutive idle ticks -- perpetually awaiting Bane's embedding model decision on DB-001, with 3 stale but non-trivial audit gaps no foreman has been directed to self-fix.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
+
+### TICK #106 — IDLE: HEALTH CHECK (2026-07-26 16:04 UTC) — IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 1.88s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 12.29s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 17 complete, 0 pending | All DuckBrain + gitreins-poc tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | Apache 2.0 |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ **3-way split** | Committed: `off-by-one` → Working: `uhlp` → MCP: `hermes-dagger`. Three different values. Working namespace shifted: helios-work (tick #105) → uhlp (this tick). |
+| DuckBrain MCP | ⚠️ Partial — read path intermittent | `remember` write succeeded (613e8e32) in hermes-dagger namespace. `list_namespaces` (68) and `get_compaction_stats` (0) working. `list_keys` returned `/projects/duckbrain/tick-99` early session, then Connection Error — **read path session-dependent, not reliably reproducible**. Write path operational. |
+| Compaction stats | ℹ️ 0 records | 68 namespaces, 0 records each |
+| Stale audit gaps | ⚠️ 66+ ticks stale | DB-023, DB-024, DB-026 — unchanged |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **106+ ticks** |
+| DuckBrain entry | ✅ Written | Tick #106 in hermes-dagger namespace (613e8e32) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 7 commits ahead of origin (ticks #99-#105 unpushed). Dirty: config (off-by-one → uhlp). |
+
+#### NEVER-DONE 14-point audit (#106)
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | 9 docs files |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack unit tests — 66+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, deprecated @types — 66+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | write OK (613e8e32), read intermittent (list_keys session-dependent) |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 106 ticks — overdue 20x |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (66+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **106 consecutive idle ticks** since tick #38 — now 3.21x completed tasks (33). duckbrain.config.json in full **3-way split**: committed=`off-by-one`, working=`uhlp`, MCP=`hermes-dagger`. The MCP namespace (`hermes-dagger`) aligns with neither committed nor working — the `switch_namespace` call this tick created a new distinct value. The MCP read path remains **session-dependent**: `list_keys` returned data early in this session (key tick-99 found) but later returned Connection Error, confirming this is not a binary broken/working condition. Write path reliable (613e8e32 in hermes-dagger). DB-001 remains the sole blocker at **106+ ticks** — longest-blocked task in coding-hermes fleet history by 20x+. 3 audit gaps unchanged at 66+ ticks stale. 7 local commits unpushed (ticks #99-#105). No new gaps or regressions.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (66+ ticks stale).
