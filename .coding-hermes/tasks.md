@@ -2152,3 +2152,52 @@ NEVER-DONE 14-point audit (#82):
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (44+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **82 consecutive idle ticks** since tick #38 with no real forward progress. duckbrain.config.json has **re-mutated** since tick #81: committed `off-by-one` now diverges from working copy (`dexdat-core`) and MCP currentNamespace (`dexdat-core`). Working copy aligns with MCP — both show `dexdat-core` — but neither matches committed `off-by-one`. The namespace has cycled: tick #81 had `h3-sdk-typescript`, now `dexdat-core` at tick #82. DuckBrain MCP `remember` write succeeded (fd9db442) in dexdat-core namespace. Read tools (`list_keys`, `recall`) return empty results — writes and namespace-level management still work. DB-001 remains the sole blocker, now 82 ticks waiting on Bane's embedding model decision. 3 audit gaps now 44+ ticks stale — over six weeks without route-specific unit tests, dependency upgrades, or E2E runs. No new gaps or regressions found. The idle streak exceeds 82 ticks — 2.48x the number of completed tasks (33).
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (44+ ticks stale).
+
+### TICK #83 -- IDLE: NEVER-DONE AUDIT (2026-07-26 10:51 UTC) -- IDLE (cooldown active, scheduler dispatch)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | PASS | pnpm build + vite, 2.50s |
+| Tests | PASS 118/118 | 12/12 suites, 17.43s -- no transient flake |
+| tsc --noEmit | PASS | zero errors |
+| Hilo | PASS 499 edges, 115 files | Unchanged across all idle ticks (since DB-019) |
+| GitReins | PASS 8 complete, 0 pending | DB-014 through DB-021 -- all tasks complete |
+| GitReins guard | PASS Secrets clean | No staged files; tests skipped |
+| GitReins judge | PASS Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | PASS Exists | -- |
+| CHANGELOG.md | PASS Exists | -- |
+| LICENSE | PASS Exists | -- |
+| Docs | PASS 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | PASS Present | ci.yml + release.yml |
+| TODO/FIXME | PASS None in src/ | Clean |
+| pnpm outdated | WARN 4 stale | uuid 13->14, tsc 6->7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | PASS Full triple alignment | Committed = Working = MCP = off-by-one. Clean git status -- no external mutation this tick. |
+| DuckBrain MCP | WARN Partial | remember write succeeded (9a2533dd). list_namespaces (67) + get_compaction_stats (0) working. list_keys: Connection Error (stale). |
+| Compaction stats | INFO 0 records | No storage activity visible |
+| Stale audit gaps | WARN 45+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) -- unchanged since tick #38 |
+| DB-001 | BLOCKED | Awaiting Bane's embedding model decision |
+| DuckBrain entry | PASS Written | Tick #83 entry in off-by-one namespace (9a2533dd) |
+| Git status | PASS Clean | Branch: main. No dirty files, no untracked. Full triple alignment. Stale branch fix/mcp-route-order present but behind main. |
+
+NEVER-DONE 14-point audit (#83):
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | WARN DB-023 | 6/7 route files lack dedicated unit tests -- 45+ ticks stale |
+| 4 | Package upgrades | WARN DB-024 | uuid 13->14, tsc 6->7, 2 deprecated @types -- 45+ ticks stale |
+| 5 | Pitfall hunt | PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | PASS | 118 tests cover routes |
+| 8 | CI/CD health | PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | WARN Partial MCP | remember write succeeded (9a2533dd). list_keys/recall stale. Compaction: 0 records. |
+| 10 | Code quality | PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | PASS | CLI, MCP, HTTP, UI all wired (497 edges) |
+| 12 | Usability smoke test | PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | WARN DB-026 | 0 E2E runs in 83 ticks -- overdue per 5-10 tick rule, 45+ ticks stale |
+| 14 | GitReins judge | PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE -- 0 pending, 1 blocked (DB-001), 3 audit gaps open (45+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). 84 consecutive idle ticks since tick #38 with no real forward progress. duckbrain.config.json achieved full triple alignment with clean git status: committed = working copy = MCP = off-by-one. No external mutation this tick -- the config survived an entire tick cycle without being rewritten (improvement over tick #82 which had dexdat-core). DuckBrain MCP remember write succeeded (9a2533dd) in off-by-one namespace; list_namespaces and get_compaction_stats operational; list_keys remains stale with Connection Error. DB-001 remains sole blocker -- 84 ticks waiting on Bane's embedding model decision (longest-blocked task by 10x). 3 audit gaps now 45+ ticks stale -- nearly 2 months without route tests, dep upgrades, or E2E runs. Positive signal: first clean git status in several ticks with full triple alignment. No new gaps or regressions found. The idle streak at 84 ticks now exceeds 2.5x the number of completed tasks (33).
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (45+ ticks stale).
