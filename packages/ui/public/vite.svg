@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#1a1a2e"/>
+  <ellipse cx="16" cy="15" rx="11" ry="9" fill="#e94560"/>
+  <ellipse cx="16" cy="12" rx="8" ry="6" fill="#0f3460"/>
+  <circle cx="18" cy="10" r="2" fill="white"/>
+  <circle cx="18.5" cy="9.5" r="0.8" fill="#1a1a2e"/>
+  <polygon points="22,12 30,10 30,14" fill="#ff6b00"/>
+  <rect x="8" y="16" width="16" height="3" rx="1.5" fill="#16213e"/>
+  <text x="16" y="28" text-anchor="middle" font-size="7" font-family="monospace" fill="#e94560" font-weight="bold">DB</text>
+</svg>
