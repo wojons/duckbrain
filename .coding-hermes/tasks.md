@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-|||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #110 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #111 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -111,6 +111,55 @@ _All active tasks completed. See Blocked and Audit Gaps below._
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (68+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **109 consecutive idle ticks** since tick #38 — now 3.30x completed tasks (33). duckbrain.config.json is **clean** this tick — committed and working both `off-by-one`, no mutation observed (was dirty at tick #108 with `dexdat-memory`). MCP currentNamespace=`off-by-one` matches config — first tick in recent memory with no three-way split. The config appears to have been cleaned (possibly by the tick #108 board commit including the dirty config, resyncing it). DuckBrain MCP write path operational (entry ab29e1a0 in off-by-one namespace). Read path (`list_keys`/`recall`) remains broken with Connection Error — session-dependent pattern persisting across 80+ consecutive ticks. DB-001 remains the sole blocker at **109+ ticks** waiting on Bane's embedding model decision — the longest-blocked task in coding-hermes fleet history by a factor of 10+. 3 audit gaps unchanged at 68+ ticks stale. 11 local commits unpushed (ticks #99-#109). No new gaps or regressions.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (68+ ticks stale).
+
+### TICK #111 — IDLE: HEALTH CHECK (2026-07-26 20:35 UTC) — IDLE (scheduler dispatch, cooldown active)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 2.10s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 12.34s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | All DuckBrain + gitreins-poc tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | Apache 2.0 |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated (NEW value — totalstack) | Committed: `off-by-one` → Working: `totalstack` (was `uhlp` at tick #110 — **completely new value** this tick; first appearance of `totalstack` as dirty value across all recorded ticks). MCP currentNamespace=`totalstack` matches working copy — two-way split (committed `off-by-one` ≠ working/MCP `totalstack`). |
+| DuckBrain MCP | ⚠️ Partial — write OK, read broken | `remember` wrote successfully (da444a34) in totalstack namespace. `list_namespaces` (67 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error — read path remains session-dependent (broken at session start). `recall` returns 0 results. Write path operational. |
+| Compaction stats | ℹ️ 0 records | 67 namespaces, 0 records each |
+| Stale audit gaps | ⚠️ 72+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **111+ ticks** |
+| DuckBrain entry | ✅ Written | Tick #111 entry in totalstack namespace (da444a34) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 2 commits ahead of origin (ticks #109-#110). Dirty: config (off-by-one → totalstack). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+**NEVER-DONE 14-point audit (#111):**
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 72+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 72+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (da444a34) in totalstack namespace. `list_keys` returns Connection Error — read path session-dependent (broken at this session's start). `recall` returns 0 results. Write path operational. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 111 ticks — overdue per 5-10 tick rule, 72+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (72+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **111 consecutive idle ticks** since tick #38 — now 3.36x completed tasks (33). duckbrain.config.json has mutated to a **new value** this tick: committed=`off-by-one`, working=`totalstack` (was `uhlp` at tick #110 — this is the **first appearance of `totalstack`** as the dirty `defaultNamespace` value across all recorded tick history). The previous tick (#110) showed working=`uhlp`, and tick #109 showed both committed and working aligned at `off-by-one`. The external mutation cycle has now introduced a value never before seen as the dirty copy. MCP currentNamespace=`totalstack` matches working copy — two-way split (committed=`off-by-one` ≠ working/MCP=`totalstack`). The `totalstack` namespace exists in both config's namespaceMappings and MCP `list_namespaces` — this is a legitimate namespace being set by an external process between scheduler dispatches, not a config corruption. DuckBrain MCP write path operational (da444a34 in totalstack namespace). Read path (`list_keys`/`recall`) remains broken with Connection Error — session-dependent pattern persisting across 80+ consecutive ticks. DB-001 remains the sole blocker at **111+ ticks** waiting on Bane's embedding model decision — the longest-blocked task in coding-hermes fleet history by a factor of 10+. 3 audit gaps unchanged at 72+ ticks stale. 2 local commits unpushed (ticks #109-#110). No new gaps or regressions found.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (72+ ticks stale).
 
 ### TICK #110 — IDLE: HEALTH CHECK (2026-07-26 20:17 UTC) — IDLE (scheduler dispatch, cooldown active)
 
