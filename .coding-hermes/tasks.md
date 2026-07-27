@@ -15,28 +15,28 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** ACTIVE (3 new bugs from E2E) | **Tick:** #124 (E2E breakthrough) | **Cooldown:** 900s (scheduler ground truth)|
+|||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+|||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (all bugs fixed, only DB-001 blocked) | **Tick:** #125 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-| BUG-027 | Tombstone filtering broken: GET /api/memories/:id returns deleted memories | Critical | Medium | — | ++api, ++duckdb, bug | ✅ Fixed — 8d68a0d | Fixed Tick #124 |
-| BUG-028 | Multi-segment key lookup fails: Express :key captures only 1 segment | Medium | Low | — | ++api, bug | deepseek-v4-flash | Mechanical Express route fix (/:key → /*) | opencode |
-| BUG-029 | Invalid domain POST returns 500 instead of 400 | Low | Low | — | ++api, bug | deepseek-v4-flash | Error handler catch — route needs try/catch → 400 mapping | opencode |
+| — | No active tasks | — | — | — | — | — | All E2E bugs resolved. Only DB-001 (blocked) remains. | — |
 
 ## Blocked
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **124+ ticks** |
+| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **125+ ticks** |
 
 ## Completed
 
 | ID | Task | Commit | Synced |
 |----|------|--------|--------|
-| BUG-027 | Tombstone filtering broken: GET returns deleted memories | 8d68a0d | Tick #124 |
+| BUG-027 | Tombstone filtering: integration test confirms fix (false E2E positive) | 1a1b37b | Tick #125 |
+| BUG-028 | Multi-segment key lookup: Express wildcard route fix | 1a1b37b | Tick #125 |
+| BUG-029 | Invalid domain validation: POST returns 400 not 500 | 1a1b37b | Tick #125 |
 | BUG-030 | Missing vite.svg favicon in build output | Trivial fix — foreman direct | Tick #124 |
 | DB-014 | CI/CD: GitHub Actions workflow | ci.yml/release.yml | Tick #34 |
 | DB-015 | DOC: Missing docs pages | All 4 pages exist | Tick #34 |
@@ -54,15 +54,15 @@
 
 | ID | Gap | Severity | Status |
 |----|-----|----------|--------|
-| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (83+ ticks stale — needs worker, not foreman) |
-| DB-024 | pnpm outdated: uuid 13→14, typescript 6→7, 2 deprecated @types | Low | Open (83+ ticks stale — needs worker) |
-| DB-026 | ~~E2E-001 never run~~ | ~~Medium~~ | **RESOLVED Tick #124** — 36 endpoints, 32/36 pass, 4 bugs found → 3 new tasks |
+| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (84+ ticks stale — needs worker, not foreman) |
+| DB-024 | pnpm outdated: uuid 13→14, typescript 6→7, 2 deprecated @types | Low | Open (84+ ticks stale — needs worker) |
+| DB-026 | ~~E2E-001 never run~~ | ~~Medium~~ | **RESOLVED Tick #124** — 36 endpoints, 32/36 pass, 4 bugs found → all resolved by Tick #125 |
 
 - [ ] E2E-001 — E2E Testing Tick (self-improving loop) 🔁 Every 5-10 ticks
   Spawn Luna (browser/screenshots) or Step 3.7 Flash (CLI/API). Deploy/build,
   Playwright, screenshots, endpoints, console. → e2e-output/tasks.md → inject
   into board. See foreman Step 1.5i. Every 5-10 ticks.
-  **Last run: Tick #124 — 4 bugs found (3 open, 1 fixed).** Next due: Tick #129–134.
+  **Last run: Tick #124 — 4 bugs found (all resolved by #125).** Next due: Tick #129–134.
 
 - [ ] NEVER-DONE — Run coding-hermes-never-done 14-point audit
   Load coding-hermes-never-done skill. Run ALL 14 checks. Create a task
@@ -70,56 +70,28 @@
 
 ## Tick Log
 
-### TICK #124 — ACTIVE: E2E BREAKTHROUGH (2026-07-27 08:13 UTC) — 3 new bugs, first E2E run
+### TICK #125 — IDLE: ALL 3 E2E BUGS RESOLVED (2026-07-27 08:23 UTC) — 1 worker dispatched
 
 | Check | Result | Detail |
 |-------|--------|--------|
-| Build | ✅ Clean | pnpm build + vite, 3.38s — clean (now includes vite.svg) |
-| Tests | ✅ 118/118 | 12/12 suites, 12.30s |
-| tsc --noEmit | ✅ Clean | zero errors |
-| Hilo | ✅ 499 edges, 115 files | stable |
-| GitReins | ✅ 8/8 complete, 0 pending | All DuckBrain tasks complete |
-| SECURITY.md | ✅ Exists | — |
-| CHANGELOG.md | ✅ Exists | — |
-| LICENSE | ✅ Exists | Apache 2.0 |
-| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
-| TODO/FIXME | ✅ None in src/ | Clean |
-| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
-| DuckBrain MCP | ✅ Full operational | 67 namespaces, read/write paths working. currentNamespace: hermes-dagger |
-| Compaction stats | ℹ️ 0 records | — |
-| CI/CD | ⚠️ Run #122 failed (Node 22.x int test timeout), #123 in_progress | Pre-existing, no code change |
-| Config mutation | ⚠️ Reduced divergence | Committed: h3, Working: hermes-dagger, MCP: hermes-dagger. MCP matches working copy — 2-way divergence (improved from 3-way) |
-| **E2E (FIRST EVER)** | 🔴 **32/36 pass, 4 bugs** | **Breakthrough.** 124 ticks without E2E → 4 real bugs found immediately |
-| BUG-027 | 🔴 Critical | Tombstone filtering broken — deleted memories still returned by GET |
-| BUG-028 | 🟡 Medium | Multi-segment key lookup fails (Express :key → need *) |
-| BUG-029 | 🟢 Low | Invalid domain returns 500 instead of 400 |
-| BUG-030 | ✅ Fixed | Missing vite.svg — foreman fixed directly (created public/vite.svg) |
-| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **124+ ticks** |
-| DuckBrain entry | ✅ Written | Tick #124 entry |
-| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 0 commits ahead. Config: h3→hermes-dagger. Also: public/vite.svg (new, untracked) |
-| Scheduler daemon | ✅ Operational | :9090 responding |
+| Host load | ✅ 2.86/3.90/3.47 | 46GB available — well under dispatch threshold |
+| Build | ✅ Clean | pnpm build + vite, 1.74s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites (4 new from BUG-027 test), 12.30s |
+| Hilo | ✅ 499 edges, 115 files | Stable — Hilo=useful |
+| GitReins | ✅ 8/8 complete, guard clean | secrets clean, no pending tasks |
+| Git status | ⚠️ duckbrain.config.json modified | Config drift (pre-existing) |
+| Scheduler | ✅ Operational | :9090, cooldown 900s |
+| DuckBrain | ✅ Write verified | Tick #125 entry confirmed |
+| BUG-027 | ✅ **Resolved** | False E2E positive — tombstone filter already works. Worker wrote integration test. |
+| BUG-028 | ✅ **Fixed** | Express `:key` → `*key` wildcard for multi-segment key paths |
+| BUG-029 | ✅ **Fixed** | DomainEnum.safeParse validation — POST returns 400 for invalid domain |
+| BUG-030 | ✅ Fixed Tick #124 | vite.svg (pre-existing) |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **125+ ticks** |
 
-**NEVER-DONE 14-point audit (#124):**
+**Worker dispatch:** BUG-027 investigation dispatched to deepseek-v4-pro worker (23 calls, 226s). Worker confirmed tombstone filter already works correctly, wrote 4-test integration suite (memories-bug027.test.ts). BUG-028 and BUG-029 fixed foreman-direct (trivial).
 
-| # | Check | Result | Notes |
-|---|-------|--------|-------|
-| 1 | Spec alignment | N/A | No specs/ directory |
-| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md |
-| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack unit tests — 83+ ticks stale |
-| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 83+ ticks stale |
-| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME |
-| 6 | Performance audit | ✅ PASS | DB-019 completed |
-| 7 | Endpoint verification | 🔴 **3 BUGS** | BUG-027 (tombstone), BUG-028 (key segments), BUG-029 (500→400) — found by E2E |
-| 8 | CI/CD health | ⚠️ CI failure #122 | Node 22.x integration tests — pre-existing |
-| 9 | DuckBrain sync | ✅ Full operational | 67 namespaces, read+write working |
-| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
-| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
-| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
-| 13 | E2E testing | ✅ **RESOLVED** | First E2E run in 124 ticks — 36 endpoints, 32/36 pass, 4 bugs → 3 matrix rows |
-| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+**Commit:** 1a1b37b — fix: BUG-027/028/029 (2 files changed, 136 insertions)
 
-**Verdict:** ACTIVE — 3 new bugs from first-ever E2E run. This validates the 5-10 tick E2E rule: 124 ticks without E2E = 4 production bugs lurking undetected. BUG-030 (favicon) fixed directly by foreman. BUG-027 (critical tombstone bug — deleted data accessible), BUG-028 (key segments), BUG-029 (status code) converted to matrix rows with model assignments. DB-023 and DB-024 remain stale at 83+ ticks — these need workers spawned on next ticks. Config mutation reduced from 3-way to 2-way divergence (MCP now matches working copy). DB-001 at 124+ ticks remains the sole blocker.
+**Verdict:** IDLE — All 4 E2E bugs from Tick #124 are now resolved. Project has zero active tasks. Only DB-001 (embedding model decision) remains blocked at 125+ ticks. DB-023 and DB-024 remain stale audit gaps at 84+ ticks. Next E2E due Tick #129–134.
 
-**E2E lesson:** The 5-10 tick E2E rule exists for a reason. 124 ticks of "tests pass, build clean" masked 4 real bugs including a critical tombstone filtering failure. E2E must run every 5-10 ticks going forward — not negotiable.
-
-Board summary: 36 tasks completed (incl BUG-030), 3 pending (BUG-027/028/029), 1 BLOCKED (DB-001), 2 audit gaps open (DB-023, DB-024).
+Board summary: 39 tasks completed (incl BUG-027/028/029/030), 0 pending, 1 BLOCKED (DB-001), 2 audit gaps open (DB-023, DB-024).
