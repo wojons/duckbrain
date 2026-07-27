@@ -138,9 +138,11 @@ describe('DuckDB Queries', () => {
       // The original 'add' record may still exist; the key invariant is no tombstones returned
       const tombstones = results.filter(m => m.action === 'tombstone');
       expect(tombstones.length).toBe(0);
-      // Original record should still be returned (not tombstoned-away)
+      // Original record should NOT be returned — the latest action is a tombstone
+      // Fix for BUG-027: tombstone filtering must exclude memories whose
+      // latest record is a tombstone (memory is deleted)
       const active = results.filter(m => m.id === memory.id);
-      expect(active.length).toBeGreaterThanOrEqual(1);
+      expect(active.length).toBe(0);
     });
 
     it('should filter by key', async () => {

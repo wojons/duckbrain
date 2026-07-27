@@ -127,28 +127,28 @@ export function queryMemories(
 
   // Build WHERE clause based on filters - use template literals instead of prepared statements
   // to avoid DuckDB Node.js binding issues with parameter placeholders
-  const conditions: string[] = ["action != 'tombstone'"];
+  const innerConditions: string[] = [];
   
   if (filters?.key) {
     // Escape single quotes in key to prevent SQL injection
     const escapedKey = filters.key.replace(/'/g, "''");
-    conditions.push(`key = '${escapedKey}'`);
+    innerConditions.push(`key = '${escapedKey}'`);
   }
   
   if (filters?.id) {
     // Escape single quotes in id to prevent SQL injection
     const escapedId = filters.id.replace(/'/g, "''");
-    conditions.push(`id = '${escapedId}'`);
+    innerConditions.push(`id = '${escapedId}'`);
   }
   
   if (filters?.keyPrefix) {
     // Escape single quotes in prefix and add LIKE pattern
     const escapedPrefix = filters.keyPrefix.replace(/'/g, "''");
-    conditions.push(`key LIKE '${escapedPrefix}%%'`);
+    innerConditions.push(`key LIKE '${escapedPrefix}%%'`);
   }
   
   if (filters?.domain) {
-    conditions.push(`domain = '${filters.domain}'`);
+    innerConditions.push(`domain = '${filters.domain}'`);
   }
 
   let orderByClause = '';
@@ -157,13 +157,21 @@ export function queryMemories(
   if (filters?.query && filters?.embedding) {
     // Use DuckDB VSS extension for cosine similarity
     const embeddingStr = `[${filters.embedding.join(',')}]`;
-    conditions.push('embedding IS NOT NULL');
+    innerConditions.push('embedding IS NOT NULL');
     orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC`;
   }
 
-  const whereClause = conditions.length > 0 
-    ? `WHERE ${conditions.join(' AND ')}` 
+  const innerWhereClause = innerConditions.length > 0 
+    ? `WHERE ${innerConditions.join(' AND ')}` 
     : '';
+
+  // Use a window function to deduplicate by ID, keeping only the latest
+  // record for each memory. If the latest action is 'tombstone', the
+  // memory is considered deleted and excluded from results.
+  // This fixes BUG-027: tombstone filtering was broken because the
+  // old flat WHERE clause excluded tombstone records but still returned
+  // the original 'add' record with the same ID.
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
   
   const limitClause = filters?.limit ? `LIMIT ${filters.limit}` : '';
 
@@ -171,8 +179,12 @@ export function queryMemories(
   const fileList = jsonlFiles.map(f => `'${f}'`).join(', ');
   const sql = `
     SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
-    FROM read_json([${fileList}], format='newline_delimited')
-    ${whereClause}
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      FROM read_json([${fileList}], format='newline_delimited')
+      ${innerWhereClause}
+    ) sub
+    WHERE ${outerWhereClause}
     ${orderByClause}
     ${limitClause}
   `;
