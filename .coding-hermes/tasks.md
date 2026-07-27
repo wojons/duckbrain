@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 132 ticks, DB-023 stale 91 ticks) | **Tick:** #133 | **Cooldown:** 900s (scheduler ground truth)|
+||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 134 ticks, DB-023 stale 93 ticks) | **Tick:** #134 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -445,3 +445,54 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Dispatch decision:** Load 8.29/9.88/9.76 — significantly above dispatch threshold (~3.0). Load is elevated compared to prior tick (8.29 vs 4.89). DB-023 deferred. DB-001 blocked. E2E-001 not yet due (#134–139 window, this is #133). Foreman-direct tick only — no worker spawn, no smoke test needed.
 
 **Verdict:** IDLE — 9th consecutive idle tick. Notable: first tick with zero git drift (duckbrain.config.json no longer shows as modified). All gates pass. Only open items: DB-001 (blocked, 133 ticks) and DB-023 (stale route tests, 92 ticks). E2E-001 next due at #134–139. Next tick (#134) will be the start of the E2E due window — foreman-direct smoke test should run if load remains above threshold.
+
+### TICK #134 — IDLE: 10th consecutive idle tick, load surge (2026-07-27 12:13 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 18.74/14.12/11.89 | 47GB available — highest load recorded, well above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.62s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.27s |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful (7 ticks flat) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Config drift returned (was clean in #133) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, daemon running, DB connected, 32786 total ticks |
+| DuckBrain | ✅ Write verified | Tick #134 (dbc2146a) confirmed via key recall |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **134 ticks** |
+| DB-023 | 🟡 Stale (93 ticks) | Route unit tests for 5/7 route files — needs worker |
+| E2E-001 | ✅ Smoke test PASS | 6/6 endpoints: health, keys, namespaces, create, invalid domain (400), delete (204). BUG-027/029 confirmed fixed. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, uptime 8.3s |
+| GET /api/keys | ✅ 200 | Tree structure correct |
+| GET /api/namespaces | ✅ 200 | Namespaces array returned |
+| POST /api/memories | ✅ 201 | Memory created with ID |
+| POST invalid domain | ✅ 400 | BUG-029 confirmed fixed — proper validation error |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 tombstone confirmed fixed |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS — docs/api, docs/guide, CI workflows present
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 — 5/7 route files lack dedicated unit tests (93 ticks stale). Integration coverage (122 tests) strong.
+- Check 4 (packages): PASS — pnpm outdated empty
+- Check 5 (performance): PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): ✅ E2E smoke — 6/6 endpoints verified via live daemon
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via key recall, tick entry persists
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No known active pitfalls
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): ✅ Smoke test PASS — 6/6 endpoints verified. Full browser E2E deferred (load). Next due #144–149.
+
+**Dispatch decision:** Load 18.74/14.12/11.89 — highest recorded for DuckBrain foreman. Nearly 6x the dispatch threshold (~3.0). Worker dispatch blocked. Foreman-direct E2E smoke completed successfully.
+
+**Verdict:** IDLE — 10th consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints functional and BUG-027/029 remain fixed. Load surge to 18.74 from 8.29 (#133) — likely a batch ML inference or build job on this host consuming CPUs. Only open items: DB-001 (blocked, 134 ticks) and DB-023 (stale route tests, 93 ticks). E2E-001 next due #144–149.
