@@ -10,6 +10,7 @@ import { recallTool } from '../../mcp/tools/recall';
 import { rememberTool } from '../../mcp/tools/remember';
 import { forgetTool } from '../../mcp/tools/forget';
 import { asyncHandler, ApiError, NotFoundError } from '../middleware/errorHandler';
+import { DomainEnum } from '../../schema/memory';
 import { 
   MemoryResponse, 
   MemoryListResponse, 
@@ -98,8 +99,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
  * Get single memory by key path
  * Must be defined BEFORE /:id route to avoid conflicts
  */
-router.get('/key/:key', asyncHandler(async (req: Request, res: Response) => {
-  const { key } = req.params as { key: string };
+router.get('/key/*key', asyncHandler(async (req: Request, res: Response) => {
+  const key = req.params.key as string;
   const namespace = (req.query.namespace as string) || 'default';
 
   // Normalize key to start with /
@@ -165,6 +166,15 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   // Validate required fields
   if (!body.key || !body.domain || !body.content) {
     throw new ApiError('Missing required fields: key, domain, content', 400, 'VALIDATION_ERROR');
+  }
+
+  // Validate domain is a valid value (BUG-029)
+  if (!DomainEnum.safeParse(body.domain).success) {
+    throw new ApiError(
+      `Invalid domain '${body.domain}'. Must be one of: ${DomainEnum.options.join(', ')}`,
+      400,
+      'VALIDATION_ERROR'
+    );
   }
 
   // Call rememberTool to create memory
