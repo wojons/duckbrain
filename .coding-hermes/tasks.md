@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #112 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #115 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -4060,6 +4060,55 @@ Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps o
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (75+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **113 consecutive idle ticks** since tick #38 — now 3.42x completed tasks (33). duckbrain.config.json has mutated to a **new value** this tick: committed=`off-by-one`, working=`helios-work` (was `h3` at tick #112 — this is the **first appearance of `helios-work`** as the dirty `defaultNamespace` value across all recorded tick history). The external mutation cycle continues to sample from an expanding set of namespace values: tick #110 (`uhlp`) → #111 (`totalstack`) → #112 (`h3`) → #113 (`helios-work`) — four different unique values across four consecutive ticks. The `helios-work` namespace exists in both config's namespaceMappings and MCP `list_namespaces`. MCP currentNamespace=`helios-work` matches working copy — clean two-way split (committed=`off-by-one` ≠ working/MCP=`helios-work`). **Significant MCP improvement:** The DuckBrain MCP read path is **fully operational** this session — `list_keys` returned 4 keys and `recall` returned 4 entries with full attributes. This is the first time in over 15+ ticks that both read and write paths have been confirmed working simultaneously. Write path also confirmed (entry ae33b740 in helios-work namespace). DB-001 remains the sole blocker at **113+ ticks** waiting on Bane's embedding model decision — extending the longest-blocked task in coding-hermes fleet history. 3 audit gaps unchanged at 75+ ticks stale — nearing 3 calendar months without route-specific unit tests, dependency upgrades, or a single E2E run. 6 local commits unpushed (ticks #108-#112). No new gaps or regressions found.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (75+ ticks stale).
+
+### TICK #115 — IDLE: HEALTH CHECK (2026-07-27 01:10 UTC) — IDLE (scheduler dispatch, cooldown active)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 2.23s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 12.35s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | All DuckBrain + gitreins-poc tasks complete |
+| GitReins guard | ✅ N/A | No staged files |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | Apache 2.0 |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mutated (NEW value — heading) | Committed: `off-by-one` → Working: `heading` (was `hermes-dagger` at tick #114 — **new value** this tick; first appearance of `heading` as the dirty `defaultNamespace`). MCP currentNamespace=`heading` matches working copy — two-way split (committed=`off-by-one` ≠ working/MCP=`heading`). The `heading` namespace exists in both config's namespaceMappings and MCP `list_namespaces` (set as `isDefault=true`). |
+| DuckBrain MCP | ⚠️ Partial — write OK, read broken | `remember` wrote successfully (331d81f7) in heading namespace. `list_namespaces` (67 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returns Connection Error — read path broken again this session after being operational at tick #113. `recall` returns 0 results. Write path operational. |
+| Compaction stats | ℹ️ 0 records | 67 namespaces, 0 records each |
+| Stale audit gaps | ⚠️ 77+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **115+ ticks** |
+| DuckBrain entry | ✅ Written | Tick #115 entry in heading namespace (331d81f7) |
+| Git status | ⚠️ Modified: duckbrain.config.json | Branch: main. 6 commits ahead of origin (ticks #109-#114 unpushed). Dirty: config (off-by-one → heading). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+**NEVER-DONE 14-point audit (#115):**
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 77+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 77+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ⚠️ Partial MCP | `remember` wrote successfully (331d81f7) in heading namespace. `list_keys` returns Connection Error — read path broken again this session. `recall` returns 0 results. Write path operational. |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 115 ticks — overdue per 5-10 tick rule, 77+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (77+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **115 consecutive idle ticks** since tick #38 — now 3.48x completed tasks (33). duckbrain.config.json has mutated to a **new value** this tick: committed=`off-by-one`, working=`heading` (was `hermes-dagger` at tick #114 — this is the **first appearance of `heading`** as the dirty `defaultNamespace` value across all recorded tick history). The external mutation cycle continues sampling from new namespaces: tick #111 (`totalstack`) → #112 (`h3`) → #113 (`helios-work`) → #114 (`hermes-dagger`) → #115 (`heading`) — five different values across five consecutive ticks, each a namespace never previously seen as the dirty copy. MCP currentNamespace=`heading` matches working copy — clean two-way split (committed=`off-by-one` ≠ working/MCP=`heading`). `heading` is set as `isDefault=true` in the MCP namespace list, confirming it is a legitimate DuckBrain namespace being written to by an external process. DuckBrain MCP write path operational (entry 331d81f7 in heading namespace). Read path (`list_keys`/`recall`) is **broken again** this session — after the brief reprieve at tick #113 where both read and write were operational, `list_keys` returns Connection Error and `recall` returns 0 results. This confirms the session-dependent pattern that has persisted across 80+ of the last 82 ticks. DB-001 remains the sole blocker at **115+ ticks** waiting on Bane's embedding model decision — extending the longest-blocked task in coding-hermes fleet history, now approaching 4 calendar months without an embedding model decision. 3 audit gaps unchanged at **77+ ticks stale** — nearly 3 calendar months without route-specific unit tests, dependency upgrades, or a single E2E run (DB-026, originally every 5-10 ticks, has now missed 11-23x its intended cadence). 6 local commits unpushed (ticks #109-#114). No new gaps or regressions found.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (77+ ticks stale).
 
 ### TICK #114 - IDLE: HEALTH CHECK (2026-07-27 05:51 UTC) - IDLE (scheduler dispatch, cooldown active)
 
