@@ -54,8 +54,8 @@
 
 | ID | Gap | Severity | Status |
 |----|-----|----------|--------|
-| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (84+ ticks stale — needs worker, not foreman) |
-| DB-024 | pnpm outdated: uuid 13→14, typescript 6→7, 2 deprecated @types | Low | Open (84+ ticks stale — needs worker) |
+| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (85+ ticks stale — needs worker, not foreman) |
+| DB-024 | ~~pnpm outdated: uuid 13→14, typescript 6→7, 2 deprecated @types~~ | ~~Low~~ | **RESOLVED Tick #126** — uuid→14, ts→7, @types/uuid+bcryptjs removed. 122/122 tests pass, tsc clean, build clean. Commit 26b32bb. |
 | DB-026 | ~~E2E-001 never run~~ | ~~Medium~~ | **RESOLVED Tick #124** — 36 endpoints, 32/36 pass, 4 bugs found → all resolved by Tick #125 |
 
 - [ ] E2E-001 — E2E Testing Tick (self-improving loop) 🔁 Every 5-10 ticks
@@ -94,4 +94,32 @@
 
 **Verdict:** IDLE — All 4 E2E bugs from Tick #124 are now resolved. Project has zero active tasks. Only DB-001 (embedding model decision) remains blocked at 125+ ticks. DB-023 and DB-024 remain stale audit gaps at 84+ ticks. Next E2E due Tick #129–134.
 
-Board summary: 39 tasks completed (incl BUG-027/028/029/030), 0 pending, 1 BLOCKED (DB-001), 2 audit gaps open (DB-023, DB-024).
+Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 1 audit gap open (DB-023).
+
+### TICK #126 — DB-024 RESOLVED, TS7 migration (2026-07-27 09:10 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | Vite, 1.71s |
+| Tests | ✅ **122/122** | 13/13 suites, 12.30s |
+| Hilo | ✅ 500 edges, 115 files | Stable since #125 |
+| GitReins | ✅ 8/8 complete, guard clean | evaluator configured (deepseek-v4-flash) |
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing config drift |
+| tsc | ✅ Clean | TS7 strict mode |
+| Docker build | ⏱️ Timeout 120s | Large image, not blocking |
+| DB-024 | ✅ **Resolved** | uuid 13→14, typescript 6→7, removed deprecated @types/uuid + @types/bcryptjs |
+| DB-023 | 🟡 Stale (85 ticks) | Needs delegate_task worker for unit test coverage |
+| DB-001 | 🔴 BLOCKED | Bane embedding model decision — 126 ticks |
+| E2E-001 | 🟢 Not due | Last run #124, next due #129-134 |
+
+**NEVER-DONE audit findings:**
+- Check 4 (packages): DB-024 resolved — uuid→14, ts→7, @types cleaned. No remaining outdated packages.
+- Check 3 (tests): DB-023 confirmed — 28/41 source files lack dedicated unit tests. Integration tests (122) cover HTTP+MCP but route-level unit tests needed.
+- Check 10 (code quality): cli/human.ts at 1226 lines is large but functional; no action.
+- Check 1,2,5,6,7,8,9,11,12,13,14: PASS or N/A.
+
+**Self-improving loop action:** DB-024 was 84+ ticks stale. Applied self-heal rule (mechanical fix, zero new code). Fixed directly: package.json + tsconfig.json + 6 router type annotations. Commit 26b32bb.
+
+**Commit:** 26b32bb — chore: upgrade uuid→14, typescript→7, remove deprecated @types
+
+**Verdict:** IDLE — Only DB-001 (blocked) and DB-023 (stale gap needing worker) remain. E2E not yet due.
