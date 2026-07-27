@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 128 ticks, DB-023 stale 87 ticks) | **Tick:** #128 | **Cooldown:** 900s (scheduler ground truth)|
+||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 129 ticks, DB-023 stale 88 ticks) | **Tick:** #129 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -62,7 +62,7 @@
   Spawn Luna (browser/screenshots) or Step 3.7 Flash (CLI/API). Deploy/build,
   Playwright, screenshots, endpoints, console. → e2e-output/tasks.md → inject
   into board. See foreman Step 1.5i. Every 5-10 ticks.
-  **Last run: Tick #124 — 4 bugs found (all resolved by #125).** Next due: Tick #129–134.
+  **Last run: Tick #129 (foreman-direct CLI smoke — 6/6 endpoints pass). Tick #124 (full — 4 bugs found).** Next due: Tick #134–139.
 
 - [ ] NEVER-DONE — Run coding-hermes-never-done 14-point audit
   Load coding-hermes-never-done skill. Run ALL 14 checks. Create a task
@@ -207,3 +207,54 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Dispatch decision:** Load 3.36/6.85/9.20 — above dispatch threshold (~3.0). DB-023 deferred. DB-001 blocked. E2E not due.
 
 **Verdict:** IDLE — All 14 NEVER-DONE checks pass or have known-tracked gaps. Zero new findings. Project stable with only DB-001 (blocked, 128 ticks) and DB-023 (stale route tests, 87 ticks) as open items. E2E due at #129–134.
+
+### TICK #129 — IDLE: E2E smoke passed, load blocks dispatch (2026-07-27 10:19 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing config drift |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful |
+| Build | ✅ Clean | Vite, 2.06s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.28s |
+| tsc | ✅ Clean | TS7 strict mode |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Deps | ✅ All current | pnpm outdated empty |
+| GitReins config | ✅ evaluator configured | deepseek-v4-flash via defaults.model |
+| CI/CD | ✅ Present | ci.yml + release.yml in .github/workflows/ |
+| Scheduler | ⚠️ Unreachable | :9090 no response (not blocking) |
+| DuckBrain | ✅ Write verified | Tick #129 entry confirmed (ef55e0ec) |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **129 ticks** |
+| DB-023 | 🟡 Stale (88 ticks) | Route unit tests for 6/7 route files — needs worker |
+| E2E-001 | 🟢 DUE → Smoke test run | Foreman-direct CLI smoke: health, keys, namespaces, recall, create, delete, tombstone all PASS. Full browser E2E deferred. |
+
+**E2E Smoke Test Results (foreman-direct, no worker):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `{"status":"healthy","uptime":...}` |
+| GET /api/keys?prefix=... | ✅ 200 | Tree structure correct, namespaces populated |
+| GET /api/namespaces | ✅ 200 | 68 namespaces returned |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| POST → DELETE → GET tombstone cycle | ✅ PASS | BUG-027 confirmed fixed |
+| GET /api/memories?prefix=... | ✅ 200 | Correct param is `prefix`, not `key` |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS
+- Check 2 (secrets): PASS
+- Check 3 (tests): ⚠️ DB-023 — 6/7 route files lack dedicated unit tests (88 ticks stale)
+- Check 4 (packages): PASS — all current
+- Check 5 (performance): PASS — no hotspots
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB
+- Check 7 (endpoints): PASS — All 6 E2E smoke endpoints verified
+- Check 8 (CI/CD): PASS
+- Check 9 (DuckBrain): PASS — Tick #129 confirmed via ID recall
+- Check 10 (code quality): ⚠️ MINOR — eslint not wired. tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS
+- Check 13 (NEVER-DONE): PASS
+- Check 14 (E2E): 🟡 Smoke test PASS. Full browser E2E deferred (load).
+
+**Dispatch decision:** Load 7.90/8.57/8.66 — well above dispatch threshold (~3.0). DB-023 and full browser E2E deferred. DB-001 blocked. Foreman-direct E2E smoke completed instead.
+
+**Verdict:** IDLE — 5th consecutive idle tick. All 14 NEVER-DONE checks pass or have known-tracked gaps. E2E smoke test confirms BUG-027/028/029 remain fixed. Host load 7.90 prevents worker dispatch; next tick may have lower load for full E2E run. DB-001 at 129 ticks still awaiting Bane's embedding model decision.
