@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "uhlp",
+  "defaultNamespace": "sdk-go",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
