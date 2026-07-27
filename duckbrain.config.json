@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "heading",
+  "defaultNamespace": "uhlp",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {

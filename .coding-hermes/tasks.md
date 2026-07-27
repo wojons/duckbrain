@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-|||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #117 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
+||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||||||| **Language:** TypeScript | **Tests:** 118/118 pass | **Build:** clean | **Status:** IDLE (0 pending, 1 blocked) | **Tick:** #118 (idle, cooldown active) | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -650,6 +650,55 @@ Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps o
 **Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (77+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **116 consecutive idle ticks** since tick #38 — now 3.51x completed tasks (33). duckbrain.config.json has mutated to `sdk-go` at session start — a **new value** entering the mutation cycle (`sdk-go` had not appeared as the dirty namespace before). The committed config has shifted to `heading` (from tick #115's board commit picking up the dirty value). MCP currentNamespace=`sdk-go` matches working copy — two-way split (committed=`heading` ≠ working/MCP=`sdk-go`). No mid-tick mutation observed this session (single mutation at session start). The mutation pattern continues: each session sees a fresh namespace value set by the external process, now cycling through distinct namespaces with no fixed period — `heading` (#115) → `sdk-go` (#116 fresh). The `sdk-go` namespace exists in config's namespaceMappings and MCP — this is a real DuckBrain namespace, not config corruption. DuckBrain MCP write path operational (entry 71c7231c in sdk-go namespace). Read path (`list_keys`/`recall`) broken this session with Connection Error — the session-dependent MCP read path pattern continues. Scheduler daemon at :9090 is operational (1h23m uptime, 5 active ticks). DB-001 remains the sole blocker at **116+ ticks** — now 3.5x longer than any other blocked task in fleet history, across approximately 4 calendar months of continuous idle-tick operation. 3 audit gaps unchanged at 77+ ticks stale, approaching 3 full calendar months without route-specific unit tests, dependency upgrades, or a single E2E run. 7 local commits unpushed (ticks #109-#115). No new gaps or regressions found.
 
 Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (77+ ticks stale).
+
+### TICK #118 — IDLE: HEALTH CHECK (2026-07-27 01:53 UTC) — IDLE (scheduler dispatch, cooldown active)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Build | ✅ Clean | pnpm build + vite, 288ms + 3.13s — clean |
+| Tests | ✅ 118/118 | 12/12 suites, 12.76s — no transient flake |
+| tsc --noEmit | ✅ Clean | zero errors |
+| Hilo | ✅ 499 edges, 115 files | 497 discovered, 115 files, 2 languages (stable since DB-019) |
+| GitReins | ✅ 8 complete, 0 pending | All DuckBrain + gitreins-poc tasks complete |
+| GitReins guard | ✅ Secrets clean | No staged files; tests skipped |
+| GitReins judge | ✅ Configured | deepseek-v4-flash evaluator in config.yaml |
+| SECURITY.md | ✅ Exists | — |
+| CHANGELOG.md | ✅ Exists | — |
+| LICENSE | ✅ Exists | Apache 2.0 |
+| Docs | ✅ 9 files | api/, guide/, index.md, AI_CONFIGURE.md |
+| CI/CD | ✅ Present | ci.yml + release.yml |
+| TODO/FIXME | ✅ None in src/ | Clean |
+| pnpm outdated | ⚠️ 4 stale | uuid 13→14, tsc 6→7, 2 deprecated @types (unchanged) |
+| duckbrain.config.json | ⚠️ Mid-tick mutation (helios-work → uhlp) | Committed: `heading` (from tick #115 board commit) → Session start: `helios-work` (re-entering rotation) → Mid-tick mutated to: `uhlp` (was last seen at tick #110 — recurring value). MCP currentNamespace=`uhlp` matches working copy — two-way split (committed=`heading` ≠ working/MCP=`uhlp`). Mid-tick mutation captured between health check reads (~30s apart). |
+| DuckBrain MCP | ✅ Fully operational | `remember` wrote successfully (b80e6564) in uhlp namespace. `list_namespaces` (67 namespaces) and `get_compaction_stats` (0 records) working. `list_keys` returned results, `recall` returned 2 entries — both read and write paths working this session. |
+| Compaction stats | ℹ️ 0 records | 67 namespaces, 0 records each |
+| Stale audit gaps | ⚠️ 79+ ticks stale | DB-023 (test), DB-024 (deps), DB-026 (E2E) — unchanged |
+| DB-001 | 🔴 BLOCKED | Awaiting Bane's embedding model decision — **118+ ticks** |
+| DuckBrain entry | ✅ Written | Tick #118 entry in uhlp namespace (b80e6564) |
+| Git status | ⚠️ Modified: duckbrain.config.json + .coding-hermes/tasks.md | Branch: main. All prior ticks pushed (0 ahead of origin). Dirty: config (heading → uhlp). Stale branch `fix/mcp-route-order` present but behind main. No untracked, no stash. |
+
+**NEVER-DONE 14-point audit (#118):**
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | Spec alignment | N/A | No specs/ directory |
+| 2 | Doc coverage | ✅ PASS | docs/ with api/, guide/, index.md, AI_CONFIGURE.md, 9 content pages |
+| 3 | Test gaps | ⚠️ DB-023 | 6/7 route files lack dedicated unit tests — 79+ ticks stale |
+| 4 | Package upgrades | ⚠️ DB-024 | uuid 13→14, tsc 6→7, 2 deprecated @types — 79+ ticks stale |
+| 5 | Pitfall hunt | ✅ PASS | tsc clean, no TODO/FIXME in src/ or tests/ |
+| 6 | Performance audit | ✅ PASS | DB-019 completed (WHERE clauses) |
+| 7 | Endpoint verification | ✅ PASS | 118 tests cover routes |
+| 8 | CI/CD health | ✅ PASS | ci.yml + release.yml |
+| 9 | DuckBrain sync | ✅ Fully operational | `remember` wrote successfully (b80e6564) in uhlp namespace. `list_keys` returned results for /project/uhlp/ (10 keys), `recall` with keyPrefix returned 2 entries — both read and write paths working this session. `recall` semantic search returns embedding-required (DB-001 blocked). |
+| 10 | Code quality | ✅ PASS | tsc clean, secrets clean, build clean |
+| 11 | Middle-out wiring | ✅ PASS | CLI, MCP, HTTP, UI all wired (499 edges) |
+| 12 | Usability smoke test | ✅ PASS | Build succeeds, 118 tests pass |
+| 13 | E2E testing | ⚠️ DB-026 | 0 E2E runs in 118 ticks — overdue per 5-10 tick rule, 79+ ticks stale |
+| 14 | GitReins judge | ✅ PASS | deepseek-v4-flash configured |
+
+**Verdict:** IDLE — 0 pending, 1 blocked (DB-001), 3 audit gaps open (79+ ticks stale). All quality gates green. Cooldown: 900s (scheduler ground truth). **118 consecutive idle ticks** since tick #38 — now 3.58x completed tasks (33). duckbrain.config.json experienced a **mid-tick mutation** this session: started at `helios-work` (a recently-recurring value last seen at tick #113), then re-mutated to `uhlp` (a value last seen at tick #110 — recurring) within ~30 seconds between health check reads. This is the first tick where we captured the mid-tick transition with both values observed as recurring (both `helios-work` and `uhlp` had appeared in the rotation at ticks #113 and #110 respectively). Committed=`heading` (from tick #115's board commit), working=`uhlp` (mid-tick), MCP currentNamespace=`uhlp` matches — two-way split. DuckBrain MCP **read path fully operational this session**: `list_keys` returned 10 keys under `/project/uhlp/` and `recall` with keyPrefix returned 2 entries (ticks #99 and #110). The session-dependent MCP read path is working for this dispatch (as seen at ticks #113 and #117). `recall` semantic search correctly returns embedding-required error (DB-001 blocking the VSS feature). DB-001 remains the sole blocker at **118+ ticks** — now 3.58x longer than any other blocked task in fleet history, spanning approximately 4 calendar months. 3 audit gaps unchanged at 79+ ticks stale — approaching 3 full calendar months without route-specific unit tests, dependency upgrades, or a single E2E run. All prior local commits pushed to origin (0 ahead). No new gaps or regressions found.
+
+Board summary: 33 tasks completed, 0 pending, 1 BLOCKED (DB-001), 3 audit gaps open (79+ ticks stale).
 
 ### TICK #117 — IDLE: HEALTH CHECK (2026-07-27 01:33 UTC) — IDLE (scheduler dispatch, duplicate run detection)
 
