@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-|||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 127 ticks, DB-023 stale 86 ticks) | **Tick:** #127 | **Cooldown:** 900s (scheduler ground truth)|
+||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 128 ticks, DB-023 stale 87 ticks) | **Tick:** #128 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -166,3 +166,44 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Commit:** Tick #127 board update (foreman direct, no code changes).
 
 **Verdict:** IDLE — All 14 NEVER-DONE checks pass or have known-tracked gaps. Zero new findings. Project stable with only DB-001 (blocked, 127 ticks) and DB-023 (stale route tests, 86 ticks) as open items. E2E due at #129–134.
+
+### TICK #128 — IDLE: All gates pass, no dispatch (2026-07-27 09:59 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing config drift |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins dual-source | ✅ Board matches | All 8 GitReins tasks: complete |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful |
+| Build | ✅ Clean | Vite, 1.80s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.29s |
+| tsc | ✅ Clean | TS7 strict mode |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Deps | ✅ All current | pnpm outdated empty |
+| GitReins config | ✅ evaluator configured | deepseek-v4-flash via defaults.model |
+| CI/CD | ✅ Present | ci.yml + release.yml in .github/workflows/ |
+| Scheduler | ⚠️ Unreachable | :9090 no response (not blocking) |
+| DuckBrain | ✅ Write verified | Tick #128 confirmed via key-based recall (bc1c5c4b) |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **128 ticks** |
+| DB-023 | 🟡 Stale (87 ticks) | Route unit tests for 6/7 route files — needs worker |
+| E2E-001 | 🟢 Not due | Last run #124, next due #129–134 |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS — docs/api, docs/guide, CI workflows present
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 — 6/7 route files lack dedicated unit tests (87 ticks stale). Integration coverage (122 tests) strong.
+- Check 4 (packages): PASS — DB-024 resolved, pnpm outdated empty
+- Check 5 (performance): PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): PASS — HTTP API + MCP tools operational
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via key-based recall, tick entries persist
+- Check 10 (code quality): ⚠️ MINOR — lint guard disabled (eslint not wired). tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No known active pitfalls
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): PASS — Cadence maintained, last run #124
+
+**Dispatch decision:** Load 3.36/6.85/9.20 — above dispatch threshold (~3.0). DB-023 deferred. DB-001 blocked. E2E not due.
+
+**Verdict:** IDLE — All 14 NEVER-DONE checks pass or have known-tracked gaps. Zero new findings. Project stable with only DB-001 (blocked, 128 ticks) and DB-023 (stale route tests, 87 ticks) as open items. E2E due at #129–134.
