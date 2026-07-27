@@ -10,7 +10,7 @@ import { listKeysTool } from '../../mcp/tools/list_keys';
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
 import { KeyNode, KeyTreeResponse } from '../types/api';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Build hierarchical tree from flat key list

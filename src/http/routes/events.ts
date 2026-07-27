@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import { safeJsonStringify } from '../../utils/serialize';
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Active SSE connections by namespace

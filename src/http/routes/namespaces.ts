@@ -14,7 +14,7 @@ import {
 import { asyncHandler, ApiError } from '../middleware/errorHandler';
 import { NamespaceListResponse, NamespaceResponse } from '../types/api';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Transform MCP namespace to API response

@@ -19,7 +19,7 @@ import {
   QueryParams 
 } from '../types/api';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Transform MCP memory to API response format

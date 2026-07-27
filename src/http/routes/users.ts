@@ -13,7 +13,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import path from 'path';
 import fs from 'fs';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Extract unique authors from a git repository using git log.

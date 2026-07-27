@@ -12,7 +12,7 @@ import { deepConvertBigInts } from '../../utils/serialize';
 import path from 'path';
 import fs from 'fs';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * In-memory DuckDB connection for cross-namespace queries.
