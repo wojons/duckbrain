@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "speclang",
+  "defaultNamespace": "h3",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
