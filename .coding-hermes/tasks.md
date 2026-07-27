@@ -22,7 +22,7 @@
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-| BUG-027 | Tombstone filtering broken: GET /api/memories/:id returns deleted memories | Critical | Medium | — | ++api, ++duckdb, bug | deepseek-v4-pro | DB query-level bug — needs reasoning to trace recall/filter pipeline | deepseek-v4-flash |
+| BUG-027 | Tombstone filtering broken: GET /api/memories/:id returns deleted memories | Critical | Medium | — | ++api, ++duckdb, bug | ✅ Fixed — 8d68a0d | Fixed Tick #124 |
 | BUG-028 | Multi-segment key lookup fails: Express :key captures only 1 segment | Medium | Low | — | ++api, bug | deepseek-v4-flash | Mechanical Express route fix (/:key → /*) | opencode |
 | BUG-029 | Invalid domain POST returns 500 instead of 400 | Low | Low | — | ++api, bug | deepseek-v4-flash | Error handler catch — route needs try/catch → 400 mapping | opencode |
 
@@ -36,6 +36,7 @@
 
 | ID | Task | Commit | Synced |
 |----|------|--------|--------|
+| BUG-027 | Tombstone filtering broken: GET returns deleted memories | 8d68a0d | Tick #124 |
 | BUG-030 | Missing vite.svg favicon in build output | Trivial fix — foreman direct | Tick #124 |
 | DB-014 | CI/CD: GitHub Actions workflow | ci.yml/release.yml | Tick #34 |
 | DB-015 | DOC: Missing docs pages | All 4 pages exist | Tick #34 |
