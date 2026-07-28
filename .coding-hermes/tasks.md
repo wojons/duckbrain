@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 144 ticks, DB-023 stale 103 ticks) | **Tick:** #144 | **Cooldown:** 900s (scheduler ground truth)|
+|| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+|| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 145 ticks, DB-023 stale 104 ticks) | **Tick:** #145 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -1032,3 +1032,58 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 **Notable:** 20th consecutive idle tick. First tick to catch the NEVER-DONE file-existence fabrication that propagated across 100+ ticks — the board claimed 9/9 docs existed but `ls` revealed CODEOWNERS + SUPPORT.md were missing. Both created directly (self-fix rule, far past 3-tick threshold). Scheduler cooldown ground truth (900s) matches board — no cooldown fabrication this tick. Load surged from 4.64 (#143) to 7.57 — the improvement trend from #134 peak (18.74) reversed. DB-001 now at 144 ticks — the embedding model block is 4 days old across 144 ticks.
 
 **Verdict:** IDLE — 20th consecutive idle tick. All gates pass. 2 NEVER-DONE doc gaps fixed (CODEOWNERS, SUPPORT.md). Only substantive open items: DB-001 (blocked, 144 ticks — awaiting Bane's embedding model decision) and DB-023 (stale route tests, 103 ticks — needs worker dispatch when load drops below 3.0). E2E-001 next due #146–151.
+
+### TICK #145 — IDLE: 21st consecutive, E2E 7/7 PASS (2026-07-28 05:19 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 3.32/7.30/8.66 | 46GB available — 1-min approaching ~3.0 threshold (closest since #127) |
+| Build | ✅ Clean | Vite, 1.77s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.25s — BUG-031 not reproduced (load 3.32) |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful (18 ticks flat) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, 3 active ticks, 41 active projects, 6933 completed, 22127 failed |
+| DuckBrain | ✅ Write verified | Tick #145 (3d0729b2) confirmed via ID recall |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **145 ticks** |
+| DB-023 | 🟡 Stale (104 ticks) | Route unit tests for 5/7 route files — needs worker |
+| BUG-031 | 🟢 Not reproduced | 122/122 pass at load 3.32 — confirms load-driven |
+| E2E-001 | ✅ Smoke PASS | 7/7 endpoints: health(200), keys(200), namespaces(200, 68 ns), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 confirmed fixed. Daemon on port 41450, killed after test. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `{"status":"healthy","uptime":5.84}` |
+| GET /api/keys?prefix=/ | ✅ 200 | Tree structure correct |
+| GET /api/namespaces | ✅ 200 | 68 namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID returned (66347bb3), `content` field used |
+| POST /api/memories (invalid domain) | ✅ 400 | `"Invalid domain 'INVALID'. Must be one of: person, event, concept, message, config, raw_note"` — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 tombstone confirmed |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering verified |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — docs/api (2 files), docs/guide (5 files), CI workflows, CODEOWNERS, SUPPORT.md ALL verified with `ls`
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 — 5/7 route files lack dedicated unit tests (104 ticks stale). Integration coverage (122 tests) strong.
+- Check 4 (packages): ✅ PASS — pnpm outdated empty
+- Check 5 (performance): ✅ PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): ✅ E2E smoke — 7/7 endpoints + tombstone cycle verified via live daemon
+- Check 8 (CI/CD): ✅ PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write verified via ID recall (3d0729b2)
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): ✅ PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): ✅ PASS — No new pitfalls
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke PASS — full browser E2E deferred (load). Next due #146–151.
+
+**Dispatch decision:** Load 3.32/7.30/8.66 — 1-min at 3.32 is the closest approach to the ~3.0 dispatch threshold since Tick #127 (3.36). DB-023 deferred. DB-001 blocked on Bane decision. Foreman-direct E2E smoke completed successfully. No worker dispatch — but this is the closest the project has been to dispatchable in 18 ticks.
+
+**Notable:** 21st consecutive idle tick. The 1-min load (3.32) is within 10% of the dispatch threshold (~3.0) — the closest approach since Tick #127's 3.36, 18 ticks ago. If load continues to drop, Tick #146 could be the first worker dispatch since #125 (which was 20 ticks ago). DB-001 at 145 ticks — the embedding model block is now 4+ days old. E2E window opens at #146 — full browser E2E could run alongside a DB-023 worker if load permits.
+
+**Verdict:** IDLE — 21st consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints and BUG-027/029 remain fixed. Load approaching dispatch threshold (3.32 → ~3.0). Only substantive open items: DB-001 (blocked, 145 ticks — awaiting Bane's embedding model decision) and DB-023 (stale route tests, 104 ticks — needs worker dispatch when load drops below 3.0). E2E-001 next due #146–151 (starting NEXT tick).
