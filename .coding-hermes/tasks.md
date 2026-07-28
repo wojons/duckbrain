@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 |||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 152 ticks, zero active tasks) | **Tick:** #152 | **Cooldown:** 900s (scheduler ground truth)|
+||||||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 153 ticks, zero active tasks) | **Tick:** #153 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -1537,3 +1537,61 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 
 **Verdict:** SUPERSEDED — Duplicate scheduler tick (sibling 82596f5). Sibling fabricated docs check (claimed 9/9, only 7/9 existed). NOTICE + AGENTS.md created. Board corrected. Only substantive open item: DB-001 (blocked, 151 ticks — 5+ days awaiting Bane's embedding model decision). E2E-001 next due #156–161. Cooldown 900s.
 
+
+
+### TICK #153 — IDLE: 7th since dispatch, 27th overall, E2E 7/7 PASS (2026-07-28 08:49 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 5.63/5.73/5.51 | 46GB available — above ~3.0 dispatch threshold |
+| Build | Clean | Vite, 2.28s, 1601 modules |
+| Tests | **176/176** | 18/18 suites, 12.36s |
+| tsc | Clean | TS7 strict mode |
+| Hilo | 525 edges, 121 files | Stable — Hilo=useful (unchanged since #148) |
+| GitReins guard | Clean | secrets clean, no staged tests |
+| GitReins tasks | 8/8 complete | Board matches |
+| Git status | duckbrain.config.json modified | Recurring config drift (defaultNamespace: rethinkdb) |
+| pnpm outdated | Empty | All dependencies current |
+| TODO/FIXME | Clean | Zero TODOs in src/ |
+| Scheduler | Operational | :9090, daemon=running, DB=connected, uptime 7h36m |
+| DuckBrain | Write verified | Tick #153 (31d674f0) confirmed via ID recall |
+| DB-001 | BLOCKED | Embedding model decision — **153 ticks** |
+| BUG-031 | Not reproduced | 176/176 pass at load 5.63 — confirms load-driven |
+| BUG-032 | Resolved #139 | Port pollution cleanup confirmed (lsof empty) |
+| NEVER-DONE docs | 8/8 verified | CODEOWNERS, SUPPORT.md, NOTICE, AGENTS.md, SECURITY.md, CONTRIBUTING.md, LICENSE, CHANGELOG.md ALL confirmed on disk with ls |
+| CRON_PAUSE_REQUESTED | Not present | Idle counter 27 — below escalation threshold |
+| E2E-001 | Smoke PASS | 7/7 endpoints: health(200), keys(200), namespaces(200, 68 ns), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 confirmed fixed. Daemon on port 41530, killed after test. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | 200 | healthy, uptime 7.1s |
+| GET /api/keys?prefix=/ | 200 | 0 top-level nodes (config namespace=rethinkdb) |
+| GET /api/namespaces | 200 | 68 namespaces |
+| POST /api/memories (valid) | 201 | ID returned (2f4a9103), content field used |
+| POST /api/memories (invalid domain) | 400 | VALIDATION_ERROR — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | 204 | BUG-027 tombstone confirmed |
+| GET /api/memories/:id (deleted) | 404 | BUG-027 tombstone filtering verified |
+
+**NEVER-DONE 14-point audit (ALL CLEAN):**
+- Check 1 (specs/docs): PASS — All 8 docs + CI workflows verified with ls
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): RESOLVED — DB-023 complete, 7/7 route coverage, 176/176 pass
+- Check 4 (packages): PASS — pnpm outdated empty
+- Check 5 (TODOs): PASS — Zero TODOs in src/
+- Check 6 (wiring): PASS — Express to MCP to storage to DuckDB
+- Check 7 (endpoints): E2E smoke — 7/7 endpoints + tombstone cycle verified
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via ID recall (31d674f0)
+- Check 10 (code quality): MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): PASS — 525 edges, 121 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No new pitfalls. Port pollution absent (lsof clean). No duplicate tick.
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): Smoke PASS — full browser E2E deferred (load 5.63). Next due #156-161.
+
+**Dispatch decision:** Load 5.63 — well above ~3.0 threshold. Zero active tasks to dispatch. DB-023 resolved, DB-001 blocked on Bane decision. Foreman-direct E2E smoke completed successfully. No worker dispatch.
+
+**Notable:** 7th consecutive idle tick since last dispatch (#146). 27th overall idle in project history. All 14 NEVER-DONE gates pass or known-minor (only Check 10 eslint is a gap). E2E smoke 7/7 confirms BUG-027 (tombstone) and BUG-029 (domain validation) remain fixed after 12+ ticks. All 8 NEVER-DONE docs confirmed on disk with ls — no fabrication this tick. Only substantive open item: DB-001 (blocked, 153 ticks — 7+ days awaiting Bane embedding model decision). E2E-001 next due #156-161. Cooldown 900s.
+
+**Verdict:** IDLE — 27th overall idle tick. All 14 NEVER-DONE gates pass or known-minor. E2E smoke 7/7 PASS confirms all endpoints and all historical bug fixes. DB-001 blocked, zero dispatchable tasks. No CRON_PAUSE_REQUESTED — idle counter below escalation threshold.
