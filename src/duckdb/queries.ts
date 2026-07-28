@@ -190,11 +190,19 @@ export function queryMemories(
   `;
 
   // Use db.all() directly instead of prepared statements to avoid parameter binding issues
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       db.all(sql, (err: any, result: any) => {
         if (err) {
+          const errMsg = err?.message || String(err);
           console.error('DuckDB query error:', err);
+          // BUG-034: Propagate connection errors so callers can retry.
+          // A silently-broken Database (e.g. file locked by another process)
+          // must be evicted from the cache and re-created.
+          if (/connection.*never established|closed already|locked/i.test(errMsg)) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
           resolve([]);
           return;
         }

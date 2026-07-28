@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { getDuckDBConnection } from '../../duckdb/connection';
+import { getDuckDBConnection, evictConnection } from '../../duckdb/connection';
 import { resolveNamespacePath } from './shared';
 import path from 'path';
 import fs from 'fs';
@@ -146,21 +146,39 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       ? validated.prefix.slice(0, -1) 
       : validated.prefix;
     
-    const results = await new Promise<any[]>((resolve, reject) => {
+    const executeQuery = (dbInstance: any) => new Promise<any[]>((resolve, reject) => {
       try {
-        const stmt = db.prepare(sql);
+        const stmt = dbInstance.prepare(sql);
         stmt.all(prefix, validated.limit + 1, validated.offset, (err: any, res: any) => {
           if (err) {
-            console.error('DuckDB list_keys error:', err);
-            reject(err);
+            const errMsg = err?.message || String(err);
+            if (/connection.*never established|closed already|locked/i.test(errMsg)) {
+              reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            } else {
+              reject(err);
+            }
           }
           else resolve(res || []);
         });
       } catch (error) {
-        console.error('DuckDB list_keys prepare error:', error);
         reject(error);
       }
     });
+    
+    // Execute with retry on connection-lost (BUG-034 fix)
+    let results: any[];
+    try {
+      results = await executeQuery(db);
+    } catch (e: any) {
+      if (e?.message?.includes('DUCKDB_CONNECTION_LOST')) {
+        console.error('[list_keys] Connection lost — evicting cache and retrying...');
+        evictConnection(namespacePath);
+        const db2 = getDuckDBConnection('singleton', namespacePath);
+        results = await executeQuery(db2);
+      } else {
+        throw e;
+      }
+    }
     
     // Check if there are more results
     const hasMore = results.length > validated.limit;

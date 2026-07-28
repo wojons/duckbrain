@@ -144,6 +144,21 @@ function getSingletonConnection(namespacePath: string): Database {
 }
 
 /**
+ * Evict a cached connection for a namespace — typically called after a
+ * connection error so the next call to getSingletonConnection creates a
+ * fresh Database instance.
+ *
+ * @param namespacePath - Path to namespace directory
+ */
+export function evictConnection(namespacePath: string): void {
+  const entry = dbCache.get(namespacePath);
+  if (entry) {
+    entry.db.close(() => {});
+    dbCache.delete(namespacePath);
+  }
+}
+
+/**
  * Close DuckDB connection cleanly
  *
  * @param db - Database instance to close

@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { DomainEnum } from '../../schema/memory';
-import { getDuckDBConnection } from '../../duckdb/connection';
+import { getDuckDBConnection, evictConnection } from '../../duckdb/connection';
 import { queryMemories } from '../../duckdb/queries';
 import { getPartitionsForDomain } from '../../storage/manifest';
 import { resolveNamespacePath } from './shared';
@@ -175,8 +175,23 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       filters.embedding = embedding;
     }
 
-    // Execute query
-    const memories = await queryMemories(db, partitionPaths, filters);
+    // Execute query — retry once on connection-lost errors (BUG-034 fix).
+    // When another process has the DuckDB file open (e.g. MCP daemon),
+    // the Node.js binding silently creates a broken Database that fails on
+    // first query. Evict the bad entry and retry with a fresh connection.
+    let memories: Awaited<ReturnType<typeof queryMemories>>;
+    try {
+      memories = await queryMemories(db, partitionPaths, filters);
+    } catch (e: any) {
+      if (e?.message?.includes('DUCKDB_CONNECTION_LOST')) {
+        console.error('[recall] Connection lost — evicting cache and retrying...');
+        evictConnection(namespacePath);
+        const db2 = getDuckDBConnection('singleton', namespacePath);
+        memories = await queryMemories(db2, partitionPaths, filters);
+      } else {
+        throw e;
+      }
+    }
 
     return {
       memories,
