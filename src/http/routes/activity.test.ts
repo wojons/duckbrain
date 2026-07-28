@@ -8,7 +8,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import fs from 'fs';
-import path from 'path';
 
 // Mock fs BEFORE importing the route
 vi.mock('fs', async () => {
