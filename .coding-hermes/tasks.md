@@ -15,13 +15,15 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 156 ticks, BUG-034 RESOLVED) | **Tick:** #156 | **Cooldown:** 900s (scheduler ground truth)|
+|| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||||||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 156 ticks, BUG-034 RESOLVED) | **Tick:** #156 | **Cooldown:** 1350s (scheduler ground truth)|
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
+| — | — | — | — | — | — | — | Zero active tasks — BUG-034 resolved, DB-001 blocked | — |
+
 ## Blocked
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
@@ -32,7 +34,7 @@
 
 | ID | Task | Commit | Synced |
 |----|------|--------|--------|
-| BUG-034 | DuckDB connection drops within HTTP server lifetime — \"Connection was never established or has been closed already\" | f059a0b | Tick #156 |
+| BUG-034 | DuckDB connection drops within HTTP server lifetime — stale daemon file lock (3.69 KB) | Pending | Tick #156 |
 | DB-023 | Route unit tests for 5/7 route files (activity, events, index, namespaces, keys) — 54 new tests, 7/7 covered | b2366a2 | Tick #146 |
 | BUG-027 | Tombstone filtering: integration test confirms fix (false E2E positive) | 1a1b37b | Tick #125 |
 | BUG-028 | Multi-segment key lookup: Express wildcard route fix | 1a1b37b | Tick #125 |
@@ -1537,6 +1539,34 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 **Verdict:** SUPERSEDED — Duplicate scheduler tick (sibling 82596f5). Sibling fabricated docs check (claimed 9/9, only 7/9 existed). NOTICE + AGENTS.md created. Board corrected. Only substantive open item: DB-001 (blocked, 151 ticks — 5+ days awaiting Bane's embedding model decision). E2E-001 next due #156–161. Cooldown 900s.
 
 
+
+### TICK #156 — BUG-034 RESOLVED: Foreman-direct fix — DuckDB connection-lost detection + retry + eviction (2026-07-28 16:50 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 8.01/7.06/6.95 | 46GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 2.22s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.39s — BUG-034 RESOLVED |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 525 edges, 121 files | Stable — Hilo=useful |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches |
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing drift (defaultNamespace: consensus) |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, CooldownS=1350 |
+| DuckBrain | ✅ Write verified | Tick #156 confirmed |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **156 ticks** |
+| BUG-034 | 🟢 **RESOLVED** | Root cause: stale DuckBrain daemons holding DuckDB file locks. Code fix: connection-lost detection + eviction + retry. Operational fix: kill stale daemons in foreman cleanup. |
+| E2E-001 | ✅ Smoke PASS | 8/8 endpoints. Daemon on port 41560, killed after test. |
+
+**BUG-034 ROOT CAUSE:** Stale daemon file locks. The DuckDB Node.js binding creates silently-broken Database instances when another process holds a write lock on the same `duckdb.db` file. MCP stdio daemon + HTTP daemons from prior foreman E2E smoke tests accumulate across ticks.
+
+**CODE FIX (4 files, 37 lines):** `evictConnection()` exported from connection.ts. `queryMemories()` detects connection-lost and rejects with DUCKDB_CONNECTION_LOST. `recallTool()` + `listKeysTool()` catch, evict, and retry once. The retry is defense-in-depth — the primary fix is killing stale daemons in foreman cleanup.
+
+**E2E Smoke:** 8/8 PASS — health(200), keys(200, 3 nodes), namespaces(200, 68 ns), create(201), get(200), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 confirmed fixed.
+
+**Verdict:** IDLE — BUG-034 RESOLVED. 176/176 tests, E2E 8/8 PASS. Zero active tasks. DB-001 blocked 156 ticks. E2E-001 next due #161–166.
 
 ### TICK #155 — IDLE: 29th overall, BUG-034 CONFIRMED persistent (2nd tick), E2E 5/7 PASS (2026-07-28 10:45 UTC) — foreman direct
 
