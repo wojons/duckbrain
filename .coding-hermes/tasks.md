@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 146 ticks, DB-023 RESOLVED) | **Tick:** #146 | **Cooldown:** 900s (scheduler ground truth)|
+|||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 147 ticks, DB-023 RESOLVED) | **Tick:** #147 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -1202,3 +1202,62 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 **Notable:** First worker dispatch in 22 ticks — the 21-tick idle streak is BROKEN. DB-023 was stale for 105 ticks (since Tick #41). All 5 route files now have dedicated unit tests with mock Express req/res — no reliance on integration suite alone. 7/7 route coverage achieved. activity.test.ts uses real Express app + supertest (not fs mocking — the concurrent board update claiming BUG-033/fs mock failure was wrong). The project now has zero stale audit gaps for the first time since Tick #36.
 
 **Verdict:** DISPATCHED — First non-idle tick in 22 ticks. DB-023 RESOLVED. 176/176 tests pass. E2E smoke 7/7 PASS. Only remaining open item: DB-001 (blocked, 146 ticks — awaiting Bane's embedding model decision). E2E-001 next due #151–156. Cooldown remains 900s.
+
+
+### TICK #147 — VERIFICATION-ONLY: Duplicate scheduler session, sibling #146 confirmed (2026-07-28 06:02 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 6.01/4.61/4.87 | 46GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.72s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.62s |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful |
+| GitReins guard | ✅ Clean | secrets clean |
+| GitReins tasks | ✅ 9/9 complete | Board matches |
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, CooldownS=900 (matches board) |
+| DuckBrain | ✅ Write confirmed | Tick #146 (42da16c) committed by sibling session |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **147 ticks** |
+| DB-023 | 🟢 Resolved #146 | 7/7 route coverage, 54 new tests, 176/176 pass |
+| BUG-031 | 🟢 Not reproduced | Confirms load-driven |
+| E2E-001 | ✅ Verified #146 | 7/7 endpoints + tombstone. BUG-027 + BUG-029 confirmed fixed. |
+
+**Duplicate session note:** Scheduler fired Tick #146 at 00:48 UTC. Two sessions spawned. Sibling session completed at 01:01 UTC (42da16c) — dispatched worker, wrote 5 route test files, 176/176 tests, full board update. This session arrived after sibling completion. Standard procedure: verified all gates independently (build, test, tsc, Hilo, GitReins, E2E smoke) — all pass. No dispatch needed.
+
+**E2E Smoke Test Results (foreman-direct, independent verification):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `{"status":"healthy","uptime":40.9}` |
+| GET /api/keys?prefix=/ | ✅ 200 | Tree structure correct |
+| GET /api/namespaces | ✅ 200 | 68 namespaces |
+| POST /api/memories (valid) | ✅ 201 | ID returned (69ed71fd), content field used |
+| POST /api/memories (invalid domain) | ✅ 400 | VALIDATION_ERROR — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 tombstone confirmed |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering verified |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — All docs verified
+- Check 2 (secrets): ✅ PASS — GitReins clean
+- Check 3 (tests): ✅ RESOLVED — DB-023 complete, 176/176 pass, 7/7 route coverage
+- Check 4 (packages): ✅ PASS — pnpm outdated empty
+- Check 5 (performance): ✅ PASS — No hotspots
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB
+- Check 7 (endpoints): ✅ E2E smoke — 7/7 endpoints verified independently
+- Check 8 (CI/CD): ✅ PASS
+- Check 9 (DuckBrain): ✅ Write verified
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): ✅ PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): ✅ PASS — No new pitfalls. Duplicate session pattern recognized and handled correctly.
+- Check 13 (NEVER-DONE): ✅ PASS
+- Check 14 (E2E): ✅ Smoke PASS — independently verified sibling's results. Next due #151–156.
+
+**Dispatch decision:** No dispatch. Sibling #146 already completed all work. This is a verification-only tick per the "late-arriving scheduler tick" pattern. DB-001 remains blocked (147 ticks). Zero stale gaps — project in best shape since Tick #36.
+
+**Notable:** First time in DuckBrain foreman history that a duplicate scheduler session was correctly identified and handled as verification-only rather than redundantly dispatching. The sibling session at load 2.89 achieved what 21 consecutive idle ticks could not — DB-023 resolved. All 5 route files tested independently confirmed at 54 tests. tsc fix (unused `path` import) applied in sibling commit 42da16c.
+
+**Verdict:** VERIFICATION-ONLY — Sibling tick #146 (42da16c) confirmed valid. All gates independently verified. DB-023 RESOLVED. Only DB-001 remains blocked (147 ticks). E2E-001 next due #151–156. Cooldown 900s.
+
