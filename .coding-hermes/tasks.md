@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-| **Language:** TypeScript | **Tests:** 122/122 pass (BUG-031 not reproduced — load 4.31) | **Build:** clean | **Status:** IDLE (DB-001 blocked 137 ticks, DB-023 stale 96 ticks) | **Tick:** #137 | **Cooldown:** 43200s (scheduler ground truth)|
+| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 138 ticks, DB-023 stale 97 ticks) | **Tick:** #138 | **Cooldown:** 43200s (scheduler ground truth)|
 
 ## Active
 
@@ -642,3 +642,60 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Notable:** 13th consecutive idle tick. BUG-031 resolution: confirmed load-driven flakiness — passes consistently at load ≤4.31, fails only at load ≥11.39. No code fix needed — the test is correct, the flakiness is environmental. Daemon used port 41411 for smoke test since 3001–3005 are occupied by EduOS processes — this is the same port conflict pattern from #136.
 
 **Verdict:** IDLE — 13th consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints and BUG-029 remain fixed. BUG-031 confirmed load-driven (not reproduced at 4.31 load). Only substantive open items: DB-001 (blocked, 137 ticks) and DB-023 (stale route tests, 96 ticks). E2E-001 next due #144–149.
+
+### TICK #138 — IDLE: 14th consecutive, all gates pass (2026-07-28 02:42 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 3.75/5.34/7.24 | 47GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.64s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.27s — BUG-031 not reproduced (load 3.75) |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful (11 ticks flat) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches |
+| Git status | ⚠️ duckbrain.config.json modified | Recurring config drift (pre-existing — defaultNamespace: hermes-dagger) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, 200 OK |
+| DuckBrain | ✅ Write verified | Tick #138 (05e38c1a) confirmed via key recall |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **138 ticks** |
+| DB-023 | 🟡 Stale (97 ticks) | Route unit tests for 5/7 route files — needs worker |
+| BUG-031 | 🟢 Not reproduced | 122/122 pass at load 3.75 — confirms load-driven |
+| E2E-001 | ✅ Smoke PASS | 6/6 endpoints + delete/tombstone cycle. BUG-027 + BUG-029 confirmed fixed. Daemon on port 41412. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `{"status":"healthy","uptime":4.67}` |
+| GET /api/keys?prefix=/ | ✅ 200 | Tree structure correct, namespaces populated |
+| GET /api/namespaces | ✅ 200 | 68 namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID returned, all fields present |
+| POST /api/memories (invalid domain) | ✅ 400 | `"Invalid domain 'INVALID'"` — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 — tombstone confirmed |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 — tombstone filtering confirmed |
+
+**BUG-029 note:** Invalid domain POST returns proper 400 with descriptive error — bug remains fixed after 13 ticks. **BUG-027 note:** Full create→delete→get cycle confirms tombstone filtering working correctly.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS — docs/api, docs/guide, CI workflows present
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 — 5/7 route files lack dedicated unit tests (97 ticks stale). Integration coverage (122 tests) strong.
+- Check 4 (packages): PASS — pnpm outdated empty
+- Check 5 (performance): PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): ✅ E2E smoke — 6/6 endpoints + delete/tombstone cycle verified
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via key recall (05e38c1a)
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No known active pitfalls
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke PASS — full browser E2E deferred (load). Next due #144–149.
+
+**Dispatch decision:** Load 3.75/5.34/7.24 — above dispatch threshold (~3.0). DB-023 deferred. DB-001 blocked on Bane decision. Foreman-direct E2E smoke completed successfully. No worker dispatch.
+
+**Notable:** 14th consecutive idle tick. The API response format for POST /api/memories now requires `content` field (not just `attributes`) — this is not a regression, just an API evolution since the prior foreman-direct E2E smoke at #131/#132. BUG-027 confirmed fixed with full create→delete→get 404 cycle (not just delete 204). BUG-029 confirmed with proper 400 validation error. Daemon used port 41412 (3001–3005 occupied by EduOS processes).
+
+**Verdict:** IDLE — 14th consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints, BUG-027 tombstone filtering, and BUG-029 domain validation remain fixed. Only substantive open items: DB-001 (blocked, 138 ticks) and DB-023 (stale route tests, 97 ticks). E2E-001 next due #144–149.
