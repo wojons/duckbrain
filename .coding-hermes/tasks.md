@@ -16,14 +16,12 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||| **Language:** TypeScript | **Tests:** 174/176 pass (18 suites, 2 failures — BUG-034, 2nd tick) | **Build:** clean | **Status:** IDLE (DB-001 blocked 155 ticks, BUG-034 persistent) | **Tick:** #155 | **Cooldown:** 1350s (scheduler ground truth)|
+|||||||| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 156 ticks, BUG-034 RESOLVED) | **Tick:** #156 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-| BUG-034 | DuckDB connection drops within HTTP server lifetime — "Connection was never established or has been closed already" | Critical | — | — | ++db, +duckdb | deepseek-v4-pro | DuckDB connection closes between requests in same server session. CREATE succeeds (201), subsequent GET/DELETE fail. Affects keys endpoint + memory recall. New regression — all prior ticks passed 176/176. | codex-flash |
-
 ## Blocked
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
@@ -34,6 +32,7 @@
 
 | ID | Task | Commit | Synced |
 |----|------|--------|--------|
+| BUG-034 | DuckDB connection drops within HTTP server lifetime — \"Connection was never established or has been closed already\" | f059a0b | Tick #156 |
 | DB-023 | Route unit tests for 5/7 route files (activity, events, index, namespaces, keys) — 54 new tests, 7/7 covered | b2366a2 | Tick #146 |
 | BUG-027 | Tombstone filtering: integration test confirms fix (false E2E positive) | 1a1b37b | Tick #125 |
 | BUG-028 | Multi-segment key lookup: Express wildcard route fix | 1a1b37b | Tick #125 |
@@ -1610,6 +1609,75 @@ The CREATE (Step 1) succeeds (201), but GET (Step 2) returns 404 and DELETE (Ste
 **Notable:** 29th overall idle tick. BUG-034 confirmed as a persistent regression — 2nd consecutive tick. The duckdb@1.4.4 + Node v22 combination appears to have a connection lifecycle issue where the Database object becomes unusable after the first query in an HTTP server context. The MCP daemon (PID 820002) holds stable connections to 4 namespace databases without issue — the problem is specific to the HTTP daemon's connection management pattern. Self-fix rule triggers next tick: "When a bug blocks tests or infrastructure for 3+ consecutive ticks — regardless of code complexity — the foreman fixes it directly." If BUG-034 persists at #156, investigate and fix the DuckDB connection lifecycle directly.
 
 **Verdict:** IDLE — 29th overall idle tick. BUG-034 persistent (2nd tick). All other gates pass. Only substantive open items: DB-001 (blocked, 155 ticks — awaiting Bane's embedding model decision) and BUG-034 (environmental DuckDB connection regression — foreman-direct fix at #156 if still present). E2E-001 next due #156–161. Cooldown 1350s.
+
+### TICK #156 — BUG-034 RESOLVED: foreman-direct self-fix, E2E 7/7 PASS (2026-07-28 17:01 UTC)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 4.32/6.57/6.86 | 46GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.69s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.34s — BUG-034 RESOLVED! All tests pass including memories-bug027.test.ts |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 525 edges, 121 files | Stable — Hilo=useful (unchanged since #148) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Recurring config drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ⚠️ 2 minor updates | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, CooldownS=900, Weight=10, Enabled=true |
+| DuckBrain | ✅ Written | Tick #156 (180ab0ac) confirmed via key /ticks/156 |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **156 ticks** (7+ days) |
+| DB-023 | 🟢 Resolved #146 | 7/7 route coverage, 54 tests |
+| BUG-034 | 🟢 **RESOLVED** | DuckDB connection drops fixed — foreman-direct self-fix (3rd consecutive tick trigger) |
+| NEVER-DONE docs | ✅ 8/8 verified | All 8 docs + CI workflows confirmed with `ls` |
+| E2E-001 | ✅ Smoke 7/7 PASS | All endpoints pass including keys + DELETE→GET tombstone cycle. BUG-027, BUG-029, BUG-034 confirmed fixed. Next due #161–166. |
+
+**BUG-034 RESOLUTION — foreman-direct self-fix (3rd consecutive tick):**
+
+BUG-034 had persisted for ticks #154-155 (2nd consecutive). The self-fix rule triggered at #156: "When a bug blocks tests or infrastructure for 3+ consecutive ticks — regardless of code complexity — the foreman fixes it directly."
+
+Root cause: The DuckDB Node.js singleton connection (`getSingletonConnection()`) could create a broken Database object that passes the initial query (CREATE returns 201) but fails on subsequent queries within the same HTTP server lifetime. The error was "Connection was never established or has been closed already" — a binding-level issue, not a file lock.
+
+Fix (4 files, commit f059a0b):
+- `src/duckdb/connection.ts`: Added `evictConnection()` to close and remove broken cached connections
+- `src/duckdb/queries.ts`: Connection errors now reject with `DUCKDB_CONNECTION_LOST` code instead of silently resolving `[]`
+- `src/mcp/tools/recall.ts`: Wraps queryMemories with retry-on-connection-loss — evicts bad entry + retries with fresh connection
+- `src/mcp/tools/list_keys.ts`: Same retry pattern as recall.ts
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `healthy`, uptime 10.9s |
+| GET /api/keys?prefix=/ | ✅ 200 | Full tree returned, 100 keys — NO DuckDB connection error (BUG-034 fixed!) |
+| GET /api/namespaces | ✅ 200 | 68 namespaces |
+| POST /api/memories (valid) | ✅ 201 | ID 6417ddb2, `content` field used |
+| POST /api/memories (invalid domain) | ✅ 400 | `VALIDATION_ERROR` — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 tombstone + BUG-034 connection recovery both verified |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering verified |
+
+**NEVER-DONE 14-point audit:**
+
+- Check 1 (specs/docs): ✅ PASS — All 8 docs + CI workflows verified with `ls`. NOTICE is Apache 2.0 bare file ✓
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ✅ PASS — 176/176, 18/18 suites. BUG-034 RESOLVED.
+- Check 4 (packages): ⚠️ 2 minor updates (not blocking)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB. Connection retry pattern now added.
+- Check 7 (endpoints): ✅ E2E smoke — 7/7 endpoints + tombstone cycle verified. BUG-034 fixed confirmed in production.
+- Check 8 (CI/CD): ✅ PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write verified via ID recall (180ab0ac)
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 525 edges, 121 files, Hilo=useful
+- Check 12 (pitfalls): ✅ PASS — BUG-034 RESOLVED. No new pitfalls. No duplicate tick.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ✅ Smoke 7/7 PASS — all endpoints including keys + tombstone. Full browser E2E deferred (load 4.32). Next due #161–166.
+
+**Dispatch decision:** Load 4.32 — above ~3.0 dispatch threshold. Zero active tasks to dispatch. DB-023 resolved, DB-001 blocked on Bane decision (156 ticks). Foreman-direct self-fix applied for BUG-034. No worker dispatch.
+
+**Notable:** First productive tick since #146 (10 ticks ago). BUG-034 self-fix is the first code change to the project in over 12 hours of foreman time. The self-improving loop worked as designed: 2 ticks of persistence detection (#154-#155) → 3rd tick auto-triggers foreman-direct fix (#156). All 14 NEVER-DONE gates pass or are known-minor. Only substantive open item: DB-001 (blocked, 156 ticks — awaiting Bane's embedding model decision). E2E-001 next due #161–166. Cooldown 900s.
+
+**Verdict:** PRODUCTIVE — BUG-034 RESOLVED. 30th overall tick. Self-fix rule successfully terminated a 2-tick regression. Tests restored to 176/176, E2E restored to 7/7. DuckDB connection now has eviction+retry protection for production resilience. 30 ticks since last worker dispatch (#146).
 
 ### TICK #154 — IDLE: 28th idle overall, BUG-034 FOUND — DuckDB connection regression (2026-07-28 09:18 UTC) — foreman direct
 
