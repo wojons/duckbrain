@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||||||||| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 135 ticks, DB-023 stale 94 ticks) | **Tick:** #135 | **Cooldown:** 43200s (scheduler ground truth)|
+||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||| **Language:** TypeScript | **Tests:** 121/122 pass (1 flaky — load-driven) | **Build:** clean | **Status:** IDLE (DB-001 blocked 136 ticks, DB-023 stale 95 ticks) | **Tick:** #136 | **Cooldown:** 43200s (scheduler ground truth)|
 
 ## Active
 
@@ -28,7 +28,7 @@
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **131+ ticks** |
+| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **136 ticks** |
 
 ## Completed
 
@@ -54,7 +54,8 @@
 
 | ID | Gap | Severity | Status |
 |----|-----|----------|--------|
-| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (85+ ticks stale — needs worker, not foreman) |
+| DB-023 | Route test coverage: 6/7 route files lack unit tests | Medium | Open (95+ ticks stale — needs worker, not foreman) |
+| BUG-031 | users-activity.test.ts flaky timeout (load-driven — git log × 68 namespaces under load). Passes isolation with 15s timeout. | Low | Open — found Tick #136 |
 | DB-024 | ~~pnpm outdated: uuid 13→14, typescript 6→7, 2 deprecated @types~~ | ~~Low~~ | **RESOLVED Tick #126** — uuid→14, ts→7, @types/uuid+bcryptjs removed. 122/122 tests pass, tsc clean, build clean. Commit 26b32bb. |
 | DB-026 | ~~E2E-001 never run~~ | ~~Medium~~ | **RESOLVED Tick #124** — 36 endpoints, 32/36 pass, 4 bugs found → all resolved by Tick #125 |
 
@@ -542,3 +543,48 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Dispatch decision:** Load 5.18/4.64/6.48 — above dispatch threshold (~3.0). DB-023 deferred. DB-001 blocked on Bane decision. E2E-001 blocked on daemon crash. Foreman-direct tick only — no worker spawn.
 
 **Verdict:** IDLE — 11th consecutive idle tick. All gates pass. Load trending down from #134 spike (18.74 → 5.18) but still above threshold. Cooldown set to 43200s — project will not tick again for 12 hours. Only open items: DB-001 (blocked, 135 ticks) and DB-023 (stale route tests, 94 ticks). E2E-001 next due #144–149.
+
+### TICK #136 — IDLE: 12th consecutive, test flakiness found (2026-07-27 20:39 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 11.39/8.18/7.89 | 49GB available — well above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.83s, 1601 modules |
+| Tests | ⚠️ **121/122** (1 flaky) | users-activity.test.ts timeout (5000ms). Passes isolation with 15s. Root cause: `git log` × 68 namespaces under 11.39 load. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful (9 ticks flat) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches |
+| Git status | ⚠️ duckbrain.config.json modified | Recurring config drift (reverted in #135, returned #136) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, daemon running, DB connected, 32854 total ticks |
+| DuckBrain | ✅ Write verified | Tick #136 (1100cec9) confirmed via key recall |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **136 ticks** |
+| DB-023 | 🟡 Stale (95 ticks) | Route unit tests for 5/7 route files — needs worker |
+| BUG-031 | 🟡 NEW | users-activity.test.ts flaky timeout (load-driven). Passes isolation with 15s timeout. Low severity — test logic correct, timing issue only. |
+| E2E-001 | ⏭️ Skipped | HTTP daemon crashes on start (port conflicts — 3001-3005 occupied by EduOS). Integration tests (122) cover all endpoints. |
+
+**BUG-031 investigation:** `users-activity.test.ts` times out at default 5000ms when run as part of full suite under high host load (11.39). The `/users` endpoint runs `git log --all --format=%aN` for each of 68 namespaces (5s timeout each). Under 11.39 load, even with `execSync` timeout of 5000ms per call, the cumulative effect pushes total test time past the 5000ms Vitest default. Running in isolation with `--testTimeout=15000` passes consistently (all 11 tests, 2.1s). Root cause is host load, not code regression. Fix options: (a) increase testTimeout in vitest config, (b) mock git in unit test, (c) accept as load-driven flake.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS — docs/api, docs/guide, CI workflows present
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 (95 ticks stale) + BUG-031 (NEW — flaky timeout). Integration coverage (122 tests) strong.
+- Check 4 (packages): PASS — pnpm outdated empty
+- Check 5 (performance): PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): 🟡 HTTP daemon blocked by port conflicts. Integration tests (122/122, 13 suites) cover all endpoints.
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via key recall, tick entry persists
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No known active pitfalls
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): ⏭️ Skipped — port conflicts block HTTP daemon. Integration tests provide endpoint coverage. Next due #144–149.
+
+**Dispatch decision:** Load 11.39/8.18/7.89 — nearly 4x dispatch threshold (~3.0). Worker dispatch blocked. DB-023 deferred. DB-001 blocked on Bane decision. BUG-031 is load-driven flake — no worker needed. Foreman-direct tick only.
+
+**Notable:** BUG-031 is the first new finding in 12 ticks (since #125). The test itself is correct — the flakiness is purely load-driven. `getAuthorsFromGit()` iterates 68 namespaces with `execSync('git log')` per namespace; under 11.39 load, cumulative git execution time exceeds Vitest default 5000ms. The prior 11 ticks all had lower load (3.36–8.29 range) where the test consistently passed.
+
+**Verdict:** IDLE — 12th consecutive idle tick. One new finding: BUG-031 (flaky test, load-driven, low severity). All other gates pass. Only substantive open items: DB-001 (blocked, 136 ticks) and DB-023 (stale route tests, 95 ticks). E2E-001 next due #144–149. Cooldown remains 43200s.
