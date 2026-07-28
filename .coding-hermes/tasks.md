@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 139 ticks, DB-023 stale 98 ticks) | **Tick:** #139 | **Cooldown:** 43200s (scheduler ground truth)|
+| **Language:** TypeScript | **Tests:** 122/122 pass | **Build:** clean | **Status:** IDLE (DB-001 blocked 142 ticks, DB-023 stale 101 ticks) | **Tick:** #142 | **Cooldown:** 900s (scheduler ground truth)|
 
 ## Active
 
@@ -28,7 +28,7 @@
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **136 ticks** |
+| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **142 ticks** |
 
 ## Completed
 
@@ -872,3 +872,61 @@ Board summary: 40 tasks completed (incl DB-024), 0 pending, 1 BLOCKED (DB-001), 
 **Notable:** 17th consecutive idle tick. BUG-031 did NOT reproduce at load 10.18 — this is the highest non-failing load observed (prior failure at 11.39 in #136). The threshold for flakiness is confirmed between 10.18 and 11.39 — extremely narrow. Cooldown drift between board (43200s) and scheduler DB (900s) was caught by Gate 10 dual-source verification — a pattern that would have gone undetected for many more ticks. The project is actually on a 900s cooldown, not the 43200s the board claimed — the scheduler has been firing ticks normally, the board was just wrong.
 
 **Verdict:** IDLE — 17th consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints, BUG-027 tombstone filtering, and BUG-029 domain validation remain fixed. BUG-031 confirmed not reproduced at 10.18 load (threshold confirmed at ≥11.39). Cooldown drift detected and corrected (board claimed 43200s, DB truth = 900s). Only substantive open items: DB-001 (blocked, 141 ticks — awaiting Bane's embedding model decision) and DB-023 (stale route tests, 100 ticks — needs worker dispatch when load drops below 3.0). E2E-001 next due #146–151.
+
+### TICK #142 — IDLE: 18th consecutive, E2E 7/7 PASS (2026-07-28 04:32 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 4.10/4.88/5.53 | 46GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.62s, 1601 modules |
+| Tests | ✅ **122/122** | 13/13 suites, 12.28s — BUG-031 not reproduced (load 4.10) |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 503 edges, 116 files | Stable — Hilo=useful (15 ticks flat) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Pre-existing drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ✅ Empty | All dependencies current |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, daemon running, DB connected, 32949 total ticks, 3h19m uptime |
+| DuckBrain | ✅ Write verified | Tick #142 (99d8b7be) confirmed via ID recall |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **142 ticks** |
+| DB-023 | 🟡 Stale (101 ticks) | Route unit tests for 5/7 route files — needs worker |
+| BUG-031 | 🟢 Not reproduced | 122/122 pass at load 4.10 — confirms load-driven |
+| BUG-032 | 🟢 Resolved #139 | Daemon cleanup confirmed after smoke test |
+| E2E-001 | ✅ Smoke PASS | 7/7 endpoints: health(200), keys(200), namespaces(200, 68 ns), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 confirmed fixed. Daemon on port 41441, killed after test. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `{"status":"healthy","uptime":11.94}` |
+| GET /api/keys?prefix=/ | ✅ 200 | Tree structure correct |
+| GET /api/namespaces | ✅ 200 | 68 namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID returned (a39b981e), `content` field used |
+| POST /api/memories (invalid domain) | ✅ 400 | `"Invalid domain 'INVALID'. Must be one of: person, event, concept, message, config, raw_note"` — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 tombstone confirmed |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering verified |
+
+**Daemon note:** DuckBrain daemonizes (parent exits, child continues). Previous ticks that reported "daemon crash" were likely the parent exiting while the child was alive. Confirmed: parent PID 1980844 exited, child PID 1980922 was alive and serving requests. The background process tracker sees the parent exit and reports "exited" — the child is invisible to it. E2E smoke testing against the child works correctly.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): PASS — docs/api, docs/guide, CI workflows present
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ DB-023 — 5/7 route files lack dedicated unit tests (101 ticks stale). Integration coverage (122 tests) strong.
+- Check 4 (packages): PASS — pnpm outdated empty
+- Check 5 (performance): PASS — No hotspots, no FIXME/TODO
+- Check 6 (wiring): PASS — Express→MCP→storage→DuckDB fully wired
+- Check 7 (endpoints): ✅ E2E smoke — 7/7 endpoints + tombstone cycle verified via live daemon
+- Check 8 (CI/CD): PASS — GitHub Actions ci.yml + release.yml
+- Check 9 (DuckBrain): PASS — Write verified via ID recall (99d8b7be)
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled. tsc strict clean.
+- Check 11 (Hilo): PASS — 503 edges, 116 files, Hilo=useful
+- Check 12 (pitfalls): PASS — No new pitfalls. Daemonization behavior documented (parent exits, child continues — not a crash).
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke PASS — full browser E2E deferred (load). Next due #146–151.
+
+**Dispatch decision:** Load 4.10/4.88/5.53 — above dispatch threshold (~3.0). DB-023 deferred. DB-001 blocked on Bane decision. Foreman-direct E2E smoke completed successfully. No worker dispatch.
+
+**Notable:** 18th consecutive idle tick. Load remains above dispatch threshold but low (4.10 — closest to the 3.0 threshold since #127's 3.36). Daemonization behavior clarified: prior ticks that reported "daemon crash" (e.g., #130, #135) were likely false positives — the parent exits after daemonizing and the child lives. This tick verified by checking the PID file and curling the child process directly. All 7 E2E endpoints confirmed functional with BUG-027 and BUG-029 remaining fixed. BUG-031 not reproduced at load 4.10.
+
+**Verdict:** IDLE — 18th consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints, BUG-027 tombstone filtering, and BUG-029 domain validation remain fixed. Daemonization pattern documented (parent exits, child continues — not a crash). Only substantive open items: DB-001 (blocked, 142 ticks — awaiting Bane's embedding model decision) and DB-023 (stale route tests, 101 ticks — needs worker dispatch when load drops below 3.0). E2E-001 next due #146–151.
