@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 174 ticks) | **Tick:** #174 | **Cooldown:** 900s (DecayRate=0) | **Docs:** 21 total (12 root + 9 docs/) | **E2E:** 8/8 smoke ✅ (first full pass since BUG-034) | **DuckBrain:** HTTP API fallback (MCP ClosedResourceError), ID a65c4550 verified
+| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+|||||||| **Language:** TypeScript | **Tests:** 175/176 pass (18 suites, 1 flaky timeout) | **Build:** clean | **Status:** IDLE (DB-001 blocked 175 ticks) | **Tick:** #175 | **Cooldown:** 900s (DecayRate=0) | **Docs:** 21 total (12 root + 9 docs/) | **E2E:** 8/8 smoke ✅ (2nd consecutive full pass — BUG-034 dormant?) | **DuckBrain:** MCP ✅ (write+recall confirmed), ID f2a532c4
 
 ## Active
 
@@ -28,7 +28,7 @@
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **173 ticks** |
+||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **175 ticks** |
 
 ## Completed
 
@@ -73,6 +73,64 @@
   for EVERY gap found. This task is never complete — the audit always finds something.
 
 ## Tick Log
+
+### TICK #175 — IDLE: 45th idle, E2E 8/8 PASS (2nd consecutive full pass — BUG-034 dormant?), load 13.99 far above dispatch, DuckBrain MCP ✅ (2026-07-29 22:12 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **13.99**/11.72/10.11 | 46GB available — far above ~3.0 dispatch threshold (highest in 10+ ticks) |
+| Build | ✅ Clean | Vite, 1.89s, 1601 modules |
+| Tests | ⚠️ **175/176** | 18/18 suites run. 1 FAIL: users-activity.test.ts — flaky timeout (BUG-031, load-driven). **BUG-034 did NOT manifest** — the 3 bug027 integration failures from #164–#174 are ABSENT this tick. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Config drift returned (was clean in #172) |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (same as prior 18+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 21 total | 12 root md + 9 docs/. All verified with ls. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **175 ticks** |
+| NEVER-DONE | ⚠️ 10/14 gates pass or known-minor | Check 3 (1 flaky timeout — BUG-031), Check 4 (2 outdated), Check 7 (E2E 8/8 ✅), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | 🟢 Smoke **8/8 PASS** | Health(200), Keys(200), Namespaces(200), Create(201), InvalidDomain(400), GET(200), DELETE(204), GET-deleted(404). **2nd consecutive full pass.** BUG-034 connection lifecycle NOT manifesting. |
+| DuckBrain | ✅ Write + recall | Write (f2a532c4) via MCP → recall confirmed via ID lookup in coding-hermes namespace. MCP functioning — no ClosedResourceError. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 41555 |
+| GET /api/keys?prefix=/ | ✅ 200 | Keys returned |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID a7778ae0 — required "content" field (not "attributes") |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ✅ 200 | Memory retrieved — BUG-034 NOT manifesting |
+| DELETE /api/memories/:id | ✅ 204 | Tombstone created |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone confirmed fixed |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ⚠️ 21 docs verified. No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 175/176 — 1 flaky timeout (users-activity BUG-031, load-driven). **BUG-034 (3 bug027 failures) ABSENT this tick.** First time since #154 that bug027 integration tests pass cleanly.
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — 18+ ticks, minor)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB. Build/tsc clean confirm.
+- Check 7 (endpoints): 🟢 E2E 8/8 — all endpoints pass including full CRUD cycle. 2nd consecutive complete pass.
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write (f2a532c4) + recall via MCP confirmed in coding-hermes namespace. No ClosedResourceError.
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (pitfalls): ⚠️ Config drift (duckbrain.config.json). No specs/. **BUG-034 dormant** — 2 ticks without DuckDB connection drops in E2E. DecayRate=0 stable.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke 8/8. Full CRUD cycle passes. Next full due #176–181.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header row — confirmed idle.
+
+**Dispatch decision:** Load 13.99 — far above ~3.0 threshold (highest in 10+ ticks). Zero active tasks. DB-001 blocked on Bane decision (175 ticks). No worker dispatch.
+
+**Notable:** 45th idle tick. **SIGNIFICANT: BUG-034 may be resolved or dormant.** The 3 bug027 integration test failures that consistently appeared in ticks #164–#174 are ABSENT this tick — only the known-flaky users-activity timeout (BUG-031, load-driven) remains. E2E smoke 8/8 is the 2nd consecutive full pass. The DuckDB connection lifecycle bug did NOT manifest in either the vitest suite or the foreman-direct E2E smoke. MCP DuckBrain is functioning without ClosedResourceError for the first time in recent ticks. Load spiked to 13.99 — highest in recent history, but tests pass cleanly. Config drift returned (was clean in #172, returned in #173). All historical bugs remain resolved. DB-001 now 175 ticks blocked. If BUG-034 stays dormant for 2 more ticks, the bug can be considered resolved (likely a DuckDB version or environment factor).
+
+**Verdict:** IDLE — 45th overall idle tick. E2E 8/8 PASS (2nd consecutive). BUG-034 appears dormant — 3 bug027 integration failures ABSENT. Only failure is known-flaky BUG-031 (load-driven timeout). MCP DuckBrain functional. Config drift persists. DB-001 blocked 175 ticks. Cooldown 900s.
 
 ### TICK #174 — IDLE: 44th idle, E2E 8/8 PASS (first full pass since BUG-034 appeared), load above dispatch (4.77), DuckBrain HTTP API fallback (2026-07-29 17:15 UTC) — foreman direct
 
