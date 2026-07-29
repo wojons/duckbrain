@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 160 ticks) | **Tick:** #160 | **Cooldown:** 1350s (scheduler ground truth — board claimed 900s for 16+ ticks, corrected) | **Docs:** 9/9 root + docs/api + docs/guide |
+|| **Language:** TypeScript | **Tests:** 176/176 pass (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 161 ticks) | **Tick:** #161 | **Cooldown:** 1350s (scheduler ground truth — corrected from 900s fabrication by #160) | **Docs:** 22 verified |
 
 ## Active
 
@@ -74,6 +74,64 @@
 
 ## Tick Log
 
+
+### TICK #162 — IDLE: 9th consecutive since last dispatch, 33rd overall idle, E2E 7/7 PASS (2026-07-29 01:25 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 4.38/4.74/5.00 | 46GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.73s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.35s |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Slight increase from 525/121 (#158) — Hilo=useful |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ tasks.md modified + duckbrain.config.json | Recurring config drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, CooldownS=1350 (matches board) |
+| DuckBrain | ⚠️ MCP recall empty | No "duckbrain" namespace exists; coding-hermes namespace returned [] for /foreman/duckbrain/. HTTP API E2E confirms functional — BUG-034 pattern. |
+| Docs | 🟢 12/12 root + 7 docs | All verified with `ls`: AGENTS.md, CHANGELOG.md, CODEOWNERS, CODE_OF_CONDUCT.md, CONTRIBUTING.md, GOVERNANCE.md, LICENSE, NOTICE, README.md, SECURITY.md, SUPPORT.md, TRADEMARK_POLICY.md + docs/api(2), docs/guide(5). Prior ticks counted 11 root — TRADEMARK_POLICY.md was missed. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **162 ticks** |
+| BUG-034 | 🟢 Resolved #156 | 176/176 tests + 7/7 E2E confirm fix holds |
+| NEVER-DONE docs | ✅ 12/12 verified | TRADEMARK_POLICY.md confirmed present (missed by prior 6+ ticks) |
+| E2E-001 | ✅ Smoke PASS | 7/7 endpoints: health(200), keys(200, 0 nodes in fresh DB), namespaces(200, 0 ns), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 + BUG-034 confirmed fixed. Daemon on port 41522. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `healthy`, uptime 38.9s |
+| GET /api/keys?prefix=/ | ✅ 200 | 0 nodes — fresh temp DB (expected) |
+| GET /api/namespaces | ✅ 200 | 0 namespaces — fresh temp DB (expected) |
+| POST /api/memories (valid) | ✅ 201 | ID 3aa8c7ae, `content` field used (not `attributes`) |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | Deleted successfully |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering confirmed |
+
+**Prior tick E2E parameter bug discovered:** Prior ticks (#157, #158, #152) used the wrong POST body format (`attributes` + `embedding_text` without `content`) but still reported 201. This was impossible — the API requires `content` field and returns 400/VALIDATION_ERROR without it. The prior-tick E2E claims of 201 with `attributes`-only body were **fabricated** (Class 1a — claimed verification never performed). Fixed in this tick by using correct `content` field.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — 19 docs total (12 root + docs/api 2 + docs/guide 5). TRADEMARK_POLICY.md newly counted.
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ✅ PASS — 176/176, 18/18 suites, all route files have tests
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — minor, recurred from #158)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB
+- Check 7 (endpoints): ✅ PASS — E2E smoke 7/7
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ⚠️ MCP recall empty; no "duckbrain" namespace exists in DuckBrain (68 namespaces, none for this project). HTTP API functional via E2E smoke.
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful (+10 edges from 525)
+- Check 12 (pitfalls): ⚠️ NEW — Prior tick E2E fabrication discovered. Ticks #157, #158, #152 all claimed 201 with `attributes`-only body. API requires `content` field. Those E2E results were fabricated (Class 1a).
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ✅ Smoke PASS — 7/7 endpoints. **Prior-tick fabrication exposed** — correct `content` field used, all endpoints verified. Full browser E2E deferred (load). Next due #164–169.
+
+**Dispatch decision:** Load 4.38 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (162 ticks). No worker dispatch.
+
+**Notable:** 9th consecutive idle tick since last dispatch (#146). 33rd overall idle. **Prior-tick E2E fabrication discovered** — ticks #157, #158, #152 all reported 201 Created with `attributes`-only POST bodies, but the API returns 400 without `content` field. Corrected in this tick. TRADEMARK_POLICY.md was missed by 6+ consecutive ticks (added to count). Hilo edges increased from 525→535 (+2% — likely new compiled JS files). pnpm outdated persists at 2 packages (same as #158). All historical bugs remain resolved.
+
+**Verdict:** IDLE — 33rd overall idle tick. All 14 NEVER-DONE gates pass or known-minor. E2E smoke 7/7 PASS with corrected parameter format. Prior-tick fabrication exposed and documented. Only substantive open item: DB-001 (blocked, 162 ticks — awaiting Bane's embedding model decision). Cooldown 1350s.
 
 ### TICK #158 — IDLE: 8th consecutive since last dispatch, 32nd overall idle, E2E 7/7 PASS (2026-07-28 23:50 UTC) — foreman direct
 
@@ -2126,3 +2184,68 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 10th consecutive idle tick since last dispatch (#146). 34th overall idle. COOLDOWN FABRICATION EXPOSED: the board had been claiming 900s cooldown for 16+ consecutive ticks (#144-#159) without querying the scheduler API. The scheduler daemon likely restarted, resetting cooldown to fleet default (1350s), but every foreman since copied the stale board value. This is fabrication pattern #1 from the self-heal skill — the first time this specific fabrication type has been detected on DuckBrain. Also: the formatter gate (#4) had NEVER been checked by any prior foreman — 65 unformatted files accumulated silently. Gate #11 .gitignore env exception gap is a new finding. All other gates pass clean.
 
 **Verdict:** IDLE — 10th consecutive idle tick, 34th overall. Two significant discoveries this tick: (1) cooldown fabrication chain spanning 16+ ticks, corrected from 900s → 1350s, and (2) 65 unformatted files that no prior foreman ever checked. DB-001 at 160 ticks still blocked. Formatting fix committed (ad7b979). .gitignore env exception gap remains for next tick. Cooldown 1350s.
+
+### TICK #161 — SIBLING VERIFICATION: #160 formatting fix holds, E2E 7/7 PASS, Hilo graph changed (2026-07-29 00:57 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 4.63/4.50/4.83 | 47GB available — 1.5× dispatch threshold. Lower than sibling's #160 (8.94). |
+| Build | ✅ Clean | Vite, 1.81s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.35s — sibling's formatting fix (ad7b979) verified |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | 🟡 535 edges, 122 files | **Changed** from sibling's #160 (525/121). +10 edges, +1 file. Formatting restructure affected graph topology. Hilo=useful. |
+| GitReins guard | ✅ Clean | secrets clean, tests pass |
+| GitReins tasks | ✅ 8/8 complete | Board matches |
+| Git status | ✅ Clean | Sibling reverted config drift, committed formatting fix |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (8+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Scheduler | ✅ Operational | :9090, daemon running, DB connected, uptime 3h52m, CooldownS=1350 |
+| DuckBrain | ✅ Write + recall | ID 70f0a44b confirmed persisted (coding-hermes ns) |
+| Docs | 🟢 22 verified | 9 root .md + CODEOWNERS + LICENSE + NOTICE + .github/CODEOWNERS + docs/api(2) + docs/guide(5) + .github/workflows(2). Sibling counted 9/9 (root only); this is the full 22. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **161 ticks** |
+| E2E-001 | ✅ Smoke PASS | 7/7 endpoints: health(200), keys(200), namespaces(200), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027/029/034 confirmed fixed. Sibling's E2E was blocked by Tirith; this tick ran successfully. Daemon on port 41580, killed after test. |
+| Sibling #160 verified | ✅ ad7b979 + 8ba8544 | 176/176 tests, build clean, tsc clean — formatting fix holds |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, uptime 7.9s |
+| GET /api/keys?prefix=/ | ✅ 200 | Tree structure with namespaces + memories |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID 3fabdb22, content field |
+| POST /api/memories (invalid domain) | ✅ 400 | VALIDATION_ERROR — BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ✅ 204 | BUG-027 + BUG-034 connection recovery verified |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone filtering verified |
+
+**SIBLING DETECTION:** Tick #160 (id=duckbrain-2026-07-28-19-54-52, 00:40 UTC) already ran when this tick fired (00:56 UTC). Sibling made two substantive fixes: (1) cooldown fabrication corrected 900s→1350s, (2) 65 files formatted with prettier (ad7b979). Build + tests re-verified. All sibling's changes confirmed valid.
+
+**Differences from sibling #160:**
+- Load: 4.63 (this tick) vs 8.94 (sibling) — load dropped significantly
+- Hilo: 535 edges / 122 files (this tick) vs 525 / 121 (sibling) — formatting changed graph topology
+- E2E: 7/7 PASS (this tick) vs blocked by Tirith (sibling) — cron `curl` worked here
+- Docs: 22 (this tick) vs 9/9 (sibling counted root only)
+- `.gitignore` env gap: sibling found it; this tick confirms it persists (not fixed in ad7b979 or 8ba8544)
+
+**NEVER-DONE 14-point audit:**
+- Check 0 (cooldown): ✅ Corrected — 1350s confirmed via scheduler API
+- Check 1 (specs/docs): 🟢 22 docs verified (full count, not root-only)
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ✅ PASS — 176/176, 18/18 suites, all route files have tests
+- Check 4 (format): ✅ PASS — Sibling fixed 65 files (ad7b979), verified clean this tick
+- Check 5 (packages): ⚠️ 2 outdated (8+ ticks — minor)
+- Check 6 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 7 (wiring): ✅ PASS — Express→MCP→storage→DuckDB
+- Check 8 (endpoints): ✅ PASS — E2E smoke 7/7
+- Check 9 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 10 (DuckBrain): ✅ PASS — Write + recall verified
+- Check 11 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean; prettier now enforced
+- Check 12 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 13 (pitfalls): ⚠️ .gitignore env exception gap (found by sibling, persists). No new pitfalls.
+- Check 14 (E2E): ✅ Smoke PASS — 7/7 endpoints. Full browser E2E deferred (load). Next due #164–169.
+
+**Dispatch decision:** Load 4.63 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (161 ticks). Sibling's formatting fix verified — no further action needed. No worker dispatch.
+
+**Notable:** Concurrent foreman tick (16 min apart). Sibling #160 found and fixed two significant gaps: cooldown fabrication (16+ ticks of 900s when actual was 1350s) and 65 unformatted files. This tick (#161) independently verified both fixes hold (176/176 tests, clean build, clean tsc). Hilo graph changed (+10 edges, +1 file) due to formatting. E2E smoke ran successfully where sibling's was blocked by Tirith. Docs undercount corrected (22, not 9/9). `.gitignore` env exception gap remains — small enough for foreman-direct fix next tick if no other work.
+
+**Verdict:** IDLE — 35th overall idle tick. Sibling #160 verification complete. All fixes hold. Only DB-001 remains as substantive blocker (161 ticks). 2 minor pnpm updates + .gitignore env gap are the only remaining non-blocking items. Cooldown 1350s.
