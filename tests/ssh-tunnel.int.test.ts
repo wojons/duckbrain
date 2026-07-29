@@ -1,15 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execSync } from 'child_process';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { execSync } from "child_process";
 import {
-  uniqueId, getRandomPort, startSshContainer, stopSshContainer,
-  sshExec, waitForPort, run, sleep,
-} from './helpers';
+  uniqueId,
+  getRandomPort,
+  startSshContainer,
+  stopSshContainer,
+  sshExec,
+  waitForPort,
+  run,
+  sleep,
+} from "./helpers";
 
 const id = uniqueId();
 const sshPort = getRandomPort();
 let containerName: string;
 
-describe('SSH Tunnel Integration', () => {
+describe("SSH Tunnel Integration", () => {
   beforeAll(async () => {
     containerName = await startSshContainer(id, sshPort);
     await waitForPort(sshPort, 15000);
@@ -19,49 +25,51 @@ describe('SSH Tunnel Integration', () => {
     stopSshContainer(containerName);
   });
 
-  it('should SSH into the container and run a command', async () => {
+  it("should SSH into the container and run a command", async () => {
     const result = run(
-      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "echo hello-from-container"`
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "echo hello-from-container"`,
     );
-    expect(result).toContain('hello-from-container');
+    expect(result).toContain("hello-from-container");
   });
 
-  it('should detect DuckBrain is NOT installed on a fresh container', async () => {
+  it("should detect DuckBrain is NOT installed on a fresh container", async () => {
     const result = run(
-      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "which duckbrain 2>/dev/null || echo NOT_FOUND"`
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "which duckbrain 2>/dev/null || echo NOT_FOUND"`,
     );
-    expect(result).toContain('NOT_FOUND');
+    expect(result).toContain("NOT_FOUND");
   });
 
-  it('should create an SSH tunnel with port forwarding', async () => {
+  it("should create an SSH tunnel with port forwarding", async () => {
     run(
-      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} -L 0:localhost:22 -N -f testuser@127.0.0.1 2>&1 || true`
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} -L 0:localhost:22 -N -f testuser@127.0.0.1 2>&1 || true`,
     );
     await sleep(500);
-    const tunnelResult = run(`ps aux | grep "ssh.*${sshPort}" | grep -v grep || echo NO_TUNNEL`);
-    const hasTunnel = !tunnelResult.includes('NO_TUNNEL');
+    const tunnelResult = run(
+      `ps aux | grep "ssh.*${sshPort}" | grep -v grep || echo NO_TUNNEL`,
+    );
+    const hasTunnel = !tunnelResult.includes("NO_TUNNEL");
     // Cleanup: execSync directly with stdio:'ignore' to avoid pkill/process-group issues
     try {
-      execSync(`pkill -f "ssh.*-L.*${sshPort}"`, { stdio: 'ignore' });
+      execSync(`pkill -f "ssh.*-L.*${sshPort}"`, { stdio: "ignore" });
     } catch {}
     if (hasTunnel) {
       expect(hasTunnel).toBe(true);
     }
   });
 
-  it('should write and read a file through SSH', async () => {
+  it("should write and read a file through SSH", async () => {
     sshExec(containerName, 'echo "test-data" > /tmp/duckbrain-test.txt');
-    const result = sshExec(containerName, 'cat /tmp/duckbrain-test.txt');
-    expect(result).toContain('test-data');
+    const result = sshExec(containerName, "cat /tmp/duckbrain-test.txt");
+    expect(result).toContain("test-data");
   });
 
-  it('should have git available in the container', async () => {
-    const result = sshExec(containerName, 'which git');
-    expect(result).toContain('git');
+  it("should have git available in the container", async () => {
+    const result = sshExec(containerName, "which git");
+    expect(result).toContain("git");
   });
 
-  it('should have ssh client available in the container', async () => {
-    const result = sshExec(containerName, 'which ssh');
-    expect(result).toContain('ssh');
+  it("should have ssh client available in the container", async () => {
+    const result = sshExec(containerName, "which ssh");
+    expect(result).toContain("ssh");
   });
 });

@@ -5,22 +5,22 @@
  * Stores user preferences, namespace mappings, and git settings.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { z } from 'zod';
+import fs from "fs";
+import path from "path";
+import { z } from "zod";
 
 /**
  * Configuration schema
  */
 export const DuckBrainConfigSchema = z.object({
   /** Default namespace for operations */
-  defaultNamespace: z.string().default('default'),
+  defaultNamespace: z.string().default("default"),
 
   /** Author email for attributing memories */
   authorEmail: z.string().email().default("duckbrain@localhost"),
 
   /** Path to namespaces directory */
-  namespacesPath: z.string().default('./namespaces'),
+  namespacesPath: z.string().default("./namespaces"),
 
   /** Git commit batching settings */
   gitBatching: z
@@ -30,7 +30,7 @@ export const DuckBrainConfigSchema = z.object({
       /** Max seconds before forcing commit */
       maxSeconds: z.number().default(30),
       /** Enable/disable background worker */
-      enabled: z.boolean().default(true)
+      enabled: z.boolean().default(true),
     })
     .default({ maxLines: 100, maxSeconds: 30, enabled: true }),
 
@@ -40,7 +40,7 @@ export const DuckBrainConfigSchema = z.object({
       /** Chunk size in lines */
       maxLinesPerChunk: z.number().default(1000),
       /** Max chunk size in bytes */
-      maxBytesPerChunk: z.number().default(1024 * 1024)
+      maxBytesPerChunk: z.number().default(1024 * 1024),
     })
     .default({ maxLinesPerChunk: 1000, maxBytesPerChunk: 1024 * 1024 }),
 
@@ -56,18 +56,18 @@ export const DuckBrainConfigSchema = z.object({
       /** Rewrite git history during compaction */
       squashGitHistory: z.boolean().default(true),
       /** Parquet compression level (1-9) */
-      compressionLevel: z.number().min(1).max(9).default(6)
+      compressionLevel: z.number().min(1).max(9).default(6),
     })
     .default({
       maxAgeDays: 30,
       thresholdRecords: 1000,
       autoCompact: false,
       squashGitHistory: true,
-      compressionLevel: 6
+      compressionLevel: 6,
     }),
 
   /** Namespace mappings (alias -> path) */
-  namespaceMappings: z.record(z.string(), z.string()).default({})
+  namespaceMappings: z.record(z.string(), z.string()).default({}),
 });
 
 export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
@@ -75,7 +75,7 @@ export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
 /**
  * Default configuration file name
  */
-const CONFIG_FILENAME = 'duckbrain.config.json';
+const CONFIG_FILENAME = "duckbrain.config.json";
 
 /**
  * Get config file path
@@ -93,7 +93,7 @@ function getConfigPath(configDir: string): string {
  * @param configDir - Directory for config file (defaults to current dir)
  * @returns Configuration object
  */
-export function getConfig(configDir: string = '.'): DuckBrainConfig {
+export function getConfig(configDir: string = "."): DuckBrainConfig {
   const configPath = getConfigPath(configDir);
 
   if (!fs.existsSync(configPath)) {
@@ -102,20 +102,20 @@ export function getConfig(configDir: string = '.'): DuckBrainConfig {
   }
 
   try {
-    const content = fs.readFileSync(configPath, 'utf-8');
+    const content = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(content);
     return DuckBrainConfigSchema.parse(parsed);
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.warn(
         `Warning: Config validation failed at ${configPath}:`,
-        (error as any).issues.map((i: any) => i.message).join(', ')
+        (error as any).issues.map((i: any) => i.message).join(", "),
       );
       // Return defaults on validation failure
       return DuckBrainConfigSchema.parse({});
     }
     console.warn(
-      `Warning: Could not parse config at ${configPath}, using defaults`
+      `Warning: Could not parse config at ${configPath}, using defaults`,
     );
     return DuckBrainConfigSchema.parse({});
   }
@@ -130,7 +130,7 @@ export function getConfig(configDir: string = '.'): DuckBrainConfig {
  */
 export function updateConfig(
   configDir: string,
-  updates: Partial<DuckBrainConfig>
+  updates: Partial<DuckBrainConfig>,
 ): DuckBrainConfig {
   const current = getConfig(configDir);
   const merged = { ...current, ...updates };
@@ -140,9 +140,9 @@ export function updateConfig(
 
   // Write atomically
   const configPath = getConfigPath(configDir);
-  const tmpPath = configPath + '.tmp';
+  const tmpPath = configPath + ".tmp";
 
-  fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2) + '\n', 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2) + "\n", "utf-8");
   fs.renameSync(tmpPath, configPath);
 
   return validated;
@@ -157,29 +157,29 @@ export function updateConfig(
  */
 export function initializeConfig(
   configDir: string,
-  authorEmail: string
+  authorEmail: string,
 ): DuckBrainConfig {
   const config: DuckBrainConfig = {
-    defaultNamespace: 'default',
+    defaultNamespace: "default",
     authorEmail,
-    namespacesPath: './namespaces',
+    namespacesPath: "./namespaces",
     gitBatching: {
       maxLines: 100,
       maxSeconds: 30,
-      enabled: true
+      enabled: true,
     },
     storage: {
       maxLinesPerChunk: 1000,
-      maxBytesPerChunk: 1024 * 1024
+      maxBytesPerChunk: 1024 * 1024,
     },
     squash: {
       maxAgeDays: 30,
       thresholdRecords: 1000,
       autoCompact: false,
       squashGitHistory: true,
-      compressionLevel: 6
+      compressionLevel: 6,
     },
-    namespaceMappings: {}
+    namespaceMappings: {},
   };
 
   // Ensure directory exists
@@ -189,7 +189,7 @@ export function initializeConfig(
 
   // Write config
   const configPath = getConfigPath(configDir);
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
 
   return config;
 }
@@ -205,7 +205,7 @@ export function initializeConfig(
 export function registerNamespace(
   configDir: string,
   alias: string,
-  fullPath: string
+  fullPath: string,
 ): DuckBrainConfig {
   const config = getConfig(configDir);
   config.namespaceMappings[alias] = fullPath;
@@ -221,7 +221,7 @@ export function registerNamespace(
  */
 export function setConfig(
   key: keyof DuckBrainConfig,
-  value: any
+  value: any,
 ): DuckBrainConfig {
-  return updateConfig('.', { [key]: value });
+  return updateConfig(".", { [key]: value });
 }

@@ -40,7 +40,7 @@ export interface KeyNode {
   /** Full key path */
   path: string;
   /** Node type: folder (has children) or leaf (memory) */
-  type: 'folder' | 'memory';
+  type: "folder" | "memory";
   /** Child nodes (for folders) */
   children?: KeyNode[];
   /** Whether folder is expanded in UI */
@@ -142,7 +142,8 @@ export interface ApiError {
 /**
  * SSE event types
  */
-export type SseEventType = 'memory.created' | 'memory.updated' | 'memory.deleted' | 'namespace.changed';
+export type SseEventType =
+  "memory.created" | "memory.updated" | "memory.deleted" | "namespace.changed";
 
 /**
  * SSE event data structure

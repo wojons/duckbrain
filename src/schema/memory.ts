@@ -5,19 +5,19 @@
  * Enforces filesystem-style hierarchical keys.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Domain enumeration for memory categorization
  * Defines the top-level partition folders
  */
 export const DomainEnum = z.enum([
-  'person',
-  'event',
-  'concept',
-  'message',
-  'config',
-  'raw_note'
+  "person",
+  "event",
+  "concept",
+  "message",
+  "config",
+  "raw_note",
 ]);
 
 export type Domain = z.infer<typeof DomainEnum>;
@@ -28,7 +28,7 @@ export type Domain = z.infer<typeof DomainEnum>;
  * - update: superseding version (old record stays for history)
  * - tombstone: soft delete marker
  */
-export const ActionEnum = z.enum(['add', 'update', 'tombstone']);
+export const ActionEnum = z.enum(["add", "update", "tombstone"]);
 
 export type Action = z.infer<typeof ActionEnum>;
 
@@ -56,10 +56,12 @@ export const MemorySchema = z.object({
    * Must start with / (e.g., /projects/mcp/schema)
    * Used for partitioning and glob queries
    */
-  key: z.string().regex(
-    /^\//,
-    'Key must be a filesystem-style path starting with / (e.g., /projects/mcp)'
-  ),
+  key: z
+    .string()
+    .regex(
+      /^\//,
+      "Key must be a filesystem-style path starting with / (e.g., /projects/mcp)",
+    ),
 
   /** Domain categorization for storage partitioning */
   domain: DomainEnum,
@@ -77,7 +79,7 @@ export const MemorySchema = z.object({
   embedding_text: z.string(),
 
   /** Flexible attributes as arbitrary JSON */
-  attributes: z.record(z.string(), z.any()).default({})
+  attributes: z.record(z.string(), z.any()).default({}),
 });
 
 export type MemoryType = z.infer<typeof MemorySchema>;
@@ -97,14 +99,16 @@ export function validateMemory(data: unknown): MemoryType {
  * @param data - Raw data to validate
  * @returns { success: boolean, data?: MemoryType, error?: string }
  */
-export function safeValidateMemory(
-  data: unknown
-): { success: boolean; data?: MemoryType; error?: string } {
+export function safeValidateMemory(data: unknown): {
+  success: boolean;
+  data?: MemoryType;
+  error?: string;
+} {
   const result = MemorySchema.safeParse(data);
   if (!result.success) {
     return {
       success: false,
-      error: (result.error as any).issues.map((i: any) => i.message).join('; ')
+      error: (result.error as any).issues.map((i: any) => i.message).join("; "),
     };
   }
   return { success: true, data: result.data };
@@ -129,8 +133,8 @@ export function createMemory(params: {
     domain: params.domain,
     timestamp: new Date().toISOString(),
     author: params.author,
-    action: params.action ?? 'add',
+    action: params.action ?? "add",
     embedding_text: params.embedding_text,
-    attributes: params.attributes ?? {}
+    attributes: params.attributes ?? {},
   };
 }

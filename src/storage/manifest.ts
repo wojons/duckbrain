@@ -7,8 +7,8 @@
  * Atomic writes: write to .tmp, then rename (prevents corruption on crash).
  */
 
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
 
 /**
  * Manifest file structure
@@ -23,7 +23,7 @@ export interface Manifest {
 /**
  * Manifest file name
  */
-const MANIFEST_FILENAME = 'manifest.json';
+const MANIFEST_FILENAME = "manifest.json";
 
 /**
  * Get manifest file path for a namespace
@@ -48,21 +48,21 @@ export function getManifest(namespacePath: string): Manifest {
     // Create default manifest
     return {
       partitions: [],
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     };
   }
 
   try {
-    const content = fs.readFileSync(manifestPath, 'utf-8');
+    const content = fs.readFileSync(manifestPath, "utf-8");
     return JSON.parse(content) as Manifest;
   } catch (error) {
     // Corrupted manifest - return default
     console.warn(
-      `Warning: Could not parse manifest at ${manifestPath}, creating new one`
+      `Warning: Could not parse manifest at ${manifestPath}, creating new one`,
     );
     return {
       partitions: [],
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     };
   }
 }
@@ -86,7 +86,7 @@ function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
   }
 
   // Write to temp file
-  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
 
   // Atomic rename
   fs.renameSync(tmpPath, manifestPath);
@@ -100,12 +100,12 @@ function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
  */
 export function addPartition(
   namespacePath: string,
-  partitionPath: string
+  partitionPath: string,
 ): void {
   const manifest = getManifest(namespacePath);
 
   // Normalize path separators for consistent comparison
-  const normalizedPartition = partitionPath.replace(/\\/g, '/');
+  const normalizedPartition = partitionPath.replace(/\\/g, "/");
 
   // Add if not already present
   if (!manifest.partitions.includes(normalizedPartition)) {
@@ -125,12 +125,12 @@ export function addPartition(
  */
 export function removePartition(
   namespacePath: string,
-  partitionPath: string
+  partitionPath: string,
 ): void {
   const manifest = getManifest(namespacePath);
 
   // Normalize path separators
-  const normalizedPartition = partitionPath.replace(/\\/g, '/');
+  const normalizedPartition = partitionPath.replace(/\\/g, "/");
 
   const index = manifest.partitions.indexOf(normalizedPartition);
   if (index !== -1) {
@@ -151,14 +151,14 @@ export function removePartition(
  */
 export function getPartitionsForDomain(
   namespacePath: string,
-  domain: string
+  domain: string,
 ): string[] {
   const manifest = getManifest(namespacePath);
 
   // Partitions follow pattern: domain/... or domain/subdomain/...
   // Match partitions that start with the domain
-  return manifest.partitions.filter(p => {
-    const parts = p.split('/');
+  return manifest.partitions.filter((p) => {
+    const parts = p.split("/");
     return parts[0] === domain;
   });
 }
@@ -172,7 +172,7 @@ export function getPartitionsForDomain(
 export function getAllPartitionPaths(namespacePath: string): string[] {
   const manifest = getManifest(namespacePath);
 
-  return manifest.partitions.map(p => path.join(namespacePath, p));
+  return manifest.partitions.map((p) => path.join(namespacePath, p));
 }
 
 /**
@@ -192,7 +192,7 @@ export function initializeNamespace(namespacePath: string): Manifest {
   // Create initial manifest
   const manifest: Manifest = {
     partitions: [],
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
   };
 
   writeManifestAtomic(namespacePath, manifest);

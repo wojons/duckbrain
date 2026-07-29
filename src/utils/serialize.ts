@@ -8,7 +8,7 @@
  */
 
 const bigIntReplacer = (_key: string, value: unknown): unknown => {
-  if (typeof value === 'bigint') {
+  if (typeof value === "bigint") {
     const num = Number(value);
     return Number.isSafeInteger(num) ? num : value.toString();
   }
@@ -30,14 +30,14 @@ const bigIntReplacer = (_key: string, value: unknown): unknown => {
  * @returns Deep copy with BigInts converted to Number or String
  */
 export function deepConvertBigInts<T>(value: T): T {
-  if (typeof value === 'bigint') {
+  if (typeof value === "bigint") {
     const num = Number(value);
     return (Number.isSafeInteger(num) ? num : value.toString()) as unknown as T;
   }
   if (Array.isArray(value)) {
     return value.map(deepConvertBigInts) as unknown as T;
   }
-  if (value !== null && typeof value === 'object') {
+  if (value !== null && typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       result[k] = deepConvertBigInts(v);
@@ -53,7 +53,7 @@ export function deepConvertBigInts<T>(value: T): T {
  */
 export function safeJsonStringify(
   value: unknown,
-  space?: string | number
+  space?: string | number,
 ): string {
   return JSON.stringify(value, bigIntReplacer, space);
 }

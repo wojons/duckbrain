@@ -5,21 +5,31 @@
  * Converts JSONL to Parquet, removes tombstones, optionally squashes git history.
  */
 
-import { z } from 'zod';
-import { squashPartition, compactHistory, getCompactionStats } from '../../git/squash';
-import { resolveNamespacePath } from './shared';
-import path from 'path';
+import { z } from "zod";
+import {
+  squashPartition,
+  compactHistory,
+  getCompactionStats,
+} from "../../git/squash";
+import { resolveNamespacePath } from "./shared";
+import path from "path";
 
 /**
  * Input schema for squash tool
  */
 const SquashInputSchema = z.object({
   /** Specific partition to squash (optional - defaults to all old partitions) */
-  partition: z.string().optional().describe('Specific partition to squash (optional)'),
+  partition: z
+    .string()
+    .optional()
+    .describe("Specific partition to squash (optional)"),
   /** Preview without making changes */
-  dryRun: z.boolean().default(false).describe('Preview without making changes'),
+  dryRun: z.boolean().default(false).describe("Preview without making changes"),
   /** Squash git history aggressively */
-  aggressive: z.boolean().default(false).describe('Squash git history aggressively')
+  aggressive: z
+    .boolean()
+    .default(false)
+    .describe("Squash git history aggressively"),
 });
 
 type SquashInput = z.infer<typeof SquashInputSchema>;
@@ -55,7 +65,7 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
     if (!parseResult.success) {
       return {
         success: false,
-        message: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
+        message: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join("; ")}`,
       };
     }
 
@@ -70,7 +80,7 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
 
       const result = await squashPartition(partitionPath, {
         dryRun,
-        squashCommits: aggressive
+        squashCommits: aggressive,
       });
 
       if (result.success) {
@@ -82,14 +92,14 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
           stats: {
             totalRecordsKept: result.recordsKept,
             totalRecordsRemoved: result.recordsRemoved,
-            tombstonesRemoved: result.recordsRemoved
-          }
+            tombstonesRemoved: result.recordsRemoved,
+          },
         };
       } else {
         return {
           success: false,
-          message: `Failed to squash partition: ${result.error || 'Unknown error'}`,
-          errors: [result.error || 'Unknown error']
+          message: `Failed to squash partition: ${result.error || "Unknown error"}`,
+          errors: [result.error || "Unknown error"],
         };
       }
     }
@@ -99,7 +109,7 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
       maxAge: 30,
       threshold: 1000,
       dryRun,
-      squashCommits: aggressive
+      squashCommits: aggressive,
     });
 
     if (result.success) {
@@ -112,22 +122,22 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
           partitionsCompacted: result.partitionsCompacted,
           totalRecordsKept: result.totalRecordsKept,
           totalRecordsRemoved: result.totalRecordsRemoved,
-          tombstonesRemoved: result.totalRecordsRemoved
+          tombstonesRemoved: result.totalRecordsRemoved,
         },
-        errors: result.errors
+        errors: result.errors,
       };
     } else {
       return {
         success: false,
-        message: `Compaction failed: ${result.errors?.join(', ') || 'Unknown error'}`,
-        errors: result.errors
+        message: `Compaction failed: ${result.errors?.join(", ") || "Unknown error"}`,
+        errors: result.errors,
       };
     }
   } catch (error) {
     return {
       success: false,
-      message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      errors: [error instanceof Error ? error.message : 'Unknown error']
+      message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      errors: [error instanceof Error ? error.message : "Unknown error"],
     };
   }
 }
@@ -159,12 +169,12 @@ export async function getCompactionStatsTool(_input?: {}): Promise<{
 
     return {
       success: true,
-      stats
+      stats,
     };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -173,20 +183,22 @@ export async function getCompactionStatsTool(_input?: {}): Promise<{
  * MCP tool registration
  */
 export const squashToolDef = {
-  name: 'squash',
-  title: 'Squash Memory Partitions',
-  description: 'Compact old memory partitions to reduce repository size. Converts JSONL to Parquet, removes tombstones, optionally squashes git history.',
+  name: "squash",
+  title: "Squash Memory Partitions",
+  description:
+    "Compact old memory partitions to reduce repository size. Converts JSONL to Parquet, removes tombstones, optionally squashes git history.",
   inputSchema: SquashInputSchema,
-  handler: squashTool
+  handler: squashTool,
 };
 
 /**
  * MCP tool registration for stats
  */
 export const compactionStatsToolDef = {
-  name: 'get_compaction_stats',
-  title: 'Get Compaction Statistics',
-  description: 'Get repository compaction statistics including tombstone percentage, Parquet ratio, and partition health',
+  name: "get_compaction_stats",
+  title: "Get Compaction Statistics",
+  description:
+    "Get repository compaction statistics including tombstone percentage, Parquet ratio, and partition health",
   inputSchema: z.object({}),
-  handler: getCompactionStatsTool
+  handler: getCompactionStatsTool,
 };

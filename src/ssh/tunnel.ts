@@ -16,10 +16,10 @@
  * - listTunnels() - Lists active tunnels
  */
 
-import { spawn, spawnSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { spawn, spawnSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 /**
  * Tunnel configuration
@@ -40,7 +40,7 @@ export interface TunnelInfo {
 }
 
 /** Base directory for socket files */
-const SOCKETS_DIR = path.join(os.homedir(), '.duckbrain', 'sockets');
+const SOCKETS_DIR = path.join(os.homedir(), ".duckbrain", "sockets");
 
 /**
  * Ensure the sockets directory exists
@@ -55,14 +55,14 @@ function ensureSocketsDir(): void {
  * Get the PID file path for a given socket path
  */
 function getPidPath(socketPath: string): string {
-  return socketPath.replace(/\.sock$/, '.pid');
+  return socketPath.replace(/\.sock$/, ".pid");
 }
 
 /**
  * Get the host info file path for a given socket path
  */
 function getHostInfoPath(socketPath: string): string {
-  return socketPath.replace(/\.sock$/, '.host');
+  return socketPath.replace(/\.sock$/, ".host");
 }
 
 /**
@@ -82,23 +82,27 @@ export async function createTunnel(config: TunnelConfig): Promise<string> {
 
   // Build SSH command: ssh -L /path/to/socket:localhost:port user@host -N
   const sshArgs = [
-    '-L', `${localSocketPath}:localhost:${remotePort}`,
-    '-N',  // No remote command, just keep connection open
-    '-o', 'ConnectTimeout=10',
-    '-o', 'ExitOnForwardFailure=yes',
-    '-o', 'StrictHostKeyChecking=accept-new',
+    "-L",
+    `${localSocketPath}:localhost:${remotePort}`,
+    "-N", // No remote command, just keep connection open
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "ExitOnForwardFailure=yes",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
     remoteHost,
   ];
 
   // Spawn SSH process
-  const sshProcess = spawn('ssh', sshArgs);
+  const sshProcess = spawn("ssh", sshArgs);
 
   // Handle process events
-  sshProcess.on('error', (err) => {
+  sshProcess.on("error", (err) => {
     console.error(`[ssh-tunnel] Process error: ${err.message}`);
   });
 
-  sshProcess.stderr?.on('data', (data: Buffer) => {
+  sshProcess.stderr?.on("data", (data: Buffer) => {
     const msg = data.toString().trim();
     if (msg) {
       console.error(`[ssh-tunnel] ${msg}`);
@@ -112,13 +116,13 @@ export async function createTunnel(config: TunnelConfig): Promise<string> {
       resolve();
     }, 2000);
 
-    sshProcess.on('error', (err) => {
+    sshProcess.on("error", (err) => {
       clearTimeout(timeout);
       reject(new Error(`SSH tunnel failed: ${err.message}`));
     });
 
     // Check for early exit (auth failure, etc.)
-    sshProcess.on('exit', (code) => {
+    sshProcess.on("exit", (code) => {
       if (code !== null && code !== 0) {
         clearTimeout(timeout);
         reject(new Error(`SSH tunnel exited with code ${code}`));
@@ -130,12 +134,12 @@ export async function createTunnel(config: TunnelConfig): Promise<string> {
   // The socket may take a moment to appear after SSH connects
   let retries = 0;
   while (!fs.existsSync(localSocketPath) && retries < 10) {
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 200));
     retries++;
   }
 
   if (fs.existsSync(localSocketPath)) {
-    spawnSync('chmod', ['600', localSocketPath]);
+    spawnSync("chmod", ["600", localSocketPath]);
   }
 
   // Write PID to sidecar file for management
@@ -163,12 +167,12 @@ export async function closeTunnel(socketPath: string): Promise<void> {
 
   // Read PID from sidecar file
   if (fs.existsSync(pidPath)) {
-    const pid = fs.readFileSync(pidPath, 'utf-8').trim();
+    const pid = fs.readFileSync(pidPath, "utf-8").trim();
 
     if (pid) {
       try {
         // Kill the SSH process
-        spawnSync('kill', [pid]);
+        spawnSync("kill", [pid]);
       } catch {
         // Process may already be dead
       }
@@ -216,17 +220,17 @@ export function listTunnels(): TunnelInfo[] {
   }
 
   const entries = fs.readdirSync(SOCKETS_DIR);
-  const socketFiles = entries.filter(f => f.endsWith('.sock'));
+  const socketFiles = entries.filter((f) => f.endsWith(".sock"));
 
   for (const socketFile of socketFiles) {
-    const name = socketFile.replace('.sock', '');
+    const name = socketFile.replace(".sock", "");
     const socketPath = path.join(SOCKETS_DIR, socketFile);
     const hostInfoPath = getHostInfoPath(socketPath);
 
-    let remoteHost = 'unknown';
+    let remoteHost = "unknown";
     if (fs.existsSync(hostInfoPath)) {
       try {
-        remoteHost = fs.readFileSync(hostInfoPath, 'utf-8').trim();
+        remoteHost = fs.readFileSync(hostInfoPath, "utf-8").trim();
       } catch {
         // Use default
       }

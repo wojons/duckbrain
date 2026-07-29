@@ -5,26 +5,30 @@
  * Guardrail tool to prevent AI path hallucinations.
  */
 
-import { z } from 'zod';
-import { getDuckDBConnection, evictConnection } from '../../duckdb/connection';
-import { resolveNamespacePath } from './shared';
-import path from 'path';
-import fs from 'fs';
+import { z } from "zod";
+import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
+import { resolveNamespacePath } from "./shared";
+import path from "path";
+import fs from "fs";
 
 /**
  * Input schema for list_keys tool
  */
 const ListKeysInputSchema = z.object({
   /** Key prefix to filter (e.g., /projects/) */
-  prefix: z.string().optional().default('/').describe('Key prefix to filter (e.g., /projects/)'),
+  prefix: z
+    .string()
+    .optional()
+    .default("/")
+    .describe("Key prefix to filter (e.g., /projects/)"),
   /** Max hierarchy depth to return */
-  maxDepth: z.number().default(3).describe('Max hierarchy depth to return'),
+  maxDepth: z.number().default(3).describe("Max hierarchy depth to return"),
   /** Max keys to return */
-  limit: z.number().default(50).describe('Max keys to return'),
+  limit: z.number().default(50).describe("Max keys to return"),
   /** Pagination offset */
-  offset: z.number().default(0).describe('Pagination offset'),
+  offset: z.number().default(0).describe("Pagination offset"),
   /** Namespace to query (defaults to current active namespace) */
-  namespace: z.string().optional().describe('Namespace to query')
+  namespace: z.string().optional().describe("Namespace to query"),
 });
 
 /**
@@ -44,19 +48,19 @@ interface ListKeysOutput {
  */
 /**
  * Extract hierarchical prefixes from a key
- * 
+ *
  * Example: "/projects/mcp/schema" with depth=2 returns:
  * - "/projects" (depth 1)
  * - "/projects/mcp" (depth 2)
  */
 function extractPrefixes(key: string, maxDepth: number): string[] {
-  const parts = key.split('/').filter(p => p !== '');
+  const parts = key.split("/").filter((p) => p !== "");
   const prefixes: string[] = [];
-  
+
   for (let i = 1; i <= Math.min(parts.length, maxDepth); i++) {
-    prefixes.push('/' + parts.slice(0, i).join('/'));
+    prefixes.push("/" + parts.slice(0, i).join("/"));
   }
-  
+
   return prefixes;
 }
 
@@ -67,23 +71,23 @@ function extractPrefixes(key: string, maxDepth: number): string[] {
  * @returns Structured key listing with pagination
  */
 export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
-  console.error('[list_keys] Tool called with input:', JSON.stringify(input));
-  
+  console.error("[list_keys] Tool called with input:", JSON.stringify(input));
+
   // Validate input
   const parseResult = ListKeysInputSchema.safeParse(input);
   if (!parseResult.success) {
-    console.error('[list_keys] Validation failed:', parseResult.error);
+    console.error("[list_keys] Validation failed:", parseResult.error);
     return {
       keys: [],
       hasMore: false,
       nextOffset: null,
       prefixes: {},
-      error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join('; ')}`
+      error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join("; ")}`,
     };
   }
 
   const validated = parseResult.data;
-  console.error('[list_keys] Validated input:', validated);
+  console.error("[list_keys] Validated input:", validated);
 
   // Resolve namespace path
   const namespacePath = resolveNamespacePath(validated.namespace);
@@ -95,25 +99,26 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       hasMore: false,
       nextOffset: null,
       prefixes: {},
-      error: `Namespace '${validated.namespace}' does not exist`
+      error: `Namespace '${validated.namespace}' does not exist`,
     };
   }
 
   try {
     // Get manifest to find partition paths
-    const manifestPath = path.join(namespacePath, 'manifest.json');
+    const manifestPath = path.join(namespacePath, "manifest.json");
     let jsonlFiles: string[] = [];
-    
+
     if (fs.existsSync(manifestPath)) {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
       // Build explicit file list instead of glob pattern
       for (const p of manifest.partitions) {
         const partitionPath = path.join(namespacePath, p);
         if (!fs.existsSync(partitionPath)) continue;
-        
-        const files = fs.readdirSync(partitionPath)
-          .filter(f => f.endsWith('.jsonl'))
-          .map(f => path.join(partitionPath, f).replace(/\\/g, '/'));
+
+        const files = fs
+          .readdirSync(partitionPath)
+          .filter((f) => f.endsWith(".jsonl"))
+          .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
         jsonlFiles.push(...files);
       }
     }
@@ -123,16 +128,16 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
         keys: [],
         hasMore: false,
         nextOffset: null,
-        prefixes: {}
+        prefixes: {},
       };
     }
 
     // Get DuckDB connection
-    const db = getDuckDBConnection('singleton', namespacePath);
+    const db = getDuckDBConnection("singleton", namespacePath);
 
     // Use explicit file list instead of glob
-    const fileList = jsonlFiles.map(f => `'${f}'`).join(', ');
-    
+    const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+
     // Query distinct keys matching prefix, excluding tombstones
     const sql = `
       SELECT DISTINCT key
@@ -142,44 +147,55 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       LIMIT ? OFFSET ?
     `;
 
-    const prefix = validated.prefix.endsWith('/') 
-      ? validated.prefix.slice(0, -1) 
+    const prefix = validated.prefix.endsWith("/")
+      ? validated.prefix.slice(0, -1)
       : validated.prefix;
-    
-    const executeQuery = (dbInstance: any) => new Promise<any[]>((resolve, reject) => {
-      try {
-        const stmt = dbInstance.prepare(sql);
-        stmt.all(prefix, validated.limit + 1, validated.offset, (err: any, res: any) => {
-          if (err) {
-            const errMsg = err?.message || String(err);
-            if (/connection.*never established|closed already|locked/i.test(errMsg)) {
-              reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
-            } else {
-              reject(err);
-            }
-          }
-          else resolve(res || []);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-    
+
+    const executeQuery = (dbInstance: any) =>
+      new Promise<any[]>((resolve, reject) => {
+        try {
+          const stmt = dbInstance.prepare(sql);
+          stmt.all(
+            prefix,
+            validated.limit + 1,
+            validated.offset,
+            (err: any, res: any) => {
+              if (err) {
+                const errMsg = err?.message || String(err);
+                if (
+                  /connection.*never established|closed already|locked/i.test(
+                    errMsg,
+                  )
+                ) {
+                  reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+                } else {
+                  reject(err);
+                }
+              } else resolve(res || []);
+            },
+          );
+        } catch (error) {
+          reject(error);
+        }
+      });
+
     // Execute with retry on connection-lost (BUG-034 fix)
     let results: any[];
     try {
       results = await executeQuery(db);
     } catch (e: any) {
-      if (e?.message?.includes('DUCKDB_CONNECTION_LOST')) {
-        console.error('[list_keys] Connection lost — evicting cache and retrying...');
+      if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
+        console.error(
+          "[list_keys] Connection lost — evicting cache and retrying...",
+        );
         evictConnection(namespacePath);
-        const db2 = getDuckDBConnection('singleton', namespacePath);
+        const db2 = getDuckDBConnection("singleton", namespacePath);
         results = await executeQuery(db2);
       } else {
         throw e;
       }
     }
-    
+
     // Check if there are more results
     const hasMore = results.length > validated.limit;
     if (hasMore) {
@@ -205,7 +221,7 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       keys,
       hasMore,
       nextOffset,
-      prefixes: prefixCounts
+      prefixes: prefixCounts,
     };
   } catch (error) {
     return {
@@ -213,7 +229,7 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
       hasMore: false,
       nextOffset: null,
       prefixes: {},
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -222,11 +238,11 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
  * Tool metadata for MCP registration
  */
 export const listKeysToolMetadata = {
-  name: 'list_keys',
-  title: 'List Memory Keys',
-  description: 'Explore hierarchical key structure with pagination',
+  name: "list_keys",
+  title: "List Memory Keys",
+  description: "Explore hierarchical key structure with pagination",
   inputSchema: ListKeysInputSchema,
-  handler: listKeysTool
+  handler: listKeysTool,
 };
 
 // Export for direct usage

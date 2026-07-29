@@ -8,10 +8,10 @@
  * Chunked files for efficient reads (max 1000 lines or 1MB per chunk).
  */
 
-import fs from 'fs';
-import path from 'path';
-import { MemorySchema, type MemoryType } from '../schema/memory';
-import { safeJsonStringify } from '../utils/serialize';
+import fs from "fs";
+import path from "path";
+import { MemorySchema, type MemoryType } from "../schema/memory";
+import { safeJsonStringify } from "../utils/serialize";
 
 /**
  * Maximum lines per chunk file before creating new one
@@ -44,13 +44,13 @@ const MAX_BYTES_PER_CHUNK = 1024 * 1024;
 export function getPartitionPath(
   _namespace: string,
   domain: string,
-  _partitionType: 'time' | 'key',
-  partitionValue: string
+  _partitionType: "time" | "key",
+  partitionValue: string,
 ): string {
   // Sanitize inputs to prevent path traversal
-  const safeDomain = domain.replace(/[^a-zA-Z0-9_]/g, '_');
+  const safeDomain = domain.replace(/[^a-zA-Z0-9_]/g, "_");
   // Allow slashes in partition value for key-based partitioning
-  const safePartition = partitionValue.replace(/[^a-zA-Z0-9._/-]/g, '_');
+  const safePartition = partitionValue.replace(/[^a-zA-Z0-9._/-]/g, "_");
 
   return path.join(safeDomain, safePartition) + path.sep;
 }
@@ -71,9 +71,9 @@ export function createPartition(partitionPath: string): void {
   fs.mkdirSync(normalizedPath, { recursive: true });
 
   // Initialize .gitkeep to track empty directories in git
-  const gitkeepPath = path.join(normalizedPath, '.gitkeep');
+  const gitkeepPath = path.join(normalizedPath, ".gitkeep");
   if (!fs.existsSync(gitkeepPath)) {
-    fs.writeFileSync(gitkeepPath, '');
+    fs.writeFileSync(gitkeepPath, "");
   }
 }
 
@@ -86,20 +86,20 @@ export function createPartition(partitionPath: string): void {
 function getNextChunkName(partitionPath: string): string {
   const existingChunks = fs
     .readdirSync(partitionPath)
-    .filter(f => f.endsWith('.jsonl'))
+    .filter((f) => f.endsWith(".jsonl"))
     .sort();
 
   if (existingChunks.length === 0) {
-    return '0001.jsonl';
+    return "0001.jsonl";
   }
 
   // Get last chunk number and increment
   const lastChunk = existingChunks[existingChunks.length - 1];
-  const lastNum = parseInt(lastChunk.replace('.jsonl', ''), 10);
+  const lastNum = parseInt(lastChunk.replace(".jsonl", ""), 10);
   const nextNum = lastNum + 1;
 
   // Zero-pad to 4 digits
-  return `${nextNum.toString().padStart(4, '0')}.jsonl`;
+  return `${nextNum.toString().padStart(4, "0")}.jsonl`;
 }
 
 /**
@@ -112,8 +112,8 @@ function countLines(filePath: string): number {
   if (!fs.existsSync(filePath)) {
     return 0;
   }
-  const content = fs.readFileSync(filePath, 'utf-8');
-  return content.split('\n').filter(l => l.trim() !== '').length;
+  const content = fs.readFileSync(filePath, "utf-8");
+  return content.split("\n").filter((l) => l.trim() !== "").length;
 }
 
 /**
@@ -147,14 +147,17 @@ export function appendToJsonl(filePath: string, record: MemoryType): number {
     const lines = countLines(filePath);
 
     // Create new chunk if at capacity
-    if (stats.size + line.length > MAX_BYTES_PER_CHUNK || lines >= MAX_LINES_PER_CHUNK) {
+    if (
+      stats.size + line.length > MAX_BYTES_PER_CHUNK ||
+      lines >= MAX_LINES_PER_CHUNK
+    ) {
       const dirPath = path.dirname(filePath) + path.sep;
       targetPath = path.join(dirPath, getNextChunkName(dirPath));
     }
   }
 
   // Append with newline
-  fs.appendFileSync(targetPath, line + '\n', 'utf-8');
+  fs.appendFileSync(targetPath, line + "\n", "utf-8");
 
   return 1;
 }
@@ -167,16 +170,13 @@ export function appendToJsonl(filePath: string, record: MemoryType): number {
  * @returns Array of validated MemoryType records
  * @throws Error if file doesn't exist or validation fails
  */
-export function readFromJsonl(
-  filePath: string,
-  limit?: number
-): MemoryType[] {
+export function readFromJsonl(filePath: string, limit?: number): MemoryType[] {
   if (!fs.existsSync(filePath)) {
     return [];
   }
 
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n').filter(l => l.trim() !== '');
+  const content = fs.readFileSync(filePath, "utf-8");
+  const lines = content.split("\n").filter((l) => l.trim() !== "");
   const records: MemoryType[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -190,7 +190,7 @@ export function readFromJsonl(
       records.push(validated);
     } catch (error) {
       throw new Error(
-        `Invalid JSON or schema at line ${i + 1}: ${error instanceof Error ? error.message : 'unknown error'}`
+        `Invalid JSON or schema at line ${i + 1}: ${error instanceof Error ? error.message : "unknown error"}`,
       );
     }
   }
@@ -207,7 +207,7 @@ export function readFromJsonl(
  */
 export function readPartition(
   partitionPath: string,
-  limit?: number
+  limit?: number,
 ): MemoryType[] {
   if (!fs.existsSync(partitionPath)) {
     return [];
@@ -215,7 +215,7 @@ export function readPartition(
 
   const chunks = fs
     .readdirSync(partitionPath)
-    .filter(f => f.endsWith('.jsonl'))
+    .filter((f) => f.endsWith(".jsonl"))
     .sort();
 
   const allRecords: MemoryType[] = [];
@@ -247,10 +247,15 @@ export function readPartition(
 export function createPartitionAtPath(
   namespace: string,
   domain: string,
-  partitionType: 'time' | 'key',
-  partitionValue: string
+  partitionType: "time" | "key",
+  partitionValue: string,
 ): string {
-  const partitionPath = getPartitionPath(namespace, domain, partitionType, partitionValue);
+  const partitionPath = getPartitionPath(
+    namespace,
+    domain,
+    partitionType,
+    partitionValue,
+  );
   createPartition(partitionPath);
   return partitionPath;
 }

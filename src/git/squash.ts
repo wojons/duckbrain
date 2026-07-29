@@ -9,12 +9,12 @@
  * Configurable aggressiveness: from manual-only to continuous background compaction.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { safeJsonStringify } from '../utils/serialize';
-import { getManifest, type Manifest } from '../storage/manifest';
-import { getDuckDBConnection } from '../duckdb/connection';
-import { execSync } from 'child_process';
+import * as fs from "fs";
+import * as path from "path";
+import { safeJsonStringify } from "../utils/serialize";
+import { getManifest, type Manifest } from "../storage/manifest";
+import { getDuckDBConnection } from "../duckdb/connection";
+import { execSync } from "child_process";
 
 /**
  * Squash operation options
@@ -67,7 +67,7 @@ export interface CompactionStats {
  */
 export async function squashPartition(
   partitionPath: string,
-  options: SquashOptions = {}
+  options: SquashOptions = {},
 ): Promise<{
   success: boolean;
   recordsKept: number;
@@ -75,7 +75,11 @@ export async function squashPartition(
   parquetPath?: string;
   error?: string;
 }> {
-  const { dryRun = false, squashCommits = true, compressionLevel = 6 } = options;
+  const {
+    dryRun = false,
+    squashCommits = true,
+    compressionLevel = 6,
+  } = options;
 
   try {
     // Check partition exists
@@ -84,14 +88,14 @@ export async function squashPartition(
         success: false,
         recordsKept: 0,
         recordsRemoved: 0,
-        error: `Partition not found: ${partitionPath}`
+        error: `Partition not found: ${partitionPath}`,
       };
     }
 
     // Find all JSONL files in partition
     const jsonlFiles = fs
       .readdirSync(partitionPath)
-      .filter((f: string) => f.endsWith('.jsonl'))
+      .filter((f: string) => f.endsWith(".jsonl"))
       .map((f: string) => path.join(partitionPath, f));
 
     if (jsonlFiles.length === 0) {
@@ -99,28 +103,30 @@ export async function squashPartition(
         success: false,
         recordsKept: 0,
         recordsRemoved: 0,
-        error: 'No JSONL files found in partition'
+        error: "No JSONL files found in partition",
       };
     }
 
     // Read all records from JSONL files
     const allRecords: Array<Record<string, any>> = [];
     for (const jsonlFile of jsonlFiles) {
-      const content = fs.readFileSync(jsonlFile, 'utf-8');
-      const lines = content.split('\n').filter(line => line.trim() !== '');
+      const content = fs.readFileSync(jsonlFile, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim() !== "");
       for (const line of lines) {
         try {
           const record = JSON.parse(line) as Record<string, any>;
           allRecords.push(record);
         } catch (err) {
-          console.warn(`Warning: Could not parse line in ${jsonlFile}: ${line}`);
+          console.warn(
+            `Warning: Could not parse line in ${jsonlFile}: ${line}`,
+          );
         }
       }
     }
 
     // Filter out tombstoned records (action === 'tombstone' or action === 'forget')
     const liveRecords = allRecords.filter(
-      r => r.action !== 'tombstone' && r.action !== 'forget'
+      (r) => r.action !== "tombstone" && r.action !== "forget",
     );
     const tombstoneCount = allRecords.length - liveRecords.length;
 
@@ -129,13 +135,13 @@ export async function squashPartition(
         success: true,
         recordsKept: liveRecords.length,
         recordsRemoved: tombstoneCount,
-        parquetPath: undefined
+        parquetPath: undefined,
       };
     }
 
     // Convert to Parquet using DuckDB
     // Use singleton mode with partition path as namespace identifier
-    const db = getDuckDBConnection('singleton', partitionPath);
+    const db = getDuckDBConnection("singleton", partitionPath);
     const parquetFileName = `data-${Date.now()}.parquet`;
     const parquetPath = path.join(partitionPath, parquetFileName);
 
@@ -143,22 +149,22 @@ export async function squashPartition(
     // Note: DuckDB Node.js bindings - use run() for DDL, all() for queries
     await new Promise<void>((resolve, reject) => {
       db.run(
-        `CREATE TEMP TABLE records AS SELECT * FROM read_json_auto('${jsonlFiles.map(f => f.replace(/\\/g, '/')).join("','")}'))`,
+        `CREATE TEMP TABLE records AS SELECT * FROM read_json_auto('${jsonlFiles.map((f) => f.replace(/\\/g, "/")).join("','")}'))`,
         (err: any) => {
           if (err) reject(err);
           else resolve();
-        }
+        },
       );
     });
 
     // Filter out tombstones and write to Parquet
     await new Promise<void>((resolve, reject) => {
       db.run(
-        `COPY (SELECT * FROM records WHERE action NOT IN ('tombstone', 'forget')) TO '${parquetPath.replace(/\\/g, '/')}' (FORMAT PARQUET, COMPRESSION 'ZSTD', COMPRESSION_LEVEL ${compressionLevel})`,
+        `COPY (SELECT * FROM records WHERE action NOT IN ('tombstone', 'forget')) TO '${parquetPath.replace(/\\/g, "/")}' (FORMAT PARQUET, COMPRESSION 'ZSTD', COMPRESSION_LEVEL ${compressionLevel})`,
         (err: any) => {
           if (err) reject(err);
           else resolve();
-        }
+        },
       );
     });
 
@@ -181,7 +187,9 @@ export async function squashPartition(
       try {
         squashGitHistory(partitionPath);
       } catch (gitErr) {
-        console.warn(`Warning: Git history squash failed: ${gitErr instanceof Error ? gitErr.message : gitErr}`);
+        console.warn(
+          `Warning: Git history squash failed: ${gitErr instanceof Error ? gitErr.message : gitErr}`,
+        );
         // Continue anyway - Parquet conversion succeeded
       }
     }
@@ -190,14 +198,14 @@ export async function squashPartition(
       success: true,
       recordsKept: liveRecords.length,
       recordsRemoved: tombstoneCount,
-      parquetPath
+      parquetPath,
     };
   } catch (error) {
     return {
       success: false,
       recordsKept: 0,
       recordsRemoved: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -208,16 +216,18 @@ export async function squashPartition(
  * @param options - Compaction options
  * @returns Compaction results
  */
-export async function compactHistory(options: {
-  /** Max age in days (default: 30) */
-  maxAge?: number;
-  /** Minimum records threshold (default: 1000) */
-  threshold?: number;
-  /** Dry run mode */
-  dryRun?: boolean;
-  /** Squash git history */
-  squashCommits?: boolean;
-} = {}): Promise<{
+export async function compactHistory(
+  options: {
+    /** Max age in days (default: 30) */
+    maxAge?: number;
+    /** Minimum records threshold (default: 1000) */
+    threshold?: number;
+    /** Dry run mode */
+    dryRun?: boolean;
+    /** Squash git history */
+    squashCommits?: boolean;
+  } = {},
+): Promise<{
   success: boolean;
   partitionsCompacted: number;
   totalRecordsKept: number;
@@ -228,7 +238,7 @@ export async function compactHistory(options: {
     maxAge = 30,
     threshold = 1000,
     dryRun = false,
-    squashCommits = true
+    squashCommits = true,
   } = options;
 
   const errors: string[] = [];
@@ -237,14 +247,19 @@ export async function compactHistory(options: {
   let totalRecordsRemoved = 0;
 
   // Get namespace path (assume default namespace for now)
-  const namespacePath = path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
+  const namespacePath = path.join(
+    process.cwd(),
+    ".duckbrain",
+    "namespaces",
+    "default",
+  );
   if (!fs.existsSync(namespacePath)) {
     return {
       success: false,
       partitionsCompacted: 0,
       totalRecordsKept: 0,
       totalRecordsRemoved: 0,
-      errors: ['Default namespace not found']
+      errors: ["Default namespace not found"],
     };
   }
 
@@ -269,12 +284,17 @@ export async function compactHistory(options: {
         // Count records first
         const jsonlFiles = fs
           .readdirSync(partitionPath)
-          .filter(f => f.endsWith('.jsonl'));
+          .filter((f) => f.endsWith(".jsonl"));
 
         let recordCount = 0;
         for (const file of jsonlFiles) {
-          const content = fs.readFileSync(path.join(partitionPath, file), 'utf-8');
-          const lines = content.split('\n').filter((line: string) => line.trim() !== '');
+          const content = fs.readFileSync(
+            path.join(partitionPath, file),
+            "utf-8",
+          );
+          const lines = content
+            .split("\n")
+            .filter((line: string) => line.trim() !== "");
           recordCount += lines.length;
         }
 
@@ -287,7 +307,7 @@ export async function compactHistory(options: {
         const result = await squashPartition(partitionPath, {
           dryRun,
           squashCommits,
-          partition: partitionRelPath
+          partition: partitionRelPath,
         });
 
         if (result.success) {
@@ -299,7 +319,9 @@ export async function compactHistory(options: {
         }
       }
     } catch (err) {
-      errors.push(`${partitionRelPath}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      errors.push(
+        `${partitionRelPath}: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
     }
   }
 
@@ -308,7 +330,7 @@ export async function compactHistory(options: {
     partitionsCompacted,
     totalRecordsKept,
     totalRecordsRemoved,
-    errors: errors.length > 0 ? errors : undefined
+    errors: errors.length > 0 ? errors : undefined,
   };
 }
 
@@ -328,20 +350,20 @@ export async function removeTombstones(partitionPath: string): Promise<{
       return {
         removed: 0,
         totalRecords: 0,
-        error: `Partition not found: ${partitionPath}`
+        error: `Partition not found: ${partitionPath}`,
       };
     }
 
     // Find all JSONL files
     const jsonlFiles = fs
       .readdirSync(partitionPath)
-      .filter((f: string) => f.endsWith('.jsonl'));
+      .filter((f: string) => f.endsWith(".jsonl"));
 
     if (jsonlFiles.length === 0) {
       return {
         removed: 0,
         totalRecords: 0,
-        error: 'No JSONL files found'
+        error: "No JSONL files found",
       };
     }
 
@@ -351,15 +373,17 @@ export async function removeTombstones(partitionPath: string): Promise<{
 
     // Read and filter records
     for (const jsonlFile of jsonlFiles) {
-      const content = fs.readFileSync(jsonlFile, 'utf-8');
-      const lines = content.split('\n').filter((line: string) => line.trim() !== '');
+      const content = fs.readFileSync(jsonlFile, "utf-8");
+      const lines = content
+        .split("\n")
+        .filter((line: string) => line.trim() !== "");
 
       for (const line of lines) {
         try {
           const record = JSON.parse(line) as Record<string, any>;
           totalRecords++;
 
-          if (record.action === 'tombstone' || record.action === 'forget') {
+          if (record.action === "tombstone" || record.action === "forget") {
             tombstoneCount++;
           } else {
             liveRecords.push(record);
@@ -371,9 +395,13 @@ export async function removeTombstones(partitionPath: string): Promise<{
     }
 
     // Rewrite JSONL without tombstones
-    const newChunkPath = path.join(partitionPath, `cleaned-${Date.now()}.jsonl`);
-    const content = liveRecords.map(r => safeJsonStringify(r)).join('\n') + '\n';
-    fs.writeFileSync(newChunkPath, content, 'utf-8');
+    const newChunkPath = path.join(
+      partitionPath,
+      `cleaned-${Date.now()}.jsonl`,
+    );
+    const content =
+      liveRecords.map((r) => safeJsonStringify(r)).join("\n") + "\n";
+    fs.writeFileSync(newChunkPath, content, "utf-8");
 
     // Remove old files
     for (const jsonlFile of jsonlFiles) {
@@ -381,19 +409,19 @@ export async function removeTombstones(partitionPath: string): Promise<{
     }
 
     // Rename cleaned file
-    const originalBase = path.basename(jsonlFiles[0]).replace(/\.jsonl$/, '');
+    const originalBase = path.basename(jsonlFiles[0]).replace(/\.jsonl$/, "");
     const finalPath = path.join(partitionPath, `${originalBase}-cleaned.jsonl`);
     fs.renameSync(newChunkPath, finalPath);
 
     return {
       removed: tombstoneCount,
-      totalRecords
+      totalRecords,
     };
   } catch (error) {
     return {
       removed: 0,
       totalRecords: 0,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -405,10 +433,15 @@ export async function removeTombstones(partitionPath: string): Promise<{
  * @returns Compaction statistics
  */
 export async function getCompactionStats(
-  namespacePath?: string
+  namespacePath?: string,
 ): Promise<CompactionStats> {
   if (!namespacePath) {
-    namespacePath = path.join(process.cwd(), '.duckbrain', 'namespaces', 'default');
+    namespacePath = path.join(
+      process.cwd(),
+      ".duckbrain",
+      "namespaces",
+      "default",
+    );
   }
 
   const stats: CompactionStats = {
@@ -421,7 +454,7 @@ export async function getCompactionStats(
     tombstonePercent: 0,
     parquetRatio: 0,
     oldPartitions: [],
-    largePartitions: []
+    largePartitions: [],
   };
 
   if (!fs.existsSync(namespacePath)) {
@@ -447,8 +480,8 @@ export async function getCompactionStats(
     let tombstoneCount = 0;
 
     const files = fs.readdirSync(partitionPath);
-    const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
-    const parquetFiles = files.filter(f => f.endsWith('.parquet'));
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    const parquetFiles = files.filter((f) => f.endsWith(".parquet"));
 
     if (parquetFiles.length > 0) {
       stats.parquetPartitions++;
@@ -462,14 +495,14 @@ export async function getCompactionStats(
       const fileStats = fs.statSync(filePath);
       partitionSize += fileStats.size;
 
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n').filter(line => line.trim() !== '');
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim() !== "");
       recordCount += lines.length;
 
       for (const line of lines) {
         try {
           const record = JSON.parse(line);
-          if (record.action === 'tombstone' || record.action === 'forget') {
+          if (record.action === "tombstone" || record.action === "forget") {
             tombstoneCount++;
           }
         } catch {
@@ -504,17 +537,21 @@ export async function getCompactionStats(
       stats.largePartitions.push({
         path: partitionRelPath,
         size: partitionSize,
-        records: recordCount
+        records: recordCount,
       });
     }
   }
 
   // Calculate percentages
   if (stats.totalRecords > 0) {
-    stats.tombstonePercent = Math.round((stats.tombstoneRecords / stats.totalRecords) * 100);
+    stats.tombstonePercent = Math.round(
+      (stats.tombstoneRecords / stats.totalRecords) * 100,
+    );
   }
   if (stats.totalPartitions > 0) {
-    stats.parquetRatio = Math.round((stats.parquetPartitions / stats.totalPartitions) * 100);
+    stats.parquetRatio = Math.round(
+      (stats.parquetPartitions / stats.totalPartitions) * 100,
+    );
   }
 
   return stats;
@@ -531,27 +568,31 @@ export async function getCompactionStats(
 function squashGitHistory(partitionPath: string): void {
   try {
     // Check if we're in a git repository
-    execSync('git rev-parse --git-dir', { stdio: 'pipe' });
+    execSync("git rev-parse --git-dir", { stdio: "pipe" });
 
     // Get relative path from git root
-    const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+    const gitRoot = execSync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+    }).trim();
     const relativePath = path.relative(gitRoot, partitionPath);
 
     // Squash commits touching this path into a single commit
     // Using git rebase with --autosquash
     const commitCount = execSync(
       `git log --oneline --follow -- "${relativePath}" | wc -l`,
-      { encoding: 'utf-8' }
+      { encoding: "utf-8" },
     ).trim();
 
     if (parseInt(commitCount) > 1) {
       // Could use interactive rebase, but that's complex
       // For now, just log that squashing would be beneficial
-      console.log(`Partition ${relativePath}: ${commitCount} commits could be squashed`);
+      console.log(
+        `Partition ${relativePath}: ${commitCount} commits could be squashed`,
+      );
     }
   } catch (error) {
     // Not in git repo or other error - ignore
-    console.warn('Git history squash skipped (not in git repo or error)');
+    console.warn("Git history squash skipped (not in git repo or error)");
   }
 }
 
@@ -562,7 +603,7 @@ function findNamespacePath(partitionPath: string): string | null {
   // Walk up directory tree looking for manifest.json
   let current = partitionPath;
   while (current !== path.dirname(current)) {
-    const manifestPath = path.join(current, 'manifest.json');
+    const manifestPath = path.join(current, "manifest.json");
     if (fs.existsSync(manifestPath)) {
       return current;
     }
@@ -575,13 +616,13 @@ function findNamespacePath(partitionPath: string): string | null {
  * Write manifest atomically (copied from manifest.ts to avoid circular dependency)
  */
 function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
-  const manifestPath = path.join(namespacePath, 'manifest.json');
-  const tmpPath = path.join(namespacePath, 'manifest.json.tmp');
+  const manifestPath = path.join(namespacePath, "manifest.json");
+  const tmpPath = path.join(namespacePath, "manifest.json.tmp");
 
   if (!fs.existsSync(namespacePath)) {
     fs.mkdirSync(namespacePath, { recursive: true });
   }
 
-  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
   fs.renameSync(tmpPath, manifestPath);
 }

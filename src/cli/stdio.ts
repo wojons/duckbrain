@@ -11,8 +11,8 @@
  *   duckbrain stdio
  */
 
-import { server, stopServer, registerTools } from '../mcp/server.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { server, stopServer, registerTools } from "../mcp/server.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 /**
  * Start DuckBrain MCP server in stdio mode
@@ -36,7 +36,7 @@ export async function startStdioMode(): Promise<void> {
     await server.connect(transport);
 
     // Log startup to stderr (NOT stdout - stdout is for MCP protocol)
-    console.error('[duckbrain] MCP server started in stdio mode');
+    console.error("[duckbrain] MCP server started in stdio mode");
 
     // Handle graceful shutdown
     const shutdown = async () => {
@@ -44,19 +44,22 @@ export async function startStdioMode(): Promise<void> {
       process.exit(0);
     };
 
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
   } catch (error) {
     // Log errors to stderr
-    console.error('[duckbrain] Failed to start stdio mode:', error);
+    console.error("[duckbrain] Failed to start stdio mode:", error);
     process.exit(1);
   }
 }
 
 // Auto-start if run directly
-if (process.argv[1]?.endsWith('stdio.ts') || process.argv[1]?.endsWith('stdio.js')) {
+if (
+  process.argv[1]?.endsWith("stdio.ts") ||
+  process.argv[1]?.endsWith("stdio.js")
+) {
   startStdioMode().catch((error: unknown) => {
-    console.error('[duckbrain] Unhandled error:', error);
+    console.error("[duckbrain] Unhandled error:", error);
     process.exit(1);
   });
 }

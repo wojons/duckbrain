@@ -8,7 +8,7 @@
  * Configurable via RateLimitConfig.
  */
 
-import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from "express";
 
 /**
  * Rate limit configuration
@@ -81,7 +81,7 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     cleanupStore();
 
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
     const now = Date.now();
 
     // Initialize or get entry
@@ -108,18 +108,22 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
       entry.tokens -= 1;
 
       // Set rate limit headers
-      res.setHeader('X-RateLimit-Limit', config.requestsPerMinute);
-      res.setHeader('X-RateLimit-Remaining', remaining);
+      res.setHeader("X-RateLimit-Limit", config.requestsPerMinute);
+      res.setHeader("X-RateLimit-Remaining", remaining);
 
       next();
     } else {
       // Rate limited
-      const retryAfterSecs = Math.ceil((1 - entry.tokens) / refillRateMs / 1000);
+      const retryAfterSecs = Math.ceil(
+        (1 - entry.tokens) / refillRateMs / 1000,
+      );
 
-      res.setHeader('X-RateLimit-Limit', config.requestsPerMinute);
-      res.setHeader('X-RateLimit-Remaining', 0);
-      res.setHeader('Retry-After', retryAfterSecs);
-      res.status(429).json({ error: 'Rate limit exceeded', retryAfter: retryAfterSecs });
+      res.setHeader("X-RateLimit-Limit", config.requestsPerMinute);
+      res.setHeader("X-RateLimit-Remaining", 0);
+      res.setHeader("Retry-After", retryAfterSecs);
+      res
+        .status(429)
+        .json({ error: "Rate limit exceeded", retryAfter: retryAfterSecs });
     }
   };
 }

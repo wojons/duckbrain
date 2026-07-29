@@ -2,11 +2,11 @@
  * Git Operation Queue
  */
 
-import { Mutex } from 'async-mutex';
+import { Mutex } from "async-mutex";
 
 export enum GitOperationType {
-  COMMIT = 'commit',
-  ADD = 'add'
+  COMMIT = "commit",
+  ADD = "add",
 }
 
 export interface GitOperation {

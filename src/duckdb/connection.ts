@@ -5,12 +5,12 @@
  * Supports singleton, pool, and per-query modes.
  */
 
-import { Database } from 'duckdb';
+import { Database } from "duckdb";
 
 export { Database };
-import path from 'path';
-import fs from 'fs';
-import { loadVSSExtension, enablePersistence } from './vss';
+import path from "path";
+import fs from "fs";
+import { loadVSSExtension, enablePersistence } from "./vss";
 
 /**
  * Cache of database connections by namespace path.
@@ -25,7 +25,7 @@ const dbCache = new Map<string, ConnectionEntry>();
 // A Database instance otherwise creates a worker pool sized for the host.
 // DuckBrain caches one instance per namespace, so that default multiplies
 // into hundreds of threads in the long-lived MCP server.
-const DATABASE_CONFIG = { threads: '1' };
+const DATABASE_CONFIG = { threads: "1" };
 
 /**
  * Maximum age of a cached connection before it's recycled (1 hour).
@@ -46,14 +46,19 @@ const CONNECTION_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
  * const db = await initDuckDB(':memory:');
  * const db = await initDuckDB('./data/duckdb.db');
  */
-export async function initDuckDB(dbPath: string = ':memory:'): Promise<Database> {
+export async function initDuckDB(
+  dbPath: string = ":memory:",
+): Promise<Database> {
   // Runtime version check - 1.3.3 has known bugs
-  const pkgPath = path.join(__dirname, '../../node_modules/duckdb/package.json');
+  const pkgPath = path.join(
+    __dirname,
+    "../../node_modules/duckdb/package.json",
+  );
   if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-    if (pkg.version === '1.3.3') {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    if (pkg.version === "1.3.3") {
       throw new Error(
-        'DuckDB version 1.3.3 has known bugs. Please upgrade to 1.4.4 or later.'
+        "DuckDB version 1.3.3 has known bugs. Please upgrade to 1.4.4 or later.",
       );
     }
   }
@@ -81,23 +86,23 @@ export async function initDuckDB(dbPath: string = ':memory:'): Promise<Database>
  * @returns DuckDB Database instance
  */
 export function getDuckDBConnection(
-  mode: 'singleton' | 'pool' | 'per-query' = 'singleton',
-  namespacePath: string
+  mode: "singleton" | "pool" | "per-query" = "singleton",
+  namespacePath: string,
 ): Database {
   switch (mode) {
-    case 'singleton':
+    case "singleton":
       return getSingletonConnection(namespacePath);
 
-    case 'pool':
+    case "pool":
       // For now, treat pool same as singleton
       // Future: implement actual connection pooling
       return getSingletonConnection(namespacePath);
 
-    case 'per-query':
+    case "per-query":
       // Create new connection each time (for testing)
-      const dbPath = namespacePath.startsWith(':memory:')
+      const dbPath = namespacePath.startsWith(":memory:")
         ? namespacePath
-        : path.join(namespacePath, 'duckdb.db');
+        : path.join(namespacePath, "duckdb.db");
       return new Database(dbPath, DATABASE_CONFIG);
 
     default:
@@ -136,7 +141,7 @@ function getSingletonConnection(namespacePath: string): Database {
   }
 
   // Create fresh connection
-  const dbPath = path.join(namespacePath, 'duckdb.db');
+  const dbPath = path.join(namespacePath, "duckdb.db");
   const db = new Database(dbPath, DATABASE_CONFIG);
   dbCache.set(namespacePath, { db, createdAt: Date.now() });
 
@@ -184,7 +189,9 @@ export async function closeDuckDB(db: Database): Promise<void> {
  *
  * @param namespacePath - Path to namespace directory
  */
-export async function closeDuckDBConnection(namespacePath: string): Promise<void> {
+export async function closeDuckDBConnection(
+  namespacePath: string,
+): Promise<void> {
   const entry = dbCache.get(namespacePath);
   if (entry) {
     await closeDuckDB(entry.db);
@@ -201,7 +208,7 @@ export async function closeAllConnections(): Promise<void> {
     promises.push(
       new Promise((resolve) => {
         entry.db.close(() => resolve());
-      })
+      }),
     );
   }
   await Promise.all(promises);

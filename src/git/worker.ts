@@ -4,8 +4,8 @@
  * Background worker that batches git commits by line count or time interval.
  */
 
-import { GitQueue, GitOperationType } from './queue';
-import simpleGit from 'simple-git';
+import { GitQueue, GitOperationType } from "./queue";
+import simpleGit from "simple-git";
 
 export interface GitWorkerConfig {
   batchLines: number;
@@ -16,7 +16,7 @@ export interface GitWorkerConfig {
 const DEFAULT_CONFIG: GitWorkerConfig = {
   batchLines: 100,
   batchIntervalMs: 30000,
-  repoPath: process.cwd()
+  repoPath: process.cwd(),
 };
 
 interface PendingCommit {
@@ -43,19 +43,21 @@ export class GitWorker {
     if (this.running) return;
     this.running = true;
     this.startTimer();
-    console.log(`[GitWorker] Started (batchLines=${this.config.batchLines}, batchIntervalMs=${this.config.batchIntervalMs})`);
+    console.log(
+      `[GitWorker] Started (batchLines=${this.config.batchLines}, batchIntervalMs=${this.config.batchIntervalMs})`,
+    );
   }
 
   async stop(): Promise<void> {
     if (!this.running) return;
-    console.log('[GitWorker] Stopping...');
+    console.log("[GitWorker] Stopping...");
     this.running = false;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
     await this.flushCommit();
-    console.log('[GitWorker] Stopped');
+    console.log("[GitWorker] Stopped");
   }
 
   async add(files: string[], lineCount: number = 0): Promise<void> {
@@ -64,7 +66,7 @@ export class GitWorker {
       return;
     }
     await this.queue.enqueue({ type: GitOperationType.ADD, files });
-    this.accumulateCommit(files, lineCount, 'chore: batch commit');
+    this.accumulateCommit(files, lineCount, "chore: batch commit");
   }
 
   async commit(message: string, files?: string[]): Promise<void> {
@@ -81,7 +83,11 @@ export class GitWorker {
     await this.git.commit(message);
   }
 
-  private accumulateCommit(files: string[], lineCount: number, message: string): void {
+  private accumulateCommit(
+    files: string[],
+    lineCount: number,
+    message: string,
+  ): void {
     if (!this.pendingCommit) {
       this.pendingCommit = { files: [...files], lines: lineCount, message };
     } else {
@@ -108,14 +114,16 @@ export class GitWorker {
       await this.git.commit(message);
       console.log(`[GitWorker] Committed ${files.length} files`);
     } catch (error) {
-      console.error('[GitWorker] Commit failed:', error);
+      console.error("[GitWorker] Commit failed:", error);
     }
   }
 
   private startTimer(): void {
     this.timer = setInterval(() => {
       if (this.pendingCommit && this.pendingCommit.files.length > 0) {
-        console.log(`[GitWorker] Time-based flush (${this.config.batchIntervalMs}ms elapsed)`);
+        console.log(
+          `[GitWorker] Time-based flush (${this.config.batchIntervalMs}ms elapsed)`,
+        );
         this.flushCommit();
       }
     }, this.config.batchIntervalMs);
@@ -123,7 +131,7 @@ export class GitWorker {
 
   configure(config: Partial<GitWorkerConfig>): void {
     this.config = { ...this.config, ...config };
-    console.log('[GitWorker] Configuration updated:', config);
+    console.log("[GitWorker] Configuration updated:", config);
     if (config.batchIntervalMs && this.running) {
       if (this.timer) clearInterval(this.timer);
       this.startTimer();

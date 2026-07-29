@@ -4,7 +4,7 @@
  * Handles loading and configuring the VSS (Vector Similarity Search) extension.
  */
 
-import type { Database } from './connection';
+import type { Database } from "./connection";
 
 /**
  * Load VSS extension into DuckDB database
@@ -21,16 +21,16 @@ import type { Database } from './connection';
 export async function loadVSSExtension(db: Database): Promise<void> {
   try {
     // Try to load VSS extension
-    db.exec('INSTALL vss');
-    db.exec('LOAD vss');
+    db.exec("INSTALL vss");
+    db.exec("LOAD vss");
   } catch (error) {
     // Extension may already be installed - check if it's loaded
     try {
-      db.exec('LOAD vss');
+      db.exec("LOAD vss");
     } catch (loadError) {
-      console.warn('VSS extension could not be loaded:', loadError);
+      console.warn("VSS extension could not be loaded:", loadError);
       throw new Error(
-        `Failed to load VSS extension: ${loadError instanceof Error ? loadError.message : 'unknown error'}`
+        `Failed to load VSS extension: ${loadError instanceof Error ? loadError.message : "unknown error"}`,
       );
     }
   }
@@ -50,9 +50,9 @@ export async function loadVSSExtension(db: Database): Promise<void> {
  */
 export async function enablePersistence(db: Database): Promise<void> {
   try {
-    db.exec('SET hnsw_enable_experimental_persistence = true');
+    db.exec("SET hnsw_enable_experimental_persistence = true");
   } catch (error) {
-    console.warn('Could not enable VSS persistence:', error);
+    console.warn("Could not enable VSS persistence:", error);
     // Non-fatal - continue without persistence
   }
 }
