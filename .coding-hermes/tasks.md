@@ -2013,3 +2013,57 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 31st overall tick. BUG-034 confirmed resolved across a fresh daemon restart (port 41561 — never used before). The evictConnection() + retry pattern in connection.ts, queries.ts, recall.ts, and list_keys.ts is proving durable. The `content` field for POST /api/memories now requires a string — the prior object shape was rejected. BUG-027/029 remain fixed through 13+ ticks. Only substantive open item: DB-001 (blocked, 157 ticks). E2E-001 next due #161–166.
 
 **Verdict:** IDLE — 31st overall tick. All 14 NEVER-DONE gates pass or known-minor (only eslint and minor pnpm updates as gaps). E2E smoke 7/7 PASS confirms all endpoints and all historical bug fixes (027, 029, 034). DB-001 blocked at 157 ticks — 7+ days awaiting Bane's embedding model decision. Project in maintenance mode.
+
+
+### TICK #159 — IDLE: 9th consecutive since last dispatch, 33rd overall idle, E2E 7/7 PASS (2026-07-29 00:23 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 5.56/7.58/7.69 | 48GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.63s, 1601 modules |
+| Tests | ✅ **176/176** | 18/18 suites, 12.79s |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 525 edges, 121 files | Stable — Hilo=useful (unchanged) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Recurring config drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1->26.1.2, @modelcontextprotocol/sdk 1.29.0->1.30.0 |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| DuckBrain | ✅ Write + recall verified | ID 50e32621 confirmed persisted (coding-hermes namespace) |
+| Docs | 🟢 22 docs verified | 9 root .md + CODEOWNERS + LICENSE + NOTICE + .github/CODEOWNERS + docs/api(2) + docs/guide(5) + .github/workflows(2) = 22. Prior ticks undercounted (claimed 18, actual is 22). |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **159 ticks** |
+| BUG-034 | 🟢 Resolved #156 | 176/176 tests + 7/7 E2E confirms fix holds |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, uptime 6.5s |
+| GET /api/keys?prefix=/ | ✅ 200 | 0 children (fresh server, no persisted memories) |
+| GET /api/namespaces | ✅ 200 | 2 namespaces |
+| POST /api/memories (valid) | ✅ 201 | ID 2bff9761, content field |
+| POST /api/memories (invalid domain) | ✅ 400 | VALIDATION_ERROR — BUG-029 confirmed fixed |
+| GET /api/memories/:id (null uuid) | ✅ 404 | Correct rejection |
+| GET /api/memories?prefix=/projects/ | ✅ 200 | Prefix query works |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): 🟢 22 docs verified — prior ticks undercounted (18 vs actual 22). 9 root .md + CODEOWNERS + LICENSE + NOTICE + .github/CODEOWNERS + docs/api(2) + docs/guide(5) + .github/workflows(2).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ✅ PASS — 176/176, 18/18 suites, all route files have tests
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — minor, 3+ ticks stale)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express->MCP->storage->DuckDB
+- Check 7 (endpoints): ✅ PASS — E2E smoke 7/7
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write + recall verified (id: 50e32621, coding-hermes namespace)
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 525 edges, 121 files, Hilo=useful
+- Check 12 (pitfalls): ✅ PASS — No new pitfalls. No duplicate tick.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ✅ Smoke PASS — 7/7 endpoints. Full browser E2E deferred (load). Next due #161-166.
+
+**Dispatch decision:** Load 5.56 — well above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (159 ticks). No worker dispatch.
+
+**Notable:** 9th consecutive idle tick since last dispatch (#146). 33rd overall idle. Doc count discrepancy found: prior ticks claimed 18 docs — actual count is 22 (9 root .md + CODEOWNERS + LICENSE + NOTICE + .github/CODEOWNERS + docs/api + docs/guide + .github/workflows). Board was undercounting by 4. DuckBrain recall-by-ID confirmed persisted (50e32621). pnpm outdated 2 minor packages — same as last 3+ ticks, no new findings. All historical bugs remain resolved.
+
+**Verdict:** IDLE — 9th consecutive idle tick, 33rd overall. All 14 NEVER-DONE gates pass or known-minor. E2E smoke 7/7 PASS confirms all endpoints. DB-001 at 159 ticks still blocked — 6+ days awaiting Bane embedding model decision. Cooldown 900s.
