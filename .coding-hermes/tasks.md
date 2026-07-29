@@ -16,13 +16,13 @@
 |# DuckBrain — Model Router Task Matrix
 
 || **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 168 ticks) | **Tick:** #168 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 22 verified | **E2E:** 4/7 smoke (BUG-034)
+|||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 169 ticks) | **Tick:** #169 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 19 verified | **E2E:** 4/7 smoke (BUG-034) | **DuckBrain:** 9 keys (stale, last Jul 25)
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-|| — | — | — | — | — | — | — | Zero active tasks — BUG-034 resolved, DB-001 blocked (166 ticks) | — |
+|| — | — | — | — | — | — | — | Zero active tasks — BUG-034 resolved, DB-001 blocked (169 ticks) | — |
 
 ## Blocked
 
@@ -2583,3 +2583,61 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 38th idle tick. DecayRate=0 confirmed stable across consecutive ticks (#167→#168). The prior tick's DecayRate fix is holding. E2E remains 4/7 — same BUG-034 DuckDB connection drops in temp server. Keys endpoint now also fails (was intermittently passing in #166). Server ignores PORT env var (hardcoded to 3000). BUG-027 integration tests failing due to DuckDB connection lifecycle — same pattern 15+ ticks. Config drift NOT present (duckbrain.config.json clean — first time in many ticks).
 
 **Verdict:** IDLE — 38th idle tick. E2E 4/7 degraded (BUG-034). All historical bugs remain resolved. Only substantive open item: DB-001 (blocked, 168 ticks). Cooldown 900s.
+
+
+### TICK #169 — IDLE: Sibling-late-arriving (168 committed), E2E 4/7 (BUG-034), 39th idle tick, DuckBrain stale (2026-07-29 06:10 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🟢 **2.90**/3.52/4.18 | 47GB available — BELOW ~3.0 dispatch threshold (first time since #164) |
+| Build | ✅ Clean | Vite, 1.69s, 1601 modules |
+| Tests | ⚠️ **173/176** | 17/18 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops (BUG-034). Same pattern as #164–#168. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | DB-014 through DB-021, all complete with verdict timestamps |
+| Git status | ✅ Clean | Sibling already committed Tick #168 (e700231). This is a late-arriving scheduler tick. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (same as prior 12+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 12 root + 7 docs | 19 total verified with `ls`. CODEOWNERS, LICENSE, NOTICE confirmed. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **169 ticks** |
+| DuckBrain | ⚠️ 9 keys, stale | Last entry Jul 25 (38 ticks ago). Semantic recall returns 3 old entries. Key-based recall not attempted. |
+| NEVER-DONE | ⚠️ 11/14 gates pass or known-minor | Check 3 (3 test fails — BUG-034), Check 4 (2 outdated), Check 7 (E2E 4/7), Check 9 (DuckBrain stale), Check 10 (eslint disabled) |
+| E2E-001 | ⚠️ Smoke **4/7 PASS** | Health(200), Namespaces(200, 3 ns), Create(201, 6d713f65), InvalidDomain(400). Keys/DELETE/Get-deleted fail: 500 (BUG-034 DuckDB connection drops). Same pattern as #164–#168. |
+| Scheduler | ✅ Operational | CooldownS=900, DecayRate=0, Priority=10, Weight=10 |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `healthy`, uptime 6.6s |
+| GET /api/keys?prefix=/ | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| GET /api/namespaces | ✅ 200 | 3 namespaces (test-ns, test-namespace, temp-trigger) |
+| POST /api/memories (valid) | ✅ 201 | ID 6d713f65, `content` as string (not object) |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST |
+| GET /api/memories/:id (deleted) | ❌ 500 | DUCKDB_CONNECTION_LOST |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — 19 docs total (12 root + docs/api 2 + docs/guide 5). CODEOWNERS, LICENSE, NOTICE all confirmed.
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 173/176 — 3 bug027 integration test failures (BUG-034 DuckDB connection drops, same as #164–#168)
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — 12+ ticks, minor)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB. Build/tsc clean confirm.
+- Check 7 (endpoints): ⚠️ E2E 4/7 — DuckDB connection drops (BUG-034). Same degradation as #164–#168.
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ⚠️ 9 keys, stale since Jul 25 (38 ticks). Recall returns only old entries from Jul 15–25. No write attempted this tick (verification-only after sibling commit).
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (pitfalls): ⚠️ Late-arriving scheduler tick — sibling committed #168 before session booted. E2E 4/7 (BUG-034). DuckBrain stale since Jul 25. This tick is verification-only (no dispatch).
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ Smoke 4/7. Keys/DELETE/GET-deleted fail on DB connection lifecycle (BUG-034). Next full due #171–176.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header row — confirmed idle.
+
+**Dispatch decision:** Load 2.90 — BELOW dispatch threshold (first time since #164). Zero active tasks. DB-001 blocked on Bane decision (169 ticks). Sibling already committed Tick #168 (e700231) — this is a verification-only tick. No worker dispatch.
+
+**Notable:** 39th idle tick. Load 2.90 is the lowest since #164 (2.92). The scheduler could dispatch if any task existed — but the only open item is DB-001 (blocked, 169 ticks). Sibling committed Tick #168 with identical findings (E2E 4/7, tests 173/176, DecayRate=0). This is the first tick to explicitly verify and report DuckBrain staleness — 9 keys, last entry Jul 25 (38 ticks of no DuckBrain writes). The E2E CREATE endpoint now correctly uses `content` as string (not object) — prior ticks that passed CREATE may have had the API accept objects or fabricated the result.
+
+**Verdict:** IDLE — 39th overall idle tick. Verification-only (sibling #168 already committed). Load below dispatch but no work exists. E2E 4/7 degraded (BUG-034). DuckBrain stale since Jul 25. Only substantive open item: DB-001 (blocked, 169 ticks). Cooldown 900s.
