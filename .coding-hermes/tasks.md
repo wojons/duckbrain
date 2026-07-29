@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 ||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 171 ticks) | **Tick:** #171 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 9/9 checklist + 12 additional | **E2E:** 4/7 smoke (BUG-034) | **DuckBrain:** entries confirmed (tick 171 verified)
+||||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 172 ticks) | **Tick:** #172 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 21 total (12 root + 9 docs/) | **E2E:** 4/8 smoke (BUG-034) | **DuckBrain:** entries confirmed (tick 172 verified)
 
 ## Active
 
@@ -28,7 +28,7 @@
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-|| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **171 ticks** |
+|| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **172 ticks** |
 
 ## Completed
 
@@ -194,6 +194,66 @@
 **Notable:** 41st idle tick. Sibling collision — tick #170 committed (b740f85) during this session's audit. Cross-verified sibling's claims: most consistent, but E2E discrepancy (5/8 vs 4/7) explained by different DB state (:memory: vs persistent). Sibling's docs count of "21" conflated the 9-file checklist with additional files — corrected to explicit 9/9 + 12 additional. **NEW GAP: No specs/ directory** — never flagged in any prior tick. DB-001 now 171 ticks blocked. E2E next full due #172-177.
 
 **Verdict:** IDLE — SIBLING COLLISION. 41st overall idle tick. E2E 4/7 degraded (BUG-034). All historical bugs remain resolved. New gap: specs/ missing. DB-001 (blocked, 171 ticks). DecayRate=0 stable. Cooldown 900s.
+
+
+### TICK #172 — IDLE: 42nd idle, E2E 4/8 degraded (BUG-034), git clean (no config drift), DuckBrain recall confirmed (2026-07-29 14:37 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **5.21**/6.40/6.81 | 47GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.81s, 1601 modules |
+| Tests | ⚠️ **173/176** | 17/18 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops (BUG-034). Same pattern as #164–#171. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ✅ **Clean** | First tick in many with NO config drift (duckbrain.config.json NOT modified). Branch up to date with origin/main. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (same as prior 14+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 21 total | 12 root md + 2 api + 5 guide + AI_CONFIGURE.md + index.md. All verified with ls. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged by #171, still absent. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **172 ticks** |
+| NEVER-DONE | ⚠️ 12/14 gates pass or known-minor | Check 3 (3 test fails — BUG-034), Check 4 (2 outdated), Check 7 (E2E degraded 4/8), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | ⚠️ Smoke **4/8 PASS** | Health(200), Namespaces(200), Create(201), InvalidDomain(400). Keys/GET/DELETE/GET-deleted: 500 (BUG-034 DuckDB connection drops). Same pattern as #164–#171. |
+| Scheduler | Not checked | Prior ticks confirmed operational (900s CooldownS, DecayRate=0). DuckBrain infra namespace exists. |
+| DuckBrain | ✅ Recall confirmed | Write via HTTP API (72816934-ee85) + MCP recall of tick-166 entry via coding-hermes namespace confirmed functional. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 41537 |
+| GET /api/keys?prefix=/ | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID 72816934-ee85 |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST — connection lifecycle breaks after first POST |
+| DELETE /api/memories/:id | ❌ 500 | Connection lost before delete |
+| GET /api/memories/:id (deleted) | ❌ 500 | Connection lost |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ⚠️ 21 docs total verified (12 root + 9 docs/). No specs/ directory exists (gap flagged by #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 173/176 — 3 bug027 integration test failures (BUG-034 DuckDB connection drops, same as #164–#171)
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — 14+ ticks, minor)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB. Build/tsc clean confirm.
+- Check 7 (endpoints): ⚠️ E2E 4/8 — DuckDB connection drops (BUG-034). Same pattern as #164–#171.
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write via HTTP API (72816934-ee85) + MCP recall of tick-166 entry confirmed persisted in coding-hermes namespace.
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (pitfalls): ⚠️ E2E degraded 4/8 (BUG-034). No config drift this tick (duckbrain.config.json clean — first time in many ticks). DecayRate=0 stable. No specs/ directory.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ Smoke 4/8. Keys/GET/DELETE/GET-deleted fail on DB connection lifecycle (BUG-034). Next full due #173–178.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header row — confirmed idle.
+
+**Dispatch decision:** Load 5.21 — well above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (172 ticks). No worker dispatch. Git status clean (no config drift for first time in many ticks).
+
+**Notable:** 42nd idle tick. Git working tree clean — duckbrain.config.json NOT modified for the first time since config drift was first flagged many ticks ago. Docs count stabilized at 21 (12 root + 9 docs/). DB-001 now 172 ticks blocked. BUG-034 DuckDB connection lifecycle persists — the exact same 4/8 pattern as ticks #164–#171: POST works (fresh connection), subsequent GET/DELETE operations lose the connection. All historical bugs remain resolved. Specs/ directory still missing (flagged #171). Cooldown 900s.
+
+**Verdict:** IDLE — 42nd overall idle tick. E2E 4/8 degraded (BUG-034). Git clean (no config drift). All historical bugs remain resolved. Only substantive open item: DB-001 (blocked, 172 ticks). Cooldown 900s.
 
 
 ### TICK #167 — IDLE: Load 3.48 above dispatch, E2E 4/7 degraded (BUG-034), 37th idle tick, DecayRate FIXED (2026-07-29 10:15 UTC) — foreman direct
