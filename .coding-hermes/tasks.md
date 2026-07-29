@@ -15,8 +15,8 @@
 
 |# DuckBrain — Model Router Task Matrix
 
-|| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 169 ticks) | **Tick:** #169 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 19 verified | **E2E:** 4/7 smoke (BUG-034) | **DuckBrain:** 9 keys (stale, last Jul 25)
+||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||| **Language:** TypeScript | **Tests:** 173/176 pass (17/18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 170 ticks) | **Tick:** #170 | **Cooldown:** 900s (DecayRate=0 ✅) | **Docs:** 21 verified | **E2E:** 5/8 smoke (BUG-034) | **DuckBrain:** 6 entries (tick 170 just written)
 
 ## Active
 
@@ -73,6 +73,64 @@
   for EVERY gap found. This task is never complete — the audit always finds something.
 
 ## Tick Log
+
+### TICK #170 — IDLE: 40th idle, E2E 5/8 degraded (BUG-034), DuckBrain recall confirmed, DecayRate=0 stable (2026-07-29 06:38 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **4.14**/6.22/6.97 | 47GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.69s, 1601 modules |
+| Tests | ⚠️ **173/176** | 17/18 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops (BUG-034). Same pattern as #164–#169. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ duckbrain.config.json modified | Recurring config drift (defaultNamespace: hermes-dagger) |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (same as prior 11+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 21 total | 9 root md + CODEOWNERS + LICENSE + NOTICE + 9 docs. All verified with ls. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **170 ticks** |
+| NEVER-DONE | ⚠️ 11/14 gates pass or known-minor | Check 3 (3 test fails — BUG-034), Check 4 (2 outdated), Check 7 (E2E degraded 5/8), Check 10 (eslint disabled) |
+| E2E-001 | ⚠️ Smoke **5/8 PASS** | Health(200), Namespaces(200, 68 ns), Create(201), InvalidDomain(400), Keys(200). GET/DELETE/GET-deleted fail: 500 (BUG-034 DuckDB connection drops). Same pattern as prior ticks. |
+| Scheduler | ✅ Operational | CooldownS=900, DecayRate=0 stable |
+| DuckBrain | ✅ Recall confirmed | Write (2ecadbb7) → recall verified via ID lookup in coding-hermes namespace. 6 entries now. |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy |
+| GET /api/keys?prefix=/ | ✅ 200 | 500 earlier — passed on retry |
+| GET /api/namespaces | ✅ 200 | 68 namespaces |
+| POST /api/memories (valid) | ✅ 201 | ID f4747a04 |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST after create |
+| DELETE /api/memories/:id | ❌ 500 | Connection lost before delete |
+| GET /api/memories/:id (deleted) | ❌ 500 | Connection lost |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — 21 docs total (9 root md + CODEOWNERS + LICENSE + NOTICE + docs/api 2 + docs/guide 5 + docs/index.md + docs/AI_CONFIGURE.md). All verified with ls.
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 173/176 — 3 bug027 integration test failures (BUG-034 DuckDB connection drops, same as #164–#169)
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — 11+ ticks, minor)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB. Build/tsc clean confirm.
+- Check 7 (endpoints): ⚠️ E2E 5/8 — DuckDB connection drops (BUG-034). Same pattern as #164–#169.
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write (2ecadbb7) + recall verified via ID lookup.
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (pitfalls): ⚠️ E2E degraded 5/8 (BUG-034). DecayRate=0 stable. Config drift persists (duckbrain.config.json).
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ Smoke 5/8. GET/DELETE/GET-deleted fail on DB connection lifecycle (BUG-034). Next full due #171–176.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header row — confirmed idle.
+
+**Dispatch decision:** Load 4.14 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (170 ticks). No worker dispatch. DecayRate=0 confirmed stable.
+
+**Notable:** 40th idle tick. BUG-034 DuckDB temp-DB connection lifecycle persists across all recent ticks. The pattern is consistent: POST create works (fresh connection), subsequent GET/DELETE operations lose the connection. All historical bugs remain resolved. Docs count re-verified at 21 (prior ticks fluctuated between 19-21). DuckBrain recall confirmed persisted with ID-based verification.
+
+**Verdict:** IDLE — 40th idle tick. E2E 5/8 degraded (BUG-034). All historical bugs remain resolved. Only substantive open item: DB-001 (blocked, 170 ticks). Cooldown 900s.
 
 
 ### TICK #167 — IDLE: Load 3.48 above dispatch, E2E 4/7 degraded (BUG-034), 37th idle tick, DecayRate FIXED (2026-07-29 10:15 UTC) — foreman direct
