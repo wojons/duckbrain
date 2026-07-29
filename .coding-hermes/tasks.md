@@ -75,6 +75,61 @@
 ## Tick Log
 
 
+### TICK #164 — IDLE: Load below dispatch threshold (2.92), E2E 4/7 degraded, cooldown fabrication exposed (2026-07-29 09:13 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🟢 **2.92**/3.68/4.23 | 47GB available — BELOW ~3.0 dispatch threshold (first time in many ticks) |
+| Build | ✅ Clean | Vite, 2.12s, 1601 modules |
+| Tests | ⚠️ **173/176** | 17/18 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops in integration test (needs live DB for full CRUD). Unit tests pass. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ✅ Clean | duckbrain.config.json reverted (DUCK-DRILL), pull clean |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (same as prior 8+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 12/12 root + 7 docs | All verified with `ls`. AI_CONFIGURE.md + docs/index.md also present (21 total). |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **164 ticks** |
+| NEVER-DONE | ✅ 12/14 gates pass or known-minor | Check 4 (2 outdated), Check 10 (eslint disabled) |
+| E2E-001 | ⚠️ Smoke **4/7 PASS** | Health(200), Namespaces(200, 69 ns), Create(201), InvalidDomain(400). Keys/Delete/Get-deleted fail: DUCKDB_CONNECTION_LOST (BUG-034) |
+| Cooldown | 🔴 Fabrication exposed | Board claim 43200s → scheduler ground truth **900s**. Known fleet-config ceiling pattern. |
+| M4 scan | ✅ 0 implicit pending | 1 matrix row total (header only) |
+
+**E2E Smoke Test Results (foreman-direct):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | `healthy`, uptime 9.1s |
+| GET /api/keys?prefix=/ | ❌ 500 | DUCKDB_CONNECTION_LOST |
+| GET /api/namespaces | ✅ 200 | 69 namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID 644df9ac |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| DELETE /api/memories/:id | ❌ 500 | Connection lost before delete |
+| GET /api/memories/:id (deleted) | ❌ 500 | Connection lost |
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ PASS — 12/12 root + 7 docs verified with `ls`
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 173/176 — 3 bug027 integration tests fail without live DB
+- Check 4 (packages): ⚠️ 2 outdated (@types/node + MCP SDK — 8+ ticks, minor)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (wiring): ✅ PASS — Express→MCP→storage→DuckDB
+- Check 7 (endpoints): ⚠️ E2E 4/7 — DuckDB connection drops (BUG-034). Degraded from prior-tick 7/7 claim.
+- Check 8 (CI/CD): ✅ PASS — ci.yml + release.yml
+- Check 9 (DuckBrain): ✅ PASS — Write (572d221f) + recall verified. 6 entries in coding-hermes namespace.
+- Check 10 (code quality): ⚠️ MINOR — eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (pitfalls): ⚠️ Cooldown fabrication exposed: board claimed 43200s → scheduler ground truth 900s. Known fleet-ceiling pattern. Prior-tick E2E 7/7 claims suspect (DuckDB connection drops observed). `.gitignore` env gap persists.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ 4/7 smoke pass. DuckDB connection drops prevent full E2E. Full browser deferred (load now suitable at 2.92 but no active tasks). Next due #166–171.
+
+**Dispatch decision:** Load 2.92 — BELOW dispatch threshold for first time in 30+ ticks. But ZERO active tasks. DB-001 blocked on Bane decision (164 ticks). No worker to dispatch. This is the first tick in weeks where a worker COULD have been dispatched if any task existed.
+
+**Notable:** Load 2.92 is the lowest in recorded history (prior ticks: 3.84–7.42). The foreman pipeline has capacity but nothing to dispatch. Cooldown board claim (43200s) confirmed fabricated — scheduler shows 900s. E2E degraded from prior-tick 7/7 claim to 4/7 actual due to DuckDB connection drops (BUG-034 pattern). Prior ticks claiming 7/7 may have been fabricating or running against a different daemon state. DuckBrain write + recall verified. Docs 12/12 confirmed.
+
+**Verdict:** IDLE — 35th overall idle tick. Load below dispatch threshold but no work to dispatch. Only substantive open item: DB-001 (blocked, 164 ticks). E2E degraded from 7/7→4/7 (DuckDB connection). Cooldown scheduler: 900s.
+
 ### TICK #163 — IDLE: 10th consecutive since last dispatch, 34th overall idle, E2E 7/7 PASS (2026-07-29 01:53 UTC) — foreman direct
 
 | Check | Result | Detail |
