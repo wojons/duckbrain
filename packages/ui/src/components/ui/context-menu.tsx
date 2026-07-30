@@ -5,22 +5,22 @@
  * Positioned at click coordinates with glassmorphism styling.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import { Eye, Copy, FileJson, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useCallback } from "react";
+import { Eye, Copy, FileJson, Trash2 } from "lucide-react";
 
 export interface ContextMenuItem {
-  id: string
-  label: string
-  icon?: React.ReactNode
-  onClick: () => void
-  disabled?: boolean
-  separator?: boolean
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  separator?: boolean;
 }
 
 interface ContextMenuProps {
-  items: ContextMenuItem[]
-  position: { x: number; y: number } | null
-  onClose: () => void
+  items: ContextMenuItem[];
+  position: { x: number; y: number } | null;
+  onClose: () => void;
 }
 
 /**
@@ -50,60 +50,60 @@ interface ContextMenuProps {
  * )
  */
 export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
   useEffect(() => {
-    if (!position) return
+    if (!position) return;
 
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose()
+        onClose();
       }
-    }
+    };
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
+      if (e.key === "Escape") {
+        onClose();
       }
-    }
+    };
 
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [position, onClose])
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [position, onClose]);
 
   // Calculate position to keep menu within viewport
   const getMenuPosition = useCallback(() => {
-    if (!position) return { display: 'none' }
+    if (!position) return { display: "none" };
 
-    const menuWidth = 200
-    const menuHeight = items.length * 40 + 16
+    const menuWidth = 200;
+    const menuHeight = items.length * 40 + 16;
 
-    let x = position.x
-    let y = position.y
+    let x = position.x;
+    let y = position.y;
 
     // Adjust if off-screen
     if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 8
+      x = window.innerWidth - menuWidth - 8;
     }
     if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 8
+      y = window.innerHeight - menuHeight - 8;
     }
 
     return {
-      position: 'fixed' as const,
+      position: "fixed" as const,
       left: x,
       top: y,
       zIndex: 100,
-    }
-  }, [position, items.length])
+    };
+  }, [position, items.length]);
 
-  if (!position) return null
+  if (!position) return null;
 
   return (
     <div
@@ -111,8 +111,8 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
       className="py-2 min-w-[180px] rounded-lg glass-panel shadow-lg"
       style={{
         ...getMenuPosition(),
-        borderColor: 'var(--color-glass-border)',
-        backgroundColor: 'rgba(11, 16, 30, 0.98)',
+        borderColor: "var(--color-glass-border)",
+        backgroundColor: "rgba(11, 16, 30, 0.98)",
       }}
     >
       {items.map((item, index) => {
@@ -121,9 +121,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
             <div
               key={item.id || `sep-${index}`}
               className="my-1 mx-2 h-px"
-              style={{ backgroundColor: 'var(--color-glass-border)' }}
+              style={{ backgroundColor: "var(--color-glass-border)" }}
             />
-          )
+          );
         }
 
         return (
@@ -131,42 +131,49 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps) {
             key={item.id}
             onClick={() => {
               if (!item.disabled) {
-                item.onClick()
-                onClose()
+                item.onClick();
+                onClose();
               }
             }}
             disabled={item.disabled}
             className="w-full flex items-center gap-3 px-4 py-2 text-left text-sm
                      hover:bg-white/10 transition-colors
                      disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ color: item.id === 'forget' ? 'var(--color-error)' : 'var(--color-clinical)' }}
+            style={{
+              color:
+                item.id === "forget"
+                  ? "var(--color-error)"
+                  : "var(--color-clinical)",
+            }}
           >
             {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
             <span>{item.label}</span>
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 /**
  * Hook to manage context menu state
  */
 export function useContextMenu() {
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
-  const [selectedItem, setSelectedItem] = useState<unknown>(null)
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [selectedItem, setSelectedItem] = useState<unknown>(null);
 
   const open = useCallback((e: React.MouseEvent, item: unknown) => {
-    e.preventDefault()
-    setPosition({ x: e.clientX, y: e.clientY })
-    setSelectedItem(item)
-  }, [])
+    e.preventDefault();
+    setPosition({ x: e.clientX, y: e.clientY });
+    setSelectedItem(item);
+  }, []);
 
   const close = useCallback(() => {
-    setPosition(null)
-    setSelectedItem(null)
-  }, [])
+    setPosition(null);
+    setSelectedItem(null);
+  }, []);
 
   return {
     position,
@@ -174,11 +181,11 @@ export function useContextMenu() {
     open,
     close,
     isOpen: position !== null,
-  }
+  };
 }
 
 // Import React
-import { useState } from 'react'
+import { useState } from "react";
 
 /**
  * Default context menu items for memory operations
@@ -186,42 +193,42 @@ import { useState } from 'react'
 export function createMemoryContextMenuItems(
   _memory: { id: string; key: string; content?: unknown },
   handlers: {
-    onOpen: () => void
-    onCopyKey: () => void
-    onCopyJson: () => void
-    onForget: () => void
-  }
+    onOpen: () => void;
+    onCopyKey: () => void;
+    onCopyJson: () => void;
+    onForget: () => void;
+  },
 ): ContextMenuItem[] {
   return [
     {
-      id: 'open',
-      label: 'Open in Inspector',
+      id: "open",
+      label: "Open in Inspector",
       icon: <Eye className="w-4 h-4" />,
       onClick: handlers.onOpen,
     },
     {
-      id: 'copy-key',
-      label: 'Copy Key Path',
+      id: "copy-key",
+      label: "Copy Key Path",
       icon: <Copy className="w-4 h-4" />,
       onClick: handlers.onCopyKey,
     },
     {
-      id: 'copy-json',
-      label: 'Copy JSON',
+      id: "copy-json",
+      label: "Copy JSON",
       icon: <FileJson className="w-4 h-4" />,
       onClick: handlers.onCopyJson,
     },
     {
-      id: 'separator',
-      label: '',
+      id: "separator",
+      label: "",
       separator: true,
       onClick: () => {},
     },
     {
-      id: 'forget',
-      label: 'Forget Memory',
+      id: "forget",
+      label: "Forget Memory",
       icon: <Trash2 className="w-4 h-4" />,
       onClick: handlers.onForget,
     },
-  ]
+  ];
 }

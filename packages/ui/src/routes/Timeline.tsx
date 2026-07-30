@@ -1,15 +1,15 @@
-import { useState } from 'react'
-import { Database, GitCommit, Layers, Activity } from 'lucide-react'
-import { Sidebar } from '../components/layout/sidebar'
-import { Header } from '../components/layout/header'
-import { InspectorPanel } from '../components/layout/inspector'
-import { MemoryTable } from '../components/memory-table'
-import { useSSE } from '../hooks/use-sse'
-import { useCurrentNamespace } from '../hooks/use-namespaces'
-import { useUIStore } from '../stores/ui-store'
-import { useVitals } from '../hooks/use-vitals'
-import { useUrlState } from '../hooks/use-url-state'
-import { ErrorBoundary, ErrorCard } from '../components/ui/error-boundary'
+import { useState } from "react";
+import { Database, GitCommit, Layers, Activity } from "lucide-react";
+import { Sidebar } from "../components/layout/sidebar";
+import { Header } from "../components/layout/header";
+import { InspectorPanel } from "../components/layout/inspector";
+import { MemoryTable } from "../components/memory-table";
+import { useSSE } from "../hooks/use-sse";
+import { useCurrentNamespace } from "../hooks/use-namespaces";
+import { useUIStore } from "../stores/ui-store";
+import { useVitals } from "../hooks/use-vitals";
+import { useUrlState } from "../hooks/use-url-state";
+import { ErrorBoundary, ErrorCard } from "../components/ui/error-boundary";
 
 /**
  * Timeline View Page
@@ -19,21 +19,28 @@ import { ErrorBoundary, ErrorCard } from '../components/ui/error-boundary'
  * Inspector pushes content when open (not overlay).
  */
 export default function TimelinePage() {
-  const currentNamespace = useCurrentNamespace()
-  const [view, setView] = useState<'tree' | 'timeline'>('timeline')
-  const inspectorOpen = useUIStore((state) => state.inspectorOpen)
+  const currentNamespace = useCurrentNamespace();
+  const [view, setView] = useState<"tree" | "timeline">("timeline");
+  const inspectorOpen = useUIStore((state) => state.inspectorOpen);
 
   // Connect to SSE for real-time updates
-  useSSE({ namespace: currentNamespace })
+  useSSE({ namespace: currentNamespace });
 
   // Fetch vitals data
-  const { data: vitals, isLoading: isVitalsLoading, error: vitalsError } = useVitals(currentNamespace)
+  const {
+    data: vitals,
+    isLoading: isVitalsLoading,
+    error: vitalsError,
+  } = useVitals(currentNamespace);
 
   // Sync URL state with UI store
-  useUrlState()
+  useUrlState();
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-midnight)' }}>
+    <div
+      className="min-h-screen flex"
+      style={{ backgroundColor: "var(--color-midnight)" }}
+    >
       <Sidebar namespace={currentNamespace} />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -53,32 +60,78 @@ export default function TimelinePage() {
               </div>
             }
           >
-            <div 
+            <div
               className="flex-1 flex flex-col p-4 overflow-hidden transition-all duration-300"
-              style={{ marginRight: inspectorOpen ? '450px' : '0' }}
+              style={{ marginRight: inspectorOpen ? "450px" : "0" }}
             >
               <div className="space-y-4 overflow-auto">
                 {/* Vitals Row */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <VitalCard
-                    icon={<Database className="w-5 h-5" style={{ color: 'var(--color-azure)' }} />}
+                    icon={
+                      <Database
+                        className="w-5 h-5"
+                        style={{ color: "var(--color-azure)" }}
+                      />
+                    }
                     label="Active Memories"
-                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.activeMemories?.toLocaleString() ?? '—'}
+                    value={
+                      isVitalsLoading
+                        ? "Loading..."
+                        : vitalsError
+                          ? "Error"
+                          : (vitals?.activeMemories?.toLocaleString() ?? "—")
+                    }
                   />
                   <VitalCard
-                    icon={<GitCommit className="w-5 h-5" style={{ color: 'var(--color-amber)' }} />}
+                    icon={
+                      <GitCommit
+                        className="w-5 h-5"
+                        style={{ color: "var(--color-amber)" }}
+                      />
+                    }
                     label="Git Queue"
-                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.gitQueueSize?.toString() ?? '—'}
+                    value={
+                      isVitalsLoading
+                        ? "Loading..."
+                        : vitalsError
+                          ? "Error"
+                          : (vitals?.gitQueueSize?.toString() ?? "—")
+                    }
                   />
                   <VitalCard
-                    icon={<Layers className="w-5 h-5" style={{ color: 'var(--color-pristine)' }} />}
+                    icon={
+                      <Layers
+                        className="w-5 h-5"
+                        style={{ color: "var(--color-pristine)" }}
+                      />
+                    }
                     label="Tombstone Ratio"
-                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.tombstoneRatio != null ? `${vitals.tombstoneRatio.toFixed(1)}%` : '—'}
+                    value={
+                      isVitalsLoading
+                        ? "Loading..."
+                        : vitalsError
+                          ? "Error"
+                          : vitals?.tombstoneRatio != null
+                            ? `${vitals.tombstoneRatio.toFixed(1)}%`
+                            : "—"
+                    }
                   />
                   <VitalCard
-                    icon={<Activity className="w-5 h-5" style={{ color: 'var(--color-success)' }} />}
+                    icon={
+                      <Activity
+                        className="w-5 h-5"
+                        style={{ color: "var(--color-success)" }}
+                      />
+                    }
                     label="Key Count"
-                    value={isVitalsLoading ? 'Loading...' : vitalsError ? 'Error' : vitals?.queryRate?.toLocaleString() ?? '—'}
+                    value={
+                      isVitalsLoading
+                        ? "Loading..."
+                        : vitalsError
+                          ? "Error"
+                          : (vitals?.queryRate?.toLocaleString() ?? "—")
+                    }
                   />
                 </div>
 
@@ -87,11 +140,14 @@ export default function TimelinePage() {
                   <div className="mb-4">
                     <h2
                       className="text-lg font-semibold"
-                      style={{ color: 'var(--color-pristine)' }}
+                      style={{ color: "var(--color-pristine)" }}
                     >
                       Memory Timeline
                     </h2>
-                    <p className="text-sm" style={{ color: 'var(--color-clinical)' }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--color-clinical)" }}
+                    >
                       Chronological view of all memory changes
                     </p>
                   </div>
@@ -109,7 +165,7 @@ export default function TimelinePage() {
         </main>
       </div>
     </div>
-  )
+  );
 }
 
 function VitalCard({
@@ -117,24 +173,24 @@ function VitalCard({
   label,
   value,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: string
+  icon: React.ReactNode;
+  label: string;
+  value: string;
 }) {
   return (
     <div className="glass-panel p-4 glass-panel-hover">
       <div className="flex items-center gap-3 mb-2">
         {icon}
-        <span className="text-sm" style={{ color: 'var(--color-clinical)' }}>
+        <span className="text-sm" style={{ color: "var(--color-clinical)" }}>
           {label}
         </span>
       </div>
       <div
         className="text-2xl font-semibold"
-        style={{ color: 'var(--color-pristine)' }}
+        style={{ color: "var(--color-pristine)" }}
       >
         {value}
       </div>
     </div>
-  )
+  );
 }

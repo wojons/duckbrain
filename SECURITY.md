@@ -16,6 +16,7 @@ Please report security vulnerabilities by emailing the maintainers at:
 **security@duckbrain.dev** (placeholder - update with actual contact)
 
 Please include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -29,24 +30,28 @@ resolution.
 When using DuckBrain:
 
 ### API Authentication
+
 - Always use strong, unique API tokens
 - Rotate tokens regularly
 - Store tokens securely (environment variables, not in code)
 - Enable rate limiting in production
 
 ### Data Storage
+
 - Secure your data directory with appropriate file permissions
 - Enable Git encryption for sensitive data
 - Regular backups of your memory data
 - Use encrypted storage for sensitive information
 
 ### Network Security
+
 - Run HTTP API behind a reverse proxy (nginx, Caddy)
 - Use HTTPS in production
 - Restrict API access with firewall rules
 - Monitor access logs for suspicious activity
 
 ### Docker Deployment
+
 ```bash
 # Run as non-root user
 docker run -u 1000:1000 duckbrain:latest

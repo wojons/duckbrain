@@ -44,16 +44,19 @@ npm run dev
 ### Running DuckBrain
 
 **MCP Server Mode (for Claude/Cursor):**
+
 ```bash
 npm start -- stdio
 ```
 
 **HTTP Server Mode:**
+
 ```bash
 npm start -- http --port=3000
 ```
 
 **Web UI Only:**
+
 ```bash
 cd packages/ui
 npm run dev
@@ -62,12 +65,15 @@ npm run dev
 ## Screenshots
 
 ### Memory Tree View
+
 ![Tree View](assets/screenshots/tree-view.png)
 
 ### Timeline View
+
 ![Timeline View](assets/screenshots/timeline-view.png)
 
 ### Keyboard Shortcuts
+
 ![Keyboard Shortcuts](assets/screenshots/keyboard-shortcuts.png)
 
 ## Architecture
@@ -161,6 +167,7 @@ limitations under the License.
 ```
 
 **Why Apache 2.0?**
+
 - ✅ Permissive — use in commercial and private projects
 - ✅ Patent protection — includes explicit patent grant
 - ✅ Compatible with GPLv3 — can be combined
@@ -177,6 +184,7 @@ They are licensed under **Creative Commons Attribution-NonCommercial-NoDerivativ
 - ✅ **NoDerivatives (ND)** — You may not modify or create derivatives
 
 **What this means:**
+
 - You CAN view and download assets as part of the repository
 - You CAN refer to DuckBrain in documentation and tutorials
 - You CANNOT use the logo for your own projects without permission
@@ -194,11 +202,13 @@ See [`assets/brand/LICENSE-ASSETS.md`](assets/brand/LICENSE-ASSETS.md) for full 
 We're currently evaluating our licensing strategy and would love your input!
 
 **Open questions:**
+
 - Is CC BY-NC-ND too restrictive for community use?
 - Should we provide explicit fair-use guidelines for tutorials?
 - Would a "Community Assets" license be beneficial for forks?
 
 **Share your thoughts:**
+
 - Open an issue with label `licensing`
 - Start a discussion on GitHub Discussions
 
@@ -207,6 +217,7 @@ Your feedback will directly shape our licensing approach.
 ## Acknowledgments
 
 Built with:
+
 - [DuckDB](https://duckdb.org/) — The fast in-process analytical database
 - [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk) — Model Context Protocol
 - [TanStack](https://tanstack.com/) — Query, Table, Virtual — Modern React data tooling

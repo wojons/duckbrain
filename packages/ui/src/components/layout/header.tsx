@@ -1,56 +1,69 @@
-import { Search, Pause, Play, RefreshCw, LayoutGrid, List, Filter, X, ChevronDown } from 'lucide-react'
-import { useState } from 'react'
-import { useUIStore } from '../../stores/ui-store'
+import {
+  Search,
+  Pause,
+  Play,
+  RefreshCw,
+  LayoutGrid,
+  List,
+  Filter,
+  X,
+  ChevronDown,
+} from "lucide-react";
+import { useState } from "react";
+import { useUIStore } from "../../stores/ui-store";
 
 interface HeaderProps {
-  view?: 'tree' | 'timeline'
-  onViewChange?: (view: 'tree' | 'timeline') => void
+  view?: "tree" | "timeline";
+  onViewChange?: (view: "tree" | "timeline") => void;
 }
 
 const DOMAINS = [
-  { value: '', label: 'All Domains' },
-  { value: 'config', label: 'Config' },
-  { value: 'message', label: 'Message' },
-  { value: 'concept', label: 'Concept' },
-  { value: 'person', label: 'Person' },
-  { value: 'project', label: 'Project' },
-  { value: 'system', label: 'System' },
-]
+  { value: "", label: "All Domains" },
+  { value: "config", label: "Config" },
+  { value: "message", label: "Message" },
+  { value: "concept", label: "Concept" },
+  { value: "person", label: "Person" },
+  { value: "project", label: "Project" },
+  { value: "system", label: "System" },
+];
 
 const DATE_RANGES = [
-  { value: '', label: 'All Time' },
-  { value: '24h', label: 'Last 24 Hours' },
-  { value: '7d', label: 'Last 7 Days' },
-  { value: '30d', label: 'Last 30 Days' },
-]
+  { value: "", label: "All Time" },
+  { value: "24h", label: "Last 24 Hours" },
+  { value: "7d", label: "Last 7 Days" },
+  { value: "30d", label: "Last 30 Days" },
+];
 
 /**
  * Header Component
  *
  * Top header with omnibar search, filters, real-time controls, and view toggle.
  */
-export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
-  const searchQuery = useUIStore((state) => state.searchQuery)
-  const setSearchQuery = useUIStore((state) => state.setSearchQuery)
-  const realtimeEnabled = useUIStore((state) => state.realtimeEnabled)
-  const setRealtimeEnabled = useUIStore((state) => state.setRealtimeEnabled)
-  const [filtersOpen, setFiltersOpen] = useState(false)
+export function Header({ view = "timeline", onViewChange }: HeaderProps) {
+  const searchQuery = useUIStore((state) => state.searchQuery);
+  const setSearchQuery = useUIStore((state) => state.setSearchQuery);
+  const realtimeEnabled = useUIStore((state) => state.realtimeEnabled);
+  const setRealtimeEnabled = useUIStore((state) => state.setRealtimeEnabled);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Filter states (stored in component for now, could move to store)
-  const [domainFilter, setDomainFilter] = useState('')
-  const [authorFilter, setAuthorFilter] = useState('')
-  const [dateFilter, setDateFilter] = useState('')
+  const [domainFilter, setDomainFilter] = useState("");
+  const [authorFilter, setAuthorFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
-  const hasActiveFilters = domainFilter || authorFilter || dateFilter
+  const hasActiveFilters = domainFilter || authorFilter || dateFilter;
 
   const clearFilters = () => {
-    setDomainFilter('')
-    setAuthorFilter('')
-    setDateFilter('')
-  }
+    setDomainFilter("");
+    setAuthorFilter("");
+    setDateFilter("");
+  };
 
   return (
-    <header className="glass-panel border-b px-4 py-3" style={{ borderColor: 'var(--color-glass-border)' }}>
+    <header
+      className="glass-panel border-b px-4 py-3"
+      style={{ borderColor: "var(--color-glass-border)" }}
+    >
       <div className="flex flex-col gap-3">
         {/* Top Row - Search and Controls */}
         <div className="flex items-center justify-between gap-4">
@@ -59,7 +72,7 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
             <div className="relative">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-                style={{ color: 'var(--color-clinical)' }}
+                style={{ color: "var(--color-clinical)" }}
               />
               <input
                 type="text"
@@ -77,16 +90,16 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-                hasActiveFilters ? 'status-dot-active' : ''
+                hasActiveFilters ? "status-dot-active" : ""
               }`}
               style={{
                 backgroundColor: hasActiveFilters
-                  ? 'rgba(0, 212, 255, 0.1)'
-                  : 'var(--color-glass)',
+                  ? "rgba(0, 212, 255, 0.1)"
+                  : "var(--color-glass)",
                 color: hasActiveFilters
-                  ? 'var(--color-azure)'
-                  : 'var(--color-clinical)',
-                border: `1px solid ${hasActiveFilters ? 'rgba(0, 212, 255, 0.3)' : 'var(--color-glass-border)'}`,
+                  ? "var(--color-azure)"
+                  : "var(--color-clinical)",
+                border: `1px solid ${hasActiveFilters ? "rgba(0, 212, 255, 0.3)" : "var(--color-glass-border)"}`,
               }}
             >
               <Filter className="w-3.5 h-3.5" />
@@ -95,11 +108,14 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
                 <span
                   className="ml-1 px-1.5 py-0.5 text-xs rounded-full"
                   style={{
-                    backgroundColor: 'var(--color-azure)',
-                    color: 'var(--color-midnight)',
+                    backgroundColor: "var(--color-azure)",
+                    color: "var(--color-midnight)",
                   }}
                 >
-                  {[domainFilter, authorFilter, dateFilter].filter(Boolean).length}
+                  {
+                    [domainFilter, authorFilter, dateFilter].filter(Boolean)
+                      .length
+                  }
                 </span>
               )}
             </button>
@@ -108,16 +124,16 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
             <button
               onClick={() => setRealtimeEnabled(!realtimeEnabled)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-                realtimeEnabled ? 'status-dot-active' : ''
+                realtimeEnabled ? "status-dot-active" : ""
               }`}
               style={{
                 backgroundColor: realtimeEnabled
-                  ? 'rgba(0, 255, 102, 0.1)'
-                  : 'var(--color-glass)',
+                  ? "rgba(0, 255, 102, 0.1)"
+                  : "var(--color-glass)",
                 color: realtimeEnabled
-                  ? 'var(--color-success)'
-                  : 'var(--color-clinical)',
-                border: `1px solid ${realtimeEnabled ? 'rgba(0, 255, 102, 0.3)' : 'var(--color-glass-border)'}`,
+                  ? "var(--color-success)"
+                  : "var(--color-clinical)",
+                border: `1px solid ${realtimeEnabled ? "rgba(0, 255, 102, 0.3)" : "var(--color-glass-border)"}`,
               }}
             >
               {realtimeEnabled ? (
@@ -138,28 +154,31 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               className="p-2 glass-button rounded-lg min-h-[36px] min-w-[36px]"
               title="Refresh data"
             >
-              <RefreshCw className="w-4 h-4" style={{ color: 'var(--color-clinical)' }} />
+              <RefreshCw
+                className="w-4 h-4"
+                style={{ color: "var(--color-clinical)" }}
+              />
             </button>
 
             {/* View Toggle */}
             <div className="flex items-center glass-panel rounded-lg p-1">
               <button
-                onClick={() => onViewChange?.('tree')}
+                onClick={() => onViewChange?.("tree")}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-all min-h-[32px] ${
-                  view === 'tree'
-                    ? 'bg-white/10 text-white'
-                    : 'text-[var(--color-clinical)] hover:text-white'
+                  view === "tree"
+                    ? "bg-white/10 text-white"
+                    : "text-[var(--color-clinical)] hover:text-white"
                 }`}
               >
                 <LayoutGrid className="w-4 h-4" />
                 <span className="hidden sm:inline">Tree</span>
               </button>
               <button
-                onClick={() => onViewChange?.('timeline')}
+                onClick={() => onViewChange?.("timeline")}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-all min-h-[32px] ${
-                  view === 'timeline'
-                    ? 'bg-white/10 text-white'
-                    : 'text-[var(--color-clinical)] hover:text-white'
+                  view === "timeline"
+                    ? "bg-white/10 text-white"
+                    : "text-[var(--color-clinical)] hover:text-white"
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -173,7 +192,7 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
         {filtersOpen && (
           <div
             className="flex flex-wrap items-center gap-3 pt-2 border-t animate-in slide-in-from-top-2"
-            style={{ borderColor: 'var(--color-glass-border)' }}
+            style={{ borderColor: "var(--color-glass-border)" }}
           >
             {/* Domain Filter */}
             <div className="relative">
@@ -190,7 +209,7 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-                style={{ color: 'var(--color-clinical)' }}
+                style={{ color: "var(--color-clinical)" }}
               />
             </div>
 
@@ -218,7 +237,7 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-                style={{ color: 'var(--color-clinical)' }}
+                style={{ color: "var(--color-clinical)" }}
               />
             </div>
 
@@ -227,7 +246,7 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               <button
                 onClick={clearFilters}
                 className="flex items-center gap-1 px-2 py-1.5 text-sm hover:bg-white/10 rounded transition-colors min-h-[36px]"
-                style={{ color: 'var(--color-clinical)' }}
+                style={{ color: "var(--color-clinical)" }}
               >
                 <X className="w-3.5 h-3.5" />
                 Clear
@@ -239,19 +258,19 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               <span
                 className="flex items-center gap-1 px-2 py-1 rounded text-xs"
                 style={{
-                  backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                  color: 'var(--color-azure)',
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
                 }}
               >
-                Domain: {DOMAINS.find(d => d.value === domainFilter)?.label}
+                Domain: {DOMAINS.find((d) => d.value === domainFilter)?.label}
               </span>
             )}
             {authorFilter && (
               <span
                 className="flex items-center gap-1 px-2 py-1 rounded text-xs"
                 style={{
-                  backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                  color: 'var(--color-azure)',
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
                 }}
               >
                 Author: {authorFilter}
@@ -261,16 +280,16 @@ export function Header({ view = 'timeline', onViewChange }: HeaderProps) {
               <span
                 className="flex items-center gap-1 px-2 py-1 rounded text-xs"
                 style={{
-                  backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                  color: 'var(--color-azure)',
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
                 }}
               >
-                {DATE_RANGES.find(d => d.value === dateFilter)?.label}
+                {DATE_RANGES.find((d) => d.value === dateFilter)?.label}
               </span>
             )}
           </div>
         )}
       </div>
     </header>
-  )
+  );
 }

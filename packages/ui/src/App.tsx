@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import TreePage from './routes/Tree'
-import TimelinePage from './routes/Timeline'
-import { OfflineBanner } from './components/ui/offline-banner'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import TreePage from "./routes/Tree";
+import TimelinePage from "./routes/Timeline";
+import { OfflineBanner } from "./components/ui/offline-banner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,7 +11,7 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
-})
+});
 
 /**
  * App Component
@@ -34,7 +34,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
-  )
+  );
 }
 
-export default App
+export default App;

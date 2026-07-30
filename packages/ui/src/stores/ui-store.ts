@@ -5,35 +5,35 @@
  * Manages inspector visibility, sidebar state, and selected memory.
  */
 
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 interface UIState {
   // Selected memory
-  selectedMemory: string | null
-  setSelectedMemory: (id: string | null) => void
+  selectedMemory: string | null;
+  setSelectedMemory: (id: string | null) => void;
 
   // Inspector panel
-  inspectorOpen: boolean
-  setInspectorOpen: (open: boolean) => void
-  toggleInspector: () => void
+  inspectorOpen: boolean;
+  setInspectorOpen: (open: boolean) => void;
+  toggleInspector: () => void;
 
   // Sidebar
-  sidebarCollapsed: boolean
-  setSidebarCollapsed: (collapsed: boolean) => void
-  toggleSidebar: () => void
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebar: () => void;
 
   // Current namespace
-  currentNamespace: string
-  setCurrentNamespace: (namespace: string) => void
+  currentNamespace: string;
+  setCurrentNamespace: (namespace: string) => void;
 
   // View state
-  searchQuery: string
-  setSearchQuery: (query: string) => void
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
 
   // Real-time updates
-  realtimeEnabled: boolean
-  setRealtimeEnabled: (enabled: boolean) => void
+  realtimeEnabled: boolean;
+  setRealtimeEnabled: (enabled: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -46,19 +46,21 @@ export const useUIStore = create<UIState>()(
       // Inspector panel
       inspectorOpen: false,
       setInspectorOpen: (open) => set({ inspectorOpen: open }),
-      toggleInspector: () => set((state) => ({ inspectorOpen: !state.inspectorOpen })),
+      toggleInspector: () =>
+        set((state) => ({ inspectorOpen: !state.inspectorOpen })),
 
       // Sidebar
       sidebarCollapsed: false,
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      toggleSidebar: () =>
+        set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
       // Current namespace
-      currentNamespace: 'default',
+      currentNamespace: "default",
       setCurrentNamespace: (namespace) => set({ currentNamespace: namespace }),
 
       // Search
-      searchQuery: '',
+      searchQuery: "",
       setSearchQuery: (query) => set({ searchQuery: query }),
 
       // Real-time updates
@@ -66,12 +68,12 @@ export const useUIStore = create<UIState>()(
       setRealtimeEnabled: (enabled) => set({ realtimeEnabled: enabled }),
     }),
     {
-      name: 'duckbrain-ui-storage',
+      name: "duckbrain-ui-storage",
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         currentNamespace: state.currentNamespace,
         realtimeEnabled: state.realtimeEnabled,
       }),
-    }
-  )
-)
+    },
+  ),
+);

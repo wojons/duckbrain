@@ -10,10 +10,10 @@ DuckBrain is a git-backed persistent memory system for AI agents providing DuckD
 
 ## Supported Versions
 
-| Version | Supported          |
-|---------|--------------------|
-| 1.x     | Yes (active)       |
-| 0.x     | No (pre-release)   |
+| Version | Supported        |
+| ------- | ---------------- |
+| 1.x     | Yes (active)     |
+| 0.x     | No (pre-release) |
 
 ## Reporting Security Issues
 

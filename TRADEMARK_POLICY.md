@@ -10,6 +10,7 @@
 This document establishes the trademark policy for "DuckBrain" and its associated marks (logos, mascots, wordmarks). While the DuckBrain source code is licensed under the Apache License 2.0, the trademarks are protected separately to maintain brand integrity and prevent confusion.
 
 **The purpose of this policy is to:**
+
 - Protect the DuckBrain brand from misuse
 - Provide clarity on acceptable uses
 - Enable the community to refer to DuckBrain accurately
@@ -91,6 +92,7 @@ This policy does NOT restrict:
 ### Open Source Forks
 
 If you fork DuckBrain, you must:
+
 - Clearly indicate it's a fork, not the original
 - Use a different name that doesn't include "DuckBrain"
 - ✅ "MemoryDuck - A DuckBrain fork with enhanced search"
@@ -99,6 +101,7 @@ If you fork DuckBrain, you must:
 ### Commercial Products
 
 If you build a product using DuckBrain:
+
 - You may mention "Powered by DuckBrain" if accurate
 - You may NOT use the DuckBrain logo as your company logo
 - You must distinguish your product from DuckBrain itself
@@ -111,6 +114,7 @@ If you build a product using DuckBrain:
 ### Merchandise
 
 Community-created merchandise (t-shirts, stickers) is generally allowed if:
+
 - It's non-commercial or low-volume
 - It doesn't imply official project endorsement
 - It follows the brand guidelines (correct logo usage)
@@ -156,6 +160,7 @@ The DuckBrain project reserves the right to:
 - Grant exceptions on a case-by-case basis
 
 **We will generally:**
+
 - Issue friendly warnings before taking action
 - Work with well-meaning community members to resolve issues
 - Focus enforcement on cases of actual confusion or commercial exploitation
@@ -205,6 +210,7 @@ We understand there may be legitimate use cases not covered above. You may reque
 3. We'll respond within 14 business days
 
 **Examples of potential exceptions:**
+
 - Non-profit educational initiatives
 - Community conferences and events
 - Academic research projects
@@ -226,6 +232,7 @@ For trademark questions:
 ## Updates
 
 This policy may be updated as we receive feedback. Changes will be:
+
 - Announced in release notes
 - Discussed in community forums before implementation
 - Dated and versioned in this document
@@ -242,4 +249,4 @@ This policy may be updated as we receive feedback. Changes will be:
 
 ---
 
-*This policy is modeled after successful open-source trademark policies from projects like Python, Rust, and Kubernetes. We acknowledge that trademark law varies by jurisdiction and recommend consulting legal counsel for jurisdiction-specific questions.*
+_This policy is modeled after successful open-source trademark policies from projects like Python, Rust, and Kubernetes. We acknowledge that trademark law varies by jurisdiction and recommend consulting legal counsel for jurisdiction-specific questions._

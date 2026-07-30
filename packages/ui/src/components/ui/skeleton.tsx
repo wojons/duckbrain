@@ -5,17 +5,17 @@
  * Uses animate-pulse with shimmer effect.
  */
 
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-import * as React from 'react'
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import * as React from "react";
 
 function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 interface SkeletonProps {
-  className?: string
-  shimmer?: boolean
+  className?: string;
+  shimmer?: boolean;
 }
 
 /**
@@ -25,21 +25,22 @@ export function Skeleton({ className, shimmer = true }: SkeletonProps) {
   return (
     <div
       className={cn(
-        'rounded-md bg-white/5 animate-pulse',
-        shimmer && 'relative overflow-hidden',
-        className
+        "rounded-md bg-white/5 animate-pulse",
+        shimmer && "relative overflow-hidden",
+        className,
       )}
     >
       {shimmer && (
         <div
           className="absolute inset-0 -translate-x-full animate-shimmer"
           style={{
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)',
+            background:
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)",
           }}
         />
       )}
     </div>
-  )
+  );
 }
 
 /**
@@ -61,15 +62,15 @@ export function SkeletonCard() {
         <Skeleton className="h-8 w-20" />
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Skeleton Table for table content loading
  */
 interface SkeletonTableProps {
-  rows?: number
-  columns?: number
+  rows?: number;
+  columns?: number;
 }
 
 export function SkeletonTable({ rows = 10, columns = 6 }: SkeletonTableProps) {
@@ -79,7 +80,7 @@ export function SkeletonTable({ rows = 10, columns = 6 }: SkeletonTableProps) {
       <div
         className="grid gap-4 px-4 py-3 border-b"
         style={{
-          borderColor: 'var(--color-glass-border)',
+          borderColor: "var(--color-glass-border)",
           gridTemplateColumns: `repeat(${columns}, 1fr)`,
         }}
       >
@@ -89,7 +90,10 @@ export function SkeletonTable({ rows = 10, columns = 6 }: SkeletonTableProps) {
       </div>
 
       {/* Rows */}
-      <div className="divide-y" style={{ borderColor: 'var(--color-glass-border)' }}>
+      <div
+        className="divide-y"
+        style={{ borderColor: "var(--color-glass-border)" }}
+      >
         {Array.from({ length: rows }).map((_, rowIndex) => (
           <div
             key={`row-${rowIndex}`}
@@ -102,9 +106,9 @@ export function SkeletonTable({ rows = 10, columns = 6 }: SkeletonTableProps) {
               <Skeleton
                 key={`cell-${rowIndex}-${colIndex}`}
                 className={cn(
-                  'h-4',
-                  colIndex === 0 && 'w-8',
-                  colIndex === columns - 1 && 'w-24'
+                  "h-4",
+                  colIndex === 0 && "w-8",
+                  colIndex === columns - 1 && "w-24",
                 )}
               />
             ))}
@@ -112,20 +116,26 @@ export function SkeletonTable({ rows = 10, columns = 6 }: SkeletonTableProps) {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * Skeleton Tree for tree view loading
  */
 interface SkeletonTreeProps {
-  depth?: number
-  itemsPerLevel?: number
+  depth?: number;
+  itemsPerLevel?: number;
 }
 
-export function SkeletonTree({ depth = 3, itemsPerLevel = 4 }: SkeletonTreeProps) {
-  const renderLevel = (currentDepth: number, maxDepth: number): React.ReactNode[] => {
-    if (currentDepth > maxDepth) return []
+export function SkeletonTree({
+  depth = 3,
+  itemsPerLevel = 4,
+}: SkeletonTreeProps) {
+  const renderLevel = (
+    currentDepth: number,
+    maxDepth: number,
+  ): React.ReactNode[] => {
+    if (currentDepth > maxDepth) return [];
 
     return Array.from({ length: itemsPerLevel }).map((_, i) => (
       <div key={`${currentDepth}-${i}`}>
@@ -139,21 +149,17 @@ export function SkeletonTree({ depth = 3, itemsPerLevel = 4 }: SkeletonTreeProps
         </div>
         {currentDepth < maxDepth && renderLevel(currentDepth + 1, maxDepth)}
       </div>
-    ))
-  }
+    ));
+  };
 
-  return (
-    <div className="glass-panel p-2">
-      {renderLevel(0, depth - 1)}
-    </div>
-  )
+  return <div className="glass-panel p-2">{renderLevel(0, depth - 1)}</div>;
 }
 
 /**
  * Skeleton List for simple list loading
  */
 interface SkeletonListProps {
-  items?: number
+  items?: number;
 }
 
 export function SkeletonList({ items = 5 }: SkeletonListProps) {
@@ -169,5 +175,5 @@ export function SkeletonList({ items = 5 }: SkeletonListProps) {
         </div>
       ))}
     </div>
-  )
+  );
 }
