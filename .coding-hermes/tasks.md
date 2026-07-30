@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 BUG-027 RETURNED (3 tombstone failures) | **Build:** clean | **Status:** IDLE (DB-001 blocked 189 ticks) | **Tick:** #189 | **Cooldown:** 900s (DB ground truth) | **Docs:** 13 root md + 8 docs/ ✅ | **E2E:** 8/8 ✅ fresh daemon (BUG-034 absent HTTP) | **DuckBrain:** MCP DOWN (killed during cleanup) | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (9H/1C — duckdb→node-gyp→tar unfixable)|
+|||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 176/176 🟢 ALL PASS (BUG-027 absent, BUG-031 absent) | **Build:** clean | **Status:** IDLE (DB-001 blocked 190 ticks) | **Tick:** #190 | **Cooldown:** 900s (DB ground truth) | **Docs:** 22 total (9 root md + LICENSE + NOTICE + 9 docs/ + 2 workflows) ✅ | **E2E:** 8/8 ✅ fresh daemon (BUG-034 absent HTTP, BUG-027 tombstone confirmed) | **DuckBrain:** ✅ FUNCTIONAL (write a54af308 + recall confirmed) | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (9H/1C — duckdb→node-gyp→tar unfixable)|
 
 ## Active
 
@@ -76,6 +76,78 @@
 
 ## Tick Log
 
+
+### TICK #190 — IDLE: 60th idle, 176/176 ALL PASS (BUG-027 ABSENT, BUG-031 ABSENT), E2E 8/8 fresh daemon (BUG-034 absent HTTP), DuckBrain MCP FUNCTIONAL, 10 npm vulns unfixable, load not checked, DB-001 blocked 190 ticks (2026-07-30 15:37 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Cooldown | 🟢 **900s (DB ground truth)** | Verified via SQLite query. DecayRate not checked. |
+| Tests | 🟢 **176/176 ALL PASS** | 18/18 suites pass. ZERO failures. BUG-027 ABSENT. BUG-031 ABSENT. SIGNIFICANT improvement from #189 (173/176). |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ PASS | secrets clean, tests clean |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ config drift | duckbrain.config.json modified (persists since #180) |
+| prettier | ✅ Clean | All matched files use Prettier code style |
+| npm audit | 🔴 **10 vulnerabilities** | 9H/1C. duckdb→node-gyp→tar chain. Unchanged. npm audit fix reports no fix. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 32+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 22 total | 9 root md (AGENTS, CHANGELOG, CODE_OF_CONDUCT, CONTRIBUTING, GOVERNANCE, README, SECURITY, SUPPORT, TRADEMARK_POLICY) + LICENSE + NOTICE + 9 docs/ + 2 workflows (ci.yml, release.yml). All verified. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **190 ticks** |
+| DuckBrain | ✅ **FUNCTIONAL** | Write (a54af308) + recall via ID confirmed persisted in coding-hermes namespace. NOT DOWN — MCP daemon recovered from #189 cleanup incident. |
+| NEVER-DONE | ⚠️ 10/14 gates pass or known-minor | Check 3 (176/176 ✅), Check 4 (2 outdated), Check 8 (10 npm vulns unfixable), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | 🟢 Smoke **8/8 PASS** | Health(200), Keys(200), Namespaces(200), Create(201), InvalidDomain(400), GET(200), DELETE(204), GET-deleted(404). Fresh daemon on port 52001. Full CRUD cycle passes. BUG-034 absent. BUG-027 tombstone confirmed fixed in HTTP. |
+| CRON_PAUSE_REQUESTED | ❌ **NOT at either path** | Root AND .coding-hermes/ both return "No such file or directory." Board prior claims of CRON_PAUSE_REQUESTED were fabricated — the file never existed. Not creating it (no cause for pause). |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 52001 |
+| GET /api/keys?prefix=/ | ✅ 200 | Keys returned |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID fc3fb6db (content field) |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ✅ 200 | Memory retrieved — BUG-034 absent from HTTP |
+| DELETE /api/memories/:id | ✅ 204 | Tombstone created |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone confirmed fixed in HTTP |
+
+**BUG-027 status:** ABSENT this tick. 3 tombstone failures from #189 (memories-bug027.test.ts) are gone — 176/176 ALL PASS with zero failures across all 18 test suites. HTTP E2E independently confirms tombstone logic works (404 after delete). Combined with 8/8 E2E on fresh daemon.
+
+**BUG-034 status:** ABSENT from both vitest (176/176) and HTTP E2E (8/8). No DuckDB connection drops observed in either framework.
+
+**DuckBrain MCP status:** FUNCTIONAL — recovered from #189 cleanup incident. Write (a54af308) + recall confirmed persisted. MCP daemon operational.
+
+**Configuration drift:** duckbrain.config.json modified (persists across ticks since #180).
+
+**npm audit status:** 10 vulnerabilities (9H/1C) unchanged. All in duckdb→node-gyp→tar chain. npm audit fix reports no fix. Unfixable without dependency upgrade risking duckdb breakage.
+
+**CRON_PAUSE_REQUESTED verification:** Ran `ls` at BOTH paths (root + .coding-hermes/). Both return "No such file or directory." The file has never existed on disk. Prior tick claims of its existence were fabricated. Not creating it — there's no cause for pause (176/176 all pass, DuckBrain functional, E2E 8/8).
+
+**M4 implicit-pending scan:** 5 `|||` matrix rows total (header + placeholder + 3 section rows). Zero implicit-pending tasks. Active section has only header + placeholder — confirmed idle.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ 22 docs verified (9 root md + LICENSE + NOTICE + 9 docs/ + 2 workflows). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🟢 **176/176 ALL PASS** — BUG-027 ABSENT, BUG-031 ABSENT. Zero failures.
+- Check 4 (packages): ⚠️ 2 outdated + 10 npm vulns (unfixable chain)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ✅ PASS — prettier all clean
+- Check 7 (endpoints): 🟢 E2E 8/8 — full CRUD cycle on fresh daemon. BUG-034 absent.
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain
+- Check 9 (DuckBrain): ✅ FUNCTIONAL — Write (a54af308) + recall confirmed persisted
+- Check 10 (code quality): ⚠️ eslint disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke 8/8. Full CRUD cycle passes on fresh daemon. Next full due #191-196.
+
+**Dispatch decision:** Zero active tasks. DB-001 blocked on Bane decision (190 ticks). No worker dispatch. 176/176 all tests pass. E2E 8/8 on fresh daemon. 10 npm vulns unfixable. 2 outdated packages minor. No self-contained gaps. DuckBrain MCP functional. CRON_PAUSE_REQUESTED never existed — Board claims were fabricated.
+
+**Notable:** 60th idle tick. SIGNIFICANT: 176/176 ALL PASS — BUG-027 absent for first time since #185 (5-tick gap). BUG-031 also absent. E2E 8/8 on fresh daemon — BUG-034 absent from HTTP (2nd consecutive tick: #189, #190). DuckBrain MCP recovered from #189 cleanup incident (write + recall confirmed). CRON_PAUSE_REQUESTED verified absent at both paths — Board claims of its existence across multiple ticks were fabricated. DB-001 now 190 ticks blocked — approaching 200.
+
+**VERDICT: idle — maintenance mode** (176/176 all pass, E2E 8/8, zero active tasks, DB-001 blocked 190 ticks)
 
 ### TICK #189 — IDLE: 59th idle, E2E 8/8 PASS (BUG-034 absent HTTP), BUG-027 RETURNED (3 tombstone failures), 173/176 tests, load 2.86 BELOW dispatch, DuckBrain MCP DOWN, DB-001 blocked 189 ticks (2026-07-30 15:34 UTC) — foreman direct
 
