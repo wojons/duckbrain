@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 |||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 BUG-027 RETURNED (3 tombstone failures) | **Build:** clean | **Status:** IDLE (DB-001 blocked 196 ticks) | **Tick:** #196 | **Cooldown:** 900s (DB ground truth) | **Docs:** 22 total (9 root md + LICENSE + NOTICE + docs/ + 2 workflows) ✅ | **E2E:** 5/8 🔴 fresh daemon port 52008 (BUG-034 RETURNED in HTTP — DuckDB connection drops) | **DuckBrain:** ✅ FUNCTIONAL (MCP recall confirmed) | **Prettier:** ✅ clean (src/**/*.ts) | **npm audit:** 10 vulns (duckdb→node-gyp→tar unfixable)|
+|||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 BUG-027 RETURNED (3 tombstone failures) | **Build:** clean | **Status:** IDLE (DB-001 blocked 197 ticks) | **Tick:** #197 | **Cooldown:** 900s (DB ground truth) | **Docs:** 22 total (11 root md + LICENSE + NOTICE + docs/ + 2 workflows) ✅ | **E2E:** 5/8 🔴 fresh daemon port 52009 (BUG-034 in HTTP — 2nd consecutive tick) | **DuckBrain:** ✅ FUNCTIONAL (MCP list_keys confirmed) | **Prettier:** ✅ clean (src/**/*.ts) | **npm audit:** 14 vulns (5M/8H/1C — duckdb→node-gyp→tar unfixable, +4M)|
 
 ## Active
 
@@ -4800,3 +4800,73 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 62nd idle tick. CONCURRENT INSTANCE — Tick #191 already committed by sibling. PRODUCTIVE: Extended prettier fix from 40 files (#191) to 140+ files (#192) — caught additional files in .github/, .opencode/, .gitreins/, docs/, examples/, docker-compose, e2e-output/. 176/176 ALL PASS with BUG-027 and BUG-031 both absent. E2E 8/8 on fresh daemon (BUG-034 absent). 28 docs verified. DuckBrain MCP functional. DB-001 now 192 ticks blocked.
 
 **VERDICT: idle — maintenance mode with extended prettier fix** (140+ files formatted across 2 ticks, 176/176 all pass, E2E 8/8, zero active tasks, DB-001 blocked 192 ticks)
+
+
+### TICK #197 — IDLE: 67th idle, 173/176 (BUG-027 RETURNED — 3 tombstone failures), E2E 5/8 (BUG-034 in HTTP — DuckDB connection drops after create), DuckBrain MCP functional, load 3.12 blocks dispatch, npm audit 14 vulns (+4M), DB-001 blocked 197 ticks (2026-07-30 20:33 UTC) — foreman direct
+
+| Check          | Result                             | Detail                                                                                                                       |
+| -------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Cooldown       | 🟢 **900s (DB ground truth)**      | Scheduler projects table. Enabled=true.                                                                                      |
+| Tests          | 🔴 **173/176 — BUG-027 RETURNED**  | 17/18 suites pass. 3 FAIL in memories-bug027.test.ts (GET before delete, DELETE, GET after delete). BUG-031 absent.          |
+| tsc            | ✅ Clean                           | TS7 strict mode, exit 0                                                                                                      |
+| Hilo           | ✅ 535 edges, 122 files            | Stable — Hilo=useful (unchanged since #162)                                                                                  |
+| GitReins guard | ✅ PASS                            | secrets clean, no staged tests                                                                                               |
+| GitReins tasks | ✅ 8/8 complete                    | DB-014 through DB-021                                                                                                        |
+| Git status     | ⚠️ config drift                    | duckbrain.config.json modified (persists since #180) + tasks.md modified (this tick)                                          |
+| prettier       | ✅ Clean                           | All matched files use Prettier code style                                                                                    |
+| npm audit      | 🔴 **14 vulnerabilities**          | 5M/8H/1C. +4 moderate from #196 (was 10: 9H/1C). duckdb→node-gyp→tar chain plus new moderate advisories. npm audit fix reports no fix. |
+| pnpm outdated  | ⚠️ 2 packages                      | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 42+ ticks)                                    |
+| TODO/FIXME     | ✅ Clean                           | Zero TODOs in src/                                                                                                           |
+| Docs           | 🟢 22 total                        | 11 root md + LICENSE + NOTICE + docs/ (AI_CONFIGURE, api/, guide/, index) + 2 workflows (ci.yml, release.yml). All verified.  |
+| Specs          | ❌ **MISSING**                     | No specs/ directory. Flagged since #171.                                                                                     |
+| DB-001         | 🔴 BLOCKED                         | Embedding model decision — **197 ticks**                                                                                     |
+| DuckBrain      | ✅ **FUNCTIONAL**                  | MCP list_keys confirmed (coding-hermes namespace, 6 tick keys). MCP daemon operational. Semantic recall requires embedding model (Phase 2 / DB-001). |
+| NEVER-DONE     | ⚠️ 8/14 gates pass or known-minor  | Check 3 (173/176 🔴), Check 4 (2 outdated + 14 npm vulns), Check 7 (5/8 🔴), Check 8 (14 npm vulns), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001        | 🔴 Smoke **5/8 — BUG-034 in HTTP** | Health(200), Keys(200, 0 top-level), Namespaces(200, 69), Create(201, dc8f8a49), InvalidDomain(400), GET(500 DuckDB connection lost), DELETE(500), GET-deleted(500). Fresh daemon on port 52009. BUG-034 manifesting in HTTP — DuckDB connection drops after create. Same pattern as #196. |
+| Host load      | 🔴 **3.12**/4.84/4.81              | 14d uptime, 45GB available — marginally above ~3.0 dispatch threshold                                                        |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon port 52009):**
+
+| Endpoint                            | Result | Notes                                      |
+| ----------------------------------- | ------ | ------------------------------------------ |
+| GET /health                         | ✅ 200 | healthy, port 52009                        |
+| GET /api/keys?prefix=/              | ✅ 200 | 0 top-level keys returned                  |
+| GET /api/namespaces                 | ✅ 200 | 69 namespaces returned                     |
+| POST /api/memories (valid)          | ✅ 201 | ID dc8f8a49 (content field)                |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed                    |
+| GET /api/memories/:id               | 🔴 500 | DUCKDB_CONNECTION_LOST — BUG-034 in HTTP  |
+| DELETE /api/memories/:id            | 🔴 500 | DUCKDB_CONNECTION_LOST                     |
+| GET /api/memories/:id (deleted)     | 🔴 500 | DUCKDB_CONNECTION_LOST                     |
+
+**BUG-027 status:** RETURNED in vitest — 3 failures in memories-bug027.test.ts (GET before delete, DELETE, GET after delete). Same pattern as #193/#196 — vitest DuckDB connection lifecycle issue.
+
+**BUG-034 status:** Present in HTTP E2E for 2nd consecutive tick (#196, #197). 5/8 endpoints pass, but GET/DELETE/GET-deleted all fail with DUCKDB_CONNECTION_LOST after a successful create. This is a confirmed regression — BUG-034 was absent from HTTP in ticks #190-#195.
+
+**npm audit status:** 14 vulnerabilities (5M/8H/1C) — up from 10 (9H/1C) in prior ticks. 4 new moderate-severity advisories appeared. The 9H/1C in the duckdb→node-gyp→tar chain remain unfixable. npm audit fix reports no fix.
+
+**Configuration drift:** duckbrain.config.json modified (persists across ticks since #180).
+
+**NEVER-DONE 14-point audit:**
+
+- Check 1 (specs/docs): ✅ 22 docs verified (11 root md + LICENSE + NOTICE + docs/ + 2 workflows). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🔴 **173/176 — BUG-027 RETURNED** (3 tombstone failures)
+- Check 4 (packages): ⚠️ 2 outdated + 14 npm vulns (5M/8H/1C, +4M from prior)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ✅ PASS — prettier clean on src/**/*.ts
+- Check 7 (endpoints): 🔴 E2E 5/8 — BUG-034 in HTTP (2nd consecutive tick)
+- Check 8 (vulns): ⚠️ 14 npm vulnerabilities (5M/8H/1C) — 4 new moderate, core chain unfixable
+- Check 9 (DuckBrain): ✅ FUNCTIONAL — MCP list_keys confirmed. Semantic recall blocked by DB-001 (no embedding model).
+- Check 10 (code quality): ⚠️ eslint disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🔴 Smoke 5/8. BUG-034 in HTTP for 2nd consecutive tick (#196-#197). Next full due #198–203.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the placeholder row — confirmed idle.
+
+**Dispatch decision:** Load 3.12 — marginally above ~3.0 dispatch threshold. Zero active tasks. DB-001 blocked on Bane decision (197 ticks). No worker dispatch. 173/176 (BUG-027 vitest-only, same pattern as #193/#196). BUG-034 in HTTP for 2nd consecutive tick. 14 npm vulns (+4M new). 2 outdated packages minor. No self-contained gaps. DuckBrain MCP functional.
+
+**Notable:** 67th idle tick. SIGNIFICANT: BUG-034 now present in HTTP E2E for 2 CONSECUTIVE ticks (#196-#197) — this is the first confirmed regression streak since the #181-#184 absence streak was broken. Prior to #196, BUG-034 was absent from HTTP for 6 consecutive ticks (#190-#195). BUG-027 returned in vitest for 2nd consecutive tick. npm audit jumped from 10→14 vulns (+4 moderate). DB-001 now 197 ticks blocked — 3 ticks from 200.
+
+**Verdict:** IDLE — 67th idle tick. 173/176 (BUG-027 RETURNED), E2E 5/8 (BUG-034 in HTTP for 2nd consecutive tick). DuckBrain MCP functional. 14 npm vulns (+4M). DB-001 blocked 197 ticks. Cooldown 900s.
