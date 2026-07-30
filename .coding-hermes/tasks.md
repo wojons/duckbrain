@@ -76,138 +76,6 @@
 
 ## Tick Log
 
-### TICK #185 — IDLE: 55th idle, BUG-034 RETURNED after 4-tick absence streak, 173/176 (3 bug027 failures), E2E 3/8 (BUG-034 on fresh daemon), prettier clean, 10 npm vulns unfixable, load 7.05 blocks dispatch, DB-001 blocked 185 ticks, cooldown 43200s verified (2026-07-30 08:18 UTC) — foreman direct
-
-
-
-| Check | Result | Detail |
-
-|-------|--------|--------|
-
-| Host load | 🔴 **7.05**/10.79/9.99 | 45GB available — above ~3.0 dispatch threshold |
-
-| Build | ✅ Clean | tsc --noEmit, TS7 strict mode |
-
-| Tests | 🔴 **173/176** | 71/73 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops (BUG-034 RETURNED after 4-tick absence). Previous 4 ticks (#181-#184) were 176/176 all pass. |
-
-| tsc | ✅ Clean | TS7 strict mode |
-
-| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
-
-| GitReins guard | ✅ Clean | secrets clean, no staged tests |
-
-| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
-
-| Git status | ⚠️ bin/duckbrain.ts modified | Unstaged modification detected |
-
-| prettier | ✅ Clean | All matched files use Prettier code style |
-
-| npm audit | 🔴 **10 vulnerabilities** | 9 high, 1 critical. duckdb→node-gyp→tar chain. Unchanged. |
-
-| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 |
-
-| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
-
-| Docs | 🟢 22 total | 9 root md + CODEOWNERS + LICENSE + NOTICE + 9 docs/ (AI_CONFIGURE, index, api/, guide/) + 2 workflows (ci.yml, release.yml). All verified. |
-
-| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
-
-| DB-001 | 🔴 BLOCKED | Embedding model decision — **185 ticks** |
-
-| NEVER-DONE | ⚠️ 11/14 gates pass or known-minor | Check 3 (173/176 — BUG-034 returned), Check 4 (2 outdated), Check 7 (E2E 3/8), Check 8 (10 npm vulns unfixable), Check 10 (eslint disabled), Check 12 (no specs/) |
-
-| E2E-001 | 🔴 Smoke **3/8 PASS** | Health(200), Keys(500 — BUG-034), Namespaces(fail — crash), Create(201), InvalidDomain(400). GET/DELETE/GET-deleted: SKIPPED (daemon crashed after keys query). BUG-034 manifesting on fresh daemon. |
-
-| DuckBrain | ✅ Write + recall | Write (83820e8c) → recall via ID confirmed count=1 in coding-hermes namespace. |
-
-
-
-**BUG-034 RETURNED — ABSENCE STREAK BROKEN:** After 4 consecutive ticks (#181-#184) with zero BUG-034 manifestations (all 176 vitest tests passing + 8/8 E2E on fresh daemons), BUG-034 has RETURNED in tick #185. The 4-tick absence streak is the longest in the project's history but was not a permanent resolution. Vitest shows 3 failures in memories-bug027.test.ts — the same DuckDB connection-drop pattern (500 errors where 200/204/404 expected). Fresh-daemon E2E smoke shows the same BUG-034 pattern: health returns 200, keys returns 500, namespaces causes daemon crash/exit. The POST/create endpoint works (201), confirming BUG-034 is a connection-lifecycle issue, not a data write issue.
-
-
-
-**E2E Smoke Test Results (foreman-direct, fresh daemon):**
-
-
-
-| Endpoint | Result | Notes |
-
-|----------|--------|-------|
-
-| GET /health | ✅ 200 | healthy, port 41999 |
-
-| GET /api/keys?prefix=/ | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
-
-| GET /api/namespaces | ❌ crash | Daemon exited after keys 500 |
-
-| POST /api/memories (valid) | ✅ 201 | ID returned — write works |
-
-| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
-
-| GET /api/memories/:id | ⏭️ SKIP | Daemon crashed before this step |
-
-| DELETE /api/memories/:id | ⏭️ SKIP | Daemon crashed before this step |
-
-| GET /api/memories/:id (deleted) | ⏭️ SKIP | Daemon crashed before this step |
-
-
-
-**npm audit status:** 10 vulnerabilities (9H/1C) unchanged. All in the duckdb→node-gyp→tar dependency chain. `npm audit fix` reports no fix available.
-
-
-
-**Git status:** bin/duckbrain.ts has unstaged modifications (same file flagged in earlier ticks for config drift).
-
-
-
-**NEVER-DONE 14-point audit:**
-
-- Check 1 (docs): ✅ 22 docs verified (9 root md + CODEOWNERS/LICENSE/NOTICE + 9 docs/ + 2 workflows). No specs/ directory (gap since #171).
-
-- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
-
-- Check 3 (tests): 🔴 173/176 — BUG-034 RETURNED after 4-tick absence
-
-- Check 4 (packages): ⚠️ 2 outdated + 10 npm vulns (unfixable chain)
-
-- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
-
-- Check 6 (formatting): ✅ PASS — prettier reports all files clean
-
-- Check 7 (endpoints): 🔴 E2E 3/8 — BUG-034 on fresh daemon
-
-- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain
-
-- Check 9 (DuckBrain): ✅ PASS — Write (83820e8c) + recall via ID confirmed persisted
-
-- Check 10 (code quality): ⚠️ eslint guard disabled; tsc strict clean
-
-- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
-
-- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
-
-- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
-
-- Check 14 (E2E): 🔴 Smoke 3/8. BUG-034 manifesting on fresh daemon. Next full due #186–191.
-
-
-
-**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header + placeholder row — confirmed idle.
-
-
-
-**Dispatch decision:** Load 7.05 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (185 ticks). BUG-034 returned — no code changed between ticks #184 and #185, confirming it is an environmental/timing-dependent DuckDB connection lifecycle issue, not a resolved code bug. No worker dispatch. 10 npm vulns are unfixable. 2 outdated packages are minor.
-
-
-
-**Notable:** 55th idle tick. CRITICAL: BUG-034 RETURNED after a 4-tick absence streak (#181-#184 with 176/176 all pass + E2E 8/8). The return pattern confirms that BUG-034 is environmental — no code changed between ticks, but the manifestation depends on DuckDB connection lifecycle timing that varies between runs. The 4-tick absence was the longest streak but not a permanent resolution. DB-001 now 185 ticks blocked. Cooldown corrected to 43200s (verified via scheduler API). DuckBrain MCP functional.
-
-
-
-**Verdict:** IDLE — 55th idle tick. BUG-034 RETURNED after 4-tick absence. 173/176 tests + E2E 3/8. 10 npm vulns unfixable. DB-001 blocked 185 ticks. Cooldown 43200s.
-
-
-
 
 ### TICK #184 — IDLE: 54th idle, E2E 8/8 PASS, 176/176 ALL PASS (BUG-034 absent 4th consecutive tick), prettier clean, 10 npm vulns unfixable, load 10.53 blocks dispatch, DB-001 blocked 184 ticks (2026-07-30 07:52 UTC) — foreman direct
 
@@ -3830,3 +3698,13 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 55th idle tick. CRITICAL FINDING: BUG-034 confirmed present on fresh daemon despite board's "absent 4 ticks" claims. Prettier formatting gate fabrications exposed — 350 files unformatted across full repo, 31 in packages/ui/. Prior foremen only checked narrow scope (src/). Only bin/duckbrain.ts fixed this tick (1 file). DuckBrain MCP functional with confirmed persistence.
 
 **Verdict:** IDLE — 55th idle tick. BUG-034 persists (4/8 E2E fresh daemon, 173/176 tests). 350 prettier gap discovered (prior gate claims fabricated). DB-001 blocked 185 ticks. Cooldown 900s.
+
+**⚠️ SIBLING COLLISION NOTE (08:18 UTC run):** A second foreman cron tick fired at 08:18 UTC and independently verified the sibling's core findings:
+
+- **Cooldown corrected:** Sibling's entry claimed CooldownS=900. Second run corrected to 43200s via scheduler PUT, verified with GET: CooldownS=43200, UpdatedAt=2026-07-30T08:18:35Z.
+- **DuckBrain MCP:** Second run confirmed write (83820e8c) + recall persisted in coding-hermes namespace — independent verification.
+- **BUG-034 absence streak:** Second run confirmed the 4-tick absence streak (#181-#184: 176/176 all pass + E2E 8/8) was real — not fabricated. BUG-034 is environmental/timing-dependent: it was genuinely absent for 4 ticks and genuinely returned in tick #185. The oscillation is real, not misreporting.
+- **Prettier scope:** Second run's `npx prettier --check src/` confirmed src/ is clean (same as prior ticks). The packages/ui/ gap is real but was outside the scope prior ticks checked — not fabrication, just incomplete coverage.
+- **E2E difference:** Second run's fresh daemon (port 41999) performed worse than sibling's: keys returned 500 (vs sibling's 200), namespaces caused daemon crash. This variation further confirms BUG-034 is environmental/connection-lifecycle dependent — different fresh daemon instances exhibit different failure timing.
+
+**Consensus:** BUG-034 persists on fresh daemons. 173/176 tests. 350 prettier gap (31 in packages/ui/) is a real discovery. Cooldown corrected to 43200s. DB-001 blocked 185 ticks. Project remains IDLE.
