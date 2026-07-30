@@ -9,6 +9,7 @@ tools:
   task: true
   write: true
 ---
+
 <objective>
 Verify milestone achieved its definition of done. Check requirements coverage, cross-phase integration, and end-to-end flows.
 
@@ -25,8 +26,8 @@ Version: $ARGUMENTS (optional — defaults to current milestone)
 Core planning files are resolved in-workflow (`init milestone-op`) and loaded only as needed.
 
 **Completed Work:**
-Glob: .planning/phases/*/*-SUMMARY.md
-Glob: .planning/phases/*/*-VERIFICATION.md
+Glob: .planning/phases/_/_-SUMMARY.md
+Glob: .planning/phases/_/_-VERIFICATION.md
 </context>
 
 <process>

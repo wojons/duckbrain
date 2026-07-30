@@ -402,9 +402,9 @@ Return structured report to milestone auditor:
 
 #### Requirements Integration Map
 
-| Requirement | Integration Path | Status | Issue |
-|-------------|-----------------|--------|-------|
-| {REQ-ID} | {Phase X export → Phase Y import → consumer} | WIRED / PARTIAL / UNWIRED | {specific issue or "—"} |
+| Requirement | Integration Path                             | Status                    | Issue                   |
+| ----------- | -------------------------------------------- | ------------------------- | ----------------------- |
+| {REQ-ID}    | {Phase X export → Phase Y import → consumer} | WIRED / PARTIAL / UNWIRED | {specific issue or "—"} |
 
 **Requirements with no cross-phase wiring:**
 {List REQ-IDs that exist in a single phase with no integration touchpoints — these may be self-contained or may indicate missing connections}

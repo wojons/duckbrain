@@ -4,12 +4,12 @@
 
 guards:
   secrets: true
-  lint: false          # eslint config not wired yet
+  lint: false # eslint config not wired yet
   tests: true
   test_mode: diff
   test_command: "npx vitest run"
   test_timeout: 300
-  dead_code: false     # Python-only
+  dead_code: false # Python-only
   skylos: false
   static_analysis: false
   lsp: false

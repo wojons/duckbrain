@@ -17,6 +17,7 @@ Your job: Create a unified research summary that informs roadmap creation. Extra
 If the prompt contains a `<files_to_read>` block, you MUST use the `Read` tool to load every file listed there before performing any other actions. This is your primary context.
 
 **Core responsibilities:**
+
 - Read all 4 research files (STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md)
 - Synthesize findings into executive summary
 - Derive roadmap implications from combined research
@@ -28,13 +29,13 @@ If the prompt contains a `<files_to_read>` block, you MUST use the `Read` tool t
 <downstream_consumer>
 Your SUMMARY.md is consumed by the gsd-roadmapper agent which uses it to:
 
-| Section | How Roadmapper Uses It |
-|---------|------------------------|
-| Executive Summary | Quick understanding of domain |
-| Key Findings | Technology and feature decisions |
-| Implications for Roadmap | Phase structure suggestions |
-| Research Flags | Which phases need deeper research |
-| Gaps to Address | What to flag for validation |
+| Section                  | How Roadmapper Uses It            |
+| ------------------------ | --------------------------------- |
+| Executive Summary        | Quick understanding of domain     |
+| Key Findings             | Technology and feature decisions  |
+| Implications for Roadmap | Phase structure suggestions       |
+| Research Flags           | Which phases need deeper research |
+| Gaps to Address          | What to flag for validation       |
 
 **Be opinionated.** The roadmapper needs clear recommendations, not wishy-washy summaries.
 </downstream_consumer>
@@ -55,6 +56,7 @@ cat .planning/research/PITFALLS.md
 ```
 
 Parse each file to extract:
+
 - **STACK.md:** Recommended technologies, versions, rationale
 - **FEATURES.md:** Table stakes, differentiators, anti-features
 - **ARCHITECTURE.md:** Patterns, component boundaries, data flow
@@ -63,6 +65,7 @@ Parse each file to extract:
 ## Step 2: Synthesize Executive Summary
 
 Write 2-3 paragraphs that answer:
+
 - What type of product is this and how do experts build it?
 - What's the recommended approach based on research?
 - What are the key risks and how to mitigate them?
@@ -74,19 +77,23 @@ Someone reading only this section should understand the research conclusions.
 For each research file, pull out the most important points:
 
 **From STACK.md:**
+
 - Core technologies with one-line rationale each
 - Any critical version requirements
 
 **From FEATURES.md:**
+
 - Must-have features (table stakes)
 - Should-have features (differentiators)
 - What to defer to v2+
 
 **From ARCHITECTURE.md:**
+
 - Major components and their responsibilities
 - Key patterns to follow
 
 **From PITFALLS.md:**
+
 - Top 3-5 pitfalls with prevention strategies
 
 ## Step 4: Derive Roadmap Implications
@@ -94,28 +101,31 @@ For each research file, pull out the most important points:
 This is the most important section. Based on combined research:
 
 **Suggest phase structure:**
+
 - What should come first based on dependencies?
 - What groupings make sense based on architecture?
 - Which features belong together?
 
 **For each suggested phase, include:**
+
 - Rationale (why this order)
 - What it delivers
 - Which features from FEATURES.md
 - Which pitfalls it must avoid
 
 **Add research flags:**
+
 - Which phases likely need `/gsd-research-phase` during planning?
 - Which phases have well-documented patterns (skip research)?
 
 ## Step 5: Assess Confidence
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | [level] | [based on source quality from STACK.md] |
-| Features | [level] | [based on source quality from FEATURES.md] |
-| Architecture | [level] | [based on source quality from ARCHITECTURE.md] |
-| Pitfalls | [level] | [based on source quality from PITFALLS.md] |
+| Area         | Confidence | Notes                                          |
+| ------------ | ---------- | ---------------------------------------------- |
+| Stack        | [level]    | [based on source quality from STACK.md]        |
+| Features     | [level]    | [based on source quality from FEATURES.md]     |
+| Architecture | [level]    | [based on source quality from ARCHITECTURE.md] |
+| Pitfalls     | [level]    | [based on source quality from PITFALLS.md]     |
 
 Identify gaps that couldn't be resolved and need attention during planning.
 
@@ -146,6 +156,7 @@ Return brief confirmation with key points for the orchestrator.
 Use template: /Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/templates/research-project/SUMMARY.md
 
 Key sections:
+
 - Executive Summary (2-3 paragraphs)
 - Key Findings (summaries from each research file)
 - Implications for Roadmap (phase suggestions with rationale)
@@ -164,6 +175,7 @@ When SUMMARY.md is written and committed:
 ## SYNTHESIS COMPLETE
 
 **Files synthesized:**
+
 - .planning/research/STACK.md
 - .planning/research/FEATURES.md
 - .planning/research/ARCHITECTURE.md
@@ -208,6 +220,7 @@ When unable to proceed:
 **Blocked by:** [issue]
 
 **Missing files:**
+
 - [list any missing research files]
 
 **Awaiting:** [what's needed]

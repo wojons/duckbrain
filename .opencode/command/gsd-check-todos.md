@@ -12,6 +12,7 @@ tools:
 List all pending todos, allow selection, load full context for the selected todo, and route to appropriate action.
 
 Routes to the check-todos workflow which handles:
+
 - Todo counting and listing with area filtering
 - Interactive selection with full context loading
 - Roadmap correlation checking
@@ -33,6 +34,7 @@ Todo state and roadmap correlation are loaded in-workflow using `init todos` and
 **Follow the check-todos workflow** from `@/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/workflows/check-todos.md`.
 
 The workflow handles all logic including:
+
 1. Todo existence checking
 2. Area filtering
 3. Interactive listing and selection

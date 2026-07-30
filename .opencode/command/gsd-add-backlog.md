@@ -16,17 +16,21 @@ the normal phase sequence and accumulate context over time.
 <process>
 
 1. **Read ROADMAP.md** to find existing backlog entries:
+
    ```bash
    cat .planning/ROADMAP.md
    ```
 
 2. **Find next backlog number:**
+
    ```bash
    NEXT=$(node "/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/bin/gsd-tools.cjs" phase next-decimal 999 --raw)
    ```
+
    If no 999.x phases exist, start at 999.1.
 
 3. **Create the phase directory:**
+
    ```bash
    SLUG=$(node "/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/bin/gsd-tools.cjs" generate-slug "$ARGUMENTS")
    mkdir -p ".planning/phases/${NEXT}-${SLUG}"
@@ -45,10 +49,12 @@ the normal phase sequence and accumulate context over time.
    **Plans:** 0 plans
 
    Plans:
+
    - [ ] TBD (promote with /gsd-review-backlog when ready)
    ```
 
 5. **Commit:**
+
    ```bash
    node "/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/bin/gsd-tools.cjs" commit "docs: add backlog item ${NEXT} — ${ARGUMENTS}" --files .planning/ROADMAP.md ".planning/phases/${NEXT}-${SLUG}/.gitkeep"
    ```

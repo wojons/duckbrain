@@ -24,6 +24,7 @@ bun link
 ```
 
 Verify installation:
+
 ```bash
 duckbrain help
 ```
@@ -75,12 +76,14 @@ Best for: Single-user local development
 ```
 
 **Usage:**
+
 ```bash
 # Start stdio mode (Claude Desktop handles this automatically)
 duckbrain stdio
 ```
 
 **Expected output:**
+
 ```
 [duckbrain] MCP server started in stdio mode
 ```
@@ -90,6 +93,7 @@ duckbrain stdio
 Best for: Multi-agent setups, team collaboration
 
 **Start HTTP server:**
+
 ```bash
 # Default port 3000
 duckbrain http
@@ -99,6 +103,7 @@ duckbrain http --port=8080
 ```
 
 **Endpoints:**
+
 - `POST /mcp` - MCP Streamable HTTP transport
 - `GET /mcp` - MCP GET endpoint
 - `GET /health` - Health check
@@ -109,6 +114,7 @@ duckbrain http --port=8080
 - `GET /api/search` - Search with filters
 
 **Claude Desktop Config for HTTP:**
+
 ```json
 {
   "mcpServers": {
@@ -124,12 +130,14 @@ duckbrain http --port=8080
 Best for: Secure remote access without opening ports
 
 **SSH Tunnel Command:**
+
 ```bash
 # One-shot invocation
 ssh user@remote-host "duckbrain stdio"
 ```
 
 **Claude Desktop Config for SSH:**
+
 ```json
 {
   "mcpServers": {
@@ -142,6 +150,7 @@ ssh user@remote-host "duckbrain stdio"
 ```
 
 **Test SSH setup:**
+
 ```bash
 duckbrain ssh-test --host=user@remote-host
 ```
@@ -190,6 +199,7 @@ duckbrain http --port=3000
 ```
 
 **Options:**
+
 - `--port=<number>` - Port to listen on (default: 3000)
 
 ### `duckbrain remember <key> [options]`
@@ -201,11 +211,13 @@ duckbrain remember /projects/mcp/schema --domain=concept --attr='{"description":
 ```
 
 **Options:**
+
 - `--domain=<domain>` - Memory domain (default: general)
 - `--attr=<json>` - Attributes as JSON
 - `--namespace=<name>` - Namespace to use (default: default)
 
 **Output:**
+
 ```
 ✓ Remembered /projects/mcp/schema (ID: uuid-here)
 ```
@@ -229,6 +241,7 @@ duckbrain recall --query="MCP protocol" --limit=5
 ```
 
 **Options:**
+
 - `--key=<key>` - Exact key lookup
 - `--prefix=<pattern>` - Prefix glob pattern
 - `--domain=<domain>` - Filter by domain
@@ -255,6 +268,7 @@ duckbrain list-keys --regex="^/projects/[^/]+/schema$"
 ```
 
 **Options:**
+
 - `--prefix=<pattern>` - Filter keys by prefix
 - `--regex=<pattern>` - Filter keys by regex
 - `--depth=<number>` - Tree depth (default: 2)
@@ -271,9 +285,11 @@ duckbrain forget abc-123-def --reason="outdated information"
 ```
 
 **Options:**
+
 - `--reason=<text>` - Reason for deletion (default: User requested)
 
 **Output:**
+
 ```
 ✓ Forgotten abc-123-def
 ```
@@ -311,6 +327,7 @@ duckbrain status --namespace=default
 ```
 
 **Shows:**
+
 - Namespace path
 - Git status
 - Memory count
@@ -333,6 +350,7 @@ duckbrain ssh-test --host=user@remote-host
 **Cause:** Namespace directory not created or not configured.
 
 **Solution:**
+
 ```bash
 # Create namespace directory
 mkdir -p ~/memory/default
@@ -346,6 +364,7 @@ duckbrain config set namespaces.default /path/to/memory
 **Cause:** HTTP server not running or wrong port.
 
 **Solution:**
+
 ```bash
 # Start HTTP server
 duckbrain http --port=3000
@@ -359,6 +378,7 @@ curl http://localhost:3000/health
 **Cause:** SSH key not configured or Git authentication failed.
 
 **Solution:**
+
 ```bash
 # Test SSH key
 ssh -T git@github.com
@@ -375,6 +395,7 @@ git clone https://<token>@github.com/user/repo.git
 **Cause:** Global installation failed or PATH not updated.
 
 **Solution:**
+
 ```bash
 # Reinstall globally
 npm install -g duckbrain
@@ -391,6 +412,7 @@ which duckbrain
 **Cause:** stdout/stderr mixed - stdio mode reserves stdout for MCP protocol.
 
 **Solution:**
+
 - Logs appear on stderr (normal)
 - Don't read stdout directly - let Claude Desktop handle MCP protocol
 - Use `duckbrain status` for human-readable output instead
@@ -400,6 +422,7 @@ which duckbrain
 Location: `~/.duckbrain/config.json`
 
 **Format:**
+
 ```json
 {
   "namespaces": {
@@ -413,6 +436,7 @@ Location: `~/.duckbrain/config.json`
 ```
 
 **Fields:**
+
 - `namespaces` - Map of namespace names to paths or Git URLs
 - `defaultNamespace` - Default namespace for CLI commands
 - `gitBatchLines` - Lines to buffer before git commit (default: 100)
@@ -471,5 +495,5 @@ duckbrain recall --namespace=team --prefix=/team/onboarding/
 
 ---
 
-*Skill Version: 1.0.0*
-*DuckBrain Version: 1.0.0*
+_Skill Version: 1.0.0_
+_DuckBrain Version: 1.0.0_

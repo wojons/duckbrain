@@ -11,6 +11,7 @@ tools:
 Add a new integer phase to the end of the current milestone in the roadmap.
 
 Routes to the add-phase workflow which handles:
+
 - Phase number calculation (next sequential integer)
 - Directory creation with slug generation
 - Roadmap structure updates
@@ -31,6 +32,7 @@ Roadmap and state are resolved in-workflow via `init phase-op` and targeted tool
 **Follow the add-phase workflow** from `@/Users/lexykwaii/Code/duckbrain/.opencode/get-shit-done/workflows/add-phase.md`.
 
 The workflow handles all logic including:
+
 1. Argument parsing and validation
 2. Roadmap existence checking
 3. Current milestone identification

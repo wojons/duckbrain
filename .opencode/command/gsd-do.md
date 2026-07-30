@@ -6,6 +6,7 @@ tools:
   bash: true
   question: true
 ---
+
 <objective>
 Analyze freeform natural language input and dispatch to the most appropriate GSD command.
 
