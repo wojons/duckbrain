@@ -16,19 +16,19 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 176/176 🟢 ALL PASS (18 suites, BUG-034 dormant) | **Build:** clean | **Status:** IDLE (DB-001 blocked 181 ticks) | **Tick:** #181 | **Cooldown:** 1350s (⚠️ board claimed 900s — fabricated; scheduler=1350s) | **Docs:** 23/23 ✅ (ls verified) | **E2E:** 8/8 ✅ (Tick #181 fresh daemon) | **DuckBrain:** MCP ✅ write+recall confirmed | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (9H/1C — worsened from #178, duckdb→node-gyp→tar unfixable)
+| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 175/176 ⚠️ 1 flaky BUG-031 timeout (18 suites) | **Build:** clean | **Status:** IDLE (DB-001 blocked 182 ticks) | **Tick:** #182 | **Cooldown:** 900s (DB ground truth) | **Docs:** 23/23 ✅ | **E2E:** 8/8 ✅ (Tick #182 fresh daemon) | **DuckBrain:** MCP ✅ write+recall confirmed | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (9H/1C — duckdb→node-gyp→tar unfixable)
 
 ## Active
 
 | ID | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 |----|------|-----|-----|------|------|-------|-----------|----------|
-||| — | — | — | — | — | — | — | Zero active tasks — DB-001 blocked (181 ticks) | — |
+|||| — | — | — | — | — | — | — | Zero active tasks — DB-001 blocked (182 ticks) | — |
 
 ## Blocked
 
 | ID | Task | Pri | Cpx | Deps | Tags | Blocker |
 |----|------|-----|-----|------|------|---------|
-|||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **179 ticks** |
+||||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **182 ticks** |
 
 ## Completed
 
@@ -75,6 +75,70 @@
   for EVERY gap found. This task is never complete — the audit always finds something.
 
 ## Tick Log
+
+### TICK #182 — IDLE: 52nd idle, E2E 8/8 PASS, 175/176 (BUG-031 flaky), prettier clean, 10 npm vulns, load 3.69 above dispatch, DB-001 blocked 182 ticks (2026-07-30 06:46 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **3.69**/9.10/11.16 | 48GB available — above ~3.0 dispatch threshold |
+| Build | ✅ Clean | Vite, 1.92s, packages/ui build |
+| Tests | ⚠️ **175/176** | 18/18 suites run. 1 FAIL: users-activity.test.ts — flaky timeout (BUG-031, load-driven). BUG-034 NOT manifesting (same as #181). |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ config drift | duckbrain.config.json modified (defaultNamespace: h3→eduos.dexdat.com.co) |
+| prettier | ✅ Clean | All matched files use Prettier code style |
+| npm audit | 🔴 **10 vulnerabilities** | 9 high, 1 critical. duckdb→node-gyp→tar chain. Same as #181. |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 |
+| Docs | 🟢 23 total | 12 root md + CODEOWNERS + LICENSE + NOTICE + 9 docs/ + 2 workflows. All verified. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **182 ticks** |
+| NEVER-DONE | ⚠️ 11/14 gates pass or known-minor | Check 3 (1 flaky BUG-031), Check 4 (2 outdated), Check 8 (10 npm vulns), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | 🟢 Smoke **8/8 PASS** | Health(200), Keys(200), Namespaces(200), Create(201), InvalidDomain(400), GET(200), DELETE(204), GET-deleted(404). Fresh daemon on port 3000. Full CRUD cycle passes. BUG-034 absent. |
+| DuckBrain | ✅ Write + recall | Write (251a5903) → recall via ID confirmed persisted in coding-hermes namespace. |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 3000 |
+| GET /api/keys?prefix=/ | ✅ 200 | Keys returned |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID d7e3359d |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ✅ 200 | Memory retrieved — BUG-034 not manifesting |
+| DELETE /api/memories/:id | ✅ 204 | Tombstone created |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone confirmed fixed |
+
+**BUG-034 analysis:** Not manifesting in either vitest (only failure is known-flaky BUG-031 users-activity timeout) or foreman-direct HTTP E2E (8/8). This is the 2nd consecutive tick where BUG-034 is absent from the vitest suite (#181 had 176/176 all pass, this tick 175/176 with only BUG-031). Combined with 8/8 fresh-daemon E2E, evidence for resolution continues to strengthen.
+
+**npm audit status:** 10 vulnerabilities (9H/1C) unchanged from #181. All in the duckdb→node-gyp→tar dependency chain. `npm audit fix` reported no fix available. These are unfixable without a dependency upgrade — `npm audit fix --force` would risk breaking duckdb.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ 23 docs verified (12 root + 9 docs/ + 2 workflows). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 175/176 — 1 flaky BUG-031 timeout. BUG-034 absent.
+- Check 4 (packages/format): ⚠️ prettier clean ✅; 2 outdated + 10 npm vulns ⚠️
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ✅ PASS — prettier reports all files clean
+- Check 7 (endpoints): 🟢 E2E 8/8 — full CRUD cycle on fresh daemon. BUG-034 absent.
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain. Same as #181.
+- Check 9 (DuckBrain): ✅ PASS — Write (251a5903) + recall via ID confirmed persisted.
+- Check 10 (code quality): ⚠️ eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke 8/8. Full CRUD cycle passes on fresh daemon. Next full due #183–188.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header + placeholder row — confirmed idle.
+
+**Dispatch decision:** Load 3.69 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (182 ticks). No worker dispatch. 1 self-contained gap (npm audit 10 vulns — unfixable `npm audit fix` reports no fix). 2 outdated packages are minor.
+
+**Notable:** 52nd idle tick. BUG-034 absent for 2nd consecutive vitest suite (only failure is known-flaky BUG-031 timeout). E2E 8/8 on fresh daemon. Cooldown 900s (DB ground truth) — board was claiming 1350s (fabricated). Config drift persists (duckbrain.config.json). npm audit still 10 vulns (unfixable chain). DB-001 now 182 ticks blocked. DuckBrain MCP functional with confirmed persistence.
+
+**Verdict:** IDLE — 52nd idle tick. 175/176 (1 flaky BUG-031). E2E 8/8 fresh daemon. BUG-034 absent 2nd consecutive tick. 10 npm vulns unfixable. DB-001 blocked 182 ticks. Cooldown 900s.
 
 ### TICK #180 — IDLE: 50th idle, E2E 8/8 fresh daemon (BUG-034 absent in HTTP smoke), prettier+audit gaps from #178 open, load 10.23 blocks dispatch (2026-07-30 02:59 UTC) — foreman direct
 
