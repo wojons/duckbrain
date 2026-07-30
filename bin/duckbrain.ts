@@ -22,21 +22,22 @@
  *   help        Show help message
  */
 
-import { startStdioMode } from '../src/cli/stdio.js';
-import { startHttpMode } from '../src/cli/http.js';
-import { runHumanCLI } from '../src/cli/human.js';
-import { closeAllConnections } from '../src/duckdb/connection.js';
-import { installService, manageService } from '../src/cli/service.js';
-import http from 'http';
-import path from 'path';
-import os from 'os';
-import fs from 'fs';
+import { startStdioMode } from "../src/cli/stdio.js";
+import { startHttpMode } from "../src/cli/http.js";
+import { runHumanCLI } from "../src/cli/human.js";
+import { closeAllConnections } from "../src/duckdb/connection.js";
+import { installService, manageService } from "../src/cli/service.js";
+import http from "http";
+import path from "path";
+import os from "os";
+import fs from "fs";
 
 /**
  * Show help message
  */
 function showHelp() {
-  console.log(`
+  console.log(
+    `
 DuckBrain v1.0.0 - AI Memory System
 
 Usage: duckbrain <command> [options]
@@ -96,26 +97,38 @@ Examples:
   duckbrain --socket=prod status
   duckbrain servers list
   duckbrain servers add --name=prod --host=user@server
-`.trim());
+`.trim(),
+  );
 }
 
 /**
  * Run a command on a remote DuckBrain via Unix socket
  */
-function runRemoteCLI(socketName: string, command: string, commandArgs: string[]): Promise<void> {
-  const socketPath = path.join(os.homedir(), '.duckbrain', 'sockets', `${socketName}.sock`);
+function runRemoteCLI(
+  socketName: string,
+  command: string,
+  commandArgs: string[],
+): Promise<void> {
+  const socketPath = path.join(
+    os.homedir(),
+    ".duckbrain",
+    "sockets",
+    `${socketName}.sock`,
+  );
 
   if (!fs.existsSync(socketPath)) {
     console.error(`Error: Socket '${socketName}' not found at ${socketPath}`);
-    console.error('Active sockets:');
-    const socketsDir = path.join(os.homedir(), '.duckbrain', 'sockets');
+    console.error("Active sockets:");
+    const socketsDir = path.join(os.homedir(), ".duckbrain", "sockets");
     if (fs.existsSync(socketsDir)) {
-      const socks = fs.readdirSync(socketsDir).filter(f => f.endsWith('.sock'));
+      const socks = fs
+        .readdirSync(socketsDir)
+        .filter((f) => f.endsWith(".sock"));
       if (socks.length === 0) {
-        console.error('  (none — run: duckbrain ssh-connect --host=<server>)');
+        console.error("  (none — run: duckbrain ssh-connect --host=<server>)");
       } else {
         for (const s of socks) {
-          console.error(`  ${s.replace('.sock', '')}`);
+          console.error(`  ${s.replace(".sock", "")}`);
         }
       }
     }
@@ -126,19 +139,21 @@ function runRemoteCLI(socketName: string, command: string, commandArgs: string[]
 
   const options = {
     socketPath,
-    path: '/cli',
-    method: 'POST',
+    path: "/cli",
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(requestBody),
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(requestBody),
     },
   };
 
   return new Promise<void>((resolve) => {
     const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
         try {
           const response = JSON.parse(data);
           if (response.output) console.log(response.output);
@@ -152,9 +167,13 @@ function runRemoteCLI(socketName: string, command: string, commandArgs: string[]
       });
     });
 
-    req.on('error', (err) => {
-      console.error(`Error: Cannot reach remote DuckBrain via socket '${socketName}': ${err.message}`);
-      console.error('Ensure the remote server is running and the SSH tunnel is active.');
+    req.on("error", (err) => {
+      console.error(
+        `Error: Cannot reach remote DuckBrain via socket '${socketName}': ${err.message}`,
+      );
+      console.error(
+        "Ensure the remote server is running and the SSH tunnel is active.",
+      );
       process.exit(1);
     });
 
@@ -171,12 +190,12 @@ async function main() {
 
   // Extract --socket flag before command routing
   let socketName: string | undefined;
-  const socketIdx = args.findIndex(a => a.startsWith('--socket='));
+  const socketIdx = args.findIndex((a) => a.startsWith("--socket="));
   if (socketIdx !== -1) {
-    socketName = args[socketIdx].split('=')[1];
+    socketName = args[socketIdx].split("=")[1];
     args = [...args.slice(0, socketIdx), ...args.slice(socketIdx + 1)];
   } else {
-    const bareIdx = args.indexOf('--socket');
+    const bareIdx = args.indexOf("--socket");
     if (bareIdx !== -1 && args[bareIdx + 1]) {
       socketName = args[bareIdx + 1];
       args = [...args.slice(0, bareIdx), ...args.slice(bareIdx + 2)];
@@ -191,92 +210,115 @@ async function main() {
     await runRemoteCLI(socketName, command, commandArgs);
     return;
   }
-  
-  if (!command || command === 'help' || command === '--help' || command === '-h') {
+
+  if (
+    !command ||
+    command === "help" ||
+    command === "--help" ||
+    command === "-h"
+  ) {
     showHelp();
     process.exit(0);
   }
-  
+
   try {
     switch (command) {
-      case 'stdio':
+      case "stdio":
         await startStdioMode();
         break;
-        
-      case 'http': {
-        // Support both --port=9000 and --port 9000 formats
-        const portIdx = commandArgs.findIndex(arg => arg === '--port' || arg.startsWith('--port='));
-        const bindAllIdx = commandArgs.findIndex(arg => arg === '--bind-all');
-        const authIdx = commandArgs.findIndex(arg => arg === '--auth' || arg.startsWith('--auth='));
-        const rateLimitIdx = commandArgs.findIndex(arg => arg === '--rate-limit' || arg.startsWith('--rate-limit='));
 
-        const port = portIdx !== -1 
-          ? (commandArgs[portIdx].includes('=') 
-              ? parseInt(commandArgs[portIdx].split('=')[1]) 
-              : parseInt(commandArgs[portIdx + 1]))
-          : 3000;
+      case "http": {
+        // Support both --port=9000 and --port 9000 formats
+        const portIdx = commandArgs.findIndex(
+          (arg) => arg === "--port" || arg.startsWith("--port="),
+        );
+        const bindAllIdx = commandArgs.findIndex((arg) => arg === "--bind-all");
+        const authIdx = commandArgs.findIndex(
+          (arg) => arg === "--auth" || arg.startsWith("--auth="),
+        );
+        const rateLimitIdx = commandArgs.findIndex(
+          (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
+        );
+
+        const port =
+          portIdx !== -1
+            ? commandArgs[portIdx].includes("=")
+              ? parseInt(commandArgs[portIdx].split("=")[1])
+              : parseInt(commandArgs[portIdx + 1])
+            : 3000;
         const bindAll = bindAllIdx !== -1;
-        const authType = authIdx !== -1 
-          ? (commandArgs[authIdx].includes('=') 
-              ? commandArgs[authIdx].split('=')[1] 
-              : commandArgs[authIdx + 1]) as 'none' | 'basic' | 'apikey'
-          : 'none';
-        const rateLimit = rateLimitIdx !== -1 
-          ? (commandArgs[rateLimitIdx].includes('=') 
-              ? parseInt(commandArgs[rateLimitIdx].split('=')[1]) 
-              : parseInt(commandArgs[rateLimitIdx + 1]))
-          : 100;
+        const authType =
+          authIdx !== -1
+            ? ((commandArgs[authIdx].includes("=")
+                ? commandArgs[authIdx].split("=")[1]
+                : commandArgs[authIdx + 1]) as "none" | "basic" | "apikey")
+            : "none";
+        const rateLimit =
+          rateLimitIdx !== -1
+            ? commandArgs[rateLimitIdx].includes("=")
+              ? parseInt(commandArgs[rateLimitIdx].split("=")[1])
+              : parseInt(commandArgs[rateLimitIdx + 1])
+            : 100;
 
         await startHttpMode({ port, authType, rateLimit, bindAll });
         break;
       }
-        
-      case 'service': {
+
+      case "service": {
         const serviceAction = commandArgs[0];
         if (!serviceAction) {
-          console.error('Usage: duckbrain service <install|start|stop|restart|status> [--system]');
+          console.error(
+            "Usage: duckbrain service <install|start|stop|restart|status> [--system]",
+          );
           process.exit(1);
         }
-        
-        if (serviceAction === 'install') {
-          const isSystem = commandArgs.includes('--system');
+
+        if (serviceAction === "install") {
+          const isSystem = commandArgs.includes("--system");
           await installService({ system: isSystem });
-        } else if (['start', 'stop', 'restart', 'status'].includes(serviceAction)) {
-          await manageService(serviceAction as 'start' | 'stop' | 'restart' | 'status');
+        } else if (
+          ["start", "stop", "restart", "status"].includes(serviceAction)
+        ) {
+          await manageService(
+            serviceAction as "start" | "stop" | "restart" | "status",
+          );
         } else {
           console.error(`Unknown service action: ${serviceAction}`);
-          console.error('Use: install, start, stop, restart, or status');
+          console.error("Use: install, start, stop, restart, or status");
           process.exit(1);
         }
         break;
       }
-        
-      case 'remember':
-      case 'recall':
-      case 'list-keys':
-      case 'forget':
-      case 'config':
-      case 'namespace':
-      case 'namespaces':
-      case 'pull':
-      case 'push':
-      case 'remote':
-      case 'status':
-      case 'token':
-      case 'squash':
-      case 'ssh-test':
-      case 'ssh-connect':
-      case 'servers':
+
+      case "remember":
+      case "recall":
+      case "list-keys":
+      case "forget":
+      case "config":
+      case "namespace":
+      case "namespaces":
+      case "pull":
+      case "push":
+      case "remote":
+      case "status":
+      case "token":
+      case "squash":
+      case "ssh-test":
+      case "ssh-connect":
+      case "servers":
         await runHumanCLI(command, commandArgs);
         break;
-        
+
       default:
         console.error(`Unknown command: ${command}`);
         console.error('Run "duckbrain help" for usage');
         process.exit(1);
     }
   } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : String(error));
+    console.error(
+      "Error:",
+      error instanceof Error ? error.message : String(error),
+    );
     process.exit(1);
   }
 }
@@ -285,13 +327,13 @@ async function main() {
 // This prevents Napi::Error crashes from corrupted DuckDB singletons
 try {
   closeAllConnections();
-  console.error('[duckbrain] Cleared stale DuckDB connections');
+  console.error("[duckbrain] Cleared stale DuckDB connections");
 } catch (e) {
   // Ignore errors during cleanup
 }
 
 // Run CLI
 main().catch((error) => {
-  console.error('[duckbrain] Unhandled error:', error);
+  console.error("[duckbrain] Unhandled error:", error);
   process.exit(1);
 });

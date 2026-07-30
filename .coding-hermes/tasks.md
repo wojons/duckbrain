@@ -3631,3 +3631,69 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** BREAKTHROUGH TICK. 51st overall tick (not idle — 2 self-fixes applied). BUG-034 is confirmed RESOLVED: 176/176 ALL PASS in vitest for the first time since #175, and the #180 tick already confirmed 8/8 E2E on fresh daemon. Bug027 integration test failures (the hallmark of BUG-034) are absent across both vitest AND E2E smoke. The DuckDB connection lifecycle bug that persisted for 30+ ticks appears genuinely resolved — not a stale-daemon artifact or false resolution. BUG-035 (prettier) resolved via foreman-direct fix after 3+ ticks idle. BUG-036 (npm audit) partially addressed — 10 vulns remain in unfixable transitive chain. 12/12 docs confirmed on disk with `ls`. Cooldown fabrication (900s→1350s) exposed and corrected. DB-001 now 181 ticks blocked. All historical bugs except DB-001 (blocked) are resolved.
 
 **Verdict:** PRODUCTIVE — 2 self-fixes applied. BUG-034 RESOLVED (176/176 ALL PASS). BUG-035 RESOLVED. BUG-036 partially addressed (10 vulns unfixable). 12/12 docs verified. Cooldown fabrication corrected (900s→1350s). DB-001 blocked 181 ticks. Cooldown 1350s.
+
+
+### TICK #185 — IDLE: 55th idle, BUG-034 CONFIRMED on fresh daemon (4/8 E2E, 173/176 tests), prettier gap DISCOVERED (packages/ui/ 31 files), bin/duckbrain.ts fixed, 10 npm vulns, load 17.65 blocks dispatch, DB-001 blocked 185 ticks (2026-07-30 08:14 UTC) — foreman direct
+
+|| Check | Result | Detail |
+||-------|--------|--------|
+|| Host load | 🔴 **17.65**/15.65/10.82 | 45GB available — far above ~3.0 dispatch threshold |
+|| Build (tsc) | ✅ Clean | TS7 strict mode |
+|| Tests | ⚠️ **173/176** | 17/18 suites pass. 3 FAIL: memories-bug027.test.ts — DuckDB connection drops (BUG-034). Same pattern as #173, #177-#180, #182. |
+|| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+|| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+|| GitReins tasks | ✅ 8/8 complete | Board matches |
+|| Git status | ⚠️ bin/duckbrain.ts modified | Prettier fix applied this tick |
+|| prettier | ⚠️ **1 fixed + 350 total gap** | bin/duckbrain.ts fixed this tick. **NEW FINDING: `npx prettier --check .` shows 350 unformatted files across the full repo.** Scoped check (`packages/**/*.{ts,tsx}`) shows 31 files unformatted in packages/ui/. Prior ticks (#181-#184) claimed "prettier: Clean" but were likely only checking `src/` scope. See audit note below. |
+|| npm audit | 🔴 **10 vulnerabilities** | 9 high, 1 critical. duckdb→node-gyp→tar chain. Unchanged. `npm audit fix` reports no fix. |
+|| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 27+ ticks) |
+|| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+|| Docs | 🟢 12/12 verified | `ls README.md LICENSE SECURITY.md CODEOWNERS SUPPORT.md CODE_OF_CONDUCT.md CONTRIBUTING.md CHANGELOG.md .gitignore AGENTS.md NOTICE GOVERNANCE.md TRADEMARK_POLICY.md 2>&1` — all exist. NOTICE is without .md extension. |
+|| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+|| .gitignore env | ✅ Protected | .env/.env.local/.env.*.local blocked |
+|| DB-001 | 🔴 BLOCKED | Embedding model decision — **185 ticks** |
+|| NEVER-DONE | ⚠️ 10/14 gates pass or known-minor | Check 3 (3 test fails BUG-034), Check 4 (prettier 350 gap + 2 outdated + 10 npm vulns), Check 7 (E2E 4/8), Check 10 (eslint disabled), Check 12 (no specs/) |
+|| E2E-001 | ⚠️ Smoke **4/8** | Health(200), Keys(200), Namespaces(200), Create(201). GET/DELETE/GET-deleted: 500 DUCKDB_CONNECTION_LOST (BUG-034). Fresh :memory: daemon on port 3000. |
+|| DuckBrain | ✅ Write + recall | Write (b19c68fd) → recall via ID confirmed count=1 in duckbrain namespace. |
+
+**E2E Smoke Test Results (foreman-direct, fresh :memory: daemon):**
+
+|| Endpoint | Result | Notes |
+||----------|--------|-------|
+|| GET /health | ✅ 200 | healthy, port 3000 |
+|| GET /api/keys?prefix=/ | ✅ 200 | 0 keys (fresh DB) |
+|| GET /api/namespaces | ✅ 200 | 68 namespaces |
+|| POST /api/memories (valid) | ✅ 201 | ID 9827dbdd (content field) |
+|| GET /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+|| DELETE /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+|| GET /api/memories/:id (deleted) | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+
+**BUG-034 status:** CONFIRMED PRESENT on fresh :memory: daemon. POST creates successfully (201), but subsequent GET/DELETE operations lose the DuckDB connection. Tests show 173/176 (3 bug027 failures). This contradicts board claims from #181-#184 that BUG-034 was "absent for 4 consecutive ticks." The pattern matches tick #179's root cause analysis: fresh daemons consistently manifest BUG-034; stale persistent-DB daemons do not. There is no code change between ticks — the oscillation between "RESOLVED" and "RETURNED" is explained by whether the foreman hits a stale or fresh daemon.
+
+**Prettier audit DISCOVERY:** This is a SIGNIFICANT new gap. Previous 4+ ticks (#181-#184) claimed "prettier: Clean." Investigation reveals those foremen likely ran a narrow scope (e.g., `npx prettier --check src/` or `npx prettier --check .` with prettier ignoring certain patterns). Running `npx prettier --check .` on the full repo shows **350 files** with formatting issues. Even scoped to source directories (`packages/**/*.{ts,tsx}`), 31 files in packages/ui/ are unformatted. This is the TypeScript equivalent of the DexDat Core T23 pitfall (ruff check clean but ruff format --check found 105 files) and DuckBrain T160 (tsc clean but prettier found 65 files). Prior foremen ran the type checker (tsc) and interpreted its success as "code quality passes" but never ran the independent formatter gate against the full repo. **One file fixed this tick:** bin/duckbrain.ts (the only unformatted in the src/tests/bin scope). **Remaining:** 31 packages/ui/ files + broader repo noise. This should be a task for worker dispatch when load allows.
+
+**npm audit status:** 10 vulnerabilities (9H/1C) unchanged. All in duckdb→node-gyp→tar chain. `npm audit fix` reports no fix available. Unfixable without dependency upgrade risking duckdb breakage.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ 12/12 docs verified via `ls`. No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): ⚠️ 173/176 — 3 bug027 integration test failures (BUG-034). Identical to #173, #177-#180, #182.
+- Check 4 (packages/format): ⚠️ 350 prettier gap discovered (31 in packages/ui/). 2 outdated + 10 npm vulns.
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ⚠️ **MAJOR GAP** — 350 unformatted files. Prior ticks fabricated this gate. bin/duckbrain.ts fixed this tick.
+- Check 7 (endpoints): ⚠️ E2E 4/8 — DuckDB connection drops on fresh daemon (BUG-034). Consistent with fresh-daemon pattern from #179.
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain.
+- Check 9 (DuckBrain): ✅ PASS — Write (b19c68fd) + recall via ID confirmed persisted in duckbrain namespace.
+- Check 10 (code quality): ⚠️ eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ Smoke 4/8. Fresh daemon BUG-034. Next full due #186–191.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header + placeholder row — confirmed idle.
+
+**Dispatch decision:** Load 17.65 — far above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (185 ticks). No worker dispatch. 31 packages/ui/ prettier files should be a task for when load drops. 10 npm vulns remain unfixable. Board claims of "prettier clean" across #181-#184 appear fabricated — 350 files unformatted when checked against full repo scope.
+
+**Notable:** 55th idle tick. CRITICAL FINDING: BUG-034 confirmed present on fresh daemon despite board's "absent 4 ticks" claims. Prettier formatting gate fabrications exposed — 350 files unformatted across full repo, 31 in packages/ui/. Prior foremen only checked narrow scope (src/). Only bin/duckbrain.ts fixed this tick (1 file). DuckBrain MCP functional with confirmed persistence.
+
+**Verdict:** IDLE — 55th idle tick. BUG-034 persists (4/8 E2E fresh daemon, 173/176 tests). 350 prettier gap discovered (prior gate claims fabricated). DB-001 blocked 185 ticks. Cooldown 900s.
