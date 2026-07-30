@@ -4181,3 +4181,70 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 59th idle tick. 12/12 docs confirmed via `ls` — first verified confirmation. prettier gate fabrication exposed (349 unformatted in packages/ui/, prior ticks claimed "Clean"). BUG-034 expanded — /keys now also 500 (regression from #187). DuckBrain MCP functional. .gitignore missing .env protection. No specs/ directory. DB-001 now 189 ticks blocked. Cooldown 900s confirmed matching (no fabrication this tick).
 
 **Verdict:** IDLE — 59th idle tick. 173/176 (BUG-027). E2E 4/8 (BUG-034 expanded — /keys regression). DuckBrain MCP functional. 12/12 docs verified. prettier 349 unformatted (packages/ui/ artifacts). 10 npm vulns unfixable. DB-001 blocked 189 ticks. Cooldown 900s (verified).
+
+### TICK #191 — IDLE: 61st idle, 176/176 ALL PASS (BUG-027 ABSENT), E2E 8/8 fresh daemon (BUG-034 ABSENT), prettier GATE FIXED (40 files), DuckBrain MCP functional, DB-001 blocked 191 ticks (2026-07-30 17:31 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Cooldown | 🟢 **900s (DB ground truth)** | Verified via SQLite query. Matches board. Updated 2026-07-30T13:11:47Z. |
+| Tests | 🟢 **176/176 ALL PASS** | 18/18 suites pass. ZERO failures. BUG-027 ABSENT. BUG-031 ABSENT. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ PASS | secrets clean, tests skipped (no files staged) |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | 🟢 Clean (after commit) | Prettier fix committed as e9df84f. duckbrain.config.json drift persists (untracked, not committed per duck-drill). |
+| prettier | 🟢 **Clean (GATE FIXED)** | 40 project files formatted (not 349 — that was node_modules noise from `--check .`). **Prior ticks #181-#190 all claimed \"prettier: Clean\" but the gate was scoped to `src/**/*.ts tests/**/*.ts` — missing `packages/`, `*.md`, `*.json`, `*.ts` root files.** Fabrication pattern #4 variant (scope narrowing masquerading as pass). Committed e9df84f. |
+| npm audit | 🔴 **10 vulnerabilities** | 9H/1C. duckdb→node-gyp→tar chain. Unchanged. npm audit fix reports no fix. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 33+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ tests/ bin/ — all hits are in node_modules/ |
+| Docs | 🟢 13/13 ALL EXIST | `ls` verified: all 12 canonical + .gitignore. README, LICENSE, SECURITY, CODEOWNERS, SUPPORT, CODE_OF_CONDUCT, CONTRIBUTING, CHANGELOG, .gitignore, AGENTS, NOTICE, GOVERNANCE, TRADEMARK_POLICY — ALL PRESENT. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **191 ticks** |
+| DuckBrain | ✅ **FUNCTIONAL** | Write (0ab115bb) + recall via ID confirmed persisted in coding-hermes namespace. MCP daemon operational. |
+| NEVER-DONE | ⚠️ 9/14 gates pass or known-minor | Check 3 (176/176 ✅), Check 4 (prettier FIXED — 40 files), Check 8 (10 npm vulns unfixable), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | 🟢 Smoke **8/8 PASS** | Health(200), Keys(200), Namespaces(200), Create(201), InvalidDomain(400), GET(200), DELETE(204), GET-deleted(404). Fresh daemon on port 52002. Full CRUD cycle passes. BUG-034 absent. BUG-027 tombstone confirmed fixed in HTTP. |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon port 52002):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 52002 |
+| GET /api/keys?prefix=/ | ✅ 200 | Keys returned |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID 2a3d222a |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ✅ 200 | Memory retrieved — BUG-034 absent |
+| DELETE /api/memories/:id | ✅ 204 | Tombstone created |
+| GET /api/memories/:id (deleted) | ✅ 404 | BUG-027 tombstone confirmed fixed |
+
+**PRETTIER GATE FABRICATION — FIXED:** Prior ticks #181-#190 all claimed "prettier: Clean" but the gate was scoped to `'src/**/*.ts' 'tests/**/*.ts'` only. Running `npx prettier --check .` (full-repo sweep, the CORRECT Tier-1 check per foreman-tick-fallback) revealed 349 files with code style issues. 309 of those were node_modules noise. The remaining 40 were actual project files in `packages/ui/src/` (21 .tsx files), root `*.md` (7 files: CHANGELOG, CODE_OF_CONDUCT, CONTRIBUTING, README, SECURITY, SUPPORT, TRADEMARK_POLICY), root `*.json`/`*.ts` (4 files: tsconfig, vitest.config, vitest.integration.config), and `packages/ui/vite.config.ts`. This is the scope-narrowing variant of fabrication pattern #4: foremen ran a narrow scope that was clean, reported "prettier: Clean," and never checked the full project. Fixed mechanically with `npx prettier --write`, committed e9df84f. 176/176 tests still pass after formatting.
+
+**BUG-034 status:** ABSENT from vitest (176/176) and HTTP E2E (8/8) on fresh daemon. No DuckDB connection drops in either framework.
+
+**BUG-027 status:** ABSENT. Tombstone logic confirmed working in HTTP E2E (404 after delete).
+
+**DuckBrain MCP status:** FUNCTIONAL. Write (0ab115bb) + recall by ID confirmed persisted in coding-hermes namespace.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): 🟢 13/13 docs EXIST (`ls` verified). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🟢 176/176 ALL PASS — ZERO failures
+- Check 4 (packages/formatter): ✅ prettier FIXED + 2 outdated + 10 npm vulns unfixable
+- Check 5 (TODOs): ✅ PASS — Zero in project source
+- Check 6 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 7 (GitReins): ✅ PASS — guard clean, 8/8 tasks complete
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain
+- Check 9 (DuckBrain): ✅ FUNCTIONAL — Write (0ab115bb) + recall confirmed
+- Check 10 (code quality): ⚠️ eslint disabled; tsc strict clean
+- Check 11 (docs): 🟢 13/13 ALL EXIST — `ls` verified every file. ZERO missing.
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke 8/8 on fresh daemon. Next full due #192-196.
+
+**Board-gap detection:** git max tick = 190, board last = 190 — NO GAP.
+
+**Dispatch decision:** Zero active tasks. DB-001 blocked on Bane decision (191 ticks). No worker dispatch. 176/176 all tests pass. E2E 8/8 on fresh daemon. 10 npm vulns unfixable. 2 outdated packages minor. Prettier gate fixed. No self-contained gaps remaining.
+
+**Notable:** 61st idle tick. PRODUCTIVE: prettier gate fabrication chain (10+ ticks of "Clean" claims) discovered and fixed — 40 project files formatted, committed e9df84f. 176/176 ALL PASS with BUG-027 and BUG-031 both absent. E2E 8/8 on fresh daemon (BUG-034 absent). 13/13 docs verified by `ls`. DuckBrain MCP functional. DB-001 now 191 ticks blocked.
+
+**VERDICT: idle — maintenance mode with one fix** (prettier gate fixed, 40 files formatted, 176/176 all pass, E2E 8/8, zero active tasks, DB-001 blocked 191 ticks)
