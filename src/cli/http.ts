@@ -362,11 +362,9 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         },
       );
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          error: error instanceof Error ? error.message : "Internal error",
-        });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal error",
+      });
     }
   });
 
