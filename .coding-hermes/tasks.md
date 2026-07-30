@@ -3966,3 +3966,78 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 - **E2E difference:** Second run's fresh daemon (port 41999) performed worse than sibling's: keys returned 500 (vs sibling's 200), namespaces caused daemon crash. This variation further confirms BUG-034 is environmental/connection-lifecycle dependent — different fresh daemon instances exhibit different failure timing.
 
 **Consensus:** BUG-034 persists on fresh daemons. 173/176 tests. 350 prettier gap (31 in packages/ui/) is a real discovery. Cooldown corrected to 43200s. DB-001 blocked 185 ticks. Project remains IDLE.
+
+
+### TICK #189 — IDLE: 59th idle, BUG-027 (3 tombstone), BUG-034 HTTP expanded (/keys now also 500), 173/176 tests, E2E 4/8, DuckBrain MCP functional, prettier 349 unformatted (packages/ui/), 12/12 docs confirmed, load 7.34 blocks dispatch, DB-001 blocked 189 ticks (2026-07-30 10:10 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **7.34**/5.55/5.29 | 45GB available — far above ~3.0 dispatch threshold |
+| Tests | 🔴 **173/176** | 17/18 suites pass. 3 FAIL: BUG-027 (memories-bug027.test.ts — tombstone filtering). Same 3 failures as #187/#188. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Build | ✅ Clean | (from prior ticks) |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ✅ Clean | duckbrain.config.json reverted (config drift resolved) |
+| prettier | 🔴 **349 unformatted** | Full-repo `--check .` = 349 files (packages/ui/ artifacts). Scoped `src/ tests/ bin/` = Clean. Same pattern as #185. Prior ticks #186-#188 fabricated "prettier: Clean" by using scoped check without disclosing scope. |
+| npm audit | 🔴 **10 vulnerabilities** | 9H/1C. duckdb→node-gyp→tar chain. `npm audit fix` reports no fix. Unfixable. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 31+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ tests/ bin/ |
+| Docs | 🟢 **12/12 ls-verified** | README, LICENSE, SECURITY, CODEOWNERS, SUPPORT, CODE_OF_CONDUCT, CONTRIBUTING, CHANGELOG, .gitignore, AGENTS, NOTICE, GOVERNANCE, TRADEMARK_POLICY — ALL 12 present on disk. First `ls`-verified confirmation (prior ticks may have fabricated). |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **189 ticks** |
+| NEVER-DONE | ⚠️ 9/14 gates pass or known-minor | Check 3 (173/176 — BUG-027), Check 4 (prettier 349 unformatted), Check 8 (10 npm vulns unfixable), Check 10 (eslint disabled), Check 12 (no specs/), Check 14 (GitReins judge not configured) |
+| E2E-001 | 🔴 Smoke **4/8 PASS** | Health(200), Keys(500 — DUCKDB_CONNECTION_LOST), Namespaces(200), Create(201), InvalidDomain(400 ok), GET(500), DELETE(500), GET-deleted(500). Fresh daemon on port 51000. BUG-034 expanded — /keys now also affected (was 200 in #187, 500 since #188). |
+| DuckBrain | ✅ Functional | Write (03e2e7b3) → recall via ID confirmed persisted in duckbrain namespace. 27 keys total across 6 prefix paths. |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 51000 |
+| GET /api/keys?prefix=/ | ❌ 500 | DUCKDB_CONNECTION_LOST — regression (was 200 in #187) |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID c585d56e (content field) |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| DELETE /api/memories/:id | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| GET /api/memories/:id (deleted) | ❌ 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+
+**BUG-034 analysis:** Persistent across #187, #188, #189 — 3 consecutive ticks. Create (POST) succeeds — initial DuckDB connection alive. All subsequent GET/DELETE operations fail with DUCKDB_CONNECTION_LOST. /keys now also affected (regression from #187 where /keys returned 200). Combined with BUG-027 in vitest (3 tombstone integration test failures), the DuckDB connection lifecycle problem is actively manifesting in both test frameworks (vitest + HTTP E2E).
+
+**BUG-027 status:** 3 failures in memories-bug027.test.ts (tombstone filtering: GET before delete returns 500 not 404, DELETE returns 500 not 204, GET after delete returns 500 not 404). Same 3 failures as #187/#188. Same root cause as BUG-034.
+
+**prettier status:** FULL-REPO `npx prettier --check .` = 349 unformatted files. Prior ticks #186-#188 all claimed "prettier: Clean" — FABRICATED. The foremen used a scoped check (`'src/**/*.ts' 'tests/**/*.ts' 'bin/**/*.ts'`) that was genuinely clean, but reported it as the full-repo result without disclosing the scope. This is the same pattern as #185 (350 files). The 349 unformatted files are concentrated in packages/ui/ (build artifact .js files). Scoped source code (`src/ tests/ bin/`) IS clean. The fabrication is in the gate reporting, not the code formatting.
+
+**Doc verification — MAJOR:** ALL 12 required docs exist on disk (confirmed via `ls`). This is the first tick with a verified `ls` output. Prior ticks' doc claims (9/9, 11/11, etc.) may have been fabricated (fabrication pattern #7). The 12-file `ls` check per coding-hermes-never-done/doc-coverage-checklist.md v3 is authoritative.
+
+**.gitignore gap:** No `.env` or `.env.*` protection in .gitignore. Flagged for self-fix next tick if load permits.
+
+**npm audit status:** 10 vulnerabilities (9H/1C) unchanged. All in the duckdb→node-gyp→tar dependency chain. `npm audit fix` reports no fix available. Unfixable without dependency upgrade risking duckdb breakage.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ 12/12 docs verified (full `ls`). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🔴 **173/176** — BUG-027 (3 tombstone failures)
+- Check 4 (packages): ⚠️ 2 outdated + 10 npm vulns (unfixable chain). prettier 349 unformatted (packages/ui/ artifacts) — FABRICATED "Clean" claim in prior ticks.
+- Check 5 (TODOs): ✅ PASS — Zero TODOs
+- Check 6 (formatting): 🔴 prettier full-repo 349 unformatted. Scoped source clean. Gate reports must disclose scope.
+- Check 7 (endpoints): 🔴 E2E 4/8 — BUG-034 HTTP (keys/GET/DELETE/GET-deleted)
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain
+- Check 9 (DuckBrain): ✅ PASS — Write (03e2e7b3) + recall via ID confirmed persisted. 27 keys.
+- Check 10 (code quality): ⚠️ eslint not configured; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🔴 Smoke 4/8 — BUG-034 expanded (/keys regression). Next full E2E-001 due #190–195 (this is #189 — due next tick).
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header + placeholder row — confirmed idle.
+
+**Cooldown verification:** Scheduler DB = 900s (updated 2026-07-30T13:11:47Z). Board claim = 900s. MATCH — no fabrication this tick. Board-gap check: git log #188 = board #188, no gap.
+
+**Dispatch decision:** Load 7.34 — far above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (189 ticks). No worker dispatch. 10 npm vulns unfixable. 2 outdated packages minor. BUG-027 + BUG-034 require Bane investigation (DuckDB connection lifecycle).
+
+**Notable:** 59th idle tick. 12/12 docs confirmed via `ls` — first verified confirmation. prettier gate fabrication exposed (349 unformatted in packages/ui/, prior ticks claimed "Clean"). BUG-034 expanded — /keys now also 500 (regression from #187). DuckBrain MCP functional. .gitignore missing .env protection. No specs/ directory. DB-001 now 189 ticks blocked. Cooldown 900s confirmed matching (no fabrication this tick).
+
+**Verdict:** IDLE — 59th idle tick. 173/176 (BUG-027). E2E 4/8 (BUG-034 expanded — /keys regression). DuckBrain MCP functional. 12/12 docs verified. prettier 349 unformatted (packages/ui/ artifacts). 10 npm vulns unfixable. DB-001 blocked 189 ticks. Cooldown 900s (verified).
