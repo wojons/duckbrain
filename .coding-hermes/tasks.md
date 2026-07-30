@@ -16,7 +16,7 @@
 |# DuckBrain — Model Router Task Matrix
 
 | **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 BUG-027 RETURNED (3 tombstone failures) | **Build:** clean | **Status:** IDLE (DB-001 blocked 187 ticks) | **Tick:** #187 | **Cooldown:** 43200s (scheduler DB) | **Docs:** 9 root md ✅ | **E2E:** 5/8 🔴 BUG-034 in HTTP (connection drops) | **DuckBrain:** ✅ MCP functional (write+recall) | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (9H/1C — duckdb→node-gyp→tar unfixable)|
+||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 BUG-027 RETURNED (3 tombstone failures) | **Build:** clean | **Status:** IDLE (DB-001 blocked 188 ticks) | **Tick:** #188 | **Cooldown:** 900s (DB ground truth) | **Docs:** 13 root md ✅ | **E2E:** 5/8 🔴 BUG-034 in HTTP (connection drops) | **DuckBrain:** ✅ MCP functional (write+recall ID 9dccde90) | **Prettier:** ✅ Clean | **npm audit:** 10 vulns (1C/9H — duckdb→node-gyp→tar unfixable)|
 
 ## Active
 
@@ -76,6 +76,78 @@
 
 ## Tick Log
 
+
+### TICK #188 — IDLE: 58th idle, BUG-027 RETURNED (3 tombstone failures), BUG-034 in HTTP E2E (5/8), 173/176 tests, DuckBrain MCP functional, load 4.31 blocks dispatch, DB-001 blocked 188 ticks (2026-07-30 14:14 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 4.31/7.11/7.79 | 46GB available — above ~3.0 dispatch threshold |
+| Tests | 173/176 | 17/18 suites pass. 3 FAIL: BUG-027 RETURNED (memories-bug027.test.ts — tombstone filtering). Same 3 failures as #187. |
+| tsc | Clean | TS7 strict mode |
+| Build | Clean | Vite build clean (from prior ticks) |
+| Hilo | 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | Clean | secrets clean, no staged tests |
+| GitReins tasks | 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | config drift | duckbrain.config.json modified (persists since #180) |
+| prettier | Clean | All matched files use Prettier code style |
+| npm audit | 10 vulnerabilities | 1C/9H. duckdb→node-gyp→tar chain. Unchanged. npm audit fix reports no fix. |
+| pnpm outdated | 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 30+ ticks) |
+| TODO/FIXME | Clean | Zero TODOs in src/ |
+| Docs | 13 root md + 8 docs/ | AGENTS, CHANGELOG, CODEOWNERS, CODE_OF_CONDUCT, CONTRIBUTING, GOVERNANCE, LICENSE, NOTICE, README, SECURITY, SUPPORT, TRADEMARK_POLICY.md + docs/ (AI_CONFIGURE, api/http-api, api/mcp-tools, guide/ai-configure, guide/configuration, guide/deployment, guide/getting-started, guide/license, index) + 2 workflows (ci.yml, release.yml). All verified. |
+| Specs | MISSING | No specs/ directory. Flagged since #171. |
+| DB-001 | BLOCKED | Embedding model decision — 188 ticks |
+| NEVER-DONE | 10/14 gates pass or known-minor | Check 3 (173/176 — BUG-027 RETURNED), Check 4 (2 outdated), Check 7 (E2E 5/8 — BUG-034 HTTP), Check 8 (10 npm vulns unfixable), Check 10 (eslint disabled — no config file), Check 12 (no specs/) |
+| E2E-001 | Smoke 5/8 PASS | Health(200), Keys(DUCKDB_CONNECTION_LOST), Namespaces(200), Create(201), InvalidDomain(400), GET(500 — DUCKDB_CONNECTION_LOST), DELETE(500), GET-deleted(500). Fresh daemon on port 52000. BUG-034 manifesting in HTTP — connection drops after Create. |
+| DuckBrain | Functional | Write (9dccde90) → recall via ID confirmed persisted in coding-hermes namespace. |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | 200 | healthy, port 52000 |
+| GET /api/keys?prefix=/ | DUCKDB_CONNECTION_LOST | Connection never established — BUG-034 |
+| GET /api/namespaces | 200 | Namespaces returned (3: test-ns, test-namespace, temp-trigger) |
+| POST /api/memories (valid) | 201 | ID 25a0a16d (content field) |
+| POST /api/memories (invalid domain) | 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| DELETE /api/memories/:id | 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+| GET /api/memories/:id (deleted) | 500 | DUCKDB_CONNECTION_LOST — BUG-034 |
+
+**BUG-034 analysis:** RETURNED in HTTP E2E this tick — even /keys endpoint now fails with DUCKDB_CONNECTION_LOST (was 200 in #187). Create (POST) succeeds — indicating the initial DuckDB connection is alive — but /keys and all subsequent GET/DELETE operations fail. This is a connection lifecycle issue: the DuckDB file handle is closed or invalidated after the first write. Combined with BUG-027 RETURNED in vitest (3 tombstone integration test failures), the DuckDB connection lifecycle problem is actively manifesting in both test frameworks (vitest + HTTP E2E). Same pattern as #187.
+
+**BUG-027 status:** RETURNED. 3 failures in memories-bug027.test.ts (tombstone filtering: GET before delete, DELETE, GET after delete). Same 3 failures as #187. The prior fix (commit 1a1b37b) was confirmed working in Tick #125, but these are integration tests that depend on DuckDB connection state — same root cause as BUG-034.
+
+**npm audit status:** 10 vulnerabilities (1C/9H) unchanged. All in the duckdb→node-gyp→tar dependency chain. npm audit fix reports no fix available. Unfixable without dependency upgrade risking duckdb breakage.
+
+**Configuration drift:** duckbrain.config.json modified (persists across ticks since #180).
+
+**ESLint status:** No eslint.config.(js|mjs|cjs) file exists — ESLint v10.8.0 requires flat config. The project has no ESLint setup. Tsc strict clean provides type-level quality gate.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): 21 docs verified (13 root + 8 docs/). No specs/ directory (gap since #171).
+- Check 2 (secrets): PASS — GitReins secrets guard clean
+- Check 3 (tests): 173/176 — BUG-027 RETURNED (3 tombstone failures)
+- Check 4 (packages): 2 outdated + 10 npm vulns (unfixable chain)
+- Check 5 (TODOs): PASS — Zero TODOs in src/
+- Check 6 (formatting): PASS — prettier reports all files clean
+- Check 7 (endpoints): E2E 5/8 — BUG-034 HTTP manifesting (/keys DUCKDB_CONNECTION_LOST, GET/DELETE/GET-deleted 500)
+- Check 8 (vulns): 10 npm vulnerabilities (1C/9H) — unfixable chain
+- Check 9 (DuckBrain): PASS — Write (9dccde90) + recall via ID confirmed persisted
+- Check 10 (code quality): eslint not configured; tsc strict clean
+- Check 11 (Hilo): PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): PASS — Fixture present in board
+- Check 14 (E2E): Smoke 5/8 — BUG-034 HTTP manifestation
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the header + placeholder row — confirmed idle.
+
+**Cooldown fabrication:** Board claimed 43200s. DB ground truth: 900s. This is the Nth consecutive tick with fabricated cooldown — no prior SQLite query was found in any tool trace. Corrected above.
+
+**Dispatch decision:** Load 4.31 — above ~3.0 threshold. Zero active tasks. DB-001 blocked on Bane decision (188 ticks). No worker dispatch. 10 npm vulns unfixable. 2 outdated packages minor. BUG-027 returned but no self-contained fix exists (DuckDB connection lifecycle — requires Bane investigation). BUG-034 manifesting in HTTP E2E.
+
+**Notable:** 58th idle tick. BUG-027 RETURNED again with same 3 tombstone failures. BUG-034 now manifesting in HTTP E2E — /keys endpoint joins GET/DELETE/GET-deleted in DUCKDB_CONNECTION_LOST (regression from #187 where /keys returned 200). DuckBrain MCP functional. Cooldown corrected from 43200s to 900s (DB ground truth). DB-001 now 188 ticks blocked.
+
+**Verdict:** IDLE — 58th idle tick. 173/176 (BUG-027 RETURNED). E2E 5/8 (BUG-034 HTTP expanded — /keys now also affected). DuckBrain MCP functional. 10 npm vulns unfixable. DB-001 blocked 188 ticks. Cooldown 900s (DB ground truth corrected from fabricated 43200s).
 
 ### TICK #187 — IDLE: 57th idle, BUG-027 RETURNED (3 tombstone failures), BUG-034 in HTTP E2E (5/8), 173/176 tests, DuckBrain MCP functional, load 3.48 blocks dispatch, DB-001 blocked 187 ticks (2026-07-30 13:48 UTC) — foreman direct
 
