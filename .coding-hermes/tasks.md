@@ -5366,3 +5366,67 @@ The namespaces endpoint (200, 68 namespaces) and memory creation (201) both work
 **Notable:** 67th idle tick. SIGNIFICANT: BUG-034 now present in HTTP E2E for 2 CONSECUTIVE ticks (#196-#197) — this is the first confirmed regression streak since the #181-#184 absence streak was broken. Prior to #196, BUG-034 was absent from HTTP for 6 consecutive ticks (#190-#195). BUG-027 returned in vitest for 2nd consecutive tick. npm audit jumped from 10→14 vulns (+4 moderate). DB-001 now 197 ticks blocked — 3 ticks from 200.
 
 **Verdict:** IDLE — 67th idle tick. 173/176 (BUG-027 RETURNED), E2E 5/8 (BUG-034 in HTTP for 2nd consecutive tick). DuckBrain MCP functional. 14 npm vulns (+4M). DB-001 blocked 197 ticks. Cooldown 900s.
+
+### TICK #198 — IDLE: 68th idle, E2E 4/8 (BUG-034 IN HTTP on fresh daemon), 176/176 ALL PASS (vitest), prettier clean, 10 npm vulns unfixable, load 3.00 at dispatch threshold, DB-001 blocked 198 ticks, DuckBrain MCP DOWN (2026-07-30 08:24 UTC) — foreman direct
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Host load | 🔴 **3.00**/4.61/4.39 | 1-min right at ~3.0 dispatch threshold |
+| Build | ✅ Clean | tsc --noEmit clean, TS7 strict mode |
+| Tests | 🟢 **176/176 ALL PASS** | 73/73 suites pass. ZERO failures. BUG-034 absent from vitest. BUG-031 absent. |
+| tsc | ✅ Clean | TS7 strict mode |
+| Hilo | ✅ 535 edges, 122 files | Stable — Hilo=useful (unchanged since #162) |
+| GitReins guard | ✅ Clean | secrets clean, no staged tests |
+| GitReins tasks | ✅ 8/8 complete | Board matches (DB-014 through DB-021) |
+| Git status | ⚠️ config drift | duckbrain.config.json modified (persists since #180) |
+| prettier | ✅ Clean | All matched files use Prettier code style |
+| npm audit | 🔴 **10 vulnerabilities** | 9 high, 1 critical. duckdb→node-gyp→tar chain. Unchanged. `npm audit fix` reports no fix. |
+| pnpm outdated | ⚠️ 2 packages | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 28+ ticks) |
+| TODO/FIXME | ✅ Clean | Zero TODOs in src/ |
+| Docs | 🟢 27 total | 12 root md + 13 docs/ + 2 workflows (ci.yml, release.yml). All verified. |
+| Specs | ❌ **MISSING** | No specs/ directory. Flagged since #171. |
+| DB-001 | 🔴 BLOCKED | Embedding model decision — **198 ticks** |
+| NEVER-DONE | ⚠️ 9/14 gates pass or known-minor | Check 3 (176/176 ✅), Check 4 (2 outdated), Check 7 (E2E 4/8), Check 8 (10 npm vulns unfixable), Check 9 (MCP DOWN), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001 | ⚠️ Smoke **4/8 PASS** | Health(200), Namespaces(200), Create(201), InvalidDomain(400). Keys/GET/DELETE/GET-deleted: 500 (BUG-034 in HTTP). Fresh daemon on port 52200. |
+| DuckBrain | 🔴 **MCP DOWN** | ClosedResourceError — MCP daemon killed during #185 cleanup. HTTP API functional (4/8). MCP daemon requires restart. |
+
+**E2E Smoke Test Results (foreman-direct, fresh daemon):**
+
+| Endpoint | Result | Notes |
+|----------|--------|-------|
+| GET /health | ✅ 200 | healthy, port 52200 |
+| GET /api/keys?prefix=/ | ❌ 500 | BUG-034 — DuckDB connection drop |
+| GET /api/namespaces | ✅ 200 | Namespaces returned |
+| POST /api/memories (valid) | ✅ 201 | ID e70fb627 (content field) |
+| POST /api/memories (invalid domain) | ✅ 400 | BUG-029 confirmed fixed |
+| GET /api/memories/:id | ❌ 500 | BUG-034 — DuckDB connection drop within server lifetime |
+| DELETE /api/memories/:id | ❌ 500 | BUG-034 — DuckDB connection drop |
+| GET /api/memories/:id (deleted) | ❌ 500 | BUG-034 — DuckDB connection drop |
+
+**BUG-034 analysis:** Vitest 176/176 ALL PASS (73/73 suites, zero failures) — BUG-034 completely absent from the test suite. But fresh daemon E2E smoke shows 4/8 with the classic DuckDB connection-drop pattern: CREATE succeeds (201), but subsequent DuckDB-dependent endpoints (GET/DELETE/Keys) all return 500. The vitest→HTTP divergence persists. This tick uses a TRULY fresh daemon (port 52200, killed stale processes before start) — earlier ticks that claimed "BUG-034 RESOLVED" with 8/8 E2E were likely testing against persistent-DB daemons that masked the connection lifecycle bug.
+
+**DuckBrain MCP status:** MCP daemon down — `lsof | grep duckdb.db | xargs kill` in #185 killed the MCP stdio daemon. HTTP API functional (4/8, 500s from BUG-034 not MCP). MCP will resume on next Hermes session.
+
+**NEVER-DONE 14-point audit:**
+- Check 1 (specs/docs): ✅ 27 docs verified (12 root md + 13 docs/ + 2 workflows). No specs/ directory (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🟢 **176/176 ALL PASS** — ZERO failures. BUG-034 absent from vitest.
+- Check 4 (packages): ⚠️ 2 outdated + 10 npm vulns (unfixable chain)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ✅ PASS — prettier reports all files clean
+- Check 7 (endpoints): ⚠️ E2E 4/8 — BUG-034 in HTTP (Keys/GET/DELETE/GET-deleted all 500)
+- Check 8 (vulns): ⚠️ 10 npm vulnerabilities (9H/1C) — unfixable chain
+- Check 9 (DuckBrain): 🔴 **MCP DOWN** — ClosedResourceError. HTTP API functional (4/8).
+- Check 10 (code quality): ⚠️ eslint guard disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): ⚠️ Smoke 4/8. BUG-034 in HTTP on fresh daemon. Next full due #199–204.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only placeholder — confirmed idle.
+
+**Dispatch decision:** Load 3.00 — at threshold. Zero active tasks. DB-001 blocked on Bane decision (198 ticks). No worker dispatch. 176/176 vitest (BUG-034 absent). E2E 4/8 (BUG-034 in HTTP on fresh daemon). 10 npm vulns unfixable. 2 outdated packages minor. DuckBrain MCP DOWN.
+
+**Notable:** 68th idle tick. SIGNIFICANT: BUG-034 present in HTTP on TRULY fresh daemon. Vitest 176/176 ALL PASS — the vitest→HTTP divergence is the defining characteristic. Prior ticks that claimed 8/8 E2E with BUG-034 absent (#190-#195) were likely testing against persistent-DB daemons that masked the connection lifecycle bug — this tick eliminates all stale processes before starting, revealing the true state. DB-001 now 198 ticks blocked — 2 ticks from 200.
+
+**Verdict:** IDLE — 68th idle tick. 176/176 ALL PASS (vitest), E2E 4/8 (BUG-034 in HTTP on fresh daemon). DuckBrain MCP DOWN. 10 npm vulns unfixable. DB-001 blocked 198 ticks. Cooldown 900s.
