@@ -98,13 +98,13 @@ export function getConfig(configDir: string = "."): DuckBrainConfig {
 
   if (!fs.existsSync(configPath)) {
     // Return defaults
-    return DuckBrainConfigSchema.parse({});
+    return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
   }
 
   try {
     const content = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(content);
-    return DuckBrainConfigSchema.parse(parsed);
+    return applyEnvOverrides(DuckBrainConfigSchema.parse(parsed));
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.warn(
@@ -112,13 +112,30 @@ export function getConfig(configDir: string = "."): DuckBrainConfig {
         (error as any).issues.map((i: any) => i.message).join(", "),
       );
       // Return defaults on validation failure
-      return DuckBrainConfigSchema.parse({});
+      return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
     }
     console.warn(
       `Warning: Could not parse config at ${configPath}, using defaults`,
     );
-    return DuckBrainConfigSchema.parse({});
+    return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
   }
+}
+
+/**
+ * Apply environment-variable overrides on top of file config.
+ *
+ * BUG-037: DUCKBRAIN_NAMESPACES_PATH lets the test suite redirect ALL
+ * namespace storage (JSONL + DuckDB files) to an isolated temp directory,
+ * so vitest/E2E never collide with the live MCP server's DuckDB file lock
+ * on namespaces/default/duckdb.db (root cause of BUG-027 flakiness).
+ * Unset in production — file config is authoritative there.
+ */
+function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
+  const nsPathOverride = process.env.DUCKBRAIN_NAMESPACES_PATH;
+  if (nsPathOverride) {
+    return { ...config, namespacesPath: nsPathOverride };
+  }
+  return config;
 }
 
 /**

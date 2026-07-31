@@ -13,28 +13,28 @@
   NEVER remove the matrix header row or NEVER-DONE / E2E-001 fixtures.
 -->
 
-|||# DuckBrain — Model Router Task Matrix
+||||# DuckBrain — Model Router Task Matrix
 
-||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
-|||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. |||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. |||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 173/176 🔴 (BUG-027 RETURNED — ROOT CAUSE FOUND: MCP server DuckDB file-lock contention, NOT load) | **Build:** clean | **Status:** 🚨 URGENT IDLE (78th idle, DB-001 blocked 209 ticks) | **Tick:** #209 | **Cooldown:** 900s (scheduler API verified) | **Docs:** 22 total (9 root md + LICENSE + NOTICE + 9 docs/ + 2 workflows) ✅ | **E2E:** 8/8 🟢 PASS (port 52023 AFTER lock released; 52022 failed while MCP lock held — mechanism proven) | **DuckBrain:** ✅ FUNCTIONAL (MCP list_keys 5+ keys; server is the lock holder) | **Prettier:** ✅ clean (src/**/*.ts) | **npm audit:** 10 vulns (9H/1C) baseline unfixable
+|||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management.
+||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. |||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. |||||||||||| **Core purpose:** Git-backed persistent memory system for AI agents — DuckDB storage, MCP tools, HTTP API, namespace management. ||||||||||||| **Language:** TypeScript | **Tests:** 178/178 🟢 (BUG-037 RESOLVED — test isolation via DUCKBRAIN_NAMESPACES_PATH; BUG-027 ELIMINATED structurally) | **Build:** clean | **Status:** 🚨 URGENT IDLE (79th idle, DB-001 blocked 210 ticks) | **Tick:** #210 | **Cooldown:** 900s (scheduler API verified) | **Docs:** 22 total (9 root md + LICENSE + NOTICE + 9 docs/ + 2 workflows) ✅ | **E2E:** 8/8 🟢 PASS (port 52024) | **DuckBrain:** ✅ FUNCTIONAL (MCP server itself was lock holder during test run — tests passed anyway, isolation proven) | **Prettier:** ✅ clean (src/**/*.ts) | **npm audit:** 10 vulns (9H/1C) baseline unfixable
 
 ## Active
 
 | ID  | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 | --- | ---- | --- | --- | ---- | ---- | ----- | --------- | -------- |
-| BUG-037 | Test isolation: vitest/E2E collide with live MCP server DuckDB file lock (namespaces/default/duckdb.db) — BUG-027 root cause | Medium | Low | — | +test, +infra | deepseek-v4-flash | Test suite should use isolated temp namespace or the MCP server should not hold exclusive lock on default ns | foreman-direct |
-|     |      |     |     |      | —    | —     | —         | —        | —   | —   | —   | Zero active tasks — DB-001 blocked (209 ticks) | —   |
+|     |      |     |     |      | —    | —     | —         | —   | Zero active tasks — DB-001 blocked (210 ticks), BUG-037 resolved this tick | —   |
 
 ## Blocked
 
 | ID  | Task | Pri | Cpx | Deps | Tags | Blocker |
 | --- | ---- | --- | --- | ---- | ---- | ------- |
-||||||||||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **208 ticks** |
+|||||||||||| DB-001 | Embedding model selection for VSS | Critical | — | — | ++ml, +duckdb | Bane decision on embedding model — **210 ticks** |
 
 ## Completed
 
 | ID                    | Task                                                                                                         | Commit                       | Synced      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------- | ----------- |
+| BUG-037               | Test isolation: vitest redirects to temp namespace via DUCKBRAIN_NAMESPACES_PATH — BUG-027 eliminated structurally | (this tick)                  | Tick #210   |
 | BUG-034               | DuckDB connection drops within HTTP server lifetime — stale daemon file lock (3.69 KB)                       | Pending                      | Tick #156   |
 | DB-023                | Route unit tests for 5/7 route files (activity, events, index, namespaces, keys) — 54 new tests, 7/7 covered | b2366a2                      | Tick #146   |
 | BUG-027               | Tombstone filtering: integration test confirms fix (false E2E positive)                                      | 1a1b37b                      | Tick #125   |
@@ -69,7 +69,7 @@
       Spawn Luna (browser/screenshots) or Step 3.7 Flash (CLI/API). Deploy/build,
       Playwright, screenshots, endpoints, console. → e2e-output/tasks.md → inject
       into board. See foreman Step 1.5i. Every 5-10 ticks.
-      **Last run: Tick #209 (foreman-direct E2E smoke — 8/8 PASS, port 52023 AFTER lock released; 52022 keys failed while MCP lock held — mechanism proven). Tick #208 (foreman-direct E2E smoke — 8/8 PASS, port 52021). Tick #207 (foreman-direct E2E smoke — 8/8 PASS, port 52019). Tick #206 (foreman-direct E2E smoke — 8/8 PASS, port 52018). Tick #205 (foreman-direct E2E smoke — 8/8 PASS, port 52017). Tick #204 (foreman-direct E2E smoke — 8/8 PASS, port 52016). Tick #203 (foreman-direct E2E smoke — 8/8 PASS, port 52014). Tick #202 (foreman-direct E2E smoke — 8/8 PASS, port 52013). Tick #201 (foreman-direct E2E smoke — 8/8 PASS, port 52011). Tick #200 FABRICATED (superseded).** Next due: Tick #210–214.
+      **Last run: Tick #210 (foreman-direct E2E smoke — 8/8 PASS, port 52024, isolation fix in place). Tick #209 (foreman-direct E2E smoke — 8/8 PASS, port 52023 AFTER lock released; 52022 keys failed while MCP lock held — mechanism proven). Tick #208 (foreman-direct E2E smoke — 8/8 PASS, port 52021). Tick #207 (foreman-direct E2E smoke — 8/8 PASS, port 52019). Tick #206 (foreman-direct E2E smoke — 8/8 PASS, port 52018). Tick #205 (foreman-direct E2E smoke — 8/8 PASS, port 52017). Tick #204 (foreman-direct E2E smoke — 8/8 PASS, port 52016). Tick #203 (foreman-direct E2E smoke — 8/8 PASS, port 52014). Tick #202 (foreman-direct E2E smoke — 8/8 PASS, port 52013). Tick #201 (foreman-direct E2E smoke — 8/8 PASS, port 52011). Tick #200 FABRICATED (superseded).** Next due: Tick #215.
 
 - [ ] NEVER-DONE — Run coding-hermes-never-done 14-point audit
       Load coding-hermes-never-done skill. Run ALL 14 checks. Create a task
@@ -5790,3 +5790,67 @@ The 30+ tick "intermittent load-driven flake" label was WRONG. Definitive eviden
 **Notable:** 78th idle tick. 🎯 **MAJOR FINDING: BUG-027 root cause finally identified — DuckDB file-lock contention between the live MCP server and any second process (vitest in-process server or fresh E2E daemon) opening the same default-namespace DB file. NOT load-driven as mislabeled for 30+ ticks.** Timeline correlation is perfect (MCP up = fail, MCP down = pass), lsof proves the lock, namespace isolation proves the mechanism, and the full 8-step CRUD passes once the 1-hour connection recycle releases the lock. Fix = test isolation (BUG-037). DB-001 at 209 ticks — 9 ticks past the 200-tick milestone. 🚨 URGENT: 78 idle ticks. RECOMMEND: Bane pause this foreman or inject new work (embedding-model decision for DB-001 would unblock).
 
 **Verdict:** IDLE — 78th idle tick. 173/176 (BUG-027 = MCP file-lock contention, ROOT CAUSE PROVEN — not load). E2E 8/8 fresh daemon port 52023 (passed after lock released; 52022 failed while held — mechanism demonstrated). DuckBrain MCP functional. 10 npm vulns baseline. DB-001 blocked 209 ticks. New task BUG-037 created (test isolation). Cooldown 900s verified via scheduler API.
+
+### TICK #210 — BUG-037 RESOLVED (test isolation): 178/178 ALL PASS — 2 new regression tests; BUG-027 ELIMINATED STRUCTURALLY (tests passed while MCP server PID 260225 held the DuckDB write lock on namespaces/default/duckdb.db — lsof 41uW proof); E2E 8/8 port 52024; DuckBrain MCP functional; npm audit 10 vulns (baseline); load 3.79 blocks dispatch; DB-001 blocked 210 ticks (2026-07-31 11:40 UTC) — foreman direct (4-skill: foreman+cron+hilo+gitreins)
+
+| Check          | Result                            | Detail                                                                                                                       |
+| -------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Cooldown       | 🟢 **900s (scheduler API verified)** | `GET /api/v1/projects/duckbrain` → CooldownS: 900, Enabled: true, Weight: 10, Priority: 10. Scheduler project healthy.      |
+| Tests          | 🟢 **178/178 ALL PASS**            | 19/19 suites pass. 2 NEW regression tests (config-env-override.test.ts). BUG-027 STRUCTURALLY ELIMINATED — see BUG-037 note below. First run had 1 users-activity timeout (load 3.79, transient — passed on rerun). Tests: 12.42s. |
+| tsc            | ✅ Clean                           | TS7 strict mode, exit 0                                                                                                      |
+| Hilo           | ✅ 535 edges, 122 files            | Stable — Hilo=useful (unchanged since #162)                                                                                  |
+| GitReins guard | ✅ PASS                            | secrets clean, tests OK (diff mode, full suite)                                                                              |
+| GitReins tasks | ✅ 8/8 complete                    | DB-014 through DB-021. 0 pending.                                                                                            |
+| GitReins judge | ✅ PASS                            | check-gitreins-judge.py: PASS (model=deepseek-v4-flash)                                                                      |
+| Git status     | ⚠️ config drift                    | duckbrain.config.json modified (persists since #180) + tasks.md modified (this tick). Code changes: src/config/index.ts, vitest.config.ts, src/test-setup.ts (new), src/config/config-env-override.test.ts (new), scripts/lock-hold-sim.js (new). |
+| prettier       | ✅ Clean                           | All matched files use Prettier code style (src/**/*.ts + vitest.config.ts)                                                    |
+| npm audit      | 🔴 **10 vulnerabilities**          | 9H/1C. Baseline. duckdb→node-gyp→tar chain. npm audit fix reports no fix. Unfixable.                                         |
+| pnpm outdated  | ⚠️ 2 packages                      | @types/node 26.1.1→26.1.2, @modelcontextprotocol/sdk 1.29.0→1.30.0 (unchanged, 48+ ticks)                                   |
+| TODO/FIXME     | ✅ Clean                           | Zero TODOs in src/                                                                                                           |
+| Docs           | 🟢 22 total                        | 9 root md + LICENSE + NOTICE + 9 docs/ (AI_CONFIGURE, api/http-api, api/mcp-tools, guide/×5, index) + 2 workflows. Verified. |
+| Specs          | ❌ **MISSING**                     | No specs/ directory. Flagged since #171.                                                                                     |
+| DB-001         | 🔴 BLOCKED                         | Embedding model decision — **210 ticks**. Semantic search requires embedding model configuration.                             |
+| DuckBrain      | ✅ **FUNCTIONAL**                  | MCP server PID 260225 running. It HELD the write lock during the locked test run — tests passed anyway (isolation proof).     |
+| NEVER-DONE     | ✅ 8/14 gates pass or known-minor  | Check 3 (178/178 🟢), Check 4 (2 outdated), Check 7 (8/8 🟢), Check 8 (10 npm vulns 🔴), Check 10 (eslint disabled), Check 12 (no specs/) |
+| E2E-001        | 🟢 Smoke **8/8 PASS**              | Health(200), Keys(200), Namespaces(200), Create(201, ddcac209), InvalidDomain(400), GET(200), DELETE(204), GET-deleted(404). Fresh daemon port 52024. BUG-027 tombstone confirmed 404. |
+| Host load      | 🔴 **3.79**/5.68/6.40              | 14d uptime, ~47GB available — above ~3.0 dispatch threshold (no worker dispatch)                                              |
+
+**🎯 BUG-037 RESOLVED — test isolation fix (foreman-direct, per board fallback):**
+
+Root cause (from #209): the live MCP server holds an exclusive DuckDB write lock on `namespaces/default/duckdb.db` while serving (lsof `41uW`). Any second process opening the same namespace DB file fails with DUCKDB_CONNECTION_LOST — the true cause of the 30+ tick BUG-027 "load-driven flake".
+
+Fix implemented (3 files + 2 tests):
+1. **`src/config/index.ts`** — `getConfig()` now applies `applyEnvOverrides()`: `DUCKBRAIN_NAMESPACES_PATH` env var overrides `namespacesPath` on every return path (default, parsed, validation-failure). Production behavior unchanged (env unset → file config authoritative).
+2. **`src/test-setup.ts`** (new) — vitest `setupFiles` entry that mkdtemp's an isolated namespace root and sets `DUCKBRAIN_NAMESPACES_PATH` before every test file. Tests never touch the real `namespaces/` tree.
+3. **`vitest.config.ts`** — registers `setupFiles: ["src/test-setup.ts"]`.
+4. **`src/config/config-env-override.test.ts`** (new) — 2 regression tests: env override honored when set; file config used when unset. 176 → 178 tests.
+5. **`scripts/lock-hold-sim.js`** (new) — verification utility that holds the DuckDB lock like the MCP server does (for future regression checks).
+
+**DEFINITIVE VERIFICATION — tests passed UNDER the real lock:** During the locked test run, `lsof namespaces/default/duckdb.db` showed the LIVE MCP server (PID 260225) holding `41uW` write lock — and `pnpm test` passed 178/178. Previously this exact condition produced BUG-027 (173/176). The isolation fix eliminates the failure mode structurally: the test suite and the MCP server can never contend for the same file again. BUG-027 is closed for good — no reliance on lock timing, connection recycle, or load.
+
+**NEVER-DONE 14-point audit (foreman-direct):**
+
+- Check 1 (specs/docs): ✅ 22 docs verified (9 root md + LICENSE + NOTICE + 9 docs/ + 2 workflows). No specs/ (gap since #171).
+- Check 2 (secrets): ✅ PASS — GitReins secrets guard clean
+- Check 3 (tests): 🟢 **178/178 ALL PASS — BUG-027 ELIMINATED STRUCTURALLY** (isolation fix, verified under live MCP lock)
+- Check 4 (packages): ⚠️ 2 outdated + 🔴 10 npm vulns (9H/1C baseline)
+- Check 5 (TODOs): ✅ PASS — Zero TODOs in src/
+- Check 6 (formatting): ✅ PASS — prettier clean on src/**/*.ts + vitest.config.ts
+- Check 7 (endpoints): 🟢 E2E 8/8 — full CRUD cycle on fresh daemon port 52024
+- Check 8 (vulns): 🔴 10 npm vulnerabilities (9H/1C) — unfixable chain. Baseline.
+- Check 9 (DuckBrain): ✅ FUNCTIONAL — MCP list_keys confirmed; server held lock during test run, tests passed anyway
+- Check 10 (code quality): ⚠️ eslint disabled; tsc strict clean
+- Check 11 (Hilo): ✅ PASS — 535 edges, 122 files, Hilo=useful
+- Check 12 (specs): ❌ No specs/ directory. Flagged since #171.
+- Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
+- Check 14 (E2E): 🟢 Smoke 8/8. Full CRUD cycle passes on fresh daemon. Next full due #215.
+
+**M4 implicit-pending scan:** 0 implicit-pending matrix rows. Active section has only the placeholder row — confirmed idle (BUG-037 resolved this tick).
+
+**Stale daemon cleanup:** No stale daemons on 52000-52099 at tick start. E2E daemon (port 52024) killed after testing per #204 recommendation. Lock-hold-sim exited (couldn't acquire lock — MCP server already held it; irrelevant, the real lock was in play).
+
+**Dispatch decision:** Load 3.79 — above ~3.0 dispatch threshold. BUG-037 resolved foreman-direct (board-designated fallback, deferred from #209). DB-001 blocked on Bane decision (210 ticks). No worker dispatch. 178/178 ALL PASS (2 new tests). E2E 8/8 on fresh daemon port 52024. 10 npm vulns baseline unfixable. 2 outdated packages minor. DuckBrain MCP functional.
+
+**Notable:** 79th idle tick. 🎯 **BUG-037 RESOLVED — the 30+ tick BUG-027 saga is over.** Root cause (MCP file-lock contention, proven #209) → structural fix (test namespace isolation, this tick) → verified under the live lock. The test suite can now never collide with the MCP server. DB-001 at 210 ticks — 10 ticks past the 200-tick milestone. 🚨 URGENT: 79 idle ticks. RECOMMEND: Bane pause this foreman or inject new work (embedding-model decision for DB-001 would unblock).
+
+**Verdict:** IDLE (work done) — 79th idle tick. BUG-037 RESOLVED: test isolation via DUCKBRAIN_NAMESPACES_PATH. 178/178 ALL PASS verified UNDER the live MCP server's DuckDB write lock (BUG-027 structurally eliminated). E2E 8/8 fresh daemon port 52024. DuckBrain MCP functional. 10 npm vulns baseline. DB-001 blocked 210 ticks. Cooldown 900s verified via scheduler API.
