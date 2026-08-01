@@ -12,6 +12,8 @@ DuckBrain can be configured through environment variables and a JSON configurati
 | `DUCKBRAIN_DATA_DIR` | — | Override data directory (used for PID file location) |
 | `DUCKBRAIN_API_PORT` | `3000` | HTTP API server port |
 | `DUCKBRAIN_UI_PORT` | `8989` | Web UI server port |
+| `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |
+| `DUCKBRAIN_HTTP_SOCKET_MODE` | — | Socket file permissions octal string (e.g. `0660`), used by `service install` unit |
 | `DUCKBRAIN_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `AUTH_TYPE` | `none` | HTTP authentication type: `none`, `basic`, `apikey` |
 | `AUTH_TOKEN` | — | Authentication token (API key or password depending on auth type) |

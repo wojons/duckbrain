@@ -49,11 +49,19 @@ npm run dev
 npm start -- stdio
 ```
 
-**HTTP Server Mode:**
+**HTTP Server Mode (MCP-over-HTTP + REST API):**
 
 ```bash
 npm start -- http --port=3000
 ```
+
+**HTTP Server Mode with Unix socket** (for MCP-over-HTTP over a permissioned filesystem socket):
+
+```bash
+npm start -- http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
+```
+
+The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
 **Web UI Only:**
 
@@ -117,12 +125,17 @@ npm run dev
 
 ## MCP Tools
 
-DuckBrain exposes these MCP tools:
+DuckBrain exposes these MCP tools (available over stdio and MCP-over-HTTP at `POST /mcp`):
 
 - **`remember`** — Store a memory with key, domain, and content
 - **`recall`** — Query memories by key, domain, or semantic similarity
 - **`list_keys`** — List available memory keys (guardrail against hallucinations)
 - **`forget`** — Mark a memory as tombstoned
+- **`squash`** — Compact old memory partitions (JSONL → Parquet, remove tombstones)
+- **`get_compaction_stats`** — Report repository compaction health
+- **`create_namespace`** / **`list_namespaces`** / **`switch_namespace`** / **`delete_namespace`** — Namespace management (each namespace is its own git repo)
+- **`server_status`** — Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints
+- **`server_http_start`** — Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit)
 
 ## Requirements
 
