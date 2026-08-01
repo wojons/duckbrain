@@ -40,3 +40,13 @@ coverage/
 # Compiled JavaScript (source is TypeScript)
 packages/ui/src/**/*.js
 .vfs/
+
+# Hilo — local cache files (rebuildable)
+.vfs/graph/graph.db
+.vfs/graph/graph.db.wal
+.vfs/graph/graph.duckdb
+.vfs/graph/.last_warm
+
+# coding-hermes board — rebuildable local cache
+.coding-hermes/board/board.db
+.coding-hermes/board/board.db.wal

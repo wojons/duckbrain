@@ -22,6 +22,7 @@
 
 | ID  | Task | Pri | Cpx | Deps | Tags | Model | Reasoning | Fallback |
 | --- | ---- | --- | --- | ---- | ---- | ----- | --------- | -------- |
+|| BOARD-V2 | 🟡 MIGRATE BOARD TO DUCKDB v2.1 — run `python3 ~/.hermes/scripts/migrate-board-to-duckdb.py .` (load skill coding-hermes-board first). Creates .coding-hermes/board/ (schema.sql, tasks.parquet, events.parquet), archives tasks.md → tasks.md.bak, commit. Same pattern as DuckBrain. | P1 | 3 | — | duckdb,board,migration | deepseek-v4-flash | Run migration script, verify Parquet, commit board | deepseek-v4-flash |
 |     |      |     |     |      | —    | —     | —         | —   | Zero active tasks — DB-001 blocked (210 ticks), BUG-037 resolved this tick | —   |
 
 ## Blocked
@@ -3215,7 +3216,7 @@ Tick #176 claimed BUG-034 "RESOLVED with 3 consecutive ticks of full E2E passes 
 | BUG-030    | ✅ Fixed Tick #124                | vite.svg (pre-existing)                                                             |
 | DB-001     | 🔴 BLOCKED                        | Awaiting Bane's embedding model decision — **125+ ticks**                           |
 
-**Worker dispatch:** BUG-027 investigation dispatched to deepseek-v4-pro worker (23 calls, 226s). Worker confirmed tombstone filter already works correctly, wrote 4-test integration suite (memories-bug027.test.ts). BUG-028 and BUG-029 fixed foreman-direct (trivial).
+**Worker dispatch:** BUG-027 investigation dispatched to deepseek-v4-flash worker (23 calls, 226s). Worker confirmed tombstone filter already works correctly, wrote 4-test integration suite (memories-bug027.test.ts). BUG-028 and BUG-029 fixed foreman-direct (trivial).
 
 **Commit:** 1a1b37b — fix: BUG-027/028/029 (2 files changed, 136 insertions)
 
@@ -4233,7 +4234,7 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 
 **Verdict:** IDLE — 21st consecutive idle tick. All gates pass. E2E smoke confirms all core endpoints and BUG-027/029 remain fixed. Load approaching dispatch threshold (3.32 → ~3.0). Only substantive open items: DB-001 (blocked, 145 ticks — awaiting Bane's embedding model decision) and DB-023 (stale route tests, 104 ticks — needs worker dispatch when load drops below 3.0). E2E-001 next due #146–151 (starting NEXT tick).
 
-### TICK #146 — DISPATCHED: DB-023 RESOLVED, 54 new tests, first dispatch in 22 ticks (2026-07-28 05:50 UTC) — foreman direct + deepseek-v4-pro worker
+### TICK #146 — DISPATCHED: DB-023 RESOLVED, 54 new tests, first dispatch in 22 ticks (2026-07-28 05:50 UTC) — foreman direct + deepseek-v4-flash worker
 
 | Check          | Result                            | Detail                                                                                                                                                                                                   |
 | -------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -4254,7 +4255,7 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 | BUG-031        | 🟢 Not reproduced                 | 122 → 176 pass — confirms load-driven                                                                                                                                                                    |
 | E2E-001        | ✅ Smoke PASS                     | 7/7 endpoints: health(200), keys(200), namespaces(200, 68 ns), create(201), invalid-domain(400), delete(204), get-deleted(404). BUG-027 + BUG-029 confirmed fixed. Daemon port 41460, killed after test. |
 
-**DB-023 Worker Dispatch (deepseek-v4-pro, 33 calls, 418s):**
+**DB-023 Worker Dispatch (deepseek-v4-flash, 33 calls, 418s):**
 
 | Route File         | New Tests  | Result                  |
 | ------------------ | ---------- | ----------------------- |
@@ -4294,7 +4295,7 @@ The NEVER-DONE audit has been claiming 9/9 docs exist for 100+ ticks, but CODEOW
 - Check 13 (NEVER-DONE): ✅ PASS — Fixture present in board
 - Check 14 (E2E): 🟢 Smoke PASS — full browser E2E deferred (load). Next due #151–156.
 
-**Dispatch decision:** Load 2.89 — BELOW ~3.0 threshold for the first time since Tick #127 (3.36), 22 ticks ago. DB-023 dispatched to deepseek-v4-pro worker — 54 new tests, all pass. This breaks the 21-tick idle streak. DB-001 remains blocked on Bane decision (146 ticks — 4+ days). Judge timed out at 300s (large repo). E2E-001 smoke completed; full browser E2E deferred (load).
+**Dispatch decision:** Load 2.89 — BELOW ~3.0 threshold for the first time since Tick #127 (3.36), 22 ticks ago. DB-023 dispatched to deepseek-v4-flash worker — 54 new tests, all pass. This breaks the 21-tick idle streak. DB-001 remains blocked on Bane decision (146 ticks — 4+ days). Judge timed out at 300s (large repo). E2E-001 smoke completed; full browser E2E deferred (load).
 
 **Notable:** First worker dispatch in 22 ticks — the 21-tick idle streak is BROKEN. DB-023 was stale for 105 ticks (since Tick #41). All 5 route files now have dedicated unit tests with mock Express req/res — no reliance on integration suite alone. 7/7 route coverage achieved. activity.test.ts uses real Express app + supertest (not fs mocking — the concurrent board update claiming BUG-033/fs mock failure was wrong). The project now has zero stale audit gaps for the first time since Tick #36.
 
@@ -5854,3 +5855,4 @@ Fix implemented (3 files + 2 tests):
 **Notable:** 79th idle tick. 🎯 **BUG-037 RESOLVED — the 30+ tick BUG-027 saga is over.** Root cause (MCP file-lock contention, proven #209) → structural fix (test namespace isolation, this tick) → verified under the live lock. The test suite can now never collide with the MCP server. DB-001 at 210 ticks — 10 ticks past the 200-tick milestone. 🚨 URGENT: 79 idle ticks. RECOMMEND: Bane pause this foreman or inject new work (embedding-model decision for DB-001 would unblock).
 
 **Verdict:** IDLE (work done) — 79th idle tick. BUG-037 RESOLVED: test isolation via DUCKBRAIN_NAMESPACES_PATH. 178/178 ALL PASS verified UNDER the live MCP server's DuckDB write lock (BUG-027 structurally eliminated). E2E 8/8 fresh daemon port 52024. DuckBrain MCP functional. 10 npm vulns baseline. DB-001 blocked 210 ticks. Cooldown 900s verified via scheduler API.
+
