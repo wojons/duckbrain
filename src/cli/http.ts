@@ -17,6 +17,7 @@
  */
 
 import express, { Express, Request, Response, NextFunction } from "express";
+import http from "http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Mutex } from "async-mutex";
 import { server, stopServer, registerTools } from "../mcp/server.js";
@@ -49,6 +50,15 @@ export interface HttpServerOptions {
   authType?: "none" | "basic" | "apikey";
   /** Rate limit: requests per minute per IP (default: 100) */
   rateLimit?: number;
+  /** Unix domain socket path to also listen on (in addition to TCP port).
+   *  Enables MCP-over-HTTP and CLI access via filesystem socket. */
+  socket?: string;
+  /** Socket file permissions as octal string (default: "0660").
+   *  Applied via chmod after bind. */
+  socketMode?: string;
+  /** Group name or numeric GID to chown the socket file to.
+   *  Allows other users in the group to connect. */
+  socketGroup?: string;
 }
 
 /**
@@ -448,38 +458,107 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 }
 
 /**
+ * Listen on a Unix domain socket with correct filesystem permissions.
+ *
+ * Removes a stale socket file, binds, then applies chmod (default 0660) and
+ * optional chown to a group. Shared by startHttpMode and tests/embedders.
+ *
+ * @param app Express app to serve
+ * @param socketPath Unix socket path
+ * @param opts Permissions: socketMode (octal string), socketGroup (name or GID)
+ * @returns the listening http.Server
+ */
+export function listenOnSocket(
+  app: Express,
+  socketPath: string,
+  opts: { socketMode?: string; socketGroup?: string } = {},
+): Promise<http.Server> {
+  const socketMode = opts.socketMode ?? "0660";
+
+  return new Promise((resolve, reject) => {
+    // Remove stale socket file if present (previous crash may have left it)
+    try {
+      if (fs.existsSync(socketPath)) {
+        fs.unlinkSync(socketPath);
+        console.error(`[duckbrain] Removed stale socket file: ${socketPath}`);
+      }
+    } catch (e) {
+      console.error(
+        `[duckbrain] Warning: could not remove stale socket ${socketPath}:`,
+        e,
+      );
+    }
+
+    const server = app.listen(socketPath, () => {
+      // Apply filesystem permissions after bind
+      try {
+        const mode = parseInt(socketMode, 8);
+        if (!Number.isNaN(mode)) {
+          fs.chmodSync(socketPath, mode);
+        }
+        if (opts.socketGroup) {
+          // Resolve group name to GID (or accept numeric GID directly)
+          let gid: number;
+          const numeric = parseInt(opts.socketGroup, 10);
+          if (!Number.isNaN(numeric)) {
+            gid = numeric;
+          } else {
+            const { execSync } = require("child_process");
+            gid = parseInt(
+              execSync(`getent group ${opts.socketGroup} | cut -d: -f3`)
+                .toString()
+                .trim(),
+              10,
+            );
+          }
+          fs.chownSync(socketPath, -1, gid);
+        }
+        console.error(
+          `[duckbrain] HTTP server listening on Unix socket ${socketPath} (mode ${socketMode})`,
+        );
+      } catch (e) {
+        console.error(
+          `[duckbrain] Warning: could not set socket permissions:`,
+          e,
+        );
+      }
+      resolve(server);
+    });
+
+    server.on("error", reject);
+  });
+}
+
+/**
  * Start HTTP server
+ *
+ * Listens on TCP (port) and, if `options.socket` is set, on a Unix domain
+ * socket. Socket permissions are applied via chmod/chown after bind so the
+ * file is created with the requested mode (default 0660) and optional group.
  *
  * @param options Server options
  */
 export async function startHttpMode(
   options: HttpServerOptions = {},
 ): Promise<void> {
-  const { port = 3000, bindAll = false } = options;
+  const { port = 3000, bindAll = false, socket, socketMode = "0660" } = options;
   const host = bindAll ? "0.0.0.0" : "127.0.0.1";
 
   try {
     const app = createHttpServer(options);
+    const servers: http.Server[] = [];
 
-    // Start server
+    // Start TCP listener (always, unless socket-only mode is requested via port 0)
     await new Promise<void>((resolve, reject) => {
       const httpServer = app.listen(port, host, () => {
         console.error(
           `[duckbrain] HTTP server started at http://${host}:${port}`,
         );
-
-        // Write PID to local file for easy management
-        const pidFile = path.join(
-          process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(),
-          "duckbrain-http.pid",
-        );
-        fs.writeFileSync(pidFile, process.pid.toString());
-        console.error(`[duckbrain] PID written to: ${pidFile}`);
-
         resolve();
       });
 
       httpServer.on("error", reject);
+      servers.push(httpServer);
 
       // Graceful shutdown
       const shutdown = () => {
@@ -496,7 +575,25 @@ export async function startHttpMode(
           // Ignore cleanup errors
         }
 
-        httpServer.close(async () => {
+        // Remove socket file if present
+        if (socket) {
+          try {
+            if (fs.existsSync(socket)) {
+              fs.unlinkSync(socket);
+            }
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
+
+        Promise.all(
+          servers.map(
+            (s) =>
+              new Promise<void>((r) => {
+                s.close(() => r());
+              }),
+          ),
+        ).then(async () => {
           await stopServer();
           process.exit(0);
         });
@@ -505,6 +602,27 @@ export async function startHttpMode(
       process.on("SIGINT", shutdown);
       process.on("SIGTERM", shutdown);
     });
+
+    // Write PID to local file for easy management
+    const pidFile = path.join(
+      process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(),
+      "duckbrain-http.pid",
+    );
+    fs.writeFileSync(pidFile, process.pid.toString());
+    console.error(`[duckbrain] PID written to: ${pidFile}`);
+
+    // Start Unix socket listener if requested
+    if (socket) {
+      const socketServer = await listenOnSocket(app, socket, {
+        socketMode,
+        socketGroup: options.socketGroup,
+      });
+      servers.push(socketServer);
+    }
+
+    // Keep process alive — servers array holds listeners; also prevent
+    // premature exit when only socket listening.
+    console.error("[duckbrain] HTTP server ready");
   } catch (error) {
     console.error("[duckbrain] Failed to start HTTP server:", error);
     process.exit(1);

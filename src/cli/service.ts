@@ -44,6 +44,12 @@ function generateServiceContent(isSystem: boolean): string {
   const execPath = getExecutablePath();
   const user = isSystem ? "duckbrain" : "%I";
   const target = isSystem ? "multi-user.target" : "default.target";
+  // Honor DUCKBRAIN_HTTP_SOCKET / DUCKBRAIN_HTTP_SOCKET_MODE if set so the
+  // systemd unit can expose the Unix socket for MCP-over-HTTP.
+  const sockEnv = process.env.DUCKBRAIN_HTTP_SOCKET;
+  const sockArgs = sockEnv ? ` --unix-socket=${sockEnv}` : "";
+  const sockMode = process.env.DUCKBRAIN_HTTP_SOCKET_MODE;
+  const sockModeArgs = sockMode ? ` --unix-socket-mode=${sockMode}` : "";
 
   return `[Unit]
 Description=DuckBrain MCP Server
@@ -52,7 +58,7 @@ After=network.target
 [Service]
 Type=simple
 User=${user}
-ExecStart=${execPath} http --port=3000
+ExecStart=${execPath} http --port=3000${sockArgs}${sockModeArgs}
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production

@@ -68,6 +68,9 @@ HTTP Options:
   --bind-all         Bind to all interfaces (0.0.0.0) instead of localhost
   --auth=TYPE        Authentication type: none, basic, apikey (default: none)
   --rate-limit=N     Requests per minute per IP (default: 100)
+  --unix-socket=PATH     Also listen on a Unix domain socket at PATH
+  --unix-socket-mode=OCTAL  Socket file permissions (default: 0660)
+  --unix-socket-group=NAME  Chown socket to group NAME or numeric GID
 
 Service Commands:
   service install [--system]  Install as systemd service
@@ -239,6 +242,19 @@ async function main() {
         const rateLimitIdx = commandArgs.findIndex(
           (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
         );
+        const socketIdx = commandArgs.findIndex(
+          (arg) => arg === "--unix-socket" || arg.startsWith("--unix-socket="),
+        );
+        const socketModeIdx = commandArgs.findIndex(
+          (arg) =>
+            arg === "--unix-socket-mode" ||
+            arg.startsWith("--unix-socket-mode="),
+        );
+        const socketGroupIdx = commandArgs.findIndex(
+          (arg) =>
+            arg === "--unix-socket-group" ||
+            arg.startsWith("--unix-socket-group="),
+        );
 
         const port =
           portIdx !== -1
@@ -259,8 +275,34 @@ async function main() {
               ? parseInt(commandArgs[rateLimitIdx].split("=")[1])
               : parseInt(commandArgs[rateLimitIdx + 1])
             : 100;
+        const socket =
+          socketIdx !== -1
+            ? commandArgs[socketIdx].includes("=")
+              ? commandArgs[socketIdx].split("=")[1]
+              : commandArgs[socketIdx + 1]
+            : undefined;
+        const socketMode =
+          socketModeIdx !== -1
+            ? commandArgs[socketModeIdx].includes("=")
+              ? commandArgs[socketModeIdx].split("=")[1]
+              : commandArgs[socketModeIdx + 1]
+            : undefined;
+        const socketGroup =
+          socketGroupIdx !== -1
+            ? commandArgs[socketGroupIdx].includes("=")
+              ? commandArgs[socketGroupIdx].split("=")[1]
+              : commandArgs[socketGroupIdx + 1]
+            : undefined;
 
-        await startHttpMode({ port, authType, rateLimit, bindAll });
+        await startHttpMode({
+          port,
+          authType,
+          rateLimit,
+          bindAll,
+          socket,
+          socketMode,
+          socketGroup,
+        });
         break;
       }
 

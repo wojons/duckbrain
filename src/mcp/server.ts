@@ -24,6 +24,12 @@ import {
   SwitchNamespaceInputSchema,
   DeleteNamespaceInputSchema,
 } from "./tools/namespace";
+import {
+  serverStatusTool,
+  ServerStatusInputSchema,
+  serverHttpStartTool,
+  ServerHttpStartInputSchema,
+} from "./tools/server";
 import path from "path";
 
 /**
@@ -166,6 +172,28 @@ export function registerTools(): void {
       inputSchema: DeleteNamespaceInputSchema,
     },
     wrapHandler(deleteNamespaceTool),
+  );
+
+  server.registerTool(
+    "server_status",
+    {
+      title: "Server Status",
+      description:
+        "Check whether the DuckBrain HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints",
+      inputSchema: ServerStatusInputSchema,
+    },
+    wrapHandler(serverStatusTool),
+  );
+
+  server.registerTool(
+    "server_http_start",
+    {
+      title: "Start HTTP Server",
+      description:
+        "Trigger the DuckBrain HTTP server to start as a detached background process if not already running. Supports TCP port, Unix socket, socket permissions and group. Use to enable MCP-over-HTTP.",
+      inputSchema: ServerHttpStartInputSchema,
+    },
+    wrapHandler(serverHttpStartTool),
   );
 }
 
