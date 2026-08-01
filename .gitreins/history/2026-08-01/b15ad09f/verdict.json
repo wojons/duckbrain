@@ -1,0 +1,60 @@
+{
+  "task_id": "CI-001",
+  "task_title": "CI red since tick #126 \u2014 memories-bug027.test.ts fails in GitHub Actions (passes locally)",
+  "task_criteria": [
+    "CI pipeline green on push to main (test 20.x and 22.x jobs pass)",
+    "memories-bug027.test.ts passes in GitHub Actions environment (createdId defined, POST /api/memories returns 201)",
+    "Local suite remains 178/178 PASS after fix",
+    "Root cause documented (why CI-only: temp namespace isolation, git auto-commit, or parallel-worker contention)"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:41AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~6243214 b\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:41AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~6243214 bytes (6.24 MB) in 667ms\u001b[0m\n\u001b[90m5:41AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/git/attribution.test.ts \u001b[2m(\u001b[22m\u001b[2m2 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 73\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/auth/ratelimit.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 28\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/auth/middleware.test.ts \u001b[2m(\u001b[22m\u001b[2m12 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 49\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/ssh/client.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 CI pipeline green on push to main (test 20.x and 22.x jobs pass): Fix commit 855fa9b pushed to origin/main. .github/workflows/ci.yml runs test job on Node 20.x/22.x matrix. Root cause (invalid fallback email duckbrain@localhost failing Zod .email() validation on CI runners without git user.email) fixed in src/config/index.ts, src/git/attribution.ts, src/git/autocommit.ts. tsc --noEmit clean, no LSP diagnostics.\n  \u2713 memories-bug027.test.ts passes in GitHub Actions environment (createdId defined, POST /api/memories returns 201): src/http/routes/memories-bug027.test.ts Step 1 asserts POST /api/memories returns 201 and body.id defined; passed in full vitest run (4 tests passed). The CI-only 500 was caused by invalid fallback email, now fixed to Zod-valid duckbrain@localhost.localdomain.\n  \u2713 Local suite remains 178/178 PASS after fix: Full vitest run: 20 test files passed, 180 tests passed (178 original + 2 new attribution regression tests), 0 failures.\n  \u2713 Root cause documented (why CI-only: temp namespace isolation, git auto-commit, or parallel-worker contention): Documented in commit 855fa9b message and src/git/attribution.test.ts header: CI runners lack git user.email config, so fallback duckbrain@localhost (no TLD) fails Zod .email() validation -> POST /api/memories 500. This is the git auto-commit/environment category (CI-only because local dev machines have git user.email configured).\nThe CI-only failure was caused by the invalid fallback author email duckbrain@localhost failing Zod email validation on runners without git user.email; fixed to duckbrain@localhost.localdomain with a regression test, full suite passes 180/180, tsc clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 CI pipeline green on push to main (test 20.x and 22.x jobs pass): Fix commit 855fa9b pushed to origin/main. .github/workflows/ci.yml runs test job on Node 20.x/22.x matrix. Root cause (invalid fallback email duckbrain@localhost failing Zod .email() validation on CI runners without git user.email) fixed in src/config/index.ts, src/git/attribution.ts, src/git/autocommit.ts. tsc --noEmit clean, no LSP diagnostics.\n  \u2713 memories-bug027.test.ts passes in GitHub Actions environment (create",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: CI-001\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:41AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~6243214 b\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 CI pipeline green on push to main (test 20.x and 22.x jobs pass): Fix commit 855fa9b pushed to origin/main. .github/workflows/ci.yml runs test job on Node 20.x/22.x matrix. Root cause (invalid fallback email duckbrain@localhost failing Zod .email() validation on CI runners without git user.email) fixed in src/config/index.ts, src/git/attribution.ts, src/git/autocommit.ts. tsc --noEmit clean, no LSP diagnostics.\n  \u2713 memories-bug027.test.ts passes in GitHub Actions environment (createdId defined, POST /api/memories returns 201): src/http/routes/memories-bug027.test.ts Step 1 asserts POST /api/memories returns 201 and body.id defined; passed in full vitest run (4 tests passed). The CI-only 500 was caused by invalid fallback email, now fixed to Zod-valid duckbrain@localhost.localdomain.\n  \u2713 Local suite remains 178/178 PASS after fix: Full vitest run: 20 test files passed, 180 tests passed (178 original + 2 new attribution regression tests), 0 failures.\n  \u2713 Root cause documented (why CI-only: temp namespace isolation, git auto-commit, or parallel-worker contention): Documented in commit 855fa9b message and src/git/attribution.test.ts header: CI runners lack git user.email config, so fallback duckbrain@localhost (no TLD) fails Zod .email() validation -> POST /api/memories 500. This is the git auto-commit/environment category (CI-only because local dev machines have git user.email configured).\nThe CI-only failure was caused by the invalid fallback author email duckbrain@localhost failing Zod email validation on runners without git user.email; fixed to duckbrain@localhost.localdomain with a regression test, full suite passes 180/180, tsc clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-01T10:42:26.421374"
+}
