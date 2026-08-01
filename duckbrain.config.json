@@ -90,6 +90,7 @@
     "inference-estimator": "namespaces/inference-estimator",
     "axiom": "namespaces/axiom",
     "blog": "namespaces/blog",
-    "offbyone": "namespaces/offbyone"
+    "offbyone": "namespaces/offbyone",
+    "ring-runner": "namespaces/ring-runner"
   }
 }
