@@ -26,7 +26,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
 ```json
 {
   "defaultNamespace": "default",
-  "authorEmail": "duckbrain@localhost",
+  "authorEmail": "duckbrain@localhost.localdomain",
   "namespacesPath": "./namespaces",
   "gitBatching": {
     "maxLines": 100,
@@ -53,7 +53,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `defaultNamespace` | string | `"default"` | Default namespace for operations when none is specified |
-| `authorEmail` | string | `"duckbrain@localhost"` | Author email for attributing memories (used for git commits) |
+| `authorEmail` | string | `"duckbrain@localhost.localdomain"` | Author email for attributing memories (used for git commits) |
 | `namespacesPath` | string | `"./namespaces"` | Path to the directory containing namespace subdirectories |
 | `gitBatching` | object | (see below) | Git commit batching settings |
 | `storage` | object | (see below) | Storage chunk settings |
@@ -191,4 +191,4 @@ git config --global user.email "your-email@example.com"
 git config --global user.name "Your Name"
 ```
 
-DuckBrain uses the git author email for memory attribution. If not configured, it falls back to `duckbrain@localhost`.
+DuckBrain uses the git author email for memory attribution. If not configured, it falls back to `duckbrain@localhost.localdomain`.

@@ -17,7 +17,10 @@ export const DuckBrainConfigSchema = z.object({
   defaultNamespace: z.string().default("default"),
 
   /** Author email for attributing memories */
-  authorEmail: z.string().email().default("duckbrain@localhost"),
+  authorEmail: z
+    .string()
+    .email()
+    .default("duckbrain@localhost.localdomain"),
 
   /** Path to namespaces directory */
   namespacesPath: z.string().default("./namespaces"),

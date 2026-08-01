@@ -35,7 +35,7 @@ export function commitNamespace(
     try {
       execSync("git config user.email", { cwd: namespacePath, stdio: "pipe" });
     } catch {
-      execSync('git config user.email "duckbrain@localhost"', {
+      execSync('git config user.email "duckbrain@localhost.localdomain"', {
         cwd: namespacePath,
         stdio: "pipe",
       });
