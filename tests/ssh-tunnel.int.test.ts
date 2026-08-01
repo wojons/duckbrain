@@ -18,7 +18,10 @@ let containerName: string;
 describe("SSH Tunnel Integration", () => {
   beforeAll(async () => {
     containerName = await startSshContainer(id, sshPort);
-    await waitForPort(sshPort, 15000);
+    // 60s: docker build + container start on cold CI runners regularly
+    // exceeds the old 15s wait (proven: run 30696804505 attempt 1, Node 20.x —
+    // "Timed out waiting for port" while 22.x passed the same attempt).
+    await waitForPort(sshPort, 60000);
   }, 120000);
 
   afterAll(() => {
