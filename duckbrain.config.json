@@ -89,6 +89,7 @@
     "eduos.dexdat.com.co": "namespaces/eduos.dexdat.com.co",
     "inference-estimator": "namespaces/inference-estimator",
     "axiom": "namespaces/axiom",
-    "blog": "namespaces/blog"
+    "blog": "namespaces/blog",
+    "offbyone": "namespaces/offbyone"
   }
 }
