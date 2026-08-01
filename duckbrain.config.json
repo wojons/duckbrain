@@ -87,6 +87,8 @@
     "pygo": "namespaces/pygo",
     "h3-sdk-typescript": "namespaces/h3-sdk-typescript",
     "eduos.dexdat.com.co": "namespaces/eduos.dexdat.com.co",
-    "inference-estimator": "namespaces/inference-estimator"
+    "inference-estimator": "namespaces/inference-estimator",
+    "axiom": "namespaces/axiom",
+    "blog": "namespaces/blog"
   }
 }
