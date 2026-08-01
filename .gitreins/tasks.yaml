@@ -1,83 +1,95 @@
 tasks:
-  - id: DB-014
-    title: "CI/CD: Add GitHub Actions workflow for tests + lint"
-    criteria:
-      - .github/workflows/test.yml exists
-      - Runs npm test on push/PR
-      - Runs tsc --noEmit lint check
-      - Builds successfully
-    status: complete
-    created_at: "2026-07-19T17:28:33.832034+00:00"
-    completed_at: "2026-07-25T01:52:04.029492+00:00"
-  - id: DB-015
-    title: "DOC: Create missing docs pages referenced in docs/index.md"
-    criteria:
-      - docs/api/http-api.md exists
-      - docs/guide/configuration.md exists
-      - docs/guide/deployment.md exists
-      - docs/guide/license.md exists
-      - docs/api/mcp-tools.md updated with squash/namespace/compaction_stats tools
-    status: complete
-    created_at: "2026-07-19T17:28:34.846502+00:00"
-    completed_at: "2026-07-25T01:53:09.734961+00:00"
-  - id: DB-016
-    title: "API: Replace HTTP stubs (/users, /activity, /namespaces) with real implementations"
-    criteria:
-      - GET /users returns real authors from namespace data
-      - GET /activity returns real recent memory activity
-      - GET /namespaces uses namespace tool instead of hardcoded stub
-      - All 3 endpoints have tests
-    status: complete
-    created_at: "2026-07-19T17:28:35.858834+00:00"
-    completed_at: "2026-07-25T03:01:00.031599+00:00"
-  - id: DB-017
-    title: "QUALITY: Extract duplicated resolveNamespacePath into shared utility"
-    criteria:
-      - resolveNamespacePath defined once in shared location
-      - recall.ts uses shared version
-      - remember.ts uses shared version
-      - forget.ts uses shared version
-      - list_keys.ts uses shared version
-      - all 65 tests still pass
-    status: complete
-    created_at: "2026-07-19T17:28:36.871262+00:00"
-    completed_at: "2026-07-25T01:53:41.988414+00:00"
-  - id: DB-018
-    title: "PITFALL: Add BigInt serialization fix and test for DuckDB queries"
-    criteria:
-      - BigInt values serialized correctly in JSON responses
-      - Test covers BigInt serialization edge case
-      - recall tool returns proper numeric values
-    status: complete
-    created_at: "2026-07-19T17:28:37.885963+00:00"
-    completed_at: "2026-07-25T02:33:28.992406+00:00"
-  - id: DB-019
-    title: "PERF: Replace linear-scan ID/key lookups with DuckDB WHERE clauses"
-    criteria:
-      - GET /api/memories/:id uses DuckDB WHERE id=? instead of fetching 1000 records
-      - GET /api/memories/key/:key uses key filter in query
-      - Query performance improved (no large in-memory arrays)
-      - All 65 tests pass
-    status: complete
-    created_at: "2026-07-19T17:28:38.901595+00:00"
-    completed_at: "2026-07-25T03:50:56.359806+00:00"
-  - id: DB-020
-    title: "SECURITY: Add GitReins guard config (.gitreins/config.toml)"
-    criteria:
-      - .gitreins/config.toml exists with secrets scanning
-      - .gitreins/config.toml has lint guard
-      - .gitreins/config.toml has test guard
-      - Guard run passes
-    status: complete
-    created_at: "2026-07-19T17:28:39.918146+00:00"
-    completed_at: "2026-07-25T01:54:33.803769+00:00"
-  - id: DB-021
-    title: "PITFALL: Auditing / hardening /cli endpoint against command injection"
-    criteria:
-      - Input validation on command and args
-      - Only whitelisted commands allowed via /cli
-      - No shell injection possible
-      - Test covers malicious inputs
-    status: complete
-    created_at: "2026-07-19T17:28:40.938913+00:00"
-    completed_at: "2026-07-25T02:26:00.366480+00:00"
+- id: DB-014
+  title: 'CI/CD: Add GitHub Actions workflow for tests + lint'
+  criteria:
+  - .github/workflows/test.yml exists
+  - Runs npm test on push/PR
+  - Runs tsc --noEmit lint check
+  - Builds successfully
+  status: complete
+  created_at: '2026-07-19T17:28:33.832034+00:00'
+  completed_at: '2026-07-25T01:52:04.029492+00:00'
+- id: DB-015
+  title: 'DOC: Create missing docs pages referenced in docs/index.md'
+  criteria:
+  - docs/api/http-api.md exists
+  - docs/guide/configuration.md exists
+  - docs/guide/deployment.md exists
+  - docs/guide/license.md exists
+  - docs/api/mcp-tools.md updated with squash/namespace/compaction_stats tools
+  status: complete
+  created_at: '2026-07-19T17:28:34.846502+00:00'
+  completed_at: '2026-07-25T01:53:09.734961+00:00'
+- id: DB-016
+  title: 'API: Replace HTTP stubs (/users, /activity, /namespaces) with real implementations'
+  criteria:
+  - GET /users returns real authors from namespace data
+  - GET /activity returns real recent memory activity
+  - GET /namespaces uses namespace tool instead of hardcoded stub
+  - All 3 endpoints have tests
+  status: complete
+  created_at: '2026-07-19T17:28:35.858834+00:00'
+  completed_at: '2026-07-25T03:01:00.031599+00:00'
+- id: DB-017
+  title: 'QUALITY: Extract duplicated resolveNamespacePath into shared utility'
+  criteria:
+  - resolveNamespacePath defined once in shared location
+  - recall.ts uses shared version
+  - remember.ts uses shared version
+  - forget.ts uses shared version
+  - list_keys.ts uses shared version
+  - all 65 tests still pass
+  status: complete
+  created_at: '2026-07-19T17:28:36.871262+00:00'
+  completed_at: '2026-07-25T01:53:41.988414+00:00'
+- id: DB-018
+  title: 'PITFALL: Add BigInt serialization fix and test for DuckDB queries'
+  criteria:
+  - BigInt values serialized correctly in JSON responses
+  - Test covers BigInt serialization edge case
+  - recall tool returns proper numeric values
+  status: complete
+  created_at: '2026-07-19T17:28:37.885963+00:00'
+  completed_at: '2026-07-25T02:33:28.992406+00:00'
+- id: DB-019
+  title: 'PERF: Replace linear-scan ID/key lookups with DuckDB WHERE clauses'
+  criteria:
+  - GET /api/memories/:id uses DuckDB WHERE id=? instead of fetching 1000 records
+  - GET /api/memories/key/:key uses key filter in query
+  - Query performance improved (no large in-memory arrays)
+  - All 65 tests pass
+  status: complete
+  created_at: '2026-07-19T17:28:38.901595+00:00'
+  completed_at: '2026-07-25T03:50:56.359806+00:00'
+- id: DB-020
+  title: 'SECURITY: Add GitReins guard config (.gitreins/config.toml)'
+  criteria:
+  - .gitreins/config.toml exists with secrets scanning
+  - .gitreins/config.toml has lint guard
+  - .gitreins/config.toml has test guard
+  - Guard run passes
+  status: complete
+  created_at: '2026-07-19T17:28:39.918146+00:00'
+  completed_at: '2026-07-25T01:54:33.803769+00:00'
+- id: DB-021
+  title: 'PITFALL: Auditing / hardening /cli endpoint against command injection'
+  criteria:
+  - Input validation on command and args
+  - Only whitelisted commands allowed via /cli
+  - No shell injection possible
+  - Test covers malicious inputs
+  status: complete
+  created_at: '2026-07-19T17:28:40.938913+00:00'
+  completed_at: '2026-07-25T02:26:00.366480+00:00'
+- id: CI-001
+  title: "CI red since tick #126 \u2014 memories-bug027.test.ts fails in GitHub Actions\
+    \ (passes locally)"
+  criteria:
+  - CI pipeline green on push to main (test 20.x and 22.x jobs pass)
+  - memories-bug027.test.ts passes in GitHub Actions environment (createdId defined,
+    POST /api/memories returns 201)
+  - Local suite remains 178/178 PASS after fix
+  - 'Root cause documented (why CI-only: temp namespace isolation, git auto-commit,
+    or parallel-worker contention)'
+  status: pending
+  created_at: '2026-08-01T07:44:32.672905+00:00'
