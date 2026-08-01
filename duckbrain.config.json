@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "h3",
+  "defaultNamespace": "default",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
@@ -86,6 +86,7 @@
     "sdk-python": "namespaces/sdk-python",
     "pygo": "namespaces/pygo",
     "h3-sdk-typescript": "namespaces/h3-sdk-typescript",
-    "eduos.dexdat.com.co": "namespaces/eduos.dexdat.com.co"
+    "eduos.dexdat.com.co": "namespaces/eduos.dexdat.com.co",
+    "inference-estimator": "namespaces/inference-estimator"
   }
 }
