@@ -42,9 +42,8 @@ describe("CI-001: fallback author email is schema-valid", () => {
 
   it("remember-tool style memory with fallback author validates", async () => {
     const { getAuthorEmail } = await import("./attribution.js");
-    const { createMemory, safeValidateMemory } = await import(
-      "../schema/memory.js"
-    );
+    const { createMemory, safeValidateMemory } =
+      await import("../schema/memory.js");
 
     const memory = createMemory({
       key: "/test/ci-001-fallback",
