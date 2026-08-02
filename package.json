@@ -10,7 +10,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts tests/",
-    "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/rate-limit.int.test.ts",
+    "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/http-ratelimit.int.test.ts",
     "start": "node bin/duckbrain.js",
     "start:http": "node bin/duckbrain.js http --port 9444",
     "start:ui": "npm run dev --prefix packages/ui",
