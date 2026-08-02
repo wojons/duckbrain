@@ -78,7 +78,10 @@ export async function startDuckbrainHttp(opts: {
     cwd: opts.cwd || process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env },
-    detached: false,
+    // Own process group so killProcess can SIGTERM the whole tree —
+    // without this, killing the npx wrapper orphans the node daemon
+    // grandchild (recurring stray-daemon leak, ticks #219/#220/#222).
+    detached: true,
   });
 
   child.stderr?.on("data", () => {});
@@ -88,8 +91,19 @@ export async function startDuckbrainHttp(opts: {
 
 export function killProcess(child: ChildProcess): void {
   try {
+    // Negative pid targets the process group (requires detached: true
+    // at spawn) — kills npx wrapper + tsx + the node daemon itself.
+    if (child.pid !== undefined) {
+      process.kill(-child.pid, "SIGTERM");
+      return;
+    }
     child.kill("SIGTERM");
-  } catch {}
+  } catch {
+    // Fallback: direct kill if group kill failed (already dead, etc.)
+    try {
+      child.kill("SIGTERM");
+    } catch {}
+  }
 }
 
 export async function startSshContainer(
