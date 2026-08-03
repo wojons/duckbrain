@@ -68,6 +68,32 @@ export const DuckBrainConfigSchema = z.object({
 
   /** Namespace mappings (alias -> path) */
   namespaceMappings: z.record(z.string(), z.string()).default({}),
+
+  /** Embedding store settings (vectors are NEVER stored in git) */
+  embedding: z
+    .object({
+      /** Provider id: lmstudio | ollama | openai | auto (default: auto) */
+      provider: z.string().default("auto"),
+      /** Model name passed to the provider */
+      model: z.string().default("text-embedding-qwen3-embedding-0.6b"),
+      /** Provider base URL override (e.g. http://localhost:1234/v1) */
+      baseUrl: z.string().optional(),
+      /** API key for remote providers (env DUCKBRAIN_EMBEDDING_API_KEY preferred) */
+      apiKey: z.string().optional(),
+      /** Vector dimensions (default 384) */
+      dimensions: z.number().default(384),
+      /** Cache directory inside the namespace (default .embeddings, gitignored) */
+      cacheDir: z.string().default(".embeddings"),
+      /** Concurrent embedding requests during rebuild (default 4) */
+      concurrency: z.number().default(4),
+    })
+    .default({
+      provider: "auto",
+      model: "text-embedding-qwen3-embedding-0.6b",
+      dimensions: 384,
+      cacheDir: ".embeddings",
+      concurrency: 4,
+    }),
 });
 
 export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
@@ -197,6 +223,13 @@ export function initializeConfig(
       compressionLevel: 6,
     },
     namespaceMappings: {},
+    embedding: {
+      provider: "auto",
+      model: "text-embedding-qwen3-embedding-0.6b",
+      dimensions: 384,
+      cacheDir: ".embeddings",
+      concurrency: 4,
+    },
   };
 
   // Ensure directory exists

@@ -25,6 +25,7 @@
 import { startStdioMode } from "../src/cli/stdio.js";
 import { startHttpMode } from "../src/cli/http.js";
 import { runHumanCLI } from "../src/cli/human.js";
+import { runEmbeddingsCLI } from "../src/cli/embeddings.js";
 import { closeAllConnections } from "../src/duckdb/connection.js";
 import { installService, manageService } from "../src/cli/service.js";
 import http from "http";
@@ -61,6 +62,7 @@ Commands:
   ssh-connect        Connect to remote DuckBrain via SSH tunnel
   servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
+  embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
   help               Show this help
 
 HTTP Options:
@@ -331,6 +333,10 @@ async function main() {
         }
         break;
       }
+
+      case "embeddings":
+        await runEmbeddingsCLI(commandArgs);
+        break;
 
       case "remember":
       case "recall":

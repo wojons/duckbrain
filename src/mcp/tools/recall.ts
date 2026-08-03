@@ -11,6 +11,9 @@ import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
 import { queryMemories } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
 import { resolveNamespacePath } from "./shared";
+import { EmbeddingCache } from "../../embedding/cache";
+import { createAutoProvider } from "../../embedding/providers";
+import { semanticSearch } from "../../embedding/search";
 import path from "path";
 import fs from "fs";
 
@@ -62,45 +65,6 @@ interface RecallOutput {
  * Resolve namespace path from namespace name using config.
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
-/**
- * Generate text embedding via LM Studio's OpenAI-compatible API.
- * Uses qwen3-embedding model for semantic search via DuckDB VSS.
- */
-async function generateEmbedding(text: string): Promise<number[] | null> {
-  try {
-    const response = await fetch("http://localhost:1234/v1/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "text-embedding-qwen3-embedding-0.6b",
-        input: text,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) {
-      console.error(
-        `[recall] Embedding API returned ${response.status}: ${await response.text().catch(() => "")}`,
-      );
-      return null;
-    }
-
-    const data = (await response.json()) as any;
-    const embedding = data?.data?.[0]?.embedding;
-    if (!embedding || !Array.isArray(embedding)) {
-      console.error("[recall] Embedding API returned no embedding vector");
-      return null;
-    }
-
-    return embedding;
-  } catch (error) {
-    console.error(
-      `[recall] Embedding generation failed: ${error instanceof Error ? error.message : error}`,
-    );
-    return null;
-  }
-}
-
 /**
  * Recall tool handler
  *
@@ -175,19 +139,66 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       filters.domain = validated.domain;
     }
 
-    // Handle semantic search
+    // Handle semantic search (cache-assisted, no vectors in git)
     if (validated.query) {
-      const embedding = await generateEmbedding(validated.query);
-      if (!embedding) {
+      const provider = await createAutoProvider();
+      if (!provider) {
         return {
           memories: [],
           count: 0,
           error:
-            "Semantic search requires embedding model - configure in Phase 2",
+            "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'",
         };
       }
-      filters.query = validated.query;
-      filters.embedding = embedding;
+
+      let queryVector: number[];
+      try {
+        queryVector = await provider.embed(validated.query);
+      } catch (e) {
+        return {
+          memories: [],
+          count: 0,
+          error: `Embedding generation failed: ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+
+      // Fetch candidates WITHOUT the DuckDB embedding filter (that column
+      // doesn't exist in JSONL — vectors live in the gitignored cache).
+      const cache = EmbeddingCache.forNamespace(namespacePath);
+      const candidateFilters: Parameters<typeof queryMemories>[2] = {
+        limit: Math.max(validated.limit * 10, 100),
+      };
+      if (validated.key) candidateFilters.key = validated.key;
+      else if (validated.id) candidateFilters.id = validated.id;
+      else if (validated.keyPrefix)
+        candidateFilters.keyPrefix = validated.keyPrefix;
+      else if (validated.domain) candidateFilters.domain = validated.domain;
+
+      let candidates: Awaited<ReturnType<typeof queryMemories>>;
+      try {
+        candidates = await queryMemories(db, partitionPaths, candidateFilters);
+      } catch (e: any) {
+        if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
+          evictConnection(namespacePath);
+          const db2 = getDuckDBConnection("singleton", namespacePath);
+          candidates = await queryMemories(
+            db2,
+            partitionPaths,
+            candidateFilters,
+          );
+        } else {
+          throw e;
+        }
+      }
+
+      const ranked = await semanticSearch(
+        candidates,
+        queryVector,
+        cache,
+        provider,
+      );
+      const top = ranked.slice(0, validated.limit);
+      return { memories: top, count: top.length };
     }
 
     // Execute query — retry once on connection-lost errors (BUG-034 fix).

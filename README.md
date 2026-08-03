@@ -137,6 +137,27 @@ DuckBrain exposes these MCP tools (available over stdio and MCP-over-HTTP at `PO
 - **`server_status`** — Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints
 - **`server_http_start`** — Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit)
 
+## Embeddings & Semantic Search
+
+DuckBrain supports semantic (`query`) search via a **content-addressed embedding cache**. Design principles (Bane, 2026-08-02):
+
+- **Embeddings are NEVER stored in git.** Vectors live in a per-namespace cache dir (`.embeddings/`, auto-gitignored) keyed by `sha256(modelId + contentHash)`. They're derivable artifacts, not source of truth — cloning a namespace gives you the JSONL memories, and the cache rebuilds locally.
+- **Model-agnostic.** Each model gets its own cache namespace (`lmstudio/qwen3`, `ollama/nomic`, …). Different people can use different embedding models on the same repo without corrupting each other.
+- **Cache-assisted rebuild.** `duckbrain embeddings rebuild` hashes every unique `embedding_text`, embeds only cache misses, and skips hits. Unchanged content rebuilds instantly; new content or a model switch means a slower cold rebuild ("old ones can take a while").
+- **Git hooks.** `duckbrain embeddings install-hooks` installs `post-checkout` / `post-merge` / `post-rewrite` hooks that fire a **detached** rebuild after clone/pull — git operations never block on embedding.
+
+**Providers** (config `embedding.provider` or `DUCKBRAIN_EMBEDDING_PROVIDER`): `lmstudio` (default, OpenAI-compatible), `ollama`, `openai`, or `auto` (probe in order). Model via `embedding.model` / `DUCKBRAIN_EMBEDDING_MODEL`; base URL via `embedding.baseUrl` / `DUCKBRAIN_EMBEDDING_BASE_URL`; API key via `DUCKBRAIN_EMBEDDING_API_KEY`; dimensions via `DUCKBRAIN_EMBEDDING_DIMENSIONS` (default 384).
+
+```bash
+duckbrain embeddings status                          # cache stats, models, hooks
+duckbrain embeddings rebuild --namespace=my-ns       # cache-assisted rebuild
+duckbrain embeddings rebuild --force                 # re-embed everything
+duckbrain embeddings install-hooks --namespace=my-ns # hooks → detached rebuild on clone/pull
+duckbrain embeddings providers                       # list providers + env overrides
+```
+
+Semantic search (`recall` with `query`) ranks candidates by cosine similarity using cached vectors, embedding cache misses on the fly (capped) so a cold clone still works.
+
 ## Requirements
 
 - Node.js 20+
@@ -149,6 +170,7 @@ Full documentation is available at:
 
 - 📖 [Getting Started Guide](docs/guide/getting-started.md)
 - 🔧 [API Reference](docs/api/mcp-tools.md)
+- 🧠 [Embeddings & Semantic Search](docs/guide/embeddings.md)
 - 🏗️ [Architecture](.planning/PROJECT.md)
 
 ## Contributing
