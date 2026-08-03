@@ -94,6 +94,7 @@
     "ring-runner": "namespaces/ring-runner",
     "colombia-election-2026": "namespaces/colombia-election-2026",
     "europe-welfare-analysis": "namespaces/europe-welfare-analysis",
-    "reports": "namespaces/reports"
+    "reports": "namespaces/reports",
+    "dexdat-specs": "namespaces/dexdat-specs"
   }
 }
