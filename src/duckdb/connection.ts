@@ -10,6 +10,8 @@ import { Database } from "duckdb";
 export { Database };
 import path from "path";
 import fs from "fs";
+import os from "os";
+import crypto from "crypto";
 import { loadVSSExtension, enablePersistence } from "./vss";
 
 /**
@@ -18,6 +20,7 @@ import { loadVSSExtension, enablePersistence } from "./vss";
  */
 interface ConnectionEntry {
   db: Database;
+  dbPath: string;
   createdAt: number;
 }
 const dbCache = new Map<string, ConnectionEntry>();
@@ -111,13 +114,59 @@ export function getDuckDBConnection(
 }
 
 /**
+ * Per-process scratch file for singleton connections (GAP-001).
+ *
+ * The singleton only ever READS external data (read_json over partition
+ * JSONL files); its backing database file is an empty query container.
+ * Sharing one file per namespace across processes meant the first process
+ * to open it held DuckDB's exclusive single-writer lock, and every other
+ * process (http daemon, fleet stdio MCP servers) got a silently-broken
+ * connection (DUCKDB_CONNECTION_LOST) — cross-namespace reads were
+ * impossible while any other process had the namespace open.
+ *
+ * Opening a per-process scratch file in os.tmpdir() removes the sharing
+ * entirely: no cross-process lock contention with old OR new code, and the
+ * namespace directory is never opened, created, or locked by readers.
+ * The counter gives each recycled connection a fresh path so the old
+ * file can be unlinked the moment its close completes.
+ */
+let scratchFileCounter = 0;
+function singletonDbPath(namespacePath: string): string {
+  const hash = crypto
+    .createHash("sha1")
+    .update(namespacePath)
+    .digest("hex")
+    .slice(0, 12);
+  return path.join(
+    os.tmpdir(),
+    `duckbrain-${process.pid}-${hash}-${scratchFileCounter++}.db`,
+  );
+}
+
+/**
+ * Close a cached entry and remove its scratch file (best-effort).
+ */
+function closeEntry(entry: ConnectionEntry, onClosed?: () => void): void {
+  entry.db.close(() => {
+    // Fire-and-forget unlink — the scratch file is a disposable container;
+    // ignore errors (file may never have been materialized on disk).
+    fs.unlink(entry.dbPath, () => {});
+    onClosed?.();
+  });
+}
+
+/**
  * Get or create singleton connection for namespace.
  *
- * Uses file-backed database (duckdb.db) instead of :memory: to avoid
+ * Uses a file-backed database instead of :memory: to avoid
  * Napi::Error corruption from repeated read_json() calls across different
  * file sets. DuckDB's in-memory mode accumulates internal state from
  * table-function operations across multiple file lists; file-backed mode
  * properly releases resources between operations.
+ *
+ * The file lives in os.tmpdir() (one per process + namespace, see
+ * singletonDbPath) — NOT at <namespace>/duckdb.db — so concurrent readers
+ * in other processes never contend on DuckDB's single-writer file lock.
  *
  * VSS extensions are NOT loaded — they were previously found to cause
  * additional Napi::Error crashes with read_json() + column filters.
@@ -131,19 +180,17 @@ function getSingletonConnection(namespacePath: string): Database {
   if (existing) {
     const age = Date.now() - existing.createdAt;
     if (age >= CONNECTION_MAX_AGE_MS) {
-      existing.db.close(() => {
-        // Fire-and-forget close — ignore errors on already-closed connections
-      });
+      closeEntry(existing);
       dbCache.delete(namespacePath);
     } else {
       return existing.db;
     }
   }
 
-  // Create fresh connection
-  const dbPath = path.join(namespacePath, "duckdb.db");
+  // Create fresh connection on a per-process scratch file (GAP-001)
+  const dbPath = singletonDbPath(namespacePath);
   const db = new Database(dbPath, DATABASE_CONFIG);
-  dbCache.set(namespacePath, { db, createdAt: Date.now() });
+  dbCache.set(namespacePath, { db, dbPath, createdAt: Date.now() });
 
   return db;
 }
@@ -158,7 +205,7 @@ function getSingletonConnection(namespacePath: string): Database {
 export function evictConnection(namespacePath: string): void {
   const entry = dbCache.get(namespacePath);
   if (entry) {
-    entry.db.close(() => {});
+    closeEntry(entry);
     dbCache.delete(namespacePath);
   }
 }
@@ -195,6 +242,7 @@ export async function closeDuckDBConnection(
   const entry = dbCache.get(namespacePath);
   if (entry) {
     await closeDuckDB(entry.db);
+    fs.unlink(entry.dbPath, () => {});
     dbCache.delete(namespacePath);
   }
 }
@@ -205,11 +253,7 @@ export async function closeDuckDBConnection(
 export async function closeAllConnections(): Promise<void> {
   const promises: Promise<void>[] = [];
   for (const entry of dbCache.values()) {
-    promises.push(
-      new Promise((resolve) => {
-        entry.db.close(() => resolve());
-      }),
-    );
+    promises.push(new Promise((resolve) => closeEntry(entry, resolve)));
   }
   await Promise.all(promises);
   dbCache.clear();

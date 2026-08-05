@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { ChildProcess } from "child_process";
+import { ChildProcess, spawn } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import {
   getRandomPort,
   startDuckbrainHttp,
@@ -96,4 +99,113 @@ describe("HTTP Server E2E Integration", () => {
       killProcess(localServer);
     }
   });
+});
+
+/**
+ * GAP-001 E2E regression: cross-process DuckDB file-lock contention.
+ *
+ * Simulates the production failure: a second process (fleet stdio MCP
+ * server) holds an exclusive read-write lock on <namespace>/duckdb.db.
+ * Pre-fix, the http daemon's reads then failed with DUCKDB_CONNECTION_LOST
+ * (namespace was write-only). Post-fix, readers use per-process scratch
+ * files and must serve 200 regardless of the foreign lock.
+ */
+describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB file", () => {
+  const nsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-gap001-e2e-"));
+  const gapPort = getRandomPort();
+  let gapServer: ChildProcess;
+  let lockHolder: ChildProcess | null = null;
+  const savedNsEnv = process.env.DUCKBRAIN_NAMESPACES_PATH;
+
+  function waitForLocked(child: ChildProcess, timeoutMs = 15000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("lock holder did not report LOCKED in time")),
+        timeoutMs,
+      );
+      child.stdout?.on("data", (chunk: Buffer) => {
+        if (chunk.toString().includes("LOCKED")) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        reject(new Error(`lock holder exited early with code ${code}`));
+      });
+    });
+  }
+
+  beforeAll(async () => {
+    fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
+    process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
+    gapServer = await startDuckbrainHttp({ port: gapPort });
+    await waitForUrl(`http://127.0.0.1:${gapPort}/health`, 15000);
+  }, 45000);
+
+  afterAll(() => {
+    if (lockHolder) killProcess(lockHolder);
+    killProcess(gapServer);
+    if (savedNsEnv === undefined) {
+      delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+    } else {
+      process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsEnv;
+    }
+    fs.rmSync(nsRoot, { recursive: true, force: true });
+  });
+
+  it("serves /api/keys and /api/memories while another process write-locks the namespace duckdb.db", async () => {
+    // Seed a memory through the daemon (writes append JSONL, never duckdb.db)
+    const seed = await curl(
+      `-X POST -H "Content-Type: application/json" -d '${JSON.stringify({
+        key: "/gap001/e2e/locked-read",
+        domain: "raw_note",
+        content: "seed for GAP-001 lock regression",
+      })}' http://127.0.0.1:${gapPort}/api/memories?namespace=default`,
+    );
+    expect(seed.status).toBe(201);
+
+    // Spawn a child that opens <nsRoot>/default/duckdb.db READ-WRITE and
+    // holds the exclusive lock — the production fleet-stdio condition.
+    const dbPath = path.join(nsRoot, "default", "duckdb.db");
+    const holderScript = path.join(nsRoot, "lock-holder.mjs");
+    fs.writeFileSync(
+      holderScript,
+      [
+        'import { createRequire } from "module";',
+        'const require = createRequire(process.cwd() + "/package.json");',
+        'const { Database } = require("duckdb");',
+        "const db = new Database(process.argv[2], { threads: \"1\" });",
+        'db.run("CREATE TABLE IF NOT EXISTS lock_probe (i INTEGER)", (err) => {',
+        "  if (err) { console.error(\"LOCK FAIL\", err.message); process.exit(1); }",
+        '  console.log("LOCKED");',
+        "  setInterval(() => {}, 1000);",
+        "});",
+        "",
+      ].join("\n"),
+    );
+    lockHolder = spawn("node", [holderScript, dbPath], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    });
+    await waitForLocked(lockHolder);
+
+    // The namespace's duckdb.db now exists and is write-locked by the child.
+    // Pre-fix this made every read on the namespace fail with
+    // DUCKDB_CONNECTION_LOST. Post-fix reads must succeed.
+    const keys = await curl(
+      `http://127.0.0.1:${gapPort}/api/keys?namespace=default&limit=10`,
+    );
+    expect(keys.status).toBe(200);
+    expect(keys.body).toContain("/gap001/e2e/locked-read");
+
+    const memories = await curl(
+      `http://127.0.0.1:${gapPort}/api/memories?namespace=default&limit=5`,
+    );
+    expect(memories.status).toBe(200);
+    const parsed = JSON.parse(memories.body);
+    expect(parsed.items.length).toBeGreaterThanOrEqual(1);
+    expect(parsed.items[0].key).toBe("/gap001/e2e/locked-read");
+  }, 30000);
 });
