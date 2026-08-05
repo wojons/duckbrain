@@ -94,3 +94,14 @@ tasks:
   status: complete
   created_at: '2026-08-01T07:44:32.672905+00:00'
   completed_at: '2026-08-01T10:41:05.087736+00:00'
+- id: DB-022
+  title: 'Read-path fixes: GAP-001 cross-namespace reads + GAP-002 key-route 500 (commits
+    6e3f995, 92d1ed0)'
+  criteria:
+  - GET /api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree
+  - GET /api/memories/key/<existing-key> returns 200 with memory JSON
+  - GET /api/memories/key/<missing-key> returns 404
+  - unit suite 247/247 + http integration 21/21 + tsc clean
+  status: complete
+  created_at: '2026-08-05T01:21:23.489040+00:00'
+  completed_at: '2026-08-05T01:21:29.408301+00:00'

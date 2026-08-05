@@ -1,0 +1,60 @@
+{
+  "task_id": "DB-022",
+  "task_title": "Read-path fixes: GAP-001 cross-namespace reads + GAP-002 key-route 500 (commits 6e3f995, 92d1ed0)",
+  "task_criteria": [
+    "GET /api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree",
+    "GET /api/memories/key/<existing-key> returns 200 with memory JSON",
+    "GET /api/memories/key/<missing-key> returns 404",
+    "unit suite 247/247 + http integration 21/21 + tsc clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m8:21PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7940863 bytes (7.94 MB) in 871ms\u001b[0m\n\u001b[90m8:21PM\u001b[0m \u001b[32m\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:21PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7940863 bytes (7.94 MB) in 871ms\u001b[0m\n\u001b[90m8:21PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/cache.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 38\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/embedding/rebuild.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 36\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 145\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 125\u001b[2mms\u001b[2",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree: Live curl to http://127.0.0.1:9444/api/keys?namespace=coding-hermes&limit=3 returned HTTP 200 with key tree (total:3). Also covered by GAP-001 e2e test in tests/http-e2e.int.test.ts (serves /api/keys while foreign write-lock held).\n  \u2713 GET /api/memories/key/<existing-key> returns 200 with memory JSON: Live curl to /api/memories/key/coding-hermes/duckbrain/tick-183?namespace=coding-hermes returned HTTP 200 with memory JSON (id, key, domain, content). GAP-002 fix in src/http/routes/memories.ts joins Express 5 wildcard array segments.\n  \u2713 GET /api/memories/key/<missing-key> returns 404: Live curl to /api/memories/key/definitely/missing/key/xyz123?namespace=coding-hermes returned HTTP 404 with NOT_FOUND error. Covered by memories-key-gap002.test.ts Step 4 and http-e2e GAP-002 test.\n  \u2713 unit suite 247/247 + http integration 21/21 + tsc clean: npx vitest run = 247/247 passed (incl. connection-gap001 3 tests + memories-key-gap002 5 tests); http integration (auth+e2e+ratelimit) = 21/21 passed; npx tsc --noEmit exit 0; LSP diagnostics 0; dead code scan clean.\nAll four criteria verified: both GAP-001 (cross-namespace reads via per-process scratch DuckDB files) and GAP-002 (key-route 500 fixed by joining wildcard array segments) fixes are in place and confirmed by live endpoint tests plus full test suites (247/247 unit, 21/21 http, tsc clean).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree: Live curl to http://127.0.0.1:9444/api/keys?namespace=coding-hermes&limit=3 returned HTTP 200 with key tree (total:3). Also covered by GAP-001 e2e test in tests/http-e2e.int.test.ts (serves /api/keys while foreign write-lock held).\n  \u2713 GET /api/memories/key/<existing-key> returns 200 with memory JSON: Live curl to /api/memories/key/coding-hermes/duckbrain/tick-183?namespace=coding-hermes returned HTTP 200 with ",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-022\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m8:21PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7940863 bytes (7.94 MB) in 871ms\u001b[0m\n\u001b[90m8:21PM\u001b[0m \u001b[32m\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree: Live curl to http://127.0.0.1:9444/api/keys?namespace=coding-hermes&limit=3 returned HTTP 200 with key tree (total:3). Also covered by GAP-001 e2e test in tests/http-e2e.int.test.ts (serves /api/keys while foreign write-lock held).\n  \u2713 GET /api/memories/key/<existing-key> returns 200 with memory JSON: Live curl to /api/memories/key/coding-hermes/duckbrain/tick-183?namespace=coding-hermes returned HTTP 200 with memory JSON (id, key, domain, content). GAP-002 fix in src/http/routes/memories.ts joins Express 5 wildcard array segments.\n  \u2713 GET /api/memories/key/<missing-key> returns 404: Live curl to /api/memories/key/definitely/missing/key/xyz123?namespace=coding-hermes returned HTTP 404 with NOT_FOUND error. Covered by memories-key-gap002.test.ts Step 4 and http-e2e GAP-002 test.\n  \u2713 unit suite 247/247 + http integration 21/21 + tsc clean: npx vitest run = 247/247 passed (incl. connection-gap001 3 tests + memories-key-gap002 5 tests); http integration (auth+e2e+ratelimit) = 21/21 passed; npx tsc --noEmit exit 0; LSP diagnostics 0; dead code scan clean.\nAll four criteria verified: both GAP-001 (cross-namespace reads via per-process scratch DuckDB files) and GAP-002 (key-route 500 fixed by joining wildcard array segments) fixes are in place and confirmed by live endpoint tests plus full test suites (247/247 unit, 21/21 http, tsc clean).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-05T01:24:05.294517"
+}
