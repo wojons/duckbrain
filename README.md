@@ -35,7 +35,7 @@ git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
 # Install dependencies
-npm install
+pnpm install
 
 # Start the development server
 npm run dev
@@ -67,7 +67,7 @@ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-sock
 
 ```bash
 cd packages/ui
-npm run dev
+pnpm run dev
 ```
 
 ## Screenshots

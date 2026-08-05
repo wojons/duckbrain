@@ -22,7 +22,7 @@ Please set up DuckBrain MCP memory system for this project:
    cd ~
    git clone https://github.com/wojons/duckbrain.git
    cd duckbrain
-   npm install
+   pnpm install
    ```
 
 2. Create a local git repository for this project if it doesn't exist:
@@ -408,7 +408,7 @@ if [ ! -d "$DUCKBRAIN_PATH" ]; then
     echo "Cloning DuckBrain..."
     git clone https://github.com/wojons/duckbrain.git "$DUCKBRAIN_PATH"
     cd "$DUCKBRAIN_PATH"
-    npm install
+    pnpm install
 fi
 
 # 2. Initialize git repo if needed

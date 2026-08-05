@@ -28,7 +28,7 @@ git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
 # Install dependencies
-npm install
+pnpm install
 ```
 
 ### Step 2: Verify Installation
