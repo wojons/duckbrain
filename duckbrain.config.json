@@ -1,5 +1,5 @@
 {
-  "defaultNamespace": "imhotep",
+  "defaultNamespace": "musterflow",
   "authorEmail": "totalwindupflightsystems@gmail.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
