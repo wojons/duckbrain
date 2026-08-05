@@ -96,5 +96,12 @@
     "europe-welfare-analysis": "namespaces/europe-welfare-analysis",
     "reports": "namespaces/reports",
     "dexdat-specs": "namespaces/dexdat-specs"
+  },
+  "embedding": {
+    "provider": "auto",
+    "model": "text-embedding-qwen3-embedding-0.6b",
+    "dimensions": 384,
+    "cacheDir": ".embeddings",
+    "concurrency": 4
   }
 }
