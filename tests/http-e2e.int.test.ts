@@ -209,3 +209,59 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
     expect(parsed.items[0].key).toBe("/gap001/e2e/locked-read");
   }, 30000);
 });
+
+/**
+ * GAP-002 E2E regression: GET /api/memories/key/<key path>.
+ *
+ * Pre-fix the route always returned 500 INTERNAL_ERROR (Express 5 wildcard
+ * params arrive as an array; the handler called string methods on it).
+ * Post-fix it must return the memory JSON (200) or 404 for a missing key.
+ */
+describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
+  const nsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-gap002-e2e-"));
+  const gap2Port = getRandomPort();
+  let gap2Server: ChildProcess;
+  const savedNsEnv = process.env.DUCKBRAIN_NAMESPACES_PATH;
+  const key = `/gap002/e2e/key-route/${Date.now()}`;
+
+  beforeAll(async () => {
+    fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
+    process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
+    gap2Server = await startDuckbrainHttp({ port: gap2Port });
+    await waitForUrl(`http://127.0.0.1:${gap2Port}/health`, 15000);
+  }, 45000);
+
+  afterAll(() => {
+    killProcess(gap2Server);
+    if (savedNsEnv === undefined) {
+      delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+    } else {
+      process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsEnv;
+    }
+    fs.rmSync(nsRoot, { recursive: true, force: true });
+  });
+
+  it("creates a memory, reads it back by key path (200), and 404s a missing key", async () => {
+    const seed = await curl(
+      `-X POST -H "Content-Type: application/json" -d '${JSON.stringify({
+        key,
+        domain: "raw_note",
+        content: "GAP-002 e2e key-route roundtrip",
+      })}' http://127.0.0.1:${gap2Port}/api/memories?namespace=default`,
+    );
+    expect(seed.status).toBe(201);
+
+    const found = await curl(
+      `http://127.0.0.1:${gap2Port}/api/memories/key${key}?namespace=default`,
+    );
+    expect(found.status).toBe(200);
+    const memory = JSON.parse(found.body);
+    expect(memory.key).toBe(key);
+    expect(memory.content).toBe("GAP-002 e2e key-route roundtrip");
+
+    const missing = await curl(
+      `http://127.0.0.1:${gap2Port}/api/memories/key/definitely/missing/${Date.now()}?namespace=default`,
+    );
+    expect(missing.status).toBe(404);
+  }, 30000);
+});

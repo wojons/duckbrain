@@ -112,7 +112,14 @@ router.get(
 router.get(
   "/key/*key",
   asyncHandler(async (req: Request, res: Response) => {
-    const key = req.params.key as string;
+    // Express 5 (path-to-regexp v8): a named wildcard (*key) captures an
+    // ARRAY of path segments, not a string. Joining restores the key path.
+    // The old `as string` cast hid this — key.startsWith threw a TypeError
+    // on the array, surfacing as the generic 500 INTERNAL_ERROR (GAP-002).
+    const keyParam: unknown = req.params.key;
+    const key = Array.isArray(keyParam)
+      ? keyParam.join("/")
+      : String(keyParam ?? "");
     const namespace = (req.query.namespace as string) || "default";
 
     // Normalize key to start with /
