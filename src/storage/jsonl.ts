@@ -84,9 +84,15 @@ export function createPartition(partitionPath: string): void {
  * @returns Next chunk filename (e.g., '0001.jsonl')
  */
 function getNextChunkName(partitionPath: string): string {
+  // Only numeric chunk files (0001.jsonl, 0002.jsonl, ...) participate in
+  // rotation. Non-numeric names — current.jsonl, chunk_<ts>.jsonl, or the
+  // legacy 0NaN.jsonl — are ignored. Without this filter, parseInt("current")
+  // yields NaN and every rotated write lands in "0NaN.jsonl"; that file then
+  // absorbs ALL writes forever because the capacity check in appendToJsonl
+  // only inspects the original file path, so rotation never re-fires.
   const existingChunks = fs
     .readdirSync(partitionPath)
-    .filter((f) => f.endsWith(".jsonl"))
+    .filter((f) => /^\d+\.jsonl$/.test(f))
     .sort();
 
   if (existingChunks.length === 0) {
