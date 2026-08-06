@@ -2,28 +2,63 @@
  * Git Auto-Commit Helper
  *
  * Ensures per-namespace git repos are initialized and data is committed.
- * Called from MCP tool handlers (remember, forget) after writes.
  *
- * Design: each namespace gets its own git repo. For the default namespace
- * (which shares the parent repo), we init a standalone repo at the namespace
- * path. The parent's .gitignore excludes namespaces/ so there's no conflict.
+ * Commits are BATCHED: each write lands in the working tree (JSONL) immediately,
+ * but the git commit itself is debounced (gitBatching.maxSeconds, default 30s)
+ * and line-capped (gitBatching.maxLines, default 100). A burst of N writes
+ * therefore produces 1 commit, not N — each commit stores the FULL jsonl file
+ * as a loose git object, so per-write commits balloon namespace .git repos
+ * (85k commits ≈ 490GB of loose objects in the coding-hermes namespace,
+ * 2026-08-06; the scheduler fleet-sync alone posts ~157 memories per 5-min
+ * cycle). JSONL is the source of truth; git history is best-effort and the
+ * next write sweeps up anything a crashed process left uncommitted
+ * (git add -A stages everything).
  */
 
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { getConfig } from "../config";
+
+export interface BatchingParams {
+  maxLines: number;
+  maxSeconds: number;
+  enabled: boolean;
+}
+
+const DEFAULT_PARAMS: BatchingParams = { maxLines: 100, maxSeconds: 30, enabled: true };
+
+interface PendingCommit {
+  timer: NodeJS.Timeout;
+  lines: number;
+  message: string;
+}
+
+const pending = new Map<string, PendingCommit>();
+
+function batchingParams(): BatchingParams {
+  try {
+    const cfg = getConfig();
+    const gb = cfg.gitBatching as
+      | { maxLines?: number; maxSeconds?: number; enabled?: boolean }
+      | undefined;
+    if (!gb) return DEFAULT_PARAMS;
+    return {
+      maxLines: gb.maxLines ?? DEFAULT_PARAMS.maxLines,
+      maxSeconds: gb.maxSeconds ?? DEFAULT_PARAMS.maxSeconds,
+      enabled: gb.enabled ?? DEFAULT_PARAMS.enabled,
+    };
+  } catch {
+    // Config unreadable (wrong cwd, missing file) — fall back to defaults.
+    return DEFAULT_PARAMS;
+  }
+}
 
 /**
- * Initialize git repo if missing, then stage and commit all changes.
- * Uses a lightweight --allow-empty check to skip no-op commits.
- *
- * @param namespacePath - Absolute path to namespace directory
- * @param message - Commit message (default: auto-commit)
+ * Perform the actual git add + commit for a namespace repo.
+ * Best-effort: failures are logged and swallowed (history only).
  */
-export function commitNamespace(
-  namespacePath: string,
-  message: string = "chore: auto-commit namespace data",
-): void {
+function immediateCommit(namespacePath: string, message: string): void {
   try {
     // Init git repo if it doesn't exist
     const gitDir = path.join(namespacePath, ".git");
@@ -72,6 +107,82 @@ export function commitNamespace(
       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
     );
   }
+}
+
+/**
+ * Debounced commit. First write schedules a commit in maxSeconds; writes
+ * before the timer fires only bump the line counter. When the counter hits
+ * maxLines the commit fires immediately. Every namespace repo has its own
+ * independent window.
+ */
+export function commitNamespaceWithParams(
+  namespacePath: string,
+  message: string,
+  params: BatchingParams,
+): void {
+  try {
+    if (!params.enabled) {
+      immediateCommit(namespacePath, message);
+      return;
+    }
+
+    const existing = pending.get(namespacePath);
+    if (existing) {
+      existing.lines += 1;
+      if (existing.lines >= params.maxLines) {
+        clearTimeout(existing.timer);
+        pending.delete(namespacePath);
+        immediateCommit(namespacePath, message);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      pending.delete(namespacePath);
+      immediateCommit(namespacePath, message);
+    }, params.maxSeconds * 1000);
+    if (typeof timer.unref === "function") timer.unref(); // don't hold the process open
+    pending.set(namespacePath, { timer, lines: 1, message });
+  } catch (error) {
+    console.warn(
+      `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Commit a namespace now, flushing any pending debounce window.
+ */
+export function flushNamespaceCommit(namespacePath: string): void {
+  const existing = pending.get(namespacePath);
+  if (!existing) return;
+  clearTimeout(existing.timer);
+  pending.delete(namespacePath);
+  immediateCommit(namespacePath, existing.message);
+}
+
+/**
+ * Flush every pending debounce window (e.g. on graceful shutdown).
+ */
+export function flushAllCommits(): void {
+  for (const namespacePath of [...pending.keys()]) {
+    flushNamespaceCommit(namespacePath);
+  }
+}
+
+/**
+ * Initialize git repo if missing, then stage and commit all changes.
+ * Uses a lightweight --allow-empty check to skip no-op commits.
+ * BATCHED: see module docstring — commits are debounced per namespace.
+ *
+ * @param namespacePath - Absolute path to namespace directory
+ * @param message - Commit message (default: auto-commit)
+ */
+export function commitNamespace(
+  namespacePath: string,
+  message: string = "chore: auto-commit namespace data",
+): void {
+  commitNamespaceWithParams(namespacePath, message, batchingParams());
 }
 
 /**
