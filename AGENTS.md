@@ -36,7 +36,9 @@ pnpm tsc --noEmit  # TypeScript check
 
 ## Foreman
 
-The `.coding-hermes/board/` DuckDB board (`board.db` with `tasks.parquet` and
-`events.parquet`) is the single source of truth for project state. The legacy
+The `.coding-hermes/board/` JSONL board (`tasks.jsonl` + `events.jsonl`,
+git-tracked, DuckDB-native via `read_json_auto`) is the single source of truth
+for project state. `board.db` and `*.parquet` are untracked rebuildable caches
+(JSONL canonical, Bane directive 08-07). The legacy
 `.coding-hermes/tasks.md` board was archived to `tasks.md.bak` during the
 DuckDB migration. See the coding-hermes-cron skill for the foreman workflow.

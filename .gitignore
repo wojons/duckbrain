@@ -50,3 +50,4 @@ packages/ui/src/**/*.js
 # coding-hermes board — rebuildable local cache
 .coding-hermes/board/board.db
 .coding-hermes/board/board.db.wal
+.coding-hermes/board/*.parquet
