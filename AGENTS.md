@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
 - **Language:** TypeScript 7.x (strict mode)
 - **Runtime:** Node.js 22+
 - **Database:** DuckDB (via node-duckdb)
-- **Test Framework:** Vitest (18 suites, 176 tests)
+- **Test Framework:** Vitest (32 suites, 254 tests)
 - **Build:** Vite (frontend), tsc (backend)
 - **Package Manager:** pnpm 11+
 
@@ -30,11 +30,13 @@ web access, and supports namespace management for memory isolation.
 ```bash
 pnpm install
 pnpm build
-pnpm test          # 176 tests, 18 suites
+pnpm test          # 254 tests, 32 suites
 pnpm tsc --noEmit  # TypeScript check
 ```
 
 ## Foreman
 
-The `.coding-hermes/tasks.md` board is the single source of truth for project
-state. See the coding-hermes-cron skill for the foreman workflow.
+The `.coding-hermes/board/` DuckDB board (`board.db` with `tasks.parquet` and
+`events.parquet`) is the single source of truth for project state. The legacy
+`.coding-hermes/tasks.md` board was archived to `tasks.md.bak` during the
+DuckDB migration. See the coding-hermes-cron skill for the foreman workflow.

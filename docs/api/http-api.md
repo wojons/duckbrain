@@ -241,20 +241,28 @@ curl "http://localhost:3000/api/memories?domain=architecture&limit=10"
 
 Get the latest memory by key path. Returns 404 if the key does not exist.
 
+| Query Param | Default | Description |
+|-------------|---------|-------------|
+| `namespace` | `default` | Namespace to query |
+
 **Example:**
 
 ```bash
-curl "http://localhost:3000/api/memories/key/projects/myapp/database"
+curl "http://localhost:3000/api/memories/key/projects/myapp/database?namespace=default"
 ```
 
 #### `GET /api/memories/:id`
 
 Get a memory by its unique ID. Returns 404 if the ID is not found.
 
+| Query Param | Default | Description |
+|-------------|---------|-------------|
+| `namespace` | `default` | Namespace to query |
+
 **Example:**
 
 ```bash
-curl "http://localhost:3000/api/memories/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+curl "http://localhost:3000/api/memories/a1b2c3d4-e5f6-7890-abcd-ef1234567890?namespace=default"
 ```
 
 #### `POST /api/memories`
