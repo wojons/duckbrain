@@ -1,0 +1,101 @@
+{
+  "task_id": "DOGFOOD-002",
+  "task_title": "DOGFOOD-002 \u2014 semantic recall provider fallback + MCP isError surfacing (embedding failure no longer silent)",
+  "task_criteria": [
+    "When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second provider is reachable, recall with query= falls back and returns semantic results instead of an error/empty list (unit test with mocked/forced-failing providers)",
+    "A 200-with-empty-vector embed response is treated as failure (falls through to the next provider / surfaces the error) \u2014 unit test",
+    "MCP recall with query= that fails on ALL providers returns isError:true (not isError:false with empty memories) \u2014 unit test",
+    "GET /api/memories?q= with total provider failure still returns HTTP 500 with the error body \u2014 existing dogfood001 regression tests stay green",
+    "Full suite green: npx vitest run (all tests) + npx tsc --noEmit clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 lint: \n  \u2713 secrets: \u001b[90m11:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9641360 bytes (9.64 MB) in 3.69s\u001b[0m\n\u001b[90m11:40AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9641360 bytes (9.64 MB) in 3.69s\u001b[0m\n\u001b[90m11:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 156\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 183\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/activity.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 143\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-dogfood002.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second provider is reachable, recall with query= falls back and returns semantic results instead of an error/empty list (unit test with mocked/forced-failing providers): src/mcp/tools/recall.ts:150-190 iterates createAutoProviders() providers, tries embed() and on throw tries next; recall-dogfood002.test.ts:115 'falls back to the next provider when the first embed() throws' mocks [failingProvider, workingProvider] and asserts result.error undefined, count 1, memories[0].id 'm1'\n  \u2713 A 200-with-empty-vector embed response is treated as failure (falls through to the next provider / surfaces the error) \u2014 unit test: src/embedding/providers.ts makeHttpEmbed throws 'no embedding vector in response' when vec is empty; src/embedding/search.ts cosineSimilarity throws on zero-length vectors; providers-dogfood002.test.ts rejects top-level embedding:[] and data[0].embedding:[]; recall-dogfood002.test.ts:131 'treats a 200-with-empty-vector embed as failure and falls through'\n  \u2713 MCP recall with query= that fails on ALL providers returns isError:true (not isError:false with empty memories) \u2014 unit test: src/mcp/server.ts wrapHandler sets isError:true when result has a truthy error field or handler throws; server-dogfood002.test.ts 'sets isError:true when the result object has a truthy error field' and 'sets isError:true when the handler throws'; recall-dogfood002.test.ts 'returns the error payload when ALL providers fail' produces the error field\n  \u2713 GET /api/memories?q= with total provider failure still returns HTTP 500 with the error body \u2014 existing dogfood001 regression tests stay green: src/http/routes/memories.ts: 'if (result.error) throw new ApiError(result.error, 500)'; memories-dogfood001.test.ts 'returns 500 with the recall error when q= is set and semantic search fails' asserts status 500 and body.error === recallError; test passes\n  \u2713 Full suite green: npx vitest run (all tests) + npx tsc --noEmit clean: npx vitest run -> 286 passed across 37 test files; npx tsc --noEmit -> exit 0 with no errors\nAll 5 DOGFOOD-002 criteria verified: provider fallback, empty-vector rejection, MCP isError surfacing, REST 500 error body, and full suite (286 tests + clean tsc) all green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second provider is reachable, recall with query= falls back and returns semantic results instead of an error/empty list (unit test with mocked/forced-failing providers): src/mcp/tools/recall.ts:150-190 iterates createAutoProviders() providers, tries embed() and on throw tries next; recall-dogfood002.test.ts:115 'falls back to the next provider when the first embed() throws' mocks [failingProvider, workingProv",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second provider is reachable, recall with query= falls back and returns semantic results instead of an error/empty list (unit test with mocked/forced-failing providers)",
+                "status": "PASS",
+                "detail": "src/mcp/tools/recall.ts:150-190 iterates createAutoProviders() providers, tries embed() and on throw tries next; recall-dogfood002.test.ts:115 'falls back to the next provider when the first embed() throws' mocks [failingProvider, workingProvider] and asserts result.error undefined, count 1, memories[0].id 'm1'"
+              },
+              {
+                "criterion": "A 200-with-empty-vector embed response is treated as failure (falls through to the next provider / surfaces the error) \u2014 unit test",
+                "status": "PASS",
+                "detail": "src/embedding/providers.ts makeHttpEmbed throws 'no embedding vector in response' when vec is empty; src/embedding/search.ts cosineSimilarity throws on zero-length vectors; providers-dogfood002.test.ts rejects top-level embedding:[] and data[0].embedding:[]; recall-dogfood002.test.ts:131 'treats a 200-with-empty-vector embed as failure and falls through'"
+              },
+              {
+                "criterion": "MCP recall with query= that fails on ALL providers returns isError:true (not isError:false with empty memories) \u2014 unit test",
+                "status": "PASS",
+                "detail": "src/mcp/server.ts wrapHandler sets isError:true when result has a truthy error field or handler throws; server-dogfood002.test.ts 'sets isError:true when the result object has a truthy error field' and 'sets isError:true when the handler throws'; recall-dogfood002.test.ts 'returns the error payload when ALL providers fail' produces the error field"
+              },
+              {
+                "criterion": "GET /api/memories?q= with total provider failure still returns HTTP 500 with the error body \u2014 existing dogfood001 regression tests stay green",
+                "status": "PASS",
+                "detail": "src/http/routes/memories.ts: 'if (result.error) throw new ApiError(result.error, 500)'; memories-dogfood001.test.ts 'returns 500 with the recall error when q= is set and semantic search fails' asserts status 500 and body.error === recallError; test passes"
+              },
+              {
+                "criterion": "Full suite green: npx vitest run (all tests) + npx tsc --noEmit clean",
+                "status": "PASS",
+                "detail": "npx vitest run -> 286 passed across 37 test files; npx tsc --noEmit -> exit 0 with no errors"
+              }
+            ],
+            "summary": "All 5 DOGFOOD-002 criteria verified: provider fallback, empty-vector rejection, MCP isError surfacing, REST 500 error body, and full suite (286 tests + clean tsc) all green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-002\n\nStage tier1: PASS\n    \u2713 lint: \n  \u2713 secrets: \u001b[90m11:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9641360 bytes (9.64 MB) in 3.69s\u001b[0m\n\u001b[90m11:40AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second provider is reachable, recall with query= falls back and returns semantic results instead of an error/empty list (unit test with mocked/forced-failing providers): src/mcp/tools/recall.ts:150-190 iterates createAutoProviders() providers, tries embed() and on throw tries next; recall-dogfood002.test.ts:115 'falls back to the next provider when the first embed() throws' mocks [failingProvider, workingProvider] and asserts result.error undefined, count 1, memories[0].id 'm1'\n  \u2713 A 200-with-empty-vector embed response is treated as failure (falls through to the next provider / surfaces the error) \u2014 unit test: src/embedding/providers.ts makeHttpEmbed throws 'no embedding vector in response' when vec is empty; src/embedding/search.ts cosineSimilarity throws on zero-length vectors; providers-dogfood002.test.ts rejects top-level embedding:[] and data[0].embedding:[]; recall-dogfood002.test.ts:131 'treats a 200-with-empty-vector embed as failure and falls through'\n  \u2713 MCP recall with query= that fails on ALL providers returns isError:true (not isError:false with empty memories) \u2014 unit test: src/mcp/server.ts wrapHandler sets isError:true when result has a truthy error field or handler throws; server-dogfood002.test.ts 'sets isError:true when the result object has a truthy error field' and 'sets isError:true when the handler throws'; recall-dogfood002.test.ts 'returns the error payload when ALL providers fail' produces the error field\n  \u2713 GET /api/memories?q= with total provider failure still returns HTTP 500 with the error body \u2014 existing dogfood001 regression tests stay green: src/http/routes/memories.ts: 'if (result.error) throw new ApiError(result.error, 500)'; memories-dogfood001.test.ts 'returns 500 with the recall error when q= is set and semantic search fails' asserts status 500 and body.error === recallError; test passes\n  \u2713 Full suite green: npx vitest run (all tests) + npx tsc --noEmit clean: npx vitest run -> 286 passed across 37 test files; npx tsc --noEmit -> exit 0 with no errors\nAll 5 DOGFOOD-002 criteria verified: provider fallback, empty-vector rejection, MCP isError surfacing, REST 500 error body, and full suite (286 tests + clean tsc) all green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-07T16:43:01.609492"
+}
