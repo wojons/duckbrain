@@ -5,7 +5,7 @@
  * These commands call the underlying MCP tools internally.
  *
  * Commands:
- * - remember <key> --domain=<domain> --attr=<json> [--namespace=<name>]
+ * - remember <key> --domain=<domain> [--content=<text>|--text=<text>|stdin] --attr=<json> [--namespace=<name>]
  * - recall [options]
  * - list-keys [options]
  * - forget <id> [--reason=<reason>]
@@ -99,14 +99,117 @@ function formatKeyTree(keys: string[], depth: number = 2): string {
 }
 
 /**
+ * Allowed flags for the `remember` command. Any flag outside this set is a
+ * typo (e.g. `--conent`) and must be rejected loudly rather than silently
+ * ignored — the old parseArgs dropped unknown flags, which let bad invocations
+ * store the key as the record body instead of the intended content.
+ */
+const REMEMBER_FLAGS = new Set([
+  "domain",
+  "attr",
+  "namespace",
+  "wait",
+  "embedding-text",
+  "content",
+  "text",
+]);
+
+/**
+ * Minimal reader surface readStdinBody needs from a Readable stream. Defined as
+ * a structural interface so tests can inject a fake reader without touching the
+ * real process.stdin fd (which hangs under vitest).
+ */
+interface StdinLike {
+  isTTY?: boolean;
+  once(
+    event: "data" | "end" | "close" | "error",
+    listener: (...a: any[]) => void,
+  ): unknown;
+}
+
+/**
+ * Read a body from stdin when content is piped (non-TTY). Returns the trimmed
+ * body, or empty string when stdin is a terminal or produces no data.
+ *
+ * DOGFOOD-003: the previous implementation stored the KEY as embedding_text by
+ * default; the CLI had no way to provide a real memory body. We now prefer an
+ * explicit --content/--text flag, and fall back to a piped stdin body when no
+ * flag is given. If stdin is a terminal (no pipe) we keep the legacy behaviour
+ * of defaulting the body to the key.
+ */
+async function readStdinBody(
+  reader: StdinLike,
+  timeoutMs: number = 1000,
+): Promise<string> {
+  // A real terminal has no piped body to read.
+  if (reader.isTTY) return "";
+  return new Promise<string>((resolve) => {
+    let data = "";
+    let settled = false;
+    const done = (value: string) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+    // Guard against a non-emitting stream (vitest stdin never fires 'end').
+    const timer = setTimeout(() => done(data), timeoutMs);
+    reader.once("end", () => {
+      clearTimeout(timer);
+      done(data);
+    });
+    reader.once("data", (chunk: any) => {
+      data += typeof chunk === "string" ? chunk : chunk.toString();
+    });
+    reader.once("error", () => {
+      clearTimeout(timer);
+      done("");
+    });
+    reader.once("close", () => {
+      clearTimeout(timer);
+      done(data);
+    });
+  });
+}
+
+/** Exported for testing: resolves the body text for a remember invocation. */
+export async function resolveRememberBody(
+  flags: Record<string, string>,
+  key: string,
+  reader?: StdinLike,
+): Promise<string> {
+  // Explicit content flag wins (--content, --text, legacy --embedding-text).
+  const explicit = flags.content || flags.text || flags["embedding-text"];
+  if (explicit) return explicit;
+  // Otherwise try a piped stdin body.
+  const body = await readStdinBody(reader ?? process.stdin);
+  return body.trim() || key;
+}
+
+/**
  * Remember command
  */
 async function rememberCommand(args: string[]): Promise<void> {
   const { positional, flags } = parseArgs(args);
 
+  // Reject unknown flags loudly (scoped to remember only — do NOT change
+  // parseArgs globally; other commands keep their loose flag handling).
+  for (const flag of Object.keys(flags)) {
+    if (!REMEMBER_FLAGS.has(flag)) {
+      console.error(`Error: unknown flag '--${flag}' for 'remember'.`);
+      console.error(
+        "Valid flags: --domain=<d> --attr=<json> --namespace=<name> --wait --content=<text> --text=<text> --embedding-text=<text>",
+      );
+      console.error(
+        "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--wait]",
+      );
+      process.exit(1);
+    }
+  }
+
   if (positional.length < 1) {
     console.error(
-      "Usage: duckbrain remember <key> --domain=<domain> [--attr=<json>] [--namespace=<name>] [--wait]",
+      "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--wait]",
     );
     process.exit(1);
   }
@@ -114,7 +217,8 @@ async function rememberCommand(args: string[]): Promise<void> {
   const key = positional[0];
   const domain = flags.domain || "general";
   const namespace = flags.namespace || getDefaultNamespace();
-  const embeddingText = flags["embedding-text"] || key;
+  // Content/body precedence: explicit flag > piped stdin body > key fallback.
+  const embeddingText = await resolveRememberBody(flags, key);
   let attributes = {};
 
   if (flags.attr) {
@@ -1258,7 +1362,7 @@ function showHelp(): void {
 
   Commands:
     stdio              Start MCP server for local Claude
-    remember <key>     Remember a memory
+    remember <key>     Remember a memory (body via --content=, --text=, or stdin)
     recall             Query memories
     list-keys          Browse memory structure
     forget <id>        Delete a memory
@@ -1294,8 +1398,8 @@ function showHelp(): void {
 
   Examples:
     duckbrain stdio
-    duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
-    duckbrain remember /notes/test --domain=raw_note --wait
+    duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
+    duckbrain echo "project notes body" | duckbrain remember /notes/test --domain=raw_note --wait
     duckbrain recall --prefix=/projects/
     duckbrain list-keys --depth=3 --limit=20
     duckbrain forget abc-123 --reason="obsolete"

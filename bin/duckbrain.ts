@@ -47,7 +47,7 @@ Commands:
   stdio              Start MCP server for local Claude
   http               Start MCP server with HTTP transport
   service            Manage systemd service
-  remember <key>     Remember a memory
+  remember <key>     Remember a memory (body via --content=, --text=, or stdin)
   recall             Query memories
   list-keys          Browse memory structure
   forget <id>        Delete a memory
@@ -94,7 +94,8 @@ Examples:
   duckbrain http --bind-all --port=8080
   duckbrain service install
   duckbrain service start
-  duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}'
+  duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
+  duckbrain echo "project notes body" | duckbrain remember /notes/alpha --domain=raw_note
   duckbrain recall --prefix=/projects/
   duckbrain list-keys --depth=3 --limit=20
   duckbrain forget abc-123 --reason="obsolete"
