@@ -178,3 +178,24 @@ tasks:
   status: complete
   created_at: '2026-08-07T21:40:52.746158+00:00'
   completed_at: '2026-08-07T21:40:56.394783+00:00'
+- id: DOGFOOD-005
+  title: Implicitly-created namespaces get git-init + initial commit on first write
+  criteria:
+  - 'src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo
+    synchronously on FIRST write to a namespace that lacks .git: git init + git user
+    identity are set before any debounce scheduling, and an initial commit is created
+    (git -C <nsPath> log returns at least one commit).'
+  - 'Subsequent writes to an already-initialized namespace keep the batched/debounced
+    commit behavior: commitNamespaceWithParams with gitBatching enabled (maxSeconds
+    30, maxLines 100) does not commit synchronously per write for a namespace whose
+    .git already exists.'
+  - 'Regression test coverage exists proving first-write git init: a test (e.g. in
+    src/git/autocommit.test.ts or a rememberTool test) writes to a fresh namespace
+    under DUCKBRAIN_NAMESPACES_PATH isolation and asserts .git exists and git log
+    shows an initial commit; the test does not leave stray temp dirs or mutate the
+    real config.'
+  - 'Full test suite passes: npx vitest run reports 0 failures; npx tsc --noEmit is
+    clean.'
+  status: complete
+  created_at: '2026-08-07T23:57:01.409138+00:00'
+  completed_at: '2026-08-07T23:57:04.827605+00:00'

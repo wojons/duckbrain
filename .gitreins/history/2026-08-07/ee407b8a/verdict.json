@@ -1,0 +1,95 @@
+{
+  "task_id": "DOGFOOD-005",
+  "task_title": "Implicitly-created namespaces get git-init + initial commit on first write",
+  "task_criteria": [
+    "src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo synchronously on FIRST write to a namespace that lacks .git: git init + git user identity are set before any debounce scheduling, and an initial commit is created (git -C <nsPath> log returns at least one commit).",
+    "Subsequent writes to an already-initialized namespace keep the batched/debounced commit behavior: commitNamespaceWithParams with gitBatching enabled (maxSeconds 30, maxLines 100) does not commit synchronously per write for a namespace whose .git already exists.",
+    "Regression test coverage exists proving first-write git init: a test (e.g. in src/git/autocommit.test.ts or a rememberTool test) writes to a fresh namespace under DUCKBRAIN_NAMESPACES_PATH isolation and asserts .git exists and git log shows an initial commit; the test does not leave stray temp dirs or mutate the real config.",
+    "Full test suite passes: npx vitest run reports 0 failures; npx tsc --noEmit is clean."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 154\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 146\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/namespace-delete-dogfood004.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 228\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo synchronously on FIRST write to a namespace that lacks .git: git init + git user identity are set before any debounce scheduling, and an initial commit is created (git -C <nsPath> log returns at least one commit).: src/git/autocommit.ts:143-149 checks fs.existsSync(gitDir); if .git missing calls immediateCommit(namespacePath, message) synchronously and returns before any debounce scheduling. immediateCommit (lines 68-113) runs git init, sets user.email/user.name identity, git add -A, git commit. Test asserts git rev-list --count HEAD >= 1.\n  \u2713 Subsequent writes to an already-initialized namespace keep the batched/debounced commit behavior: commitNamespaceWithParams with gitBatching enabled (maxSeconds 30, maxLines 100) does not commit synchronously per write for a namespace whose .git already exists.: When .git exists, code falls through to debounce logic (pending map, setTimeout maxSeconds*1000, maxLines check) at autocommit.ts:150-172. Test 'subsequent writes still debounce (batching preserved)' in autocommit-dogfood005.test.ts verifies gitLogCount stays unchanged across multiple writes.\n  \u2713 Regression test coverage exists proving first-write git init: a test (e.g. in src/git/autocommit.test.ts or a rememberTool test) writes to a fresh namespace under DUCKBRAIN_NAMESPACES_PATH isolation and asserts .git exists and git log shows an initial commit; the test does not leave stray temp dirs or mutate the real config.: src/git/autocommit-dogfood005.test.ts has 4 tests (first-write git init, batching preserved, rememberTool e2e, git identity). Uses DUCKBRAIN_NAMESPACES_PATH isolation (src/test-setup.ts), fs.rmSync cleanup in finally blocks, config snapshot/restore in beforeEach/afterEach. Real duckbrain.config.json not mutated (git status clean).\n  \u2713 Full test suite passes: npx vitest run reports 0 failures; npx tsc --noEmit is clean.: npx vitest run: 40 test files, 308 tests passed, 0 failures. npx tsc --noEmit: exit 0, clean. LSP diagnostics empty.\nAll 4 DOGFOOD-005 criteria verified: first-write git init is synchronous before debounce, batching preserved for existing repos, regression tests under DUCKBRAIN_NAMESPACES_PATH isolation pass, and full suite (308 tests) + tsc are clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo synchronously on FIRST write to a namespace that lacks .git: git init + git user identity are set before any debounce scheduling, and an initial commit is created (git -C <nsPath> log returns at least one commit).: src/git/autocommit.ts:143-149 checks fs.existsSync(gitDir); if .git missing calls immediateCommit(namespacePath, message) synchronously and returns before any debounce scheduling. immediateCom",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo synchronously on FIRST write to a namespace that lacks .git: git init + git user identity are set before any debounce scheduling, and an initial commit is created (git -C <nsPath> log returns at least one commit).",
+                "status": "PASS",
+                "detail": "src/git/autocommit.ts:143-149 checks fs.existsSync(gitDir); if .git missing calls immediateCommit(namespacePath, message) synchronously and returns before any debounce scheduling. immediateCommit (lines 68-113) runs git init, sets user.email/user.name identity, git add -A, git commit. Test asserts git rev-list --count HEAD >= 1."
+              },
+              {
+                "criterion": "Subsequent writes to an already-initialized namespace keep the batched/debounced commit behavior: commitNamespaceWithParams with gitBatching enabled (maxSeconds 30, maxLines 100) does not commit synchronously per write for a namespace whose .git already exists.",
+                "status": "PASS",
+                "detail": "When .git exists, code falls through to debounce logic (pending map, setTimeout maxSeconds*1000, maxLines check) at autocommit.ts:150-172. Test 'subsequent writes still debounce (batching preserved)' in autocommit-dogfood005.test.ts verifies gitLogCount stays unchanged across multiple writes."
+              },
+              {
+                "criterion": "Regression test coverage exists proving first-write git init: a test (e.g. in src/git/autocommit.test.ts or a rememberTool test) writes to a fresh namespace under DUCKBRAIN_NAMESPACES_PATH isolation and asserts .git exists and git log shows an initial commit; the test does not leave stray temp dirs or mutate the real config.",
+                "status": "PASS",
+                "detail": "src/git/autocommit-dogfood005.test.ts has 4 tests (first-write git init, batching preserved, rememberTool e2e, git identity). Uses DUCKBRAIN_NAMESPACES_PATH isolation (src/test-setup.ts), fs.rmSync cleanup in finally blocks, config snapshot/restore in beforeEach/afterEach. Real duckbrain.config.json not mutated (git status clean)."
+              },
+              {
+                "criterion": "Full test suite passes: npx vitest run reports 0 failures; npx tsc --noEmit is clean.",
+                "status": "PASS",
+                "detail": "npx vitest run: 40 test files, 308 tests passed, 0 failures. npx tsc --noEmit: exit 0, clean. LSP diagnostics empty."
+              }
+            ],
+            "summary": "All 4 DOGFOOD-005 criteria verified: first-write git init is synchronous before debounce, batching preserved for existing repos, regression tests under DUCKBRAIN_NAMESPACES_PATH isolation pass, and full suite (308 tests) + tsc are clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-005\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/git/autocommit.ts (or a helper it calls) initializes the namespace git repo synchronously on FIRST write to a namespace that lacks .git: git init + git user identity are set before any debounce scheduling, and an initial commit is created (git -C <nsPath> log returns at least one commit).: src/git/autocommit.ts:143-149 checks fs.existsSync(gitDir); if .git missing calls immediateCommit(namespacePath, message) synchronously and returns before any debounce scheduling. immediateCommit (lines 68-113) runs git init, sets user.email/user.name identity, git add -A, git commit. Test asserts git rev-list --count HEAD >= 1.\n  \u2713 Subsequent writes to an already-initialized namespace keep the batched/debounced commit behavior: commitNamespaceWithParams with gitBatching enabled (maxSeconds 30, maxLines 100) does not commit synchronously per write for a namespace whose .git already exists.: When .git exists, code falls through to debounce logic (pending map, setTimeout maxSeconds*1000, maxLines check) at autocommit.ts:150-172. Test 'subsequent writes still debounce (batching preserved)' in autocommit-dogfood005.test.ts verifies gitLogCount stays unchanged across multiple writes.\n  \u2713 Regression test coverage exists proving first-write git init: a test (e.g. in src/git/autocommit.test.ts or a rememberTool test) writes to a fresh namespace under DUCKBRAIN_NAMESPACES_PATH isolation and asserts .git exists and git log shows an initial commit; the test does not leave stray temp dirs or mutate the real config.: src/git/autocommit-dogfood005.test.ts has 4 tests (first-write git init, batching preserved, rememberTool e2e, git identity). Uses DUCKBRAIN_NAMESPACES_PATH isolation (src/test-setup.ts), fs.rmSync cleanup in finally blocks, config snapshot/restore in beforeEach/afterEach. Real duckbrain.config.json not mutated (git status clean).\n  \u2713 Full test suite passes: npx vitest run reports 0 failures; npx tsc --noEmit is clean.: npx vitest run: 40 test files, 308 tests passed, 0 failures. npx tsc --noEmit: exit 0, clean. LSP diagnostics empty.\nAll 4 DOGFOOD-005 criteria verified: first-write git init is synchronous before debounce, batching preserved for existing repos, regression tests under DUCKBRAIN_NAMESPACES_PATH isolation pass, and full suite (308 tests) + tsc are clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-07T23:58:20.730455"
+}
