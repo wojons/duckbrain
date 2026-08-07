@@ -14,6 +14,20 @@ function makeTempNamespace(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-autocommit-test-"));
 }
 
+/**
+ * Pre-initialize a git repo in a temp namespace so the batching code path
+ * (second-and-later writes) is exercised, rather than the DOGFOOD-005
+ * first-write path that always commits immediately when .git is missing.
+ */
+function initGitRepo(dir: string): void {
+  execSync("git init", { cwd: dir, stdio: "pipe" });
+  execSync('git config user.email "test@test.local"', {
+    cwd: dir,
+    stdio: "pipe",
+  });
+  execSync('git config user.name "Test"', { cwd: dir, stdio: "pipe" });
+}
+
 function commitCount(dir: string): number {
   try {
     return parseInt(
@@ -31,7 +45,11 @@ function writeRecord(dir: string, name: string, content: string): void {
   fs.writeFileSync(path.join(dir, name), content, "utf8");
 }
 
-const params30: BatchingParams = { maxLines: 100, maxSeconds: 30, enabled: true };
+const params30: BatchingParams = {
+  maxLines: 100,
+  maxSeconds: 30,
+  enabled: true,
+};
 
 describe("autocommit batching", () => {
   beforeEach(() => {
@@ -43,6 +61,7 @@ describe("autocommit batching", () => {
 
   it("debounces a burst of writes into one commit", () => {
     const ns = makeTempNamespace();
+    initGitRepo(ns);
     try {
       writeRecord(ns, "a.txt", "one");
       commitNamespaceWithParams(ns, "chore: test", params30);
@@ -74,8 +93,13 @@ describe("autocommit batching", () => {
 
   it("commits immediately when the line threshold is hit", () => {
     const ns = makeTempNamespace();
+    initGitRepo(ns);
     try {
-      const tight: BatchingParams = { maxLines: 2, maxSeconds: 30, enabled: true };
+      const tight: BatchingParams = {
+        maxLines: 2,
+        maxSeconds: 30,
+        enabled: true,
+      };
       writeRecord(ns, "a.txt", "one");
       commitNamespaceWithParams(ns, "chore: test", tight);
       expect(commitCount(ns)).toBe(0);
@@ -92,7 +116,11 @@ describe("autocommit batching", () => {
   it("commits per write when batching is disabled", () => {
     const ns = makeTempNamespace();
     try {
-      const immediate: BatchingParams = { maxLines: 100, maxSeconds: 30, enabled: false };
+      const immediate: BatchingParams = {
+        maxLines: 100,
+        maxSeconds: 30,
+        enabled: false,
+      };
       writeRecord(ns, "a.txt", "one");
       commitNamespaceWithParams(ns, "chore: test", immediate);
       writeRecord(ns, "b.txt", "two");
@@ -105,6 +133,7 @@ describe("autocommit batching", () => {
 
   it("flushNamespaceCommit commits pending changes immediately", () => {
     const ns = makeTempNamespace();
+    initGitRepo(ns);
     try {
       writeRecord(ns, "a.txt", "one");
       commitNamespaceWithParams(ns, "chore: test", params30);

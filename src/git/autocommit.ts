@@ -27,7 +27,11 @@ export interface BatchingParams {
   enabled: boolean;
 }
 
-const DEFAULT_PARAMS: BatchingParams = { maxLines: 100, maxSeconds: 30, enabled: true };
+const DEFAULT_PARAMS: BatchingParams = {
+  maxLines: 100,
+  maxSeconds: 30,
+  enabled: true,
+};
 
 interface PendingCommit {
   timer: NodeJS.Timeout;
@@ -37,12 +41,14 @@ interface PendingCommit {
 
 const pending = new Map<string, PendingCommit>();
 
+/** Tracks whether the process 'exit' flush hook has been registered. */
+let exitFlushRegistered = false;
+
 function batchingParams(): BatchingParams {
   try {
     const cfg = getConfig();
     const gb = cfg.gitBatching as
-      | { maxLines?: number; maxSeconds?: number; enabled?: boolean }
-      | undefined;
+      { maxLines?: number; maxSeconds?: number; enabled?: boolean } | undefined;
     if (!gb) return DEFAULT_PARAMS;
     return {
       maxLines: gb.maxLines ?? DEFAULT_PARAMS.maxLines,
@@ -130,6 +136,19 @@ export function commitNamespaceWithParams(
       return;
     }
 
+    // DOGFOOD-005: Implicitly-created namespaces (CLI remember / REST POST
+    // with no prior create_namespace) have a working dir + files but NO .git.
+    // The debounced timer below is timer.unref()'d, so a short-lived CLI
+    // process exits before it fires — leaving the namespace without git
+    // version control. Force the FIRST write to a namespace to init + commit
+    // synchronously (immediateCommit does git init + identity + add + commit).
+    // After the repo exists, subsequent writes keep the batching window.
+    const gitDir = path.join(namespacePath, ".git");
+    if (!fs.existsSync(gitDir)) {
+      immediateCommit(namespacePath, message);
+      return;
+    }
+
     const existing = pending.get(namespacePath);
     if (existing) {
       existing.lines += 1;
@@ -172,6 +191,25 @@ export function flushAllCommits(): void {
   for (const namespacePath of [...pending.keys()]) {
     flushNamespaceCommit(namespacePath);
   }
+}
+
+/**
+ * DOGFOOD-005: Register an exit-time flush so short-lived CLI processes
+ * (e.g. `duckbrain remember` which resolves, writes, and exits in <1s) don't
+ * lose their data to the 30s unref'd debounce timer. immediateCommit is fully
+ * synchronous (execSync), so it is safe inside a process 'exit' handler.
+ *
+ * Registered exactly once per process and guarded for test environments where
+ * this module may be re-imported. The handler itself is a no-op when nothing
+ * is pending, so it is cheap to leave wired.
+ */
+if (
+  typeof process !== "undefined" &&
+  typeof process.on === "function" &&
+  !exitFlushRegistered
+) {
+  process.on("exit", flushAllCommits);
+  exitFlushRegistered = true;
 }
 
 /**
