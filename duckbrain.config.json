@@ -95,7 +95,9 @@
     "colombia-election-2026": "namespaces/colombia-election-2026",
     "europe-welfare-analysis": "namespaces/europe-welfare-analysis",
     "reports": "namespaces/reports",
-    "dexdat-specs": "namespaces/dexdat-specs"
+    "dexdat-specs": "namespaces/dexdat-specs",
+    "chat-summaries": "namespaces/chat-summaries",
+    "chat-archive": "namespaces/chat-archive"
   },
   "embedding": {
     "provider": "auto",
