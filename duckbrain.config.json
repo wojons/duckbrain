@@ -97,7 +97,8 @@
     "reports": "namespaces/reports",
     "dexdat-specs": "namespaces/dexdat-specs",
     "chat-summaries": "namespaces/chat-summaries",
-    "chat-archive": "namespaces/chat-archive"
+    "chat-archive": "namespaces/chat-archive",
+    "s3-native": "namespaces/s3-native"
   },
   "embedding": {
     "provider": "auto",
@@ -105,5 +106,14 @@
     "dimensions": 384,
     "cacheDir": ".embeddings",
     "concurrency": 4
+  },
+  "s3": {
+    "enabled": false,
+    "region": "us-east-1",
+    "bucket": "duckbrain",
+    "prefix": "duckbrain",
+    "forcePathStyle": true,
+    "pushOnCommit": false,
+    "intervalSec": 300
   }
 }

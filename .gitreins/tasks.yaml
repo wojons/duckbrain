@@ -136,3 +136,25 @@ tasks:
   status: complete
   created_at: '2026-08-07T16:40:50.011598+00:00'
   completed_at: '2026-08-07T16:40:54.511908+00:00'
+- id: DOGFOOD-003
+  title: "DOGFOOD-003 \u2014 CLI remember stores real content (--content/--text/stdin),\
+    \ rejects unknown flags loudly"
+  criteria:
+  - src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags;
+    the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody
+    in src/cli/human.ts and verify precedence explicit > stdin > key)
+  - A piped stdin body (non-TTY) is used as content when no flag is given (grep readStdinBody
+    in src/cli/human.ts; empty pipe falls back to key)
+  - Unknown flags to remember are rejected loudly with stderr error + usage hint +
+    non-zero exit, scoped to remember only (grep REMEMBER_FLAGS in src/cli/human.ts;
+    parseArgs unchanged for other commands)
+  - --help and top-level help document --content=, --text=, and stdin body (grep 'remember
+    <key>' in bin/duckbrain.ts and src/cli/human.ts showHelp)
+  - 'Regression tests exist and pass: src/cli/remember-dogfood003.test.ts covers content
+    flag, text alias, stdin body, unknown-flag rejection, and key fallback (run: pnpm
+    vitest run src/cli/remember-dogfood003.test.ts)'
+  - 'Full suite passes: pnpm test:run reports 294/294 (38 files) and tsc --noEmit
+    is clean'
+  status: complete
+  created_at: '2026-08-07T19:22:38.452863+00:00'
+  completed_at: '2026-08-07T19:22:45.893177+00:00'
