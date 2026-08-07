@@ -65,6 +65,11 @@ router.get(
       limit: params.limit! + 1, // Fetch one extra to detect hasMore
       domain: params.domain,
       namespace: params.namespace,
+      // DOGFOOD-001: forward ?q= to semantic search (was silently dropped).
+      // When q= is set but no embedding provider is configured, recallTool
+      // returns an error string which the result.error → ApiError(500) path
+      // below surfaces instead of silently returning the unfiltered list.
+      ...(params.query ? { query: params.query } : {}),
     });
 
     if (result.error) {
