@@ -12,7 +12,8 @@ import { queryMemories } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
 import { resolveNamespacePath } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
-import { createAutoProvider } from "../../embedding/providers";
+import { createAutoProviders } from "../../embedding/providers";
+import type { EmbeddingProvider } from "../../embedding/providers";
 import { semanticSearch } from "../../embedding/search";
 import path from "path";
 import fs from "fs";
@@ -141,8 +142,14 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
 
     // Handle semantic search (cache-assisted, no vectors in git)
     if (validated.query) {
-      const provider = await createAutoProvider();
-      if (!provider) {
+      // DOGFOOD-002 (a): resolve ALL healthy providers in priority order and
+      // fall back on embed failure. Reachability is not usability — LM
+      // Studio's /v1/models answers even when the embedding model is unloaded
+      // (every embed then 400s), while Ollama on the same host may serve the
+      // query fine. Explicit provider config stays a hard requirement (the
+      // list has exactly one entry then — no fallback).
+      const providers = await createAutoProviders();
+      if (providers.length === 0) {
         return {
           memories: [],
           count: 0,
@@ -151,14 +158,35 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         };
       }
 
-      let queryVector: number[];
-      try {
-        queryVector = await provider.embed(validated.query);
-      } catch (e) {
+      let queryVector: number[] | null = null;
+      const embedErrors: string[] = [];
+      // The provider that actually produced the query vector — used for
+      // on-the-fly candidate embeds in semanticSearch so a broken first
+      // provider (the reason we fell back) is never used for those either.
+      let provider: EmbeddingProvider | null = null;
+      for (const candidate of providers) {
+        try {
+          queryVector = await candidate.embed(validated.query);
+          if (queryVector.length === 0) {
+            // Defensive: providers must reject empty vectors themselves, but
+            // never let one through to cosineSimilarity (silent score-0).
+            throw new Error(`[${candidate.id}] empty embedding vector`);
+          }
+          provider = candidate;
+          break;
+        } catch (e) {
+          const msg = `${candidate.id}: ${e instanceof Error ? e.message : String(e)}`;
+          embedErrors.push(msg);
+          console.error(
+            `[recall] Embedding failed on ${candidate.id}, trying next provider: ${msg}`,
+          );
+        }
+      }
+      if (!queryVector || !provider) {
         return {
           memories: [],
           count: 0,
-          error: `Embedding generation failed: ${e instanceof Error ? e.message : String(e)}`,
+          error: `Embedding generation failed: ${embedErrors.join("; ") || "no provider available"}`,
         };
       }
 

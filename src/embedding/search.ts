@@ -37,6 +37,14 @@ export interface RankedMemory extends SearchCandidate {
 
 /** Cosine similarity of two equal-length vectors (1.0 = identical direction) */
 export function cosineSimilarity(a: number[], b: number[]): number {
+  // DOGFOOD-002: a zero-length vector (e.g. a provider that returned a 200
+  // with {"embedding":[]}) must never produce silent score-0 "results" — it
+  // is a failed embed, not a valid query. Callers are expected to reject
+  // empty vectors earlier; this guard makes the failure loud instead of
+  // silently ranking everything at 0.
+  if (a.length === 0 || b.length === 0) {
+    throw new Error("cosineSimilarity: empty vector (embedding failed?)");
+  }
   const len = Math.min(a.length, b.length);
   let dot = 0;
   let na = 0;

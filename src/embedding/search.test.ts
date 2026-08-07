@@ -64,6 +64,10 @@ describe("cosineSimilarity", () => {
   it("zero vector → 0 (no NaN)", () => {
     expect(cosineSimilarity([0, 0], [1, 1])).toBe(0);
   });
+  it("empty vector → throws (DOGFOOD-002: no silent score-0 results)", () => {
+    expect(() => cosineSimilarity([], [1, 1])).toThrow(/empty vector/);
+    expect(() => cosineSimilarity([1, 1], [])).toThrow(/empty vector/);
+  });
 });
 
 describe("semanticSearch", () => {
@@ -165,7 +169,10 @@ describe("resolveEmbeddingConfig", () => {
     delete process.env.DUCKBRAIN_EMBEDDING_PROVIDER;
     delete process.env.DUCKBRAIN_EMBEDDING_MODEL;
     const cfg = resolveEmbeddingConfig();
-    expect(cfg.provider).toBe("lmstudio");
+    // DOGFOOD-002: the default is "auto" (probe + fallback) — matching the
+    // config schema default and the test's own name. The old "lmstudio"
+    // assertion locked in drifted behavior that disabled the auto path.
+    expect(cfg.provider).toBe("auto");
     expect(cfg.model).toBe("text-embedding-qwen3-embedding-0.6b");
     expect(cfg.dimensions).toBe(384);
   });

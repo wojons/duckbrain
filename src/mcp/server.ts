@@ -42,12 +42,23 @@ export const server = new McpServer({
 
 /**
  * Wrap a tool handler to convert output to MCP format
+ *
+ * DOGFOOD-002 (b): tool handlers return error payloads as ordinary objects
+ * ({error: "..."}) — without isError, MCP clients cannot distinguish "no
+ * results" from "failed". Any result object with a truthy `error` field (or
+ * a thrown exception) is surfaced as isError:true while keeping the text
+ * payload so the error message stays visible to the agent.
  */
-function wrapHandler<T>(handler: (input: any) => Promise<T>) {
+export function wrapHandler<T>(handler: (input: any) => Promise<T>) {
   return async (args: any) => {
     try {
       const result = await handler(args);
       // Convert result to MCP format
+      const isError =
+        typeof result === "object" &&
+        result !== null &&
+        "error" in result &&
+        Boolean((result as { error?: unknown }).error);
       return {
         content: [
           {
@@ -55,6 +66,7 @@ function wrapHandler<T>(handler: (input: any) => Promise<T>) {
             text: safeJsonStringify(result, 2),
           },
         ],
+        ...(isError ? { isError: true as const } : {}),
       };
     } catch (error) {
       console.error("[MCP Handler Error]", error);
@@ -65,6 +77,7 @@ function wrapHandler<T>(handler: (input: any) => Promise<T>) {
             text: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
           },
         ],
+        isError: true as const,
       };
     }
   };

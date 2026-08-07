@@ -13,7 +13,8 @@
  *
  * Selection (highest priority first):
  *   1. Config `embedding.provider` / env `DUCKBRAIN_EMBEDDING_PROVIDER`
- *   2. First provider whose health check succeeds
+ *   2. auto (default): probe providers in priority order, use ALL healthy ones
+ *      so callers can fall back at embed time (DOGFOOD-002)
  *   3. lmstudio fallback (matches historical behavior)
  */
 
@@ -81,7 +82,11 @@ function makeHttpEmbed(
         embedding?: number[];
       };
       const vec = data?.data?.[0]?.embedding ?? data?.embedding;
-      if (!vec || !Array.isArray(vec)) {
+      // DOGFOOD-002: `[]` is truthy in JS — a 200 with an EMPTY vector is a
+      // failed embed (e.g. Ollama returns {"embedding":[]} for a model that
+      // cannot serve embeddings), not a usable query vector. Throw so the
+      // caller's provider-fallback loop moves on to the next provider.
+      if (!Array.isArray(vec) || vec.length === 0) {
         throw new Error(`[${id}] no embedding vector in response`);
       }
       return vec;
@@ -111,7 +116,18 @@ const PROVIDERS: ProviderCtor[] = [
         const res = await fetch(`${base}/models`, {
           signal: AbortSignal.timeout(1500),
         });
-        return res.ok;
+        if (!res.ok) return false;
+        // DOGFOOD-002 (c): reachability is NOT usability — /v1/models answers
+        // even when the embedding model is unloaded. We deliberately do NOT
+        // require the configured model id to be listed here: LM Studio is
+        // lenient about model ids (it serves any requested id once a model is
+        // loaded, and the configured default text-embedding-qwen3-embedding-0.6b
+        // is NOT in the live /v1/models list while embeds still work), so a
+        // strict listing check would reject the working path. A tiny embed
+        // usability probe is also rejected: it would force a model load
+        // (seconds to minutes) on EVERY recall. Embed-time fallback (a) is the
+        // primary defense; this probe stays reachability-only.
+        return true;
       } catch {
         return false;
       }
@@ -138,7 +154,24 @@ const PROVIDERS: ProviderCtor[] = [
         const res = await fetch(`${base}/api/tags`, {
           signal: AbortSignal.timeout(1500),
         });
-        return res.ok;
+        if (!res.ok) return false;
+        // DOGFOOD-002 (c): cheap usability signal — /api/tags reports each
+        // model's capabilities. If the configured model is listed WITHOUT the
+        // "embedding" capability (e.g. a chat-only model), the embed call is
+        // guaranteed to fail (Ollama returns 200 with {"embedding":[]}), so
+        // skip this provider at probe time instead of at embed time. No embed
+        // probe is performed — that would load the model on every recall.
+        const data = (await res.json()) as {
+          models?: Array<{ name?: string; capabilities?: string[] }>;
+        };
+        const models = data?.models ?? [];
+        if (models.length === 0) return true; // no model list — reachability only
+        const target = cfg.model;
+        const listed = models.find(
+          (m) => m.name === target || m.name?.startsWith(`${target}:`),
+        );
+        if (!listed) return true; // model not listed — let embed-time fallback decide
+        return (listed.capabilities ?? []).includes("embedding");
       } catch {
         return false;
       }
@@ -174,7 +207,12 @@ export function resolveEmbeddingConfig(
   const env = process.env;
   return {
     provider:
-      partial.provider ?? env.DUCKBRAIN_EMBEDDING_PROVIDER ?? "lmstudio",
+      // DOGFOOD-002: default is "auto" (probe + fallback), matching the config
+      // schema default (src/config/index.ts) and the documented behavior. The
+      // previous "lmstudio" default made the daemon treat lmstudio as an
+      // EXPLICIT provider — no probing, no fallback — so a reachable-but-broken
+      // LM Studio silently killed semantic recall even when Ollama was healthy.
+      partial.provider ?? env.DUCKBRAIN_EMBEDDING_PROVIDER ?? "auto",
     model:
       partial.model ??
       env.DUCKBRAIN_EMBEDDING_MODEL ??
@@ -219,11 +257,35 @@ export function createProvider(cfg: EmbeddingConfig = {}): EmbeddingProvider {
 export async function createAutoProvider(
   cfg: EmbeddingConfig = {},
 ): Promise<EmbeddingProvider | null> {
+  const providers = await createAutoProviders(cfg);
+  return providers[0] ?? null;
+}
+
+/**
+ * Resolve ALL healthy auto providers in priority order (DOGFOOD-002).
+ *
+ * Reachability is not usability: LM Studio's /v1/models answers even when the
+ * embedding model is unloaded, so the first healthy provider may still fail at
+ * embed time. Callers that can fall back (semantic recall) should iterate this
+ * list — try provider.embed(); on failure try the next; only when ALL fail
+ * surface the error. Explicit provider config (DUCKBRAIN_EMBEDDING_PROVIDER
+ * or config embedding.provider != "auto") is a HARD requirement: a single
+ * provider, no fallback.
+ *
+ * @returns healthy providers in priority order (lmstudio → ollama → openai),
+ *          or a single-element list for an explicit provider, or [] if none
+ *          are reachable
+ */
+export async function createAutoProviders(
+  cfg: EmbeddingConfig = {},
+): Promise<EmbeddingProvider[]> {
   const resolved = resolveEmbeddingConfig(cfg);
 
   // Explicit provider → hard requirement
   if (resolved.provider && resolved.provider !== "auto") {
-    return createProvider({ ...resolved, provider: resolved.provider });
+    return [
+      createProvider({ ...resolved, provider: resolved.provider }),
+    ];
   }
 
   // Auto: probe providers in priority order
@@ -232,22 +294,25 @@ export async function createAutoProvider(
     const pb = b.id === "lmstudio" ? 0 : b.id === "ollama" ? 1 : 2;
     return pa - pb;
   });
+  const healthy: EmbeddingProvider[] = [];
   for (const ctor of ordered) {
     try {
       if (await ctor.isHealthy({ ...resolved, provider: ctor.id })) {
-        return ctor.build({
-          baseUrl: resolved.baseUrl ?? "",
-          model: resolved.model,
-          dimensions: resolved.dimensions,
-          timeoutMs: resolved.timeoutMs,
-          apiKey: resolved.apiKey,
-        });
+        healthy.push(
+          ctor.build({
+            baseUrl: resolved.baseUrl ?? "",
+            model: resolved.model,
+            dimensions: resolved.dimensions,
+            timeoutMs: resolved.timeoutMs,
+            apiKey: resolved.apiKey,
+          }),
+        );
       }
     } catch {
       // probe failed — try next
     }
   }
-  return null;
+  return healthy;
 }
 
 export function listProviders(): Array<{ id: string; label: string }> {
