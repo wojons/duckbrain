@@ -119,3 +119,20 @@ tasks:
   status: complete
   created_at: '2026-08-07T13:55:54.690789+00:00'
   completed_at: '2026-08-07T13:57:42.729640+00:00'
+- id: DOGFOOD-002
+  title: "DOGFOOD-002 \u2014 semantic recall provider fallback + MCP isError surfacing\
+    \ (embedding failure no longer silent)"
+  criteria:
+  - When the first healthy provider's embed() throws (e.g. lmstudio 400) and a second
+    provider is reachable, recall with query= falls back and returns semantic results
+    instead of an error/empty list (unit test with mocked/forced-failing providers)
+  - "A 200-with-empty-vector embed response is treated as failure (falls through to\
+    \ the next provider / surfaces the error) \u2014 unit test"
+  - "MCP recall with query= that fails on ALL providers returns isError:true (not\
+    \ isError:false with empty memories) \u2014 unit test"
+  - "GET /api/memories?q= with total provider failure still returns HTTP 500 with\
+    \ the error body \u2014 existing dogfood001 regression tests stay green"
+  - 'Full suite green: npx vitest run (all tests) + npx tsc --noEmit clean'
+  status: complete
+  created_at: '2026-08-07T16:40:50.011598+00:00'
+  completed_at: '2026-08-07T16:40:54.511908+00:00'
