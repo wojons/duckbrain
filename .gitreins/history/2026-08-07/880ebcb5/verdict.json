@@ -1,0 +1,101 @@
+{
+  "task_id": "DOGFOOD-004",
+  "task_title": "DOGFOOD-004 \u2014 delete_namespace actually removes the namespace directory recursively (data-retention fix)",
+  "task_criteria": [
+    "deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014 not just the config mapping",
+    "The resolved path is validated to stay inside the namespaces root before any removal (grep path.resolve and path.relative guard; a traversal name like ../ returns success:false with a refusal message)",
+    "Existing guards preserved: confirm required, default blocked, active namespace blocked, missing namespace returns not found (messages unchanged in src/mcp/tools/namespace.ts)",
+    "Regression tests exist and pass: npx vitest run src/mcp/tools/namespace-delete-dogfood004.test.ts covers recursive removal + path-safety + all guard branches, running under DUCKBRAIN_NAMESPACES_PATH isolation",
+    "Full suite passes: npx vitest run reports 304/304 (39 files) with 0 failures, and npx tsc --noEmit is clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 147\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 131\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/events.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 166\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/namespaces.test.ts \u001b[2m(\u001b[22m\u001b[2m15 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 2",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014 not just the config mapping: src/mcp/tools/namespace.ts:342 uses fs.rmSync(dirPath, { recursive: true, force: true }) to remove the directory recursively before unregistering the config mapping (mapping removed at line 356-358 only after dir is gone).\n  \u2713 The resolved path is validated to stay inside the namespaces root before any removal (grep path.resolve and path.relative guard; a traversal name like ../ returns success:false with a refusal message): namespace.ts:322-331 resolves namespacesRoot and dirPath, computes path.relative, checks rel==='' || (!rel.startsWith('..') && !path.isAbsolute(rel)); if outside returns success:false with 'Refusing to delete path outside namespaces root'. Test 'refuses a mapping with a ../ traversal value' confirms.\n  \u2713 Existing guards preserved: confirm required, default blocked, active namespace blocked, missing namespace returns not found (messages unchanged in src/mcp/tools/namespace.ts): namespace.ts:277-281 'Confirmation required. Set confirm=true to delete namespace.'; 295-299 'Cannot delete default namespace'; 303-308 'Cannot delete currently active namespace. Switch to a different namespace first.'; 290 'Namespace ... not found'. All messages unchanged.\n  \u2713 Regression tests exist and pass: npx vitest run src/mcp/tools/namespace-delete-dogfood004.test.ts covers recursive removal + path-safety + all guard branches, running under DUCKBRAIN_NAMESPACES_PATH isolation: namespace-delete-dogfood004.test.ts (217 lines, 10 tests) covers recursive removal, nested files, path-safety (outside root + ../ traversal), all guard branches, idempotency. Runs under DUCKBRAIN_NAMESPACES_PATH (src/test-setup.ts:22). npx vitest run on it: 10/10 passed.\n  \u2713 Full suite passes: npx vitest run reports 304/304 (39 files) with 0 failures, and npx tsc --noEmit is clean: npx vitest run \u2192 304 passed (304) across 39 files, 0 failures. npx tsc --noEmit exit code 0 (clean). LSP diagnostics empty.\nAll 5 criteria verified: delete_namespace now recursively removes the namespace directory with a path-safety guard, all existing guards preserved, 10 regression tests pass under DUCKBRAIN_NAMESPACES_PATH isolation, and the full suite (304/304, 39 files) plus tsc --noEmit are clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014 not just the config mapping: src/mcp/tools/namespace.ts:342 uses fs.rmSync(dirPath, { recursive: true, force: true }) to remove the directory recursively before unregistering the config mapping (mapping removed at line 356-358 only after dir is gone).\n  \u2713 The resolved path is validated to stay inside the namespaces root before any ",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014 not just the config mapping",
+                "status": "PASS",
+                "detail": "src/mcp/tools/namespace.ts:342 uses fs.rmSync(dirPath, { recursive: true, force: true }) to remove the directory recursively before unregistering the config mapping (mapping removed at line 356-358 only after dir is gone)."
+              },
+              {
+                "criterion": "The resolved path is validated to stay inside the namespaces root before any removal (grep path.resolve and path.relative guard; a traversal name like ../ returns success:false with a refusal message)",
+                "status": "PASS",
+                "detail": "namespace.ts:322-331 resolves namespacesRoot and dirPath, computes path.relative, checks rel==='' || (!rel.startsWith('..') && !path.isAbsolute(rel)); if outside returns success:false with 'Refusing to delete path outside namespaces root'. Test 'refuses a mapping with a ../ traversal value' confirms."
+              },
+              {
+                "criterion": "Existing guards preserved: confirm required, default blocked, active namespace blocked, missing namespace returns not found (messages unchanged in src/mcp/tools/namespace.ts)",
+                "status": "PASS",
+                "detail": "namespace.ts:277-281 'Confirmation required. Set confirm=true to delete namespace.'; 295-299 'Cannot delete default namespace'; 303-308 'Cannot delete currently active namespace. Switch to a different namespace first.'; 290 'Namespace ... not found'. All messages unchanged."
+              },
+              {
+                "criterion": "Regression tests exist and pass: npx vitest run src/mcp/tools/namespace-delete-dogfood004.test.ts covers recursive removal + path-safety + all guard branches, running under DUCKBRAIN_NAMESPACES_PATH isolation",
+                "status": "PASS",
+                "detail": "namespace-delete-dogfood004.test.ts (217 lines, 10 tests) covers recursive removal, nested files, path-safety (outside root + ../ traversal), all guard branches, idempotency. Runs under DUCKBRAIN_NAMESPACES_PATH (src/test-setup.ts:22). npx vitest run on it: 10/10 passed."
+              },
+              {
+                "criterion": "Full suite passes: npx vitest run reports 304/304 (39 files) with 0 failures, and npx tsc --noEmit is clean",
+                "status": "PASS",
+                "detail": "npx vitest run \u2192 304 passed (304) across 39 files, 0 failures. npx tsc --noEmit exit code 0 (clean). LSP diagnostics empty."
+              }
+            ],
+            "summary": "All 5 criteria verified: delete_namespace now recursively removes the namespace directory with a path-safety guard, all existing guards preserved, 10 regression tests pass under DUCKBRAIN_NAMESPACES_PATH isolation, and the full suite (304/304, 39 files) plus tsc --noEmit are clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-004\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014 not just the config mapping: src/mcp/tools/namespace.ts:342 uses fs.rmSync(dirPath, { recursive: true, force: true }) to remove the directory recursively before unregistering the config mapping (mapping removed at line 356-358 only after dir is gone).\n  \u2713 The resolved path is validated to stay inside the namespaces root before any removal (grep path.resolve and path.relative guard; a traversal name like ../ returns success:false with a refusal message): namespace.ts:322-331 resolves namespacesRoot and dirPath, computes path.relative, checks rel==='' || (!rel.startsWith('..') && !path.isAbsolute(rel)); if outside returns success:false with 'Refusing to delete path outside namespaces root'. Test 'refuses a mapping with a ../ traversal value' confirms.\n  \u2713 Existing guards preserved: confirm required, default blocked, active namespace blocked, missing namespace returns not found (messages unchanged in src/mcp/tools/namespace.ts): namespace.ts:277-281 'Confirmation required. Set confirm=true to delete namespace.'; 295-299 'Cannot delete default namespace'; 303-308 'Cannot delete currently active namespace. Switch to a different namespace first.'; 290 'Namespace ... not found'. All messages unchanged.\n  \u2713 Regression tests exist and pass: npx vitest run src/mcp/tools/namespace-delete-dogfood004.test.ts covers recursive removal + path-safety + all guard branches, running under DUCKBRAIN_NAMESPACES_PATH isolation: namespace-delete-dogfood004.test.ts (217 lines, 10 tests) covers recursive removal, nested files, path-safety (outside root + ../ traversal), all guard branches, idempotency. Runs under DUCKBRAIN_NAMESPACES_PATH (src/test-setup.ts:22). npx vitest run on it: 10/10 passed.\n  \u2713 Full suite passes: npx vitest run reports 304/304 (39 files) with 0 failures, and npx tsc --noEmit is clean: npx vitest run \u2192 304 passed (304) across 39 files, 0 failures. npx tsc --noEmit exit code 0 (clean). LSP diagnostics empty.\nAll 5 criteria verified: delete_namespace now recursively removes the namespace directory with a path-safety guard, all existing guards preserved, 10 regression tests pass under DUCKBRAIN_NAMESPACES_PATH isolation, and the full suite (304/304, 39 files) plus tsc --noEmit are clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-07T21:41:58.530988"
+}

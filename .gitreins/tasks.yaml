@@ -158,3 +158,23 @@ tasks:
   status: complete
   created_at: '2026-08-07T19:22:38.452863+00:00'
   completed_at: '2026-08-07T19:22:45.893177+00:00'
+- id: DOGFOOD-004
+  title: "DOGFOOD-004 \u2014 delete_namespace actually removes the namespace directory\
+    \ recursively (data-retention fix)"
+  criteria:
+  - "deleteNamespaceTool in src/mcp/tools/namespace.ts removes the namespace directory\
+    \ recursively from disk (grep rmSync or fs.promises.rm in namespace.ts) \u2014\
+    \ not just the config mapping"
+  - The resolved path is validated to stay inside the namespaces root before any removal
+    (grep path.resolve and path.relative guard; a traversal name like ../ returns
+    success:false with a refusal message)
+  - 'Existing guards preserved: confirm required, default blocked, active namespace
+    blocked, missing namespace returns not found (messages unchanged in src/mcp/tools/namespace.ts)'
+  - 'Regression tests exist and pass: npx vitest run src/mcp/tools/namespace-delete-dogfood004.test.ts
+    covers recursive removal + path-safety + all guard branches, running under DUCKBRAIN_NAMESPACES_PATH
+    isolation'
+  - 'Full suite passes: npx vitest run reports 304/304 (39 files) with 0 failures,
+    and npx tsc --noEmit is clean'
+  status: complete
+  created_at: '2026-08-07T21:40:52.746158+00:00'
+  completed_at: '2026-08-07T21:40:56.394783+00:00'
