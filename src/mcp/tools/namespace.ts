@@ -97,6 +97,8 @@ type DeleteNamespaceInput = z.infer<typeof DeleteNamespaceInputSchema>;
  */
 interface DeleteNamespaceOutput {
   success: boolean;
+  /** Absolute path of the directory that was removed (only on success) */
+  path?: string;
   error?: string;
 }
 
@@ -306,12 +308,59 @@ export async function deleteNamespaceTool(
       };
     }
 
-    // Remove from config
+    // Resolve the real namespace path from the recorded mapping, then remove
+    // the directory recursively before unregistering the mapping. DOGFOOD-004:
+    // previously this only removed the config entry, orphaning current.jsonl,
+    // .git, and .embeddings on disk — a data-retention surprise for users who
+    // expected "delete" to actually delete.
+    const recordedPath = config.namespaceMappings?.[input.name];
+
+    if (recordedPath) {
+      // Path-safety guard: the resolved path MUST live inside the namespaces
+      // root. This blocks `../` traversal and any mapping pointing outside the
+      // root — the tool must NEVER delete an arbitrary filesystem path.
+      const namespacesRoot = path.resolve(config.namespacesPath);
+      const dirPath = path.resolve(recordedPath);
+      const rel = path.relative(namespacesRoot, dirPath);
+      const isInside =
+        rel === "" ||
+        (!rel.startsWith("..") && !path.isAbsolute(rel));
+
+      if (!isInside) {
+        return {
+          success: false,
+          error:
+            "Refusing to delete path outside namespaces root: " + dirPath,
+        };
+      }
+
+      // Only remove if the directory actually exists — idempotent: deleting an
+      // already-gone namespace (mapping present but dir missing) still succeeds
+      // and cleans up the stale mapping.
+      if (fs.existsSync(dirPath)) {
+        try {
+          fs.rmSync(dirPath, { recursive: true, force: true });
+        } catch (fsError) {
+          // Do NOT half-remove: the directory is still on disk, so leave the
+          // config mapping intact and surface the failure to the caller.
+          return {
+            success: false,
+            error:
+              "Failed to remove namespace directory: " +
+              (fsError instanceof Error ? fsError.message : String(fsError)),
+          };
+        }
+      }
+    }
+
+    // Remove from config — only after the directory is gone (or confirmed
+    // already-absent), so config never reflects a dir that still exists.
     const { [input.name]: _, ...rest } = config.namespaceMappings || {};
     updateConfig(".", { namespaceMappings: rest });
 
     return {
       success: true,
+      path: recordedPath ? path.resolve(recordedPath) : undefined,
     };
   } catch (error) {
     return {
