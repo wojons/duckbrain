@@ -105,3 +105,17 @@ tasks:
   status: complete
   created_at: '2026-08-05T01:21:23.489040+00:00'
   completed_at: '2026-08-05T01:21:29.408301+00:00'
+- id: DOGFOOD-001
+  title: "DOGFOOD-001 \u2014 REST GET /api/memories?q= forwards semantic query to\
+    \ recallTool"
+  criteria:
+  - GET /api/memories?q=<term> forwards query=<term> to recallTool and returns semantic
+    results
+  - GET /api/memories?q=<term> with failing embedding provider returns 500 with recall
+    error, NOT a silent unfiltered list
+  - GET /api/memories without q= keeps existing prefix/domain filter + pagination
+    behavior (no query arg passed)
+  - full unit suite green (265 tests, 34 files) + tsc --noEmit clean
+  status: complete
+  created_at: '2026-08-07T13:55:54.690789+00:00'
+  completed_at: '2026-08-07T13:57:42.729640+00:00'
