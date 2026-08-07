@@ -19,6 +19,7 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
+import { maybeSyncOnCommit } from "../s3";
 
 export interface BatchingParams {
   maxLines: number;
@@ -101,6 +102,9 @@ function immediateCommit(namespacePath: string, message: string): void {
         stdio: "pipe",
       });
     }
+    // Native S3 push hook — inert unless s3.enabled && s3.pushOnCommit.
+    // Fire-and-forget: never blocks or fails the write path.
+    maybeSyncOnCommit(namespacePath);
   } catch (error) {
     // Log but don't fail the tool — git is best-effort
     console.warn(

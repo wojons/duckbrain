@@ -94,6 +94,38 @@ export const DuckBrainConfigSchema = z.object({
       cacheDir: ".embeddings",
       concurrency: 4,
     }),
+
+  /** Native S3 sync/query settings (DISABLED by default — see docs/s3-native.md) */
+  s3: z
+    .object({
+      /** Master switch — all S3 features inert while false */
+      enabled: z.boolean().default(false),
+      /** S3-compatible endpoint URL; omit for real AWS S3 */
+      endpoint: z.string().url().optional(),
+      /** AWS region (ignored by most S3-compatible providers) */
+      region: z.string().default("us-east-1"),
+      /** Bucket name (required when enabled) */
+      bucket: z.string().default("duckbrain"),
+      /** Top-level key prefix under the bucket */
+      prefix: z.string().default("duckbrain"),
+      /** ~/.aws/credentials profile name (optional; env AWS_PROFILE also honored) */
+      profile: z.string().optional(),
+      /** Path-style addressing — required by Hetzner/MinIO-style endpoints */
+      forcePathStyle: z.boolean().default(true),
+      /** Push namespace deltas after each autocommit batch flush */
+      pushOnCommit: z.boolean().default(false),
+      /** Reserved: periodic sync interval for a future daemon loop */
+      intervalSec: z.number().default(300),
+    })
+    .default({
+      enabled: false,
+      region: "us-east-1",
+      bucket: "duckbrain",
+      prefix: "duckbrain",
+      forcePathStyle: true,
+      pushOnCommit: false,
+      intervalSec: 300,
+    }),
 });
 
 export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
@@ -229,6 +261,15 @@ export function initializeConfig(
       dimensions: 384,
       cacheDir: ".embeddings",
       concurrency: 4,
+    },
+    s3: {
+      enabled: false,
+      region: "us-east-1",
+      bucket: "duckbrain",
+      prefix: "duckbrain",
+      forcePathStyle: true,
+      pushOnCommit: false,
+      intervalSec: 300,
     },
   };
 

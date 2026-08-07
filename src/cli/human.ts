@@ -27,6 +27,7 @@ import {
   updateConfig,
   registerNamespace,
 } from "../config/index";
+import { s3Command } from "../s3/cli";
 import {
   connectToRemote,
   checkRemoteInstall,
@@ -1272,6 +1273,7 @@ function showHelp(): void {
     ssh-connect        Connect to remote DuckBrain via SSH tunnel
     servers            Manage server connections (list|add|remove)
     squash             Compact old partitions
+    s3                 Native S3 sync/query (status|sync|query|config)
     help               Show this help
 
   Options:
@@ -1348,6 +1350,7 @@ export async function runHumanCLI(
     pull: pullCommand,
     push: pushCommand,
     remote: remoteCommand,
+    s3: (args: string[]) => s3Command(args),
     help: async () => showHelp(),
   };
 

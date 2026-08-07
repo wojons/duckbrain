@@ -63,6 +63,7 @@ Commands:
   servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
+  s3                 Native S3 sync/query (status|sync|query|config)
   help               Show this help
 
 HTTP Options:
@@ -354,6 +355,7 @@ async function main() {
       case "ssh-test":
       case "ssh-connect":
       case "servers":
+      case "s3":
         await runHumanCLI(command, commandArgs);
         break;
 
