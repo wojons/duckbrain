@@ -199,3 +199,17 @@ tasks:
   status: complete
   created_at: '2026-08-07T23:57:01.409138+00:00'
   completed_at: '2026-08-07T23:57:04.827605+00:00'
+- id: GAP-007
+  title: "GAP-007 \u2014 test suite must not mutate production config"
+  criteria:
+  - updateConfig/setConfig/registerNamespace no longer persist env-overridden fields
+    (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig
+    leaves the file's namespacesPath unchanged
+  - regression test src/config/config-pollution-gap007.test.ts proves env path not
+    persisted with env set, and updates persist normally with env unset
+  - CI workflow ci.yml asserts duckbrain.config.json unchanged (git diff --exit-code)
+    after the test job
+  - 'full suite green: npx vitest run 315/315, npx tsc --noEmit clean'
+  status: complete
+  created_at: '2026-08-08T02:32:11.680403+00:00'
+  completed_at: '2026-08-08T02:32:15.468342+00:00'
