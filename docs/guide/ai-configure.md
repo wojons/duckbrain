@@ -546,7 +546,7 @@ duckbrain init [PROJECT_NAME] --data-dir ./memory
 |----------|-------------|---------|
 | `DUCKBRAIN_NAMESPACE` | Current project namespace | `default` |
 | `DUCKBRAIN_DATA_DIR` | Where to store memory files | `./memory` |
-| `DUCKBRAIN_API_PORT` | HTTP API port | `8490` |
+| `DUCKBRAIN_API_PORT` | HTTP API port | `3000` |
 | `DUCKBRAIN_UI_PORT` | Web UI port | `8989` |
 | `DUCKBRAIN_GIT_REMOTE` | Git remote for syncing | (none) |
 | `DUCKBRAIN_LOG_LEVEL` | Logging verbosity | `info` |
@@ -559,7 +559,7 @@ For remote access or multi-agent setups:
 
 ```bash
 # Start HTTP server
-duckbrain http --port=8490
+duckbrain http --port=3000
 
 # Configure MCP to use HTTP transport
 ```

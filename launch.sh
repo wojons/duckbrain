@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default ports
-API_PORT=${DUCKBRAIN_API_PORT:-8490}
+API_PORT=${DUCKBRAIN_API_PORT:-3000}
 UI_PORT=${DUCKBRAIN_UI_PORT:-8989}
 
 # Script directory
@@ -306,7 +306,7 @@ main() {
             echo "  help       Show this help message"
             echo ""
             echo "Environment Variables:"
-    echo "  DUCKBRAIN_API_PORT   API server port (default: 8490)"
+    echo "  DUCKBRAIN_API_PORT   API server port (default: 3000)"
     echo "  DUCKBRAIN_UI_PORT    UI dev server port (default: 8989)"
             echo ""
             echo "Examples:"

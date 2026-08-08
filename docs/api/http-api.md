@@ -9,7 +9,7 @@ DuckBrain's HTTP server provides REST API access to memories, namespaces, and sy
 npm start -- http
 
 # Custom port
-npm start -- http --port=8490
+npm start -- http --port=8080
 
 # Bind to all interfaces (for remote access)
 npm start -- http --bind-all --port=8080
@@ -282,6 +282,8 @@ Create a new memory.
   }
 }
 ```
+
+> **Note — field naming across surfaces:** The HTTP API accepts `content` for the memory body. This maps directly to the MCP `remember` tool's `embedding_text` field — both surfaces store and return the **same** underlying text field (see [MCP Tools Reference](mcp-tools.md#remember)). A memory written via HTTP with `content` is retrievable via MCP `recall` with the text in `embedding_text`, and vice versa.
 
 **Response:** (201 Created)
 

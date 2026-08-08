@@ -51,15 +51,15 @@ echo "Test 3: API startup"
 API_PID=$!
 sleep 8
 
-if curl -s http://localhost:9444/api/namespaces > /dev/null 2>&1; then
-    test_pass "API started successfully on port 9444"
+if curl -s http://localhost:3000/api/namespaces > /dev/null 2>&1; then
+    test_pass "API started successfully on port 3000"
 else
     test_fail "API failed to start or not accessible"
 fi
 
 # Test 4: API endpoints
 echo "Test 4: API endpoints"
-if curl -s http://localhost:9444/api/namespaces | grep -q "\[\|{"; then
+if curl -s http://localhost:3000/api/namespaces | grep -q "\[\|{"; then
     test_pass "API /api/namespaces endpoint responds"
 else
     test_fail "API endpoint not responding correctly"
@@ -70,7 +70,7 @@ echo "Test 5: Stop command"
 ./launch.sh stop > /dev/null 2>&1
 sleep 3
 
-if ! curl -s http://localhost:9444/api/namespaces > /dev/null 2>&1; then
+if ! curl -s http://localhost:3000/api/namespaces > /dev/null 2>&1; then
     test_pass "Stop command successfully killed API"
 else
     test_fail "Stop command failed - API still running"
@@ -79,8 +79,8 @@ fi
 
 # Test 6: Port conflict detection
 echo "Test 6: Port conflict detection"
-# Start something on port 9444
-python3 -m http.server 9444 &
+# Start something on port 3000
+python3 -m http.server 3000 &
 PYTHON_PID=$!
 sleep 2
 
@@ -89,7 +89,7 @@ API_PID=$!
 sleep 8
 
 # Check if API found alternative port or failed gracefully
-if curl -s http://localhost:9445/api/namespaces > /dev/null 2>&1 || ! curl -s http://localhost:9444/api/namespaces > /dev/null 2>&1; then
+if curl -s http://localhost:3001/api/namespaces > /dev/null 2>&1 || ! curl -s http://localhost:3000/api/namespaces > /dev/null 2>&1; then
     test_pass "Port conflict handled (API on different port or blocked)"
 else
     test_fail "Port conflict not handled properly"

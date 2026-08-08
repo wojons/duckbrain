@@ -55,7 +55,7 @@ npm start -- stdio
 
 ```bash
 # Start HTTP API server
-npm start -- http --port 8490
+npm start -- http --port 3000
 
 # Or use the unified launcher
 ./launch.sh api
@@ -68,7 +68,7 @@ npm start -- http --port 8490
 ./launch.sh dev
 
 # Access:
-# - API: http://localhost:8490
+# - API: http://localhost:3000
 # - Web UI: http://localhost:8989
 ```
 
@@ -84,7 +84,7 @@ DUCKBRAIN_NAMESPACE=my-project
 
 # Optional
 DUCKBRAIN_DATA_DIR=./memory
-DUCKBRAIN_API_PORT=8490
+DUCKBRAIN_API_PORT=3000
 DUCKBRAIN_UI_PORT=8989
 DUCKBRAIN_LOG_LEVEL=info
 ```

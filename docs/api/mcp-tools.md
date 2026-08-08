@@ -37,7 +37,7 @@ Store a new memory in DuckBrain.
 }
 ```
 
-> **Note:** The content field is `embedding_text`, not `content`. It is stored and used for vector similarity search.
+> **Note:** The content field is `embedding_text`, not `content`. It is stored and used for vector similarity search. The HTTP API accepts the same text under the name `content` (see [HTTP API Reference](http-api.md#post-apimemories)) — both surfaces store and return the same underlying field, so a memory written via MCP with `embedding_text` is retrievable via HTTP `GET /api/memories` as `content`, and vice versa.
 
 **Example:**
 

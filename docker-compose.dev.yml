@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "8490:8490"
+      - "3000:3000"
     volumes:
       - duckbrain-data:/data
       - ./:/app
@@ -15,12 +15,12 @@ services:
     environment:
       - NODE_ENV=development
       - DUCKBRAIN_DATA_DIR=/data
-      - DUCKBRAIN_API_PORT=8490
+      - DUCKBRAIN_API_PORT=3000
       - DUCKBRAIN_UI_PORT=8989
     entrypoint: ["npx", "tsx", "bin/duckbrain.ts"]
-    command: ["http", "--port=8490", "--bind-all"]
+    command: ["http", "--port=3000", "--bind-all"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8490/api/namespaces"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/namespaces"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,7 +40,7 @@ services:
       - ./packages/ui:/app/packages/ui
     environment:
       - NODE_ENV=development
-      - DUCKBRAIN_API_PORT=8490
+      - DUCKBRAIN_API_PORT=3000
       - DUCKBRAIN_UI_PORT=8989
       - DUCKBRAIN_API_HOST=duckbrain-api
     working_dir: /app/packages/ui
