@@ -30,12 +30,14 @@ Store a new memory in DuckBrain.
   key: string;           // Hierarchical path (e.g., "/projects/mcp/schema")
   domain: string;        // Domain: person | event | concept | message | config | raw_note
   embedding_text: string; // Memory content — text used for vector embedding
-  attributes: {          // Additional metadata (arbitrary JSON)
+  attributes: {          // REQUIRED: object of arbitrary key/value metadata (pass {} if none)
     [key: string]: any;
   };
   namespace?: string;    // Optional: namespace to write to (default: current active namespace)
 }
 ```
+
+> **Note:** `attributes` is **required** by the remember schema — it is NOT optional, even though it may be an empty object `{}`. Omitting it fails validation with an `attributes is required` error.
 
 > **Note:** The content field is `embedding_text`, not `content`. It is stored and used for vector similarity search. The HTTP API accepts the same text under the name `content` (see [HTTP API Reference](http-api.md#post-apimemories)) — both surfaces store and return the same underlying field, so a memory written via MCP with `embedding_text` is retrievable via HTTP `GET /api/memories` as `content`, and vice versa.
 

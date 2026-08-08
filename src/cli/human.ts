@@ -258,6 +258,27 @@ async function rememberCommand(args: string[]): Promise<void> {
  * Recall command
  */
 async function recallCommand(args: string[]): Promise<void> {
+  // Handle --help before running any query
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: duckbrain recall [options]`);
+    console.log("");
+    console.log("Query memories. Defaults to a prefix search over the whole store.");
+    console.log("");
+    console.log("Options:");
+    console.log("  --key=<key>        Exact key lookup");
+    console.log("  --prefix=<prefix>  Prefix search (default: /)");
+    console.log(
+      "  --domain=<domain>  Filter by domain (person|event|concept|message|config|raw_note)",
+    );
+    console.log("  --query=<text>     Semantic search");
+    console.log("  --limit=<n>        Max results (default: 10)");
+    console.log(
+      "  --namespace=<name> Select namespace (default: config defaultNamespace)",
+    );
+    console.log("  --help, -h         Show this help message");
+    return;
+  }
+
   const { flags } = parseArgs(args);
 
   const input: any = {
@@ -1381,7 +1402,7 @@ function showHelp(): void {
     help               Show this help
 
   Options:
-    --namespace=NAME   Select namespace (default: default)
+    --namespace=NAME   Select namespace (default: config defaultNamespace)
     --socket=NAME      Use remote connection via Unix socket
     --wait             Wait for git commit (remember command only)
     SSH Options:

@@ -214,7 +214,7 @@ Query memories with filters.
     {
       "id": "uuid-string",
       "key": "/projects/myapp/database",
-      "domain": "architecture",
+      "domain": "concept",
       "content": "Using PostgreSQL with PgBouncer",
       "attributes": { "author": "alice", "confidence": "high" },
       "timestamp": "2026-07-19T12:00:00.000Z",
@@ -234,7 +234,7 @@ Query memories with filters.
 **Example:**
 
 ```bash
-curl "http://localhost:3000/api/memories?domain=architecture&limit=10"
+curl "http://localhost:3000/api/memories?domain=concept&limit=10"
 ```
 
 #### `GET /api/memories/key/:key`
@@ -274,7 +274,7 @@ Create a new memory.
 ```json
 {
   "key": "/projects/myapp/database",
-  "domain": "architecture",
+  "domain": "concept",
   "content": "Using PostgreSQL with PgBouncer for connection pooling",
   "attributes": {
     "author": "alice",
@@ -291,7 +291,7 @@ Create a new memory.
 {
   "id": "uuid-string",
   "key": "/projects/myapp/database",
-  "domain": "architecture",
+  "domain": "concept",
   "content": "Using PostgreSQL with PgBouncer...",
   "attributes": { "author": "alice", "confidence": "high" },
   "timestamp": "2026-07-19T12:00:00.000Z",
@@ -306,7 +306,7 @@ Create a new memory.
 ```bash
 curl -X POST http://localhost:3000/api/memories \
   -H "Content-Type: application/json" \
-  -d '{"key":"/projects/myapp/database","domain":"architecture","content":"Using PostgreSQL"}'
+  -d '{"key":"/projects/myapp/database","domain":"concept","content":"Using PostgreSQL"}'
 ```
 
 #### `PUT /api/memories/:id`
@@ -328,7 +328,7 @@ Update a memory by ID. Creates a tombstone for the old version and saves a new o
 {
   "id": "new-uuid-string",
   "key": "/projects/myapp/database",
-  "domain": "architecture",
+  "domain": "concept",
   "content": "Updated: Using PostgreSQL with pgx driver",
   "attributes": { "confidence": "final" },
   "timestamp": "2026-07-19T13:00:00.000Z",

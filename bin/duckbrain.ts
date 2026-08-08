@@ -83,7 +83,7 @@ Service Commands:
   service status              Show service status
 
 Options:
-  --namespace=NAME   Select namespace (default: default)
+  --namespace=NAME   Select namespace (default: config defaultNamespace)
   --socket=NAME      Use remote connection via Unix socket
   --help             Show this help
 

@@ -33,8 +33,13 @@ const RememberInputSchema = z.object({
     .describe("Hierarchical key path (e.g., /projects/mcp/schema)"),
   /** Domain categorization */
   domain: DomainEnum.describe("Domain categorization"),
-  /** Memory attributes as arbitrary JSON */
-  attributes: z.record(z.string(), z.any()).describe("Memory attributes"),
+  /** Memory attributes as arbitrary JSON (REQUIRED — pass {} if none) */
+  attributes: z
+    .record(z.string(), z.any(), {
+      error:
+        'attributes is required (object of arbitrary key/value metadata, e.g. {"author": "alice"})',
+    })
+    .describe("Memory attributes"),
   /** Text for vector embedding */
   embedding_text: z.string().describe("Text for vector embedding"),
   /** Namespace to write to (defaults to current active namespace) */
