@@ -37,6 +37,9 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
+      - name: Assert config unchanged after tests
+        run: git diff --exit-code duckbrain.config.json
+
       - name: Run integration tests
         run: npm run test:integration
         env:

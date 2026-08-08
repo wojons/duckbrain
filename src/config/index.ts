@@ -146,37 +146,51 @@ function getConfigPath(configDir: string): string {
 }
 
 /**
- * Get or create configuration
+ * Read and validate the config FILE without applying env overrides.
  *
- * @param configDir - Directory for config file (defaults to current dir)
- * @returns Configuration object
+ * Returns the schema-parsed config exactly as it lives on disk (or schema
+ * defaults when the file is missing or invalid). This is the authoritative
+ * on-disk state — updateConfig() merges against THIS, not the env-overridden
+ * getConfig(), so env-only fields (DUCKBRAIN_NAMESPACES_PATH) never leak into
+ * the file. (GAP-007)
+ *
+ * @param configDir - Directory containing config file
+ * @returns Validated config from file (no env overrides applied)
  */
-export function getConfig(configDir: string = "."): DuckBrainConfig {
+function readFileConfig(configDir: string): DuckBrainConfig {
   const configPath = getConfigPath(configDir);
 
   if (!fs.existsSync(configPath)) {
-    // Return defaults
-    return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
+    return DuckBrainConfigSchema.parse({});
   }
 
   try {
     const content = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON.parse(content);
-    return applyEnvOverrides(DuckBrainConfigSchema.parse(parsed));
+    return DuckBrainConfigSchema.parse(parsed);
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.warn(
         `Warning: Config validation failed at ${configPath}:`,
         (error as any).issues.map((i: any) => i.message).join(", "),
       );
-      // Return defaults on validation failure
-      return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
+    } else {
+      console.warn(
+        `Warning: Could not parse config at ${configPath}, using defaults`,
+      );
     }
-    console.warn(
-      `Warning: Could not parse config at ${configPath}, using defaults`,
-    );
-    return applyEnvOverrides(DuckBrainConfigSchema.parse({}));
+    return DuckBrainConfigSchema.parse({});
   }
+}
+
+/**
+ * Get or create configuration
+ *
+ * @param configDir - Directory for config file (defaults to current dir)
+ * @returns Configuration object (with env overrides applied)
+ */
+export function getConfig(configDir: string = "."): DuckBrainConfig {
+  return applyEnvOverrides(readFileConfig(configDir));
 }
 
 /**
@@ -199,28 +213,39 @@ function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
 /**
  * Update configuration
  *
+ * Merges `updates` into the RAW on-disk config (NOT the env-overridden
+ * getConfig()), so env-only fields like DUCKBRAIN_NAMESPACES_PATH — which are
+ * runtime-only by design and unset in production — never persist into the file.
+ * (GAP-007: the old code used getConfig() as the merge base, which leaked the
+ * test suite's /tmp namespacesPath into duckbrain.config.json.)
+ *
+ * The returned config HAS env overrides applied (callers that immediately use
+ * the result see the effective runtime config), but the written file does not.
+ *
  * @param configDir - Directory for config file
  * @param updates - Partial configuration to merge
- * @returns Updated configuration
+ * @returns Updated configuration (with env overrides applied)
  */
 export function updateConfig(
   configDir: string,
   updates: Partial<DuckBrainConfig>,
 ): DuckBrainConfig {
-  const current = getConfig(configDir);
-  const merged = { ...current, ...updates };
+  // Merge against the raw file config — never the env-overridden getConfig().
+  const fileConfig = readFileConfig(configDir);
+  const merged = { ...fileConfig, ...updates };
 
   // Validate merged config
   const validated = DuckBrainConfigSchema.parse(merged);
 
-  // Write atomically
+  // Write atomically — `validated` is derived from the file config so it never
+  // carries env-only overrides.
   const configPath = getConfigPath(configDir);
   const tmpPath = configPath + ".tmp";
 
   fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2) + "\n", "utf-8");
   fs.renameSync(tmpPath, configPath);
 
-  return validated;
+  return applyEnvOverrides(validated);
 }
 
 /**
@@ -298,9 +323,12 @@ export function registerNamespace(
   alias: string,
   fullPath: string,
 ): DuckBrainConfig {
-  const config = getConfig(configDir);
-  config.namespaceMappings[alias] = fullPath;
-  return updateConfig(configDir, config);
+  // Merge the single new mapping into the RAW file config's namespaceMappings.
+  // We must NOT pass getConfig() (env-overridden) as the `updates` payload —
+  // that would leak env-only fields into the file via the spread merge. (GAP-007)
+  const fileConfig = readFileConfig(configDir);
+  const namespaceMappings = { ...fileConfig.namespaceMappings, [alias]: fullPath };
+  return updateConfig(configDir, { namespaceMappings });
 }
 
 /**
