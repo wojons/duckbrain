@@ -85,12 +85,15 @@ curl http://localhost:3000/stats
 
 Streamable HTTP transport for remote MCP clients. Accepts JSON-RPC requests per the Model Context Protocol specification. Tools are registered automatically on first request.
 
+> **Note:** the `Accept` header is REQUIRED. A request without `Accept: application/json, text/event-stream` is rejected with HTTP 406 (the Streamable HTTP transport requires the client to accept both media types).
+
 **Example:**
 
 ```bash
 # List available tools
 curl -X POST http://localhost:3000/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
