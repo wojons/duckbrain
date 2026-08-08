@@ -30,14 +30,14 @@ describe("SSH Tunnel Integration", () => {
 
   it("should SSH into the container and run a command", async () => {
     const result = run(
-      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "echo hello-from-container"`,
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o PreferredAuthentications=password -p ${sshPort} testuser@127.0.0.1 "echo hello-from-container"`,
     );
     expect(result).toContain("hello-from-container");
   });
 
   it("should detect DuckBrain is NOT installed on a fresh container", async () => {
     const result = run(
-      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} testuser@127.0.0.1 "which duckbrain 2>/dev/null || echo NOT_FOUND"`,
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o PreferredAuthentications=password -p ${sshPort} testuser@127.0.0.1 "which duckbrain 2>/dev/null || echo NOT_FOUND"`,
     );
     expect(result).toContain("NOT_FOUND");
   });

@@ -10,5 +10,6 @@ Dockerfile.dev
 dist
 .DS_Store
 data
+namespaces
 *.db
 *.db.wal
