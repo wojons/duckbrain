@@ -6,7 +6,7 @@ This example demonstrates how to use DuckBrain as an MCP server with a client.
 
 1. Install DuckBrain:
 ```bash
-npm install
+pnpm install
 ```
 
 2. Configure your MCP client (e.g., Claude Desktop) to use DuckBrain:
@@ -57,5 +57,5 @@ Once configured, DuckBrain provides these tools to Claude:
 Test the MCP connection:
 ```bash
 # Run DuckBrain in stdio mode
-npm start -- stdio
+pnpm start -- stdio
 ```

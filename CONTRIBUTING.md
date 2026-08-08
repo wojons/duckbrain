@@ -6,9 +6,10 @@ Thank you for your interest in contributing to DuckBrain! This document provides
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - Git
-- TypeScript 5.0+
+- pnpm 11+
+- TypeScript 7.x
 
 ### Local Development
 
@@ -18,13 +19,13 @@ git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
 # Install dependencies
-npm install
+pnpm install
 
 # Run tests
-npm test
+pnpm test
 
 # Start development server
-npm run dev
+pnpm run dev
 ```
 
 ## Project Structure
@@ -48,7 +49,7 @@ duckbrain/
 1. Create a feature branch: `git checkout -b feature/my-feature`
 2. Make your changes
 3. Write/update tests
-4. Run tests: `npm test`
+4. Run tests: `pnpm test`
 5. Commit with clear messages
 6. Push and create a pull request
 
@@ -63,13 +64,13 @@ duckbrain/
 
 ```bash
 # Run all tests
-npm test
+pnpm test
 
 # Run with coverage
-npm run test:coverage
+pnpm run test:coverage
 
 # Run integration tests
-npm run test:integration
+pnpm run test:integration
 ```
 
 ## Commit Messages

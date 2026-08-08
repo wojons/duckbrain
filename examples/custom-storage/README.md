@@ -173,10 +173,10 @@ DuckBrain supports multiple storage backends:
 
 ```bash
 # Test with custom config
-npm start -- http --config=./examples/custom-storage/duckbrain.config.json
+pnpm start -- http --config=./examples/custom-storage/duckbrain.config.json
 
 # Verify configuration
-npm start -- --verify-config
+pnpm start -- --verify-config
 ```
 
 ## Troubleshooting

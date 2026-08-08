@@ -6,7 +6,7 @@ This example demonstrates how to use DuckBrain via its HTTP REST API.
 
 1. Start the HTTP server:
 ```bash
-npm start -- http --port=3000
+pnpm start -- http --port=3000
 ```
 
 2. Get an API token (if authentication is enabled):
