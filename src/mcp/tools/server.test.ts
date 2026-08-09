@@ -14,6 +14,9 @@ import {
   serverHttpStartTool,
   ServerHttpStartInputSchema,
 } from "./server";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 describe("server_status tool", () => {
   it("reports not listening on a closed port", async () => {
@@ -39,6 +42,75 @@ describe("server_status tool", () => {
   it("validates schema: port must be a number", () => {
     expect(() => ServerStatusInputSchema.parse({ port: "abc" })).toThrow();
     expect(ServerStatusInputSchema.parse({ port: 3000 }).port).toBe(3000);
+  });
+
+  it("reads the per-instance pidfile for the queried port", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-"));
+    const previous = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const pidFile = path.join(tmpDir, "duckbrain-http-3555.pid");
+      fs.writeFileSync(pidFile, "4242");
+
+      const result = await serverStatusTool({ port: 3555 });
+
+      expect(result.pid).toBe(4242);
+      expect(result.pidFile).toBe(pidFile);
+      expect(result.port).toBe(3555);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previous;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the per-instance pidfile for the queried socket", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-socket-"));
+    const previous = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const pidFile = path.join(tmpDir, "duckbrain-http-test.sock.pid");
+      fs.writeFileSync(pidFile, "4343");
+
+      const result = await serverStatusTool({
+        port: 3000,
+        socket: "/tmp/test.sock",
+      });
+
+      expect(result.pid).toBe(4343);
+      expect(result.pidFile).toBe(pidFile);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previous;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null pid when the per-instance pidfile is missing", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-missing-"));
+    const previous = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const result = await serverStatusTool({ port: 3556 });
+
+      expect(result.pid).toBeNull();
+      expect(result.pidFile).toBe(
+        path.join(tmpDir, "duckbrain-http-3556.pid"),
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previous;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

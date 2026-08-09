@@ -156,6 +156,34 @@ function closeEntry(entry: ConnectionEntry, onClosed?: () => void): void {
 }
 
 /**
+ * Best-effort cleanup of THIS process's scratch files in the temp directory.
+ *
+ * Only deletes files matching `duckbrain-<current-pid>-*.db` so live scratch
+ * files belonging to other processes (e.g. a fleet stdio MCP server or an
+ * http daemon) are never touched. Called explicitly by tests and registered
+ * once as a process-exit handler.
+ */
+export function cleanupProcessScratchFiles(tmpDir = os.tmpdir()): void {
+  try {
+    const prefix = `duckbrain-${process.pid}-`;
+    const files = fs.readdirSync(tmpDir);
+    for (const file of files) {
+      if (file.startsWith(prefix) && file.endsWith(".db")) {
+        fs.unlinkSync(path.join(tmpDir, file));
+      }
+    }
+  } catch {
+    // Fire-and-forget: temp dir may be unreachable or a file may be busy.
+  }
+}
+
+let scratchCleanupRegistered = false;
+if (!scratchCleanupRegistered) {
+  scratchCleanupRegistered = true;
+  process.on("exit", () => cleanupProcessScratchFiles());
+}
+
+/**
  * Get or create singleton connection for namespace.
  *
  * Uses a file-backed database instead of :memory: to avoid

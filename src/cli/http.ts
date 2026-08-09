@@ -38,6 +38,7 @@ import { createActivityRoutes } from "../http/routes/activity.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { httpPidFilePath } from "../utils/pidfile.js";
 
 /**
  * HTTP server configuration options
@@ -545,6 +546,7 @@ export async function startHttpMode(
 ): Promise<void> {
   const { port = 3000, bindAll = false, socket, socketMode = "0660" } = options;
   const host = bindAll ? "0.0.0.0" : "127.0.0.1";
+  const pidFile = httpPidFilePath(port, socket);
 
   try {
     const app = createHttpServer(options);
@@ -565,10 +567,6 @@ export async function startHttpMode(
       // Graceful shutdown
       const shutdown = () => {
         // Remove PID file on shutdown
-        const pidFile = path.join(
-          process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(),
-          "duckbrain-http.pid",
-        );
         try {
           if (fs.existsSync(pidFile)) {
             fs.unlinkSync(pidFile);
@@ -606,10 +604,6 @@ export async function startHttpMode(
     });
 
     // Write PID to local file for easy management
-    const pidFile = path.join(
-      process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(),
-      "duckbrain-http.pid",
-    );
     fs.writeFileSync(pidFile, process.pid.toString());
     console.error(`[duckbrain] PID written to: ${pidFile}`);
 

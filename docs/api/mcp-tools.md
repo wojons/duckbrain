@@ -519,7 +519,7 @@ Check whether the DuckBrain HTTP server is listening. Reports TCP port and/or Un
   "socket": "/tmp/duckbrain.sock",
   "socketListening": true,
   "pid": 4719,
-  "pidFile": "/tmp/duckbrain-http.pid",
+  "pidFile": "/tmp/duckbrain-http-3000.pid",
   "endpoints": ["http://127.0.0.1:3000/mcp", "unix:/tmp/duckbrain.sock -> POST /mcp"]
 }
 ```

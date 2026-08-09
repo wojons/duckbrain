@@ -70,11 +70,14 @@ HTTP client ────────▶ Express server (port 3000) ── POST /
    commit to and silently does nothing. API-created namespaces commit reliably (~30s batch window;
    observed commit `df0763e chore: auto-commit namespace data`) (DOGFOOD-005).
 
-7. **Shared pidfile** — `http` mode writes `/tmp/duckbrain-http.pid` regardless of port. A second
-   instance clobbers the first's pidfile, and unlinks it on exit. The `server_status`/
-   `server_http_start` MCP tools read that file, so they can misreport a healthy daemon as down.
-   Temp `duckbrain-<pid>-*.db` files (DuckDB temp stores) accumulate per process in /tmp — a
-   slow leak (DOGFOOD-008).
+7. **Per-instance pidfile + scratch cleanup** — `http` mode now writes a
+   per-instance pidfile (`duckbrain-http-<port>.pid`, or
+   `duckbrain-http-<socket-basename>.pid` for socket-only instances) to
+   `DUCKBRAIN_DATA_DIR` or `/tmp`. A second instance can no longer clobber the
+   first's pidfile, and `server_status` reads the file matching the queried
+   port/socket. Per-process temp `duckbrain-<pid>-*.db` scratch files are
+   cleaned up on exit (they were unlinked on clean close, but crash exits left
+   them behind) (DOGFOOD-008).
 
 ## 3. The right way (what a maintainer should know)
 

@@ -13,18 +13,19 @@
 
 import { z } from "zod";
 import fs from "fs";
-import os from "os";
 import path from "path";
 import { spawn } from "child_process";
+import { httpPidFilePath } from "../../utils/pidfile.js";
 
 /**
- * Resolve the PID file location (mirrors src/cli/http.ts).
+ * Resolve the PID file location for a given port/socket.
+ *
+ * Mirrors the naming used by `src/cli/http.ts` via the shared helper in
+ * `src/utils/pidfile.ts` so `server_status` reads the correct per-instance
+ * pidfile (e.g. `duckbrain-http-<port>.pid`).
  */
-function pidFilePath(): string {
-  return path.join(
-    process.env.DUCKBRAIN_DATA_DIR || os.tmpdir(),
-    "duckbrain-http.pid",
-  );
+function pidFilePath(port: number, socket?: string): string {
+  return httpPidFilePath(port, socket);
 }
 
 /**
@@ -85,7 +86,7 @@ async function serverStatusTool(input: {
   endpoints?: string[];
 }> {
   const port = input.port ?? 3000;
-  const pidFile = pidFilePath();
+  const pidFile = pidFilePath(port, input.socket);
   let pid: number | null = null;
   try {
     if (fs.existsSync(pidFile)) {
