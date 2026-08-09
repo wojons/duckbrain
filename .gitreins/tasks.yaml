@@ -229,3 +229,21 @@ tasks:
   status: complete
   created_at: '2026-08-08T12:15:58.865829+00:00'
   completed_at: '2026-08-08T12:16:03.713583+00:00'
+- id: DOGFOOD-009
+  title: CLI list-keys plain-text tree output
+  criteria:
+  - src/utils/keyTree.ts exports buildKeyTree (filters empty path segments via split('/').filter(p
+    => p !== '')) and renderKeyTreeText (indented plain-text renderer, folders with
+    trailing slash)
+  - "src/cli/human.ts listKeysCommand prints renderKeyTreeText(buildKeyTree(...))\
+    \ \u2014 no JSON.stringify tree, and the output for keys like /projects/duckbrain/status\
+    \ contains no empty-string root node artifact"
+  - src/http/routes/keys.ts imports buildKeyTree from src/utils/keyTree.ts and re-exports
+    it; src/http/routes/keys.test.ts passes unmodified (REST behavior unchanged)
+  - 'src/cli/list-keys-dogfood009.test.ts exists and covers: (a) nested tree folders
+    projects/notes with proper depth, (b) empty/missing keys produce no crash, (c)
+    leading-slash keys do NOT create a "" node'
+  - npx tsc --noEmit exits 0 and npx vitest run reports 330+ passing tests
+  status: complete
+  created_at: '2026-08-09T00:54:36.841002+00:00'
+  completed_at: '2026-08-09T00:54:40.791625+00:00'
