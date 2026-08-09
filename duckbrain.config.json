@@ -98,7 +98,8 @@
     "dexdat-specs": "namespaces/dexdat-specs",
     "chat-summaries": "namespaces/chat-summaries",
     "chat-archive": "namespaces/chat-archive",
-    "s3-native": "namespaces/s3-native"
+    "s3-native": "namespaces/s3-native",
+    "hermes-telemetry": "namespaces/hermes-telemetry"
   },
   "embedding": {
     "provider": "auto",
