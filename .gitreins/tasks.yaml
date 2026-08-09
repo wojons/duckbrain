@@ -265,3 +265,24 @@ tasks:
   status: complete
   created_at: '2026-08-09T03:14:42.392807+00:00'
   completed_at: '2026-08-09T03:14:48.516590+00:00'
+- id: DOGFOOD-008
+  title: Multi-instance PID/temp-file hygiene
+  criteria:
+  - src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid
+    via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME
+    file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts)
+  - src/mcp/tools/server.ts server_status resolves the pidfile via the shared helper
+    for the queried port/socket and returns pid from the per-instance pidfile (grep
+    httpPidFilePath in src/mcp/tools/server.ts)
+  - src/duckdb/connection.ts registers process exit cleanup that deletes only duckbrain-<pid>-*.db
+    scratch files owned by the current process (grep cleanupProcessScratchFiles or
+    process.on exit in src/duckdb/connection.ts)
+  - 'docs updated: docs/api/mcp-tools.md pidFile example uses per-instance naming
+    (duckbrain-http-<port>.pid) and docs/dogfood/diagnostics.md shared-pidfile defect
+    note is corrected (grep duckbrain-http in both files)'
+  - "Regression tests exist and pass: pidfile per-instance write/remove, server_status\
+    \ per-instance read, scratch cleanup \u2014 hermetic via DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH\
+    \ temp dirs, no :3000 usage (pnpm run test:run passes with the new tests)"
+  status: complete
+  created_at: '2026-08-09T12:19:37.618081+00:00'
+  completed_at: '2026-08-09T12:19:42.461337+00:00'

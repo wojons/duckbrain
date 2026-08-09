@@ -1,0 +1,101 @@
+{
+  "task_id": "DOGFOOD-008",
+  "task_title": "Multi-instance PID/temp-file hygiene",
+  "task_criteria": [
+    "src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts)",
+    "src/mcp/tools/server.ts server_status resolves the pidfile via the shared helper for the queried port/socket and returns pid from the per-instance pidfile (grep httpPidFilePath in src/mcp/tools/server.ts)",
+    "src/duckdb/connection.ts registers process exit cleanup that deletes only duckbrain-<pid>-*.db scratch files owned by the current process (grep cleanupProcessScratchFiles or process.on exit in src/duckdb/connection.ts)",
+    "docs updated: docs/api/mcp-tools.md pidFile example uses per-instance naming (duckbrain-http-<port>.pid) and docs/dogfood/diagnostics.md shared-pidfile defect note is corrected (grep duckbrain-http in both files)",
+    "Regression tests exist and pass: pidfile per-instance write/remove, server_status per-instance read, scratch cleanup \u2014 hermetic via DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH temp dirs, no :3000 usage (pnpm run test:run passes with the new tests)"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/namespace-delete-dogfood004.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 162\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/keys.test.ts \u001b[2m(\u001b[22m\u001b[2m13 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 126\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 899\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts): src/cli/http.ts:549 pidFile=httpPidFilePath(port,socket); :611 fs.writeFileSync(pidFile, process.pid.toString()); shutdown handler :566 fs.unlinkSync(pidFile) removes the same file. src/utils/pidfile.ts:19-22 uses DUCKBRAIN_DATA_DIR||os.tmpdir() and names duckbrain-http-${suffix}.pid\n  \u2713 src/mcp/tools/server.ts server_status resolves the pidfile via the shared helper for the queried port/socket and returns pid from the per-instance pidfile (grep httpPidFilePath in src/mcp/tools/server.ts): src/mcp/tools/server.ts:18 imports httpPidFilePath; :27-28 pidFilePath() returns httpPidFilePath(port,socket); :89 uses it; :91-96 reads pid from the per-instance pidfile\n  \u2713 src/duckdb/connection.ts registers process exit cleanup that deletes only duckbrain-<pid>-*.db scratch files owned by the current process (grep cleanupProcessScratchFiles or process.on exit in src/duckdb/connection.ts): src/duckdb/connection.ts:166 cleanupProcessScratchFiles deletes only files matching duckbrain-${process.pid}- prefix and .db suffix; :183 process.on('exit', ()=>cleanupProcessScratchFiles()); scratch naming at :142 (duckbrain-${process.pid}-${hash}-${counter}.db) matches the cleanup prefix\n  \u2713 docs updated: docs/api/mcp-tools.md pidFile example uses per-instance naming (duckbrain-http-<port>.pid) and docs/dogfood/diagnostics.md shared-pidfile defect note is corrected (grep duckbrain-http in both files): docs/api/mcp-tools.md:522 shows \"pidFile\": \"/tmp/duckbrain-http-3000.pid\"; docs/dogfood/diagnostics.md:74-75 documents per-instance pidfile (duckbrain-http-<port>.pid / duckbrain-http-<socket-basename>.pid) and corrected defect note (DOGFOOD-008)\n  \u2713 Regression tests exist and pass: pidfile per-instance write/remove, server_status per-instance read, scratch cleanup \u2014 hermetic via DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH temp dirs, no :3000 usage (pnpm run test:run passes with the new tests): pnpm run test:run passes: 47 files, 349 tests all pass. src/utils/pidfile.test.ts(4), src/duckdb/connection-dogfood008.test.ts(2), src/mcp/tools/server.test.ts(9), src/cli/http.test.ts(5) all pass. Hermetic via findFreePort (ephemeral port 0), prepareDataDir mkdtemp temp dirs, DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH set to temp dirs. No hardcoded :3000 binding (3000 appears only in pidfile-path/schema assertions, not actual listening)\nAll 5 criteria for multi-instance PID/temp-file hygiene are implemented and verified: per-instance pidfile write/remove, server_status per-instance read via shared helper, process-exit scratch cleanup, docs updated, and all regression tests pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts): src/cli/http.ts:549 pidFile=httpPidFilePath(port,socket); :611 fs.writeFileSync(pidFile, process.pid.toString()); shutdown handler :566 fs.unlinkSync(pidFile) removes the same file. src/utils/pidfile.ts:19-22 uses DUCKBRAIN_DATA_DIR||os.tmpdir() and ",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts)",
+                "status": "PASS",
+                "detail": "src/cli/http.ts:549 pidFile=httpPidFilePath(port,socket); :611 fs.writeFileSync(pidFile, process.pid.toString()); shutdown handler :566 fs.unlinkSync(pidFile) removes the same file. src/utils/pidfile.ts:19-22 uses DUCKBRAIN_DATA_DIR||os.tmpdir() and names duckbrain-http-${suffix}.pid"
+              },
+              {
+                "criterion": "src/mcp/tools/server.ts server_status resolves the pidfile via the shared helper for the queried port/socket and returns pid from the per-instance pidfile (grep httpPidFilePath in src/mcp/tools/server.ts)",
+                "status": "PASS",
+                "detail": "src/mcp/tools/server.ts:18 imports httpPidFilePath; :27-28 pidFilePath() returns httpPidFilePath(port,socket); :89 uses it; :91-96 reads pid from the per-instance pidfile"
+              },
+              {
+                "criterion": "src/duckdb/connection.ts registers process exit cleanup that deletes only duckbrain-<pid>-*.db scratch files owned by the current process (grep cleanupProcessScratchFiles or process.on exit in src/duckdb/connection.ts)",
+                "status": "PASS",
+                "detail": "src/duckdb/connection.ts:166 cleanupProcessScratchFiles deletes only files matching duckbrain-${process.pid}- prefix and .db suffix; :183 process.on('exit', ()=>cleanupProcessScratchFiles()); scratch naming at :142 (duckbrain-${process.pid}-${hash}-${counter}.db) matches the cleanup prefix"
+              },
+              {
+                "criterion": "docs updated: docs/api/mcp-tools.md pidFile example uses per-instance naming (duckbrain-http-<port>.pid) and docs/dogfood/diagnostics.md shared-pidfile defect note is corrected (grep duckbrain-http in both files)",
+                "status": "PASS",
+                "detail": "docs/api/mcp-tools.md:522 shows \"pidFile\": \"/tmp/duckbrain-http-3000.pid\"; docs/dogfood/diagnostics.md:74-75 documents per-instance pidfile (duckbrain-http-<port>.pid / duckbrain-http-<socket-basename>.pid) and corrected defect note (DOGFOOD-008)"
+              },
+              {
+                "criterion": "Regression tests exist and pass: pidfile per-instance write/remove, server_status per-instance read, scratch cleanup \u2014 hermetic via DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH temp dirs, no :3000 usage (pnpm run test:run passes with the new tests)",
+                "status": "PASS",
+                "detail": "pnpm run test:run passes: 47 files, 349 tests all pass. src/utils/pidfile.test.ts(4), src/duckdb/connection-dogfood008.test.ts(2), src/mcp/tools/server.test.ts(9), src/cli/http.test.ts(5) all pass. Hermetic via findFreePort (ephemeral port 0), prepareDataDir mkdtemp temp dirs, DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH set to temp dirs. No hardcoded :3000 binding (3000 appears only in pidfile-path/schema assertions, not actual listening)"
+              }
+            ],
+            "summary": "All 5 criteria for multi-instance PID/temp-file hygiene are implemented and verified: per-instance pidfile write/remove, server_status per-instance read via shared helper, process-exit scratch cleanup, docs updated, and all regression tests pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-008\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/cli/http.ts startHttpMode writes a per-instance pidfile (duckbrain-http-<port>.pid via DUCKBRAIN_DATA_DIR||os.tmpdir()) and the shutdown handler removes the SAME file (grep httpPidFilePath in src/cli/http.ts + src/utils/pidfile.ts): src/cli/http.ts:549 pidFile=httpPidFilePath(port,socket); :611 fs.writeFileSync(pidFile, process.pid.toString()); shutdown handler :566 fs.unlinkSync(pidFile) removes the same file. src/utils/pidfile.ts:19-22 uses DUCKBRAIN_DATA_DIR||os.tmpdir() and names duckbrain-http-${suffix}.pid\n  \u2713 src/mcp/tools/server.ts server_status resolves the pidfile via the shared helper for the queried port/socket and returns pid from the per-instance pidfile (grep httpPidFilePath in src/mcp/tools/server.ts): src/mcp/tools/server.ts:18 imports httpPidFilePath; :27-28 pidFilePath() returns httpPidFilePath(port,socket); :89 uses it; :91-96 reads pid from the per-instance pidfile\n  \u2713 src/duckdb/connection.ts registers process exit cleanup that deletes only duckbrain-<pid>-*.db scratch files owned by the current process (grep cleanupProcessScratchFiles or process.on exit in src/duckdb/connection.ts): src/duckdb/connection.ts:166 cleanupProcessScratchFiles deletes only files matching duckbrain-${process.pid}- prefix and .db suffix; :183 process.on('exit', ()=>cleanupProcessScratchFiles()); scratch naming at :142 (duckbrain-${process.pid}-${hash}-${counter}.db) matches the cleanup prefix\n  \u2713 docs updated: docs/api/mcp-tools.md pidFile example uses per-instance naming (duckbrain-http-<port>.pid) and docs/dogfood/diagnostics.md shared-pidfile defect note is corrected (grep duckbrain-http in both files): docs/api/mcp-tools.md:522 shows \"pidFile\": \"/tmp/duckbrain-http-3000.pid\"; docs/dogfood/diagnostics.md:74-75 documents per-instance pidfile (duckbrain-http-<port>.pid / duckbrain-http-<socket-basename>.pid) and corrected defect note (DOGFOOD-008)\n  \u2713 Regression tests exist and pass: pidfile per-instance write/remove, server_status per-instance read, scratch cleanup \u2014 hermetic via DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH temp dirs, no :3000 usage (pnpm run test:run passes with the new tests): pnpm run test:run passes: 47 files, 349 tests all pass. src/utils/pidfile.test.ts(4), src/duckdb/connection-dogfood008.test.ts(2), src/mcp/tools/server.test.ts(9), src/cli/http.test.ts(5) all pass. Hermetic via findFreePort (ephemeral port 0), prepareDataDir mkdtemp temp dirs, DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH set to temp dirs. No hardcoded :3000 binding (3000 appears only in pidfile-path/schema assertions, not actual listening)\nAll 5 criteria for multi-instance PID/temp-file hygiene are implemented and verified: per-instance pidfile write/remove, server_status per-instance read via shared helper, process-exit scratch cleanup, docs updated, and all regression tests pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-09T12:21:51.851352"
+}
