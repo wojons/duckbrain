@@ -35,7 +35,18 @@ jobs:
         run: npm run typecheck --if-present
 
       - name: Run tests
-        run: npm run test:run
+        run: npm run test:run 2>&1 | tee /tmp/vitest.out
+
+      - name: Assert AGENTS.md test counts match live suite
+        run: |
+          SUITES=$(grep -oP 'Test Files\s+\d+ passed \(\d+\)' /tmp/vitest.out | grep -oP '\d+' | tail -1)
+          TESTS=$(grep -oP 'Tests\s+\d+ passed \(\d+\)' /tmp/vitest.out | grep -oP '\d+' | tail -1)
+          echo "Live: ${SUITES} suites / ${TESTS} tests"
+          grep -q "(${SUITES} suites, ${TESTS} tests)" AGENTS.md \
+            || { echo "GAP-012 drift: AGENTS.md Tech Stack count != live (${SUITES} suites, ${TESTS} tests)"; exit 1; }
+          grep -q "# ${TESTS} tests, ${SUITES} suites" AGENTS.md \
+            || { echo "GAP-012 drift: AGENTS.md dev command count != live (${TESTS} tests, ${SUITES} suites)"; exit 1; }
+          echo "AGENTS.md test counts match live suite"
 
       - name: Assert config unchanged after tests
         run: git diff --exit-code duckbrain.config.json
