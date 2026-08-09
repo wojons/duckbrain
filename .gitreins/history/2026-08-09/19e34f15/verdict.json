@@ -1,0 +1,101 @@
+{
+  "task_id": "GAP-015",
+  "task_title": "HTTP compaction/squash API surface (REST parity with MCP tools)",
+  "task_criteria": [
+    "src/http/routes/compaction.ts exists and exports createCompactionRoutes (router with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool with partition/dryRun/aggressive validation)",
+    "Route is wired end-to-end: src/http/routes/index.ts barrel re-exports createCompactionRoutes AND src/cli/http.ts mounts app.use('/api/compaction', createCompactionRoutes)",
+    "Unit tests exist (src/http/routes/compaction.test.ts) covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body; full suite green",
+    "docs/api/http-api.md documents both GET /api/compaction/stats and POST /api/compaction/squash with params and examples in a Compaction section",
+    "New binary serves GET /api/compaction/stats -> 200 with partition stats (verified live; :3000 daemon redeploy pending approval gate in this tick)"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 107\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/namespace-delete-dogfood004.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 97\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 134\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-dogfood002.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/http/routes/compaction.ts exists and exports createCompactionRoutes (router with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool with partition/dryRun/aggressive validation): src/http/routes/compaction.ts exists; exports createCompactionRoutes (router). GET /stats wraps getCompactionStatsTool (lines 24-38), POST /squash wraps squashTool with partition/dryRun/aggressive validation throwing ApiError(...,400,'VALIDATION_ERROR') (lines 44-75).\n  \u2713 Route is wired end-to-end: src/http/routes/index.ts barrel re-exports createCompactionRoutes AND src/cli/http.ts mounts app.use('/api/compaction', createCompactionRoutes): src/http/routes/index.ts line 9 re-exports createCompactionRoutes from ./compaction; src/cli/http.ts line 35 imports it and line 196 mounts app.use('/api/compaction', createCompactionRoutes).\n  \u2713 Unit tests exist (src/http/routes/compaction.test.ts) covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body; full suite green: src/http/routes/compaction.test.ts has 7 tests covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body. Full suite green: 45 files, 338 tests passed (vitest run).\n  \u2713 docs/api/http-api.md documents both GET /api/compaction/stats and POST /api/compaction/squash with params and examples in a Compaction section: docs/api/http-api.md lines 576-660 has Compaction section documenting GET /api/compaction/stats and POST /api/compaction/squash with params table (partition/dryRun/aggressive) and curl examples.\n  \u2713 New binary serves GET /api/compaction/stats -> 200 with partition stats (verified live; :3000 daemon redeploy pending approval gate in this tick): New binary (node bin/duckbrain.js http --port 3999) served GET /api/compaction/stats -> 200 with partition stats (totalSize, totalPartitions, etc). :3000 daemon still returns ROUTE_NOT_FOUND as redeploy is pending approval gate, matching the criterion's stated expectation.\nAll 5 criteria verified: route file, end-to-end wiring, unit tests (full suite green), docs, and live binary serving GET /api/compaction/stats -> 200.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/http/routes/compaction.ts exists and exports createCompactionRoutes (router with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool with partition/dryRun/aggressive validation): src/http/routes/compaction.ts exists; exports createCompactionRoutes (router). GET /stats wraps getCompactionStatsTool (lines 24-38), POST /squash wraps squashTool with partition/dryRun/aggressive validation throwing ApiError(...,400,'VALIDATION_ERROR') (lines 44-75).\n  \u2713 Rou",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/http/routes/compaction.ts exists and exports createCompactionRoutes (router with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool with partition/dryRun/aggressive validation)",
+                "status": "PASS",
+                "detail": "src/http/routes/compaction.ts exists; exports createCompactionRoutes (router). GET /stats wraps getCompactionStatsTool (lines 24-38), POST /squash wraps squashTool with partition/dryRun/aggressive validation throwing ApiError(...,400,'VALIDATION_ERROR') (lines 44-75)."
+              },
+              {
+                "criterion": "Route is wired end-to-end: src/http/routes/index.ts barrel re-exports createCompactionRoutes AND src/cli/http.ts mounts app.use('/api/compaction', createCompactionRoutes)",
+                "status": "PASS",
+                "detail": "src/http/routes/index.ts line 9 re-exports createCompactionRoutes from ./compaction; src/cli/http.ts line 35 imports it and line 196 mounts app.use('/api/compaction', createCompactionRoutes)."
+              },
+              {
+                "criterion": "Unit tests exist (src/http/routes/compaction.test.ts) covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body; full suite green",
+                "status": "PASS",
+                "detail": "src/http/routes/compaction.test.ts has 7 tests covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body. Full suite green: 45 files, 338 tests passed (vitest run)."
+              },
+              {
+                "criterion": "docs/api/http-api.md documents both GET /api/compaction/stats and POST /api/compaction/squash with params and examples in a Compaction section",
+                "status": "PASS",
+                "detail": "docs/api/http-api.md lines 576-660 has Compaction section documenting GET /api/compaction/stats and POST /api/compaction/squash with params table (partition/dryRun/aggressive) and curl examples."
+              },
+              {
+                "criterion": "New binary serves GET /api/compaction/stats -> 200 with partition stats (verified live; :3000 daemon redeploy pending approval gate in this tick)",
+                "status": "PASS",
+                "detail": "New binary (node bin/duckbrain.js http --port 3999) served GET /api/compaction/stats -> 200 with partition stats (totalSize, totalPartitions, etc). :3000 daemon still returns ROUTE_NOT_FOUND as redeploy is pending approval gate, matching the criterion's stated expectation."
+              }
+            ],
+            "summary": "All 5 criteria verified: route file, end-to-end wiring, unit tests (full suite green), docs, and live binary serving GET /api/compaction/stats -> 200."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-015\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/http/routes/compaction.ts exists and exports createCompactionRoutes (router with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool with partition/dryRun/aggressive validation): src/http/routes/compaction.ts exists; exports createCompactionRoutes (router). GET /stats wraps getCompactionStatsTool (lines 24-38), POST /squash wraps squashTool with partition/dryRun/aggressive validation throwing ApiError(...,400,'VALIDATION_ERROR') (lines 44-75).\n  \u2713 Route is wired end-to-end: src/http/routes/index.ts barrel re-exports createCompactionRoutes AND src/cli/http.ts mounts app.use('/api/compaction', createCompactionRoutes): src/http/routes/index.ts line 9 re-exports createCompactionRoutes from ./compaction; src/cli/http.ts line 35 imports it and line 196 mounts app.use('/api/compaction', createCompactionRoutes).\n  \u2713 Unit tests exist (src/http/routes/compaction.test.ts) covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body; full suite green: src/http/routes/compaction.test.ts has 7 tests covering GET /stats 200 shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body. Full suite green: 45 files, 338 tests passed (vitest run).\n  \u2713 docs/api/http-api.md documents both GET /api/compaction/stats and POST /api/compaction/squash with params and examples in a Compaction section: docs/api/http-api.md lines 576-660 has Compaction section documenting GET /api/compaction/stats and POST /api/compaction/squash with params table (partition/dryRun/aggressive) and curl examples.\n  \u2713 New binary serves GET /api/compaction/stats -> 200 with partition stats (verified live; :3000 daemon redeploy pending approval gate in this tick): New binary (node bin/duckbrain.js http --port 3999) served GET /api/compaction/stats -> 200 with partition stats (totalSize, totalPartitions, etc). :3000 daemon still returns ROUTE_NOT_FOUND as redeploy is pending approval gate, matching the criterion's stated expectation.\nAll 5 criteria verified: route file, end-to-end wiring, unit tests (full suite green), docs, and live binary serving GET /api/compaction/stats -> 200.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-09T03:16:17.121950"
+}

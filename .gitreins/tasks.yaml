@@ -247,3 +247,21 @@ tasks:
   status: complete
   created_at: '2026-08-09T00:54:36.841002+00:00'
   completed_at: '2026-08-09T00:54:40.791625+00:00'
+- id: GAP-015
+  title: HTTP compaction/squash API surface (REST parity with MCP tools)
+  criteria:
+  - src/http/routes/compaction.ts exists and exports createCompactionRoutes (router
+    with GET /stats wrapping getCompactionStatsTool and POST /squash wrapping squashTool
+    with partition/dryRun/aggressive validation)
+  - 'Route is wired end-to-end: src/http/routes/index.ts barrel re-exports createCompactionRoutes
+    AND src/cli/http.ts mounts app.use(''/api/compaction'', createCompactionRoutes)'
+  - Unit tests exist (src/http/routes/compaction.test.ts) covering GET /stats 200
+    shape, squash success passthrough, and 400 VALIDATION_ERROR on invalid body; full
+    suite green
+  - docs/api/http-api.md documents both GET /api/compaction/stats and POST /api/compaction/squash
+    with params and examples in a Compaction section
+  - New binary serves GET /api/compaction/stats -> 200 with partition stats (verified
+    live; :3000 daemon redeploy pending approval gate in this tick)
+  status: complete
+  created_at: '2026-08-09T03:14:42.392807+00:00'
+  completed_at: '2026-08-09T03:14:48.516590+00:00'
