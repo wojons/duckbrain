@@ -19,6 +19,7 @@ import { recallTool } from "../mcp/tools/recall";
 import { listKeysTool } from "../mcp/tools/list_keys";
 import { rememberTool } from "../mcp/tools/remember";
 import { safeJsonStringify } from "../utils/serialize";
+import { buildKeyTree, renderKeyTreeText } from "../utils/keyTree";
 import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import {
@@ -79,23 +80,15 @@ function formatMemory(memory: any): string {
 }
 
 /**
- * Format key tree for human readability
+ * Format key list as an indented plain-text tree for human readability.
+ *
+ * Reuses the same hierarchical builder as the REST /api/keys route so the CLI
+ * tree and the API tree never drift apart. Keys carry a leading slash
+ * ("/projects/duckbrain/status"); the builder filters empty path segments, so
+ * no `""` root node is produced (DOGFOOD-009).
  */
 function formatKeyTree(keys: string[], depth: number = 2): string {
-  const tree: Record<string, any> = {};
-
-  for (const key of keys) {
-    const parts = key.split("/").slice(0, depth);
-    let current = tree;
-    for (const part of parts) {
-      if (!current[part]) {
-        current[part] = {};
-      }
-      current = current[part];
-    }
-  }
-
-  return JSON.stringify(tree, null, 2);
+  return renderKeyTreeText(buildKeyTree(keys, depth));
 }
 
 /**
@@ -347,7 +340,7 @@ async function listKeysCommand(args: string[]): Promise<void> {
   try {
     const result = await listKeysTool(input);
 
-    if (result.keys) {
+    if (result.keys && result.keys.length > 0) {
       console.log(`Keys (${result.keys.length} total):`);
       console.log(formatKeyTree(result.keys, input.depth || 2));
 

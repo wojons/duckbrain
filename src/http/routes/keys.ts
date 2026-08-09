@@ -8,71 +8,10 @@
 import { Router, Request, Response } from "express";
 import { listKeysTool } from "../../mcp/tools/list_keys";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
-import { KeyNode, KeyTreeResponse } from "../types/api";
+import { KeyTreeResponse } from "../types/api";
+import { buildKeyTree } from "../../utils/keyTree";
 
 const router: Router = Router();
-
-/**
- * Build hierarchical tree from flat key list
- */
-function buildKeyTree(keys: string[], maxDepth: number = 10): KeyNode[] {
-  const root: KeyNode[] = [];
-  const nodeMap = new Map<string, KeyNode>();
-
-  // Sort keys for consistent ordering
-  const sortedKeys = [...keys].sort();
-
-  for (const key of sortedKeys) {
-    const parts = key.split("/").filter((p) => p !== "");
-    let currentPath = "";
-
-    for (let i = 0; i < Math.min(parts.length, maxDepth); i++) {
-      const part = parts[i];
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${part}` : `/${part}`;
-
-      // Create node if it doesn't exist
-      if (!nodeMap.has(currentPath)) {
-        const node: KeyNode = {
-          id: currentPath,
-          name: part,
-          path: currentPath,
-          type: i === parts.length - 1 ? "memory" : "folder",
-          children: [],
-          isExpanded: false,
-          memoryCount: 0,
-        };
-
-        nodeMap.set(currentPath, node);
-
-        // Add to parent's children or root
-        if (parentPath) {
-          const parent = nodeMap.get(parentPath);
-          if (parent) {
-            parent.children!.push(node);
-            parent.type = "folder";
-          }
-        } else {
-          root.push(node);
-        }
-      }
-
-      // Increment memory count for all parent nodes
-      let countPath = currentPath;
-      while (countPath) {
-        const node = nodeMap.get(countPath);
-        if (node) {
-          node.memoryCount = (node.memoryCount || 0) + 1;
-        }
-        // Get parent path
-        const lastSlash = countPath.lastIndexOf("/");
-        countPath = lastSlash > 0 ? countPath.substring(0, lastSlash) : "";
-      }
-    }
-  }
-
-  return root;
-}
 
 /**
  * GET /api/keys
@@ -167,4 +106,5 @@ router.get(
 );
 
 export { router as createKeyRoutes };
+export { buildKeyTree };
 export default router;
