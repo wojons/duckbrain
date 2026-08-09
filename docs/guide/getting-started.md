@@ -35,7 +35,7 @@ pnpm install
 
 ```bash
 # Test the CLI
-npm start -- help
+pnpm start -- help
 ```
 
 You should see the DuckBrain help output with available commands.
@@ -48,14 +48,14 @@ Start DuckBrain as an MCP server for your AI agent:
 
 ```bash
 # Start MCP server (stdio mode for Claude/Cursor)
-npm start -- stdio
+pnpm start -- stdio
 ```
 
 ### Option B: HTTP Server Mode (For Web UI or Remote Access)
 
 ```bash
 # Start HTTP API server
-npm start -- http --port 3000
+pnpm start -- http --port 3000
 
 # Or use the unified launcher
 ./launch.sh api
@@ -149,7 +149,7 @@ Once configured, ask your AI to remember something:
 
 **AI will:**
 1. Call the `remember` MCP tool
-2. Store: `{key: "/projects/my-project/database", domain: "architecture", content: "Using PostgreSQL..."}`
+2. Store: `{key: "/projects/my-project/database", domain: "concept", content: "Using PostgreSQL..."}`
 3. Confirm the memory was saved
 
 **Later, you can:**

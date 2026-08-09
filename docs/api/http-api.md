@@ -6,16 +6,16 @@ DuckBrain's HTTP server provides REST API access to memories, namespaces, and sy
 
 ```bash
 # Default port 3000, localhost only
-npm start -- http
+pnpm start -- http
 
 # Custom port
-npm start -- http --port=8080
+pnpm start -- http --port=8080
 
 # Bind to all interfaces (for remote access)
-npm start -- http --bind-all --port=8080
+pnpm start -- http --bind-all --port=8080
 
 # With authentication
-npm start -- http --auth=apikey --rate-limit=60
+pnpm start -- http --auth=apikey --rate-limit=60
 ```
 
 ### HTTP Server Options
@@ -671,7 +671,7 @@ The `/health` endpoint always bypasses authentication.
 
 ```bash
 # Start server with API key auth
-npm start -- http --auth=apikey
+pnpm start -- http --auth=apikey
 
 # Configure keys in ~/.duckbrain/auth.json
 # {"apiKeys": [{"key": "sk-duckbrain-abc123", "name": "default"}]}
