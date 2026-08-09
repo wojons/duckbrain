@@ -39,8 +39,9 @@ jobs:
 
       - name: Assert AGENTS.md test counts match live suite
         run: |
-          SUITES=$(grep -oP 'Test Files\s+\d+ passed \(\d+\)' /tmp/vitest.out | grep -oP '\d+' | tail -1)
-          TESTS=$(grep -oP 'Tests\s+\d+ passed \(\d+\)' /tmp/vitest.out | grep -oP '\d+' | tail -1)
+          STRIP='sed -r "s/\x1B\[[0-9;]*[mK]//g"'
+          SUITES=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Test Files\s+\d+ passed \(\d+\)' | grep -oP '\d+' | tail -1)
+          TESTS=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Tests\s+\d+ passed \(\d+\)' | grep -oP '\d+' | tail -1)
           echo "Live: ${SUITES} suites / ${TESTS} tests"
           grep -q "(${SUITES} suites, ${TESTS} tests)" AGENTS.md \
             || { echo "GAP-012 drift: AGENTS.md Tech Stack count != live (${SUITES} suites, ${TESTS} tests)"; exit 1; }
