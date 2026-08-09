@@ -9,3 +9,4 @@ export { createMemoryRoutes } from "./memories";
 export { createKeyRoutes } from "./keys";
 export { createNamespaceRoutes } from "./namespaces";
 export { createEventsRoutes } from "./events";
+export { createCompactionRoutes } from "./compaction";

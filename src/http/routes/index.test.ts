@@ -29,12 +29,18 @@ describe("Routes barrel exports (index.ts)", () => {
     expect(typeof routeIndex.createEventsRoutes).toBe("function");
   });
 
+  it("should export createCompactionRoutes as a function", () => {
+    expect(routeIndex.createCompactionRoutes).toBeDefined();
+    expect(typeof routeIndex.createCompactionRoutes).toBe("function");
+  });
+
   it("should not export anything unexpected", () => {
     const expectedExports = [
       "createMemoryRoutes",
       "createKeyRoutes",
       "createNamespaceRoutes",
       "createEventsRoutes",
+      "createCompactionRoutes",
     ];
     const actualExports = Object.keys(routeIndex).filter(
       (k) => k !== "default",

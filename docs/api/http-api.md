@@ -573,6 +573,88 @@ Get SSE connection statistics for a namespace.
 
 ---
 
+### Compaction
+
+Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`).
+
+#### `GET /api/compaction/stats`
+
+Get repository compaction statistics including tombstone percentage, Parquet ratio, and partition health.
+
+**Example:**
+
+```bash
+curl http://localhost:3000/api/compaction/stats
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "stats": {
+    "totalSize": 1048576,
+    "totalPartitions": 12,
+    "parquetPartitions": 8,
+    "jsonlPartitions": 4,
+    "totalRecords": 5230,
+    "tombstoneRecords": 412,
+    "tombstonePercent": 7.9,
+    "parquetRatio": 0.67,
+    "oldPartitions": ["2024-01", "2024-02"],
+    "largePartitions": [
+      { "path": "2024-03", "size": 524288, "records": 1200 }
+    ]
+  }
+}
+```
+
+#### `POST /api/compaction/squash`
+
+Compact old memory partitions to reduce repository size. Converts JSONL to Parquet, removes tombstones, and optionally squashes git history.
+
+**Request (all fields optional):**
+
+```json
+{
+  "partition": "2024-01",
+  "dryRun": true,
+  "aggressive": false
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `partition` | string | — | Specific partition to squash (relative to the namespace path, or absolute). Omit to compact all old partitions. |
+| `dryRun` | boolean | `false` | Preview without making changes. |
+| `aggressive` | boolean | `false` | Also squash git history. |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:3000/api/compaction/squash \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun": true}'
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Preview: Would compact 3 partitions (4800 records kept, 400 removed)",
+  "stats": {
+    "partitionsCompacted": 3,
+    "totalRecordsKept": 4800,
+    "totalRecordsRemoved": 400,
+    "tombstonesRemoved": 400
+  },
+  "errors": []
+}
+```
+
+---
+
 ## Authentication
 
 The HTTP server supports three authentication modes configured via `--auth` or `~/.duckbrain/auth.json` (see [Configuration](../guide/configuration) for details).

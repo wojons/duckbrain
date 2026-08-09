@@ -32,6 +32,7 @@ import { createMemoryRoutes } from "../http/routes/memories.js";
 import { createKeyRoutes } from "../http/routes/keys.js";
 import { createNamespaceRoutes } from "../http/routes/namespaces.js";
 import { createEventsRoutes } from "../http/routes/events.js";
+import { createCompactionRoutes } from "../http/routes/compaction.js";
 import { createUsersRoutes } from "../http/routes/users.js";
 import { createActivityRoutes } from "../http/routes/activity.js";
 import path from "path";
@@ -192,6 +193,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use("/api/keys", createKeyRoutes);
   app.use("/api/namespaces", createNamespaceRoutes);
   app.use("/api/events", createEventsRoutes);
+  app.use("/api/compaction", createCompactionRoutes);
 
   // Legacy namespaces — delegate to real MCP tool
   app.get("/namespaces", async (_req: Request, res: Response) => {
