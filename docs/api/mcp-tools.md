@@ -16,6 +16,8 @@ DuckBrain exposes Model Context Protocol (MCP) tools that AI agents can use to s
 | [`list_namespaces`](#list_namespaces) | List all available namespaces |
 | [`switch_namespace`](#switch_namespace) | Switch the active namespace |
 | [`delete_namespace`](#delete_namespace) | Delete a namespace (requires confirmation) |
+| [`server_status`](#server_status) | Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints |
+| [`server_http_start`](#server_http_start) | Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit) |
 
 ## Tool Details
 
@@ -465,6 +467,113 @@ Delete a namespace. Requires explicit confirmation. The `default` namespace and 
 {
   success: boolean;
   error?: string;
+}
+```
+
+---
+
+### `server_status`
+
+Check whether the DuckBrain HTTP server is listening. Reports TCP port and/or Unix socket status, the PID from the sidecar PID file, and the MCP-over-HTTP endpoints that are currently reachable.
+
+**Parameters:**
+
+```typescript
+{
+  port?: number;    // TCP port to check (default: 3000)
+  socket?: string;  // Unix socket path to check (e.g. /tmp/duckbrain.sock)
+}
+```
+
+**Example:**
+
+```json
+{
+  "port": 3000,
+  "socket": "/tmp/duckbrain.sock"
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;          // true if port and/or socket is listening
+  port?: number;             // the port that was checked
+  portListening?: boolean;   // whether the TCP port is reachable
+  socket?: string;           // the socket path that was checked
+  socketListening?: boolean; // whether the Unix socket file exists and is a socket
+  pid?: number | null;       // PID read from the sidecar PID file, if present
+  pidFile?: string;          // path of the sidecar PID file
+  endpoints?: string[];      // reachable MCP endpoints (http://127.0.0.1:<port>/mcp, unix:<socket> -> POST /mcp)
+}
+```
+
+**Example response:**
+
+```json
+{
+  "success": true,
+  "port": 3000,
+  "portListening": true,
+  "socket": "/tmp/duckbrain.sock",
+  "socketListening": true,
+  "pid": 4719,
+  "pidFile": "/tmp/duckbrain-http.pid",
+  "endpoints": ["http://127.0.0.1:3000/mcp", "unix:/tmp/duckbrain.sock -> POST /mcp"]
+}
+```
+
+---
+
+### `server_http_start`
+
+Start the DuckBrain HTTP server as a detached background process if it is not already listening on the requested port. Mirrors the `duckbrain http` CLI options (port, bind-all, auth, rate-limit, Unix socket, socket permissions/group). Use this to enable MCP-over-HTTP from an MCP client.
+
+**Parameters:**
+
+```typescript
+{
+  port?: number;        // TCP port (default: 3000)
+  bindAll?: boolean;    // Bind to 0.0.0.0 instead of 127.0.0.1 (default: false)
+  authType?: "none" | "basic" | "apikey";  // Authentication type (default: none)
+  rateLimit?: number;   // Requests per minute per IP (default: 100)
+  socket?: string;      // Also listen on a Unix domain socket at this path
+  socketMode?: string;  // Socket file permissions as octal string (default: 0660)
+  socketGroup?: string; // Group name or numeric GID to chown the socket to
+  force?: boolean;      // Start even if the port is already listening (default: false)
+}
+```
+
+**Example:**
+
+```json
+{
+  "port": 3000,
+  "socket": "/tmp/duckbrain.sock",
+  "authType": "none"
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;          // true if the server is listening after the call
+  alreadyRunning?: boolean;  // true if the port was already listening (and force was false)
+  spawned?: boolean;         // true if a new process was spawned
+  pid?: number | null;       // PID of the spawned process
+  message: string;           // human-readable status (e.g. "HTTP server already listening on port 3000")
+}
+```
+
+**Example response:**
+
+```json
+{
+  "success": true,
+  "alreadyRunning": true,
+  "message": "HTTP server already listening on port 3000"
 }
 ```
 
