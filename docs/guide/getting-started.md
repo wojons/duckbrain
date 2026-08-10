@@ -5,6 +5,7 @@ This guide will help you install DuckBrain, configure it for your AI agent, and 
 ## What You'll Build
 
 By the end of this guide, you'll have:
+
 - ✅ DuckBrain installed and running
 - ✅ MCP server configured for your AI agent (Claude, Cursor, etc.)
 - ✅ Your first memory stored and recalled
@@ -56,16 +57,13 @@ pnpm start -- stdio
 ```bash
 # Start HTTP API server
 pnpm start -- http --port 3000
-
-# Or use the unified launcher
-./launch.sh api
 ```
 
 ### Option C: Development Mode (API + Web UI)
 
 ```bash
 # Start both API and Web UI
-./launch.sh dev
+pnpm run dev
 
 # Access:
 # - API: http://localhost:3000
@@ -102,10 +100,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
   "mcpServers": {
     "duckbrain": {
       "command": "node",
-      "args": [
-        "/ABSOLUTE/PATH/TO/duckbrain/bin/duckbrain.js",
-        "stdio"
-      ],
+      "args": ["/ABSOLUTE/PATH/TO/duckbrain/bin/duckbrain.js", "stdio"],
       "env": {
         "DUCKBRAIN_NAMESPACE": "my-project"
       }
@@ -125,10 +120,7 @@ Create `~/.cursor/mcp.json`:
   "mcpServers": {
     "duckbrain": {
       "command": "node",
-      "args": [
-        "/ABSOLUTE/PATH/TO/duckbrain/bin/duckbrain.js",
-        "stdio"
-      ],
+      "args": ["/ABSOLUTE/PATH/TO/duckbrain/bin/duckbrain.js", "stdio"],
       "env": {
         "DUCKBRAIN_NAMESPACE": "my-project"
       }
@@ -148,11 +140,13 @@ Once configured, ask your AI to remember something:
 **You:** "Remember that we're using PostgreSQL for the database."
 
 **AI will:**
+
 1. Call the `remember` MCP tool
 2. Store: `{key: "/projects/my-project/database", domain: "concept", content: "Using PostgreSQL..."}`
 3. Confirm the memory was saved
 
 **Later, you can:**
+
 - "What database are we using?" → AI recalls the memory
 - "List all architecture decisions" → AI queries by domain
 - "Show me everything about databases" → AI searches memories
@@ -194,13 +188,14 @@ cd namespaces/my-project && git log
 Access the web interface to browse memories visually:
 
 ```bash
-# Start with UI
-./launch.sh dev
+# Start API + Web UI together
+pnpm run dev
 
 # Open browser to http://localhost:8989
 ```
 
 Features:
+
 - **Tree View** - Browse hierarchical memory keys
 - **Timeline** - See memories chronologically
 - **Search** - Find memories by content
@@ -220,6 +215,7 @@ Use consistent keys for organization:
 ```
 
 Examples:
+
 - `/projects/myapp/architecture/database-choice`
 - `/projects/myapp/code/auth-flow`
 - `/projects/myapp/todos/current-sprint`
