@@ -46,14 +46,20 @@ export function loadManifest(
   }
 }
 
-export function saveManifest(manifest: S3SyncManifest, namespacesPath: string): void {
+export function saveManifest(
+  manifest: S3SyncManifest,
+  namespacesPath: string,
+): void {
   const dir = stateDir(namespacesPath);
   fs.mkdirSync(dir, { recursive: true });
   const file = manifestFilePath(namespacesPath, manifest.ns);
   fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
 }
 
-export function makeManifest(ns: string, files: Record<string, FileMeta>): S3SyncManifest {
+export function makeManifest(
+  ns: string,
+  files: Record<string, FileMeta>,
+): S3SyncManifest {
   return {
     version: MANIFEST_VERSION,
     ns,

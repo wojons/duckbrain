@@ -83,7 +83,11 @@ function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
   return { dataDir, nsPath };
 }
 
-function spawnHttpServer(port: number, dataDir: string, nsPath: string): ChildProcess {
+function spawnHttpServer(
+  port: number,
+  dataDir: string,
+  nsPath: string,
+): ChildProcess {
   return spawn(process.execPath, [BIN_PATH, "http", `--port=${port}`], {
     env: {
       ...process.env,
@@ -124,9 +128,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       await waitForHealth(port);
       const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
       expect(fs.existsSync(pidFile)).toBe(true);
-      expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(
-        String(child.pid),
-      );
+      expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
 
       child.kill("SIGTERM");
       await waitForClose(child);

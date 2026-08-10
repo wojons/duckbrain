@@ -20,19 +20,10 @@
  * however, is the real duckbrain.config.json at the repo root (the tools
  * hardcode configDir "."), so each test snapshots + restores it.
  */
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import path from "path";
-import {
-  createNamespaceTool,
-  deleteNamespaceTool,
-} from "./namespace";
+import { createNamespaceTool, deleteNamespaceTool } from "./namespace";
 import { getConfig, updateConfig } from "../../config/index";
 
 const CONFIG_PATH = path.join(process.cwd(), "duckbrain.config.json");
@@ -71,7 +62,10 @@ describe("DOGFOOD-004: delete_namespace removes the directory recursively", () =
     fs.writeFileSync(path.join(dirPath, "current.jsonl"), '{"k":"v"}\n');
     fs.writeFileSync(path.join(dirPath, "manifest.json"), "{}\n");
     fs.mkdirSync(path.join(dirPath, ".git", "refs"), { recursive: true });
-    fs.writeFileSync(path.join(dirPath, ".git", "HEAD"), "ref: refs/heads/main\n");
+    fs.writeFileSync(
+      path.join(dirPath, ".git", "HEAD"),
+      "ref: refs/heads/main\n",
+    );
     fs.mkdirSync(path.join(dirPath, ".embeddings"), { recursive: true });
     fs.writeFileSync(path.join(dirPath, ".embeddings", "vec.bin"), "x");
 
@@ -154,13 +148,18 @@ describe("DOGFOOD-004: path-safety guard", () => {
     const name = "dogfood004-trav";
     // Register a malicious mapping pointing outside the root.
     updateConfig(".", {
-      namespaceMappings: { ...getConfig(".").namespaceMappings, [name]: outsideDir },
+      namespaceMappings: {
+        ...getConfig(".").namespaceMappings,
+        [name]: outsideDir,
+      },
     });
 
     const result = await deleteNamespaceTool({ name, confirm: true });
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Refusing to delete path outside namespaces root");
+    expect(result.error).toContain(
+      "Refusing to delete path outside namespaces root",
+    );
     // The outside dir must be untouched.
     expect(fs.existsSync(outsideDir)).toBe(true);
     // The mapping must remain (no half-remove).
@@ -181,7 +180,9 @@ describe("DOGFOOD-004: path-safety guard", () => {
 
     const result = await deleteNamespaceTool({ name, confirm: true });
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Refusing to delete path outside namespaces root");
+    expect(result.error).toContain(
+      "Refusing to delete path outside namespaces root",
+    );
   });
 });
 

@@ -54,9 +54,7 @@ describe("makeHttpEmbed empty-vector rejection (DOGFOOD-002)", () => {
   it("rejects a 200 with data[0].embedding: [] (OpenAI shape)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ data: [{ embedding: [] }] }),
-      ),
+      vi.fn().mockResolvedValue(jsonResponse({ data: [{ embedding: [] }] })),
     );
     const p = createProvider({
       provider: "ollama",
@@ -105,8 +103,7 @@ describe("createAutoProviders (DOGFOOD-002)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/v1/models"))
-          return jsonResponse({ data: [] });
+        if (url.includes("/v1/models")) return jsonResponse({ data: [] });
         if (url.includes("/api/tags"))
           return jsonResponse({
             models: [

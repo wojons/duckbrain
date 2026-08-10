@@ -57,24 +57,28 @@ export async function runS3Query(
       db.exec("SET s3_url_style='path';");
     }
     // httpfs reads AWS_* env automatically; SET explicitly when present.
-    const key = process.env.AWS_ACCESS_KEY_ID ?? process.env.DUCKBRAIN_S3_ACCESS_KEY_ID;
+    const key =
+      process.env.AWS_ACCESS_KEY_ID ?? process.env.DUCKBRAIN_S3_ACCESS_KEY_ID;
     const secret =
-      process.env.AWS_SECRET_ACCESS_KEY ?? process.env.DUCKBRAIN_S3_SECRET_ACCESS_KEY;
+      process.env.AWS_SECRET_ACCESS_KEY ??
+      process.env.DUCKBRAIN_S3_SECRET_ACCESS_KEY;
     if (key && secret) {
       db.exec(`SET s3_access_key_id='${key}';`);
       db.exec(`SET s3_secret_access_key='${secret}';`);
     }
 
-    const rows = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
-      db.all(sql, (err, result) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        const typed = (result ?? []) as Record<string, unknown>[];
-        resolve(typed);
-      });
-    });
+    const rows = await new Promise<Record<string, unknown>[]>(
+      (resolve, reject) => {
+        db.all(sql, (err, result) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const typed = (result ?? []) as Record<string, unknown>[];
+          resolve(typed);
+        });
+      },
+    );
 
     const columns = rows.length > 0 ? Object.keys(rows[0]!) : [];
     return { columns, rows, count: rows.length };

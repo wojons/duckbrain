@@ -13,7 +13,15 @@
  * without needing a live embedding provider or DuckDB.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
 import { createHttpServer } from "../../cli/http";
 import { createServer, Server } from "http";
 import { recallTool } from "../../mcp/tools/recall";
@@ -114,10 +122,7 @@ describe("DOGFOOD-001: GET /api/memories?q= forwards query to semantic recall", 
       count: 2,
     });
 
-    const { status, body } = await httpRequest(
-      "GET",
-      "/api/memories?q=SQLite",
-    );
+    const { status, body } = await httpRequest("GET", "/api/memories?q=SQLite");
 
     expect(status).toBe(200);
     expect(vi.mocked(recallTool)).toHaveBeenCalledWith(

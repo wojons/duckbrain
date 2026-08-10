@@ -45,7 +45,9 @@ describe("server_status tool", () => {
   });
 
   it("reads the per-instance pidfile for the queried port", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-"));
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-"),
+    );
     const previous = process.env.DUCKBRAIN_DATA_DIR;
     process.env.DUCKBRAIN_DATA_DIR = tmpDir;
     try {
@@ -68,7 +70,9 @@ describe("server_status tool", () => {
   });
 
   it("reads the per-instance pidfile for the queried socket", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-socket-"));
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-socket-"),
+    );
     const previous = process.env.DUCKBRAIN_DATA_DIR;
     process.env.DUCKBRAIN_DATA_DIR = tmpDir;
     try {
@@ -93,16 +97,16 @@ describe("server_status tool", () => {
   });
 
   it("returns null pid when the per-instance pidfile is missing", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-server-status-missing-"));
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-missing-"),
+    );
     const previous = process.env.DUCKBRAIN_DATA_DIR;
     process.env.DUCKBRAIN_DATA_DIR = tmpDir;
     try {
       const result = await serverStatusTool({ port: 3556 });
 
       expect(result.pid).toBeNull();
-      expect(result.pidFile).toBe(
-        path.join(tmpDir, "duckbrain-http-3556.pid"),
-      );
+      expect(result.pidFile).toBe(path.join(tmpDir, "duckbrain-http-3556.pid"));
     } finally {
       if (previous === undefined) {
         delete process.env.DUCKBRAIN_DATA_DIR;

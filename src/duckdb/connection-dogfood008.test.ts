@@ -20,10 +20,7 @@ describe("DOGFOOD-008 scratch file cleanup", () => {
   });
 
   it("removes only this process's scratch db files", () => {
-    const own = path.join(
-      tmpDir,
-      `duckbrain-${process.pid}-abc123-0.db`,
-    );
+    const own = path.join(tmpDir, `duckbrain-${process.pid}-abc123-0.db`);
     const otherPid = path.join(
       tmpDir,
       `duckbrain-${process.pid + 1}-abc123-0.db`,

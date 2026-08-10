@@ -255,7 +255,9 @@ async function recallCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.log(`Usage: duckbrain recall [options]`);
     console.log("");
-    console.log("Query memories. Defaults to a prefix search over the whole store.");
+    console.log(
+      "Query memories. Defaults to a prefix search over the whole store.",
+    );
     console.log("");
     console.log("Options:");
     console.log("  --key=<key>        Exact key lookup");

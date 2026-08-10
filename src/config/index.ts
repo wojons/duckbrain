@@ -327,7 +327,10 @@ export function registerNamespace(
   // We must NOT pass getConfig() (env-overridden) as the `updates` payload —
   // that would leak env-only fields into the file via the spread merge. (GAP-007)
   const fileConfig = readFileConfig(configDir);
-  const namespaceMappings = { ...fileConfig.namespaceMappings, [alias]: fullPath };
+  const namespaceMappings = {
+    ...fileConfig.namespaceMappings,
+    [alias]: fullPath,
+  };
   return updateConfig(configDir, { namespaceMappings });
 }
 

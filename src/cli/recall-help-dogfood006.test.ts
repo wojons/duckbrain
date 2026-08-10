@@ -59,7 +59,9 @@ describe("DOGFOOD-006: recall --help", () => {
     const lines = await captureLogs(() => runHumanCLI("help", []));
     const out = lines.join("\n");
     expect(out).toContain("--namespace=NAME");
-    expect(out).not.toContain("--namespace=NAME   Select namespace (default: default)");
+    expect(out).not.toContain(
+      "--namespace=NAME   Select namespace (default: default)",
+    );
     expect(out).toMatch(/--namespace=NAME.*config defaultNamespace/);
   });
 });

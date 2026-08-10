@@ -29,7 +29,10 @@ let tempNsRoot: string;
  * Write a minimal valid config file with a known namespacesPath, so each test
  * has a deterministic on-disk starting state to assert against.
  */
-function writeConfig(dir: string, overrides: Record<string, unknown> = {}): void {
+function writeConfig(
+  dir: string,
+  overrides: Record<string, unknown> = {},
+): void {
   const base = {
     defaultNamespace: "default",
     authorEmail: "test@example.com",
@@ -90,7 +93,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH set", () => {
     expect(result.defaultNamespace).toBe("warpfs");
     // ...and the file reflects it too.
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
     expect(fileConfig.defaultNamespace).toBe("warpfs");
     expect(fileConfig.namespacesPath).toBe("./namespaces");
@@ -104,7 +110,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH set", () => {
 
     // The mapping must be persisted.
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
     expect(fileConfig.namespaceMappings["test-ns"]).toBe("namespaces/test-ns");
   });
@@ -118,7 +127,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH set", () => {
     expect(readFileNsPath(tempConfigDir)).toBe("./namespaces");
 
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
     expect(fileConfig.defaultNamespace).toBe("other");
     expect(fileConfig.namespacesPath).toBe("./namespaces");
@@ -135,7 +147,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH UNSET", () => {
     updateConfig(tempConfigDir, { defaultNamespace: "production-ns" });
 
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
     expect(fileConfig.defaultNamespace).toBe("production-ns");
     expect(fileConfig.namespacesPath).toBe("./namespaces");
@@ -145,7 +160,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH UNSET", () => {
     // Simulates switchNamespaceTool: updateConfig(".", { defaultNamespace }).
     writeConfig(tempConfigDir, {
       namespacesPath: "./namespaces",
-      namespaceMappings: { "new-ns": "namespaces/new-ns", default: "namespaces/default" },
+      namespaceMappings: {
+        "new-ns": "namespaces/new-ns",
+        default: "namespaces/default",
+      },
     });
 
     const result = updateConfig(tempConfigDir, { defaultNamespace: "new-ns" });
@@ -153,7 +171,10 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH UNSET", () => {
     expect(result.defaultNamespace).toBe("new-ns");
 
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
     expect(fileConfig.defaultNamespace).toBe("new-ns");
     expect(fileConfig.namespacesPath).toBe("./namespaces");
@@ -165,9 +186,14 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH UNSET", () => {
     registerNamespace(tempConfigDir, "deployed-ns", "namespaces/deployed-ns");
 
     const fileConfig = JSON.parse(
-      fs.readFileSync(path.join(tempConfigDir, "duckbrain.config.json"), "utf-8"),
+      fs.readFileSync(
+        path.join(tempConfigDir, "duckbrain.config.json"),
+        "utf-8",
+      ),
     );
-    expect(fileConfig.namespaceMappings["deployed-ns"]).toBe("namespaces/deployed-ns");
+    expect(fileConfig.namespaceMappings["deployed-ns"]).toBe(
+      "namespaces/deployed-ns",
+    );
     expect(fileConfig.namespacesPath).toBe("./namespaces");
   });
 });

@@ -77,7 +77,10 @@ describe("computeDeltas", () => {
     write("b.jsonl", "22");
     const local = walkLocal(nsDir);
     const remote = new Map([
-      [remoteKeyFor(cfg(), "testns", "b.jsonl"), { key: remoteKeyFor(cfg(), "testns", "b.jsonl"), size: 2 }],
+      [
+        remoteKeyFor(cfg(), "testns", "b.jsonl"),
+        { key: remoteKeyFor(cfg(), "testns", "b.jsonl"), size: 2 },
+      ],
     ]);
     const manifest: S3SyncManifest = {
       version: 1,
@@ -97,8 +100,14 @@ describe("computeDeltas", () => {
     write("local-only.jsonl", "x");
     const local = walkLocal(nsDir);
     const remote = new Map([
-      [remoteKeyFor(cfg(), "testns", "remote-new.jsonl"), { key: "x", size: 3 }],
-      [remoteKeyFor(cfg(), "testns", "local-only.jsonl"), { key: "y", size: 999 }],
+      [
+        remoteKeyFor(cfg(), "testns", "remote-new.jsonl"),
+        { key: "x", size: 3 },
+      ],
+      [
+        remoteKeyFor(cfg(), "testns", "local-only.jsonl"),
+        { key: "y", size: 999 },
+      ],
     ]);
 
     const d = computeDeltas(cfg(), "testns", local, remote, null);
@@ -119,7 +128,9 @@ describe("computeDeltas", () => {
 
 describe("manifest round-trip", () => {
   it("saves and loads manifests from the state dir", () => {
-    const manifest = makeManifest("testns", { "a.jsonl": { size: 1, mtimeMs: 123 } });
+    const manifest = makeManifest("testns", {
+      "a.jsonl": { size: 1, mtimeMs: 123 },
+    });
     saveManifest(manifest, path.join(tmp, "namespaces"));
     const loaded = loadManifest(path.join(tmp, "namespaces"), "testns");
     expect(loaded).not.toBeNull();

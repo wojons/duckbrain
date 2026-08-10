@@ -323,14 +323,12 @@ export async function deleteNamespaceTool(
       const dirPath = path.resolve(recordedPath);
       const rel = path.relative(namespacesRoot, dirPath);
       const isInside =
-        rel === "" ||
-        (!rel.startsWith("..") && !path.isAbsolute(rel));
+        rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 
       if (!isInside) {
         return {
           success: false,
-          error:
-            "Refusing to delete path outside namespaces root: " + dirPath,
+          error: "Refusing to delete path outside namespaces root: " + dirPath,
         };
       }
 

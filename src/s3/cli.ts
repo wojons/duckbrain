@@ -27,14 +27,17 @@ function requireEnabled(configDir: string) {
   const cfg = getConfig(configDir);
   if (!cfg.s3?.enabled) {
     console.error(
-      "S3 is disabled. Set \"s3\": { \"enabled\": true, ... } in duckbrain.config.json — see docs/s3-native.md",
+      'S3 is disabled. Set "s3": { "enabled": true, ... } in duckbrain.config.json — see docs/s3-native.md',
     );
     process.exit(1);
   }
   return cfg.s3;
 }
 
-export async function s3Status(configDir: string, nsArg?: string): Promise<void> {
+export async function s3Status(
+  configDir: string,
+  nsArg?: string,
+): Promise<void> {
   const cfg = getConfig(configDir);
   const s3 = cfg.s3;
   const nsRoot = namespacesPath(configDir);
@@ -42,7 +45,9 @@ export async function s3Status(configDir: string, nsArg?: string): Promise<void>
   if (!s3?.enabled) return;
   console.log(`  endpoint: ${s3.endpoint ?? "(AWS default)"}`);
   console.log(`  bucket:   ${s3.bucket}  prefix: ${s3.prefix}`);
-  console.log(`  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`);
+  console.log(
+    `  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`,
+  );
   console.log(`  pathStyle: ${s3.forcePathStyle}`);
 
   const nsList = nsArg
@@ -68,7 +73,11 @@ export async function s3Status(configDir: string, nsArg?: string): Promise<void>
     const localCount = walkLocal(path.join(nsRoot, ns)).size;
     let remoteCount = -1;
     try {
-      const remote = await listRemoteObjects(client, s3.bucket, `${s3.prefix}/${ns}/`);
+      const remote = await listRemoteObjects(
+        client,
+        s3.bucket,
+        `${s3.prefix}/${ns}/`,
+      );
       remoteCount = remote.size;
     } catch (err) {
       remoteCount = -2;
@@ -97,14 +106,18 @@ export async function s3Sync(
   } else {
     const all = await syncAllNamespaces(s3, nsRoot, direction);
     const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
-    console.log(`[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`);
+    console.log(
+      `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
+    );
   }
 }
 
 export async function s3Query(configDir: string, sql: string): Promise<void> {
   const s3 = requireEnabled(configDir);
   if (!sql.trim()) {
-    console.error("Usage: duckbrain s3 query \"SELECT ... FROM read_json_auto('s3://bucket/prefix/ns/**/*.jsonl')\"");
+    console.error(
+      "Usage: duckbrain s3 query \"SELECT ... FROM read_json_auto('s3://bucket/prefix/ns/**/*.jsonl')\"",
+    );
     process.exit(1);
   }
   const result = await runS3Query(s3, sql);
@@ -122,7 +135,10 @@ export function s3ConfigShow(configDir: string): void {
   console.log(JSON.stringify(parsed, null, 2));
 }
 
-export async function s3Command(args: string[], configDir = "."): Promise<void> {
+export async function s3Command(
+  args: string[],
+  configDir = ".",
+): Promise<void> {
   const sub = args[0] ?? "status";
   switch (sub) {
     case "status":

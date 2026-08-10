@@ -283,9 +283,7 @@ export async function createAutoProviders(
 
   // Explicit provider → hard requirement
   if (resolved.provider && resolved.provider !== "auto") {
-    return [
-      createProvider({ ...resolved, provider: resolved.provider }),
-    ];
+    return [createProvider({ ...resolved, provider: resolved.provider })];
   }
 
   // Auto: probe providers in priority order

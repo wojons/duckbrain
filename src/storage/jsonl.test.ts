@@ -16,9 +16,8 @@ import type { MemoryType } from "../schema/memory";
  */
 function makeRecord(i: number): MemoryType {
   return {
-    id: "00000000-0000-4000-8000-000000000000".replace(
-      /0/g,
-      () => Math.floor(Math.random() * 10).toString(),
+    id: "00000000-0000-4000-8000-000000000000".replace(/0/g, () =>
+      Math.floor(Math.random() * 10).toString(),
     ),
     key: `/test/rotation/${i}`,
     domain: "event",

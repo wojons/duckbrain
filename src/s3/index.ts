@@ -35,7 +35,9 @@ export function maybeSyncOnCommit(namespacePathArg: string): void {
     setTimeout(() => {
       const s3 = cfg.s3!;
       syncNamespace(s3, ns, cfg.namespacesPath, "push").catch((err) => {
-        console.warn(`[S3] pushOnCommit failed for ${ns}: ${(err as Error).message}`);
+        console.warn(
+          `[S3] pushOnCommit failed for ${ns}: ${(err as Error).message}`,
+        );
       });
     }, 0);
   } catch {

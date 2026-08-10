@@ -32,7 +32,12 @@ import {
 import type { S3Config } from "./config";
 
 /** Directories never synced (per-namespace repo internals). */
-const EXCLUDED_DIRS = new Set([".git", ".s3state", ".embeddings", "node_modules"]);
+const EXCLUDED_DIRS = new Set([
+  ".git",
+  ".s3state",
+  ".embeddings",
+  "node_modules",
+]);
 /** Extensions never synced (rebuildable caches / temp files). */
 const EXCLUDED_EXTENSIONS = new Set([".db", ".parquet", ".tmp", ".bak"]);
 const EXCLUDED_FILES = new Set([".DS_Store"]);
@@ -91,7 +96,11 @@ export function walkLocal(nsPath: string): Map<string, LocalFile> {
   return out;
 }
 
-export function remoteKeyFor(cfg: S3Config, ns: string, relPath: string): string {
+export function remoteKeyFor(
+  cfg: S3Config,
+  ns: string,
+  relPath: string,
+): string {
   return `${cfg.prefix}/${ns}/${relPath}`;
 }
 
@@ -223,7 +232,9 @@ export async function pushNamespace(
       );
       uploaded++;
     } catch (err) {
-      console.warn(`[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`);
+      console.warn(
+        `[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -269,7 +280,9 @@ export async function pullNamespace(
       fs.writeFileSync(dest, body);
       downloaded++;
     } catch (err) {
-      console.warn(`[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`);
+      console.warn(
+        `[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`,
+      );
     }
   }
 
