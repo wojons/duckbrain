@@ -272,6 +272,10 @@ curl "http://localhost:3000/api/memories/a1b2c3d4-e5f6-7890-abcd-ef1234567890?na
 
 Create a new memory.
 
+| Query Param | Default | Description |
+|-------------|---------|-------------|
+| `namespace` | `default` | Namespace to write to |
+
 **Request:**
 
 ```json
@@ -279,12 +283,15 @@ Create a new memory.
   "key": "/projects/myapp/database",
   "domain": "concept",
   "content": "Using PostgreSQL with PgBouncer for connection pooling",
+  "namespace": "default",
   "attributes": {
     "author": "alice",
     "confidence": "high"
   }
 }
 ```
+
+> **Note — namespace selection:** The target namespace may be passed either as the `?namespace=` query parameter **or** as a `"namespace"` field in the JSON body. When both are present the query parameter wins; the body value is the fallback; when neither is supplied the memory is written to the `default` namespace.
 
 > **Note — field naming across surfaces:** The HTTP API accepts `content` for the memory body. This maps directly to the MCP `remember` tool's `embedding_text` field — both surfaces store and return the **same** underlying text field (see [MCP Tools Reference](mcp-tools.md#remember)). A memory written via HTTP with `content` is retrievable via MCP `recall` with the text in `embedding_text`, and vice versa.
 

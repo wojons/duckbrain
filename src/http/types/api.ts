@@ -77,6 +77,8 @@ export interface CreateMemoryRequest {
   content: string;
   /** Optional attributes */
   attributes?: Record<string, unknown>;
+  /** Optional target namespace — fallback when the ?namespace= query param is absent */
+  namespace?: string;
 }
 
 /**

@@ -111,13 +111,18 @@ describe("HTTP Server E2E Integration", () => {
  * files and must serve 200 regardless of the foreign lock.
  */
 describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB file", () => {
-  const nsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-gap001-e2e-"));
+  const nsRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "duckbrain-gap001-e2e-"),
+  );
   const gapPort = getRandomPort();
   let gapServer: ChildProcess;
   let lockHolder: ChildProcess | null = null;
   const savedNsEnv = process.env.DUCKBRAIN_NAMESPACES_PATH;
 
-  function waitForLocked(child: ChildProcess, timeoutMs = 15000): Promise<void> {
+  function waitForLocked(
+    child: ChildProcess,
+    timeoutMs = 15000,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(
         () => reject(new Error("lock holder did not report LOCKED in time")),
@@ -175,9 +180,9 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
         'import { createRequire } from "module";',
         'const require = createRequire(process.cwd() + "/package.json");',
         'const { Database } = require("duckdb");',
-        "const db = new Database(process.argv[2], { threads: \"1\" });",
+        'const db = new Database(process.argv[2], { threads: "1" });',
         'db.run("CREATE TABLE IF NOT EXISTS lock_probe (i INTEGER)", (err) => {',
-        "  if (err) { console.error(\"LOCK FAIL\", err.message); process.exit(1); }",
+        '  if (err) { console.error("LOCK FAIL", err.message); process.exit(1); }',
         '  console.log("LOCKED");',
         "  setInterval(() => {}, 1000);",
         "});",
@@ -218,7 +223,9 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
  * Post-fix it must return the memory JSON (200) or 404 for a missing key.
  */
 describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
-  const nsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-gap002-e2e-"));
+  const nsRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "duckbrain-gap002-e2e-"),
+  );
   const gap2Port = getRandomPort();
   let gap2Server: ChildProcess;
   const savedNsEnv = process.env.DUCKBRAIN_NAMESPACES_PATH;
@@ -263,5 +270,71 @@ describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
       `http://127.0.0.1:${gap2Port}/api/memories/key/definitely/missing/${Date.now()}?namespace=default`,
     );
     expect(missing.status).toBe(404);
+  }, 30000);
+});
+
+/**
+ * GAP-020 E2E regression: POST /api/memories honors `namespace` in the JSON body.
+ *
+ * Pre-fix the route read only `req.query.namespace || "default"`, so a
+ * body-supplied namespace was silently dropped and the memory landed in
+ * `default` (DOGFOOD-001 class: silently-ignored param). Post-fix the query
+ * param still wins, body.namespace is the fallback, and the memory must be
+ * visible under the body-supplied namespace's key tree.
+ */
+describe("GAP-020: POST /api/memories honors body.namespace", () => {
+  const nsRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "duckbrain-gap020-e2e-"),
+  );
+  const gap20Port = getRandomPort();
+  let gap20Server: ChildProcess;
+  const savedNsEnv = process.env.DUCKBRAIN_NAMESPACES_PATH;
+  const ns = `gap020-${Date.now()}`;
+  const key = `/gap020/e2e/body-namespace/${Date.now()}`;
+
+  beforeAll(async () => {
+    fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
+    process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
+    gap20Server = await startDuckbrainHttp({ port: gap20Port });
+    await waitForUrl(`http://127.0.0.1:${gap20Port}/health`, 15000);
+  }, 45000);
+
+  afterAll(() => {
+    killProcess(gap20Server);
+    if (savedNsEnv === undefined) {
+      delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+    } else {
+      process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsEnv;
+    }
+    fs.rmSync(nsRoot, { recursive: true, force: true });
+  });
+
+  it("stores the memory in the body-supplied namespace (no query param) and lists it via /api/keys", async () => {
+    const seed = await curl(
+      `-X POST -H "Content-Type: application/json" -d '${JSON.stringify({
+        namespace: ns,
+        key,
+        domain: "raw_note",
+        content: "GAP-020 e2e body.namespace regression",
+      })}' http://127.0.0.1:${gap20Port}/api/memories`,
+    );
+    expect(seed.status).toBe(201);
+
+    // The body-supplied namespace must now exist and its key tree must
+    // contain the created key (pre-fix: "Namespace does not exist").
+    const keys = await curl(
+      `http://127.0.0.1:${gap20Port}/api/keys?namespace=${ns}&limit=10`,
+    );
+    expect(keys.status).toBe(200);
+    expect(keys.body).toContain(key);
+
+    // And the memory itself must be retrievable from that namespace.
+    const memories = await curl(
+      `http://127.0.0.1:${gap20Port}/api/memories?namespace=${ns}&limit=5`,
+    );
+    expect(memories.status).toBe(200);
+    const parsed = JSON.parse(memories.body);
+    expect(parsed.items.length).toBeGreaterThanOrEqual(1);
+    expect(parsed.items[0].key).toBe(key);
   }, 30000);
 });

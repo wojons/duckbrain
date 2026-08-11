@@ -219,7 +219,7 @@ router.post(
       domain: body.domain as any,
       attributes: body.attributes || {},
       embedding_text: body.content,
-      namespace: (req.query.namespace as string) || "default",
+      namespace: (req.query.namespace as string) || body.namespace || "default",
     });
 
     if (!result.success) {
