@@ -299,3 +299,17 @@ tasks:
   status: complete
   created_at: '2026-08-11T00:43:53.244508+00:00'
   completed_at: '2026-08-11T00:44:01.695789+00:00'
+- id: GAP-022
+  title: "GAP-022: DUCKBRAIN_CONFIG_PATH env override \u2014 test suite never writes\
+    \ repo config"
+  criteria:
+  - DUCKBRAIN_CONFIG_PATH env override added in getConfigPath (src/config/index.ts),
+    env-only, never persists into file (GAP-007 guard)
+  - Test suite points at temp config (src/test-setup.ts); full vitest run leaves git
+    status --porcelain duckbrain.config.json empty
+  - 'Live probe: DUCKBRAIN_CONFIG_PATH=/tmp/x.json node bin/duckbrain.js http reads
+    /tmp/x.json'
+  - Full suite 349+ pass, npx tsc --noEmit clean, gitreins guard PASS
+  status: complete
+  created_at: '2026-08-11T14:24:07.928832+00:00'
+  completed_at: '2026-08-11T14:24:10.346816+00:00'
