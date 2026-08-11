@@ -286,3 +286,16 @@ tasks:
   status: complete
   created_at: '2026-08-09T12:19:37.618081+00:00'
   completed_at: '2026-08-09T12:19:42.461337+00:00'
+- id: duckbrain-gap020
+  title: 'GAP-020: POST /api/memories honors body.namespace'
+  criteria:
+  - curl -X POST localhost:3000/api/memories -d '{"namespace":"test-ns","key":"/x","domain":"concept","content":"hi"}'
+    returns 201
+  - curl 'localhost:3000/api/keys?namespace=test-ns' returns the key tree (not namespace
+    does not exist)
+  - http-api.md POST section documents the namespace query param
+  - npx vitest run passes (349/349 baseline)
+  - npx tsc --noEmit exits 0
+  status: complete
+  created_at: '2026-08-11T00:43:53.244508+00:00'
+  completed_at: '2026-08-11T00:44:01.695789+00:00'
