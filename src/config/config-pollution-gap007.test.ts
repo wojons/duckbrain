@@ -21,6 +21,7 @@ import { getConfig, updateConfig, registerNamespace } from "./index";
 
 /** Paths and env state we save/restore so the suite never leaks. */
 const SAVED_ENV_NS_PATH = process.env.DUCKBRAIN_NAMESPACES_PATH;
+const SAVED_ENV_CONFIG_PATH = process.env.DUCKBRAIN_CONFIG_PATH;
 
 let tempConfigDir: string;
 let tempNsRoot: string;
@@ -57,6 +58,9 @@ function readFileNsPath(dir: string): string {
 beforeEach(() => {
   tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), "gap007-cfg-"));
   tempNsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gap007-ns-"));
+  // These tests exercise explicit configDir dirs — the suite-wide config-file
+  // override (GAP-022) must be OFF so getConfigPath() targets the temp dirs.
+  delete process.env.DUCKBRAIN_CONFIG_PATH;
 });
 
 afterEach(() => {
@@ -67,6 +71,11 @@ afterEach(() => {
     delete process.env.DUCKBRAIN_NAMESPACES_PATH;
   } else {
     process.env.DUCKBRAIN_NAMESPACES_PATH = SAVED_ENV_NS_PATH;
+  }
+  if (SAVED_ENV_CONFIG_PATH === undefined) {
+    delete process.env.DUCKBRAIN_CONFIG_PATH;
+  } else {
+    process.env.DUCKBRAIN_CONFIG_PATH = SAVED_ENV_CONFIG_PATH;
   }
 });
 
@@ -195,5 +204,61 @@ describe("GAP-007: updateConfig with DUCKBRAIN_NAMESPACES_PATH UNSET", () => {
       "namespaces/deployed-ns",
     );
     expect(fileConfig.namespacesPath).toBe("./namespaces");
+  });
+});
+
+describe("GAP-022: updateConfig with DUCKBRAIN_CONFIG_PATH set", () => {
+  beforeEach(() => {
+    // Seed the override file with a known starting state (the file the
+    // suite-wide override points at; a sibling of the explicit temp dir).
+    const overridePath = path.join(tempConfigDir, "override.json");
+    process.env.DUCKBRAIN_CONFIG_PATH = overridePath;
+    fs.writeFileSync(
+      overridePath,
+      JSON.stringify(
+        {
+          defaultNamespace: "seed-ns",
+          authorEmail: "test@example.com",
+          namespacesPath: "./namespaces",
+          namespaceMappings: {},
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+  });
+
+  it("writes ONLY to the override file — the repo config is untouched", () => {
+    const repoConfigPath = path.join(process.cwd(), "duckbrain.config.json");
+    const repoConfigBefore = fs.readFileSync(repoConfigPath, "utf-8");
+
+    updateConfig(".", { defaultNamespace: "warpfs" });
+
+    // The override file received the write (merged onto its own seed state).
+    const overrideFile = JSON.parse(
+      fs.readFileSync(path.join(tempConfigDir, "override.json"), "utf-8"),
+    );
+    expect(overrideFile.defaultNamespace).toBe("warpfs");
+    expect(overrideFile.namespacesPath).toBe("./namespaces");
+
+    // The tracked repo config is byte-identical — never read, never written.
+    expect(fs.readFileSync(repoConfigPath, "utf-8")).toBe(repoConfigBefore);
+  });
+
+  it("never persists the override path value into the config file", () => {
+    updateConfig(".", { defaultNamespace: "warpfs" });
+
+    const overridePath = process.env.DUCKBRAIN_CONFIG_PATH!;
+    const raw = fs.readFileSync(
+      path.join(tempConfigDir, "override.json"),
+      "utf-8",
+    );
+
+    // The override path is env-only — it must not appear anywhere in the
+    // file, and no field may carry it (GAP-007 guard applied to GAP-022).
+    expect(raw).not.toContain(overridePath);
+    const parsed = JSON.parse(raw);
+    expect(Object.values(parsed)).not.toContain(overridePath);
   });
 });

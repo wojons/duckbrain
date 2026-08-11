@@ -16,9 +16,13 @@
  *    namespace blocked, missing namespace → "not found".
  *
  * The namespace storage runs under the test-suite temp root
- * (DUCKBRAIN_NAMESPACES_PATH, set by src/test-setup.ts). The config FILE,
- * however, is the real duckbrain.config.json at the repo root (the tools
- * hardcode configDir "."), so each test snapshots + restores it.
+ * (DUCKBRAIN_NAMESPACES_PATH, set by src/test-setup.ts). The config FILE is
+ * likewise redirected to a temp file via DUCKBRAIN_CONFIG_PATH (GAP-022, also
+ * set by src/test-setup.ts) — the tools hardcode configDir ".", so without
+ * the redirect every updateConfig() write here would race on the TRACKED
+ * duckbrain.config.json at the repo root (parallel-write flake observed tick
+ * #370). The snapshot/restore below now guards the temp config, never the
+ * repo config.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
@@ -26,7 +30,11 @@ import path from "path";
 import { createNamespaceTool, deleteNamespaceTool } from "./namespace";
 import { getConfig, updateConfig } from "../../config/index";
 
-const CONFIG_PATH = path.join(process.cwd(), "duckbrain.config.json");
+// The config file the tools actually use: the GAP-022 env override when the
+// suite set it (src/test-setup.ts), else the repo-root file as fallback.
+const CONFIG_PATH =
+  process.env.DUCKBRAIN_CONFIG_PATH ||
+  path.join(process.cwd(), "duckbrain.config.json");
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
 
 let configSnapshot: string;
@@ -38,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Restore the real config file so the test never leaks mappings.
+  // Restore the (temp) config file so the test never leaks mappings.
   if (configSnapshot) {
     fs.writeFileSync(CONFIG_PATH, configSnapshot, "utf-8");
   } else if (fs.existsSync(CONFIG_PATH)) {
@@ -108,8 +116,16 @@ describe("DOGFOOD-004: delete_namespace guard branches (unchanged)", () => {
   });
 
   it("blocks deleting the 'default' namespace", async () => {
-    // Register a throwaway so the guard-after-exists isn't what blocks it.
+    // Register 'default' so the guard-after-exists isn't what blocks it.
+    // (The temp config — DUCKBRAIN_CONFIG_PATH — starts empty, unlike the
+    // old repo-root config which already mapped "default".)
     const name = "default";
+    updateConfig(".", {
+      namespaceMappings: {
+        ...getConfig(".").namespaceMappings,
+        [name]: path.join(NS_ROOT, name),
+      },
+    });
     const result = await deleteNamespaceTool({ name, confirm: true });
     expect(result.success).toBe(false);
     expect(result.error).toContain("Cannot delete default namespace");

@@ -13,10 +13,10 @@
  *    helper or the full rememberTool write path (the actual repro path).
  *
  * Isolation: every namespace lives under DUCKBRAIN_NAMESPACES_PATH (the temp
- * root set by src/test-setup.ts). The config FILE is the real
- * duckbrain.config.json at the repo root (tools hardcode configDir "."), so
- * each test snapshots + restores it — same pattern as
- * namespace-delete-dogfood004.test.ts.
+ * root set by src/test-setup.ts). The config FILE is likewise redirected to a
+ * temp file via DUCKBRAIN_CONFIG_PATH (GAP-022, also set by src/test-setup.ts)
+ * — same pattern as namespace-delete-dogfood004.test.ts. The snapshot/restore
+ * below guards the temp config, never the repo config.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "fs";
@@ -124,10 +124,14 @@ describe("DOGFOOD-005: first write to a non-existent namespace inits git", () =>
 /**
  * Full end-to-end test through the actual repro path: rememberTool writing to
  * a namespace that was never explicitly created. This exercises
- * resolveNamespacePath -> mkdir -> JSONL write -> commitNamespace with the real
- * config (snapshotted/restored).
+ * resolveNamespacePath -> mkdir -> JSONL write -> commitNamespace with the
+ * temp config (snapshotted/restored).
  */
-const CONFIG_PATH = path.join(process.cwd(), "duckbrain.config.json");
+// The config file the tools actually use: the GAP-022 env override when the
+// suite set it (src/test-setup.ts), else the repo-root file as fallback.
+const CONFIG_PATH =
+  process.env.DUCKBRAIN_CONFIG_PATH ||
+  path.join(process.cwd(), "duckbrain.config.json");
 let configSnapshot: string;
 
 beforeEach(() => {
@@ -137,7 +141,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Restore the real config file so the test never leaks mappings.
+  // Restore the (temp) config file so the test never leaks mappings.
   if (configSnapshot) {
     fs.writeFileSync(CONFIG_PATH, configSnapshot, "utf-8");
   } else if (fs.existsSync(CONFIG_PATH)) {

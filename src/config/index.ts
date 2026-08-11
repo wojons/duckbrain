@@ -138,10 +138,22 @@ const CONFIG_FILENAME = "duckbrain.config.json";
 /**
  * Get config file path
  *
+ * DUCKBRAIN_CONFIG_PATH (GAP-022) redirects the config FILE location for
+ * BOTH reads and writes — the same env-only pattern as
+ * DUCKBRAIN_NAMESPACES_PATH (BUG-037): set only at runtime, never persisted
+ * into the file, unset in production = the file in configDir is
+ * authoritative. The test suite uses it to keep vitest's updateConfig()
+ * writes out of the tracked duckbrain.config.json at the repo root
+ * (DOGFOOD-004 parallel-write race observed tick #370).
+ *
  * @param configDir - Directory containing config file
  * @returns Full path to config file
  */
 function getConfigPath(configDir: string): string {
+  const override = process.env.DUCKBRAIN_CONFIG_PATH;
+  if (override) {
+    return override;
+  }
   return path.join(configDir, CONFIG_FILENAME);
 }
 
