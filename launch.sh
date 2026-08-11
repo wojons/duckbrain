@@ -71,8 +71,8 @@ check_deps() {
         exit 1
     fi
     
-    if ! command -v npm >/dev/null 2>&1; then
-        print_error "npm is not installed"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        print_error "pnpm is not installed (enable via corepack or see https://pnpm.io/installation)"
         exit 1
     fi
     
@@ -85,13 +85,13 @@ check_deps() {
     # Check if node_modules exists
     if [ ! -d "node_modules" ]; then
         print_status "Installing dependencies..."
-        npm install
+        pnpm install
     fi
     
     # Check UI dependencies
     if [ ! -d "packages/ui/node_modules" ]; then
         print_status "Installing UI dependencies..."
-        cd packages/ui && npm install && cd ../..
+        cd packages/ui && pnpm install && cd ../..
     fi
     
     print_success "Dependencies OK"
@@ -283,6 +283,10 @@ main() {
                 print_warning "UI is not running"
             fi
             ;;
+        install)
+            check_deps
+            print_success "Dependencies installed"
+            ;;
         docker)
             if ! command -v docker >/dev/null 2>&1; then
                 print_error "Docker is not installed"
@@ -302,6 +306,7 @@ main() {
             echo "  ui         Start only the Web UI"
             echo "  stop       Stop all running DuckBrain processes"
             echo "  status     Check if DuckBrain is running"
+            echo "  install    Install dependencies (pnpm)"
             echo "  docker     Start with Docker Compose"
             echo "  help       Show this help message"
             echo ""

@@ -46,19 +46,19 @@ pnpm run dev
 **MCP Server Mode (for Claude/Cursor):**
 
 ```bash
-npm start -- stdio
+pnpm start -- stdio
 ```
 
 **HTTP Server Mode (MCP-over-HTTP + REST API):**
 
 ```bash
-npm start -- http --port=3000
+pnpm start -- http --port=3000
 ```
 
 **HTTP Server Mode with Unix socket** (for MCP-over-HTTP over a permissioned filesystem socket):
 
 ```bash
-npm start -- http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
+pnpm start -- http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
 ```
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
