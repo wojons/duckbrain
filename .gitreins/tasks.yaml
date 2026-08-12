@@ -333,3 +333,15 @@ tasks:
   status: complete
   created_at: '2026-08-12T06:40:27.700377+00:00'
   completed_at: '2026-08-12T06:40:31.024193+00:00'
+- id: GAP-025
+  title: Missing namespace returns HTTP 404, not 500
+  criteria:
+  - GET /api/memories?namespace=<nonexistent>&limit=1 returns HTTP 404 with the namespace-not-found
+    message (NOT 500)
+  - GET /api/keys with a nonexistent namespace also returns 404 with the same message
+  - Regression tests exist covering 404 mapping + preserved behaviors (valid namespace
+    200, limit validation 400)
+  - Full suite passes (pnpm test:run 370/370, 50 files) and npx tsc --noEmit is clean
+  status: complete
+  created_at: '2026-08-12T12:23:33.481810+00:00'
+  completed_at: '2026-08-12T12:23:35.861921+00:00'
