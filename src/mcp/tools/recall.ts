@@ -34,10 +34,7 @@ const RecallInputSchema = z.object({
   /** Domain filter */
   domain: DomainEnum.optional(),
   /** Exact author filter */
-  author: z
-    .string()
-    .optional()
-    .describe("Exact author filter"),
+  author: z.string().optional().describe("Exact author filter"),
   /** Semantic search query (uses vss extension) */
   query: z
     .string()
