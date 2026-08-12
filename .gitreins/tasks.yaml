@@ -313,3 +313,23 @@ tasks:
   status: complete
   created_at: '2026-08-11T14:24:07.928832+00:00'
   completed_at: '2026-08-11T14:24:10.346816+00:00'
+- id: GAP-023-024
+  title: 'Pagination: reject negative limits (DoS) + true total count + correct hasMore
+    (GAP-023, GAP-024)'
+  criteria:
+  - GET /api/memories?namespace=<ns>&limit=-1 returns HTTP 400 VALIDATION_ERROR (not
+    all rows)
+  - GET /api/memories?namespace=<ns>&limit=abc (non-numeric) returns HTTP 400 VALIDATION_ERROR
+  - GET /api/memories?namespace=<ns>&limit=0 returns items:[], total=<true count>,
+    hasMore:false
+  - GET /api/memories?namespace=<ns>&limit=5 returns items.length 5 AND total = true
+    matching count (unlimited by limit/offset)
+  - 'src/duckdb/queries.ts LIMIT clause: falsy-0 no longer omits LIMIT (filters.limit
+    !== undefined check)'
+  - Regression tests added for all pagination edge cases (limit=-1 400, limit=0 hasMore:false,
+    limit=5 true total)
+  - Full suite passes (npx vitest run) and npx tsc --noEmit clean
+  - duckbrain.config.json byte-identical after test run (GAP-022 AC1)
+  status: complete
+  created_at: '2026-08-12T06:40:27.700377+00:00'
+  completed_at: '2026-08-12T06:40:31.024193+00:00'
