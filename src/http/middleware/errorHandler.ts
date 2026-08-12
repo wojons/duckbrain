@@ -83,6 +83,24 @@ export function errorHandler(
     stack: err.stack?.split("\n").slice(0, 5),
   });
 
+  // GAP-025: a missing namespace is a client-addressable condition, not a
+  // server crash. MCP tools (recall, list_keys) report it as a plain error
+  // string ("Namespace '<ns>' does not exist") which the routes wrap in
+  // ApiError(500); remap exactly those to 404 NOT_FOUND so callers and
+  // monitoring can distinguish "namespace not found" from a real internal
+  // failure. All other 500 semantics are unchanged.
+  if (
+    err instanceof ApiError &&
+    err.status === 500 &&
+    /^Namespace '.+' does not exist$/.test(err.message)
+  ) {
+    res.status(404).json({
+      error: err.message,
+      code: "NOT_FOUND",
+    });
+    return;
+  }
+
   // Handle specific error types
   if (err instanceof ApiError) {
     res.status(err.status).json({
