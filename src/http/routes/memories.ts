@@ -87,9 +87,14 @@ router.get(
     // Call recallTool with filters
     const result = await recallTool({
       keyPrefix: params.prefix,
-      limit: params.limit! + 1, // Fetch one extra to detect hasMore
+      // Fetch one extra to detect hasMore. limit=0 is an explicit empty page
+      // — recallTool short-circuits to a count-only result (GAP-024).
+      limit: params.limit! > 0 ? params.limit! + 1 : 0,
       domain: params.domain,
       namespace: params.namespace,
+      // Author is applied in SQL (via recallTool) so the true total
+      // reflects it (GAP-024).
+      ...(params.author ? { author: params.author } : {}),
       // DOGFOOD-001: forward ?q= to semantic search (was silently dropped).
       // When q= is set but no embedding provider is configured, recallTool
       // returns an error string which the result.error → ApiError(500) path
@@ -108,8 +113,10 @@ router.get(
       ? memories.filter((m) => m.author === params.author)
       : memories;
 
-    // Check if there are more results
-    const hasMore = filteredMemories.length > params.limit!;
+    // Check if there are more results. limit=0 is an explicit empty page —
+    // hasMore must be false even when rows exist (GAP-024).
+    const hasMore =
+      params.limit! > 0 && filteredMemories.length > params.limit!;
     if (hasMore) {
       filteredMemories.pop(); // Remove the extra item
     }
@@ -123,7 +130,10 @@ router.get(
 
     const response: MemoryListResponse = {
       items: paginatedMemories,
-      total: filteredMemories.length, // This is approximate
+      // GAP-024: true COUNT(*) of all rows matching the active filters,
+      // unlimited by limit/offset. Falls back to the fetched-page length for
+      // callers that stub recallTool without a total.
+      total: result.total ?? filteredMemories.length,
       offset,
       limit: params.limit!,
       hasMore,

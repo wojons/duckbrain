@@ -93,31 +93,23 @@ function parseDuckDBStruct(structStr: string): Record<string, unknown> {
 }
 
 /**
- * Query memories from DuckDB with optional filters
- *
- * @param db - DuckDB database instance
- * @param partitionPaths - Array of absolute partition paths to query
- * @param filters - Optional query filters
- * @returns Array of matching memory records
+ * Query filters shared by queryMemories and countMemories (GAP-024).
  */
-export function queryMemories(
-  db: Database,
-  partitionPaths: string[],
-  filters?: {
-    key?: string;
-    keyPrefix?: string;
-    domain?: string;
-    id?: string;
-    query?: string;
-    embedding?: number[];
-    limit?: number;
-  },
-): MemoryType[] | Promise<MemoryType[]> {
-  if (partitionPaths.length === 0) {
-    return [];
-  }
+export interface MemoryQueryFilters {
+  key?: string;
+  keyPrefix?: string;
+  domain?: string;
+  author?: string;
+  id?: string;
+  query?: string;
+  embedding?: number[];
+  limit?: number;
+}
 
-  // Build file list for DuckDB (use read_json instead of glob for reliability)
+/**
+ * Collect the JSONL file paths for the given partitions
+ */
+function collectJsonlFiles(partitionPaths: string[]): string[] {
   const jsonlFiles: string[] = [];
   for (const partitionPath of partitionPaths) {
     if (!fs.existsSync(partitionPath)) continue;
@@ -128,36 +120,82 @@ export function queryMemories(
       .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
     jsonlFiles.push(...files);
   }
+  return jsonlFiles;
+}
 
-  if (jsonlFiles.length === 0) {
-    return [];
-  }
-
-  // Build WHERE clause based on filters - use template literals instead of prepared statements
-  // to avoid DuckDB Node.js binding issues with parameter placeholders
-  const innerConditions: string[] = [];
+/**
+ * Build the inner WHERE conditions for the given filters.
+ *
+ * Shared by queryMemories and countMemories so the counted row set always
+ * matches the queried row set (same dedup + tombstone semantics).
+ */
+function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
+  const conditions: string[] = [];
 
   if (filters?.key) {
     // Escape single quotes in key to prevent SQL injection
     const escapedKey = filters.key.replace(/'/g, "''");
-    innerConditions.push(`key = '${escapedKey}'`);
+    conditions.push(`key = '${escapedKey}'`);
   }
 
   if (filters?.id) {
     // Escape single quotes in id to prevent SQL injection
     const escapedId = filters.id.replace(/'/g, "''");
-    innerConditions.push(`id = '${escapedId}'`);
+    conditions.push(`id = '${escapedId}'`);
   }
 
   if (filters?.keyPrefix) {
     // Escape single quotes in prefix and add LIKE pattern
     const escapedPrefix = filters.keyPrefix.replace(/'/g, "''");
-    innerConditions.push(`key LIKE '${escapedPrefix}%%'`);
+    conditions.push(`key LIKE '${escapedPrefix}%%'`);
   }
 
   if (filters?.domain) {
-    innerConditions.push(`domain = '${filters.domain}'`);
+    conditions.push(`domain = '${filters.domain}'`);
   }
+
+  if (filters?.author) {
+    // Escape single quotes in author to prevent SQL injection
+    const escapedAuthor = filters.author.replace(/'/g, "''");
+    conditions.push(`author = '${escapedAuthor}'`);
+  }
+
+  // Semantic search with vector similarity
+  if (filters?.query && filters?.embedding) {
+    conditions.push("embedding IS NOT NULL");
+  }
+
+  return conditions;
+}
+
+/**
+ * Query memories from DuckDB with optional filters
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters
+ * @returns Array of matching memory records
+ */
+export function queryMemories(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): MemoryType[] | Promise<MemoryType[]> {
+  if (partitionPaths.length === 0) {
+    return [];
+  }
+
+  // Build file list for DuckDB (use read_json instead of glob for reliability)
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+
+  if (jsonlFiles.length === 0) {
+    return [];
+  }
+
+  // Build WHERE clause based on filters - use template literals instead of
+  // prepared statements to avoid DuckDB Node.js binding issues with parameter
+  // placeholders
+  const innerConditions = buildWhereConditions(filters);
 
   let orderByClause = "";
 
@@ -165,7 +203,6 @@ export function queryMemories(
   if (filters?.query && filters?.embedding) {
     // Use DuckDB VSS extension for cosine similarity
     const embeddingStr = `[${filters.embedding.join(",")}]`;
-    innerConditions.push("embedding IS NOT NULL");
     orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC`;
   }
 
@@ -246,6 +283,83 @@ export function queryMemories(
     } catch (error) {
       console.error("DuckDB query error:", error);
       resolve([]);
+    }
+  });
+}
+
+/**
+ * Count memories matching the given filters (GAP-024).
+ *
+ * Produces the same row set as queryMemories — deduplicated by id (latest
+ * record wins) with tombstoned memories excluded — but with no LIMIT, so
+ * the result is the true total for the active filters regardless of any
+ * limit/offset the caller applies to the data query.
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters (limit is ignored)
+ * @returns Number of matching memory records
+ */
+export function countMemories(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): Promise<number> {
+  if (partitionPaths.length === 0) {
+    return Promise.resolve(0);
+  }
+
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+
+  if (jsonlFiles.length === 0) {
+    return Promise.resolve(0);
+  }
+
+  const innerConditions = buildWhereConditions(filters);
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+
+  // Same dedup/tombstone semantics as queryMemories
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
+
+  // Use read_json with explicit file list instead of glob pattern
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      FROM read_json([${fileList}], format='newline_delimited')
+      ${innerWhereClause}
+    ) sub
+    WHERE ${outerWhereClause}
+  `;
+
+  // Use db.all() directly instead of prepared statements to avoid parameter binding issues
+  return new Promise((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          console.error("DuckDB count error:", err);
+          // BUG-034: Propagate connection errors so callers can retry.
+          // A silently-broken Database (e.g. file locked by another process)
+          // must be evicted from the cache and re-created.
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve(0);
+          return;
+        }
+
+        // COUNT(*) comes back as BIGINT; Number() normalizes it
+        resolve(Number(result?.[0]?.total ?? 0));
+      });
+    } catch (error) {
+      console.error("DuckDB count error:", error);
+      resolve(0);
     }
   });
 }

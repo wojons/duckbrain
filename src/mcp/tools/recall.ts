@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { DomainEnum } from "../../schema/memory";
 import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
-import { queryMemories } from "../../duckdb/queries";
+import { queryMemories, countMemories } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
 import { resolveNamespacePath } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
@@ -33,6 +33,11 @@ const RecallInputSchema = z.object({
     .describe("Prefix glob query (e.g., /projects/)"),
   /** Domain filter */
   domain: DomainEnum.optional(),
+  /** Exact author filter */
+  author: z
+    .string()
+    .optional()
+    .describe("Exact author filter"),
   /** Semantic search query (uses vss extension) */
   query: z
     .string()
@@ -59,6 +64,8 @@ interface RecallOutput {
     attributes: Record<string, unknown>;
   }>;
   count: number;
+  /** True total of matching memories, unlimited by limit/offset (GAP-024) */
+  total?: number;
   error?: string;
 }
 
@@ -130,6 +137,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       limit: validated.limit,
     };
 
+    if (validated.author) {
+      filters.author = validated.author;
+    }
+
     if (validated.key) {
       filters.key = validated.key;
     } else if (validated.id) {
@@ -138,6 +149,27 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       filters.keyPrefix = validated.keyPrefix;
     } else if (validated.domain) {
       filters.domain = validated.domain;
+    }
+
+    // GAP-023/GAP-024: limit=0 is a valid "empty page" request — no rows are
+    // fetched, but the true total is still reported. A zero limit must never
+    // reach queryMemories (a falsy 0 would previously omit the LIMIT clause
+    // and scan every row), so count-only is handled here before any data
+    // query.
+    if (validated.limit === 0) {
+      let total: number;
+      try {
+        total = await countMemories(db, partitionPaths, filters);
+      } catch (e: any) {
+        if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
+          evictConnection(namespacePath);
+          const db2 = getDuckDBConnection("singleton", namespacePath);
+          total = await countMemories(db2, partitionPaths, filters);
+        } else {
+          throw e;
+        }
+      }
+      return { memories: [], count: 0, total };
     }
 
     // Handle semantic search (cache-assisted, no vectors in git)
@@ -196,6 +228,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       const candidateFilters: Parameters<typeof queryMemories>[2] = {
         limit: Math.max(validated.limit * 10, 100),
       };
+      if (validated.author) candidateFilters.author = validated.author;
       if (validated.key) candidateFilters.key = validated.key;
       else if (validated.id) candidateFilters.id = validated.id;
       else if (validated.keyPrefix)
@@ -226,7 +259,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         provider,
       );
       const top = ranked.slice(0, validated.limit);
-      return { memories: top, count: top.length };
+      // GAP-024: for ?q=, total reflects the candidate pool the semantic
+      // search actually ranked (bounded by max(limit*10, 100)), not the full
+      // namespace count — semantic results are ranked, not enumerated.
+      return { memories: top, count: top.length, total: candidates.length };
     }
 
     // Execute query — retry once on connection-lost errors (BUG-034 fix).
@@ -234,8 +270,12 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // the Node.js binding silently creates a broken Database that fails on
     // first query. Evict the bad entry and retry with a fresh connection.
     let memories: Awaited<ReturnType<typeof queryMemories>>;
+    let total: number;
     try {
       memories = await queryMemories(db, partitionPaths, filters);
+      // GAP-024: true COUNT(*) of all rows matching the active filters,
+      // unlimited by limit/offset.
+      total = await countMemories(db, partitionPaths, filters);
     } catch (e: any) {
       if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
         console.error(
@@ -244,6 +284,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         evictConnection(namespacePath);
         const db2 = getDuckDBConnection("singleton", namespacePath);
         memories = await queryMemories(db2, partitionPaths, filters);
+        total = await countMemories(db2, partitionPaths, filters);
       } else {
         throw e;
       }
@@ -252,6 +293,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     return {
       memories,
       count: memories.length,
+      total,
     };
   } catch (error) {
     return {
