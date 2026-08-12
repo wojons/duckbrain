@@ -180,7 +180,10 @@ export function queryMemories(
   // the original 'add' record with the same ID.
   const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
 
-  const limitClause = filters?.limit ? `LIMIT ${filters.limit}` : "";
+  // GAP-023: explicit undefined check — a falsy 0 previously produced NO
+  // LIMIT clause at all (returning every row). LIMIT 0 must emit "LIMIT 0".
+  const limitClause =
+    filters?.limit !== undefined ? `LIMIT ${filters.limit}` : "";
 
   // Use read_json with explicit file list instead of glob pattern
   const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");

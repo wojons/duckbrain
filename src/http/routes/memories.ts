@@ -13,6 +13,7 @@ import {
   asyncHandler,
   ApiError,
   NotFoundError,
+  ValidationError,
 } from "../middleware/errorHandler";
 import { DomainEnum } from "../../schema/memory";
 import {
@@ -24,6 +25,28 @@ import {
 } from "../types/api";
 
 const router: Router = Router();
+
+// GAP-023: upper bound on a single page so one request can never force a
+// multi-hundred-MB response, regardless of how many rows match.
+const MAX_LIMIT = 1000;
+
+/**
+ * Parse and validate the ?limit= query parameter (GAP-023).
+ *
+ * Rejects negative and non-numeric values with 400 VALIDATION_ERROR, caps
+ * positive values at MAX_LIMIT, treats 0 as a valid empty-page request, and
+ * keeps the default of 50 when the parameter is absent.
+ */
+function parseLimit(raw: unknown): number {
+  if (raw === undefined) {
+    return 50;
+  }
+  const parsed = parseInt(raw as string, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new ValidationError("limit must be a non-negative integer");
+  }
+  return Math.min(parsed, MAX_LIMIT);
+}
 
 /**
  * Transform MCP memory to API response format
@@ -51,7 +74,9 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const params: QueryParams = {
       prefix: req.query.prefix as string | undefined,
-      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 50,
+      // GAP-023: validated — rejects negative/non-numeric with 400
+      // VALIDATION_ERROR, caps at MAX_LIMIT, 0 = valid empty page.
+      limit: parseLimit(req.query.limit),
       offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
       domain: req.query.domain as string | undefined,
       author: req.query.author as string | undefined,
