@@ -345,3 +345,21 @@ tasks:
   status: complete
   created_at: '2026-08-12T12:23:33.481810+00:00'
   completed_at: '2026-08-12T12:23:35.861921+00:00'
+- id: GAP-026
+  title: 'README/AGENTS doc-surface: HTTP API ref, AI-agent guide, usage skill links'
+  criteria:
+  - README.md Documentation section links docs/api/http-api.md, docs/guide/ai-configure.md,
+    skills/duckbrain-usage/SKILL.md
+  - Each link resolves to an existing file
+  - AGENTS.md mentions the duckbrain-usage skill
+  status: complete
+  created_at: '2026-08-13T13:38:50.555498+00:00'
+  completed_at: '2026-08-13T13:38:54.448470+00:00'
+- id: GAP-027
+  title: 'Unify Node minimum: README 22+, engines gate >=22'
+  criteria:
+  - README.md states Node.js 22+ (same as AGENTS.md)
+  - 'package.json has engines: {node: ''>=22''}'
+  status: complete
+  created_at: '2026-08-13T13:38:50.640439+00:00'
+  completed_at: '2026-08-13T13:39:29.775495+00:00'
