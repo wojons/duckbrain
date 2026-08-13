@@ -34,6 +34,13 @@ pnpm test          # 370 tests, 50 suites
 pnpm tsc --noEmit  # TypeScript check
 ```
 
+## Skills
+
+The [DuckBrain Usage Skill](skills/duckbrain-usage/SKILL.md) is the primary
+guide for day-to-day usage — CLI commands, MCP tools, and HTTP API recipes.
+See also the [AI-Agent Integration Guide](docs/guide/ai-configure.md) for
+configuring DuckBrain as an agent memory backend.
+
 ## Foreman
 
 The `.coding-hermes/board/` JSONL board (`tasks.jsonl` + `events.jsonl`,

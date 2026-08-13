@@ -160,7 +160,7 @@ Semantic search (`recall` with `query`) ranks candidates by cosine similarity us
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+
 - Git
 - DuckDB (bundled)
 
@@ -169,8 +169,11 @@ Semantic search (`recall` with `query`) ranks candidates by cosine similarity us
 Full documentation is available at:
 
 - 📖 [Getting Started Guide](docs/guide/getting-started.md)
-- 🔧 [API Reference](docs/api/mcp-tools.md)
+- 🔧 [MCP Tools API Reference](docs/api/mcp-tools.md)
+- 🌐 [HTTP API Reference](docs/api/http-api.md)
+- 🤖 [AI-Agent Integration Guide](docs/guide/ai-configure.md)
 - 🧠 [Embeddings & Semantic Search](docs/guide/embeddings.md)
+- 🎓 [DuckBrain Usage Skill](skills/duckbrain-usage/SKILL.md)
 - 🏗️ [Architecture](.planning/PROJECT.md)
 
 ## Contributing
