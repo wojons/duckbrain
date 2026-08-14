@@ -99,7 +99,8 @@
     "chat-summaries": "namespaces/chat-summaries",
     "chat-archive": "namespaces/chat-archive",
     "s3-native": "namespaces/s3-native",
-    "hermes-telemetry": "namespaces/hermes-telemetry"
+    "hermes-telemetry": "namespaces/hermes-telemetry",
+    "relationships": "namespaces/relationships"
   },
   "embedding": {
     "provider": "auto",
@@ -109,12 +110,13 @@
     "concurrency": 4
   },
   "s3": {
-    "enabled": false,
+    "enabled": true,
     "region": "us-east-1",
     "bucket": "duckbrain",
     "prefix": "duckbrain",
     "forcePathStyle": true,
     "pushOnCommit": false,
-    "intervalSec": 300
+    "intervalSec": 300,
+    "endpoint": "https://hel1.your-objectstorage.com"
   }
 }
