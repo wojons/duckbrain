@@ -2,15 +2,15 @@
 
 Real-use field tests of DuckBrain. Each entry: date, verdict, promise, top findings, time-to-first-success.
 
-## 2026-08-07 — Verdict: 🟡 PROMISING-BUT-ROUGH
+## 2026-08-16 — Verdict: 🟡 PROMISING-BUT-ROUGH (P0 crash on semantic search)
 
-- **Promise:** "AI agents get persistent, queryable, version-controlled memory — MCP server, HTTP API, CLI, Web UI; append-only JSONL + DuckDB (incl. vector search) + Git."
-- **What was exercised:** live daemon (127.0.0.1:3000, running since 03:12) via REST + MCP-over-HTTP (full handshake); CLI on the live repo; full lifecycle (create namespace, remember ×4, recall, key lookup, update→tombstone+add, forget, delete namespace, semantic recall ×3) on a throwaway namespace; isolated scratch instance (`DUCKBRAIN_NAMESPACES_PATH=/tmp/dogfood-duckbrain`) for restart-persistence + git-versioning checks.
+- **Promise:** "AI agents get persistent, queryable, version-controlled memory — MCP server (stdio + HTTP), REST API, CLI, Web UI; append-only JSONL + DuckDB (incl. vector search via LM Studio/Ollama) + per-namespace Git."
+- **What was exercised (all on a scratch instance, `DUCKBRAIN_CONFIG_PATH=/tmp/dogfood-duckbrain-0816/config.json`, ports 3123/3124, namespaces under /tmp):** a real MCP SDK client (`@modelcontextprotocol/sdk` 1.29.0, npm-installed in a scratch consumer project) driving `bin/duckbrain.js stdio` through a full agent memory session (create/switch/delete namespace, remember ×5, recall exact/prefix/semantic, forget-by-id + tombstone verification, compaction stats, server_status, server_http_start); REST lifecycle + `?q=` semantic search on a 155-memory namespace; CLI (`remember --content`, `recall`, `list-keys`, `embeddings status/rebuild`, `s3 status/--help/bogus`); Web UI (`packages/ui` on :5199); restart persistence + git auto-commit checks; **read-only probes of the live :3000 daemon that exposed a crash loop**.
 - **Top findings:**
-  1. REST `GET /api/memories?q=` is parsed then dropped — search endpoint returns the full list for any q (DOGFOOD-001, P0).
-  2. Semantic recall fails silently (200, `memories: []`, error string in payload) when the LM Studio model is unloaded; `auto` provider never falls back to a working ollama (DOGFOOD-002, P1).
-  3. CLI `remember` cannot store content (no content flag; key becomes the memory text) and `delete_namespace` "succeeds" while leaving all data on disk (DOGFOOD-003/-004, P1).
-- **What held up:** REST lifecycle, MCP tools, semantic ranking when embeddings are warm, persistence across restart, batched git auto-commit for API-created namespaces, health/status.
-- **Time-to-first-success:** ~3 min (health + namespace list + first memory write; one doc-vs-server detour on the domain enum).
-- **Friction count:** 11 distinct frictions → 9 board tasks (DOGFOOD-001..009).
-- **Foreman:** not woken (cooldown 7200s < 14400s; Enabled=true). Board had 0 open tasks before this run — now 9.
+  1. **P0 — every REST `?q=` (and MCP semantic recall) request crashes the live :3000 daemon**: `duckdb::InvalidInputException "Map keys must be unique."` → std::terminate → SIGABRT/core dump → systemd restart (5 restarts in ~2 min; reproduced on hermes-memory and dexdat-core; no-q requests fine). Scratch daemon (155 memories) instead hangs >60s on `?q=`. Semantic search is unusable in production (DOGFOOD-010).
+  2. **P1 — semantic search has no relevance threshold**: `?q=zzznothing` returns ALL memories (ranked); small namespaces return everything for any query (DOGFOOD-011).
+  3. **P1 — the usage SKILL is stale/dangerous**: it claims `?q=` works (it now crashes), says CLI remember can't store content (it can, verified), and omits the MCP `embedding_text` field — my first 4 MCP writes failed with cryptic zod errors (DOGFOOD-012). Also `server_http_start` spawns a nonexistent binary in the standard setup (DOGFOOD-013) and `get_compaction_stats` always returns zeros (DOGFOOD-014).
+- **What held up:** REST + MCP write/read lifecycle with correct schemas (remember needs `embedding_text`, forget needs the memory `id`, delete_namespace needs `confirm: true`), semantic ranking when warm (scores returned, 0.74–0.77 for true matches), forget→tombstone→hidden, delete_namespace actually deletes files + git repo now (DOGFOOD-004 fixed), CLI `remember --content` fixed (DOGFOOD-003), `list-keys` tree output fixed (DOGFOOD-009), git auto-commit batching, embeddings rebuild (0 failures, ~4s for 5 texts), S3 CLI graceful when disabled + nonzero exit on bogus subcommand (GAP-029), restart persistence, Web UI boots.
+- **Time-to-first-success:** ~3 min (health + namespace list + first REST write). Via MCP with the (stale) skill: first write FAILS — ~8–10 min to first successful MCP write (had to read `docs/api/mcp-tools.md` to find `embedding_text`).
+- **Friction count:** 14 distinct frictions → 8 board tasks (DOGFOOD-010..017).
+- **Foreman:** woken (cooldown 21600s ≥ 14400s, board got 8 real tasks → PUT CooldownS=900). Enabled=true preserved.
