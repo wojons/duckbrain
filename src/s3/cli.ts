@@ -18,6 +18,14 @@ import { walkLocal, syncNamespace, syncAllNamespaces } from "./sync";
 import { runS3Query } from "./query";
 import { listRemoteObjects, buildClient } from "./client";
 
+const S3_USAGE = `duckbrain s3 — native S3 sync/query (status|sync|query|config).
+
+Usage:
+  duckbrain s3 status [ns]          — effective config + per-ns sync state
+  duckbrain s3 sync [ns|all] [push|pull]
+  duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
+  duckbrain s3 config               — print effective config (no secrets)`;
+
 function namespacesPath(configDir: string): string {
   const cfg = getConfig(configDir);
   return path.resolve(configDir, cfg.namespacesPath);
@@ -139,7 +147,11 @@ export async function s3Command(
   args: string[],
   configDir = ".",
 ): Promise<void> {
-  const sub = args[0] ?? "status";
+  const sub = args[0];
+  if (sub === undefined || sub === "" || sub === "--help" || sub === "-h") {
+    console.log(S3_USAGE);
+    return;
+  }
   switch (sub) {
     case "status":
       await s3Status(configDir, args[1]);
