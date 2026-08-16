@@ -53,3 +53,4 @@ packages/ui/src/**/*.js
 .coding-hermes/board/*.parquet
 
 .coding-hermes/board/*.duckdb
+.gitreins/usage.jsonl

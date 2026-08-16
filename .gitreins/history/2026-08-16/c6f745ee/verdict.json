@@ -1,0 +1,95 @@
+{
+  "task_id": "DOGFOOD-010",
+  "task_title": "P0 - ?q= semantic search crashes HTTP daemon (duckdb Map keys must be unique native exception)",
+  "task_criteria": [
+    "Server survives ?q= on a namespace whose JSONL contains duplicate keys inside attributes objects: HTTP 200 or clean error, process never aborts",
+    "Regression test: ?q= over a populated namespace returns 200 or clean error and the server process stays alive (test asserts no abort)",
+    "Native DuckDB exceptions cannot kill the process (guarded execution / worker boundary / write-time key normalization)",
+    "Full test suite passes + npx tsc --noEmit clean + gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m5:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10923667 bytes (10.92 MB) in 2.93s\u001b[0m\n\u001b[90m5:50PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m5:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10923667 bytes (10.92 MB) in 2.93s\u001b[0m\n\u001b[90m5:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 695\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/memories-pagination-gap024.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 170\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 121\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[3",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Server survives ?q= on a namespace whose JSONL contains duplicate keys inside attributes objects: HTTP 200 or clean error, process never aborts: src/duckdb/queries.ts:254,354 read_json now uses explicit all-VARCHAR column schema (READ_JSON_COLUMNS) + ignore_errors=true, so attributes arrives as raw JSON text and no MAP is built \u2014 duplicate keys become harmless. Regression test memories-dogfood010.test.ts builds a poisoned namespace with duplicate-key attrs and asserts 200-or-clean-error + /health 200. Ran: npx vitest run src/http/routes/memories-dogfood010.test.ts -> 3 passed.\n  \u2713 Regression test: ?q= over a populated namespace returns 200 or clean error and the server process stays alive (test asserts no abort): memories-dogfood010.test.ts test '?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive' issues GET /api/memories?q=alpha&namespace=repro then asserts GET /health returns 200 with status 'healthy' \u2014 explicit no-abort assertion. Test passed (3/3).\n  \u2713 Native DuckDB exceptions cannot kill the process (guarded execution / worker boundary / write-time key normalization): Three-layer containment: (a) queries.ts VARCHAR schema + ignore_errors=true prevents the native 'Map keys must be unique' throw entirely; (b) recall.ts:284-326 wraps semantic fetch+rank in withTimeout(SEMANTIC_TIMEOUT_MS) + try/catch returning clean {memories:[],count:0,error} instead of throwing; (c) memories.ts:258/273/332 + serialize.ts normalizeAttributes canonicalize attributes at write time. Confirmed present in working tree.\n  \u2713 Full test suite passes + npx tsc --noEmit clean + gitreins guard PASS: npx vitest run -> 52 test files, 377 tests passed (exit 0). npx tsc --noEmit -> exit 0, no errors. gitreins guard -> 'Tier 1 Guards: PASS' (exit 0).\nAll four DOGFOOD-010 criteria verified: the ?q= duplicate-key crash is fixed via explicit VARCHAR read_json schema + ignore_errors, the semantic path is bounded and error-guarded, a regression test asserts no abort, and the full suite (377 tests), tsc, and gitreins guard all pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Server survives ?q= on a namespace whose JSONL contains duplicate keys inside attributes objects: HTTP 200 or clean error, process never aborts: src/duckdb/queries.ts:254,354 read_json now uses explicit all-VARCHAR column schema (READ_JSON_COLUMNS) + ignore_errors=true, so attributes arrives as raw JSON text and no MAP is built \u2014 duplicate keys become harmless. Regression test memories-dogfood010.test.ts builds a poisoned namespace with duplicate-key attrs and asserts 200-or-clean-e",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Server survives ?q= on a namespace whose JSONL contains duplicate keys inside attributes objects: HTTP 200 or clean error, process never aborts",
+                "status": "PASS",
+                "detail": "src/duckdb/queries.ts:254,354 read_json now uses explicit all-VARCHAR column schema (READ_JSON_COLUMNS) + ignore_errors=true, so attributes arrives as raw JSON text and no MAP is built \u2014 duplicate keys become harmless. Regression test memories-dogfood010.test.ts builds a poisoned namespace with duplicate-key attrs and asserts 200-or-clean-error + /health 200. Ran: npx vitest run src/http/routes/memories-dogfood010.test.ts -> 3 passed."
+              },
+              {
+                "criterion": "Regression test: ?q= over a populated namespace returns 200 or clean error and the server process stays alive (test asserts no abort)",
+                "status": "PASS",
+                "detail": "memories-dogfood010.test.ts test '?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive' issues GET /api/memories?q=alpha&namespace=repro then asserts GET /health returns 200 with status 'healthy' \u2014 explicit no-abort assertion. Test passed (3/3)."
+              },
+              {
+                "criterion": "Native DuckDB exceptions cannot kill the process (guarded execution / worker boundary / write-time key normalization)",
+                "status": "PASS",
+                "detail": "Three-layer containment: (a) queries.ts VARCHAR schema + ignore_errors=true prevents the native 'Map keys must be unique' throw entirely; (b) recall.ts:284-326 wraps semantic fetch+rank in withTimeout(SEMANTIC_TIMEOUT_MS) + try/catch returning clean {memories:[],count:0,error} instead of throwing; (c) memories.ts:258/273/332 + serialize.ts normalizeAttributes canonicalize attributes at write time. Confirmed present in working tree."
+              },
+              {
+                "criterion": "Full test suite passes + npx tsc --noEmit clean + gitreins guard PASS",
+                "status": "PASS",
+                "detail": "npx vitest run -> 52 test files, 377 tests passed (exit 0). npx tsc --noEmit -> exit 0, no errors. gitreins guard -> 'Tier 1 Guards: PASS' (exit 0)."
+              }
+            ],
+            "summary": "All four DOGFOOD-010 criteria verified: the ?q= duplicate-key crash is fixed via explicit VARCHAR read_json schema + ignore_errors, the semantic path is bounded and error-guarded, a regression test asserts no abort, and the full suite (377 tests), tsc, and gitreins guard all pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-010\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m5:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10923667 bytes (10.92 MB) in 2.93s\u001b[0m\n\u001b[90m5:50PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Server survives ?q= on a namespace whose JSONL contains duplicate keys inside attributes objects: HTTP 200 or clean error, process never aborts: src/duckdb/queries.ts:254,354 read_json now uses explicit all-VARCHAR column schema (READ_JSON_COLUMNS) + ignore_errors=true, so attributes arrives as raw JSON text and no MAP is built \u2014 duplicate keys become harmless. Regression test memories-dogfood010.test.ts builds a poisoned namespace with duplicate-key attrs and asserts 200-or-clean-error + /health 200. Ran: npx vitest run src/http/routes/memories-dogfood010.test.ts -> 3 passed.\n  \u2713 Regression test: ?q= over a populated namespace returns 200 or clean error and the server process stays alive (test asserts no abort): memories-dogfood010.test.ts test '?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive' issues GET /api/memories?q=alpha&namespace=repro then asserts GET /health returns 200 with status 'healthy' \u2014 explicit no-abort assertion. Test passed (3/3).\n  \u2713 Native DuckDB exceptions cannot kill the process (guarded execution / worker boundary / write-time key normalization): Three-layer containment: (a) queries.ts VARCHAR schema + ignore_errors=true prevents the native 'Map keys must be unique' throw entirely; (b) recall.ts:284-326 wraps semantic fetch+rank in withTimeout(SEMANTIC_TIMEOUT_MS) + try/catch returning clean {memories:[],count:0,error} instead of throwing; (c) memories.ts:258/273/332 + serialize.ts normalizeAttributes canonicalize attributes at write time. Confirmed present in working tree.\n  \u2713 Full test suite passes + npx tsc --noEmit clean + gitreins guard PASS: npx vitest run -> 52 test files, 377 tests passed (exit 0). npx tsc --noEmit -> exit 0, no errors. gitreins guard -> 'Tier 1 Guards: PASS' (exit 0).\nAll four DOGFOOD-010 criteria verified: the ?q= duplicate-key crash is fixed via explicit VARCHAR read_json schema + ignore_errors, the semantic path is bounded and error-guarded, a regression test asserts no abort, and the full suite (377 tests), tsc, and gitreins guard all pass.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-16T22:51:34.186394"
+}

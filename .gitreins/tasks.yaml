@@ -389,3 +389,17 @@ tasks:
   status: complete
   created_at: '2026-08-16T16:18:09.147403+00:00'
   completed_at: '2026-08-16T16:18:28.311018+00:00'
+- id: DOGFOOD-010
+  title: P0 - ?q= semantic search crashes HTTP daemon (duckdb Map keys must be unique
+    native exception)
+  criteria:
+  - 'Server survives ?q= on a namespace whose JSONL contains duplicate keys inside
+    attributes objects: HTTP 200 or clean error, process never aborts'
+  - 'Regression test: ?q= over a populated namespace returns 200 or clean error and
+    the server process stays alive (test asserts no abort)'
+  - Native DuckDB exceptions cannot kill the process (guarded execution / worker boundary
+    / write-time key normalization)
+  - Full test suite passes + npx tsc --noEmit clean + gitreins guard PASS
+  status: complete
+  created_at: '2026-08-16T22:27:21.699929+00:00'
+  completed_at: '2026-08-16T22:49:57.149440+00:00'
