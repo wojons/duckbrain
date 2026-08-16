@@ -24,6 +24,7 @@ DuckBrain provides AI agents with **persistent, queryable, version-controlled me
 - 👥 **Multi-Agent Ready** — HTTP mode with worktrees for concurrent access
 - 🎨 **Beautiful Web UI** — Glassmorphism theme, real-time updates
 - 📱 **Keyboard Shortcuts** — Power-user friendly navigation
+- ☁️ **Native S3 Storage Tier** — Incremental sync, push-on-commit, SQL over S3 via DuckDB httpfs, multi-host memory
 
 ## Quick Start
 
@@ -69,6 +70,32 @@ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-sock
 cd packages/ui
 pnpm run dev
 ```
+
+### Native S3 Storage Tier (opt-in)
+
+DuckBrain can back memory onto any S3-compatible object store (Hetzner Object Storage, MinIO, AWS S3, …) as a first-class storage tier: incremental sync, push-on-commit, SQL over S3 via DuckDB's httpfs extension, and multi-host memory (pull on another machine = DR + shared memory). The module is **inert by default** (`s3.enabled: false`); activate it by setting `s3.enabled: true` in `duckbrain.config.json`:
+
+```json
+{
+  "s3": {
+    "enabled": true,
+    "endpoint": "https://hel1.your-objectstorage.com",
+    "bucket": "duckbrain",
+    "prefix": "duckbrain",
+    "pushOnCommit": true
+  }
+}
+```
+
+Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=duckbrain` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Then:
+
+```bash
+duckbrain s3 status          # verify bucket listing works
+duckbrain s3 sync all push   # first full push (subsequent pushes are delta-only)
+duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"  # SQL over S3
+```
+
+Restart the MCP/HTTP daemon after activating so autocommit picks up `pushOnCommit`. See [docs/s3-native.md](docs/s3-native.md) for the full design.
 
 ## Screenshots
 
@@ -173,6 +200,7 @@ Full documentation is available at:
 - 🌐 [HTTP API Reference](docs/api/http-api.md)
 - 🤖 [AI-Agent Integration Guide](docs/guide/ai-configure.md)
 - 🧠 [Embeddings & Semantic Search](docs/guide/embeddings.md)
+- ☁️ [Native S3 Storage Tier](docs/s3-native.md)
 - 🎓 [DuckBrain Usage Skill](skills/duckbrain-usage/SKILL.md)
 - 🏗️ [Architecture](.planning/PROJECT.md)
 
