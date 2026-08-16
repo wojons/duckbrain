@@ -56,9 +56,11 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 
 ## Pitfalls that WILL bite you (all verified live)
 
-1. **REST `?q=` search is dead** — `GET /api/memories?q=anything` returns the FULL list; the
-   route parses `q` and drops it. Don't build on REST search (DOGFOOD-001). Use MCP `recall`
-   with `query` for semantic search.
+1. **REST `?q=` search WORKS (DOGFOOD-001 fixed)** — `GET /api/memories?q=<term>` forwards the
+   query to semantic recall and filters results (verified live: a nonexistent term returns 0
+   hits vs the full list without `q`). Caveat: semantic search needs an embedding provider
+   (LM Studio/Ollama) — without one, `?q=` returns HTTP 500 with the embedding error instead
+   of a silent full list. Regression tests: `src/http/routes/memories-dogfood001.test.ts`.
 2. **Semantic recall fails silently** — when the embedding model is unloaded (LM Studio idle
    unload), `recall(query=...)` returns 200 with `memories: []` and an error string inside the
    payload. No fallback to ollama happens. If results look empty, check the payload for
