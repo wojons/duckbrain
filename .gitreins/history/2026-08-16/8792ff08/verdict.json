@@ -1,0 +1,59 @@
+{
+  "task_id": "DB-GAP-028",
+  "task_title": "Native S3 visibility: README S3 feature bullet + enablement quickstart + docs link",
+  "task_criteria": [
+    "grep -ci s3 README.md > 0",
+    "README shows the s3.enabled:true activation path",
+    "README Documentation section links docs/s3-native.md"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:12AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11147515 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:12AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11147515 bytes (11.15 MB) in 3.41s\u001b[0m\n\u001b[90m5:12AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 882\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1079\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 748\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/memories-pagination-gap024.test.ts \u001b[2m(",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 grep -ci s3 README.md > 0: Command `grep -ci s3 README.md` returned exit code 0 with count 9 (matches on lines 27, 74, 76, 80, 93-95, 98, 203).\n  \u2713 README shows the s3.enabled:true activation path: README.md:76 \u2014 \"activate it by setting `s3.enabled: true` in `duckbrain.config.json`\" followed by JSON example at lines 78-84 with \"s3\": { \"enabled\": true, ... }.\n  \u2713 README Documentation section links docs/s3-native.md: README.md:194 starts the \"## Documentation\" section, and README.md:203 in that section links \"- \u2601\ufe0f [Native S3 Storage Tier](docs/s3-native.md)\"; also linked at line 98 \"See [docs/s3-native.md](docs/s3-native.md)\".\nAll three criteria verified directly via grep/sed on README.md: S3 is mentioned 9 times, the s3.enabled:true activation path with JSON example is present (line 76-84), and the Documentation section (line 194) links docs/s3-native.md (line 203).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 grep -ci s3 README.md > 0: Command `grep -ci s3 README.md` returned exit code 0 with count 9 (matches on lines 27, 74, 76, 80, 93-95, 98, 203).\n  \u2713 README shows the s3.enabled:true activation path: README.md:76 \u2014 \"activate it by setting `s3.enabled: true` in `duckbrain.config.json`\" followed by JSON example at lines 78-84 with \"s3\": { \"enabled\": true, ... }.\n  \u2713 README Documentation section links docs/s3-native.md: README.md:194 starts the \"## Documentation\" section, and README.md:2",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-028\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m5:12AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11147515 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 grep -ci s3 README.md > 0: Command `grep -ci s3 README.md` returned exit code 0 with count 9 (matches on lines 27, 74, 76, 80, 93-95, 98, 203).\n  \u2713 README shows the s3.enabled:true activation path: README.md:76 \u2014 \"activate it by setting `s3.enabled: true` in `duckbrain.config.json`\" followed by JSON example at lines 78-84 with \"s3\": { \"enabled\": true, ... }.\n  \u2713 README Documentation section links docs/s3-native.md: README.md:194 starts the \"## Documentation\" section, and README.md:203 in that section links \"- \u2601\ufe0f [Native S3 Storage Tier](docs/s3-native.md)\"; also linked at line 98 \"See [docs/s3-native.md](docs/s3-native.md)\".\nAll three criteria verified directly via grep/sed on README.md: S3 is mentioned 9 times, the s3.enabled:true activation path with JSON example is present (line 76-84), and the Documentation section (line 194) links docs/s3-native.md (line 203).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-16T10:13:24.877528"
+}
