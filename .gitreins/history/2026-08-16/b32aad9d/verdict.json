@@ -1,0 +1,83 @@
+{
+  "task_id": "DB-GAP-030",
+  "task_title": "Stale DOGFOOD-001 pitfall in duckbrain-usage SKILL.md",
+  "task_criteria": [
+    "SKILL.md pitfall #1 removed or marked fixed",
+    "A test asserts ?q= filtering on GET /api/memories"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11156941 bytes (11.16 MB) in 3.11s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11156941 bytes (11.16 MB) in 3.11s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 792\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1060\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 129\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 757\u001b[2mms\u001b[22m\u001b[39m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 SKILL.md pitfall #1 removed or marked fixed: skills/duckbrain-usage/SKILL.md pitfall #1 now reads 'REST `?q=` search WORKS (DOGFOOD-001 fixed)' \u2014 marked fixed with caveat about embedding provider and reference to regression test src/http/routes/memories-dogfood001.test.ts\n  \u2713 A test asserts ?q= filtering on GET /api/memories: src/http/routes/memories-dogfood001.test.ts test 'forwards ?q=<term> as query=<term> to recallTool and returns semantic results' does GET /api/memories?q=SQLite and asserts recallTool called with query:'SQLite' and filtered results. Ran `npx vitest run src/http/routes/memories-dogfood001.test.ts` -> 3 passed; full suite `npx vitest run` -> 51 files / 374 tests passed (exit 0)\nBoth criteria satisfied: SKILL.md pitfall #1 is marked fixed (DOGFOOD-001 fixed) and a regression test asserts ?q= filtering on GET /api/memories, verified by a passing test run.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 SKILL.md pitfall #1 removed or marked fixed: skills/duckbrain-usage/SKILL.md pitfall #1 now reads 'REST `?q=` search WORKS (DOGFOOD-001 fixed)' \u2014 marked fixed with caveat about embedding provider and reference to regression test src/http/routes/memories-dogfood001.test.ts\n  \u2713 A test asserts ?q= filtering on GET /api/memories: src/http/routes/memories-dogfood001.test.ts test 'forwards ?q=<term> as query=<term> to recallTool and returns semantic results' does GET /api/memories?q=SQLit",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "SKILL.md pitfall #1 removed or marked fixed",
+                "status": "PASS",
+                "detail": "skills/duckbrain-usage/SKILL.md pitfall #1 now reads 'REST `?q=` search WORKS (DOGFOOD-001 fixed)' \u2014 marked fixed with caveat about embedding provider and reference to regression test src/http/routes/memories-dogfood001.test.ts"
+              },
+              {
+                "criterion": "A test asserts ?q= filtering on GET /api/memories",
+                "status": "PASS",
+                "detail": "src/http/routes/memories-dogfood001.test.ts test 'forwards ?q=<term> as query=<term> to recallTool and returns semantic results' does GET /api/memories?q=SQLite and asserts recallTool called with query:'SQLite' and filtered results. Ran `npx vitest run src/http/routes/memories-dogfood001.test.ts` -> 3 passed; full suite `npx vitest run` -> 51 files / 374 tests passed (exit 0)"
+              }
+            ],
+            "summary": "Both criteria satisfied: SKILL.md pitfall #1 is marked fixed (DOGFOOD-001 fixed) and a regression test asserts ?q= filtering on GET /api/memories, verified by a passing test run."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-030\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11156941 bytes (11.16 MB) in 3.11s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 SKILL.md pitfall #1 removed or marked fixed: skills/duckbrain-usage/SKILL.md pitfall #1 now reads 'REST `?q=` search WORKS (DOGFOOD-001 fixed)' \u2014 marked fixed with caveat about embedding provider and reference to regression test src/http/routes/memories-dogfood001.test.ts\n  \u2713 A test asserts ?q= filtering on GET /api/memories: src/http/routes/memories-dogfood001.test.ts test 'forwards ?q=<term> as query=<term> to recallTool and returns semantic results' does GET /api/memories?q=SQLite and asserts recallTool called with query:'SQLite' and filtered results. Ran `npx vitest run src/http/routes/memories-dogfood001.test.ts` -> 3 passed; full suite `npx vitest run` -> 51 files / 374 tests passed (exit 0)\nBoth criteria satisfied: SKILL.md pitfall #1 is marked fixed (DOGFOOD-001 fixed) and a regression test asserts ?q= filtering on GET /api/memories, verified by a passing test run.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-16T16:19:23.442351"
+}
