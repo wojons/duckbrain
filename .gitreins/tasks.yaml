@@ -363,3 +363,11 @@ tasks:
   status: complete
   created_at: '2026-08-13T13:38:50.640439+00:00'
   completed_at: '2026-08-13T13:39:29.775495+00:00'
+- id: DB-GAP-029
+  title: s3 CLI --help/usage + exit codes
+  criteria:
+  - '''duckbrain s3 --help'' and bare ''duckbrain s3'' print usage and exit 0; ''duckbrain
+    s3 bogus'' exits nonzero; regression test added; full suite green'
+  status: complete
+  created_at: '2026-08-16T01:47:15.098984+00:00'
+  completed_at: '2026-08-16T01:52:49.718995+00:00'

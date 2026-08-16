@@ -1,0 +1,77 @@
+{
+  "task_id": "DB-GAP-029",
+  "task_title": "s3 CLI --help/usage + exit codes",
+  "task_criteria": [
+    "'duckbrain s3 --help' and bare 'duckbrain s3' print usage and exit 0; 'duckbrain s3 bogus' exits nonzero; regression test added; full suite green"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m8:52PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11140628 bytes (11.14 MB) in 2.63s\u001b[0m\n\u001b[90m8:52PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:52PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11140628 bytes (11.14 MB) in 2.63s\u001b[0m\n\u001b[90m8:52PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/http/routes/events.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 272\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 708\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 688\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 118\u001b[2mm",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 'duckbrain s3 --help' and bare 'duckbrain s3' print usage and exit 0; 'duckbrain s3 bogus' exits nonzero; regression test added; full suite green: src/s3/cli.ts s3Command() (lines 143-166): sub undefined/''/--help/-h -> console.log(S3_USAGE) return (exit 0); default -> console.error('Unknown s3 subcommand...') + process.exit(1). Manual runs: `node bin/duckbrain.js s3 --help` exit=0 prints usage; bare `s3` exit=0 prints usage; `s3 bogus` exit=1 with stderr 'Unknown s3 subcommand: bogus'. Regression test src/s3/cli.test.ts (4 tests: --help, -h, bare, unknown) all pass. Full suite: `npx vitest run` -> 51 files / 374 tests passed, exit 0.\ns3 CLI usage/exit-code behavior implemented and verified: --help and bare print usage with exit 0, bogus subcommand exits 1, regression tests added and full suite green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 'duckbrain s3 --help' and bare 'duckbrain s3' print usage and exit 0; 'duckbrain s3 bogus' exits nonzero; regression test added; full suite green: src/s3/cli.ts s3Command() (lines 143-166): sub undefined/''/--help/-h -> console.log(S3_USAGE) return (exit 0); default -> console.error('Unknown s3 subcommand...') + process.exit(1). Manual runs: `node bin/duckbrain.js s3 --help` exit=0 prints usage; bare `s3` exit=0 prints usage; `s3 bogus` exit=1 with stderr 'Unknown s3 subcommand: bog",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "'duckbrain s3 --help' and bare 'duckbrain s3' print usage and exit 0; 'duckbrain s3 bogus' exits nonzero; regression test added; full suite green",
+                "status": "PASS",
+                "detail": "src/s3/cli.ts s3Command() (lines 143-166): sub undefined/''/--help/-h -> console.log(S3_USAGE) return (exit 0); default -> console.error('Unknown s3 subcommand...') + process.exit(1). Manual runs: `node bin/duckbrain.js s3 --help` exit=0 prints usage; bare `s3` exit=0 prints usage; `s3 bogus` exit=1 with stderr 'Unknown s3 subcommand: bogus'. Regression test src/s3/cli.test.ts (4 tests: --help, -h, bare, unknown) all pass. Full suite: `npx vitest run` -> 51 files / 374 tests passed, exit 0."
+              }
+            ],
+            "summary": "s3 CLI usage/exit-code behavior implemented and verified: --help and bare print usage with exit 0, bogus subcommand exits 1, regression tests added and full suite green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-029\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m8:52PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11140628 bytes (11.14 MB) in 2.63s\u001b[0m\n\u001b[90m8:52PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 'duckbrain s3 --help' and bare 'duckbrain s3' print usage and exit 0; 'duckbrain s3 bogus' exits nonzero; regression test added; full suite green: src/s3/cli.ts s3Command() (lines 143-166): sub undefined/''/--help/-h -> console.log(S3_USAGE) return (exit 0); default -> console.error('Unknown s3 subcommand...') + process.exit(1). Manual runs: `node bin/duckbrain.js s3 --help` exit=0 prints usage; bare `s3` exit=0 prints usage; `s3 bogus` exit=1 with stderr 'Unknown s3 subcommand: bogus'. Regression test src/s3/cli.test.ts (4 tests: --help, -h, bare, unknown) all pass. Full suite: `npx vitest run` -> 51 files / 374 tests passed, exit 0.\ns3 CLI usage/exit-code behavior implemented and verified: --help and bare print usage with exit 0, bogus subcommand exits 1, regression tests added and full suite green.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-16T01:53:58.256698"
+}
