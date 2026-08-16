@@ -19,6 +19,7 @@ import {
 import { addPartition } from "../../storage/manifest";
 import { getAuthorEmail } from "../../git/attribution";
 import { commitNamespace } from "../../git/autocommit";
+import { normalizeAttributes } from "../../utils/serialize";
 import { resolveNamespacePath } from "./shared";
 import path from "path";
 import fs from "fs";
@@ -97,6 +98,11 @@ export async function rememberTool(
     const { key, domain, attributes, embedding_text, namespace } =
       parseResult.data;
 
+    // DOGFOOD-010: canonicalize attributes before persisting (JSON
+    // round-trip — strips non-JSON values so the JSONL row is exactly what
+    // the reader parses back; duplicate keys are impossible in JS objects).
+    const normalizedAttributes = normalizeAttributes(attributes);
+
     // Get author from git config
     const author = getAuthorEmail();
 
@@ -106,7 +112,7 @@ export async function rememberTool(
       domain,
       author,
       embedding_text,
-      attributes,
+      attributes: normalizedAttributes,
       action: "add",
     });
 

@@ -169,6 +169,29 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
 }
 
 /**
+ * Explicit read_json column schema (DOGFOOD-010).
+ *
+ * Auto-inference types a heterogeneous `attributes` object as MAP(...); when
+ * a record's JSON object then contains duplicate keys (valid per RFC 8259,
+ * produced by external writers — JSON.parse in-process silently collapses
+ * them), MAP conversion fails with `duckdb::InvalidInputException: Map keys
+ * must be unique.` thrown from native code. node-duckdb's
+ * RunPreparedTask::DoWork() (the db.all() path) has NO try/catch around
+ * Execute(), so the C++ throw escapes the libuv worker thread →
+ * std::terminate → SIGABRT → whole process dies. A JS try/catch cannot help:
+ * the exception never crosses back into JS.
+ *
+ * Forcing every column to VARCHAR means `attributes` arrives as RAW JSON TEXT
+ * (parsed in JS by parseDuckDBStruct, which tries JSON.parse first) and no
+ * MAP/STRUCT is ever built — duplicate keys become harmless. ignore_errors
+ * converts any remaining per-record conversion error (e.g. a malformed JSON
+ * line) into an all-NULL row, which the `action != 'tombstone'` outer filter
+ * drops, instead of a native throw.
+ */
+const READ_JSON_COLUMNS =
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
+
+/**
  * Query memories from DuckDB with optional filters
  *
  * @param db - DuckDB database instance
@@ -228,7 +251,7 @@ export function queryMemories(
     SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
-      FROM read_json([${fileList}], format='newline_delimited')
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
     WHERE ${outerWhereClause}
@@ -328,7 +351,7 @@ export function countMemories(
     SELECT COUNT(*) AS total
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
-      FROM read_json([${fileList}], format='newline_delimited')
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
     WHERE ${outerWhereClause}

@@ -71,6 +71,49 @@ interface RecallOutput {
  * Falls back to config's defaultNamespace when no namespace is provided.
  */
 /**
+ * DOGFOOD-010: the semantic candidate pool is capped so one request can never
+ * force a multi-thousand-row read (the HTTP route caps limit at 1000, which
+ * would otherwise scale the candidate fetch to 10,010 rows).
+ */
+const MAX_CANDIDATES = 1000;
+
+/**
+ * DOGFOOD-010: the semantic path (candidate fetch + on-the-fly embedding of
+ * cache misses) must be bounded — on a cold cache every candidate embed can
+ * take seconds, and 50 of them sequentially can exceed 60s. A bounded request
+ * returns a clean error instead of hanging the daemon.
+ */
+const SEMANTIC_TIMEOUT_MS = 30_000;
+
+/**
+ * Race a promise against a deadline. On timeout the caller receives a clean
+ * Error instead of waiting indefinitely; the underlying DuckDB query (if any)
+ * is a native async task that finishes on its own and is ignored.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms / 1000}s`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
  * Recall tool handler
  *
  * @param input - Tool input parameters
@@ -221,9 +264,12 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
 
       // Fetch candidates WITHOUT the DuckDB embedding filter (that column
       // doesn't exist in JSONL — vectors live in the gitignored cache).
+      // DOGFOOD-010: the pool is capped (MAX_CANDIDATES) and the whole
+      // fetch+rank is bounded by SEMANTIC_TIMEOUT_MS so a big namespace or a
+      // cold embedding cache returns a clean error instead of hanging.
       const cache = EmbeddingCache.forNamespace(namespacePath);
       const candidateFilters: Parameters<typeof queryMemories>[2] = {
-        limit: Math.max(validated.limit * 10, 100),
+        limit: Math.min(Math.max(validated.limit * 10, 100), MAX_CANDIDATES),
       };
       if (validated.author) candidateFilters.author = validated.author;
       if (validated.key) candidateFilters.key = validated.key;
@@ -233,28 +279,55 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       else if (validated.domain) candidateFilters.domain = validated.domain;
 
       let candidates: Awaited<ReturnType<typeof queryMemories>>;
+      let ranked: Awaited<ReturnType<typeof semanticSearch>>;
       try {
-        candidates = await queryMemories(db, partitionPaths, candidateFilters);
+        const result = await withTimeout(
+          (async () => {
+            let cands: Awaited<ReturnType<typeof queryMemories>>;
+            try {
+              cands = await queryMemories(db, partitionPaths, candidateFilters);
+            } catch (e: any) {
+              if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
+                evictConnection(namespacePath);
+                const db2 = getDuckDBConnection("singleton", namespacePath);
+                cands = await queryMemories(
+                  db2,
+                  partitionPaths,
+                  candidateFilters,
+                );
+              } else {
+                throw e;
+              }
+            }
+            const rankedRes = await semanticSearch(
+              cands,
+              queryVector,
+              cache,
+              provider,
+              // DOGFOOD-010: bound on-the-fly embedding of cache misses.
+              // Each embed can take seconds (LM Studio ~2s on this host), so
+              // the default 50 would exceed the 30s budget on a cold cache.
+              // 10 keeps a cold-cache ?q= inside the timeout with real ranked
+              // results; warm caches rank the full candidate pool instantly.
+              { maxOnTheFlyEmbeds: 10 },
+            );
+            return { cands, rankedRes };
+          })(),
+          SEMANTIC_TIMEOUT_MS,
+          "Semantic search",
+        );
+        candidates = result.cands;
+        ranked = result.rankedRes;
       } catch (e: any) {
-        if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
-          evictConnection(namespacePath);
-          const db2 = getDuckDBConnection("singleton", namespacePath);
-          candidates = await queryMemories(
-            db2,
-            partitionPaths,
-            candidateFilters,
-          );
-        } else {
-          throw e;
-        }
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[recall] Semantic search failed:", msg);
+        return {
+          memories: [],
+          count: 0,
+          error: `Semantic search failed: ${msg}`,
+        };
       }
 
-      const ranked = await semanticSearch(
-        candidates,
-        queryVector,
-        cache,
-        provider,
-      );
       const top = ranked.slice(0, validated.limit);
       // GAP-024: for ?q=, total reflects the candidate pool the semantic
       // search actually ranked (bounded by max(limit*10, 100)), not the full

@@ -16,6 +16,7 @@ import {
   ValidationError,
 } from "../middleware/errorHandler";
 import { DomainEnum } from "../../schema/memory";
+import { normalizeAttributes } from "../../utils/serialize";
 import {
   MemoryResponse,
   MemoryListResponse,
@@ -252,7 +253,9 @@ router.post(
     const result = await rememberTool({
       key: body.key,
       domain: body.domain as any,
-      attributes: body.attributes || {},
+      // DOGFOOD-010: canonicalize before it reaches the tool AND before the
+      // response echoes it — the stored row and the response must agree.
+      attributes: normalizeAttributes(body.attributes),
       embedding_text: body.content,
       namespace: (req.query.namespace as string) || body.namespace || "default",
     });
@@ -267,7 +270,7 @@ router.post(
       key: result.key!,
       domain: body.domain,
       content: body.content,
-      attributes: body.attributes || {},
+      attributes: normalizeAttributes(body.attributes),
       timestamp: new Date().toISOString(),
       author: result.author!,
       isTombstone: false,
@@ -324,8 +327,9 @@ router.put(
 
     // Step 3: Remember the new version
     const newContent = body.content || existingMemory.embedding_text;
+    // DOGFOOD-010: canonicalize the merged attributes before persisting.
     const newAttributes = body.attributes
-      ? { ...existingMemory.attributes, ...body.attributes }
+      ? { ...existingMemory.attributes, ...normalizeAttributes(body.attributes) }
       : existingMemory.attributes;
 
     const rememberResult = await rememberTool({

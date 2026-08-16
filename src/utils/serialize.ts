@@ -57,3 +57,37 @@ export function safeJsonStringify(
 ): string {
   return JSON.stringify(value, bigIntReplacer, space);
 }
+
+/**
+ * Normalize an attributes object before it is persisted (DOGFOOD-010).
+ *
+ * JS objects cannot hold duplicate keys — JSON.parse collapses them — so the
+ * in-process write paths physically cannot produce the duplicate-key rows
+ * that crash DuckDB's MAP conversion. What they CAN do is carry non-JSON
+ * values (undefined, NaN, BigInt, Dates, class instances) into the JSONL.
+ * A JSON round-trip canonicalizes the object so the row written to disk is
+ * exactly what the reader will parse back, and any exotic value is coerced
+ * to plain JSON (undefined/function keys dropped, NaN → null, Date → string)
+ * instead of being serialized in a shape DuckDB's JSON reader must guess at.
+ *
+ * @param attributes - Validated attributes object (zod guarantees a record)
+ * @returns Canonical plain-object copy; non-objects coerce to {}
+ */
+export function normalizeAttributes(
+  attributes: unknown,
+): Record<string, unknown> {
+  if (!attributes || typeof attributes !== "object" || Array.isArray(attributes)) {
+    return {};
+  }
+  try {
+    const canonical = JSON.parse(JSON.stringify(attributes));
+    if (canonical && typeof canonical === "object" && !Array.isArray(canonical)) {
+      return canonical as Record<string, unknown>;
+    }
+    return {};
+  } catch {
+    // Circular references or otherwise non-serializable — persist nothing
+    // rather than writing a row that cannot be represented in JSONL.
+    return {};
+  }
+}
