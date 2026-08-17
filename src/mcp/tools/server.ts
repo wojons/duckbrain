@@ -5,7 +5,10 @@
  * clients can ensure MCP-over-HTTP (and the Unix socket) is reachable:
  *
  * - `server_status` — report whether the HTTP server is listening (TCP port
- *   and/or Unix socket), with PID and endpoint info.
+ *   and/or Unix socket), with PID and endpoint info. The port is resolved
+ *   from THIS instance's config (DUCKBRAIN_API_PORT, else the default) and
+ *   the pidfile pid is validated for liveness, so the answer describes the
+ *   instance that answered rather than whatever happens to sit on :3000.
  * - `server_http_start` — trigger the HTTP server to start as a detached
  *   background process if it is not already running. Accepts the same
  *   options as `duckbrain http` (port, socket, socket-mode, socket-group).
@@ -16,6 +19,94 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { httpPidFilePath } from "../../utils/pidfile.js";
+import { getConfig } from "../../config/index.js";
+
+/** Default HTTP port — the same default `duckbrain http` / startHttpMode use. */
+export const DEFAULT_HTTP_PORT = 3000;
+
+/**
+ * Resolve the effective HTTP port for THIS instance.
+ *
+ * server_status must describe the server this process's config would start,
+ * not a hardcoded 3000 (DOGFOOD-015: a scratch-config stdio process reported
+ * the live :3000 daemon's pidfile because the default was baked in). The
+ * documented env contract (docs/guide/configuration.md, launch.sh) is:
+ *
+ *   1. `DUCKBRAIN_API_PORT` env var (the `--port` flag equivalent)
+ *   2. 3000 (the CLI/config default)
+ *
+ * An explicit `port` in the tool input overrides this at the call site.
+ */
+export function resolveHttpPort(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.DUCKBRAIN_API_PORT;
+  if (raw !== undefined && raw.trim() !== "") {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isInteger(parsed) && parsed > 0 && parsed <= 65535) {
+      return parsed;
+    }
+  }
+  return DEFAULT_HTTP_PORT;
+}
+
+/**
+ * Resolve the effective port source for the response, so callers can tell
+ * whether the port came from an explicit input, the environment, or the
+ * default.
+ */
+function resolvePortSource(
+  inputPort: number | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): "input" | "env" | "default" {
+  if (inputPort !== undefined) return "input";
+  if (env.DUCKBRAIN_API_PORT !== undefined && env.DUCKBRAIN_API_PORT.trim() !== "") {
+    return "env";
+  }
+  return "default";
+}
+
+/**
+ * Check whether a pid refers to a live process.
+ *
+ * `process.kill(pid, 0)` performs a signal-0 probe: no signal is delivered,
+ * but the kernel reports whether the process exists. ESRCH means no such
+ * process; EPERM means it exists but belongs to another user (still alive).
+ */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Resolve a short summary of the effective config this instance would use,
+ * so callers can tell WHICH DuckBrain instance answered (DOGFOOD-015).
+ *
+ * Mirrors getConfig()'s own resolution: DUCKBRAIN_CONFIG_PATH redirects the
+ * config file, DUCKBRAIN_NAMESPACES_PATH overrides the storage location.
+ * Config read failures must not break status reporting — fall back to the
+ * schema defaults in that case.
+ */
+function resolveConfigSummary(): {
+  namespacesPath: string;
+  configFile: string | null;
+} {
+  let namespacesPath = "./namespaces";
+  let configFile: string | null = null;
+  try {
+    const config = getConfig();
+    namespacesPath = config.namespacesPath;
+    configFile = path.resolve(
+      process.env.DUCKBRAIN_CONFIG_PATH ??
+        path.join(process.cwd(), "duckbrain.config.json"),
+    );
+  } catch {
+    // Keep defaults — status reporting must not depend on config parsing.
+  }
+  return { namespacesPath, configFile };
+}
 
 /**
  * Resolve the PID file location for a given port/socket.
@@ -107,7 +198,12 @@ export function resolveProjectRoot(
  * server_status tool
  */
 const ServerStatusInputSchema = z.object({
-  port: z.number().optional().describe("TCP port to check (default: 3000)"),
+  port: z
+    .number()
+    .optional()
+    .describe(
+      "TCP port to check (default: DUCKBRAIN_API_PORT env, else 3000)",
+    ),
   socket: z
     .string()
     .optional()
@@ -120,23 +216,54 @@ async function serverStatusTool(input: {
 }): Promise<{
   success: boolean;
   port?: number;
+  /** Where the reported port came from: explicit input, env, or default. */
+  portSource?: "input" | "env" | "default";
   portListening?: boolean;
   socket?: string;
   socketListening?: boolean;
+  /** Live pid from the pidfile; null when absent, unparseable, or dead. */
   pid?: number | null;
+  /** True when a pidfile exists but yields no LIVE pid (dead/unparseable). */
+  pidStale?: boolean;
+  /** The dead pid found in a stale pidfile (diagnostic). */
+  stalePid?: number | null;
+  /** Whether the resolved per-instance pidfile exists on disk. */
+  pidFileExists?: boolean;
   pidFile?: string;
   endpoints?: string[];
+  /** Resolved config summary so callers can tell which instance answered. */
+  config?: {
+    namespacesPath: string;
+    configFile: string | null;
+  };
 }> {
-  const port = input.port ?? 3000;
+  const port = input.port ?? resolveHttpPort();
+  const portSource = resolvePortSource(input.port);
   const pidFile = pidFilePath(port, input.socket);
+  const pidFileExists = fs.existsSync(pidFile);
   let pid: number | null = null;
-  try {
-    if (fs.existsSync(pidFile)) {
-      pid = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
-      if (!pid || Number.isNaN(pid)) pid = null;
+  let pidStale = false;
+  let stalePid: number | null = null;
+  if (pidFileExists) {
+    try {
+      const parsed = Number.parseInt(
+        fs.readFileSync(pidFile, "utf-8").trim(),
+        10,
+      );
+      if (Number.isInteger(parsed) && parsed > 0) {
+        if (isPidAlive(parsed)) {
+          pid = parsed;
+        } else {
+          pidStale = true;
+          stalePid = parsed;
+        }
+      } else {
+        // Unparseable pidfile content — cannot claim a live process.
+        pidStale = true;
+      }
+    } catch {
+      pidStale = true;
     }
-  } catch {
-    pid = null;
   }
 
   const portListening = await isPortListening(port);
@@ -157,12 +284,17 @@ async function serverStatusTool(input: {
   return {
     success: portListening || socketListening,
     port,
+    portSource,
     portListening,
     socket: input.socket,
     socketListening,
     pid,
+    pidStale,
+    stalePid,
+    pidFileExists,
     pidFile,
     endpoints,
+    config: resolveConfigSummary(),
   };
 }
 

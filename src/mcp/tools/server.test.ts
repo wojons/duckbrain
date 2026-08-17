@@ -21,6 +21,18 @@ import fs from "fs";
 import net from "net";
 import os from "os";
 import path from "path";
+import { spawn } from "child_process";
+
+/**
+ * Obtain a pid that is guaranteed dead: spawn a node child that exits
+ * immediately and use its pid once the 'exit' event fired.
+ */
+function deadPid(): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ["-e", "process.exit(0)"]);
+    child.once("exit", () => resolve(child.pid ?? 2147483647));
+  });
+}
 
 describe("server_status tool", () => {
   it("reports not listening on a closed port", async () => {
@@ -56,12 +68,14 @@ describe("server_status tool", () => {
     process.env.DUCKBRAIN_DATA_DIR = tmpDir;
     try {
       const pidFile = path.join(tmpDir, "duckbrain-http-3555.pid");
-      fs.writeFileSync(pidFile, "4242");
+      fs.writeFileSync(pidFile, String(process.pid));
 
       const result = await serverStatusTool({ port: 3555 });
 
-      expect(result.pid).toBe(4242);
+      expect(result.pid).toBe(process.pid);
       expect(result.pidFile).toBe(pidFile);
+      expect(result.pidFileExists).toBe(true);
+      expect(result.pidStale).toBe(false);
       expect(result.port).toBe(3555);
     } finally {
       if (previous === undefined) {
@@ -81,15 +95,17 @@ describe("server_status tool", () => {
     process.env.DUCKBRAIN_DATA_DIR = tmpDir;
     try {
       const pidFile = path.join(tmpDir, "duckbrain-http-test.sock.pid");
-      fs.writeFileSync(pidFile, "4343");
+      fs.writeFileSync(pidFile, String(process.pid));
 
       const result = await serverStatusTool({
         port: 3000,
         socket: "/tmp/test.sock",
       });
 
-      expect(result.pid).toBe(4343);
+      expect(result.pid).toBe(process.pid);
       expect(result.pidFile).toBe(pidFile);
+      expect(result.pidFileExists).toBe(true);
+      expect(result.pidStale).toBe(false);
     } finally {
       if (previous === undefined) {
         delete process.env.DUCKBRAIN_DATA_DIR;
@@ -111,6 +127,9 @@ describe("server_status tool", () => {
 
       expect(result.pid).toBeNull();
       expect(result.pidFile).toBe(path.join(tmpDir, "duckbrain-http-3556.pid"));
+      expect(result.pidFileExists).toBe(false);
+      expect(result.pidStale).toBe(false);
+      expect(result.stalePid).toBeNull();
     } finally {
       if (previous === undefined) {
         delete process.env.DUCKBRAIN_DATA_DIR;
@@ -118,6 +137,197 @@ describe("server_status tool", () => {
         process.env.DUCKBRAIN_DATA_DIR = previous;
       }
       fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("server_status instance-awareness (DOGFOOD-015)", () => {
+  it("resolves the port from DUCKBRAIN_API_PORT when no input.port is given", async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-envport-"),
+    );
+    const previousDataDir = process.env.DUCKBRAIN_DATA_DIR;
+    const previousApiPort = process.env.DUCKBRAIN_API_PORT;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    process.env.DUCKBRAIN_API_PORT = "3999";
+    try {
+      const result = await serverStatusTool({});
+
+      expect(result.port).toBe(3999);
+      expect(result.portSource).toBe("env");
+      expect(result.pidFile).toBe(
+        path.join(tmpDir, "duckbrain-http-3999.pid"),
+      );
+    } finally {
+      if (previousDataDir === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previousDataDir;
+      }
+      if (previousApiPort === undefined) {
+        delete process.env.DUCKBRAIN_API_PORT;
+      } else {
+        process.env.DUCKBRAIN_API_PORT = previousApiPort;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers an explicit input.port over DUCKBRAIN_API_PORT", async () => {
+    const previousApiPort = process.env.DUCKBRAIN_API_PORT;
+    process.env.DUCKBRAIN_API_PORT = "3999";
+    try {
+      const result = await serverStatusTool({ port: 3888 });
+
+      expect(result.port).toBe(3888);
+      expect(result.portSource).toBe("input");
+    } finally {
+      if (previousApiPort === undefined) {
+        delete process.env.DUCKBRAIN_API_PORT;
+      } else {
+        process.env.DUCKBRAIN_API_PORT = previousApiPort;
+      }
+    }
+  });
+
+  it("falls back to the default port when DUCKBRAIN_API_PORT is unset", async () => {
+    const previousApiPort = process.env.DUCKBRAIN_API_PORT;
+    delete process.env.DUCKBRAIN_API_PORT;
+    try {
+      const result = await serverStatusTool({});
+
+      expect(result.port).toBe(3000);
+      expect(result.portSource).toBe("default");
+    } finally {
+      if (previousApiPort === undefined) {
+        delete process.env.DUCKBRAIN_API_PORT;
+      } else {
+        process.env.DUCKBRAIN_API_PORT = previousApiPort;
+      }
+    }
+  });
+
+  it("reports a dead pid from the pidfile as stale, not live", async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-stale-"),
+    );
+    const previousDataDir = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const dead = await deadPid();
+      const pidFile = path.join(tmpDir, "duckbrain-http-3557.pid");
+      fs.writeFileSync(pidFile, String(dead));
+
+      const result = await serverStatusTool({ port: 3557 });
+
+      expect(result.pid).toBeNull();
+      expect(result.pidStale).toBe(true);
+      expect(result.stalePid).toBe(dead);
+      expect(result.pidFileExists).toBe(true);
+      expect(result.pidFile).toBe(pidFile);
+    } finally {
+      if (previousDataDir === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previousDataDir;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a live pid from the pidfile as alive", async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-alive-"),
+    );
+    const previousDataDir = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const pidFile = path.join(tmpDir, "duckbrain-http-3558.pid");
+      fs.writeFileSync(pidFile, String(process.pid));
+
+      const result = await serverStatusTool({ port: 3558 });
+
+      expect(result.pid).toBe(process.pid);
+      expect(result.pidStale).toBe(false);
+      expect(result.stalePid).toBeNull();
+      expect(result.pidFileExists).toBe(true);
+    } finally {
+      if (previousDataDir === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previousDataDir;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats an unparseable pidfile as stale", async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-unparseable-"),
+    );
+    const previousDataDir = process.env.DUCKBRAIN_DATA_DIR;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    try {
+      const pidFile = path.join(tmpDir, "duckbrain-http-3560.pid");
+      fs.writeFileSync(pidFile, "not-a-pid\n");
+
+      const result = await serverStatusTool({ port: 3560 });
+
+      expect(result.pid).toBeNull();
+      expect(result.pidStale).toBe(true);
+      expect(result.stalePid).toBeNull();
+      expect(result.pidFileExists).toBe(true);
+    } finally {
+      if (previousDataDir === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previousDataDir;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports the resolved config so callers can identify the instance", async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-config-"),
+    );
+    const nsDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-server-status-ns-"),
+    );
+    const scratchConfig = path.join(tmpDir, "scratch-config.json");
+    const previousDataDir = process.env.DUCKBRAIN_DATA_DIR;
+    const previousNsPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const previousConfigPath = process.env.DUCKBRAIN_CONFIG_PATH;
+    process.env.DUCKBRAIN_DATA_DIR = tmpDir;
+    process.env.DUCKBRAIN_NAMESPACES_PATH = nsDir;
+    process.env.DUCKBRAIN_CONFIG_PATH = scratchConfig;
+    try {
+      const result = await serverStatusTool({ port: 3559 });
+
+      expect(result.config?.namespacesPath).toBe(nsDir);
+      expect(result.config?.configFile).toBe(scratchConfig);
+      // The scratch config's pidfile, not the live :3000 daemon's.
+      expect(result.pidFile).toBe(
+        path.join(tmpDir, "duckbrain-http-3559.pid"),
+      );
+    } finally {
+      if (previousDataDir === undefined) {
+        delete process.env.DUCKBRAIN_DATA_DIR;
+      } else {
+        process.env.DUCKBRAIN_DATA_DIR = previousDataDir;
+      }
+      if (previousNsPath === undefined) {
+        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      } else {
+        process.env.DUCKBRAIN_NAMESPACES_PATH = previousNsPath;
+      }
+      if (previousConfigPath === undefined) {
+        delete process.env.DUCKBRAIN_CONFIG_PATH;
+      } else {
+        process.env.DUCKBRAIN_CONFIG_PATH = previousConfigPath;
+      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.rmSync(nsDir, { recursive: true, force: true });
     }
   });
 });
