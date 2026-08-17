@@ -17,8 +17,9 @@ let server: ChildProcess;
 describe("HTTP Server E2E Integration", () => {
   beforeAll(async () => {
     server = await startDuckbrainHttp({ port });
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 15000);
-  }, 30000);
+    // INT-CI-002: hardened wait (30s + child stderr tail on timeout).
+    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
+  }, 60000);
 
   afterAll(() => {
     killProcess(server);
@@ -98,7 +99,7 @@ describe("HTTP Server E2E Integration", () => {
     const localPort = getRandomPort();
     const localServer = await startDuckbrainHttp({ port: localPort });
     try {
-      await waitForUrl(`http://127.0.0.1:${localPort}/health`, 15000);
+      await waitForUrl(`http://127.0.0.1:${localPort}/health`, 30000, localServer);
       const res = await curl(`http://127.0.0.1:${localPort}/health`);
       expect(res.status).toBe(200);
     } finally {
@@ -151,7 +152,7 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gapServer = await startDuckbrainHttp({ port: gapPort });
-    await waitForUrl(`http://127.0.0.1:${gapPort}/health`, 15000);
+    await waitForUrl(`http://127.0.0.1:${gapPort}/health`, 30000, gapServer);
   }, 45000);
 
   afterAll(() => {
@@ -241,7 +242,7 @@ describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gap2Server = await startDuckbrainHttp({ port: gap2Port });
-    await waitForUrl(`http://127.0.0.1:${gap2Port}/health`, 15000);
+    await waitForUrl(`http://127.0.0.1:${gap2Port}/health`, 30000, gap2Server);
   }, 45000);
 
   afterAll(() => {
@@ -302,7 +303,7 @@ describe("GAP-020: POST /api/memories honors body.namespace", () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gap20Server = await startDuckbrainHttp({ port: gap20Port });
-    await waitForUrl(`http://127.0.0.1:${gap20Port}/health`, 15000);
+    await waitForUrl(`http://127.0.0.1:${gap20Port}/health`, 30000, gap20Server);
   }, 45000);
 
   afterAll(() => {

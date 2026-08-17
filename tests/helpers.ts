@@ -18,9 +18,50 @@ export function run(cmd: string, opts?: { cwd?: string }): string {
   }
 }
 
+/** Rolling capture of the last `maxLines` lines of a stderr stream. */
+export interface StderrTail {
+  push(chunk: string | Buffer): void;
+  value(): string;
+}
+
+/**
+ * Create a rolling line buffer for capturing a child's stderr tail.
+ * Chunks may split lines arbitrarily; CRLF and LF endings are normalized.
+ * Used by startDuckbrainHttp so waitForUrl timeouts can surface the
+ * daemon's last words instead of a bare "Timed out" (INT-CI-002).
+ */
+export function createStderrTail(maxLines = 50): StderrTail {
+  const lines: string[] = [];
+  let partial = "";
+  return {
+    push(chunk) {
+      partial += chunk.toString();
+      const parts = partial.split(/\r?\n/);
+      partial = parts.pop() ?? "";
+      for (const line of parts) {
+        lines.push(line);
+        if (lines.length > maxLines) lines.shift();
+      }
+    },
+    value() {
+      if (!partial) return lines.join("\n");
+      return lines.length ? `${lines.join("\n")}\n${partial}` : partial;
+    },
+  };
+}
+
+/** A duckbrain daemon child that carries a rolling stderr tail. */
+export type DuckbrainChild = ChildProcess & { stderrTail: string };
+
+/** Last captured stderr tail of a child ("" when not captured). */
+export function getStderrTail(child: ChildProcess): string {
+  return (child as DuckbrainChild).stderrTail ?? "";
+}
+
 export async function waitForUrl(
   url: string,
-  timeoutMs = 15000,
+  timeoutMs = 30000,
+  child?: ChildProcess,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -30,12 +71,16 @@ export async function waitForUrl(
     } catch {}
     await sleep(200);
   }
-  throw new Error(`Timed out waiting for ${url}`);
+  const stderrTail = child ? getStderrTail(child) : "";
+  throw new Error(
+    `Timed out waiting for ${url} after ${timeoutMs}ms` +
+      (stderrTail ? `\n--- child stderr tail ---\n${stderrTail}` : ""),
+  );
 }
 
 export async function waitForPort(
   port: number,
-  timeoutMs = 10000,
+  timeoutMs = 20000,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -62,7 +107,7 @@ export async function startDuckbrainHttp(opts: {
   rateLimit?: number;
   bindAll?: boolean;
   cwd?: string;
-}): Promise<ChildProcess> {
+}): Promise<DuckbrainChild> {
   const args = [
     "npx",
     "tsx",
@@ -74,6 +119,7 @@ export async function startDuckbrainHttp(opts: {
   if (opts.rateLimit) args.push(`--rate-limit=${opts.rateLimit}`);
   if (opts.bindAll) args.push("--bind-all");
 
+  const tail = createStderrTail(50);
   const child = spawn(args[0], args.slice(1), {
     cwd: opts.cwd || process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
@@ -82,9 +128,16 @@ export async function startDuckbrainHttp(opts: {
     // without this, killing the npx wrapper orphans the node daemon
     // grandchild (recurring stray-daemon leak, ticks #219/#220/#222).
     detached: true,
-  });
+  }) as DuckbrainChild;
 
-  child.stderr?.on("data", () => {});
+  // Keep the last ~50 lines of stderr so a waitForUrl timeout can report
+  // WHY the daemon never came up (tsx compile error, EADDRINUSE from a
+  // stray daemon, duckdb native load failure — INT-CI-002 diagnostics).
+  child.stderrTail = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    tail.push(chunk);
+    child.stderrTail = tail.value();
+  });
 
   return child;
 }

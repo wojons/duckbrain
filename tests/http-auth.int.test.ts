@@ -36,8 +36,12 @@ describe("HTTP Auth Integration", () => {
     );
 
     server = await startDuckbrainHttp({ port, authType: "basic" });
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 15000);
-  }, 30000);
+    // INT-CI-002: 15s was occasionally insufficient for tsx compile +
+    // node-duckdb native load under CI Node-22 parallel load. 30s + the
+    // child's stderr tail (surfaced by waitForUrl on timeout) turns the
+    // flake into a real diagnostic.
+    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
+  }, 60000);
 
   afterAll(() => {
     killProcess(server);

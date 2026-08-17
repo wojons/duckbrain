@@ -14,8 +14,9 @@ let server: ChildProcess;
 describe("Rate Limiting Integration", () => {
   beforeAll(async () => {
     server = await startDuckbrainHttp({ port, rateLimit: 5 });
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 15000);
-  }, 30000);
+    // INT-CI-002: hardened wait (30s + child stderr tail on timeout).
+    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
+  }, 60000);
 
   afterAll(() => {
     killProcess(server);
@@ -45,7 +46,7 @@ describe("Rate Limiting Integration", () => {
       rateLimit: 100,
     });
     try {
-      await waitForUrl(`http://127.0.0.1:${rateLimitPort}/health`, 15000);
+      await waitForUrl(`http://127.0.0.1:${rateLimitPort}/health`, 30000, rlServer);
       const res = await curl(`http://127.0.0.1:${rateLimitPort}/health`);
       expect(res.status).toBe(200);
       expect(res.headers).toMatch(/X-RateLimit-Limit/i);
