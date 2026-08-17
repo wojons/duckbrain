@@ -404,16 +404,17 @@ tasks:
   created_at: '2026-08-16T22:27:21.699929+00:00'
   completed_at: '2026-08-16T22:49:57.149440+00:00'
 - id: DOGFOOD-018
-  title: P1 - /api/activity auto-infer read_json crash (same class as DOGFOOD-010)
+  title: "P1 \u2014 /api/activity auto-infer read_json native crash (same class as\
+    \ DOGFOOD-010)"
   criteria:
-  - Apply the explicit all-VARCHAR column schema + ignore_errors=true pattern from
-    src/duckdb/queries.ts to src/http/routes/activity.ts's read_json call; /api/activity
-    over a duplicate-key-attributes namespace returns 200 and the process never aborts;
-    regression test asserts server alive; full vitest suite + tsc clean + gitreins
-    guard PASS
+  - 'Activity route must not abort the daemon: apply explicit all-VARCHAR read_json
+    schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts;
+    /api/activity over a duplicate-key-attributes namespace returns 200 (not abort);
+    regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins
+    guard PASS'
   status: complete
-  created_at: '2026-08-17T00:13:18.419315+00:00'
-  completed_at: '2026-08-17T00:21:31.373697+00:00'
+  created_at: '2026-08-17T07:59:26.849371+00:00'
+  completed_at: '2026-08-17T08:03:33.507661+00:00'
 - id: DOGFOOD-011
   title: Semantic search has NO relevance threshold - ?q=/recall query returns all
     memories for garbage queries
