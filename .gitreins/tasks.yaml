@@ -496,3 +496,13 @@ tasks:
   status: complete
   created_at: '2026-08-17T12:34:57.082417+00:00'
   completed_at: '2026-08-17T12:39:33.449676+00:00'
+- id: DOGFOOD-016
+  title: 'Temp-file hygiene: unlink /tmp/duckbrain-<pid>-*.db on exit/crash; clean
+    stale socket pidfiles on startup'
+  criteria:
+  - Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP),
+    stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests
+    cover both, full suite passes + tsc clean + gitreins guard PASS
+  status: complete
+  created_at: '2026-08-17T14:02:59.894339+00:00'
+  completed_at: '2026-08-17T14:14:46.020203+00:00'

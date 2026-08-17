@@ -1,0 +1,77 @@
+{
+  "task_id": "DOGFOOD-016",
+  "task_title": "Temp-file hygiene: unlink /tmp/duckbrain-<pid>-*.db on exit/crash; clean stale socket pidfiles on startup",
+  "task_criteria": [
+    "Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP), stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests cover both, full suite passes + tsc clean + gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m9:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10810884 bytes (10.81 MB) in 2.51s\u001b[0m\n\u001b[90m9:14AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10810884 bytes (10.81 MB) in 2.51s\u001b[0m\n\u001b[90m9:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-dogfood016.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 524\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m cleans this process's scratch files on SIGTERM and dies by the signal \u001b[33m 459\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 677\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit-dogfood005.test.ts \u001b[2m(\u001b[22m\u001b[2m4 test",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP), stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests cover both, full suite passes + tsc clean + gitreins guard PASS: Implemented in commit 0db9cfe. Normal exit: connection.ts registers process.on('exit', cleanupProcessScratchFiles) which unlinks duckbrain-<pid>-*.db. Crash signals: registerScratchSignalCleanup() registers SIGTERM/SIGINT/SIGHUP handlers calling cleanupProcessScratchFiles then re-delivers signal. Stale pidfiles: cleanupStalePidFile() in pidfile.ts unlinks dead-pid pidfiles, called in http.ts startHttpMode before writing new pidfile. Regression tests: connection-dogfood016.test.ts (orphan sweep + SIGTERM child cleanup), pidfile.test.ts (cleanupStalePidFile), http.test.ts (stale pidfile replacement). Verified: npx vitest run -> 58 files/428 tests passed (exit 0); npx tsc --noEmit -> exit 0 clean; gitreins guard -> 'Tier 1 Guards: PASS' (secrets clean, tests pass).\nDOGFOOD-016 temp-file hygiene fully implemented and verified: crash-signal + exit cleanup, stale pidfile cleanup on startup, regression tests present, full suite (428 tests) passes, tsc clean, and gitreins guard PASS.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP), stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests cover both, full suite passes + tsc clean + gitreins guard PASS: Implemented in commit 0db9cfe. Normal exit: connection.ts registers process.on('exit', cleanupProcessScratchFiles) which unlinks duckbrain-<pid>-*.db. Crash signals: registerScratchSignalCleanup() registers SIGTERM/SIGINT/SIGHUP handlers calling cleanupPro",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP), stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests cover both, full suite passes + tsc clean + gitreins guard PASS",
+                "status": "PASS",
+                "detail": "Implemented in commit 0db9cfe. Normal exit: connection.ts registers process.on('exit', cleanupProcessScratchFiles) which unlinks duckbrain-<pid>-*.db. Crash signals: registerScratchSignalCleanup() registers SIGTERM/SIGINT/SIGHUP handlers calling cleanupProcessScratchFiles then re-delivers signal. Stale pidfiles: cleanupStalePidFile() in pidfile.ts unlinks dead-pid pidfiles, called in http.ts startHttpMode before writing new pidfile. Regression tests: connection-dogfood016.test.ts (orphan sweep + SIGTERM child cleanup), pidfile.test.ts (cleanupStalePidFile), http.test.ts (stale pidfile replacement). Verified: npx vitest run -> 58 files/428 tests passed (exit 0); npx tsc --noEmit -> exit 0 clean; gitreins guard -> 'Tier 1 Guards: PASS' (secrets clean, tests pass)."
+              }
+            ],
+            "summary": "DOGFOOD-016 temp-file hygiene fully implemented and verified: crash-signal + exit cleanup, stale pidfile cleanup on startup, regression tests present, full suite (428 tests) passes, tsc clean, and gitreins guard PASS."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-016\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m9:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10810884 bytes (10.81 MB) in 2.51s\u001b[0m\n\u001b[90m9:14AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Temp db files are removed on normal exit and on crash signals (SIGTERM/SIGINT/SIGHUP), stale /tmp/duckbrain-*.sock.pid files are cleaned on startup, regression tests cover both, full suite passes + tsc clean + gitreins guard PASS: Implemented in commit 0db9cfe. Normal exit: connection.ts registers process.on('exit', cleanupProcessScratchFiles) which unlinks duckbrain-<pid>-*.db. Crash signals: registerScratchSignalCleanup() registers SIGTERM/SIGINT/SIGHUP handlers calling cleanupProcessScratchFiles then re-delivers signal. Stale pidfiles: cleanupStalePidFile() in pidfile.ts unlinks dead-pid pidfiles, called in http.ts startHttpMode before writing new pidfile. Regression tests: connection-dogfood016.test.ts (orphan sweep + SIGTERM child cleanup), pidfile.test.ts (cleanupStalePidFile), http.test.ts (stale pidfile replacement). Verified: npx vitest run -> 58 files/428 tests passed (exit 0); npx tsc --noEmit -> exit 0 clean; gitreins guard -> 'Tier 1 Guards: PASS' (secrets clean, tests pass).\nDOGFOOD-016 temp-file hygiene fully implemented and verified: crash-signal + exit cleanup, stale pidfile cleanup on startup, regression tests present, full suite (428 tests) passes, tsc clean, and gitreins guard PASS.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T14:16:13.828595"
+}
