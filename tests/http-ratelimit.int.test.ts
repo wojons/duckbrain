@@ -6,6 +6,7 @@ import {
   killProcess,
   waitForUrl,
   curl,
+  DAEMON_READY_TIMEOUT_MS,
 } from "./helpers";
 
 const port = getRandomPort();
@@ -15,8 +16,16 @@ describe("Rate Limiting Integration", () => {
   beforeAll(async () => {
     server = await startDuckbrainHttp({ port, rateLimit: 5 });
     // INT-CI-002: hardened wait (30s + child stderr tail on timeout).
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
-  }, 60000);
+    // INT-CI-003: 60s via shared constant — the 3rd flake was this suite
+    // (run 32071985468) with the daemon's "started" line landing AT 30s.
+    await waitForUrl(
+      `http://127.0.0.1:${port}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      server,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     killProcess(server);
@@ -46,7 +55,11 @@ describe("Rate Limiting Integration", () => {
       rateLimit: 100,
     });
     try {
-      await waitForUrl(`http://127.0.0.1:${rateLimitPort}/health`, 30000, rlServer);
+      await waitForUrl(
+        `http://127.0.0.1:${rateLimitPort}/health`,
+        DAEMON_READY_TIMEOUT_MS,
+        rlServer,
+      );
       const res = await curl(`http://127.0.0.1:${rateLimitPort}/health`);
       expect(res.status).toBe(200);
       expect(res.headers).toMatch(/X-RateLimit-Limit/i);

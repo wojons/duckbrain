@@ -21,8 +21,12 @@ describe("SSH Tunnel Integration", () => {
     // 60s: docker build + container start on cold CI runners regularly
     // exceeds the old 15s wait (proven: run 30696804505 attempt 1, Node 20.x —
     // "Timed out waiting for port" while 22.x passed the same attempt).
-    await waitForPort(sshPort, 60000);
-  }, 120000);
+    // INT-CI-003: 120s — the SAME docker build is already allowed 300s by
+    // docker-build.int.test.ts; on hosts whose docker daemon is shared with
+    // other tenants (observed: this host under concurrent CI-runner builds)
+    // 60s build+run+sshd was still too tight.
+    await waitForPort(sshPort, 120000);
+  }, 180000);
 
   afterAll(() => {
     stopSshContainer(containerName);

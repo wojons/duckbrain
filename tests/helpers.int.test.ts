@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createStderrTail, waitForUrl } from "./helpers";
+import { createStderrTail, waitForUrl, getChildState } from "./helpers";
 
 /**
  * INT-CI-002: unit coverage for the hardened wait helpers.
@@ -56,13 +56,29 @@ describe("helpers: waitForUrl timeout diagnostics (INT-CI-002)", () => {
   });
 
   it("omits the stderr section when no child is known", async () => {
-    await expect(
-      waitForUrl("http://127.0.0.1:1/health", 700),
-    ).rejects.toThrow(
+    await expect(waitForUrl("http://127.0.0.1:1/health", 700)).rejects.toThrow(
       /Timed out waiting for http:\/\/127\.0\.0\.1:1\/health after 700ms/,
     );
     await expect(
       waitForUrl("http://127.0.0.1:1/health", 700),
     ).rejects.not.toThrow(/child stderr tail/);
+  });
+});
+
+describe("helpers: getChildState (INT-CI-003)", () => {
+  it("reports a live child with its ps stat", () => {
+    // process.pid is always alive inside the test worker.
+    const state = getChildState({ pid: process.pid } as any);
+    expect(state).toMatch(new RegExp(`pid ${process.pid}: \\S+\\s+\\d`));
+  });
+
+  it("reports (exited) for a dead pid", () => {
+    const state = getChildState({ pid: 2147483647 } as any);
+    expect(state).toBe("pid 2147483647: (exited)");
+  });
+
+  it("returns '' when no pid is known", () => {
+    expect(getChildState()).toBe("");
+    expect(getChildState({} as any)).toBe("");
   });
 });

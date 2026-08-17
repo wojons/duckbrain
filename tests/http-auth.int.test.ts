@@ -6,6 +6,7 @@ import {
   killProcess,
   waitForUrl,
   curl,
+  DAEMON_READY_TIMEOUT_MS,
 } from "./helpers";
 import fs from "fs";
 import path from "path";
@@ -39,9 +40,17 @@ describe("HTTP Auth Integration", () => {
     // INT-CI-002: 15s was occasionally insufficient for tsx compile +
     // node-duckdb native load under CI Node-22 parallel load. 30s + the
     // child's stderr tail (surfaced by waitForUrl on timeout) turns the
-    // flake into a real diagnostic.
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
-  }, 60000);
+    // flake into a real diagnostic. INT-CI-003: 60s (shared constant) +
+    // globalSetup pre-warm — the 3rd flake landed the daemon's "started"
+    // line AT the 30s instant on a loaded runner.
+    await waitForUrl(
+      `http://127.0.0.1:${port}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      server,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     killProcess(server);

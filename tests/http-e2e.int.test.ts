@@ -9,6 +9,7 @@ import {
   killProcess,
   waitForUrl,
   curl,
+  DAEMON_READY_TIMEOUT_MS,
 } from "./helpers";
 
 const port = getRandomPort();
@@ -18,8 +19,14 @@ describe("HTTP Server E2E Integration", () => {
   beforeAll(async () => {
     server = await startDuckbrainHttp({ port });
     // INT-CI-002: hardened wait (30s + child stderr tail on timeout).
-    await waitForUrl(`http://127.0.0.1:${port}/health`, 30000, server);
-  }, 60000);
+    await waitForUrl(
+      `http://127.0.0.1:${port}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      server,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     killProcess(server);
@@ -99,7 +106,11 @@ describe("HTTP Server E2E Integration", () => {
     const localPort = getRandomPort();
     const localServer = await startDuckbrainHttp({ port: localPort });
     try {
-      await waitForUrl(`http://127.0.0.1:${localPort}/health`, 30000, localServer);
+      await waitForUrl(
+        `http://127.0.0.1:${localPort}/health`,
+        DAEMON_READY_TIMEOUT_MS,
+        localServer,
+      );
       const res = await curl(`http://127.0.0.1:${localPort}/health`);
       expect(res.status).toBe(200);
     } finally {
@@ -152,8 +163,14 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gapServer = await startDuckbrainHttp({ port: gapPort });
-    await waitForUrl(`http://127.0.0.1:${gapPort}/health`, 30000, gapServer);
-  }, 45000);
+    await waitForUrl(
+      `http://127.0.0.1:${gapPort}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      gapServer,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     if (lockHolder) killProcess(lockHolder);
@@ -242,8 +259,14 @@ describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gap2Server = await startDuckbrainHttp({ port: gap2Port });
-    await waitForUrl(`http://127.0.0.1:${gap2Port}/health`, 30000, gap2Server);
-  }, 45000);
+    await waitForUrl(
+      `http://127.0.0.1:${gap2Port}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      gap2Server,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     killProcess(gap2Server);
@@ -303,8 +326,14 @@ describe("GAP-020: POST /api/memories honors body.namespace", () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
     gap20Server = await startDuckbrainHttp({ port: gap20Port });
-    await waitForUrl(`http://127.0.0.1:${gap20Port}/health`, 30000, gap20Server);
-  }, 45000);
+    await waitForUrl(
+      `http://127.0.0.1:${gap20Port}/health`,
+      DAEMON_READY_TIMEOUT_MS,
+      gap20Server,
+    );
+    // INT-CI-003: hook timeout must exceed the 60s daemon wait or vitest
+    // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+  }, 120000);
 
   afterAll(() => {
     killProcess(gap20Server);

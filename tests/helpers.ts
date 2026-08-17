@@ -18,6 +18,20 @@ export function run(cmd: string, opts?: { cwd?: string }): string {
   }
 }
 
+/**
+ * How long a daemon spawn may take before waitForUrl gives up.
+ *
+ * INT-CI-002 raised this 15s -> 30s; the 3rd occurrence (INT-CI-003, run
+ * 32071985468) showed the daemon's "HTTP server started" line landing AT the
+ * 30s instant on the Node 22 runner under load — a slow cold start (tsx
+ * transpile + node-duckdb native load + tool registration), not a hang. 60s
+ * matches the docker-build integration file's existing daemon timeout and
+ * gives 2x headroom over the slowest observed start. The daemon-ready wait is
+ * only as slow as the cold start; pre-warming (see
+ * global-setup.integration.ts) keeps the common case fast.
+ */
+export const DAEMON_READY_TIMEOUT_MS = 60_000;
+
 /** Rolling capture of the last `maxLines` lines of a stderr stream. */
 export interface StderrTail {
   push(chunk: string | Buffer): void;
@@ -58,22 +72,47 @@ export function getStderrTail(child: ChildProcess): string {
   return (child as DuckbrainChild).stderrTail ?? "";
 }
 
+/**
+ * One-line snapshot of a child's process state for timeout diagnostics
+ * (INT-CI-003): "alive vs exited" plus stat/etime is the difference between
+ * "daemon never came up" and "daemon came up and then died/stopped serving".
+ */
+export function getChildState(child?: ChildProcess): string {
+  if (!child?.pid) return "";
+  try {
+    const ps = run(`ps -o stat=,etime= -p ${child.pid} 2>/dev/null | tail -1`);
+    if (!ps || /not found|no such process/i.test(ps)) {
+      return `pid ${child.pid}: (exited)`;
+    }
+    return `pid ${child.pid}: ${ps.trim()}`;
+  } catch {
+    return `pid ${child.pid}: (exited)`;
+  }
+}
+
 export async function waitForUrl(
   url: string,
-  timeoutMs = 30000,
+  timeoutMs = DAEMON_READY_TIMEOUT_MS,
   child?: ChildProcess,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const result = run(`curl -sf -o /dev/null -w '%{http_code}' ${url}`);
+      // --max-time 10 bounds each attempt: a health handler that accepts TCP
+      // but stalls (e.g. a slow embedding probe) must not pin the poll loop
+      // past its timeout cap (INT-CI-003).
+      const result = run(
+        `curl -sf -o /dev/null -w '%{http_code}' --max-time 10 ${url}`,
+      );
       if (result === "200" || result === "401") return;
     } catch {}
     await sleep(200);
   }
   const stderrTail = child ? getStderrTail(child) : "";
+  const childState = getChildState(child);
   throw new Error(
     `Timed out waiting for ${url} after ${timeoutMs}ms` +
+      (childState ? `\n--- child state ---\n${childState}` : "") +
       (stderrTail ? `\n--- child stderr tail ---\n${stderrTail}` : ""),
   );
 }
@@ -109,7 +148,8 @@ export async function startDuckbrainHttp(opts: {
   cwd?: string;
 }): Promise<DuckbrainChild> {
   const args = [
-    "npx",
+    "node",
+    "--import",
     "tsx",
     "bin/duckbrain.ts",
     "http",
@@ -119,11 +159,28 @@ export async function startDuckbrainHttp(opts: {
   if (opts.rateLimit) args.push(`--rate-limit=${opts.rateLimit}`);
   if (opts.bindAll) args.push("--bind-all");
 
+  // Spawn via `node --import tsx` (tsx's documented loader integration)
+  // rather than `npx tsx`: npx adds per-spawn resolution overhead and an
+  // extra process hop, which under CI runner load compounds the cold-start
+  // delay (INT-CI-003). The daemon itself is unchanged.
   const tail = createStderrTail(50);
   const child = spawn(args[0], args.slice(1), {
     cwd: opts.cwd || process.cwd(),
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      // INT-CI-003: scratch daemons must be hermetic — pin the embedding
+      // health probe to a fast-fail provider (openai + empty key => isHealthy
+      // is Boolean(apiKey) = false, no network). On hosts with live LM
+      // Studio/Ollama the first /health request otherwise pays the full
+      // sequential probe chain (1.5s + 3s + 1.5s timeouts per provider) and,
+      // under load when timers fire late, that single request can outlast
+      // the daemon-ready budget — misread as a spawn timeout (INT-CI-003 run
+      // 11: daemon printed "HTTP server started" + "ready", yet /health never
+      // answered within 60s). Tests already accept the "degraded" status.
+      DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
+      DUCKBRAIN_EMBEDDING_API_KEY: "",
+    },
     // Own process group so killProcess can SIGTERM the whole tree —
     // without this, killing the npx wrapper orphans the node daemon
     // grandchild (recurring stray-daemon leak, ticks #219/#220/#222).
