@@ -234,18 +234,20 @@ export async function squashPartition(
  * @param options - Compaction options
  * @returns Compaction results
  */
-export async function compactHistory(
-  options: {
-    /** Max age in days (default: 30) */
-    maxAge?: number;
-    /** Minimum records threshold (default: 1000) */
-    threshold?: number;
-    /** Dry run mode */
-    dryRun?: boolean;
-    /** Squash git history */
-    squashCommits?: boolean;
-  } = {},
-): Promise<{
+export async function compactHistory(options: {
+  /** Max age in days (default: 30) */
+  maxAge?: number;
+  /** Minimum records threshold (default: 1000) */
+  threshold?: number;
+  /** Dry run mode */
+  dryRun?: boolean;
+  /** Squash git history */
+  squashCommits?: boolean;
+  /** Namespace path to compact — resolved by the caller from config
+   *  (DOGFOOD-014: previously hardcoded to cwd/.duckbrain/namespaces/
+   *  default, which never exists in configured deployments) */
+  namespacePath: string;
+}): Promise<{
   success: boolean;
   partitionsCompacted: number;
   totalRecordsKept: number;
@@ -264,20 +266,16 @@ export async function compactHistory(
   let totalRecordsKept = 0;
   let totalRecordsRemoved = 0;
 
-  // Get namespace path (assume default namespace for now)
-  const namespacePath = path.join(
-    process.cwd(),
-    ".duckbrain",
-    "namespaces",
-    "default",
-  );
+  // Namespace path is resolved by the caller (config namespacesPath +
+  // defaultNamespace) — never assume a legacy layout (DOGFOOD-014).
+  const namespacePath = options.namespacePath;
   if (!fs.existsSync(namespacePath)) {
     return {
       success: false,
       partitionsCompacted: 0,
       totalRecordsKept: 0,
       totalRecordsRemoved: 0,
-      errors: ["Default namespace not found"],
+      errors: [`Namespace not found: ${namespacePath}`],
     };
   }
 

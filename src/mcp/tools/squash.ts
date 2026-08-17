@@ -11,7 +11,7 @@ import {
   compactHistory,
   getCompactionStats,
 } from "../../git/squash";
-import { resolveNamespacePath } from "./shared";
+import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import path from "path";
 
 /**
@@ -23,6 +23,11 @@ const SquashInputSchema = z.object({
     .string()
     .optional()
     .describe("Specific partition to squash (optional)"),
+  /** Namespace to operate on (defaults to the ACTIVE namespace — config defaultNamespace, DOGFOOD-014) */
+  namespace: z
+    .string()
+    .optional()
+    .describe("Namespace to operate on (defaults to the active namespace)"),
   /** Preview without making changes */
   dryRun: z.boolean().default(false).describe("Preview without making changes"),
   /** Squash git history aggressively */
@@ -69,11 +74,11 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
       };
     }
 
-    const { partition, dryRun, aggressive } = parseResult.data;
+    const { partition, dryRun, aggressive, namespace } = parseResult.data;
 
     // If specific partition provided, squash it directly
     if (partition) {
-      const namespacePath = resolveNamespacePath();
+      const namespacePath = resolveNamespacePath(namespace);
       const partitionPath = path.isAbsolute(partition)
         ? partition
         : path.join(namespacePath, partition);
@@ -110,6 +115,7 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
       threshold: 1000,
       dryRun,
       squashCommits: aggressive,
+      namespacePath: resolveNamespacePath(namespace),
     });
 
     if (result.success) {
@@ -145,11 +151,20 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
 /**
  * Get compaction stats tool handler
  *
- * @param _input - Unused (no input needed)
+ * @param input - Optional namespace to scan (defaults to the ACTIVE
+ * namespace — config defaultNamespace, DOGFOOD-014). Previously the stats
+ * were always computed against the hardcoded legacy path
+ * cwd/.duckbrain/namespaces/default, which never exists in configured
+ * deployments → all-zero stats.
  * @returns Repository compaction statistics
  */
-export async function getCompactionStatsTool(_input?: {}): Promise<{
+export async function getCompactionStatsTool(input?: {
+  namespace?: string;
+}): Promise<{
   success: boolean;
+  /** Namespace actually scanned — resolved from the arg or the active
+   *  (config defaultNamespace) namespace when omitted (DOGFOOD-014) */
+  namespace?: string;
   stats?: {
     totalSize: number;
     totalPartitions: number;
@@ -165,10 +180,12 @@ export async function getCompactionStatsTool(_input?: {}): Promise<{
   error?: string;
 }> {
   try {
-    const stats = await getCompactionStats();
+    const namespacePath = resolveNamespacePath(input?.namespace);
+    const stats = await getCompactionStats(namespacePath);
 
     return {
       success: true,
+      namespace: resolveNamespaceName(input?.namespace),
       stats,
     };
   } catch (error) {
@@ -199,6 +216,12 @@ export const compactionStatsToolDef = {
   title: "Get Compaction Statistics",
   description:
     "Get repository compaction statistics including tombstone percentage, Parquet ratio, and partition health",
-  inputSchema: z.object({}),
+  inputSchema: z.object({
+    /** Namespace to scan (defaults to the ACTIVE namespace — config defaultNamespace) */
+    namespace: z
+      .string()
+      .optional()
+      .describe("Namespace to scan (defaults to the active namespace)"),
+  }),
   handler: getCompactionStatsTool,
 };
