@@ -9,6 +9,7 @@ import { Router, Request, Response } from "express";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
 import { deepConvertBigInts } from "../../utils/serialize";
+import { getConfig } from "../../config/index";
 import path from "path";
 import fs from "fs";
 
@@ -84,18 +85,40 @@ function parseDuckDBStruct(structStr: string): Record<string, unknown> {
 }
 
 /**
+ * Explicit read_json column schema (DOGFOOD-018 — mirrors the DOGFOOD-010
+ * fix in src/duckdb/queries.ts).
+ *
+ * Auto-inference types a heterogeneous `attributes` object as MAP(...); when
+ * a record's JSON object then contains duplicate keys (valid per RFC 8259,
+ * produced by external writers — JSON.parse in-process silently collapses
+ * them), MAP conversion fails with `duckdb::InvalidInputException: Map keys
+ * must be unique.` thrown from native code. node-duckdb's
+ * RunPreparedTask::DoWork() (the db.all() path) has NO try/catch around
+ * Execute(), so the C++ throw escapes the libuv worker thread →
+ * std::terminate → SIGABRT → whole process dies. A JS try/catch cannot help:
+ * the exception never crosses back into JS.
+ *
+ * Forcing every column to VARCHAR means `attributes` arrives as RAW JSON TEXT
+ * (parsed in JS by parseDuckDBStruct, which tries JSON.parse first) and no
+ * MAP/STRUCT is ever built — duplicate keys become harmless. ignore_errors
+ * converts any remaining per-record conversion error (e.g. a malformed JSON
+ * line) into an all-NULL row, which the `action != 'tombstone'` filter drops,
+ * instead of a native throw.
+ */
+const READ_JSON_COLUMNS =
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
+
+/**
  * Collect all JSONL file paths across all namespaces.
+ *
+ * Resolved via getConfig() so the route honors the same env-only overrides
+ * as the rest of the codebase (DUCKBRAIN_CONFIG_PATH GAP-022,
+ * DUCKBRAIN_NAMESPACES_PATH BUG-037) — the test suite redirects namespace
+ * storage to a per-worker temp dir, and this route must follow it instead of
+ * scanning the live ./namespaces tree.
  */
 function collectAllJsonlFiles(): string[] {
-  const config = (() => {
-    try {
-      return JSON.parse(fs.readFileSync("duckbrain.config.json", "utf-8"));
-    } catch {
-      return null;
-    }
-  })();
-
-  const nsPath = config?.namespacesPath || "./namespaces";
+  const nsPath = getConfig(".").namespacesPath;
   if (!fs.existsSync(nsPath)) return [];
 
   const files: string[] = [];
@@ -158,7 +181,7 @@ async function queryRecentActivity(limit: number): Promise<
     const fileList = allFiles.map((f: string) => `'${f}'`).join(", ");
     const sql = `
       SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
-      FROM read_json([${fileList}], format='newline_delimited')
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       WHERE action != 'tombstone'
       ORDER BY timestamp DESC
       LIMIT ${Math.min(limit, 200)}

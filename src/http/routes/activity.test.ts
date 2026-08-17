@@ -96,16 +96,26 @@ function httpRequest(
 }
 
 function setupMockFs(namespaceDirs: string[]) {
+  // activity.ts resolves the namespaces root via getConfig(), which applies
+  // the test-suite DUCKBRAIN_NAMESPACES_PATH override (a per-worker /tmp dir)
+  // — match BOTH that root and the legacy "./namespaces" spelling.
+  const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH || "./namespaces";
+  const isNsPath = (s: string) =>
+    s === NS_ROOT ||
+    s.startsWith(NS_ROOT + "/") ||
+    s === "./namespaces" ||
+    s.includes("namespaces");
   vi.mocked(fs.existsSync).mockImplementation((p: fs.PathLike) => {
     const s = p.toString();
     if (s === "duckbrain.config.json") return true;
-    if (s.includes("namespaces")) return true;
+    if (isNsPath(s)) return true;
     if (s.includes("manifest.json")) return true;
     return false;
   });
   vi.mocked(fs.readdirSync).mockImplementation((p: any) => {
     const s = p.toString();
     if (
+      s === NS_ROOT ||
       s === "./namespaces" ||
       (s.includes("namespaces") && s.split("/").length <= 2)
     ) {
