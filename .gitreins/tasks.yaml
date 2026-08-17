@@ -414,3 +414,15 @@ tasks:
   status: complete
   created_at: '2026-08-17T00:13:18.419315+00:00'
   completed_at: '2026-08-17T00:21:31.373697+00:00'
+- id: DOGFOOD-011
+  title: Semantic search has NO relevance threshold - ?q=/recall query returns all
+    memories for garbage queries
+  criteria:
+  - semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold
+    so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold
+    items) on a populated namespace; similarity scores exposed in REST ?q= responses
+    (items[].score); MCP recall with query behaves consistently; regression tests
+    added; full suite + npx tsc --noEmit clean; gitreins guard PASS
+  status: complete
+  created_at: '2026-08-17T01:33:23.747665+00:00'
+  completed_at: '2026-08-17T01:40:12.076486+00:00'
