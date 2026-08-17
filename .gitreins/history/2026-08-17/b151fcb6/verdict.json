@@ -1,0 +1,57 @@
+{
+  "task_id": "DOGFOOD-020",
+  "task_title": "DOGFOOD-020 \u2014 /health reports embedding provider health (false-green fix)",
+  "task_criteria": [
+    "GET /health includes embedding object {provider, model, healthy, providers:[{id,healthy,note}]}; top-level status degraded (HTTP 200) when no provider can embed; result cached ~30s TTL; unit+integration regression tests; full suite + tsc clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m10:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10051306\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m10:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10051306 bytes (10.05 MB) in 2.21s\u001b[0m\n\u001b[90m10:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-dogfood016.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 624\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m cleans this process's scratch files on SIGTERM and dies by the signal \u001b[33m 562\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 713\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /health includes embedding object {provider, model, healthy, providers:[{id,healthy,note}]}; top-level status degraded (HTTP 200) when no provider can embed; result cached ~30s TTL; unit+integration regression tests; full suite + tsc clean: Commit 9e705dd: src/embedding/health.ts (probeEmbeddingHealth + getEmbeddingHealth with EMBEDDING_HEALTH_TTL_MS=30_000 TTL cache; returns {provider,model,healthy,providers:[{id,healthy,note}]}) wired into GET /health via createHealthHandler in src/cli/http.ts:225 (status = embedding.healthy?'healthy':'degraded', res.json default HTTP 200; probe error -> degraded, never throws). Live curl on scratch daemon: HTTP 200, embedding keys [healthy,model,provider,providers], provider entries [healthy,id,note]. Degraded path unit-tested (health-dogfood020.test.ts 'returns status degraded + embedding object when the probe reports unhealthy'). Cache verified by unit tests: no second probe within TTL, re-probe after expiry. Unit tests 15/15 pass; integration tests tests/http-e2e.int.test.ts:34-36 assert body.embedding.healthy boolean + providers array on a live daemon (13/13 pass; http-auth + docker-build int tests updated to accept degraded); full suite 59 files/443 tests pass; npx tsc --noEmit exit 0.\nDOGFOOD-020 fully implemented and verified: /health serves the embedding object with provider/model/healthy/providers, degrades status (HTTP 200) when no provider can embed, caches results for 30s, and ships passing unit+integration regression tests with a green full suite and clean tsc.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /health includes embedding object {provider, model, healthy, providers:[{id,healthy,note}]}; top-level status degraded (HTTP 200) when no provider can embed; result cached ~30s TTL; unit+integration regression tests; full suite + tsc clean: Commit 9e705dd: src/embedding/health.ts (probeEmbeddingHealth + getEmbeddingHealth with EMBEDDING_HEALTH_TTL_MS=30_000 TTL cache; returns {provider,model,healthy,providers:[{id,healthy,note}]}) wired into GET /health via createHealthHandler i",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-020\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m10:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10051306\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /health includes embedding object {provider, model, healthy, providers:[{id,healthy,note}]}; top-level status degraded (HTTP 200) when no provider can embed; result cached ~30s TTL; unit+integration regression tests; full suite + tsc clean: Commit 9e705dd: src/embedding/health.ts (probeEmbeddingHealth + getEmbeddingHealth with EMBEDDING_HEALTH_TTL_MS=30_000 TTL cache; returns {provider,model,healthy,providers:[{id,healthy,note}]}) wired into GET /health via createHealthHandler in src/cli/http.ts:225 (status = embedding.healthy?'healthy':'degraded', res.json default HTTP 200; probe error -> degraded, never throws). Live curl on scratch daemon: HTTP 200, embedding keys [healthy,model,provider,providers], provider entries [healthy,id,note]. Degraded path unit-tested (health-dogfood020.test.ts 'returns status degraded + embedding object when the probe reports unhealthy'). Cache verified by unit tests: no second probe within TTL, re-probe after expiry. Unit tests 15/15 pass; integration tests tests/http-e2e.int.test.ts:34-36 assert body.embedding.healthy boolean + providers array on a live daemon (13/13 pass; http-auth + docker-build int tests updated to accept degraded); full suite 59 files/443 tests pass; npx tsc --noEmit exit 0.\nDOGFOOD-020 fully implemented and verified: /health serves the embedding object with provider/model/healthy/providers, degrades status (HTTP 200) when no provider can embed, caches results for 30s, and ships passing unit+integration regression tests with a green full suite and clean tsc.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-17T15:42:53.431595"
+}

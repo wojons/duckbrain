@@ -506,3 +506,13 @@ tasks:
   status: complete
   created_at: '2026-08-17T14:02:59.894339+00:00'
   completed_at: '2026-08-17T14:14:46.020203+00:00'
+- id: DOGFOOD-020
+  title: "DOGFOOD-020 \u2014 /health reports embedding provider health (false-green\
+    \ fix)"
+  criteria:
+  - GET /health includes embedding object {provider, model, healthy, providers:[{id,healthy,note}]};
+    top-level status degraded (HTTP 200) when no provider can embed; result cached
+    ~30s TTL; unit+integration regression tests; full suite + tsc clean
+  status: complete
+  created_at: '2026-08-17T15:27:24.879208+00:00'
+  completed_at: '2026-08-17T15:40:40.097052+00:00'
