@@ -188,7 +188,7 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
  * line) into an all-NULL row, which the `action != 'tombstone'` outer filter
  * drops, instead of a native throw.
  */
-const READ_JSON_COLUMNS =
+export const READ_JSON_COLUMNS =
   "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
 
 /**

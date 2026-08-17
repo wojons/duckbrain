@@ -14,6 +14,7 @@ import * as path from "path";
 import { safeJsonStringify } from "../utils/serialize";
 import { getManifest, type Manifest } from "../storage/manifest";
 import { getDuckDBConnection } from "../duckdb/connection";
+import { READ_JSON_COLUMNS } from "../duckdb/queries";
 import { execSync } from "child_process";
 
 /**
@@ -147,9 +148,26 @@ export async function squashPartition(
 
     // Create temporary table with records
     // Note: DuckDB Node.js bindings - use run() for DDL, all() for queries
+    // DOGFOOD-019: the previous read_json_auto call auto-inferred a
+    // heterogeneous `attributes` object as MAP(...); duplicate keys inside a
+    // stored attributes object (valid per RFC 8259, produced by external
+    // writers — JSON.parse in-process silently collapses them) then fail MAP
+    // conversion with `duckdb::InvalidInputException: Map keys must be
+    // unique.` — a native throw that escapes the libuv worker thread →
+    // std::terminate → SIGABRT → the whole daemon dies. Same crash class as
+    // DOGFOOD-010/018; the explicit all-VARCHAR schema (shared with
+    // src/duckdb/queries.ts) makes `attributes` arrive as RAW JSON TEXT, so
+    // no MAP/STRUCT is ever built and duplicate keys become harmless.
+    // ignore_errors=true converts any remaining per-record conversion error
+    // into an all-NULL row, which the `action NOT IN ('tombstone', 'forget')`
+    // filter below drops instead of a native throw.
+    const fileList = jsonlFiles
+      .map((f: string) => f.replace(/\\/g, "/"))
+      .map((f: string) => `'${f}'`)
+      .join(", ");
     await new Promise<void>((resolve, reject) => {
       db.run(
-        `CREATE TEMP TABLE records AS SELECT * FROM read_json_auto('${jsonlFiles.map((f) => f.replace(/\\/g, "/")).join("','")}'))`,
+        `CREATE TEMP TABLE records AS SELECT * FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})`,
         (err: any) => {
           if (err) reject(err);
           else resolve();
