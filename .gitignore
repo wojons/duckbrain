@@ -54,3 +54,8 @@ packages/ui/src/**/*.js
 
 .coding-hermes/board/*.duckdb
 .gitreins/usage.jsonl
+
+# dagger local state (stray artifact, never track)
+dagger.db
+dagger.db-shm
+dagger.db-wal
