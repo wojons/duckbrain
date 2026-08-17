@@ -450,3 +450,16 @@ tasks:
   status: complete
   created_at: '2026-08-17T04:26:49.126689+00:00'
   completed_at: '2026-08-17T04:29:07.203954+00:00'
+- id: DOGFOOD-017
+  title: remember can silently write to wrong namespace - echo namespace in responses
+    + document stickiness
+  criteria:
+  - 1) remember and recall MCP tool responses include the resolved namespace actually
+    used (including when omitted and defaulted); 2) active-namespace stickiness across
+    processes documented (docs/api/mcp-tools.md and/or skills/duckbrain-usage/SKILL.md);
+    3) warning (or equivalent) when a write goes to a non-default namespace, per board
+    AC; 4) regression tests cover namespace echo + sticky behavior; 5) full suite
+    + npx tsc --noEmit + gitreins guard PASS
+  status: complete
+  created_at: '2026-08-17T05:36:15.376913+00:00'
+  completed_at: '2026-08-17T05:44:55.542329+00:00'
