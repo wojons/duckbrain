@@ -516,3 +516,12 @@ tasks:
   status: complete
   created_at: '2026-08-17T15:27:24.879208+00:00'
   completed_at: '2026-08-17T15:40:40.097052+00:00'
+- id: INT-CI-002
+  title: Fix http-auth waitForUrl CI flake on Node 22
+  criteria:
+  - 'waitForUrl retry/timing hardened: integration suites no longer time out waiting
+    for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard
+    PASS'
+  status: complete
+  created_at: '2026-08-17T16:47:29.287255+00:00'
+  completed_at: '2026-08-17T17:00:43.389732+00:00'
