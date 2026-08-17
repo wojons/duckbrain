@@ -63,6 +63,9 @@ function transformMemory(memory: any): MemoryResponse {
     author: memory.author,
     isTombstone: memory.action === "tombstone",
     action: memory.action,
+    // DOGFOOD-011: semantic ?q= results carry their similarity score; the
+    // plain list path has no score and must not fabricate one.
+    ...(typeof memory.score === "number" ? { score: memory.score } : {}),
   };
 }
 

@@ -13,7 +13,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { EmbeddingCache } from "./cache";
-import { semanticSearch, cosineSimilarity } from "./search";
+import { semanticSearch, cosineSimilarity, DEFAULT_MIN_SCORE } from "./search";
 import { createProvider, resolveEmbeddingConfig } from "./providers";
 
 let tmpDir: string;
@@ -155,6 +155,76 @@ describe("semanticSearch", () => {
       maxOnTheFlyEmbeds: 3,
     });
     expect(calls).toBe(3);
+  });
+});
+
+describe("semanticSearch relevance threshold (DOGFOOD-011)", () => {
+  // Orthogonal query/candidate vectors make scores exact: identical
+  // direction → 1.0, orthogonal → 0.0. No hash-space luck involved.
+  const q = [1, 0, 0, 0];
+  const provider = {
+    id: "m",
+    model: "t",
+    dimensions: 4,
+    async embed() {
+      throw new Error("all cached — should not embed");
+    },
+  };
+
+  it("default floor (DEFAULT_MIN_SCORE) drops below-threshold candidates", async () => {
+    expect(DEFAULT_MIN_SCORE).toBeGreaterThan(0);
+    expect(DEFAULT_MIN_SCORE).toBeLessThanOrEqual(0.3);
+    const relevant = candidate("rel", "similar text");
+    const noise = candidate("noise", "unrelated text");
+    cache.set("m", EmbeddingCache.contentHash("similar text"), [1, 0, 0, 0]); // score 1.0
+    cache.set("m", EmbeddingCache.contentHash("unrelated text"), [0, 1, 0, 0]); // score 0.0
+
+    const ranked = await semanticSearch([relevant, noise], q, cache, provider);
+    expect(ranked.map((r) => r.id)).toEqual(["rel"]);
+  });
+
+  it("minScore: 0 disables filtering (everything ranked is returned)", async () => {
+    const a = candidate("a", "aaa");
+    const b = candidate("b", "bbb");
+    cache.set("m", EmbeddingCache.contentHash("aaa"), [1, 0, 0, 0]); // score 1.0
+    cache.set("m", EmbeddingCache.contentHash("bbb"), [0, 1, 0, 0]); // score 0.0
+
+    const ranked = await semanticSearch([a, b], q, cache, provider, {
+      minScore: 0,
+    });
+    expect(ranked.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(ranked[1].score).toBe(0);
+  });
+
+  it("explicit minScore overrides the default", async () => {
+    const a = candidate("a", "aaa");
+    const b = candidate("b", "bbb");
+    cache.set("m", EmbeddingCache.contentHash("aaa"), [1, 0, 0, 0]); // score 1.0
+    cache.set("m", EmbeddingCache.contentHash("bbb"), [0, 1, 0, 0]); // score 0.0
+
+    const ranked = await semanticSearch([a, b], q, cache, provider, {
+      minScore: 0.5,
+    });
+    expect(ranked.map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("boundary is inclusive: a candidate exactly at the floor is kept", async () => {
+    const exact = candidate("exact", "identical text");
+    cache.set("m", EmbeddingCache.contentHash("identical text"), [1, 0, 0, 0]);
+
+    const ranked = await semanticSearch([exact], q, cache, provider, {
+      minScore: 1,
+    });
+    expect(ranked.map((r) => r.id)).toEqual(["exact"]);
+    expect(ranked[0].score).toBe(1);
+  });
+
+  it("reported scores are the raw cosine similarities", async () => {
+    const a = candidate("a", "aaa");
+    cache.set("m", EmbeddingCache.contentHash("aaa"), [1, 0, 0, 0]);
+
+    const ranked = await semanticSearch([a], q, cache, provider);
+    expect(ranked[0].score).toBe(1);
   });
 });
 

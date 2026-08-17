@@ -27,6 +27,11 @@ export interface MemoryResponse {
   isTombstone: boolean;
   /** Action type (add, edit, tombstone) */
   action: string;
+  /**
+   * Cosine similarity to the query vector — present only on semantic ?q=
+   * responses (DOGFOOD-011)
+   */
+  score?: number;
 }
 
 /**

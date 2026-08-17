@@ -24,11 +24,27 @@ export interface SearchCandidate {
   attributes: Record<string, unknown>;
 }
 
+/**
+ * Default minimum cosine similarity for a candidate to be returned by
+ * semantic search (DOGFOOD-011). Candidates below this relevance floor are
+ * dropped — a garbage query must return "no match", not every memory ranked.
+ * 0.25 sits in the sensible 0.2-0.3 band: high enough to reject unrelated
+ * text (typical cosine ~0.0-0.15 against 384-dim embeddings), low enough to
+ * keep genuinely related text (typically 0.3+).
+ */
+export const DEFAULT_MIN_SCORE = 0.25;
+
 export interface SemanticSearchOptions {
   /** Max candidates to embed on the fly when missing from cache (default 50) */
   maxOnTheFlyEmbeds?: number;
   /** Skip on-the-fly embedding entirely (only rank cached vectors) */
   cachedOnly?: boolean;
+  /**
+   * Minimum cosine similarity for a candidate to be returned (default
+   * DEFAULT_MIN_SCORE = 0.25). Candidates scoring below the floor are
+   * dropped. Pass 0 to disable filtering (return everything ranked).
+   */
+  minScore?: number;
 }
 
 export interface RankedMemory extends SearchCandidate {
@@ -76,6 +92,7 @@ export async function semanticSearch(
   opts: SemanticSearchOptions = {},
 ): Promise<RankedMemory[]> {
   const maxOnTheFly = opts.maxOnTheFlyEmbeds ?? 50;
+  const minScore = opts.minScore ?? DEFAULT_MIN_SCORE;
   const ranked: RankedMemory[] = [];
   let onTheFly = 0;
 
@@ -96,7 +113,14 @@ export async function semanticSearch(
     }
 
     if (vector) {
-      ranked.push({ ...cand, score: cosineSimilarity(queryVector, vector) });
+      const score = cosineSimilarity(queryVector, vector);
+      // DOGFOOD-011: enforce the relevance floor. Candidates below it are
+      // dropped, so a nonsense query yields "no match" instead of every
+      // memory ranked. Boundary is inclusive (score exactly at the floor is
+      // kept); minScore 0 disables filtering.
+      if (score >= minScore) {
+        ranked.push({ ...cand, score });
+      }
     }
   }
 

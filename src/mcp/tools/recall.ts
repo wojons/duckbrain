@@ -59,6 +59,8 @@ interface RecallOutput {
     action: string;
     embedding_text: string;
     attributes: Record<string, unknown>;
+    /** Cosine similarity to the query vector — present only on the semantic ?q= path (DOGFOOD-011) */
+    score?: number;
   }>;
   count: number;
   /** True total of matching memories, unlimited by limit/offset (GAP-024) */
@@ -84,6 +86,20 @@ const MAX_CANDIDATES = 1000;
  * returns a clean error instead of hanging the daemon.
  */
 const SEMANTIC_TIMEOUT_MS = 30_000;
+
+/**
+ * DOGFOOD-011: optional operator knob for the semantic relevance floor —
+ * DUCKBRAIN_SEARCH_MIN_SCORE (0..1), same env-override pattern as
+ * DUCKBRAIN_EMBEDDING_*. Absent/invalid → undefined, and semanticSearch's
+ * own default (DEFAULT_MIN_SCORE = 0.25) applies.
+ */
+function resolveSearchMinScore(): number | undefined {
+  const raw = process.env.DUCKBRAIN_SEARCH_MIN_SCORE;
+  if (raw === undefined || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) return undefined;
+  return n;
+}
 
 /**
  * Race a promise against a deadline. On timeout the caller receives a clean
@@ -278,6 +294,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         candidateFilters.keyPrefix = validated.keyPrefix;
       else if (validated.domain) candidateFilters.domain = validated.domain;
 
+      // DOGFOOD-011: resolve the relevance-floor override once (absent →
+      // semanticSearch's DEFAULT_MIN_SCORE = 0.25 applies inside).
+      const searchMinScore = resolveSearchMinScore();
+
       let candidates: Awaited<ReturnType<typeof queryMemories>>;
       let ranked: Awaited<ReturnType<typeof semanticSearch>>;
       try {
@@ -309,7 +329,13 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
               // the default 50 would exceed the 30s budget on a cold cache.
               // 10 keeps a cold-cache ?q= inside the timeout with real ranked
               // results; warm caches rank the full candidate pool instantly.
-              { maxOnTheFlyEmbeds: 10 },
+              // DOGFOOD-011: forward the relevance-floor override when set.
+              {
+                maxOnTheFlyEmbeds: 10,
+                ...(searchMinScore !== undefined
+                  ? { minScore: searchMinScore }
+                  : {}),
+              },
             );
             return { cands, rankedRes };
           })(),
