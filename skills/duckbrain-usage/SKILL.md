@@ -126,6 +126,10 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 mkdir -p /tmp/db-test && DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999
 # then point every curl/CLI call at :3999 and /tmp/db-test. Never write to the live :3000 daemon's
 # namespaces — other fleet agents' memories live there (80+ namespaces in production use).
+# ⚠️ ALWAYS also set DUCKBRAIN_CONFIG_PATH=/tmp/db-test-config.json (a copy of the repo config):
+# create_namespace / namespace registration PERSISTS the mapping into the config file even when
+# DUCKBRAIN_NAMESPACES_PATH redirects the data dir (GAP-007 class; proven tick #410 — scratch
+# instance leaked a dogfood012 mapping into the repo duckbrain.config.json).
 # For semantic-search work, point embeddings at a loaded model, e.g. copy the config to
 # /tmp/db-test-config.json with embedding.provider=ollama / model=nomic-embed-text and add
 # DUCKBRAIN_CONFIG_PATH=/tmp/db-test-config.json (DUCKBRAIN_NAMESPACES_PATH still isolates data).
