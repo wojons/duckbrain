@@ -28,7 +28,13 @@ describe("HTTP Server E2E Integration", () => {
     const res = await curl(`http://127.0.0.1:${port}/health`);
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.status).toBe("healthy");
+    // DOGFOOD-020: status is "degraded" when no embedding provider passed a
+    // real embed probe. The scratch daemon probes the HOST's real providers,
+    // so accept both liveness statuses — the embedding field is the signal.
+    expect(["healthy", "degraded"]).toContain(body.status);
+    expect(body.embedding).toBeDefined();
+    expect(typeof body.embedding.healthy).toBe("boolean");
+    expect(Array.isArray(body.embedding.providers)).toBe(true);
     expect(body.uptime).toBeGreaterThan(0);
     expect(body.timestamp).toBeTruthy();
   });

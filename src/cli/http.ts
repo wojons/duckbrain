@@ -39,6 +39,10 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { httpPidFilePath, cleanupStalePidFile } from "../utils/pidfile.js";
+import {
+  getEmbeddingHealth,
+  type EmbeddingHealthResult,
+} from "../embedding/health.js";
 
 /**
  * HTTP server configuration options
@@ -81,14 +85,48 @@ function dnsRebindingProtection(allowedHosts: string[]) {
 }
 
 /**
- * Health check endpoint handler
+ * Health check endpoint handler (DOGFOOD-020)
+ *
+ * Reports embedding provider health alongside process liveness. The top-level
+ * status is "degraded" when no embedding provider passed a real embed probe —
+ * fleet monitors previously got a false green while every ?q= semantic search
+ * 500ed (configured model 400ing on LM Studio with the model file on an
+ * offline host; Ollama not having the model in /api/tags).
+ *
+ * HTTP status stays 200 in both cases (liveness monitors; the systemd unit
+ * has no health check) — the body carries the signal.
+ *
+ * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
  */
-function healthHandler(_req: Request, res: Response) {
-  res.json({
-    status: "healthy",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
+export function createHealthHandler(
+  probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
+): (req: Request, res: Response) => Promise<void> {
+  return async (_req: Request, res: Response) => {
+    let embedding: EmbeddingHealthResult;
+    try {
+      embedding = await probe();
+    } catch (e) {
+      // The probe must never take /health down (liveness) — report degraded.
+      embedding = {
+        provider: "",
+        model: "",
+        healthy: false,
+        providers: [
+          {
+            id: "probe",
+            healthy: false,
+            note: `probe error: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        ],
+      };
+    }
+    res.json({
+      status: embedding.healthy ? "healthy" : "degraded",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      embedding,
+    });
+  };
 }
 
 /**
@@ -184,7 +222,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use(express.json());
 
   // Health check (bypasses auth via middleware, must be registered here)
-  app.get("/health", healthHandler);
+  app.get("/health", createHealthHandler());
 
   // Stats
   app.get("/stats", statsHandler);

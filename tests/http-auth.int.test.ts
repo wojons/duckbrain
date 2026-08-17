@@ -54,7 +54,10 @@ describe("HTTP Auth Integration", () => {
     const res = await curl(`http://127.0.0.1:${port}/health`);
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.status).toBe("healthy");
+    // DOGFOOD-020: status may be "degraded" (embedding providers broken) —
+    // the scratch daemon probes the host's real providers.
+    expect(["healthy", "degraded"]).toContain(body.status);
+    expect(body.embedding).toBeDefined();
   });
 
   it("should reject /namespaces without auth", async () => {

@@ -54,7 +54,9 @@ describe("HTTP server Unix socket support", () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe("healthy");
+      // DOGFOOD-020: /health status is "degraded" when the host's embedding
+      // providers fail the embed probe — host-dependent, so accept both.
+      expect(["healthy", "degraded"]).toContain(res.body.status);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

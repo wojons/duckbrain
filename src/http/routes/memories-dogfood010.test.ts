@@ -251,7 +251,9 @@ describe("DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)", () => 
     // The process must still be alive and serving.
     const health = await httpRequest("GET", "/health");
     expect(health.status).toBe(200);
-    expect(health.body.status).toBe("healthy");
+    // DOGFOOD-020: /health status is "degraded" when the host's embedding
+    // providers fail the embed probe — host-dependent, so accept both.
+    expect(["healthy", "degraded"]).toContain(health.body.status);
   });
 
   it("?q= with a valid query still returns ranked results when embeddings are available", async () => {

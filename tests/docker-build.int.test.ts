@@ -57,7 +57,10 @@ describe("Docker Build Integration", () => {
       const res = await curl(`http://127.0.0.1:${port}/health`);
       expect(res.status).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("healthy");
+      // DOGFOOD-020: /health status is "degraded" when no embedding provider
+      // passed a real embed probe (the container has none) — accept both.
+      expect(["healthy", "degraded"]).toContain(body.status);
+      expect(body.embedding).toBeDefined();
     } finally {
       run(`docker rm -f ${containerName} 2>/dev/null || true`);
     }

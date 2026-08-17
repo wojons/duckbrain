@@ -35,7 +35,7 @@ export interface EmbeddingConfig {
   timeoutMs?: number;
 }
 
-interface ProviderCtor {
+export interface ProviderCtor {
   id: string;
   label: string;
   build(
@@ -94,7 +94,13 @@ function makeHttpEmbed(
   };
 }
 
-const PROVIDERS: ProviderCtor[] = [
+/**
+ * Provider registry in priority order (lmstudio → ollama → openai).
+ * Exported for the DOGFOOD-020 health probe (src/embedding/health.ts), which
+ * runs each provider's cheap isHealthy() gate and then a real embed probe via
+ * the provider's own build() (makeHttpEmbed).
+ */
+export const PROVIDERS: readonly ProviderCtor[] = [
   {
     id: "lmstudio",
     label: "LM Studio (OpenAI-compatible, local)",
