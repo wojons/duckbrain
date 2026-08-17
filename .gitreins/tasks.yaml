@@ -475,3 +475,24 @@ tasks:
   status: complete
   created_at: '2026-08-17T10:03:22.335566+00:00'
   completed_at: '2026-08-17T10:11:25.189027+00:00'
+- id: DOGFOOD-014
+  title: get_compaction_stats ignores active namespace - hardcodes cwd/.duckbrain/namespaces/default
+  criteria:
+  - getCompactionStatsTool resolves the active namespace (or explicit namespace param)
+    via resolveNamespacePath; getCompactionStats called with real namespacePath returns
+    non-zero stats on a populated scratch namespace; full suite + tsc clean + guard
+    PASS
+  status: complete
+  created_at: '2026-08-17T11:20:31.541419+00:00'
+  completed_at: '2026-08-17T11:27:42.900972+00:00'
+- id: DOGFOOD-015
+  title: server_status is instance-blind - never verifies which process it describes
+  criteria:
+  - serverStatusTool ties status to the config's own port/pidfile (not hardcoded default
+    3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved
+    config; a scratch-config stdio process must report its own port/pidfile, not the
+    live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins
+    guard PASS
+  status: complete
+  created_at: '2026-08-17T12:34:57.082417+00:00'
+  completed_at: '2026-08-17T12:39:33.449676+00:00'
