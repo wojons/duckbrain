@@ -62,7 +62,10 @@ function resolvePortSource(
   env: NodeJS.ProcessEnv = process.env,
 ): "input" | "env" | "default" {
   if (inputPort !== undefined) return "input";
-  if (env.DUCKBRAIN_API_PORT !== undefined && env.DUCKBRAIN_API_PORT.trim() !== "") {
+  if (
+    env.DUCKBRAIN_API_PORT !== undefined &&
+    env.DUCKBRAIN_API_PORT.trim() !== ""
+  ) {
     return "env";
   }
   return "default";
@@ -189,9 +192,7 @@ const ServerStatusInputSchema = z.object({
   port: z
     .number()
     .optional()
-    .describe(
-      "TCP port to check (default: DUCKBRAIN_API_PORT env, else 3000)",
-    ),
+    .describe("TCP port to check (default: DUCKBRAIN_API_PORT env, else 3000)"),
   socket: z
     .string()
     .optional()

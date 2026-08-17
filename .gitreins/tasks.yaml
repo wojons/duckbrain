@@ -525,3 +525,11 @@ tasks:
   status: complete
   created_at: '2026-08-17T16:47:29.287255+00:00'
   completed_at: '2026-08-17T17:00:43.389732+00:00'
+- id: STYLE-001
+  title: Prettier drift on 9 DOGFOOD-era files
+  criteria:
+  - All 9 files pass 'npx prettier --check src/'; 'npx tsc --noEmit' clean; full 'pnpm
+    test -- --run' suite passes (443/443); diff contains only formatting changes (no
+    logic)
+  status: in_progress
+  created_at: '2026-08-17T19:22:16.145064+00:00'

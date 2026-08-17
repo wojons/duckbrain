@@ -52,11 +52,13 @@ afterEach(() => {
 });
 
 /** Minimal fetch Response shape (ok/json/text) for stubbed fetch. */
-function httpResponse(opts: {
-  status?: number;
-  json?: unknown;
-  text?: string;
-} = {}) {
+function httpResponse(
+  opts: {
+    status?: number;
+    json?: unknown;
+    text?: string;
+  } = {},
+) {
   const status = opts.status ?? 200;
   return {
     ok: status >= 200 && status < 300,
@@ -129,7 +131,8 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/v1/models")) return httpResponse({ json: { data: [] } });
+        if (url.includes("/v1/models"))
+          return httpResponse({ json: { data: [] } });
         if (url.includes("/v1/embeddings"))
           return httpResponse({
             status: 400,
@@ -191,7 +194,9 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
           return httpResponse({ status: 500, text: "boom" });
         if (url.includes("/api/tags"))
           return httpResponse({
-            json: { models: [{ name: "other-model", capabilities: ["embedding"] }] },
+            json: {
+              models: [{ name: "other-model", capabilities: ["embedding"] }],
+            },
           });
         if (url.includes("/api/embeddings"))
           return httpResponse({
@@ -243,9 +248,7 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
       if (url.includes("/api/tags"))
         return httpResponse({
           json: {
-            models: [
-              { name: "nomic", capabilities: ["embedding"] },
-            ],
+            models: [{ name: "nomic", capabilities: ["embedding"] }],
           },
         });
       if (url.includes("/api/embeddings"))
@@ -266,7 +269,9 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
     ]);
     // No lmstudio /v1/models probe, no openai entry.
     expect(
-      fetchMock.mock.calls.filter(([url]) => String(url).includes("/v1/models")),
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes("/v1/models"),
+      ),
     ).toHaveLength(0);
   });
 
@@ -289,7 +294,9 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.includes("/api/tags"))
         return httpResponse({
-          json: { models: [{ name: "env-model", capabilities: ["embedding"] }] },
+          json: {
+            models: [{ name: "env-model", capabilities: ["embedding"] }],
+          },
         });
       if (url.includes("/api/embeddings"))
         return httpResponse({ json: { embedding: [0.1] } });
@@ -304,7 +311,9 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
     expect(result.providers.map((p) => p.id)).toEqual(["ollama"]);
     // No lmstudio probing despite the file config.
     expect(
-      fetchMock.mock.calls.filter(([url]) => String(url).includes("/v1/models")),
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes("/v1/models"),
+      ),
     ).toHaveLength(0);
   });
 
@@ -427,7 +436,9 @@ describe("createHealthHandler (DOGFOOD-020)", () => {
     const body = json.mock.calls[0][0];
     expect(body.status).toBe("degraded");
     expect(body.embedding.healthy).toBe(false);
-    expect(body.embedding.providers[0].note).toMatch(/probe error: probe exploded/);
+    expect(body.embedding.providers[0].note).toMatch(
+      /probe error: probe exploded/,
+    );
   });
 
   it("wires the real cached probe by default", async () => {

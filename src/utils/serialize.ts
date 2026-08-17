@@ -76,12 +76,20 @@ export function safeJsonStringify(
 export function normalizeAttributes(
   attributes: unknown,
 ): Record<string, unknown> {
-  if (!attributes || typeof attributes !== "object" || Array.isArray(attributes)) {
+  if (
+    !attributes ||
+    typeof attributes !== "object" ||
+    Array.isArray(attributes)
+  ) {
     return {};
   }
   try {
     const canonical = JSON.parse(JSON.stringify(attributes));
-    if (canonical && typeof canonical === "object" && !Array.isArray(canonical)) {
+    if (
+      canonical &&
+      typeof canonical === "object" &&
+      !Array.isArray(canonical)
+    ) {
       return canonical as Record<string, unknown>;
     }
     return {};

@@ -28,14 +28,7 @@
  * — the suite dies mid-file, which IS the failing assertion.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createHttpServer } from "../../cli/http";
 import { createServer, Server } from "http";
 import fs from "fs";
@@ -45,9 +38,9 @@ import type { EmbeddingProvider } from "../../embedding/providers";
 
 // Mock ONLY the provider registry: recallTool must run its real DuckDB path.
 vi.mock("../../embedding/providers", async () => {
-  const actual = await vi.importActual<typeof import("../../embedding/providers")>(
-    "../../embedding/providers",
-  );
+  const actual = await vi.importActual<
+    typeof import("../../embedding/providers")
+  >("../../embedding/providers");
   const fakeProvider: EmbeddingProvider = {
     id: "test/fake",
     model: "fake",
@@ -131,7 +124,11 @@ function httpRequest(method: string, p: string): Promise<HttpResponse> {
  * free-form attribute keys) and reproduced here with synthetic data.
  */
 function buildPoisonedNamespace(nsDir: string): void {
-  const partitions = ["concept/2026-06/", "event/2026-06/", "raw_note/2026-06/"];
+  const partitions = [
+    "concept/2026-06/",
+    "event/2026-06/",
+    "raw_note/2026-06/",
+  ];
   fs.mkdirSync(path.join(nsDir, "concept", "2026-06"), { recursive: true });
   fs.mkdirSync(path.join(nsDir, "event", "2026-06"), { recursive: true });
   fs.mkdirSync(path.join(nsDir, "raw_note", "2026-06"), { recursive: true });
@@ -190,21 +187,67 @@ function buildPoisonedNamespace(nsDir: string): void {
     );
   }
   // Dup-key row (line ~301, MAP already inferred across the file).
-  out += row(301, "dup1", "/alpha/dup", "raw_note", "add", "alpha dup row", DUP_ATTRS);
+  out += row(
+    301,
+    "dup1",
+    "/alpha/dup",
+    "raw_note",
+    "add",
+    "alpha dup row",
+    DUP_ATTRS,
+  );
   // Tombstone + revive pair to exercise the ROW_NUMBER dedup window.
-  out += row(302, "t1", "/beta/tomb", "event", "add", "beta tombstone target", attrsFor(301));
-  out += row(303, "t1", "/beta/tomb", "event", "tombstone", "beta tombstone target", '{"tombstone_reason":"test"}');
+  out += row(
+    302,
+    "t1",
+    "/beta/tomb",
+    "event",
+    "add",
+    "beta tombstone target",
+    attrsFor(301),
+  );
+  out += row(
+    303,
+    "t1",
+    "/beta/tomb",
+    "event",
+    "tombstone",
+    "beta tombstone target",
+    '{"tombstone_reason":"test"}',
+  );
   for (let i = 302; i < 320; i++) {
-    out += row(i, `d${i}`, `/beta/mem/${i}`, "raw_note", "add", `beta memory number ${i}`, attrsFor(i));
+    out += row(
+      i,
+      `d${i}`,
+      `/beta/mem/${i}`,
+      "raw_note",
+      "add",
+      `beta memory number ${i}`,
+      attrsFor(i),
+    );
   }
-  fs.writeFileSync(path.join(nsDir, "concept", "2026-06", "current.jsonl"), out, "utf-8");
-  fs.writeFileSync(path.join(nsDir, "event", "2026-06", "current.jsonl"), out, "utf-8");
-  fs.writeFileSync(path.join(nsDir, "raw_note", "2026-06", "current.jsonl"), out, "utf-8");
+  fs.writeFileSync(
+    path.join(nsDir, "concept", "2026-06", "current.jsonl"),
+    out,
+    "utf-8",
+  );
+  fs.writeFileSync(
+    path.join(nsDir, "event", "2026-06", "current.jsonl"),
+    out,
+    "utf-8",
+  );
+  fs.writeFileSync(
+    path.join(nsDir, "raw_note", "2026-06", "current.jsonl"),
+    out,
+    "utf-8",
+  );
 }
 
 describe("DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)", () => {
   beforeAll(async () => {
-    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-dogfood010-"));
+    scratchDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-dogfood010-"),
+    );
     oldNamespacesPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
     process.env.DUCKBRAIN_NAMESPACES_PATH = scratchDir;
     buildPoisonedNamespace(path.join(scratchDir, "repro"));

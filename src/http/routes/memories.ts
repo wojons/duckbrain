@@ -332,7 +332,10 @@ router.put(
     const newContent = body.content || existingMemory.embedding_text;
     // DOGFOOD-010: canonicalize the merged attributes before persisting.
     const newAttributes = body.attributes
-      ? { ...existingMemory.attributes, ...normalizeAttributes(body.attributes) }
+      ? {
+          ...existingMemory.attributes,
+          ...normalizeAttributes(body.attributes),
+        }
       : existingMemory.attributes;
 
     const rememberResult = await rememberTool({

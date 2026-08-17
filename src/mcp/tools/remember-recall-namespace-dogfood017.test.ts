@@ -32,10 +32,7 @@ import fs from "fs";
 import path from "path";
 import { rememberTool } from "./remember";
 import { recallTool } from "./recall";
-import {
-  createNamespaceTool,
-  switchNamespaceTool,
-} from "./namespace";
+import { createNamespaceTool, switchNamespaceTool } from "./namespace";
 import { updateConfig } from "../../config/index";
 
 // The config file the tools actually use: the GAP-022 env override when the
@@ -155,11 +152,7 @@ describe("DOGFOOD-017: remember echoes the namespace actually written", () => {
     expect(result.warning).toContain(nsName);
 
     // The memory actually landed in the switched namespace's JSONL.
-    const partitionGlob = path.join(
-      NS_ROOT,
-      nsName,
-      "raw_note",
-    );
+    const partitionGlob = path.join(NS_ROOT, nsName, "raw_note");
     const jsonlFiles = fs
       .readdirSync(partitionGlob, { recursive: true })
       .filter((f) => String(f).endsWith("current.jsonl"));

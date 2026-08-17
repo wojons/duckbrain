@@ -18,14 +18,7 @@
  * regardless of candidate order or the on-the-fly embed cap.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createHttpServer } from "../../cli/http";
 import { createServer, Server } from "http";
 import fs from "fs";
@@ -54,10 +47,9 @@ const { bowVector } = vi.hoisted(() => {
 
 // Mock ONLY the provider registry: recallTool must run its real DuckDB path.
 vi.mock("../../embedding/providers", async () => {
-  const actual =
-    await vi.importActual<typeof import("../../embedding/providers")>(
-      "../../embedding/providers",
-    );
+  const actual = await vi.importActual<
+    typeof import("../../embedding/providers")
+  >("../../embedding/providers");
   const fakeProvider: EmbeddingProvider = {
     id: "test/fake",
     model: "fake",
@@ -173,7 +165,9 @@ function buildNamespace(nsDir: string): string[] {
 
 describe("DOGFOOD-011: semantic search relevance threshold + scores", () => {
   beforeAll(async () => {
-    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-dogfood011-"));
+    scratchDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-dogfood011-"),
+    );
     oldNamespacesPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
     process.env.DUCKBRAIN_NAMESPACES_PATH = scratchDir;
 

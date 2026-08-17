@@ -155,9 +155,7 @@ describe("server_status instance-awareness (DOGFOOD-015)", () => {
 
       expect(result.port).toBe(3999);
       expect(result.portSource).toBe("env");
-      expect(result.pidFile).toBe(
-        path.join(tmpDir, "duckbrain-http-3999.pid"),
-      );
+      expect(result.pidFile).toBe(path.join(tmpDir, "duckbrain-http-3999.pid"));
     } finally {
       if (previousDataDir === undefined) {
         delete process.env.DUCKBRAIN_DATA_DIR;
@@ -307,9 +305,7 @@ describe("server_status instance-awareness (DOGFOOD-015)", () => {
       expect(result.config?.namespacesPath).toBe(nsDir);
       expect(result.config?.configFile).toBe(scratchConfig);
       // The scratch config's pidfile, not the live :3000 daemon's.
-      expect(result.pidFile).toBe(
-        path.join(tmpDir, "duckbrain-http-3559.pid"),
-      );
+      expect(result.pidFile).toBe(path.join(tmpDir, "duckbrain-http-3559.pid"));
     } finally {
       if (previousDataDir === undefined) {
         delete process.env.DUCKBRAIN_DATA_DIR;

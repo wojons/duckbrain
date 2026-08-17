@@ -129,7 +129,9 @@ async function classifyUnhealthy(
       ? `${normBase(cfg.baseUrl, "http://localhost:1234/v1")}/models`
       : `${normBase(cfg.baseUrl, "http://localhost:11434")}/api/tags`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(CLASSIFY_TIMEOUT_MS) });
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(CLASSIFY_TIMEOUT_MS),
+    });
     if (!res.ok) return `HTTP ${res.status}`;
     if (id === "ollama") {
       // isHealthy=false with a 200 /api/tags can only mean the configured
@@ -156,7 +158,9 @@ async function classifyUnhealthy(
  * "model not in /api/tags" (the DOGFOOD-020 failure mode).
  */
 function embedNote(id: string, e: unknown): string {
-  let msg = errMsg(e).replace(/^\[[^\]]+\]\s*/, "").slice(0, 160);
+  let msg = errMsg(e)
+    .replace(/^\[[^\]]+\]\s*/, "")
+    .slice(0, 160);
   if (id === "ollama" && /not found/i.test(msg)) {
     msg = "model not in /api/tags";
   }
