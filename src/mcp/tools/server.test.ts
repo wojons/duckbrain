@@ -2,9 +2,10 @@
  * Tests for server control MCP tools (server_status, server_http_start)
  *
  * Only safe paths are exercised: status checks against a port that is NOT
- * listening (no side effects) and http_start with alreadyRunning=true (no
- * spawn). Actual process spawning is covered by the CLI flag regression
- * tests in unix-socket-flag.test.ts.
+ * listening (no side effects), http_start with alreadyRunning=true (no
+ * spawn), project-root resolution, and the spawn path via the exported
+ * helper with a guaranteed-failing command — never the real duckbrain
+ * entry, so no real server spawns and no stray processes in tests.
  */
 
 import { describe, it, expect } from "vitest";
@@ -13,8 +14,11 @@ import {
   ServerStatusInputSchema,
   serverHttpStartTool,
   ServerHttpStartInputSchema,
+  resolveProjectRoot,
+  spawnHttpServerAndWaitForPort,
 } from "./server";
 import fs from "fs";
+import net from "net";
 import os from "os";
 import path from "path";
 
@@ -118,21 +122,112 @@ describe("server_status tool", () => {
   });
 });
 
+describe("resolveProjectRoot", () => {
+  it("resolves to a directory containing bin/duckbrain.ts from the repo root without DUCKBRAIN_HOME_ROOT", () => {
+    const previous = process.env.DUCKBRAIN_HOME_ROOT;
+    delete process.env.DUCKBRAIN_HOME_ROOT;
+    try {
+      const root = resolveProjectRoot();
+      expect(fs.existsSync(path.join(root, "bin", "duckbrain.ts"))).toBe(true);
+      expect(fs.existsSync(path.join(root, "bin", "duckbrain.js"))).toBe(true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DUCKBRAIN_HOME_ROOT;
+      } else {
+        process.env.DUCKBRAIN_HOME_ROOT = previous;
+      }
+    }
+  });
+
+  it("derives the root from the module location, not from cwd", () => {
+    // The DOGFOOD-013 bug: with cwd == repo root, the old
+    // `path.resolve(cwd, "..", "..")` yielded "/". The resolver must ignore
+    // cwd entirely when the module walk finds the root.
+    const previous = process.env.DUCKBRAIN_HOME_ROOT;
+    delete process.env.DUCKBRAIN_HOME_ROOT;
+    try {
+      const root = resolveProjectRoot(process.env, "/totally/unrelated/cwd");
+      expect(fs.existsSync(path.join(root, "bin", "duckbrain.ts"))).toBe(true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DUCKBRAIN_HOME_ROOT;
+      } else {
+        process.env.DUCKBRAIN_HOME_ROOT = previous;
+      }
+    }
+  });
+
+  it("prefers the DUCKBRAIN_HOME_ROOT override", () => {
+    const root = resolveProjectRoot(
+      { DUCKBRAIN_HOME_ROOT: "/tmp/override-root" },
+      "/some/cwd",
+      "/some/module/dir",
+    );
+    expect(root).toBe("/tmp/override-root");
+  });
+
+  it("falls back to cwd when no ancestor contains bin/duckbrain", () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-root-resolve-"),
+    );
+    try {
+      const root = resolveProjectRoot({}, "/fallback/cwd", tmpDir);
+      expect(root).toBe("/fallback/cwd");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("server_http_start tool", () => {
   it("returns alreadyRunning when the port is listening", async () => {
-    // Port 1 is never listening, but we stub the check by passing force and
-    // expecting the tool to report it can't reach a spawnable state — the
-    // safe assertion here is schema validation + the alreadyRunning branch
-    // with an unreachable port must NOT crash and must return a message.
-    const result = await serverHttpStartTool({ port: 1, force: false });
+    // Real TCP listener on an ephemeral port — exercises the
+    // alreadyRunning branch hermetically (no spawn at all).
+    const server = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = server.address() as { port: number };
+    try {
+      const result = await serverHttpStartTool({
+        port: address.port,
+        force: false,
+      });
 
-    // Port 1 is not listening → not alreadyRunning → it will attempt a
-    // spawn. We cannot allow a real spawn in tests, so assert the schema
-    // contract instead and only verify the tool exists and handles the
-    // closed-port path without throwing synchronously.
-    expect(result).toHaveProperty("success");
-    expect(result).toHaveProperty("message");
-  }, 15000);
+      expect(result.success).toBe(true);
+      expect(result.alreadyRunning).toBe(true);
+      expect(result.spawned).toBeUndefined();
+      expect(result.message).toContain("already listening");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 10000);
+
+  it("surfaces captured child stderr when the spawned process fails", async () => {
+    const result = await spawnHttpServerAndWaitForPort(
+      process.execPath,
+      ["-e", 'process.stderr.write("boom"); process.exit(1)'],
+      1,
+      { env: process.env, detached: false, waitMs: 3000 },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("boom");
+    expect(result.message).toContain("stderr:");
+  }, 10000);
+
+  it("surfaces a spawn error (ENOENT) instead of throwing", async () => {
+    const result = await spawnHttpServerAndWaitForPort(
+      "/nonexistent/duckbrain-binary-xyz",
+      ["http"],
+      1,
+      { env: process.env, detached: false, waitMs: 3000 },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("spawn error");
+  }, 10000);
 
   it("validates schema: socketMode accepts octal string", () => {
     const parsed = ServerHttpStartInputSchema.parse({
@@ -142,6 +237,7 @@ describe("server_http_start tool", () => {
     });
     expect(parsed.socket).toBe("/tmp/test.sock");
     expect(parsed.socketMode).toBe("0660");
+    expect(parsed.socketGroup).toBe("kara");
   });
 
   it("validates schema: authType restricted to known values", () => {
