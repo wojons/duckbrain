@@ -464,3 +464,14 @@ tasks:
   status: complete
   created_at: '2026-08-17T05:36:15.376913+00:00'
   completed_at: '2026-08-17T05:44:55.542329+00:00'
+- id: DOGFOOD-019
+  title: Fix squash.ts:152 read_json_auto auto-infer attributes projection (last DOGFOOD-010/018
+    crash class)
+  criteria:
+  - src/git/squash.ts:152 uses explicit all-VARCHAR read_json columns schema + ignore_errors=true
+    (queries.ts READ_JSON_COLUMNS pattern) instead of read_json_auto; regression test
+    with duplicate-key attributes namespace asserts no native crash and correct squash
+    behavior; pnpm test full suite + pnpm tsc --noEmit clean; gitreins guard PASS
+  status: complete
+  created_at: '2026-08-17T10:03:22.335566+00:00'
+  completed_at: '2026-08-17T10:11:25.189027+00:00'
