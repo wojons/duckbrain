@@ -438,3 +438,15 @@ tasks:
   status: complete
   created_at: '2026-08-17T02:53:01.651796+00:00'
   completed_at: '2026-08-17T03:01:17.047147+00:00'
+- id: DOGFOOD-012
+  title: refresh skills/duckbrain-usage/SKILL.md to current verified behavior
+  criteria:
+  - 'SKILL.md pitfall #1 documents ?q= crash as FIXED (DOGFOOD-010, all-VARCHAR schema
+    + ignore_errors); pitfall #2 documents relevance threshold DEFAULT_MIN_SCORE=0.25
+    + DUCKBRAIN_SEARCH_MIN_SCORE + REST items[].score (DOGFOOD-011); pitfall #5 documents
+    server_http_start fixed (DOGFOOD-013, module-path projectRoot); MCP remember embedding_text,
+    forget-by-UUID, delete_namespace confirm:true documented; frontmatter description
+    updated; live scratch-instance probes confirm claimed behavior'
+  status: complete
+  created_at: '2026-08-17T04:26:49.126689+00:00'
+  completed_at: '2026-08-17T04:29:07.203954+00:00'
