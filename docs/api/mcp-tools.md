@@ -67,18 +67,31 @@ Store a new memory in DuckBrain.
   key?: string;
   partition?: string;   // Partition the memory was written to (e.g. "concept/time/2026-07")
   author?: string;      // Author email from git config
+  namespace?: string;   // Namespace ACTUALLY written — resolved from the arg,
+                        // or the active namespace when omitted (DOGFOOD-017)
+  warning?: string;     // Present when the write landed outside the 'default'
+                        // namespace (DOGFOOD-017)
   error?: string;
 }
 ```
 
 **Usage:**
 
-```
+```typescript
 AI: "Remember that we're using PostgreSQL for the database"
 → Calls remember({key: "/projects/myapp/database", domain: "concept",
                   embedding_text: "Using PostgreSQL...", attributes: {...}})
-→ Returns { success: true, id: "...", key: "/projects/myapp/database" }
+→ Returns { success: true, id: "...", key: "/projects/myapp/database",
+            namespace: "default" }
 ```
+
+> ⚠️ **The active namespace is sticky across processes (DOGFOOD-017).** When
+> the `namespace` arg is omitted, the write goes to `config.defaultNamespace`
+> — which `switch_namespace` persists into `duckbrain.config.json`, so it
+> affects ALL later processes, not just the current session. The response
+> always echoes the namespace actually written, and carries a `warning` when
+> it is not the `'default'` namespace. Pass `namespace` explicitly if the
+> destination matters.
 
 ---
 
@@ -147,6 +160,8 @@ Query memories with flexible filtering.
     action: "add" | "update" | "tombstone";
   }>;
   error?: string;
+  namespace?: string;   // Namespace ACTUALLY queried — resolved from the arg,
+                        // or the active namespace when omitted (DOGFOOD-017)
 }
 ```
 
@@ -418,6 +433,16 @@ AI: "What namespaces do I have?"
 
 Switch the active (default) namespace.
 
+> ⚠️ **The active namespace is STICKY ACROSS PROCESSES (DOGFOOD-017).** The
+> switch persists `defaultNamespace` into `duckbrain.config.json`
+> (`updateConfig`), so it applies to every LATER separate process too — any
+> namespace-less `remember`/`recall`/`forget` call in a new session resolves
+> to this namespace, not to `'default'`. Responses to `remember`/`recall`
+> echo the resolved namespace so you can see where data actually landed
+> (and `remember` warns when the write goes outside `'default'`). To switch
+> back, call `switch_namespace({name: "default"})` — or pass `namespace`
+> explicitly on every call and never rely on the active default.
+
 **Parameters:**
 
 ```typescript
@@ -432,7 +457,7 @@ Switch the active (default) namespace.
 {
   success: boolean;
   previous?: string;    // Previously active namespace
-  current?: string;     // Newly active namespace
+  current?: string;     // Newly active namespace (persisted to duckbrain.config.json)
   error?: string;
 }
 ```

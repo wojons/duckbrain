@@ -6,9 +6,10 @@ description: >-
   and the pitfalls that will bite you (?q= semantic search is safe now but
   ranks with a 0.25 score floor, MCP remember needs embedding_text + attributes,
   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
-  active namespace, compaction stats/status still instance-blind). Load this
+  active namespace — remember/recall echo it now, compaction stats/status
+  still instance-blind). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.2.0
+version: 1.3.0
 category: software-development
 ---
 
@@ -91,8 +92,13 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
    ranking signal, don't assume 0 hits for nonsense.
 4. **Active namespace is sticky ACROSS processes.** A `switch_namespace` in one
    stdio session redirects later separate sessions' namespace-less writes —
-   silently (the remember response does not echo the namespace). ALWAYS pass
-   `namespace` explicitly to every write/read (DOGFOOD-017 open).
+   it persists `defaultNamespace` into `duckbrain.config.json`, so every
+   later process resolves omitted-namespace calls to the switched namespace.
+   **FIXED in DOGFOOD-017: remember/recall responses now echo the namespace
+   actually used, and remember adds a `warning` when the write lands outside
+   the `'default'` namespace.** Still ALWAYS pass `namespace` explicitly to
+   every write/read if the destination matters — the echo is a guardrail,
+   not a replacement for intent.
 5. **`server_http_start` WORKS now (DOGFOOD-013 fixed)** — projectRoot is
    derived from the module path (bounded walk-up for `bin/duckbrain.js`)
    instead of `cwd/..`, and child stderr is captured and surfaced, so failures

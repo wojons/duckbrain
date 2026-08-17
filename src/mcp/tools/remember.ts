@@ -20,7 +20,7 @@ import { addPartition } from "../../storage/manifest";
 import { getAuthorEmail } from "../../git/attribution";
 import { commitNamespace } from "../../git/autocommit";
 import { normalizeAttributes } from "../../utils/serialize";
-import { resolveNamespacePath } from "./shared";
+import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import path from "path";
 import fs from "fs";
 
@@ -43,7 +43,9 @@ const RememberInputSchema = z.object({
     .describe("Memory attributes"),
   /** Text for vector embedding */
   embedding_text: z.string().describe("Text for vector embedding"),
-  /** Namespace to write to (defaults to current active namespace) */
+  /** Namespace to write to (defaults to the ACTIVE namespace — config
+   *  defaultNamespace, which switch_namespace persists and is therefore
+   *  sticky across processes; see docs/api/mcp-tools.md) */
   namespace: z.string().optional().describe("Namespace to write to"),
 });
 
@@ -58,6 +60,12 @@ interface RememberOutput {
   key?: string;
   partition?: string;
   author?: string;
+  /** Namespace actually written — resolved from the arg or the active
+   *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
+  namespace?: string;
+  /** Present when the write landed outside the 'default' namespace
+   *  (DOGFOOD-017) */
+  warning?: string;
   error?: string;
 }
 
@@ -125,8 +133,11 @@ export async function rememberTool(
       };
     }
 
-    // Resolve namespace path
-    const namespacePath = resolveNamespacePath(namespace);
+    // Resolve namespace path — DOGFOOD-017: the response must echo the
+    // namespace ACTUALLY written (the resolved one, including when the arg
+    // was omitted and the active config defaultNamespace was used).
+    const resolvedNamespace = resolveNamespaceName(namespace);
+    const namespacePath = resolveNamespacePath(resolvedNamespace);
 
     // Ensure namespace directory exists
     if (!fs.existsSync(namespacePath)) {
@@ -156,14 +167,22 @@ export async function rememberTool(
     // Auto-commit to namespace git repo
     commitNamespace(namespacePath);
 
-    // Return hybrid response
-    return {
+    // Return hybrid response — DOGFOOD-017: echo the namespace actually
+    // written, and warn when it is not the 'default' namespace (the active
+    // namespace is sticky across processes, so an omitted arg can silently
+    // land somewhere the user did not intend).
+    const response: RememberOutput = {
       success: true,
       id: memory.id,
       key: memory.key,
       partition: partitionRelPath,
       author: memory.author,
+      namespace: resolvedNamespace,
     };
+    if (resolvedNamespace !== "default") {
+      response.warning = `Memory written to namespace '${resolvedNamespace}', not 'default'. The active namespace is sticky across processes — pass namespace explicitly to control where writes land.`;
+    }
+    return response;
   } catch (error) {
     return {
       success: false,

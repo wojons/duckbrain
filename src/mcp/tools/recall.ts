@@ -10,7 +10,7 @@ import { DomainEnum } from "../../schema/memory";
 import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
 import { queryMemories, countMemories } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import { resolveNamespacePath } from "./shared";
+import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
@@ -42,7 +42,9 @@ const RecallInputSchema = z.object({
     .describe("Semantic search query (uses vss extension)"),
   /** Max results to return */
   limit: z.number().default(10).describe("Max results to return"),
-  /** Namespace to query (defaults to current active namespace) */
+  /** Namespace to query (defaults to the ACTIVE namespace — config
+   *  defaultNamespace, which switch_namespace persists and is therefore
+   *  sticky across processes; see docs/api/mcp-tools.md) */
   namespace: z.string().optional().describe("Namespace to query"),
 });
 
@@ -65,6 +67,9 @@ interface RecallOutput {
   count: number;
   /** True total of matching memories, unlimited by limit/offset (GAP-024) */
   total?: number;
+  /** Namespace actually queried — resolved from the arg or the active
+   *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
+  namespace?: string;
   error?: string;
 }
 
@@ -152,15 +157,19 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   const validated = parseResult.data;
   console.error("[recall] Validated input:", validated);
 
-  // Resolve namespace path
-  const namespacePath = resolveNamespacePath(validated.namespace);
+  // Resolve namespace path — DOGFOOD-017: the response must echo the
+  // namespace ACTUALLY queried (the resolved one, including when the arg
+  // was omitted and the active config defaultNamespace was used).
+  const resolvedNamespace = resolveNamespaceName(validated.namespace);
+  const namespacePath = resolveNamespacePath(resolvedNamespace);
 
   // Check if namespace exists
   if (!fs.existsSync(namespacePath)) {
     return {
       memories: [],
       count: 0,
-      error: `Namespace '${validated.namespace}' does not exist`,
+      namespace: resolvedNamespace,
+      error: `Namespace '${resolvedNamespace}' does not exist`,
     };
   }
 
@@ -225,7 +234,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           throw e;
         }
       }
-      return { memories: [], count: 0, total };
+      return { memories: [], count: 0, total, namespace: resolvedNamespace };
     }
 
     // Handle semantic search (cache-assisted, no vectors in git)
@@ -241,6 +250,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         return {
           memories: [],
           count: 0,
+          namespace: resolvedNamespace,
           error:
             "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'",
         };
@@ -274,6 +284,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         return {
           memories: [],
           count: 0,
+          namespace: resolvedNamespace,
           error: `Embedding generation failed: ${embedErrors.join("; ") || "no provider available"}`,
         };
       }
@@ -350,6 +361,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         return {
           memories: [],
           count: 0,
+          namespace: resolvedNamespace,
           error: `Semantic search failed: ${msg}`,
         };
       }
@@ -358,7 +370,12 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       // GAP-024: for ?q=, total reflects the candidate pool the semantic
       // search actually ranked (bounded by max(limit*10, 100)), not the full
       // namespace count — semantic results are ranked, not enumerated.
-      return { memories: top, count: top.length, total: candidates.length };
+      return {
+        memories: top,
+        count: top.length,
+        total: candidates.length,
+        namespace: resolvedNamespace,
+      };
     }
 
     // Execute query — retry once on connection-lost errors (BUG-034 fix).
@@ -390,11 +407,13 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       memories,
       count: memories.length,
       total,
+      namespace: resolvedNamespace,
     };
   } catch (error) {
     return {
       memories: [],
       count: 0,
+      namespace: resolvedNamespace,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
