@@ -13,6 +13,7 @@ import fs from "fs";
 import os from "os";
 import crypto from "crypto";
 import { loadVSSExtension, enablePersistence } from "./vss";
+import { isPidAlive } from "../utils/pidfile";
 
 /**
  * Cache of database connections by namespace path.
@@ -177,10 +178,117 @@ export function cleanupProcessScratchFiles(tmpDir = os.tmpdir()): void {
   }
 }
 
+/**
+ * Scratch file name shape: `duckbrain-<pid>-<hash>-<counter>.db`.
+ * The embedded pid is the process that created the file.
+ */
+const SCRATCH_FILE_PATTERN = /^duckbrain-(\d+)-.+\.db$/;
+
+/**
+ * Orphan sweep (DOGFOOD-016): remove scratch db files whose creating
+ * process is no longer alive.
+ *
+ * The exit handler and signal handlers can only clean up files of THIS
+ * process; a process that died without any cleanup (SIGKILL, a native
+ * duckdb abort, a killed VM) leaves its `duckbrain-<pid>-*.db` files in
+ * the temp directory forever — 2500+ accumulated in the Aug 7-9 crash
+ * era. Every process that opens scratch connections sweeps once at
+ * startup: files whose embedded pid is dead are garbage and are unlinked;
+ * files whose pid is ALIVE are left untouched (another fleet process may
+ * be mid-use). Best-effort and tolerant of a missing/unreadable temp dir.
+ *
+ * @param tmpDir Directory to sweep (os.tmpdir() by default; overridable for tests)
+ * @returns Number of orphaned files removed
+ */
+export function sweepOrphanScratchFiles(tmpDir = os.tmpdir()): number {
+  let removed = 0;
+  try {
+    const files = fs.readdirSync(tmpDir);
+    for (const file of files) {
+      const match = SCRATCH_FILE_PATTERN.exec(file);
+      if (!match) continue;
+      const pid = Number.parseInt(match[1], 10);
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+      if (isPidAlive(pid)) continue; // live process may be mid-use
+      try {
+        fs.unlinkSync(path.join(tmpDir, file));
+        removed += 1;
+      } catch {
+        // Best-effort — the file may be busy or already gone.
+      }
+    }
+  } catch {
+    // Fire-and-forget: temp dir may be unreachable.
+  }
+  return removed;
+}
+
+let orphanSweepDone = false;
+
+/**
+ * Run the orphan sweep exactly once per process, on first connection setup.
+ *
+ * Deliberately lazy (not module-init): modules that merely import
+ * connection.ts without ever opening a scratch file should not pay for a
+ * readdir of the temp directory, and the sweep must run only after the
+ * process is fully booted so a concurrently-starting sibling (whose pid is
+ * alive) is never mistaken for an orphan.
+ */
+function sweepOrphansOnce(): void {
+  if (orphanSweepDone) return;
+  orphanSweepDone = true;
+  try {
+    const removed = sweepOrphanScratchFiles();
+    if (removed > 0) {
+      console.error(
+        `[duckbrain] Removed ${removed} orphaned scratch db file(s) from ${os.tmpdir()}`,
+      );
+    }
+  } catch {
+    // Fire-and-forget — a sweep failure must never break connections.
+  }
+}
+
+/**
+ * Cleanup on fatal signals (DOGFOOD-016).
+ *
+ * The `exit` event does not fire when a process is killed by SIGTERM /
+ * SIGINT / SIGHUP, nor on SIGKILL / native aborts — which is exactly how
+ * the Aug 7-9 scratch-file leak happened. For the catchable signals,
+ * run the same per-process cleanup as the exit handler, then restore the
+ * default disposition and re-deliver the signal so the process dies with
+ * its normal signal semantics (correct exit status, no swallowed signal).
+ */
+function onScratchCleanupSignal(signal: NodeJS.Signals): void {
+  cleanupProcessScratchFiles();
+  // Restore default disposition for this signal, then re-deliver it.
+  process.removeListener(signal, onScratchCleanupSignal);
+  process.kill(process.pid, signal);
+}
+
+let scratchSignalCleanupRegistered = false;
+
+/**
+ * Register SIGTERM/SIGINT/SIGHUP scratch-file cleanup handlers.
+ *
+ * Idempotent — safe to call from anywhere, and registered once at module
+ * scope so every process importing connection.ts (CLI, http daemon, stdio
+ * MCP server) gets crash-signal cleanup for free. Exported so tests can
+ * re-invoke it in a child process.
+ */
+export function registerScratchSignalCleanup(): void {
+  if (scratchSignalCleanupRegistered) return;
+  scratchSignalCleanupRegistered = true;
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
+    process.on(signal, onScratchCleanupSignal);
+  }
+}
+
 let scratchCleanupRegistered = false;
 if (!scratchCleanupRegistered) {
   scratchCleanupRegistered = true;
   process.on("exit", () => cleanupProcessScratchFiles());
+  registerScratchSignalCleanup();
 }
 
 /**
@@ -202,6 +310,10 @@ if (!scratchCleanupRegistered) {
  * loaded when the embedding stub is replaced with a real model.
  */
 function getSingletonConnection(namespacePath: string): Database {
+  // One-time orphan sweep on first connection setup (DOGFOOD-016): reclaim
+  // scratch db files left by processes that died without cleanup.
+  sweepOrphansOnce();
+
   const existing = dbCache.get(namespacePath);
 
   // Recycle connection if it exceeds max age (prevents thread accumulation)

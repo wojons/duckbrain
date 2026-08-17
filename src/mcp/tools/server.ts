@@ -18,7 +18,11 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { httpPidFilePath } from "../../utils/pidfile.js";
+import {
+  httpPidFilePath,
+  isPidAlive,
+  cleanupStalePidFile,
+} from "../../utils/pidfile.js";
 import { getConfig } from "../../config/index.js";
 
 /** Default HTTP port — the same default `duckbrain http` / startHttpMode use. */
@@ -62,22 +66,6 @@ function resolvePortSource(
     return "env";
   }
   return "default";
-}
-
-/**
- * Check whether a pid refers to a live process.
- *
- * `process.kill(pid, 0)` performs a signal-0 probe: no signal is delivered,
- * but the kernel reports whether the process exists. ESRCH means no such
- * process; EPERM means it exists but belongs to another user (still alive).
- */
-function isPidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
 }
 
 /**
@@ -455,6 +443,12 @@ async function serverHttpStartTool(input: {
       message: `HTTP server already listening on port ${port}`,
     };
   }
+
+  // The port is not listening, so any existing pidfile for it cannot
+  // describe a live server — remove it before spawning so a dead pid never
+  // shadows the new instance (DOGFOOD-016). A pidfile whose PID is alive
+  // is left untouched (cleanupStalePidFile's contract).
+  cleanupStalePidFile(pidFilePath(port, input.socket));
 
   // Resolve the duckbrain entry point from the project root, which is
   // derived from this module's own location — NOT from process.cwd() (the

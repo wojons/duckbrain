@@ -192,3 +192,46 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
     }
   });
 });
+
+describe("DOGFOOD-016 stale pidfile cleanup", () => {
+  /**
+   * A pid that is guaranteed dead: spawn a node child that exits immediately
+   * and use its pid once the 'exit' event fired.
+   */
+  function deadPid(): Promise<number> {
+    return new Promise((resolve) => {
+      const child = spawn(process.execPath, ["-e", "process.exit(0)"]);
+      child.once("exit", () => resolve(child.pid ?? 2147483647));
+    });
+  }
+
+  it("replaces a stale pidfile (dead pid) with the live pid on startup", async () => {
+    const port = await findFreePort();
+    const { dataDir, nsPath } = prepareDataDir("duckbrain-http-stale-pid-");
+    const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
+
+    // Simulate a crashed previous instance: pidfile with a dead pid.
+    fs.writeFileSync(pidFile, String(await deadPid()));
+
+    const child = spawnHttpServer(port, dataDir, nsPath);
+
+    try {
+      await waitForHealth(port);
+
+      // The stale pidfile must have been replaced by the live server's pid
+      // (a dead pid must never shadow a running instance).
+      expect(fs.existsSync(pidFile)).toBe(true);
+      expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
+
+      child.kill("SIGTERM");
+      await waitForClose(child);
+    } finally {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // ignore if already dead
+      }
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+});

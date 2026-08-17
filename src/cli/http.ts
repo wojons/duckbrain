@@ -38,7 +38,7 @@ import { createActivityRoutes } from "../http/routes/activity.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
-import { httpPidFilePath } from "../utils/pidfile.js";
+import { httpPidFilePath, cleanupStalePidFile } from "../utils/pidfile.js";
 
 /**
  * HTTP server configuration options
@@ -603,7 +603,10 @@ export async function startHttpMode(
       process.on("SIGTERM", shutdown);
     });
 
-    // Write PID to local file for easy management
+    // Write PID to local file for easy management. If a previous instance
+    // crashed and left a pidfile whose PID is no longer alive, remove it
+    // first so a dead pid never shadows the live server (DOGFOOD-016).
+    cleanupStalePidFile(pidFile);
     fs.writeFileSync(pidFile, process.pid.toString());
     console.error(`[duckbrain] PID written to: ${pidFile}`);
 
