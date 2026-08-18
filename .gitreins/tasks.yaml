@@ -564,3 +564,15 @@ tasks:
   status: complete
   created_at: '2026-08-18T17:34:33.180954+00:00'
   completed_at: '2026-08-18T17:37:30.769097+00:00'
+- id: RETR-002
+  title: Hybrid fusion BM25+semantic+RRF (Q-2)
+  criteria:
+  - 'Hybrid recall: fuse RETR-001 keyword hits with embedding-cache cosine scores
+    via Reciprocal Rank Fusion (rrf_k=60, per-retriever top-k=20), recency tiebreak;
+    shared rankFused() in search layer; recall ?q= becomes hybrid by default. PASS:
+    hybrid beats semantic-only and keyword-only on a 20-query fixture set; ?q= still
+    returns items[].score; 0.25 floor preserved for semantic-only mode; full suite
+    green.'
+  status: complete
+  created_at: '2026-08-18T18:47:17.165475+00:00'
+  completed_at: '2026-08-18T19:08:08.992482+00:00'
