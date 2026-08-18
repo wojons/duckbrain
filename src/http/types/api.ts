@@ -29,9 +29,15 @@ export interface MemoryResponse {
   action: string;
   /**
    * Cosine similarity to the query vector — present only on semantic ?q=
-   * responses (DOGFOOD-011)
+   * responses (DOGFOOD-011); keyword ?contains= responses carry the BM25
+   * score instead (RETR-001)
    */
   score?: number;
+  /**
+   * Snippet around the first matched token — present only on keyword
+   * ?contains= responses (RETR-001)
+   */
+  snippet?: string;
 }
 
 /**
@@ -112,6 +118,8 @@ export interface QueryParams {
   author?: string;
   /** Semantic search query */
   query?: string;
+  /** Keyword filter (full-text search over content/key/attributes) */
+  contains?: string;
   /** Namespace to query */
   namespace?: string;
 }

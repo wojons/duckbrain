@@ -26,6 +26,7 @@ import { startStdioMode } from "../src/cli/stdio.js";
 import { startHttpMode } from "../src/cli/http.js";
 import { runHumanCLI } from "../src/cli/human.js";
 import { runEmbeddingsCLI } from "../src/cli/embeddings.js";
+import { runSearchIndexCLI } from "../src/cli/search-index.js";
 import { closeAllConnections } from "../src/duckdb/connection.js";
 import { installService, manageService } from "../src/cli/service.js";
 import http from "http";
@@ -49,6 +50,8 @@ Commands:
   service            Manage systemd service
   remember <key>     Remember a memory (body via --content=, --text=, or stdin)
   recall             Query memories
+  search <query>     Keyword full-text search (offline; needs search-index rebuild)
+  search-index       Manage the keyword search index (rebuild|status)
   list-keys          Browse memory structure
   forget <id>        Delete a memory
   config             Show or set configuration
@@ -97,6 +100,8 @@ Examples:
   duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
   duckbrain echo "project notes body" | duckbrain remember /notes/alpha --domain=raw_note
   duckbrain recall --prefix=/projects/
+  duckbrain search "GAP-020"
+  duckbrain search-index rebuild
   duckbrain list-keys --depth=3 --limit=20
   duckbrain forget abc-123 --reason="obsolete"
   duckbrain status --namespace=default
@@ -340,8 +345,13 @@ async function main() {
         await runEmbeddingsCLI(commandArgs);
         break;
 
+      case "search-index":
+        await runSearchIndexCLI(commandArgs);
+        break;
+
       case "remember":
       case "recall":
+      case "search":
       case "list-keys":
       case "forget":
       case "config":

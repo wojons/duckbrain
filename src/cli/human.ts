@@ -16,6 +16,7 @@
  */
 
 import { recallTool } from "../mcp/tools/recall";
+import { searchTool } from "../mcp/tools/search";
 import { listKeysTool } from "../mcp/tools/list_keys";
 import { rememberTool } from "../mcp/tools/remember";
 import { safeJsonStringify } from "../utils/serialize";
@@ -266,6 +267,9 @@ async function recallCommand(args: string[]): Promise<void> {
       "  --domain=<domain>  Filter by domain (person|event|concept|message|config|raw_note)",
     );
     console.log("  --query=<text>     Semantic search");
+    console.log(
+      "  --contains=<text>  Keyword filter (offline full-text search; needs search-index rebuild)",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
@@ -293,6 +297,10 @@ async function recallCommand(args: string[]): Promise<void> {
   } else if (flags.query) {
     input.mode = "semantic";
     input.query = flags.query;
+  } else if (flags.contains) {
+    // RETR-001: keyword filter path (offline).
+    input.mode = "keyword";
+    input.contains = flags.contains;
   } else {
     input.mode = "prefix";
     input.prefix = "/";
@@ -305,6 +313,83 @@ async function recallCommand(args: string[]): Promise<void> {
       console.log(`Found ${result.memories.length} memories:`);
       for (const memory of result.memories) {
         console.log(formatMemory(memory));
+      }
+    } else {
+      console.log("No memories found");
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Search command (RETR-001)
+ *
+ * Keyword full-text search over a namespace's rebuilt FTS sidecar:
+ * `duckbrain search "GAP-020"`. Offline — no embedding provider needed.
+ */
+async function searchCommand(args: string[]): Promise<void> {
+  // Handle --help before running any query
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: duckbrain search <query> [options]`);
+    console.log("");
+    console.log(
+      "Full-text keyword search over memories (content, key, attributes).",
+    );
+    console.log("Requires the search index: duckbrain search-index rebuild");
+    console.log("");
+    console.log("Options:");
+    console.log(
+      "  --namespace=<name> Select namespace (default: config defaultNamespace)",
+    );
+    console.log("  --limit=<n>        Max results (default: 10)");
+    console.log("  --help, -h         Show this help message");
+    console.log("");
+    console.log("Examples:");
+    console.log('  duckbrain search "GAP-020"');
+    console.log('  duckbrain search "GAP-02*" --namespace=default --limit=20');
+    return;
+  }
+
+  const { positional, flags } = parseArgs(args);
+
+  const query = positional.join(" ").trim();
+  if (!query) {
+    console.error("Error: search requires a query");
+    console.error(
+      "Usage: duckbrain search <query> [--namespace=<name>] [--limit=<n>]",
+    );
+    process.exit(1);
+  }
+
+  const limit = parseInt(flags.limit) || 10;
+  const namespace = flags.namespace || getDefaultNamespace();
+
+  try {
+    const result = await searchTool({
+      query,
+      namespace,
+      limit,
+    });
+
+    if (result.error) {
+      console.error(`✗ ${result.error}`);
+      process.exit(1);
+    }
+
+    if (result.memories.length > 0) {
+      const noun = result.memories.length === 1 ? "memory" : "memories";
+      const totNoun = result.total === 1 ? "match" : "matches";
+      console.log(
+        `Found ${result.memories.length} ${noun} (${result.total} total ${totNoun}):`,
+      );
+      for (const memory of result.memories) {
+        console.log("");
+        console.log(
+          `=== ${memory.key} [${memory.domain} · ${memory.timestamp}] (score ${memory.score.toFixed(4)}) ===`,
+        );
+        console.log(memory.snippet);
       }
     } else {
       console.log("No memories found");
@@ -1380,6 +1465,8 @@ function showHelp(): void {
     stdio              Start MCP server for local Claude
     remember <key>     Remember a memory (body via --content=, --text=, or stdin)
     recall             Query memories
+    search <query>     Keyword full-text search (offline; needs search-index rebuild)
+    search-index       Manage the keyword search index (rebuild|status)
     list-keys          Browse memory structure
     forget <id>        Delete a memory
     config             Show or set configuration
@@ -1456,6 +1543,7 @@ export async function runHumanCLI(
   const commands: Record<string, (args: string[]) => Promise<void>> = {
     remember: rememberCommand,
     recall: recallCommand,
+    search: searchCommand,
     "list-keys": listKeysCommand,
     forget: forgetCommand,
     config: configCommand,

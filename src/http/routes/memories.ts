@@ -66,6 +66,9 @@ function transformMemory(memory: any): MemoryResponse {
     // DOGFOOD-011: semantic ?q= results carry their similarity score; the
     // plain list path has no score and must not fabricate one.
     ...(typeof memory.score === "number" ? { score: memory.score } : {}),
+    // RETR-001: keyword ?contains= results carry a snippet around the
+    // first matched token; other paths have none.
+    ...(typeof memory.snippet === "string" ? { snippet: memory.snippet } : {}),
   };
 }
 
@@ -85,6 +88,9 @@ router.get(
       domain: req.query.domain as string | undefined,
       author: req.query.author as string | undefined,
       query: req.query.q as string | undefined,
+      // RETR-001: keyword filter — full-text search over content/key/
+      // attributes via the rebuilt FTS sidecar (offline).
+      contains: req.query.contains as string | undefined,
       namespace: (req.query.namespace as string) || "default",
     };
 
@@ -104,6 +110,11 @@ router.get(
       // returns an error string which the result.error → ApiError(500) path
       // below surfaces instead of silently returning the unfiltered list.
       ...(params.query ? { query: params.query } : {}),
+      // RETR-001: forward ?contains= to keyword search (offline FTS —
+      // no embedding provider involved). q= and contains= together are
+      // rejected by recallTool (hybrid fusion is RETR-002) and surface
+      // as an ApiError(500) here.
+      ...(params.contains ? { contains: params.contains } : {}),
     });
 
     if (result.error) {

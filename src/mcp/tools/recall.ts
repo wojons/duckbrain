@@ -15,6 +15,7 @@ import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
 import { semanticSearch } from "../../embedding/search";
+import { keywordSearch } from "../../search/query";
 import path from "path";
 import fs from "fs";
 
@@ -40,6 +41,16 @@ const RecallInputSchema = z.object({
     .string()
     .optional()
     .describe("Semantic search query (uses vss extension)"),
+  /** Keyword filter (full-text search over content/key/attributes via the
+   *  rebuilt FTS sidecar — offline, no embedding provider needed). Use
+   *  EITHER query (semantic) or contains (keyword); hybrid fusion is
+   *  RETR-002. */
+  contains: z
+    .string()
+    .optional()
+    .describe(
+      "Keyword filter: find memories whose content/key/attributes contain these tokens (exact-token matches rank first)",
+    ),
   /** Max results to return */
   limit: z.number().default(10).describe("Max results to return"),
   /** Namespace to query (defaults to the ACTIVE namespace — config
@@ -63,6 +74,8 @@ interface RecallOutput {
     attributes: Record<string, unknown>;
     /** Cosine similarity to the query vector — present only on the semantic ?q= path (DOGFOOD-011) */
     score?: number;
+    /** Snippet around the first matched token — present only on the keyword contains= path (RETR-001) */
+    snippet?: string;
   }>;
   count: number;
   /** True total of matching memories, unlimited by limit/offset (GAP-024) */
@@ -171,6 +184,45 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       namespace: resolvedNamespace,
       error: `Namespace '${resolvedNamespace}' does not exist`,
     };
+  }
+
+  // RETR-001: keyword filter path (offline — no embedding provider).
+  // Runs against the rebuilt FTS sidecar; a missing index surfaces as a
+  // clear error telling the operator to rebuild.
+  if (validated.contains) {
+    if (validated.query) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: resolvedNamespace,
+        error:
+          "Use either 'query' (semantic) or 'contains' (keyword) — hybrid fusion is RETR-002",
+      };
+    }
+    try {
+      const keywordResult = await keywordSearch(
+        namespacePath,
+        validated.contains,
+        { limit: validated.limit, maxCandidates: MAX_CANDIDATES },
+      );
+      return {
+        memories: keywordResult.memories,
+        count: keywordResult.memories.length,
+        // GAP-024: total = the full ranked match set (bounded by
+        // MAX_CANDIDATES), unlimited by limit/offset.
+        total: keywordResult.total,
+        namespace: resolvedNamespace,
+      };
+    } catch (error) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: resolvedNamespace,
+        error: `Keyword search failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      };
+    }
   }
 
   try {
