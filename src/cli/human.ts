@@ -20,6 +20,7 @@ import { searchTool } from "../mcp/tools/search";
 import { listKeysTool } from "../mcp/tools/list_keys";
 import { rememberTool } from "../mcp/tools/remember";
 import { safeJsonStringify } from "../utils/serialize";
+import { parseTimeRange } from "../utils/timerange";
 import { buildKeyTree, renderKeyTreeText } from "../utils/keyTree";
 import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
@@ -270,6 +271,15 @@ async function recallCommand(args: string[]): Promise<void> {
     console.log(
       "  --contains=<text>  Keyword filter (offline full-text search; needs search-index rebuild)",
     );
+    console.log(
+      "  --after=<iso>      Only rows at or after this ISO-8601 date/datetime (e.g. 2026-08-10 or 2026-08-10T12:00:00Z)",
+    );
+    console.log(
+      "  --before=<iso>     Only rows at or before this ISO-8601 date/datetime (date-only = end of that day)",
+    );
+    console.log(
+      "  --between=<a,b>    Only rows between two ISO-8601 values (shorthand for --after + --before)",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
@@ -280,9 +290,26 @@ async function recallCommand(args: string[]): Promise<void> {
 
   const { flags } = parseArgs(args);
 
+  // RETR-003: time-scoped recall — validate + normalize --after/--before/
+  // --between before they reach the tool. Invalid ISO-8601 values exit
+  // cleanly with a message (no stack, no partial query).
+  let timeRange: { after?: string; before?: string };
+  try {
+    timeRange = parseTimeRange({
+      after: flags.after,
+      before: flags.before,
+      between: flags.between,
+    });
+  } catch (error) {
+    console.error("✗", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+
   const input: any = {
     namespace: flags.namespace || getDefaultNamespace(),
     limit: parseInt(flags.limit) || 10,
+    ...(timeRange.after ? { after: timeRange.after } : {}),
+    ...(timeRange.before ? { before: timeRange.before } : {}),
   };
 
   if (flags.key) {
@@ -1504,6 +1531,8 @@ function showHelp(): void {
     duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
     duckbrain echo "project notes body" | duckbrain remember /notes/test --domain=raw_note --wait
     duckbrain recall --prefix=/projects/
+    duckbrain recall --prefix=/chats/ --after=2026-08-10 --before=2026-08-12
+    duckbrain recall --between=2026-08-10,2026-08-12
     duckbrain list-keys --depth=3 --limit=20
     duckbrain forget abc-123 --reason="obsolete"
     duckbrain status --namespace=default

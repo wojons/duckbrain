@@ -24,6 +24,10 @@ import {
   UpdateMemoryRequest,
   QueryParams,
 } from "../types/api";
+import {
+  parseTimeRange,
+  type NormalizedTimeRange,
+} from "../../utils/timerange";
 
 const router: Router = Router();
 
@@ -91,8 +95,30 @@ router.get(
       // RETR-001: keyword filter — full-text search over content/key/
       // attributes via the rebuilt FTS sidecar (offline).
       contains: req.query.contains as string | undefined,
+      // RETR-003: time-scoped recall — ISO-8601 bounds (validated below so
+      // invalid dates surface as a clean 400, not a recallTool 500).
+      after: req.query.after as string | undefined,
+      before: req.query.before as string | undefined,
+      between: req.query.between as string | undefined,
       namespace: (req.query.namespace as string) || "default",
     };
+
+    // RETR-003: validate + normalize the time-range params BEFORE the tool
+    // call — parseTimeRange throws on invalid ISO-8601 values, between=
+    // combined with after/before, or an empty window (after > before), and
+    // the ValidationError maps to a 400 VALIDATION_ERROR response.
+    let timeRange: NormalizedTimeRange;
+    try {
+      timeRange = parseTimeRange({
+        after: params.after,
+        before: params.before,
+        between: params.between,
+      });
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : "Invalid time filter",
+      );
+    }
 
     // Call recallTool with filters
     const result = await recallTool({
@@ -115,6 +141,10 @@ router.get(
       // rejected by recallTool (hybrid fusion is RETR-002) and surface
       // as an ApiError(500) here.
       ...(params.contains ? { contains: params.contains } : {}),
+      // RETR-003: forward the NORMALIZED window (between= already expanded
+      // by parseTimeRange) so the tool never sees raw params again.
+      ...(timeRange.after ? { after: timeRange.after } : {}),
+      ...(timeRange.before ? { before: timeRange.before } : {}),
     });
 
     if (result.error) {

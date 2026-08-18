@@ -103,6 +103,12 @@ export interface MemoryQueryFilters {
   id?: string;
   query?: string;
   embedding?: number[];
+  /** RETR-003: include rows whose timestamp (or chat-archive key date facet)
+   *  is at or after this ISO-8601 instant */
+  after?: string;
+  /** RETR-003: include rows whose timestamp (or chat-archive key date facet)
+   *  is at or before this ISO-8601 instant */
+  before?: string;
   limit?: number;
 }
 
@@ -121,6 +127,66 @@ function collectJsonlFiles(partitionPaths: string[]): string[] {
     jsonlFiles.push(...files);
   }
   return jsonlFiles;
+}
+
+/**
+ * RETR-003: SQL conditions for the after/before time bounds, if any.
+ *
+ * The row matches when EITHER:
+ *  1. its own `timestamp` satisfies ALL bounds — compared as a real
+ *     TIMESTAMP (try_cast), NOT as a string: chat-archive rows mix
+ *     formats (`.749Z` and `.676525+00:00`), and lexicographic
+ *     comparison is wrong across those formats. Bounds arrive already
+ *     canonicalized to UTC (src/utils/timerange.ts), and this DuckDB
+ *     version parses `Z` and `+00:00` stored rows to the same instant
+ *     (non-UTC offsets are read wall-clock-as-UTC — the corpus only
+ *     carries +00:00, so comparisons are correct for the data at hand).
+ *  2. its KEY carries a chat-archive date facet — /chats/<view>/<YYYY-MM-DD>
+ *     — whose facet date satisfies ALL bounds. This is what makes since/until
+ *     work on chat-archive keys (T-1/RETR-003): those records' timestamps
+ *     are the archive INGESTION time (e.g. 2026-08-07T09:26:22.496Z), while
+ *     the message date lives in the key (e.g. /chats/karahermes-dm/2026-05-24).
+ *     Facet dates compare at day granularity (midnight UTC).
+ *
+ * The facet clause deliberately wraps ALL bounds as ONE window: per-bound
+ * OR-clauses would let a row pass `after` via its timestamp and `before`
+ * via its facet (or vice versa) — a cross-product match outside the window.
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same semantics to its candidate SQL.
+ */
+export function buildTimeRangeConditions(
+  after?: string,
+  before?: string,
+): string[] {
+  const timestampBounds: string[] = [];
+  const facetBounds: string[] = [];
+  if (after !== undefined) {
+    timestampBounds.push(buildTimestampBound("after", after));
+    facetBounds.push(buildFacetBound("after", after));
+  }
+  if (before !== undefined) {
+    timestampBounds.push(buildTimestampBound("before", before));
+    facetBounds.push(buildFacetBound("before", before));
+  }
+  if (timestampBounds.length === 0) return [];
+  return [
+    `(${timestampBounds.join(" AND ")} OR (regexp_matches(key, '^/chats/[^/]+/[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)') AND ${facetBounds.join(" AND ")}))`,
+  ];
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function buildTimestampBound(kind: "after" | "before", value: string): string {
+  const cmp = kind === "after" ? ">=" : "<=";
+  return `try_cast(timestamp AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
+}
+
+function buildFacetBound(kind: "after" | "before", value: string): string {
+  const cmp = kind === "after" ? ">=" : "<=";
+  return `try_cast(regexp_extract(key, '^/chats/[^/]+/([0-9]{4}-[0-9]{2}-[0-9]{2})', 1) AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
 }
 
 /**
@@ -159,6 +225,11 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
     const escapedAuthor = filters.author.replace(/'/g, "''");
     conditions.push(`author = '${escapedAuthor}'`);
   }
+
+  // RETR-003: time-scoped recall — timestamp (and chat-archive key facet)
+  // bounds. Applied INSIDE the dedup window, so a memory that was updated
+  // after the window's end still surfaces as its latest in-window record.
+  conditions.push(...buildTimeRangeConditions(filters?.after, filters?.before));
 
   // Semantic search with vector similarity
   if (filters?.query && filters?.embedding) {

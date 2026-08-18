@@ -15,6 +15,7 @@ import { Database } from "duckdb";
 import { indexDbPath, SearchIndexMissingError, DB_CONFIG } from "./index";
 import { mapDigits, splitQuery } from "./transform";
 import { dropStopwords, rankKeywordResults, type IndexRow } from "./rank";
+import { buildTimeRangeConditions } from "../duckdb/queries";
 
 /** Safety cap on the candidate pool — mirrors recallTool's MAX_CANDIDATES. */
 export const MAX_KEYWORD_CANDIDATES = 1000;
@@ -45,6 +46,12 @@ export interface KeywordSearchOptions {
   limit?: number;
   /** Candidate pool cap (default MAX_KEYWORD_CANDIDATES) */
   maxCandidates?: number;
+  /** RETR-003: only rows at or after this ISO-8601 instant (timestamp or
+   *  chat-archive key date facet) */
+  after?: string;
+  /** RETR-003: only rows at or before this ISO-8601 instant (timestamp or
+   *  chat-archive key date facet) */
+  before?: string;
 }
 
 function escapeSqlLiteral(s: string): string {
@@ -126,6 +133,12 @@ export async function keywordSearch(
 
   const candidates = new Map<string, IndexRow>();
   const db = new Database(dbPath, DB_CONFIG);
+  // RETR-003: same timestamp + chat-archive-facet bounds as queryMemories —
+  // applied to BOTH candidate passes so the keyword leg of a time-scoped
+  // recall never surfaces out-of-window rows.
+  const timeConditions = buildTimeRangeConditions(opts.after, opts.before);
+  const timeClause =
+    timeConditions.length > 0 ? ` AND ${timeConditions.join(" AND ")}` : "";
   try {
     if (ftsTokens.length > 0) {
       // Digit-map + collapse separator runs so the query never produces
@@ -136,7 +149,7 @@ export async function keywordSearch(
       );
       const literal = escapeSqlLiteral(mapped.trim());
       const ftsSql = (conjunctive: number) =>
-        `SELECT ${ROW_COLUMNS}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0 ORDER BY score DESC LIMIT ${maxCandidates}`;
+        `SELECT ${ROW_COLUMNS}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0${timeClause} ORDER BY score DESC LIMIT ${maxCandidates}`;
       let rows = await allAsync(db, ftsSql(1));
       if (rows.length === 0) {
         // AND found nothing — relax to OR (any token) and let rank.ts
@@ -153,7 +166,7 @@ export async function keywordSearch(
       // Raw-text prefix pass (digit-exact, stemmer-free). Candidates get
       // no BM25 score — tier + recency order them.
       const pattern = `${escapeLikePattern(prefix)}%`;
-      const sql = `SELECT ${ROW_COLUMNS}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\' ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
+      const sql = `SELECT ${ROW_COLUMNS}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\'${timeClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
       const rows = await allAsync(db, sql);
       for (const r of rows) {
         const row = toIndexRow(r);

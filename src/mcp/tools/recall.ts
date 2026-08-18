@@ -21,6 +21,10 @@ import {
   type KeywordSearchResult,
 } from "../../search/query";
 import { rankFused, FUSION_TOP_K } from "../../search/fusion";
+import {
+  parseTimeRange,
+  type NormalizedTimeRange,
+} from "../../utils/timerange";
 import path from "path";
 import fs from "fs";
 
@@ -62,6 +66,31 @@ const RecallInputSchema = z.object({
    *  defaultNamespace, which switch_namespace persists and is therefore
    *  sticky across processes; see docs/api/mcp-tools.md) */
   namespace: z.string().optional().describe("Namespace to query"),
+  /** RETR-003: time-scoped recall — include only rows at or after this
+   *  ISO-8601 instant (inclusive; date-only values mean the start of that
+   *  day, UTC). Matches both the row timestamp and chat-archive key date
+   *  facets (/chats/<view>/<YYYY-MM-DD> — those rows' timestamps are
+   *  ingestion time while the message date lives in the key). */
+  after: z
+    .string()
+    .optional()
+    .describe("ISO-8601 date/datetime: only rows at or after this instant"),
+  /** RETR-003: include only rows at or before this ISO-8601 instant
+   *  (inclusive; date-only values mean the END of that day, UTC — "until
+   *  2026-08-12" includes 2026-08-12 itself). */
+  before: z
+    .string()
+    .optional()
+    .describe("ISO-8601 date/datetime: only rows at or before this instant"),
+  /** RETR-003: shorthand for after=START&before=END — two comma-separated
+   *  ISO-8601 values (e.g. "2026-08-10,2026-08-12"). Mutually exclusive
+   *  with after/before. */
+  between: z
+    .string()
+    .optional()
+    .describe(
+      "ISO-8601 range as START,END — shorthand for after=START and before=END",
+    ),
 });
 
 /**
@@ -171,6 +200,7 @@ type RecallInput = z.infer<typeof RecallInputSchema>;
 async function runSemanticLeg(opts: {
   namespacePath: string;
   validated: RecallInput;
+  timeRange: NormalizedTimeRange;
   db: ReturnType<typeof getDuckDBConnection>;
   partitionPaths: string[];
   cache: EmbeddingCache;
@@ -181,6 +211,7 @@ async function runSemanticLeg(opts: {
   const {
     namespacePath,
     validated,
+    timeRange,
     db,
     partitionPaths,
     cache,
@@ -203,6 +234,10 @@ async function runSemanticLeg(opts: {
   else if (validated.keyPrefix)
     candidateFilters.keyPrefix = validated.keyPrefix;
   else if (validated.domain) candidateFilters.domain = validated.domain;
+  // RETR-003: time-scoped recall — the candidate pool itself is windowed so
+  // out-of-range rows can never be ranked or fused.
+  if (timeRange.after) candidateFilters.after = timeRange.after;
+  if (timeRange.before) candidateFilters.before = timeRange.before;
 
   const result = await withTimeout(
     (async () => {
@@ -265,6 +300,26 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   const validated = parseResult.data;
   console.error("[recall] Validated input:", validated);
 
+  // RETR-003: validate + normalize the time-range params up front. Invalid
+  // ISO-8601 values (or between= combined with after/before) surface as a
+  // clean error payload — never a crash — before any namespace work.
+  let timeRange: NormalizedTimeRange;
+  try {
+    timeRange = parseTimeRange({
+      after: validated.after,
+      before: validated.before,
+      between: validated.between,
+    });
+  } catch (error) {
+    return {
+      memories: [],
+      count: 0,
+      error: `Invalid time filter: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+
   // Resolve namespace path — DOGFOOD-017: the response must echo the
   // namespace ACTUALLY queried (the resolved one, including when the arg
   // was omitted and the active config defaultNamespace was used).
@@ -298,7 +353,13 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       const keywordResult = await keywordSearch(
         namespacePath,
         validated.contains,
-        { limit: validated.limit, maxCandidates: MAX_CANDIDATES },
+        {
+          limit: validated.limit,
+          maxCandidates: MAX_CANDIDATES,
+          // RETR-003: window the keyword candidate pool too.
+          ...(timeRange.after ? { after: timeRange.after } : {}),
+          ...(timeRange.before ? { before: timeRange.before } : {}),
+        },
       );
       return {
         memories: keywordResult.memories,
@@ -362,6 +423,12 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     } else if (validated.domain) {
       filters.domain = validated.domain;
     }
+
+    // RETR-003: time-scoped recall — timestamp (and chat-archive key facet)
+    // bounds on the list path, shared by queryMemories and countMemories so
+    // the reported total always matches the returned window.
+    if (timeRange.after) filters.after = timeRange.after;
+    if (timeRange.before) filters.before = timeRange.before;
 
     // GAP-023/GAP-024: limit=0 is a valid "empty page" request — no rows are
     // fetched, but the true total is still reported. A zero limit must never
@@ -451,6 +518,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           // and the keyword-only fallback below slices to the requested limit.
           limit: Math.max(FUSION_TOP_K, validated.limit),
           maxCandidates: MAX_CANDIDATES,
+          // RETR-003: window the keyword leg so fusion can never surface
+          // out-of-range rows.
+          ...(timeRange.after ? { after: timeRange.after } : {}),
+          ...(timeRange.before ? { before: timeRange.before } : {}),
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -473,6 +544,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           const leg = await runSemanticLeg({
             namespacePath,
             validated,
+            timeRange,
             db,
             partitionPaths,
             cache,
@@ -538,6 +610,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           leg = await runSemanticLeg({
             namespacePath,
             validated,
+            timeRange,
             db,
             partitionPaths,
             cache,

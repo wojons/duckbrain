@@ -120,6 +120,14 @@ export interface QueryParams {
   query?: string;
   /** Keyword filter (full-text search over content/key/attributes) */
   contains?: string;
+  /** RETR-003: only rows at or after this ISO-8601 instant (timestamp or
+   *  chat-archive key date facet) */
+  after?: string;
+  /** RETR-003: only rows at or before this ISO-8601 instant (timestamp or
+   *  chat-archive key date facet) */
+  before?: string;
+  /** RETR-003: ISO-8601 range as START,END — shorthand for after+before */
+  between?: string;
   /** Namespace to query */
   namespace?: string;
 }
