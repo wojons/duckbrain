@@ -28,6 +28,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache DuckDB extensions
+        uses: actions/cache@v4
+        with:
+          path: ~/.duckdb/extensions
+          key: duckdb-extensions-1.4.4
+          restore-keys: |
+            duckdb-extensions-
+
+      - name: Pre-install DuckDB fts extension
+        run: node -e "const {Database}=require('duckdb'); const db=new Database(':memory:'); db.exec('INSTALL fts'); db.exec('LOAD fts'); db.close();"
+
       - name: Run lint
         run: npm run lint --if-present
 

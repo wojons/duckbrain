@@ -273,7 +273,26 @@ export async function rebuildNamespaceIndex(
 
   const db = new Database(tmpDbPath, DB_CONFIG);
   try {
-    await execAsync(db, "LOAD fts;");
+    // Explicit INSTALL before LOAD, mirroring src/duckdb/vss.ts. INSTALL fts
+    // is idempotent (a no-op when already installed) and required on fresh
+    // runners, where relying on auto-install during LOAD fails with
+    // "Extension .../fts.duckdb_extension not found" (CI 32160011179).
+    try {
+      await execAsync(db, "INSTALL fts;");
+      await execAsync(db, "LOAD fts;");
+    } catch (error) {
+      // Extension may already be installed/cached — still attempt LOAD.
+      try {
+        await execAsync(db, "LOAD fts;");
+      } catch (loadError) {
+        console.warn("fts extension could not be loaded:", loadError);
+        throw new Error(
+          `Failed to load DuckDB fts extension: ${
+            loadError instanceof Error ? loadError.message : "unknown error"
+          }. The extension is expected at ~/.duckdb/extensions/<version>/<platform>/fts.duckdb_extension (e.g. v1.4.4/linux_amd64 on Linux); INSTALL fts downloads it on first use, which requires a network connection to the DuckDB extension repository (duckdb.org).`,
+        );
+      }
+    }
     await execAsync(
       db,
       `CREATE TABLE memories (id VARCHAR, key VARCHAR, domain VARCHAR, timestamp VARCHAR, author VARCHAR, action VARCHAR, embedding_text VARCHAR, attributes VARCHAR, raw_text VARCHAR, search_text VARCHAR)`,
