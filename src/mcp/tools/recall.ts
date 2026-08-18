@@ -25,6 +25,11 @@ import {
   parseTimeRange,
   type NormalizedTimeRange,
 } from "../../utils/timerange";
+import {
+  resolveAsOfRef,
+  readManifestAtRef,
+  queryMemoriesAtRef,
+} from "../../git/asof";
 import path from "path";
 import fs from "fs";
 
@@ -90,6 +95,19 @@ const RecallInputSchema = z.object({
     .optional()
     .describe(
       "ISO-8601 range as START,END — shorthand for after=START and before=END",
+    ),
+  /** RETR-004: memory-as-of — read the namespace state at this point in git
+   *  history. Accepts an ISO-8601 date (resolves to the nearest commit
+   *  at-or-before it) or a commit hash/branch/tag. Rows are read straight
+   *  from the namespace git history (git show per partition chunk, merged
+   *  via the manifest at that ref) — never a checkout or write. Cannot be
+   *  combined with query/contains (semantic/keyword search reads the live
+   *  FTS/embedding sidecars, which have no historical state). */
+  asOf: z
+    .string()
+    .optional()
+    .describe(
+      "Date or git ref: read the namespace state as it existed at that point in history",
     ),
 });
 
@@ -333,6 +351,89 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       count: 0,
       namespace: resolvedNamespace,
       error: `Namespace '${resolvedNamespace}' does not exist`,
+    };
+  }
+
+  // RETR-004: memory-as-of — resolve the ref up front (a date maps to the
+  // nearest commit at-or-before it; hashes/branches/tags are used directly).
+  // Invalid input surfaces as a clean error payload, never a crash.
+  let asOfRef: string | undefined;
+  if (validated.asOf !== undefined) {
+    try {
+      asOfRef = resolveAsOfRef(validated.asOf, namespacePath);
+    } catch (error) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: resolvedNamespace,
+        error: `Invalid as-of value: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
+  }
+
+  // RETR-004: the as-of path reads rows straight from git history — it is a
+  // pure list path and never runs semantic/keyword search (those read the
+  // live FTS/embedding sidecars, which have no state at a past ref).
+  if (asOfRef !== undefined) {
+    if (validated.query || validated.contains) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: resolvedNamespace,
+        error:
+          "as_of cannot be combined with 'query' or 'contains' — memory-as-of reads the git state at that ref and does not run semantic or keyword search",
+      };
+    }
+
+    const manifestAtRef = readManifestAtRef(namespacePath, asOfRef);
+    if (!manifestAtRef) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: resolvedNamespace,
+        error: `Namespace '${resolvedNamespace}' has no manifest at ref ${asOfRef.slice(0, 8)} — it did not exist at that point in history`,
+      };
+    }
+
+    // Same filter shape as the DuckDB list path below (GAP-024: total is the
+    // full match count, unlimited by limit).
+    const asOfFilters: Parameters<typeof queryMemoriesAtRef>[2] = {
+      limit: validated.limit,
+    };
+    if (validated.author) asOfFilters.author = validated.author;
+    if (validated.key) asOfFilters.key = validated.key;
+    else if (validated.id) asOfFilters.id = validated.id;
+    else if (validated.keyPrefix) asOfFilters.keyPrefix = validated.keyPrefix;
+    else if (validated.domain) asOfFilters.domain = validated.domain;
+    if (timeRange.after) asOfFilters.after = timeRange.after;
+    if (timeRange.before) asOfFilters.before = timeRange.before;
+
+    // GAP-023: limit=0 is a valid empty-page request — count-only.
+    if (validated.limit === 0) {
+      const { total } = queryMemoriesAtRef(namespacePath, asOfRef, {
+        ...asOfFilters,
+        limit: undefined,
+      });
+      return {
+        memories: [],
+        count: 0,
+        total,
+        namespace: resolvedNamespace,
+      };
+    }
+
+    const { memories, total } = queryMemoriesAtRef(
+      namespacePath,
+      asOfRef,
+      asOfFilters,
+    );
+    return {
+      memories,
+      count: memories.length,
+      total,
+      namespace: resolvedNamespace,
     };
   }
 

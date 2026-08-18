@@ -28,6 +28,8 @@ import {
   parseTimeRange,
   type NormalizedTimeRange,
 } from "../../utils/timerange";
+import { resolveAsOfRef } from "../../git/asof";
+import { resolveNamespacePath } from "../../mcp/tools/shared";
 
 const router: Router = Router();
 
@@ -100,6 +102,9 @@ router.get(
       after: req.query.after as string | undefined,
       before: req.query.before as string | undefined,
       between: req.query.between as string | undefined,
+      // RETR-004: memory-as-of — git ref or ISO-8601 date (validated below
+      // so invalid values surface as a clean 400, not a recallTool 500).
+      as_of: req.query.as_of as string | undefined,
       namespace: (req.query.namespace as string) || "default",
     };
 
@@ -118,6 +123,24 @@ router.get(
       throw new ValidationError(
         error instanceof Error ? error.message : "Invalid time filter",
       );
+    }
+
+    // RETR-004: resolve ?as_of= to a concrete commit BEFORE the tool call —
+    // an invalid ref maps to a clean 400 VALIDATION_ERROR, mirroring the
+    // time-range validation above. The RESOLVED commit is forwarded so the
+    // tool never re-resolves against a different HEAD mid-request.
+    let asOfRef: string | undefined;
+    if (params.as_of !== undefined) {
+      try {
+        asOfRef = resolveAsOfRef(
+          params.as_of,
+          resolveNamespacePath(params.namespace),
+        );
+      } catch (error) {
+        throw new ValidationError(
+          error instanceof Error ? error.message : "Invalid as_of value",
+        );
+      }
     }
 
     // Call recallTool with filters
@@ -145,6 +168,9 @@ router.get(
       // by parseTimeRange) so the tool never sees raw params again.
       ...(timeRange.after ? { after: timeRange.after } : {}),
       ...(timeRange.before ? { before: timeRange.before } : {}),
+      // RETR-004: forward the RESOLVED commit ref (date inputs already
+      // resolved to a SHA above).
+      ...(asOfRef ? { asOf: asOfRef } : {}),
     });
 
     if (result.error) {

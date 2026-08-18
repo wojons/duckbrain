@@ -16,6 +16,8 @@
  */
 
 import { recallTool } from "../mcp/tools/recall";
+import { resolveNamespacePath } from "../mcp/tools/shared";
+import { resolveAsOfRef } from "../git/asof";
 import { searchTool } from "../mcp/tools/search";
 import { listKeysTool } from "../mcp/tools/list_keys";
 import { rememberTool } from "../mcp/tools/remember";
@@ -280,6 +282,9 @@ async function recallCommand(args: string[]): Promise<void> {
     console.log(
       "  --between=<a,b>    Only rows between two ISO-8601 values (shorthand for --after + --before)",
     );
+    console.log(
+      "  --as-of=<ref>      Read the namespace state as of a git ref or ISO-8601 date (date = nearest commit at-or-before it)",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
@@ -305,11 +310,30 @@ async function recallCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // RETR-004: memory-as-of — resolve --as-of to a concrete commit up front
+  // (date → nearest commit at-or-before; hash/branch/tag used directly).
+  // Invalid values exit cleanly, mirroring the time-range validation above.
+  let asOfRef: string | undefined;
+  if (flags["as-of"] !== undefined) {
+    const nsPath = resolveNamespacePath(
+      flags.namespace || getDefaultNamespace(),
+    );
+    try {
+      asOfRef = resolveAsOfRef(flags["as-of"], nsPath);
+    } catch (error) {
+      console.error("✗", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  }
+
   const input: any = {
     namespace: flags.namespace || getDefaultNamespace(),
     limit: parseInt(flags.limit) || 10,
     ...(timeRange.after ? { after: timeRange.after } : {}),
     ...(timeRange.before ? { before: timeRange.before } : {}),
+    // RETR-004: pass the RESOLVED commit so the tool never re-resolves
+    // against a different HEAD mid-request.
+    ...(asOfRef ? { asOf: asOfRef } : {}),
   };
 
   if (flags.key) {

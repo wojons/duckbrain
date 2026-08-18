@@ -128,6 +128,10 @@ export interface QueryParams {
   before?: string;
   /** RETR-003: ISO-8601 range as START,END — shorthand for after+before */
   between?: string;
+  /** RETR-004: git ref or ISO-8601 date — read the namespace state as it
+   *  existed at that point in history (date resolves to the nearest commit
+   *  at-or-before it) */
+  as_of?: string;
   /** Namespace to query */
   namespace?: string;
 }
