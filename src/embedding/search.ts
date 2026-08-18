@@ -124,5 +124,16 @@ export async function semanticSearch(
     }
   }
 
-  return ranked.sort((a, b) => b.score - a.score);
+  return ranked.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    // RETR-005: equal-similarity ties break by recency — a fresh memory
+    // outranks an old one at the same cosine. This ordering feeds both the
+    // semantic-only path and the hybrid fusion semantic leg, so rankFused
+    // sees recency-resolved ranks for equal-cosine candidates. Identical
+    // timestamps fall back to id ascending (fully deterministic).
+    const ta = Date.parse(a.timestamp);
+    const tb = Date.parse(b.timestamp);
+    if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return tb - ta;
+    return a.id.localeCompare(b.id);
+  });
 }

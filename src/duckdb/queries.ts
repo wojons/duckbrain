@@ -190,6 +190,22 @@ function buildFacetBound(kind: "after" | "before", value: string): string {
 }
 
 /**
+ * RETR-005: recency-aware default ordering for listing paths (exact-key,
+ * glob/keyPrefix, domain/author, plain list). Newest-first by default —
+ * before RETR-005 these legs had NO ORDER BY at all and surfaced rows in
+ * read_json file order (oldest-first on appended JSONL).
+ *
+ * try_cast(timestamp AS TIMESTAMP) compares the mixed corpus formats
+ * (`.749Z` vs `.676525+00:00`) as instants — the same approach the
+ * RETR-003 time bounds use; a lexicographic sort would misorder those
+ * (0x2B '+' < 0x5A 'Z'). NULLS LAST keeps unparseable rows at the bottom
+ * (a corrupt row must never pollute the top of a listing), and id ASC is
+ * the deterministic final tiebreak for equal timestamps.
+ */
+const DEFAULT_ORDER_BY =
+  "ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC";
+
+/**
  * Build the inner WHERE conditions for the given filters.
  *
  * Shared by queryMemories and countMemories so the counted row set always
@@ -291,13 +307,17 @@ export function queryMemories(
   // placeholders
   const innerConditions = buildWhereConditions(filters);
 
-  let orderByClause = "";
+  // RETR-005: listing legs default to newest-first. The semantic leg keeps
+  // cosine similarity as the primary key and breaks equal-distance ties by
+  // recency (same try_cast + id tiebreak as DEFAULT_ORDER_BY), so fresh
+  // memories outrank equal-similarity old ones at the SQL layer too.
+  let orderByClause = DEFAULT_ORDER_BY;
 
   // Semantic search with vector similarity
   if (filters?.query && filters?.embedding) {
     // Use DuckDB VSS extension for cosine similarity
     const embeddingStr = `[${filters.embedding.join(",")}]`;
-    orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC`;
+    orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC`;
   }
 
   const innerWhereClause =

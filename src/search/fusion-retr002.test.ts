@@ -197,6 +197,56 @@ describe("RETR-002: normalization and edge cases", () => {
   });
 });
 
+describe("RETR-005: recency through fusion", () => {
+  it("equal-cosine fixtures (semantic leg already recency-ordered) keep newest first", () => {
+    // RETR-005 chain: semanticSearch breaks equal-cosine ties by recency,
+    // so the semantic leg arrives as [fresh, old] at the same similarity.
+    // A keyword leg that ranks them identically (equal BM25, recency tie)
+    // must fuse to the same order — the fresh memory stays on top.
+    const fresh = doc("fresh", "2026-08-10T00:00:00.000Z");
+    const old = doc("old", "2026-08-01T00:00:00.000Z");
+    const fused = rankFused([
+      [fresh, old], // equal cosine, recency-ordered
+      [fresh, old], // equal BM25, recency-ordered
+    ]);
+    expect(fused.map((f) => f.item.id)).toEqual(["fresh", "old"]);
+    expect(fused[0].score).toBe(1); // rank #1 in both retrievers
+    expect(fused[1].score).toBeCloseTo(61 / 62, 10);
+  });
+
+  it("fused exact ties resolve by recency regardless of input list order", () => {
+    // Same rank TUPLE, swapped retrievers → identical RRF sums → the
+    // comparator must settle the tie by timestamp, not by whichever doc
+    // appeared first in the input (a caller may feed an unordered list).
+    const fresh = doc("fresh", "2026-08-10T00:00:00.000Z");
+    const old = doc("old", "2026-08-01T00:00:00.000Z");
+    const fused = rankFused([
+      [old, fresh], // equal similarity, older doc listed first
+      [fresh, old], // equal similarity, newer doc listed first
+    ]);
+    expect(fused.map((f) => f.item.id)).toEqual(["fresh", "old"]);
+    // Both are an exact RRF tie — same raw sum from swapped rank tuples.
+    expect(fused[0].rrf).toBeCloseTo(1 / 61 + 1 / 62, 12);
+    expect(fused[1].rrf).toBeCloseTo(1 / 62 + 1 / 61, 12);
+  });
+
+  it("a fresh equal-similarity doc outranks an old one even when only one retriever sees it", () => {
+    // Hybrid reality: the keyword leg may MISS the fresh doc (e.g. its
+    // tokens are stopwords) while the semantic leg ties both at rank 1.
+    // rankFused must not let the older doc's other-retriever contribution
+    // flip the semantic recency decision.
+    const fresh = doc("fresh", "2026-08-10T00:00:00.000Z");
+    const old = doc("old", "2026-08-01T00:00:00.000Z");
+    const fused = rankFused([
+      [fresh, old], // equal cosine, recency-ordered semantic leg
+      [], // keyword leg found nothing (stopword query)
+    ]);
+    expect(fused.map((f) => f.item.id)).toEqual(["fresh", "old"]);
+    expect(fused[0].score).toBe(1);
+    expect(fused[1].score).toBeCloseTo(61 / 62, 10);
+  });
+});
+
 describe("RETR-002: generic payload passthrough", () => {
   it("keeps the full item payload (extra fields survive fusion)", () => {
     const itemA: FusionRetrieverItem & { snippet: string } = {

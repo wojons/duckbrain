@@ -18,7 +18,11 @@
  * Recency tiebreak: when two documents' fused scores are equal (within
  * RRF_EPSILON), the more recent memory (timestamp) ranks first;
  * identical timestamps fall back to id ascending so the order is fully
- * deterministic.
+ * deterministic. RETR-005: equal-SIMILARITY ties (equal cosine, equal
+ * BM25) are resolved to recency BEFORE fusion — semanticSearch and the
+ * listing SQL both order equal scores newest-first, so the rank inputs
+ * arrive recency-resolved and RRF inherits it; this comparator only needs
+ * to settle the residual exact-score ties.
  *
  * The module is pure arithmetic — no DuckDB, no network, no
  * dependencies. The orchestration that feeds it (which retrievers are

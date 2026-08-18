@@ -158,6 +158,52 @@ describe("semanticSearch", () => {
   });
 });
 
+describe("semanticSearch recency tiebreak (RETR-005)", () => {
+  // Identical vectors → identical cosine: only recency can decide the
+  // order (previously the sort kept candidate order, i.e. the caller's
+  // insertion order — oldest-first on appended JSONL).
+  const q = [1, 0, 0, 0];
+  const provider = {
+    id: "m",
+    model: "t",
+    dimensions: 4,
+    async embed() {
+      throw new Error("all cached — should not embed");
+    },
+  };
+
+  function equalCosinePair() {
+    const old = candidate("old", "same text");
+    const fresh = candidate("fresh", "same text");
+    old.timestamp = "2026-08-01T00:00:00.000Z";
+    fresh.timestamp = "2026-08-10T00:00:00.000Z";
+    return { old, fresh };
+  }
+
+  it("equal-cosine candidates rank by recency — newest wins", async () => {
+    const { old, fresh } = equalCosinePair();
+    cache.set("m", EmbeddingCache.contentHash("same text"), q); // both score 1.0
+
+    // Oldest-first input order (the pre-RETR-005 candidate fetch order).
+    const ranked = await semanticSearch([old, fresh], q, cache, provider, {
+      minScore: 0,
+    });
+    expect(ranked.map((r) => r.id)).toEqual(["fresh", "old"]);
+    expect(ranked[0].score).toBe(ranked[1].score); // genuine tie, not a score difference
+  });
+
+  it("equal cosine AND equal timestamp fall back to id ascending", async () => {
+    const a = candidate("b-id", "same text");
+    const b = candidate("a-id", "same text");
+    cache.set("m", EmbeddingCache.contentHash("same text"), q);
+
+    const ranked = await semanticSearch([a, b], q, cache, provider, {
+      minScore: 0,
+    });
+    expect(ranked.map((r) => r.id)).toEqual(["a-id", "b-id"]);
+  });
+});
+
 describe("semanticSearch relevance threshold (DOGFOOD-011)", () => {
   // Orthogonal query/candidate vectors make scores exact: identical
   // direction → 1.0, orthogonal → 0.0. No hash-space luck involved.

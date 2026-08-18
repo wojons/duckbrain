@@ -138,12 +138,23 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
     // Use explicit file list instead of glob
     const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
 
-    // Query distinct keys matching prefix, excluding tombstones
+    // RETR-005: recency-aware listing — distinct keys ordered by their
+    // NEWEST live record (timestamp DESC), so recently-touched keys surface
+    // first on the glob/prefix surface (previously alphabetical-insertion
+    // order). try_cast parses the mixed corpus timestamp formats as
+    // instants (same approach as queries.ts DEFAULT_ORDER_BY); NULLS LAST
+    // keeps unparseable rows at the bottom; key ASC is the deterministic
+    // final tiebreak. The hierarchical tree renderers re-sort alphabetically
+    // anyway — this only affects the raw flat order and pagination.
     const sql = `
-      SELECT DISTINCT key
-      FROM read_json([${fileList}], format='newline_delimited')
-      WHERE key LIKE ? || '%' AND action != 'tombstone'
-      ORDER BY key
+      SELECT key
+      FROM (
+        SELECT key, MAX(try_cast(timestamp AS TIMESTAMP)) AS __latest
+        FROM read_json([${fileList}], format='newline_delimited')
+        WHERE key LIKE ? || '%' AND action != 'tombstone'
+        GROUP BY key
+      ) sub
+      ORDER BY __latest DESC NULLS LAST, key ASC
       LIMIT ? OFFSET ?
     `;
 
