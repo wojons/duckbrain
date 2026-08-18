@@ -1,0 +1,77 @@
+{
+  "task_id": "RETR-001",
+  "task_title": "FTS keyword search: src/search/ index + recall --contains + GET /api/memories?contains= + duckbrain search CLI",
+  "task_criteria": [
+    "PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full suite green + tsc clean; no provider needed for keyword half; index gitignored + rebuildable"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12308359 bytes (12.31 MB) in 3.02s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12308359 bytes (12.31 MB) in 3.02s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-dogfood016.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 793\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m cleans this process's scratch files on SIGTERM and dies by the signal \u001b[33m 708\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 771\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full suite green + tsc clean; no provider needed for keyword half; index gitignored + rebuildable: All sub-parts verified with actual command output. (1) duckbrain search GAP-020: src/search/search-retr001.test.ts 'finds GAP-020 with the exact-token memory first and a snippet' asserts first.id=m1 and first.snippet contains 'GAP-020'; searchTool surface test asserts memories[0].snippet contains 'GAP-020'; CLI searchCommand (src/cli/human.ts:332) calls searchTool and prints snippet. (2) Full suite green: `npx vitest run` -> 'Test Files 61 passed (61)', 'Tests 465 passed (465)', exit 0; `npx tsc --noEmit` -> exit 0, no errors. (3) No provider for keyword half: src/mcp/tools/recall.ts:192 contains path calls keywordSearch directly (offline, no embedding provider); src/mcp/tools/search.ts is pure offline; test 'filters by keyword with snippets, offline' passes. (4) Index gitignored + rebuildable: ensureSearchGitignored writes '/.search/' to namespace .gitignore; test 'builds a gitignored sidecar' asserts gi contains '/.search/' and status.gitignored=true; 'is idempotent' test confirms rebuildable; `git ls-files` shows no .search/fts.duckdb tracked.\nRETR-001 keyword FTS search is fully implemented and verified: duckbrain search GAP-020 returns memories with snippets, full suite (465 tests) green, tsc clean, keyword path needs no embedding provider, and the index is gitignored and rebuildable.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full suite green + tsc clean; no provider needed for keyword half; index gitignored + rebuildable: All sub-parts verified with actual command output. (1) duckbrain search GAP-020: src/search/search-retr001.test.ts 'finds GAP-020 with the exact-token memory first and a snippet' asserts first.id=m1 and first.snippet contains 'GAP-020'; searchTool surface test asserts memories[0].snippet contains 'GAP-020'; CLI s",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full suite green + tsc clean; no provider needed for keyword half; index gitignored + rebuildable",
+                "status": "PASS",
+                "detail": "All sub-parts verified with actual command output. (1) duckbrain search GAP-020: src/search/search-retr001.test.ts 'finds GAP-020 with the exact-token memory first and a snippet' asserts first.id=m1 and first.snippet contains 'GAP-020'; searchTool surface test asserts memories[0].snippet contains 'GAP-020'; CLI searchCommand (src/cli/human.ts:332) calls searchTool and prints snippet. (2) Full suite green: `npx vitest run` -> 'Test Files 61 passed (61)', 'Tests 465 passed (465)', exit 0; `npx tsc --noEmit` -> exit 0, no errors. (3) No provider for keyword half: src/mcp/tools/recall.ts:192 contains path calls keywordSearch directly (offline, no embedding provider); src/mcp/tools/search.ts is pure offline; test 'filters by keyword with snippets, offline' passes. (4) Index gitignored + rebuildable: ensureSearchGitignored writes '/.search/' to namespace .gitignore; test 'builds a gitignored sidecar' asserts gi contains '/.search/' and status.gitignored=true; 'is idempotent' test confirms rebuildable; `git ls-files` shows no .search/fts.duckdb tracked."
+              }
+            ],
+            "summary": "RETR-001 keyword FTS search is fully implemented and verified: duckbrain search GAP-020 returns memories with snippets, full suite (465 tests) green, tsc clean, keyword path needs no embedding provider, and the index is gitignored and rebuildable."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-001\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:18AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12308359 bytes (12.31 MB) in 3.02s\u001b[0m\n\u001b[90m11:18AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full suite green + tsc clean; no provider needed for keyword half; index gitignored + rebuildable: All sub-parts verified with actual command output. (1) duckbrain search GAP-020: src/search/search-retr001.test.ts 'finds GAP-020 with the exact-token memory first and a snippet' asserts first.id=m1 and first.snippet contains 'GAP-020'; searchTool surface test asserts memories[0].snippet contains 'GAP-020'; CLI searchCommand (src/cli/human.ts:332) calls searchTool and prints snippet. (2) Full suite green: `npx vitest run` -> 'Test Files 61 passed (61)', 'Tests 465 passed (465)', exit 0; `npx tsc --noEmit` -> exit 0, no errors. (3) No provider for keyword half: src/mcp/tools/recall.ts:192 contains path calls keywordSearch directly (offline, no embedding provider); src/mcp/tools/search.ts is pure offline; test 'filters by keyword with snippets, offline' passes. (4) Index gitignored + rebuildable: ensureSearchGitignored writes '/.search/' to namespace .gitignore; test 'builds a gitignored sidecar' asserts gi contains '/.search/' and status.gitignored=true; 'is idempotent' test confirms rebuildable; `git ls-files` shows no .search/fts.duckdb tracked.\nRETR-001 keyword FTS search is fully implemented and verified: duckbrain search GAP-020 returns memories with snippets, full suite (465 tests) green, tsc clean, keyword path needs no embedding provider, and the index is gitignored and rebuildable.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-18T16:19:57.279486"
+}

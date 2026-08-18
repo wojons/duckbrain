@@ -543,3 +543,13 @@ tasks:
   status: complete
   created_at: '2026-08-17T22:43:00.098206+00:00'
   completed_at: '2026-08-17T23:53:07.139345+00:00'
+- id: RETR-001
+  title: 'FTS keyword search: src/search/ index + recall --contains + GET /api/memories?contains=
+    + duckbrain search CLI'
+  criteria:
+  - 'PASS: duckbrain search GAP-020 returns the GAP-020 memories with snippet; full
+    suite green + tsc clean; no provider needed for keyword half; index gitignored
+    + rebuildable'
+  status: complete
+  created_at: '2026-08-18T15:57:34.554887+00:00'
+  completed_at: '2026-08-18T16:18:07.422493+00:00'
