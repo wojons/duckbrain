@@ -553,3 +553,14 @@ tasks:
   status: complete
   created_at: '2026-08-18T15:57:34.554887+00:00'
   completed_at: '2026-08-18T16:18:07.422493+00:00'
+- id: INT-CI-004
+  title: 'CI red: duckdb fts extension missing on GH runner'
+  criteria:
+  - 'CI (run 32160011179-class) goes green: src/search/search-retr001.test.ts 18/18
+    passes on a fresh runner; rebuildNamespaceIndex explicitly INSTALLs fts before
+    LOAD (idempotent, mirrors src/duckdb/vss.ts); .github/workflows/ci.yml pre-installs
+    + caches ~/.duckdb/extensions; local suite unchanged 465/465; tsc --noEmit clean;
+    no test-count drift in AGENTS.md'
+  status: complete
+  created_at: '2026-08-18T17:34:33.180954+00:00'
+  completed_at: '2026-08-18T17:37:30.769097+00:00'
