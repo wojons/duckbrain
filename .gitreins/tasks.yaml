@@ -594,3 +594,12 @@ tasks:
   status: complete
   created_at: '2026-08-18T22:07:14.491156+00:00'
   completed_at: '2026-08-18T22:20:24.685292+00:00'
+- id: RETR-004
+  title: 'Memory-as-of git time travel (T-2): recall --as-of <date|commit>'
+  criteria:
+  - recall --as-of on a namespace with known history returns exactly the rows present
+    at that git ref (fixture-verified); current-state recall unchanged; full unit
+    suite + tsc green
+  status: complete
+  created_at: '2026-08-18T23:32:15.686379+00:00'
+  completed_at: '2026-08-18T23:48:35.831847+00:00'
