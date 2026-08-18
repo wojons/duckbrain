@@ -1,0 +1,77 @@
+{
+  "task_id": "RETR-005",
+  "task_title": "Recency-aware ordering (T-3)",
+  "task_criteria": [
+    "exact-key/glob listing returns newest-first by default; two equal-cosine fixtures rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier --check src/ clean"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m5:20PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11611499 bytes (11.61 MB) in 3.17s\u001b[0m\n\u001b[90m5:20PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m5:20PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11611499 bytes (11.61 MB) in 3.17s\u001b[0m\n\u001b[90m5:20PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 776\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 811\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 988\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 exact-key/glob listing returns newest-first by default; two equal-cosine fixtures rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier --check src/ clean: All three parts verified. (1) Newest-first listing: src/duckdb/queries.ts DEFAULT_ORDER_BY = 'ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC' applied to all listing legs, and src/mcp/tools/list_keys.ts orders distinct keys by MAX(try_cast(timestamp AS TIMESTAMP)) DESC; tests in src/duckdb/queries-recency-retr005.test.ts confirm exact-key and glob/keyPrefix return newest-first. (2) Equal-cosine recency in rankFused: src/embedding/search.ts breaks equal-score ties by recency (Date.parse DESC, id ASC) and src/search/fusion.ts rankFused comparator settles exact RRF ties by timestamp DESC; tests in src/search/fusion-retr002.test.ts ('equal-cosine fixtures keep newest first', 'fused exact ties resolve by recency') and src/embedding/search.test.ts ('equal-cosine candidates rank by recency \u2014 newest wins') pass. (3) Clean build: `npx vitest run` -> 68 files/546 tests passed (exit 0); `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 'All matched files use Prettier code style!'. Targeted run of the 3 RETR-005 test files: 3 files/47 tests passed.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 exact-key/glob listing returns newest-first by default; two equal-cosine fixtures rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier --check src/ clean: All three parts verified. (1) Newest-first listing: src/duckdb/queries.ts DEFAULT_ORDER_BY = 'ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC' applied to all listing legs, and src/mcp/tools/list_keys.ts orders distinct keys by MAX(try_cast(timestamp AS TIMESTAMP)) DESC; tests in src/du",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "exact-key/glob listing returns newest-first by default; two equal-cosine fixtures rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier --check src/ clean",
+                "status": "PASS",
+                "detail": "All three parts verified. (1) Newest-first listing: src/duckdb/queries.ts DEFAULT_ORDER_BY = 'ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC' applied to all listing legs, and src/mcp/tools/list_keys.ts orders distinct keys by MAX(try_cast(timestamp AS TIMESTAMP)) DESC; tests in src/duckdb/queries-recency-retr005.test.ts confirm exact-key and glob/keyPrefix return newest-first. (2) Equal-cosine recency in rankFused: src/embedding/search.ts breaks equal-score ties by recency (Date.parse DESC, id ASC) and src/search/fusion.ts rankFused comparator settles exact RRF ties by timestamp DESC; tests in src/search/fusion-retr002.test.ts ('equal-cosine fixtures keep newest first', 'fused exact ties resolve by recency') and src/embedding/search.test.ts ('equal-cosine candidates rank by recency \u2014 newest wins') pass. (3) Clean build: `npx vitest run` -> 68 files/546 tests passed (exit 0); `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 'All matched files use Prettier code style!'. Targeted run of the 3 RETR-005 test files: 3 files/47 tests passed."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-005\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m5:20PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11611499 bytes (11.61 MB) in 3.17s\u001b[0m\n\u001b[90m5:20PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 exact-key/glob listing returns newest-first by default; two equal-cosine fixtures rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier --check src/ clean: All three parts verified. (1) Newest-first listing: src/duckdb/queries.ts DEFAULT_ORDER_BY = 'ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC' applied to all listing legs, and src/mcp/tools/list_keys.ts orders distinct keys by MAX(try_cast(timestamp AS TIMESTAMP)) DESC; tests in src/duckdb/queries-recency-retr005.test.ts confirm exact-key and glob/keyPrefix return newest-first. (2) Equal-cosine recency in rankFused: src/embedding/search.ts breaks equal-score ties by recency (Date.parse DESC, id ASC) and src/search/fusion.ts rankFused comparator settles exact RRF ties by timestamp DESC; tests in src/search/fusion-retr002.test.ts ('equal-cosine fixtures keep newest first', 'fused exact ties resolve by recency') and src/embedding/search.test.ts ('equal-cosine candidates rank by recency \u2014 newest wins') pass. (3) Clean build: `npx vitest run` -> 68 files/546 tests passed (exit 0); `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 'All matched files use Prettier code style!'. Targeted run of the 3 RETR-005 test files: 3 files/47 tests passed.\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-18T22:22:42.453394"
+}

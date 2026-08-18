@@ -585,3 +585,12 @@ tasks:
   status: complete
   created_at: '2026-08-18T20:23:14.397919+00:00'
   completed_at: '2026-08-18T20:44:56.212110+00:00'
+- id: RETR-005
+  title: Recency-aware ordering (T-3)
+  criteria:
+  - exact-key/glob listing returns newest-first by default; two equal-cosine fixtures
+    rank by recency (newest wins) in rankFused; full suite + tsc --noEmit + prettier
+    --check src/ clean
+  status: complete
+  created_at: '2026-08-18T22:07:14.491156+00:00'
+  completed_at: '2026-08-18T22:20:24.685292+00:00'
