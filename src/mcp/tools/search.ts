@@ -3,8 +3,12 @@
  *
  * Keyword full-text search over a namespace's rebuilt FTS sidecar. This
  * is the CLI-facing wrapper for `duckbrain search`; the MCP server itself
- * exposes keyword search through the `recall` tool's `contains` param
- * (recall.ts). Pure offline — no embedding provider required.
+ * exposes search through the `recall` tool (`query` = HYBRID
+ * semantic+keyword since RETR-002, `contains` = keyword-only). This tool
+ * deliberately stays keyword-only: `duckbrain search` is the offline
+ * keyword surface and requires the rebuilt index (a missing index must
+ * error, not silently degrade to semantic results). Pure offline — no
+ * embedding provider required.
  */
 
 import { z } from "zod";

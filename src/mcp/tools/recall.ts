@@ -14,8 +14,13 @@ import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
-import { semanticSearch } from "../../embedding/search";
-import { keywordSearch } from "../../search/query";
+import { semanticSearch, type RankedMemory } from "../../embedding/search";
+import {
+  keywordSearch,
+  type KeywordHit,
+  type KeywordSearchResult,
+} from "../../search/query";
+import { rankFused, FUSION_TOP_K } from "../../search/fusion";
 import path from "path";
 import fs from "fs";
 
@@ -43,8 +48,8 @@ const RecallInputSchema = z.object({
     .describe("Semantic search query (uses vss extension)"),
   /** Keyword filter (full-text search over content/key/attributes via the
    *  rebuilt FTS sidecar — offline, no embedding provider needed). Use
-   *  EITHER query (semantic) or contains (keyword); hybrid fusion is
-   *  RETR-002. */
+   *  EITHER query (hybrid semantic+keyword since RETR-002) or contains
+   *  (keyword-only); combining both filters is not supported. */
   contains: z
     .string()
     .optional()
@@ -147,6 +152,96 @@ function withTimeout<T>(
   });
 }
 
+/** Parsed recall input shape (used by the semantic-leg helper). */
+type RecallInput = z.infer<typeof RecallInputSchema>;
+
+/**
+ * Run the SEMANTIC leg of ?q= (RETR-002): fetch the candidate pool from
+ * DuckDB (bounded, with the BUG-034 connection-lost retry) and rank it via
+ * semanticSearch against the cached/on-the-fly embedding vectors.
+ *
+ * Shared by the hybrid path (both legs available) and the semantic-only
+ * fallback (FTS sidecar missing), so the 0.25 floor (DOGFOOD-011), the
+ * DUCKBRAIN_SEARCH_MIN_SCORE knob, the on-the-fly embed cap and the
+ * SEMANTIC_TIMEOUT_MS bound behave identically in both modes.
+ *
+ * @throws with the legacy "Semantic search failed: …" message on any
+ *   failure (callers decide whether to surface it or degrade)
+ */
+async function runSemanticLeg(opts: {
+  namespacePath: string;
+  validated: RecallInput;
+  db: ReturnType<typeof getDuckDBConnection>;
+  partitionPaths: string[];
+  cache: EmbeddingCache;
+  provider: EmbeddingProvider;
+  queryVector: number[];
+  searchMinScore: number | undefined;
+}): Promise<{ ranked: RankedMemory[]; candidatesCount: number }> {
+  const {
+    namespacePath,
+    validated,
+    db,
+    partitionPaths,
+    cache,
+    provider,
+    queryVector,
+    searchMinScore,
+  } = opts;
+
+  // Fetch candidates WITHOUT the DuckDB embedding filter (that column
+  // doesn't exist in JSONL — vectors live in the gitignored cache).
+  // DOGFOOD-010: the pool is capped (MAX_CANDIDATES) and the whole
+  // fetch+rank is bounded by SEMANTIC_TIMEOUT_MS so a big namespace or a
+  // cold embedding cache returns a clean error instead of hanging.
+  const candidateFilters: Parameters<typeof queryMemories>[2] = {
+    limit: Math.min(Math.max(validated.limit * 10, 100), MAX_CANDIDATES),
+  };
+  if (validated.author) candidateFilters.author = validated.author;
+  if (validated.key) candidateFilters.key = validated.key;
+  else if (validated.id) candidateFilters.id = validated.id;
+  else if (validated.keyPrefix)
+    candidateFilters.keyPrefix = validated.keyPrefix;
+  else if (validated.domain) candidateFilters.domain = validated.domain;
+
+  const result = await withTimeout(
+    (async () => {
+      let cands: Awaited<ReturnType<typeof queryMemories>>;
+      try {
+        cands = await queryMemories(db, partitionPaths, candidateFilters);
+      } catch (e: any) {
+        if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
+          evictConnection(namespacePath);
+          const db2 = getDuckDBConnection("singleton", namespacePath);
+          cands = await queryMemories(db2, partitionPaths, candidateFilters);
+        } else {
+          throw e;
+        }
+      }
+      const rankedRes = await semanticSearch(
+        cands,
+        queryVector,
+        cache,
+        provider,
+        // DOGFOOD-010: bound on-the-fly embedding of cache misses.
+        // Each embed can take seconds (LM Studio ~2s on this host), so
+        // the default 50 would exceed the 30s budget on a cold cache.
+        // 10 keeps a cold-cache ?q= inside the timeout with real ranked
+        // results; warm caches rank the full candidate pool instantly.
+        // DOGFOOD-011: forward the relevance-floor override when set.
+        {
+          maxOnTheFlyEmbeds: 10,
+          ...(searchMinScore !== undefined ? { minScore: searchMinScore } : {}),
+        },
+      );
+      return { cands, rankedRes };
+    })(),
+    SEMANTIC_TIMEOUT_MS,
+    "Semantic search",
+  );
+  return { ranked: result.rankedRes, candidatesCount: result.cands.length };
+}
+
 /**
  * Recall tool handler
  *
@@ -196,7 +291,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         count: 0,
         namespace: resolvedNamespace,
         error:
-          "Use either 'query' (semantic) or 'contains' (keyword) — hybrid fusion is RETR-002",
+          "Use either 'query' (hybrid semantic+keyword fusion, RETR-002) or 'contains' (keyword-only) — combining both filters is not supported",
       };
     }
     try {
@@ -289,8 +384,20 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       return { memories: [], count: 0, total, namespace: resolvedNamespace };
     }
 
-    // Handle semantic search (cache-assisted, no vectors in git)
+    // Handle semantic search (cache-assisted, no vectors in git). RETR-002:
+    // ?q= is HYBRID by default — the keyword leg (rebuilt FTS sidecar) runs
+    // alongside the semantic leg and both are fused via Reciprocal Rank
+    // Fusion (src/search/fusion.ts: rrf_k=60, per-retriever top-k=20,
+    // recency tiebreak). Fallback ladder:
+    //   both legs available        → hybrid (fused scores)
+    //   keyword leg unavailable    → semantic-only (unchanged behavior +
+    //                                cosine scores — regression-safe)
+    //   semantic leg unavailable   → keyword-only (offline)
+    //   both unavailable           → the semantic leg's error (legacy
+    //                                DOGFOOD-001/002 contract — ?q= never
+    //                                silently returns an unfiltered list)
     if (validated.query) {
+      // ---- Semantic leg availability: providers + query vector. ----
       // DOGFOOD-002 (a): resolve ALL healthy providers in priority order and
       // fall back on embed failure. Reachability is not usability — LM
       // Studio's /v1/models answers even when the embedding model is unloaded
@@ -298,135 +405,193 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       // query fine. Explicit provider config stays a hard requirement (the
       // list has exactly one entry then — no fallback).
       const providers = await createAutoProviders();
-      if (providers.length === 0) {
-        return {
-          memories: [],
-          count: 0,
-          namespace: resolvedNamespace,
-          error:
-            "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'",
-        };
-      }
-
       let queryVector: number[] | null = null;
       const embedErrors: string[] = [];
       // The provider that actually produced the query vector — used for
       // on-the-fly candidate embeds in semanticSearch so a broken first
       // provider (the reason we fell back) is never used for those either.
       let provider: EmbeddingProvider | null = null;
-      for (const candidate of providers) {
-        try {
-          queryVector = await candidate.embed(validated.query);
-          if (queryVector.length === 0) {
-            // Defensive: providers must reject empty vectors themselves, but
-            // never let one through to cosineSimilarity (silent score-0).
-            throw new Error(`[${candidate.id}] empty embedding vector`);
+      // Legacy semantic error, surfaced ONLY when the keyword leg is also
+      // unavailable (both-fail contract, DOGFOOD-001/002).
+      let semanticError: string | null = null;
+      if (providers.length === 0) {
+        semanticError =
+          "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'";
+      } else {
+        for (const candidate of providers) {
+          try {
+            queryVector = await candidate.embed(validated.query);
+            if (queryVector.length === 0) {
+              // Defensive: providers must reject empty vectors themselves, but
+              // never let one through to cosineSimilarity (silent score-0).
+              throw new Error(`[${candidate.id}] empty embedding vector`);
+            }
+            provider = candidate;
+            break;
+          } catch (e) {
+            const msg = `${candidate.id}: ${e instanceof Error ? e.message : String(e)}`;
+            embedErrors.push(msg);
+            console.error(
+              `[recall] Embedding failed on ${candidate.id}, trying next provider: ${msg}`,
+            );
           }
-          provider = candidate;
-          break;
-        } catch (e) {
-          const msg = `${candidate.id}: ${e instanceof Error ? e.message : String(e)}`;
-          embedErrors.push(msg);
-          console.error(
-            `[recall] Embedding failed on ${candidate.id}, trying next provider: ${msg}`,
-          );
+        }
+        if (!queryVector || !provider) {
+          semanticError = `Embedding generation failed: ${embedErrors.join("; ") || "no provider available"}`;
         }
       }
-      if (!queryVector || !provider) {
-        return {
-          memories: [],
-          count: 0,
-          namespace: resolvedNamespace,
-          error: `Embedding generation failed: ${embedErrors.join("; ") || "no provider available"}`,
-        };
-      }
 
-      // Fetch candidates WITHOUT the DuckDB embedding filter (that column
-      // doesn't exist in JSONL — vectors live in the gitignored cache).
-      // DOGFOOD-010: the pool is capped (MAX_CANDIDATES) and the whole
-      // fetch+rank is bounded by SEMANTIC_TIMEOUT_MS so a big namespace or a
-      // cold embedding cache returns a clean error instead of hanging.
-      const cache = EmbeddingCache.forNamespace(namespacePath);
-      const candidateFilters: Parameters<typeof queryMemories>[2] = {
-        limit: Math.min(Math.max(validated.limit * 10, 100), MAX_CANDIDATES),
-      };
-      if (validated.author) candidateFilters.author = validated.author;
-      if (validated.key) candidateFilters.key = validated.key;
-      else if (validated.id) candidateFilters.id = validated.id;
-      else if (validated.keyPrefix)
-        candidateFilters.keyPrefix = validated.keyPrefix;
-      else if (validated.domain) candidateFilters.domain = validated.domain;
+      // ---- Keyword leg: rebuilt FTS sidecar (RETR-001). A missing index is
+      // NOT an error here — ?q= degrades to semantic-only; the failure is
+      // only surfaced when BOTH legs are unavailable.
+      let keywordResult: KeywordSearchResult | null = null;
+      try {
+        keywordResult = await keywordSearch(namespacePath, validated.query, {
+          // Fetch at least the fusion top-k; rankFused uses only its top 20,
+          // and the keyword-only fallback below slices to the requested limit.
+          limit: Math.max(FUSION_TOP_K, validated.limit),
+          maxCandidates: MAX_CANDIDATES,
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(
+          "[recall] Keyword leg unavailable for hybrid — degrading:",
+          msg,
+        );
+      }
 
       // DOGFOOD-011: resolve the relevance-floor override once (absent →
-      // semanticSearch's DEFAULT_MIN_SCORE = 0.25 applies inside).
+      // semanticSearch's DEFAULT_MIN_SCORE = 0.25 applies inside). Applies
+      // to the semantic leg in BOTH hybrid and semantic-only modes.
       const searchMinScore = resolveSearchMinScore();
 
-      let candidates: Awaited<ReturnType<typeof queryMemories>>;
-      let ranked: Awaited<ReturnType<typeof semanticSearch>>;
-      try {
-        const result = await withTimeout(
-          (async () => {
-            let cands: Awaited<ReturnType<typeof queryMemories>>;
-            try {
-              cands = await queryMemories(db, partitionPaths, candidateFilters);
-            } catch (e: any) {
-              if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
-                evictConnection(namespacePath);
-                const db2 = getDuckDBConnection("singleton", namespacePath);
-                cands = await queryMemories(
-                  db2,
-                  partitionPaths,
-                  candidateFilters,
-                );
-              } else {
-                throw e;
-              }
-            }
-            const rankedRes = await semanticSearch(
-              cands,
-              queryVector,
-              cache,
-              provider,
-              // DOGFOOD-010: bound on-the-fly embedding of cache misses.
-              // Each embed can take seconds (LM Studio ~2s on this host), so
-              // the default 50 would exceed the 30s budget on a cold cache.
-              // 10 keeps a cold-cache ?q= inside the timeout with real ranked
-              // results; warm caches rank the full candidate pool instantly.
-              // DOGFOOD-011: forward the relevance-floor override when set.
-              {
-                maxOnTheFlyEmbeds: 10,
-                ...(searchMinScore !== undefined
-                  ? { minScore: searchMinScore }
-                  : {}),
-              },
-            );
-            return { cands, rankedRes };
-          })(),
-          SEMANTIC_TIMEOUT_MS,
-          "Semantic search",
+      // ---- HYBRID: both legs available → RRF fusion. ----
+      if (queryVector && provider && keywordResult) {
+        const cache = EmbeddingCache.forNamespace(namespacePath);
+        let semanticRanked: RankedMemory[];
+        try {
+          const leg = await runSemanticLeg({
+            namespacePath,
+            validated,
+            db,
+            partitionPaths,
+            cache,
+            provider,
+            queryVector,
+            searchMinScore,
+          });
+          semanticRanked = leg.ranked;
+        } catch (e: any) {
+          // Semantic leg failed (timeout / embed crash) but the keyword leg
+          // works — degrade to keyword-only instead of failing the request.
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(
+            "[recall] Semantic leg failed in hybrid mode — degrading to keyword-only:",
+            msg,
+          );
+          const top = keywordResult.memories.slice(0, validated.limit);
+          return {
+            memories: top,
+            count: top.length,
+            total: keywordResult.total,
+            namespace: resolvedNamespace,
+          };
+        }
+
+        // Fusion takes each retriever's own ranking order; rankFused caps
+        // each at FUSION_TOP_K and applies the recency tiebreak.
+        const fused = rankFused<RankedMemory | KeywordHit>([
+          semanticRanked.slice(0, FUSION_TOP_K),
+          keywordResult.memories.slice(0, FUSION_TOP_K),
+        ]);
+        const keywordById = new Map(
+          keywordResult.memories.map((m) => [m.id, m]),
         );
-        candidates = result.cands;
-        ranked = result.rankedRes;
-      } catch (e: any) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error("[recall] Semantic search failed:", msg);
+        const top = fused.slice(0, validated.limit).map(({ item, score }) => {
+          const kw = keywordById.get(item.id);
+          return {
+            ...item,
+            // RETR-001: the keyword leg's snippet rides along when it found
+            // the document (absent for semantic-only candidates).
+            ...(kw && kw.snippet !== undefined ? { snippet: kw.snippet } : {}),
+            // RETR-002: fused RRF score (normalized 0..1) — NOT the raw
+            // cosine similarity or BM25 score.
+            score,
+          };
+        });
         return {
-          memories: [],
-          count: 0,
+          memories: top,
+          count: top.length,
+          // GAP-024: the fused candidate pool — the union of both legs'
+          // top-k contributions (≤ 2 × FUSION_TOP_K).
+          total: fused.length,
           namespace: resolvedNamespace,
-          error: `Semantic search failed: ${msg}`,
         };
       }
 
-      const top = ranked.slice(0, validated.limit);
-      // GAP-024: for ?q=, total reflects the candidate pool the semantic
-      // search actually ranked (bounded by max(limit*10, 100)), not the full
-      // namespace count — semantic results are ranked, not enumerated.
+      // ---- SEMANTIC-ONLY: keyword leg unavailable — unchanged behavior and
+      // score shape (cosine similarity, 0.25 floor, candidates-pool total).
+      if (queryVector && provider) {
+        const cache = EmbeddingCache.forNamespace(namespacePath);
+        let leg: { ranked: RankedMemory[]; candidatesCount: number };
+        try {
+          leg = await runSemanticLeg({
+            namespacePath,
+            validated,
+            db,
+            partitionPaths,
+            cache,
+            provider,
+            queryVector,
+            searchMinScore,
+          });
+        } catch (e: any) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[recall] Semantic search failed:", msg);
+          return {
+            memories: [],
+            count: 0,
+            namespace: resolvedNamespace,
+            error: `Semantic search failed: ${msg}`,
+          };
+        }
+
+        const top = leg.ranked.slice(0, validated.limit);
+        // GAP-024: for ?q=, total reflects the candidate pool the semantic
+        // search actually ranked (bounded by max(limit*10, 100)), not the
+        // full namespace count — semantic results are ranked, not enumerated.
+        return {
+          memories: top,
+          count: top.length,
+          total: leg.candidatesCount,
+          namespace: resolvedNamespace,
+        };
+      }
+
+      // ---- KEYWORD-ONLY: embeddings unavailable (no providers / embed
+      // failure) but the FTS sidecar works — offline fallback (RETR-002).
+      if (keywordResult) {
+        const top = keywordResult.memories.slice(0, validated.limit);
+        return {
+          memories: top,
+          count: top.length,
+          // GAP-024: the full ranked keyword match set (bounded by
+          // MAX_CANDIDATES), unlimited by limit.
+          total: keywordResult.total,
+          namespace: resolvedNamespace,
+        };
+      }
+
+      // ---- Both legs unavailable: surface the semantic leg's error
+      // (DOGFOOD-001/002 legacy contract) so ?q= never silently returns an
+      // unfiltered list.
       return {
-        memories: top,
-        count: top.length,
-        total: candidates.length,
+        memories: [],
+        count: 0,
         namespace: resolvedNamespace,
+        error:
+          semanticError ??
+          "Search failed: neither the semantic nor the keyword search backend is available",
       };
     }
 
