@@ -643,3 +643,14 @@ tasks:
   status: complete
   created_at: '2026-08-19T05:48:58.279980+00:00'
   completed_at: '2026-08-19T05:59:48.777567+00:00'
+- id: RETR-009
+  title: SQL query surface + saved templates (Q-6 + T-6)
+  criteria:
+  - duckbrain query "SELECT ..." executes read-only over read_json_auto, namespace-scoped,
+    LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible);
+    saved templates (incidents-by-day, per-project status, cost series) return correct
+    results on live namespaces; full unit suite + tsc --noEmit + prettier --check
+    src/ clean; AGENTS.md suite counts synced
+  status: complete
+  created_at: '2026-08-19T08:11:47.877657+00:00'
+  completed_at: '2026-08-19T08:28:38.678031+00:00'
