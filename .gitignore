@@ -6,7 +6,9 @@ dist/
 
 # Runtime data
 .duckbrain/
-namespaces/
+# Root-anchored: the runtime namespace storage dir (./namespaces/). Source
+# code under src/namespaces/ (DB-GAP-032 shared deletion core) IS tracked.
+/namespaces/
 
 # Planning/debug (local only)
 .planning/debug/

@@ -514,6 +514,42 @@ Switch the active namespace.
 }
 ```
 
+#### `DELETE /api/namespaces/:name`
+
+Delete a namespace: removes the namespace directory recursively (current.jsonl, `.git`, `.embeddings` — everything) and unregisters it from the config. Same guarded deletion core as the MCP `delete_namespace` tool (DOGFOOD-004).
+
+**Request body** — explicit confirmation is REQUIRED:
+
+```json
+{
+  "confirm": true
+}
+```
+
+Anything other than exactly `true` is rejected with 400 `VALIDATION_ERROR` and nothing is removed.
+
+**Behavior:**
+- 200 — namespace deleted (`path` in the response is the removed directory).
+- 400 `VALIDATION_ERROR` — `confirm` missing/not `true`; invalid namespace name; attempting to delete the `default` namespace or the currently-active namespace; a config mapping resolving outside the namespaces root is refused.
+- 404 `NOT_FOUND` — namespace has no mapping (idempotent: deleting an already-deleted namespace is a clean 404, deleting twice is safe).
+
+**Example:**
+
+```bash
+curl -X DELETE http://localhost:3000/api/namespaces/orphaned-ns \
+  -H "Content-Type: application/json" \
+  -d '{"confirm": true}'
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "path": "./namespaces/orphaned-ns"
+}
+```
+
 ---
 
 ### Events (SSE)
