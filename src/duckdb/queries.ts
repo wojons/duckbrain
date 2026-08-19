@@ -19,8 +19,13 @@ import { safeJsonStringify, deepConvertBigInts } from "../utils/serialize";
  *
  * @param structStr - The STRUCT format string from DuckDB
  * @returns Parsed JavaScript object
+ *
+ * Exported so the RETR-009 read-only query surface shapes its rows with the
+ * exact same semantics as queryMemories (attributes is VARCHAR raw JSON text
+ * under the all-VARCHAR columns override; JSON.parse collapses RFC 8259
+ * duplicate keys to the last value).
  */
-function parseDuckDBStruct(structStr: string): Record<string, unknown> {
+export function parseDuckDBStruct(structStr: string): Record<string, unknown> {
   if (!structStr || typeof structStr !== "string") {
     return {};
   }

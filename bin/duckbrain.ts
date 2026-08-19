@@ -65,6 +65,7 @@ Commands:
   ssh-connect        Connect to remote DuckBrain via SSH tunnel
   servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
+  query              Read-only SQL over a namespace (SELECT ... or --template)
   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
   s3                 Native S3 sync/query (status|sync|query|config)
   help               Show this help
@@ -109,6 +110,8 @@ Examples:
   duckbrain --socket=prod status
   duckbrain servers list
   duckbrain servers add --name=prod --host=user@server
+  duckbrain query "SELECT key, timestamp FROM memories WHERE key LIKE '/projects/%'"
+  duckbrain query --template cost-series
 `.trim(),
   );
 }
@@ -366,6 +369,7 @@ async function main() {
       case "ssh-test":
       case "ssh-connect":
       case "servers":
+      case "query":
       case "s3":
         await runHumanCLI(command, commandArgs);
         break;
