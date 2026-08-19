@@ -34,6 +34,9 @@ export interface IndexRow {
   search_text: string;
   /** BM25 score from the FTS query (absent for LIKE-only candidates) */
   bm25?: number;
+  /** Source namespace of the row (RETR-007) — set by the search query
+   *  paths so the response facet is explicit, never inferred from the key. */
+  namespace?: string;
 }
 
 export interface RankedHit {

@@ -12,7 +12,12 @@
 import path from "path";
 import fs from "fs";
 import { Database } from "duckdb";
-import { indexDbPath, SearchIndexMissingError, DB_CONFIG } from "./index";
+import {
+  indexDbPath,
+  SearchIndexMissingError,
+  DB_CONFIG,
+  listNamespaces,
+} from "./index";
 import { mapDigits, splitQuery } from "./transform";
 import { dropStopwords, rankKeywordResults, type IndexRow } from "./rank";
 import {
@@ -36,12 +41,22 @@ export interface KeywordHit {
   score: number;
   /** Snippet around the first matched token */
   snippet: string;
+  /** Source namespace of this hit (RETR-007) — an explicit facet, never
+   *  inferred from the key. Single-namespace searches carry the searched
+   *  namespace; all-namespaces unions carry each hit's own namespace. */
+  namespace: string;
 }
 
 export interface KeywordSearchResult {
   memories: KeywordHit[];
   /** True total of matches, unlimited by limit (bounded by MAX_KEYWORD_CANDIDATES) */
   total: number;
+  /** RETR-007: namespaces that contributed candidates (all-namespaces
+   *  union only; absent on single-namespace results) */
+  namespacesSearched?: string[];
+  /** RETR-007: namespaces skipped because they have no rebuilt index
+   *  (all-namespaces union only; absent on single-namespace results) */
+  namespacesSkipped?: string[];
 }
 
 export interface KeywordSearchOptions {
@@ -58,6 +73,9 @@ export interface KeywordSearchOptions {
   /** RETR-006: only rows whose `attributes` JSON contains name → value
    *  (exact match, json_extract_string semantics). */
   attr?: Record<string, string>;
+  /** RETR-007: restrict the all-namespaces union to these namespace names
+   *  (default: every manifest namespace under the namespaces root). */
+  namespaces?: string[];
 }
 
 function escapeSqlLiteral(s: string): string {
@@ -109,20 +127,19 @@ function parseAttributes(raw: string): Record<string, unknown> {
 }
 
 /**
- * Run a keyword search against a namespace's rebuilt FTS sidecar.
+ * Collect the keyword candidate rows for one namespace's FTS sidecar
+ * (RETR-001; factored out of keywordSearch for the RETR-007 union).
  *
- * @param namespacePath absolute path to the namespace
- * @param rawQuery the raw search string (trailing `*` = prefix on last token)
- * @param opts limit / candidate cap
- * @throws SearchIndexMissingError when the sidecar has not been rebuilt
+ * Runs the BM25 pass (AND semantics with OR fallback) plus the raw-text
+ * LIKE prefix pass, applying the same time/attr window clauses as the
+ * recall legs. Rows carry their source namespace (row.namespace) so a
+ * cross-namespace union ranks with an explicit facet.
  */
-export async function keywordSearch(
+async function collectKeywordCandidates(
   namespacePath: string,
-  rawQuery: string,
-  opts: KeywordSearchOptions = {},
-): Promise<KeywordSearchResult> {
-  const query = rawQuery.trim();
-  const limit = opts.limit ?? 10;
+  query: string,
+  opts: KeywordSearchOptions,
+): Promise<IndexRow[]> {
   const maxCandidates = opts.maxCandidates ?? MAX_KEYWORD_CANDIDATES;
   const namespace = path.basename(namespacePath);
 
@@ -190,14 +207,36 @@ export async function keywordSearch(
     await closeAsync(db);
   }
 
+  for (const row of candidates.values()) {
+    row.namespace = namespace;
+  }
+  return [...candidates.values()];
+}
+
+/**
+ * Run a keyword search against a namespace's rebuilt FTS sidecar.
+ *
+ * @param namespacePath absolute path to the namespace
+ * @param rawQuery the raw search string (trailing `*` = prefix on last token)
+ * @param opts limit / candidate cap
+ * @throws SearchIndexMissingError when the sidecar has not been rebuilt
+ */
+export async function keywordSearch(
+  namespacePath: string,
+  rawQuery: string,
+  opts: KeywordSearchOptions = {},
+): Promise<KeywordSearchResult> {
+  const query = rawQuery.trim();
+  const limit = opts.limit ?? 10;
+  const namespace = path.basename(namespacePath);
+
+  const rows = await collectKeywordCandidates(namespacePath, query, opts);
+
   // Rank: exact-literal → all-tokens → any-token, then BM25, then recency.
   const body = query.endsWith("*") ? query.slice(0, -1).trimEnd() : query;
-  const ranked = rankKeywordResults(
-    [...candidates.values()],
-    body,
-    kept,
-    prefix,
-  );
+  const { tokens, prefix } = splitQuery(query);
+  const kept = dropStopwords(tokens);
+  const ranked = rankKeywordResults(rows, body, kept, prefix);
 
   const total = ranked.length;
   const top = limit > 0 ? ranked.slice(0, limit) : [];
@@ -212,7 +251,108 @@ export async function keywordSearch(
     attributes: parseAttributes(hit.row.attributes),
     score: hit.score,
     snippet: hit.snippet,
+    namespace: hit.row.namespace ?? namespace,
   }));
 
   return { memories, total };
+}
+
+/**
+ * RETR-007: cross-namespace keyword search (Q-4).
+ *
+ * Unions the keyword candidate sets of every manifest namespace under the
+ * namespaces root (or the explicitly requested subset) and ranks the
+ * combined pool ONCE with the same tier → BM25 → recency ordering as a
+ * single-namespace search, so equal-tier hits from different namespaces
+ * compete by score and recency — never by namespace. Each returned hit
+ * carries an explicit `namespace` facet identifying its source.
+ *
+ * Namespaces without a rebuilt index are skipped (reported via
+ * namespacesSkipped) — a partial union beats a hard failure when some
+ * sidecars are stale — but when NO namespace has an index the rebuild-hint
+ * error is thrown, preserving the single-namespace contract that a missing
+ * index must error rather than silently return nothing.
+ *
+ * @param namespacesRoot absolute path to the namespaces root (config
+ *   namespacesPath)
+ * @param rawQuery the raw search string (trailing `*` = prefix on last token)
+ */
+export async function keywordSearchAllNamespaces(
+  namespacesRoot: string,
+  rawQuery: string,
+  opts: KeywordSearchOptions = {},
+): Promise<KeywordSearchResult> {
+  const query = rawQuery.trim();
+  const limit = opts.limit ?? 10;
+  const nsNames = opts.namespaces ?? listNamespaces(namespacesRoot);
+
+  if (nsNames.length === 0) {
+    return {
+      memories: [],
+      total: 0,
+      namespacesSearched: [],
+      namespacesSkipped: [],
+    };
+  }
+
+  const searched: string[] = [];
+  const skipped: string[] = [];
+  const rows: IndexRow[] = [];
+  for (const ns of nsNames) {
+    try {
+      rows.push(
+        ...(await collectKeywordCandidates(
+          path.join(namespacesRoot, ns),
+          query,
+          opts,
+        )),
+      );
+      searched.push(ns);
+    } catch (error) {
+      // A namespace without a rebuilt index is skipped, not fatal — but
+      // any other failure (corrupt sidecar, IO error) stays loud.
+      if (error instanceof SearchIndexMissingError) {
+        skipped.push(ns);
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (searched.length === 0) {
+    // No namespace was searchable — surface the rebuild hint instead of a
+    // silently-empty union.
+    const first = nsNames[0];
+    throw new SearchIndexMissingError(first, path.join(namespacesRoot, first));
+  }
+
+  // Rank the union once with the same ordering a single-namespace search
+  // uses: exact-literal → all-tokens → any-token, then BM25, then recency.
+  const body = query.endsWith("*") ? query.slice(0, -1).trimEnd() : query;
+  const { tokens, prefix } = splitQuery(query);
+  const kept = dropStopwords(tokens);
+  const ranked = rankKeywordResults(rows, body, kept, prefix);
+
+  const total = ranked.length;
+  const top = limit > 0 ? ranked.slice(0, limit) : [];
+  const memories: KeywordHit[] = top.map((hit) => ({
+    id: hit.row.id,
+    key: hit.row.key,
+    domain: hit.row.domain,
+    timestamp: hit.row.timestamp,
+    author: hit.row.author,
+    action: hit.row.action,
+    embedding_text: hit.row.embedding_text,
+    attributes: parseAttributes(hit.row.attributes),
+    score: hit.score,
+    snippet: hit.snippet,
+    namespace: hit.row.namespace ?? "",
+  }));
+
+  return {
+    memories,
+    total,
+    namespacesSearched: searched,
+    namespacesSkipped: skipped,
+  };
 }

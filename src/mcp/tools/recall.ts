@@ -17,9 +17,11 @@ import type { EmbeddingProvider } from "../../embedding/providers";
 import { semanticSearch, type RankedMemory } from "../../embedding/search";
 import {
   keywordSearch,
+  keywordSearchAllNamespaces,
   type KeywordHit,
   type KeywordSearchResult,
 } from "../../search/query";
+import { getConfig } from "../../config/index";
 import { rankFused, FUSION_TOP_K } from "../../search/fusion";
 import {
   parseTimeRange,
@@ -69,8 +71,19 @@ const RecallInputSchema = z.object({
   limit: z.number().default(10).describe("Max results to return"),
   /** Namespace to query (defaults to the ACTIVE namespace — config
    *  defaultNamespace, which switch_namespace persists and is therefore
-   *  sticky across processes; see docs/api/mcp-tools.md) */
+   *  sticky across processes; see docs/api/mcp-tools.md). Mutually
+   *  exclusive with allNamespaces. */
   namespace: z.string().optional().describe("Namespace to query"),
+  /** RETR-007: cross-namespace keyword search (Q-4) — with contains=,
+   *  union keyword hits over every manifest namespace and return each hit
+   *  with a `namespace` facet. Mutually exclusive with namespace, and
+   *  meaningless without contains (plain recall stays single-namespace). */
+  allNamespaces: z
+    .boolean()
+    .optional()
+    .describe(
+      "With contains=: search every namespace and union the keyword hits (each carries a namespace facet)",
+    ),
   /** RETR-003: time-scoped recall — include only rows at or after this
    *  ISO-8601 instant (inclusive; date-only values mean the start of that
    *  day, UTC). Matches both the row timestamp and chat-archive key date
@@ -139,6 +152,10 @@ interface RecallOutput {
     score?: number;
     /** Snippet around the first matched token — present only on the keyword contains= path (RETR-001) */
     snippet?: string;
+    /** Source namespace — present on keyword contains= hits (RETR-007);
+     *  the searched namespace for single-namespace searches, each hit's
+     *  own namespace for all-namespaces unions */
+    namespace?: string;
   }>;
   count: number;
   /** True total of matching memories, unlimited by limit/offset (GAP-024) */
@@ -358,8 +375,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   const resolvedNamespace = resolveNamespaceName(validated.namespace);
   const namespacePath = resolveNamespacePath(resolvedNamespace);
 
-  // Check if namespace exists
-  if (!fs.existsSync(namespacePath)) {
+  // Check if namespace exists (skipped for RETR-007 all-namespaces unions —
+  // the union enumerates manifest namespaces itself and never needs the
+  // default namespace path to exist).
+  if (!validated.allNamespaces && !fs.existsSync(namespacePath)) {
     return {
       memories: [],
       count: 0,
@@ -454,6 +473,18 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     };
   }
 
+  // RETR-007: the union flag only scopes keyword search — without contains
+  // it has nothing to union, so the contradiction is loud.
+  if (validated.allNamespaces && !validated.contains) {
+    return {
+      memories: [],
+      count: 0,
+      namespace: "all",
+      error:
+        "allNamespaces only applies to keyword search — combine it with 'contains' (plain recall is single-namespace)",
+    };
+  }
+
   // RETR-001: keyword filter path (offline — no embedding provider).
   // Runs against the rebuilt FTS sidecar; a missing index surfaces as a
   // clear error telling the operator to rebuild.
@@ -467,33 +498,52 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           "Use either 'query' (hybrid semantic+keyword fusion, RETR-002) or 'contains' (keyword-only) — combining both filters is not supported",
       };
     }
+    if (validated.allNamespaces && validated.namespace) {
+      return {
+        memories: [],
+        count: 0,
+        namespace: "all",
+        error:
+          "allNamespaces cannot be combined with a specific namespace — omit namespace for a cross-namespace search",
+      };
+    }
     try {
-      const keywordResult = await keywordSearch(
-        namespacePath,
-        validated.contains,
-        {
-          limit: validated.limit,
-          maxCandidates: MAX_CANDIDATES,
-          // RETR-003: window the keyword candidate pool too.
-          ...(timeRange.after ? { after: timeRange.after } : {}),
-          ...(timeRange.before ? { before: timeRange.before } : {}),
-          // RETR-006: attr-scope the keyword candidate pool too.
-          ...(validated.attr ? { attr: validated.attr } : {}),
-        },
-      );
+      const keywordResult = validated.allNamespaces
+        ? await keywordSearchAllNamespaces(
+            getConfig(".").namespacesPath || "./namespaces",
+            validated.contains,
+            {
+              limit: validated.limit,
+              maxCandidates: MAX_CANDIDATES,
+              // RETR-003: window the keyword candidate pool too.
+              ...(timeRange.after ? { after: timeRange.after } : {}),
+              ...(timeRange.before ? { before: timeRange.before } : {}),
+              // RETR-006: attr-scope the keyword candidate pool too.
+              ...(validated.attr ? { attr: validated.attr } : {}),
+            },
+          )
+        : await keywordSearch(namespacePath, validated.contains, {
+            limit: validated.limit,
+            maxCandidates: MAX_CANDIDATES,
+            // RETR-003: window the keyword candidate pool too.
+            ...(timeRange.after ? { after: timeRange.after } : {}),
+            ...(timeRange.before ? { before: timeRange.before } : {}),
+            // RETR-006: attr-scope the keyword candidate pool too.
+            ...(validated.attr ? { attr: validated.attr } : {}),
+          });
       return {
         memories: keywordResult.memories,
         count: keywordResult.memories.length,
         // GAP-024: total = the full ranked match set (bounded by
         // MAX_CANDIDATES), unlimited by limit/offset.
         total: keywordResult.total,
-        namespace: resolvedNamespace,
+        namespace: validated.allNamespaces ? "all" : resolvedNamespace,
       };
     } catch (error) {
       return {
         memories: [],
         count: 0,
-        namespace: resolvedNamespace,
+        namespace: validated.allNamespaces ? "all" : resolvedNamespace,
         error: `Keyword search failed: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,

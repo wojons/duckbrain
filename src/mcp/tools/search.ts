@@ -15,18 +15,30 @@ import { z } from "zod";
 import fs from "fs";
 import {
   keywordSearch,
+  keywordSearchAllNamespaces,
   MAX_KEYWORD_CANDIDATES,
   type KeywordHit,
 } from "../../search/query";
+import { getConfig } from "../../config/index";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 
 const SearchInputSchema = z.object({
   /** Keyword query — tokens must appear in content/key/attributes */
   query: z.string().min(1).describe("Keyword search query (full-text)"),
-  /** Namespace to search (defaults to the ACTIVE namespace) */
+  /** Namespace to search (defaults to the ACTIVE namespace). Mutually
+   *  exclusive with allNamespaces. */
   namespace: z.string().optional().describe("Namespace to search"),
   /** Max results to return */
   limit: z.number().default(10).describe("Max results to return"),
+  /** RETR-007: search every manifest namespace and union the ranked hits.
+   *  Results carry a `namespace` facet identifying each hit's source.
+   *  Mutually exclusive with namespace. */
+  allNamespaces: z
+    .boolean()
+    .optional()
+    .describe(
+      "Cross-namespace search: union keyword hits over every namespace with a rebuilt index",
+    ),
 });
 
 export interface SearchOutput {
@@ -34,8 +46,13 @@ export interface SearchOutput {
   count: number;
   /** True total of matches, unlimited by limit (bounded by the candidate cap) */
   total: number;
-  /** Namespace actually searched (resolved, including when omitted) */
+  /** Namespace actually searched (resolved, including when omitted); "all"
+   *  for an all-namespaces union */
   namespace: string;
+  /** RETR-007: namespaces that contributed candidates (all-namespaces union) */
+  namespacesSearched?: string[];
+  /** RETR-007: namespaces skipped — no rebuilt index (all-namespaces union) */
+  namespacesSkipped?: string[];
   error?: string;
 }
 
@@ -60,10 +77,24 @@ export async function searchTool(input: unknown): Promise<SearchOutput> {
   }
 
   const validated = parseResult.data;
-  const resolvedNamespace = resolveNamespaceName(validated.namespace);
-  const namespacePath = resolveNamespacePath(resolvedNamespace);
 
-  if (!fs.existsSync(namespacePath)) {
+  // RETR-007: cross-namespace union — namespace is mutually exclusive with
+  // the union flag (loud error, mirroring recall's query+contains rule).
+  if (validated.allNamespaces && validated.namespace) {
+    return {
+      memories: [],
+      count: 0,
+      total: 0,
+      namespace: "all",
+      error:
+        "allNamespaces cannot be combined with a specific namespace — omit namespace for a cross-namespace search",
+    };
+  }
+
+  const resolvedNamespace = resolveNamespaceName(validated.namespace);
+  const namespacePath = resolveNamespacePath(validated.namespace);
+
+  if (!validated.allNamespaces && !fs.existsSync(namespacePath)) {
     return {
       memories: [],
       count: 0,
@@ -74,22 +105,37 @@ export async function searchTool(input: unknown): Promise<SearchOutput> {
   }
 
   try {
-    const result = await keywordSearch(namespacePath, validated.query, {
-      limit: validated.limit,
-      maxCandidates: MAX_KEYWORD_CANDIDATES,
-    });
+    const result = validated.allNamespaces
+      ? await keywordSearchAllNamespaces(
+          getConfig(".").namespacesPath || "./namespaces",
+          validated.query,
+          {
+            limit: validated.limit,
+            maxCandidates: MAX_KEYWORD_CANDIDATES,
+          },
+        )
+      : await keywordSearch(namespacePath, validated.query, {
+          limit: validated.limit,
+          maxCandidates: MAX_KEYWORD_CANDIDATES,
+        });
     return {
       memories: result.memories,
       count: result.memories.length,
       total: result.total,
-      namespace: resolvedNamespace,
+      namespace: validated.allNamespaces ? "all" : resolvedNamespace,
+      ...(result.namespacesSearched
+        ? { namespacesSearched: result.namespacesSearched }
+        : {}),
+      ...(result.namespacesSkipped
+        ? { namespacesSkipped: result.namespacesSkipped }
+        : {}),
     };
   } catch (error) {
     return {
       memories: [],
       count: 0,
       total: 0,
-      namespace: resolvedNamespace,
+      namespace: validated.allNamespaces ? "all" : resolvedNamespace,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }

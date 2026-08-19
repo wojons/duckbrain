@@ -452,12 +452,19 @@ async function searchCommand(args: string[]): Promise<void> {
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
     );
+    console.log(
+      "  --all-namespaces   Cross-namespace search (RETR-007): union keyword hits over every",
+    );
+    console.log(
+      "                     namespace with a rebuilt index; each hit shows its source namespace",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log("  --help, -h         Show this help message");
     console.log("");
     console.log("Examples:");
     console.log('  duckbrain search "GAP-020"');
     console.log('  duckbrain search "GAP-02*" --namespace=default --limit=20');
+    console.log('  duckbrain search "S3" --all-namespaces --limit=20');
     return;
   }
 
@@ -467,20 +474,25 @@ async function searchCommand(args: string[]): Promise<void> {
   if (!query) {
     console.error("Error: search requires a query");
     console.error(
-      "Usage: duckbrain search <query> [--namespace=<name>] [--limit=<n>]",
+      "Usage: duckbrain search <query> [--namespace=<name>|--all-namespaces] [--limit=<n>]",
     );
     process.exit(1);
   }
 
   const limit = parseInt(flags.limit) || 10;
-  const namespace = flags.namespace || getDefaultNamespace();
+  // RETR-007: --all-namespaces unions over every manifest namespace.
+  // Mutually exclusive with --namespace (the tool rejects the pair, so
+  // the flag simply wins the input construction here).
+  const allNamespaces = flags["all-namespaces"] === "true";
 
   try {
-    const result = await searchTool({
-      query,
-      namespace,
-      limit,
-    });
+    const result = allNamespaces
+      ? await searchTool({ query, limit, allNamespaces: true })
+      : await searchTool({
+          query,
+          namespace: flags.namespace || getDefaultNamespace(),
+          limit,
+        });
 
     if (result.error) {
       console.error(`✗ ${result.error}`);
@@ -496,12 +508,20 @@ async function searchCommand(args: string[]): Promise<void> {
       for (const memory of result.memories) {
         console.log("");
         console.log(
-          `=== ${memory.key} [${memory.domain} · ${memory.timestamp}] (score ${memory.score.toFixed(4)}) ===`,
+          `=== ${memory.key} [${memory.domain} · ${memory.timestamp}] (score ${memory.score.toFixed(4)})${allNamespaces ? ` [ns: ${memory.namespace}]` : ""} ===`,
         );
         console.log(memory.snippet);
       }
     } else {
       console.log("No memories found");
+    }
+
+    // RETR-007: a union that skipped index-less namespaces is partial —
+    // say so on stderr so operators know to rebuild before trusting it.
+    if (result.namespacesSkipped && result.namespacesSkipped.length > 0) {
+      console.error(
+        `Note: skipped ${result.namespacesSkipped.length} namespace(s) with no search index: ${result.namespacesSkipped.join(", ")} — run 'duckbrain search-index rebuild' to include them`,
+      );
     }
   } catch (error) {
     console.error("Error:", error instanceof Error ? error.message : error);

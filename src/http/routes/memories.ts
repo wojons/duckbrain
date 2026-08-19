@@ -94,6 +94,12 @@ function transformMemory(memory: any): MemoryResponse {
     // RETR-001: keyword ?contains= results carry a snippet around the
     // first matched token; other paths have none.
     ...(typeof memory.snippet === "string" ? { snippet: memory.snippet } : {}),
+    // RETR-007: keyword hits carry their source namespace (single-namespace
+    // requests: the searched namespace; ?allNamespaces=true unions: each
+    // hit's own).
+    ...(typeof memory.namespace === "string"
+      ? { namespace: memory.namespace }
+      : {}),
   };
 }
 
@@ -116,6 +122,9 @@ router.get(
       // RETR-001: keyword filter — full-text search over content/key/
       // attributes via the rebuilt FTS sidecar (offline).
       contains: req.query.contains as string | undefined,
+      // RETR-007: cross-namespace keyword search — ?allNamespaces=true unions
+      // keyword hits over every manifest namespace.
+      allNamespaces: req.query.allNamespaces === "true",
       // RETR-003: time-scoped recall — ISO-8601 bounds (validated below so
       // invalid dates surface as a clean 400, not a recallTool 500).
       after: req.query.after as string | undefined,
@@ -134,6 +143,19 @@ router.get(
     for (const [key, value] of Object.entries(req.query)) {
       if (key.startsWith("attr.") && typeof value === "string") {
         attr[key.slice("attr.".length)] = value;
+      }
+    }
+
+    // RETR-007: ?allNamespaces=true spans EVERY manifest namespace — a
+    // scoped token's per-namespace grant cannot cover that, so only
+    // unrestricted principals may use the flag (auth=none passes through).
+    if (params.allNamespaces) {
+      const principal = getPrincipal(req);
+      if (principal && principal.namespaces !== undefined) {
+        throw new ApiError(
+          `Forbidden: token '${principal.name}' has no grant for cross-namespace search — ?allNamespaces=true requires an unrestricted token`,
+          403,
+        );
       }
     }
 
@@ -179,7 +201,12 @@ router.get(
       // — recallTool short-circuits to a count-only result (GAP-024).
       limit: params.limit! > 0 ? params.limit! + 1 : 0,
       domain: params.domain,
-      namespace: params.namespace,
+      // RETR-007: ?allNamespaces=true unions over every manifest namespace
+      // — recallTool rejects namespace+allNamespaces together, so the
+      // scoped param is omitted when the union flag is set.
+      ...(params.allNamespaces
+        ? { allNamespaces: true }
+        : { namespace: params.namespace }),
       // Author is applied in SQL (via recallTool) so the true total
       // reflects it (GAP-024).
       ...(params.author ? { author: params.author } : {}),

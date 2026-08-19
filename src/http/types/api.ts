@@ -38,6 +38,12 @@ export interface MemoryResponse {
    * ?contains= responses (RETR-001)
    */
   snippet?: string;
+  /**
+   * Source namespace — present on keyword ?contains= hits (RETR-007): the
+   * searched namespace for single-namespace requests, each hit's own
+   * namespace for ?allNamespaces=true unions
+   */
+  namespace?: string;
 }
 
 /**
@@ -120,6 +126,10 @@ export interface QueryParams {
   query?: string;
   /** Keyword filter (full-text search over content/key/attributes) */
   contains?: string;
+  /** RETR-007: cross-namespace search — with contains=, union keyword hits
+   *  over every manifest namespace (each hit carries a namespace facet).
+   *  Mutually exclusive with namespace. */
+  allNamespaces?: boolean;
   /** RETR-003: only rows at or after this ISO-8601 instant (timestamp or
    *  chat-archive key date facet) */
   after?: string;
