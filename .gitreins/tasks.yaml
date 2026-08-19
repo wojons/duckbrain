@@ -664,3 +664,13 @@ tasks:
   status: complete
   created_at: '2026-08-19T10:24:58.568385+00:00'
   completed_at: '2026-08-19T10:33:23.916718+00:00'
+- id: DB-GAP-032
+  title: "REST DELETE /api/namespaces/:name with confirm guard \u2014 mirror MCP delete_namespace"
+  criteria:
+  - DELETE /api/namespaces/:name with {"confirm":true} body returns 200 and removes
+    the namespace dir + git repo (path-safe like DOGFOOD-004); docs/api/http-api.md
+    namespace section updated to match live behavior; regression tests; full suite
+    green + tsc clean
+  status: complete
+  created_at: '2026-08-19T11:42:32.424482+00:00'
+  completed_at: '2026-08-19T11:52:01.187808+00:00'
