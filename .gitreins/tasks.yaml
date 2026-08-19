@@ -665,15 +665,16 @@ tasks:
   created_at: '2026-08-19T10:24:58.568385+00:00'
   completed_at: '2026-08-19T10:33:23.916718+00:00'
 - id: DB-GAP-032
-  title: "REST DELETE /api/namespaces/:name with confirm guard \u2014 mirror MCP delete_namespace"
+  title: 'REST namespace DELETE live deploy (reopen: live verification failed on stale
+    daemon)'
   criteria:
-  - DELETE /api/namespaces/:name with {"confirm":true} body returns 200 and removes
-    the namespace dir + git repo (path-safe like DOGFOOD-004); docs/api/http-api.md
-    namespace section updated to match live behavior; regression tests; full suite
-    green + tsc clean
+  - src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true
+    guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace,
+    outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts;
+    live daemon on :3000 serves the route after redeploy of HEAD
   status: complete
-  created_at: '2026-08-19T11:42:32.424482+00:00'
-  completed_at: '2026-08-19T11:52:01.187808+00:00'
+  created_at: '2026-08-19T17:12:20.553895+00:00'
+  completed_at: '2026-08-19T17:14:43.907998+00:00'
 - id: EMB-001
   title: Embedding hooks cwd parity (RETR-010 follow-up)
   criteria:

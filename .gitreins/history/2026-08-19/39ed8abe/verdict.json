@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-032",
+  "task_title": "REST namespace DELETE live deploy (reopen: live verification failed on stale daemon)",
+  "task_criteria": [
+    "src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace, outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts; live daemon on :3000 serves the route after redeploy of HEAD"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:14PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11095696 bytes (11.10 MB) in 2.35s\u001b[0m\n\u001b[90m12:14PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:14PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11095696 bytes (11.10 MB) in 2.35s\u001b[0m\n\u001b[90m12:14PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1163\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 881\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1634\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr008.test.ts \u001b[2m(\u001b[22m\u001b[2m12 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace, outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts; live daemon on :3000 serves the route after redeploy of HEAD: namespaces.ts router.delete('/:name') (lines ~150-210) enforces confirm!==true -> 400 'Confirmation required', delegates to shared deleteNamespace(name,true) from src/namespaces/delete.ts (same core as MCP deleteNamespaceTool, confirmed via grep line 282). 404 for unknown namespace, 400 'Refusing to delete path outside namespaces root' for outside-root. Tests: npx vitest run namespaces-delete-dbgap032.test.ts -> exit_code 0, '7 passed'; combined with namespaces.test.ts -> 22 passed. Live daemon :3000 (curl): DELETE confirm:false -> 400 VALIDATION_ERROR 'Confirmation required', confirm:true on nonexistent -> 404 NOT_FOUND 'Namespace ... not found' \u2014 route serves after redeploy of HEAD.\nDELETE /api/namespaces/:name implemented with confirm guard mirroring MCP delete_namespace, 7 regression tests pass, and the live :3000 daemon serves the route after redeploy of HEAD.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace, outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts; live daemon on :3000 serves the route after redeploy of HEAD: namespaces.ts router.delete('/:name') (lines ~150-210) enforces confirm!==true -> 400 'Confirmation required', delegates to shared deleteNamespace(name,true) from src/namespa",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace, outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts; live daemon on :3000 serves the route after redeploy of HEAD",
+                "status": "PASS",
+                "detail": "namespaces.ts router.delete('/:name') (lines ~150-210) enforces confirm!==true -> 400 'Confirmation required', delegates to shared deleteNamespace(name,true) from src/namespaces/delete.ts (same core as MCP deleteNamespaceTool, confirmed via grep line 282). 404 for unknown namespace, 400 'Refusing to delete path outside namespaces root' for outside-root. Tests: npx vitest run namespaces-delete-dbgap032.test.ts -> exit_code 0, '7 passed'; combined with namespaces.test.ts -> 22 passed. Live daemon :3000 (curl): DELETE confirm:false -> 400 VALIDATION_ERROR 'Confirmation required', confirm:true on nonexistent -> 404 NOT_FOUND 'Namespace ... not found' \u2014 route serves after redeploy of HEAD."
+              }
+            ],
+            "summary": "DELETE /api/namespaces/:name implemented with confirm guard mirroring MCP delete_namespace, 7 regression tests pass, and the live :3000 daemon serves the route after redeploy of HEAD."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-032\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:14PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11095696 bytes (11.10 MB) in 2.35s\u001b[0m\n\u001b[90m12:14PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/http/routes/namespaces.ts implements DELETE /api/namespaces/:name with a confirm:true guard mirroring MCP delete_namespace (400 without confirm, 404 unknown namespace, outside-root refused), covered by tests in namespaces-delete-dbgap032.test.ts; live daemon on :3000 serves the route after redeploy of HEAD: namespaces.ts router.delete('/:name') (lines ~150-210) enforces confirm!==true -> 400 'Confirmation required', delegates to shared deleteNamespace(name,true) from src/namespaces/delete.ts (same core as MCP deleteNamespaceTool, confirmed via grep line 282). 404 for unknown namespace, 400 'Refusing to delete path outside namespaces root' for outside-root. Tests: npx vitest run namespaces-delete-dbgap032.test.ts -> exit_code 0, '7 passed'; combined with namespaces.test.ts -> 22 passed. Live daemon :3000 (curl): DELETE confirm:false -> 400 VALIDATION_ERROR 'Confirmation required', confirm:true on nonexistent -> 404 NOT_FOUND 'Namespace ... not found' \u2014 route serves after redeploy of HEAD.\nDELETE /api/namespaces/:name implemented with confirm guard mirroring MCP delete_namespace, 7 regression tests pass, and the live :3000 daemon serves the route after redeploy of HEAD.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T17:16:42.586440"
+}
