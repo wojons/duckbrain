@@ -65,6 +65,11 @@ export interface HttpServerOptions {
   /** Group name or numeric GID to chown the socket file to.
    *  Allows other users in the group to connect. */
   socketGroup?: string;
+  /** Auth configuration override (DB-GAP-031: unit-test injection).
+   *  When provided, ~/.duckbrain/auth.json is NOT consulted — the server
+   *  runs with exactly this config. Production callers omit it and keep
+   *  the file-based behavior. */
+  authConfig?: AuthConfig;
 }
 
 /**
@@ -181,18 +186,21 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
 
-  // 3. Authentication — read credentials from ~/.duckbrain/auth.json if available
-  const authConfig: AuthConfig = {
+  // 3. Authentication — read credentials from ~/.duckbrain/auth.json if
+  // available (unless an explicit authConfig override was injected).
+  const authConfig: AuthConfig = options.authConfig ?? {
     type: options.authType ?? "none",
   };
-  const authFilePath = path.join(os.homedir(), ".duckbrain", "auth.json");
-  if (fs.existsSync(authFilePath)) {
-    try {
-      const authFile = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
-      if (authFile.users) authConfig.users = authFile.users;
-      if (authFile.apiKeys) authConfig.apiKeys = authFile.apiKeys;
-    } catch {
-      console.error("[duckbrain] Warning: Could not parse auth.json");
+  if (!options.authConfig) {
+    const authFilePath = path.join(os.homedir(), ".duckbrain", "auth.json");
+    if (fs.existsSync(authFilePath)) {
+      try {
+        const authFile = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
+        if (authFile.users) authConfig.users = authFile.users;
+        if (authFile.apiKeys) authConfig.apiKeys = authFile.apiKeys;
+      } catch {
+        console.error("[duckbrain] Warning: Could not parse auth.json");
+      }
     }
   }
   app.use(authMiddleware(authConfig));

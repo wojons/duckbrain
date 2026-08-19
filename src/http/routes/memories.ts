@@ -30,8 +30,27 @@ import {
 } from "../../utils/timerange";
 import { resolveAsOfRef } from "../../git/asof";
 import { resolveNamespacePath } from "../../mcp/tools/shared";
+import {
+  getPrincipal,
+  principalAuthorEmail,
+  requireNamespaceGrant,
+} from "../../auth/middleware";
 
 const router: Router = Router();
+
+// DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
+// memory route (read, write, update, delete). The namespace resolution
+// mirrors each route's own (query param, falling back to body.namespace for
+// writes, else "default"). Passes through untouched in auth=none mode and
+// for unrestricted tokens.
+router.use(
+  requireNamespaceGrant(
+    (req) =>
+      (req.query.namespace as string) ||
+      (req.body as { namespace?: string } | undefined)?.namespace ||
+      "default",
+  ),
+);
 
 // GAP-023: upper bound on a single page so one request can never force a
 // multi-hundred-MB response, regardless of how many rows match.
@@ -320,6 +339,9 @@ router.post(
     }
 
     // Call rememberTool to create memory
+    // DB-GAP-031: an authenticated principal stamps the record — a
+    // client-supplied ?author= or body author is never honored on writes.
+    const principal = getPrincipal(req);
     const result = await rememberTool({
       key: body.key,
       domain: body.domain as any,
@@ -328,6 +350,7 @@ router.post(
       attributes: normalizeAttributes(body.attributes),
       embedding_text: body.content,
       namespace: (req.query.namespace as string) || body.namespace || "default",
+      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
 
     if (!result.success) {
@@ -361,6 +384,9 @@ router.put(
     const { id } = req.params as { id: string };
     const body = req.body as UpdateMemoryRequest;
     const namespace = (req.query.namespace as string) || "default";
+    // DB-GAP-031: authenticated principal stamps both the tombstone and the
+    // new version — client-supplied author values are never honored.
+    const principal = getPrincipal(req);
 
     if (!body.content && !body.attributes) {
       throw new ApiError("No update data provided", 400, "VALIDATION_ERROR");
@@ -389,6 +415,7 @@ router.put(
       id,
       reason: "Updated via API",
       namespace,
+      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
 
     if (!forgetResult.success) {
@@ -411,6 +438,7 @@ router.put(
       attributes: newAttributes,
       embedding_text: newContent,
       namespace,
+      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
 
     if (!rememberResult.success) {
@@ -446,11 +474,15 @@ router.delete(
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const namespace = (req.query.namespace as string) || "default";
+    // DB-GAP-031: authenticated principal stamps the tombstone — a
+    // client-supplied author value is never honored.
+    const principal = getPrincipal(req);
 
     const result = await forgetTool({
       id,
       reason: "Deleted via API",
       namespace,
+      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
 
     if (!result.success) {

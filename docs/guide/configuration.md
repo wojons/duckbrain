@@ -120,6 +120,11 @@ Authentication credentials can be stored in `~/.duckbrain/auth.json`:
     {
       "key": "sk-duckbrain-abc123",
       "name": "default"
+    },
+    {
+      "key": "sk-duckbrain-scoped-456",
+      "name": "agent-alpha",
+      "namespaces": ["my-project"]
     }
   ]
 }
@@ -129,6 +134,17 @@ Authentication credentials can be stored in `~/.duckbrain/auth.json`:
 |-------|----------|-------------|
 | `users` | For `basic` auth | Array of username/passwordHash objects (bcrypt hashes) |
 | `apiKeys` | For `apikey` auth | Array of key/name objects |
+| `apiKeys[].namespaces` | No | Per-token namespace grants (DB-GAP-031): when present, the token may only access these namespaces (403 otherwise); absent = unrestricted. Mint scoped tokens with `duckbrain token --namespace=<ns>[,<ns>...]` (repeatable). |
+
+### Author Stamping
+
+With `--auth=apikey` or `--auth=basic`, the HTTP API stamps the `author`
+field of every memory write (create/update/delete) from the authenticated
+principal (the token `name` / basic username — mapped to an email-shaped
+identity: `<name>@duckbrain.local` when the name is not already an email)
+and ignores any client-supplied `?author=` value — see
+[HTTP API — Author Stamping](../api/http-api#author-stamping).
+In `--auth=none` mode the git-config fallback is used.
 
 ---
 

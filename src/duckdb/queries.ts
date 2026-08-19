@@ -541,12 +541,15 @@ function insertMemoryToPartition(
  * @param memoryId - ID of memory to tombstone
  * @param partitionPath - Partition path to search and append to
  * @param reason - Optional reason for deletion (stored in attributes)
+ * @param author - Optional author identity for the tombstone (DB-GAP-031:
+ *  authenticated principal; absent = the original memory's author)
  */
 export async function tombstoneMemory(
   db: Database,
   memoryId: string,
   partitionPath: string,
   reason?: string,
+  author?: string,
 ): Promise<void> {
   // Find the original memory in the partition using DuckDB WHERE clause
   const memories = await queryMemories(db, [partitionPath], {
@@ -563,7 +566,7 @@ export async function tombstoneMemory(
       key: "/unknown",
       domain: "raw_note",
       timestamp: new Date().toISOString(),
-      author: "system",
+      author: author ?? "system",
       action: "tombstone",
       embedding_text: "",
       attributes: reason ? { tombstone_reason: reason } : {},
@@ -572,11 +575,14 @@ export async function tombstoneMemory(
     return;
   }
 
-  // Create tombstone record copying all fields from original
+  // Create tombstone record copying all fields from original — the author
+  // is replaced by the authenticated principal when one was provided
+  // (DB-GAP-031), else the original memory's author is preserved.
   const tombstone: MemoryType = {
     ...originalMemory,
     action: "tombstone",
     timestamp: new Date().toISOString(),
+    author: author ?? originalMemory.author,
     attributes: {
       ...originalMemory.attributes,
       ...(reason ? { tombstone_reason: reason } : {}),

@@ -688,6 +688,71 @@ curl http://localhost:3000/api/memories \
   -H "X-API-Key: sk-duckbrain-abc123"
 ```
 
+#### Per-Token Namespace Grants
+
+API key entries may carry an optional `namespaces` array restricting the
+token to exactly those namespaces:
+
+```json
+{
+  "apiKeys": [
+    { "key": "sk-duckbrain-abc123", "name": "default" },
+    { "key": "sk-duckbrain-scoped-456", "name": "agent-alpha", "namespaces": ["my-project"] }
+  ]
+}
+```
+
+- `namespaces` **absent** → unrestricted token (backward compatible —
+  existing tokens keep full access to every namespace).
+- `namespaces` **present** → the token may read, write, update, delete, and
+  create only the listed namespaces. Requests targeting any other namespace
+  are rejected with `403 Forbidden` (checked before the route runs, for
+  reads AND writes AND namespace creation).
+- `/health` always bypasses authentication and grants.
+
+#### Minting a Scoped Token
+
+```bash
+# Unrestricted token (default)
+duckbrain token --name=agent-alpha
+
+# Scoped token — repeatable and/or comma-separated grants
+duckbrain token --name=agent-alpha --namespace=my-project
+duckbrain token --name=agent-alpha --namespace=my-project,chat-archive
+duckbrain token --name=agent-alpha --namespace=my-project --namespace=chat-archive
+```
+
+The command prints the token and records the grants in `~/.duckbrain/auth.json`:
+
+```json
+{
+  "apiKeys": [
+    { "key": "<generated>", "name": "agent-alpha", "namespaces": ["my-project", "chat-archive"] }
+  ]
+}
+```
+
+#### Author Stamping
+
+When a request is authenticated (`--auth=apikey` or `--auth=basic`), every
+memory write — create, update, and delete — stamps the stored record's
+`author` field from the authenticated principal. Any client-supplied
+`?author=` query parameter or author field in the request body is
+**ignored** on write paths, so tokens cannot spoof another identity and
+per-agent provenance is preserved in the namespace git history.
+
+The memory schema requires an email-shaped author, so the principal is
+mapped as follows:
+
+- `name` is already an email (e.g. `agent@example.com`) → used as-is.
+- otherwise → `<name>@duckbrain.local` (e.g. token `agent-alpha` stamps
+  `agent-alpha@duckbrain.local`). Whitespace is folded to `-`.
+
+In `--auth=none` mode (local single-user) there is no principal and the
+existing fallback applies: git `user.email`, then `GIT_AUTHOR_EMAIL`, then
+the built-in default (see `src/git/attribution.ts`). `?author=` on
+`GET /api/memories` remains a read-side filter in all modes.
+
 ### Using Basic Authentication
 
 ```bash

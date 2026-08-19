@@ -47,6 +47,13 @@ const RememberInputSchema = z.object({
    *  defaultNamespace, which switch_namespace persists and is therefore
    *  sticky across processes; see docs/api/mcp-tools.md) */
   namespace: z.string().optional().describe("Namespace to write to"),
+  /** Author identity override (DB-GAP-031: HTTP routes stamp the
+   *  authenticated principal's name here; absent = git-config fallback,
+   *  preserving local single-user behavior) */
+  author: z
+    .string()
+    .optional()
+    .describe("Author identity (overrides the git config fallback)"),
 });
 
 type RememberInput = z.infer<typeof RememberInputSchema>;
@@ -103,7 +110,7 @@ export async function rememberTool(
       };
     }
 
-    const { key, domain, attributes, embedding_text, namespace } =
+    const { key, domain, attributes, embedding_text, namespace, author } =
       parseResult.data;
 
     // DOGFOOD-010: canonicalize attributes before persisting (JSON
@@ -111,14 +118,16 @@ export async function rememberTool(
     // the reader parses back; duplicate keys are impossible in JS objects).
     const normalizedAttributes = normalizeAttributes(attributes);
 
-    // Get author from git config
-    const author = getAuthorEmail();
+    // DB-GAP-031: the authenticated principal's identity wins when provided
+    // (HTTP routes never forward a client-supplied author); the git-config
+    // fallback remains for local single-user (auth=none) mode.
+    const authorIdentity = author ?? getAuthorEmail();
 
     // Create memory with defaults
     const memory = createMemory({
       key,
       domain,
-      author,
+      author: authorIdentity,
       embedding_text,
       attributes: normalizedAttributes,
       action: "add",

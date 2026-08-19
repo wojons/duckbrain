@@ -26,6 +26,13 @@ const ForgetInputSchema = z.object({
   namespace: z.string().optional().describe("Namespace to search"),
   /** Domain to search (optimization) */
   domain: z.string().optional().describe("Domain to search (optimization)"),
+  /** Author identity for the tombstone (DB-GAP-031: HTTP routes stamp the
+   *  authenticated principal; absent = the original memory's author,
+   *  preserving pre-grant behavior) */
+  author: z
+    .string()
+    .optional()
+    .describe("Author identity for the tombstone record"),
 });
 
 type ForgetInput = z.infer<typeof ForgetInputSchema>;
@@ -88,7 +95,7 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
       };
     }
 
-    const { id, reason, namespace, domain } = parseResult.data;
+    const { id, reason, namespace, domain, author } = parseResult.data;
 
     // Resolve namespace path
     const namespacePath = resolveNamespacePath(namespace);
@@ -133,8 +140,9 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     );
     const partitionPath = path.join(namespacePath, partitionRelPath);
 
-    // Create tombstone record
-    await tombstoneMemory(db, id, partitionPath, reason);
+    // Create tombstone record — DB-GAP-031: stamp the authenticated
+    // principal's identity when provided, else keep the original author.
+    await tombstoneMemory(db, id, partitionPath, reason, author);
 
     // Auto-commit to namespace git repo
     commitNamespace(namespacePath);

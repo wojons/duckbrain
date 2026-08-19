@@ -1456,10 +1456,32 @@ async function squashCommand(args: string[]): Promise<void> {
 
 /**
  * Token command - Generate API token for HTTP authentication
+ *
+ * DB-GAP-031: --namespace=NS grants — repeatable AND comma-separated
+ * (parseArgs keeps only the last --flag=value, so grants are collected by
+ * re-scanning the raw args). Absent = unrestricted token (backward compat).
  */
 async function tokenCommand(args: string[]): Promise<void> {
   const { flags } = parseArgs(args);
   const crypto = await import("crypto");
+
+  const namespaceGrants: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--namespace") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--namespace=")) {
+      value = arg.slice("--namespace=".length);
+    }
+    if (value === undefined) continue;
+    for (const ns of value.split(",")) {
+      const trimmed = ns.trim();
+      if (trimmed && !namespaceGrants.includes(trimmed)) {
+        namespaceGrants.push(trimmed);
+      }
+    }
+  }
 
   // Generate secure random token
   const token = crypto.randomBytes(32).toString("hex");
@@ -1477,12 +1499,16 @@ async function tokenCommand(args: string[]): Promise<void> {
     }
   }
 
-  // Add new token
+  // Add new token — namespaces carries the grants when scoped
   const tokenName = flags.name || `token-${Date.now()}`;
   if (!authConfig.apiKeys) {
     authConfig.apiKeys = [];
   }
-  authConfig.apiKeys.push({ key: token, name: tokenName });
+  const tokenEntry: any = { key: token, name: tokenName };
+  if (namespaceGrants.length > 0) {
+    tokenEntry.namespaces = namespaceGrants;
+  }
+  authConfig.apiKeys.push(tokenEntry);
 
   // Ensure directory exists
   const authDir = path.dirname(authPath);
@@ -1495,6 +1521,13 @@ async function tokenCommand(args: string[]): Promise<void> {
 
   console.log("Generated API token:");
   console.log(token);
+  console.log("");
+  if (namespaceGrants.length > 0) {
+    console.log(`Namespace grants: ${namespaceGrants.join(", ")}`);
+    console.log("(requests to other namespaces will be rejected with 403)");
+  } else {
+    console.log("Namespace grants: all namespaces (unrestricted)");
+  }
   console.log("");
   console.log("Use with HTTP requests:");
   console.log(`  curl -H "X-API-Key: ${token}" http://localhost:3000/health`);
@@ -1527,6 +1560,7 @@ function showHelp(): void {
     remote             Manage remotes (add|remove)
     status             Show system status
     token              Generate API token for HTTP authentication
+                       (--name=NAME, --namespace=NS[,NS...] for scoped grants)
     ssh-test           Test SSH tunnel setup
     ssh-connect        Connect to remote DuckBrain via SSH tunnel
     servers            Manage server connections (list|add|remove)

@@ -13,6 +13,7 @@ import {
 } from "../../mcp/tools/namespace";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { NamespaceListResponse, NamespaceResponse } from "../types/api";
+import { requireNamespaceGrant } from "../../auth/middleware";
 
 const router: Router = Router();
 
@@ -59,6 +60,11 @@ router.get(
  */
 router.post(
   "/",
+  // DB-GAP-031: creating a namespace requires a grant for that namespace
+  // (restricted tokens). Unrestricted tokens and auth=none pass through.
+  requireNamespaceGrant(
+    (req) => (req.body as { name?: string } | undefined)?.name ?? "",
+  ),
   asyncHandler(async (req: Request, res: Response) => {
     const { name, setDefault } = req.body;
 
