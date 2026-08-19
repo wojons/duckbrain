@@ -674,3 +674,11 @@ tasks:
   status: complete
   created_at: '2026-08-19T11:42:32.424482+00:00'
   completed_at: '2026-08-19T11:52:01.187808+00:00'
+- id: EMB-001
+  title: Embedding hooks cwd parity (RETR-010 follow-up)
+  criteria:
+  - 'src/embedding/hooks.ts mirrors RETR-010''s DUCKBRAIN_ROOT normalization: post-checkout
+    fired from namespace repo cwd rebuilds embeddings; suite green'
+  status: complete
+  created_at: '2026-08-19T13:01:49.166067+00:00'
+  completed_at: '2026-08-19T13:12:42.232393+00:00'
