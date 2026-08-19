@@ -1,0 +1,67 @@
+{
+  "task_id": "RETR-007",
+  "task_title": "Cross-namespace search (Q-4): --all-namespaces flag / namespace facet in results",
+  "task_criteria": [
+    "search term found in another namespace returns it with namespace field; default behavior unchanged; suite green + tsc clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m11:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11729210 bytes (11.73 MB) in 3.45s\u001b[0m\n\u001b[90m11:40PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11729210 bytes (11.73 MB) in 3.45s\u001b[0m\n\u001b[90m11:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 868\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 969\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1017\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 search term found in another namespace returns it with namespace field; default behavior unchanged; suite green + tsc clean: Implemented in commit 4eeac6e. src/search/query.ts keywordSearchAllNamespaces() unions candidates over every manifest namespace, sets row.namespace in collectKeywordCandidates, and returns each hit with an explicit namespace facet (query.ts:280-360, 138-235). Tests confirm: search-retr007.test.ts:124 'unions hits from every indexed namespace with an explicit namespace facet' asserts a1->search-retr007-a and b1->search-retr007-b (lines 133-134); CLI test search-all-namespaces-retr007.test.ts:107 'union results print each hit's source namespace in the header'; HTTP test memories-all-namespaces-retr007.test.ts:150 'round-trips each hit's namespace facet'. Default unchanged: single-namespace keywordSearch returns {memories,total} with no union bookkeeping fields (query.ts:255-258); tests search-retr007.test.ts:149 'default single-namespace search is unchanged \u2014 no cross-namespace leakage' asserts namespacesSearched/Skipped undefined (157-158), CLI test:98 'without the flag, the default namespace is forwarded (unchanged)', HTTP test:178. Suite green: `npx vitest run` -> 80 files / 653 tests passed, exit 0. tsc clean: `npx tsc --noEmit` -> exit 0, no output.\nRETR-007 cross-namespace search fully implemented and verified: all-namespaces union returns hits with namespace facet, default single-namespace behavior unchanged, full suite green (80 files/653 tests) and tsc clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 search term found in another namespace returns it with namespace field; default behavior unchanged; suite green + tsc clean: Implemented in commit 4eeac6e. src/search/query.ts keywordSearchAllNamespaces() unions candidates over every manifest namespace, sets row.namespace in collectKeywordCandidates, and returns each hit with an explicit namespace facet (query.ts:280-360, 138-235). Tests confirm: search-retr007.test.ts:124 'unions hits from every indexed namespace with an explicit n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "search term found in another namespace returns it with namespace field; default behavior unchanged; suite green + tsc clean",
+                "status": "PASS",
+                "detail": "Implemented in commit 4eeac6e. src/search/query.ts keywordSearchAllNamespaces() unions candidates over every manifest namespace, sets row.namespace in collectKeywordCandidates, and returns each hit with an explicit namespace facet (query.ts:280-360, 138-235). Tests confirm: search-retr007.test.ts:124 'unions hits from every indexed namespace with an explicit namespace facet' asserts a1->search-retr007-a and b1->search-retr007-b (lines 133-134); CLI test search-all-namespaces-retr007.test.ts:107 'union results print each hit's source namespace in the header'; HTTP test memories-all-namespaces-retr007.test.ts:150 'round-trips each hit's namespace facet'. Default unchanged: single-namespace keywordSearch returns {memories,total} with no union bookkeeping fields (query.ts:255-258); tests search-retr007.test.ts:149 'default single-namespace search is unchanged \u2014 no cross-namespace leakage' asserts namespacesSearched/Skipped undefined (157-158), CLI test:98 'without the flag, the default namespace is forwarded (unchanged)', HTTP test:178. Suite green: `npx vitest run` -> 80 files / 653 tests passed, exit 0. tsc clean: `npx tsc --noEmit` -> exit 0, no output."
+              }
+            ],
+            "summary": "RETR-007 cross-namespace search fully implemented and verified: all-namespaces union returns hits with namespace facet, default single-namespace behavior unchanged, full suite green (80 files/653 tests) and tsc clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-007\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m11:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11729210 bytes (11.73 MB) in 3.45s\u001b[0m\n\u001b[90m11:40PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 search term found in another namespace returns it with namespace field; default behavior unchanged; suite green + tsc clean: Implemented in commit 4eeac6e. src/search/query.ts keywordSearchAllNamespaces() unions candidates over every manifest namespace, sets row.namespace in collectKeywordCandidates, and returns each hit with an explicit namespace facet (query.ts:280-360, 138-235). Tests confirm: search-retr007.test.ts:124 'unions hits from every indexed namespace with an explicit namespace facet' asserts a1->search-retr007-a and b1->search-retr007-b (lines 133-134); CLI test search-all-namespaces-retr007.test.ts:107 'union results print each hit's source namespace in the header'; HTTP test memories-all-namespaces-retr007.test.ts:150 'round-trips each hit's namespace facet'. Default unchanged: single-namespace keywordSearch returns {memories,total} with no union bookkeeping fields (query.ts:255-258); tests search-retr007.test.ts:149 'default single-namespace search is unchanged \u2014 no cross-namespace leakage' asserts namespacesSearched/Skipped undefined (157-158), CLI test:98 'without the flag, the default namespace is forwarded (unchanged)', HTTP test:178. Suite green: `npx vitest run` -> 80 files / 653 tests passed, exit 0. tsc clean: `npx tsc --noEmit` -> exit 0, no output.\nRETR-007 cross-namespace search fully implemented and verified: all-namespaces union returns hits with namespace facet, default single-namespace behavior unchanged, full suite green (80 files/653 tests) and tsc clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T04:41:34.283826"
+}

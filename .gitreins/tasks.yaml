@@ -623,3 +623,12 @@ tasks:
   status: complete
   created_at: '2026-08-19T03:04:17.042087+00:00'
   completed_at: '2026-08-19T03:18:04.930694+00:00'
+- id: RETR-007
+  title: 'Cross-namespace search (Q-4): --all-namespaces flag / namespace facet in
+    results'
+  criteria:
+  - search term found in another namespace returns it with namespace field; default
+    behavior unchanged; suite green + tsc clean
+  status: complete
+  created_at: '2026-08-19T04:27:55.907852+00:00'
+  completed_at: '2026-08-19T04:40:02.718085+00:00'
