@@ -1575,6 +1575,23 @@ async function squashCommand(args: string[]): Promise<void> {
  * re-scanning the raw args). Absent = unrestricted token (backward compat).
  */
 async function tokenCommand(args: string[]): Promise<void> {
+  // Handle --help before minting anything (DB-GAP-034: --help must not
+  // generate + persist a token — side-effect-free help like every other command)
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(
+      `Usage: duckbrain token [--name=<token-name>] [--namespace=<ns>[,<ns>...]]
+
+  Generate an API token for HTTP authentication (--auth=apikey).
+
+  Options:
+    --name=<name>         Human-readable token name (also the author identity)
+    --namespace=<ns>      Namespace grants — repeatable and/or comma-separated.
+                          Absent = unrestricted (all namespaces).
+
+  The token is printed once and saved to ~/.duckbrain/auth.json.`,
+    );
+    return;
+  }
   const { flags } = parseArgs(args);
   const crypto = await import("crypto");
 

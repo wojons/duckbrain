@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { runHumanCLI } from "./human";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 describe("human CLI commands", () => {
@@ -20,6 +21,32 @@ describe("human CLI commands", () => {
 
   it("should handle unknown command with error", async () => {
     await expect(runHumanCLI("unknown-command", [])).rejects.toThrow();
+  });
+
+  /**
+   * DB-GAP-034: `duckbrain token --help` must print usage and NOT mint or
+   * persist a token (side-effect-free help, mirroring every other command).
+   * Regression: the pre-fix CLI generated + saved an unrestricted token on
+   * --help, polluting ~/.duckbrain/auth.json.
+   */
+  it("token --help prints usage without minting a token", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "dbgap034-home-"));
+    const authPath = path.join(home, ".duckbrain", "auth.json");
+    const originalHome = process.env.HOME;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      process.env.HOME = home;
+      await expect(runHumanCLI("token", ["--help"])).resolves.not.toThrow();
+      const usage = log.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(usage).toContain("Usage: duckbrain token");
+      expect(usage).toContain("--namespace=<ns>");
+      // No side effect: auth.json must NOT exist after --help
+      expect(fs.existsSync(authPath)).toBe(false);
+    } finally {
+      process.env.HOME = originalHome;
+      log.mockRestore();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 
