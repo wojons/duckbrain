@@ -127,13 +127,20 @@ export function resolveAsOfRef(rawRef: string, repoDir: string): string {
   }
 
   if (isValidIso8601(trimmed)) {
-    // Nearest commit at-or-before the given date. git parses date-only
-    // values as end-of-day for --before (verified), so date-only input is
-    // inclusive of the whole day. Datetimes compare at instant granularity.
+    // Nearest commit at-or-before the given date. Date-only input is
+    // inclusive of the whole day, so normalize it to an explicit UTC
+    // end-of-day instant: git parses a BARE date-only --before value in the
+    // HOST timezone (end-of-day in UTC-5, midnight in UTC — TZ-dependent,
+    // verified 2026-08-19: TZ=UTC returned the previous day's commit). The
+    // explicit .999Z bound is machine-independent. Datetimes already carry
+    // Z or ±HH:MM and pass through unchanged.
+    const bound = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? `${trimmed}T23:59:59.999Z`
+      : trimmed;
     const sha = gitOut(repoDir, [
       "rev-list",
       "-1",
-      `--before=${trimmed}`,
+      `--before=${bound}`,
       "HEAD",
     ]).trim();
     if (sha === "") {
