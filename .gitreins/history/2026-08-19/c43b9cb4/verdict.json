@@ -1,0 +1,67 @@
+{
+  "task_id": "RETR-008",
+  "task_title": "Chat-archive full-text (Q-5): FTS over chat-archive namespace rows with snippet/highlight (rides RETR-001 index)",
+  "task_criteria": [
+    "duckbrain search \"GAP-020\" --namespace chat-archive returns dated rows with highlighted snippet; chat-archive namespace rows indexed and searchable; snippet/highlight projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:59AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12278093 bytes (12.28 MB) in 3.01s\u001b[0m\n\u001b[90m12:59AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:59AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12278093 bytes (12.28 MB) in 3.01s\u001b[0m\n\u001b[90m12:59AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-asof-retr004.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 747\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1489\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1492\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr008.test.ts \u001b[2m(\u001b[22m\u001b[2m12 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 duckbrain search \"GAP-020\" --namespace chat-archive returns dated rows with highlighted snippet; chat-archive namespace rows indexed and searchable; snippet/highlight projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: (1) src/cli/search-retr008.test.ts covers the exact space-separated `search [\"GAP-020\",\"--namespace\",\"chat-archive\"]` form via normalizeNamespaceArgs (src/cli/human.ts:435-449), asserting `<mark>GAP-020</mark>` is printed and the dated row's timestamp surfaces in the header. (2) src/search/search-retr008.test.ts verifies rebuildAllNamespaces indexes the chat-archive namespace (3 rows) and keywordSearch returns dated rows (c1/c3, timestamp C1_TIMESTAMP). (3) highlightMatches (src/search/rank.ts:229-271) wired into keywordSearch/keywordSearchAllNamespaces (src/search/query.ts), surfaced via CLI (human.ts:531), HTTP (memories.ts:97-101, api.ts:41-45), MCP searchTool/recallTool (recall.ts:155-158, 771-775); tests confirm raw snippet stays marker-free while highlightedSnippet wraps terms. (4) `npx vitest run` exit 0: 83 files/670 tests passed; `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 (\"All matched files use Prettier code style!\"). (5) AGENTS.md updated to 83 suites/670 tests, matching the actual run (83 files/670 tests).\nRETR-008 chat-archive full-text search with snippet/highlight projection is fully implemented and verified: CLI/HTTP/MCP surfaces carry highlightedSnippet, chat-archive rows are indexed/searchable, and the full unit suite (83 files/670 tests), tsc --noEmit, and prettier --check src/ all pass with AGENTS.md counts synced.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 duckbrain search \"GAP-020\" --namespace chat-archive returns dated rows with highlighted snippet; chat-archive namespace rows indexed and searchable; snippet/highlight projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: (1) src/cli/search-retr008.test.ts covers the exact space-separated `search [\"GAP-020\",\"--namespace\",\"chat-archive\"]` form via normalizeNamespaceArgs (src/cli/human.ts:435-449), asserting `<mark>GAP-020</mar",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "duckbrain search \"GAP-020\" --namespace chat-archive returns dated rows with highlighted snippet; chat-archive namespace rows indexed and searchable; snippet/highlight projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced",
+                "status": "PASS",
+                "detail": "(1) src/cli/search-retr008.test.ts covers the exact space-separated `search [\"GAP-020\",\"--namespace\",\"chat-archive\"]` form via normalizeNamespaceArgs (src/cli/human.ts:435-449), asserting `<mark>GAP-020</mark>` is printed and the dated row's timestamp surfaces in the header. (2) src/search/search-retr008.test.ts verifies rebuildAllNamespaces indexes the chat-archive namespace (3 rows) and keywordSearch returns dated rows (c1/c3, timestamp C1_TIMESTAMP). (3) highlightMatches (src/search/rank.ts:229-271) wired into keywordSearch/keywordSearchAllNamespaces (src/search/query.ts), surfaced via CLI (human.ts:531), HTTP (memories.ts:97-101, api.ts:41-45), MCP searchTool/recallTool (recall.ts:155-158, 771-775); tests confirm raw snippet stays marker-free while highlightedSnippet wraps terms. (4) `npx vitest run` exit 0: 83 files/670 tests passed; `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 (\"All matched files use Prettier code style!\"). (5) AGENTS.md updated to 83 suites/670 tests, matching the actual run (83 files/670 tests)."
+              }
+            ],
+            "summary": "RETR-008 chat-archive full-text search with snippet/highlight projection is fully implemented and verified: CLI/HTTP/MCP surfaces carry highlightedSnippet, chat-archive rows are indexed/searchable, and the full unit suite (83 files/670 tests), tsc --noEmit, and prettier --check src/ all pass with AGENTS.md counts synced."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-008\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:59AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12278093 bytes (12.28 MB) in 3.01s\u001b[0m\n\u001b[90m12:59AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 duckbrain search \"GAP-020\" --namespace chat-archive returns dated rows with highlighted snippet; chat-archive namespace rows indexed and searchable; snippet/highlight projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: (1) src/cli/search-retr008.test.ts covers the exact space-separated `search [\"GAP-020\",\"--namespace\",\"chat-archive\"]` form via normalizeNamespaceArgs (src/cli/human.ts:435-449), asserting `<mark>GAP-020</mark>` is printed and the dated row's timestamp surfaces in the header. (2) src/search/search-retr008.test.ts verifies rebuildAllNamespaces indexes the chat-archive namespace (3 rows) and keywordSearch returns dated rows (c1/c3, timestamp C1_TIMESTAMP). (3) highlightMatches (src/search/rank.ts:229-271) wired into keywordSearch/keywordSearchAllNamespaces (src/search/query.ts), surfaced via CLI (human.ts:531), HTTP (memories.ts:97-101, api.ts:41-45), MCP searchTool/recallTool (recall.ts:155-158, 771-775); tests confirm raw snippet stays marker-free while highlightedSnippet wraps terms. (4) `npx vitest run` exit 0: 83 files/670 tests passed; `npx tsc --noEmit` exit 0; `npx prettier --check src/` exit 0 (\"All matched files use Prettier code style!\"). (5) AGENTS.md updated to 83 suites/670 tests, matching the actual run (83 files/670 tests).\nRETR-008 chat-archive full-text search with snippet/highlight projection is fully implemented and verified: CLI/HTTP/MCP surfaces carry highlightedSnippet, chat-archive rows are indexed/searchable, and the full unit suite (83 files/670 tests), tsc --noEmit, and prettier --check src/ all pass with AGENTS.md counts synced.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T06:01:17.281050"
+}

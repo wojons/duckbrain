@@ -632,3 +632,14 @@ tasks:
   status: complete
   created_at: '2026-08-19T04:27:55.907852+00:00'
   completed_at: '2026-08-19T04:40:02.718085+00:00'
+- id: RETR-008
+  title: 'Chat-archive full-text (Q-5): FTS over chat-archive namespace rows with
+    snippet/highlight (rides RETR-001 index)'
+  criteria:
+  - duckbrain search "GAP-020" --namespace chat-archive returns dated rows with highlighted
+    snippet; chat-archive namespace rows indexed and searchable; snippet/highlight
+    projection on hits; full unit suite + tsc --noEmit + prettier --check src/ clean;
+    AGENTS.md suite counts synced
+  status: complete
+  created_at: '2026-08-19T05:48:58.279980+00:00'
+  completed_at: '2026-08-19T05:59:48.777567+00:00'
