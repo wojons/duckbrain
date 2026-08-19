@@ -252,6 +252,55 @@ async function rememberCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * RETR-006: collect repeatable --attr filters from raw args.
+ *
+ * Supports both `--attr=<name>=<value>` and bare `--attr <name>=<value>`
+ * (the bare form's pair lands in `positional`, hence the raw-args scan).
+ * Malformed pairs exit with a usage error — never silently dropped.
+ */
+function collectAttrFilters(
+  args: string[],
+  positional: string[],
+): Record<string, string> | undefined {
+  const attrs: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let pair: string | undefined;
+    if (arg.startsWith("--attr=")) {
+      pair = arg.slice("--attr=".length);
+    } else if (arg === "--attr") {
+      pair = args[i + 1];
+      // A following --flag is not a pair — the value is missing.
+      if (pair === undefined || pair.startsWith("--")) pair = undefined;
+    } else {
+      continue;
+    }
+    if (pair === undefined) {
+      console.error(
+        "Error: --attr requires <name>=<value> (e.g. --attr=domain=config or --attr domain=config)",
+      );
+      process.exit(1);
+    }
+    const eq = pair.indexOf("=");
+    if (eq <= 0 || eq === pair.length - 1) {
+      console.error(
+        `Error: --attr must be <name>=<value> — got '${pair}' (e.g. --attr=domain=config)`,
+      );
+      process.exit(1);
+    }
+    attrs[pair.slice(0, eq)] = pair.slice(eq + 1);
+  }
+  // Bare `--attr name=value` also reaches `positional` via parseArgs.
+  for (const p of positional) {
+    const eq = p.indexOf("=");
+    if (eq > 0 && eq < p.length - 1) {
+      attrs[p.slice(0, eq)] = p.slice(eq + 1);
+    }
+  }
+  return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
+/**
  * Recall command
  */
 async function recallCommand(args: string[]): Promise<void> {
@@ -285,6 +334,9 @@ async function recallCommand(args: string[]): Promise<void> {
     console.log(
       "  --as-of=<ref>      Read the namespace state as of a git ref or ISO-8601 date (date = nearest commit at-or-before it)",
     );
+    console.log(
+      "  --attr=<name>=<value>  Attribute filter: only rows whose attributes match name=value (repeatable, e.g. --attr=domain=config --attr=tick=403)",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
@@ -293,7 +345,11 @@ async function recallCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const { flags } = parseArgs(args);
+  const { flags, positional } = parseArgs(args);
+
+  // RETR-006: attribute filters — repeatable --attr=<name>=<value> (or
+  // bare `--attr <name>=<value>`). Malformed pairs exit cleanly above.
+  const attrFilters = collectAttrFilters(args, positional);
 
   // RETR-003: time-scoped recall — validate + normalize --after/--before/
   // --between before they reach the tool. Invalid ISO-8601 values exit
@@ -334,6 +390,8 @@ async function recallCommand(args: string[]): Promise<void> {
     // RETR-004: pass the RESOLVED commit so the tool never re-resolves
     // against a different HEAD mid-request.
     ...(asOfRef ? { asOf: asOfRef } : {}),
+    // RETR-006: repeatable --attr filters (empty = no-op).
+    ...(attrFilters ? { attr: attrFilters } : {}),
   };
 
   if (flags.key) {

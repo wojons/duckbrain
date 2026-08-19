@@ -109,6 +109,17 @@ const RecallInputSchema = z.object({
     .describe(
       "Date or git ref: read the namespace state as it existed at that point in history",
     ),
+  /** RETR-006: attribute filters — include only rows whose `attributes`
+   *  JSON contains each name → value (exact match; numeric values match
+   *  by their string form, e.g. attr.tick=403 matches both 403 and "403").
+   *  ANDed with key/domain/author/time filters. Example: {domain: "config",
+   *  tick: "403"}. */
+  attr: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe(
+      "Attribute filters: only rows whose attributes match every name→value pair",
+    ),
 });
 
 /**
@@ -256,6 +267,9 @@ async function runSemanticLeg(opts: {
   // out-of-range rows can never be ranked or fused.
   if (timeRange.after) candidateFilters.after = timeRange.after;
   if (timeRange.before) candidateFilters.before = timeRange.before;
+  // RETR-006: attribute filters — the candidate pool is attr-scoped too, so
+  // out-of-scope rows can never be ranked or fused.
+  if (validated.attr) candidateFilters.attr = validated.attr;
 
   const result = await withTimeout(
     (async () => {
@@ -409,6 +423,9 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     else if (validated.domain) asOfFilters.domain = validated.domain;
     if (timeRange.after) asOfFilters.after = timeRange.after;
     if (timeRange.before) asOfFilters.before = timeRange.before;
+    // RETR-006: attribute filters apply to the as-of row set too (in-memory
+    // mirror of the DuckDB json_extract_string conditions).
+    if (validated.attr) asOfFilters.attr = validated.attr;
 
     // GAP-023: limit=0 is a valid empty-page request — count-only.
     if (validated.limit === 0) {
@@ -460,6 +477,8 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           // RETR-003: window the keyword candidate pool too.
           ...(timeRange.after ? { after: timeRange.after } : {}),
           ...(timeRange.before ? { before: timeRange.before } : {}),
+          // RETR-006: attr-scope the keyword candidate pool too.
+          ...(validated.attr ? { attr: validated.attr } : {}),
         },
       );
       return {
@@ -530,6 +549,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // the reported total always matches the returned window.
     if (timeRange.after) filters.after = timeRange.after;
     if (timeRange.before) filters.before = timeRange.before;
+
+    // RETR-006: attribute filters on the list path — shared by
+    // queryMemories and countMemories so the reported total always matches
+    // the returned window.
+    if (validated.attr) filters.attr = validated.attr;
 
     // GAP-023/GAP-024: limit=0 is a valid "empty page" request — no rows are
     // fetched, but the true total is still reported. A zero limit must never
@@ -623,6 +647,9 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           // out-of-range rows.
           ...(timeRange.after ? { after: timeRange.after } : {}),
           ...(timeRange.before ? { before: timeRange.before } : {}),
+          // RETR-006: attr-scope the keyword leg so fusion can never
+          // surface out-of-scope rows.
+          ...(validated.attr ? { attr: validated.attr } : {}),
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);

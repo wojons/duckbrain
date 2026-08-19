@@ -74,6 +74,10 @@ export interface AsOfFilters {
   after?: string;
   /** RETR-003: include rows whose timestamp (or chat-archive key facet) is at or before this ISO instant */
   before?: string;
+  /** RETR-006: include only rows whose `attributes` contains name → value
+   *  (exact match after String() normalization — mirrors DuckDB's
+   *  json_extract_string stringification: numeric 403 matches "403"). */
+  attr?: Record<string, string>;
   limit?: number;
 }
 
@@ -300,6 +304,16 @@ function matchesFilters(row: MemoryRowAtRef, filters: AsOfFilters): boolean {
   }
   if (filters.author !== undefined && row.author !== filters.author) {
     return false;
+  }
+  // RETR-006: attribute filters — in-memory mirror of the DuckDB
+  // json_extract_string conditions: every name→value pair must match, and
+  // scalars compare by their string form (403 → "403"). A missing key
+  // never matches.
+  if (filters.attr !== undefined) {
+    for (const [name, value] of Object.entries(filters.attr)) {
+      const actual = row.attributes[name];
+      if (actual === undefined || String(actual) !== value) return false;
+    }
   }
   return matchesTimeWindow(row, filters.after, filters.before);
 }

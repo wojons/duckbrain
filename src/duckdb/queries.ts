@@ -109,6 +109,12 @@ export interface MemoryQueryFilters {
   /** RETR-003: include rows whose timestamp (or chat-archive key date facet)
    *  is at or before this ISO-8601 instant */
   before?: string;
+  /** RETR-006: attribute filters — include only rows whose `attributes`
+   *  JSON contains name → value (exact string match after DuckDB's
+   *  json_extract_string normalization: numeric/bool values compare by
+   *  their string form, so attr.tick=403 matches both 403 and "403").
+   *  Empty record = no-op. */
+  attr?: Record<string, string>;
   limit?: number;
 }
 
@@ -179,6 +185,41 @@ function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/**
+ * RETR-006: SQL conditions for attribute filters, if any.
+ *
+ * `attributes` is forced to VARCHAR by READ_JSON_COLUMNS, so rows carry the
+ * RAW JSON text and json_extract_string (verified live on duckdb 1.4.4)
+ * is the right extractor — it parses the JSON per call, tolerates
+ * RFC 8259 duplicate keys (first value wins, DOGFOOD-018/019), stringifies
+ * scalars (numeric `tick: 403` extracts to '403', so a single literal
+ * comparison matches both `403` and `"403"`), and returns NULL (no match)
+ * for missing keys or unparseable rows (read_json ignore_errors=true has
+ * already NULLed malformed lines).
+ *
+ * Injection safety, mirroring the other template-literal conditions:
+ *   - the VALUE is escaped as a SQL string literal (single-quote doubling);
+ *   - the NAME is embedded in a JSONPath `$."…"` segment with `\` and `"`
+ *     backslash-escaped, so quotes/backslashes in a name can neither break
+ *     the SQL string nor the JSONPath parser (verified live).
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same conditions to its sidecar candidate SQL.
+ */
+export function buildAttributeConditions(
+  attr?: Record<string, string>,
+): string[] {
+  if (!attr) return [];
+  const conditions: string[] = [];
+  for (const [name, value] of Object.entries(attr)) {
+    const pathSegment = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    conditions.push(
+      `json_extract_string(attributes, '$."${pathSegment}"') = '${escapeSqlLiteral(value)}'`,
+    );
+  }
+  return conditions;
+}
+
 function buildTimestampBound(kind: "after" | "before", value: string): string {
   const cmp = kind === "after" ? ">=" : "<=";
   return `try_cast(timestamp AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
@@ -246,6 +287,11 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
   // bounds. Applied INSIDE the dedup window, so a memory that was updated
   // after the window's end still surfaces as its latest in-window record.
   conditions.push(...buildTimeRangeConditions(filters?.after, filters?.before));
+
+  // RETR-006: attribute filters — exact matches on the attributes JSON.
+  // ANDed with everything above (intersection semantics). Applied inside
+  // the dedup window like the time bounds.
+  conditions.push(...buildAttributeConditions(filters?.attr));
 
   // Semantic search with vector similarity
   if (filters?.query && filters?.embedding) {

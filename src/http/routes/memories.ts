@@ -127,6 +127,16 @@ router.get(
       namespace: (req.query.namespace as string) || "default",
     };
 
+    // RETR-006: attribute filters — every ?attr.<name>=<value> query param
+    // (prefix-stripped) becomes one name→value filter. Only string-valued
+    // params are forwarded; non-string (array/object) values are dropped.
+    const attr: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.query)) {
+      if (key.startsWith("attr.") && typeof value === "string") {
+        attr[key.slice("attr.".length)] = value;
+      }
+    }
+
     // RETR-003: validate + normalize the time-range params BEFORE the tool
     // call — parseTimeRange throws on invalid ISO-8601 values, between=
     // combined with after/before, or an empty window (after > before), and
@@ -190,6 +200,9 @@ router.get(
       // RETR-004: forward the RESOLVED commit ref (date inputs already
       // resolved to a SHA above).
       ...(asOfRef ? { asOf: asOfRef } : {}),
+      // RETR-006: forward the prefix-stripped attribute filters
+      // (?attr.domain=config → attr: {domain: "config"}).
+      ...(Object.keys(attr).length > 0 ? { attr } : {}),
     });
 
     if (result.error) {
