@@ -706,5 +706,6 @@ tasks:
   - auth.json holds scoped tokens for standin-pick/tg-backfill/state-db-backfill/schedulerd-sync/foreman-status;
     the 3 ~/.hermes/scripts consumers send X-API-Key when DUCKBRAIN_API_KEY set; live
     :3000 daemon NOT yet flipped (tokenless GET still 200, unit has no --auth)
-  status: in_progress
+  status: complete
   created_at: '2026-08-19T19:46:19.825232+00:00'
+  completed_at: '2026-08-19T19:54:41.959520+00:00'
