@@ -51,7 +51,7 @@ Commands:
   remember <key>     Remember a memory (body via --content=, --text=, or stdin)
   recall             Query memories
   search <query>     Keyword full-text search (offline; needs search-index rebuild)
-  search-index       Manage the keyword search index (rebuild|status)
+  search-index       Manage the keyword search index (rebuild|status|install-hooks)
   list-keys          Browse memory structure
   forget <id>        Delete a memory
   config             Show or set configuration
