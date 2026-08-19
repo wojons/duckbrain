@@ -44,8 +44,9 @@ JSONL is git-tracked and S3-mirrored. `recall --as-of <date|commit>` reads parti
 - Exact-key/glob lists: **newest-first by default** (today: oldest-first — live-probed 08-02 before 08-18).
 - Semantic fusion: recency tiebreak / decay factor so a 3-day-old memory outranks a 90-day-old one at equal similarity.
 
-### T-4. Fact versioning convention — Effort S–M
+### T-4. Fact versioning convention — Effort S–M ✅ SHIPPED (RETR-011)
 Optional write-side attributes `valid_from` / `valid_until`; recall surfaces `current` vs `historical` views. Lightweight prelude to temporal knowledge — no graph needed. Pairs with T-2 for "what changed and when".
+*Shipped:* optional ISO-8601 `valid_from`/`valid_until` on remember (MCP + HTTP POST + CLI `--valid-from`/`--valid-until`); recall/`GET /api/memories`/CLI gain `historical` — the default current view excludes expired (past `valid_until`) and not-yet-valid (future `valid_from`) rows; `historical=true` includes every row. Filter applies to the list, keyword (`contains=`), semantic/hybrid (`q=`) and count paths; `as_of` git-state reads are inherently historical and unaffected.
 
 ### T-5. Temporal facets on chat archive — Effort S
 Chat-archive keys are already dated (`/chats/karahermes-set/2026-08-08`). Add `date=` / `since=` filters + "last N days" aggregation to the recall path.
@@ -87,7 +88,7 @@ Search index is a **gitignored, rebuildable cache** — `duckbrain search-index 
 | 1 (now) | Q-1 + Q-2 + T-3 | Kills the "can't find exact tokens" class; recency fix is tiny; no provider needed for keyword half |
 | 2 | T-1 + T-2 + Q-4 | Time travel is our unfair advantage; time-scope is trivial; cross-namespace rounds out query |
 | 3 | Q-5 + Q-6 | Chat corpus search + SQL surface = power-user depth |
-| 4 (later) | T-4 + T-6 + rerank | Fact versioning + time-series + rerank — the "memory quality" layer |
+| 4 (later) | ~~T-4~~ ✅ + T-6 + rerank | Fact versioning ✅ (RETR-011) + time-series + rerank — the "memory quality" layer |
 
 ## 4. Where features land
 

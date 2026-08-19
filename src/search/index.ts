@@ -39,7 +39,7 @@ export const INDEX_META_NAME = "meta.json";
 
 /** Explicit all-VARCHAR read_json schema for the staged row file. */
 export const SEARCH_ROW_COLUMNS =
-  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR', raw_text:'VARCHAR', search_text:'VARCHAR'}";
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', valid_from:'VARCHAR', valid_until:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR', raw_text:'VARCHAR', search_text:'VARCHAR'}";
 
 /** DuckDB connection options — one thread, matching connection.ts. */
 export const DB_CONFIG = { threads: "1" };
@@ -101,6 +101,10 @@ export interface MemoryRecord {
   action: string;
   embedding_text: string;
   attributes: Record<string, unknown>;
+  /** RETR-011: optional validity-window start (ISO-8601) */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601) */
+  valid_until?: string;
 }
 
 /**
@@ -156,6 +160,14 @@ export function collectLiveMemoryRows(namespacePath: string): MemoryRecord[] {
                   typeof rec.domain === "string" ? rec.domain : "raw_note",
                 timestamp:
                   typeof rec.timestamp === "string" ? rec.timestamp : "",
+                // RETR-011: optional validity window — carried through so
+                // the sidecar can apply current-view filtering.
+                ...(typeof (rec as any).valid_from === "string"
+                  ? { valid_from: (rec as any).valid_from as string }
+                  : {}),
+                ...(typeof (rec as any).valid_until === "string"
+                  ? { valid_until: (rec as any).valid_until as string }
+                  : {}),
                 author: typeof rec.author === "string" ? rec.author : "",
                 action: typeof rec.action === "string" ? rec.action : "add",
                 embedding_text: text,
@@ -256,6 +268,12 @@ export async function rebuildNamespaceIndex(
       key: rec.key,
       domain: rec.domain,
       timestamp: rec.timestamp,
+      // RETR-011: optional validity window — staged so rebuilt sidecars
+      // carry the columns the current-view keyword filter needs.
+      ...(rec.valid_from !== undefined ? { valid_from: rec.valid_from } : {}),
+      ...(rec.valid_until !== undefined
+        ? { valid_until: rec.valid_until }
+        : {}),
       author: rec.author,
       action: rec.action,
       embedding_text: rec.embedding_text,
@@ -295,7 +313,7 @@ export async function rebuildNamespaceIndex(
     }
     await execAsync(
       db,
-      `CREATE TABLE memories (id VARCHAR, key VARCHAR, domain VARCHAR, timestamp VARCHAR, author VARCHAR, action VARCHAR, embedding_text VARCHAR, attributes VARCHAR, raw_text VARCHAR, search_text VARCHAR)`,
+      `CREATE TABLE memories (id VARCHAR, key VARCHAR, domain VARCHAR, timestamp VARCHAR, valid_from VARCHAR, valid_until VARCHAR, author VARCHAR, action VARCHAR, embedding_text VARCHAR, attributes VARCHAR, raw_text VARCHAR, search_text VARCHAR)`,
     );
     if (lines.length > 0) {
       const fileList = `'${tmpRowsPath.replace(/\\/g, "/")}'`;

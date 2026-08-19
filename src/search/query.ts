@@ -28,6 +28,7 @@ import {
 import {
   buildTimeRangeConditions,
   buildAttributeConditions,
+  buildValidityConditions,
 } from "../duckdb/queries";
 
 /** Safety cap on the candidate pool — mirrors recallTool's MAX_CANDIDATES. */
@@ -50,6 +51,11 @@ export interface KeywordHit {
    *  — a marker style the CLI can print. The raw `snippet` field above
    *  stays marker-free for API/MCP consumers; this rides alongside it. */
   highlightedSnippet?: string;
+  /** RETR-011: optional validity-window start (ISO-8601) — echoed from the
+   *  row when present (absent on pre-RETR-011 rows and stale sidecars). */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601). */
+  valid_until?: string;
   /** Source namespace of this hit (RETR-007) — an explicit facet, never
    *  inferred from the key. Single-namespace searches carry the searched
    *  namespace; all-namespaces unions carry each hit's own namespace. */
@@ -82,6 +88,15 @@ export interface KeywordSearchOptions {
   /** RETR-006: only rows whose `attributes` JSON contains name → value
    *  (exact match, json_extract_string semantics). */
   attr?: Record<string, string>;
+  /** RETR-011: validity-window filtering — when `now` is provided and
+   *  `historical` is not true, only rows whose validity window contains
+   *  `now` are candidates (expired / not-yet-valid rows are excluded).
+   *  Requires a rebuilt sidecar (valid_from/valid_until columns); stale
+   *  sidecars without the columns skip the clause and degrade gracefully. */
+  historical?: boolean;
+  /** RETR-011: the "now" instant (ISO-8601) the validity window is
+   *  compared against — set once per recall request. */
+  now?: string;
   /** RETR-007: restrict the all-namespaces union to these namespace names
    *  (default: every manifest namespace under the namespaces root). */
   namespaces?: string[];
@@ -103,12 +118,32 @@ function allAsync(db: Database, sql: string): Promise<any[]> {
   });
 }
 
+/**
+ * RETR-011: does this sidecar's `memories` table carry the validity columns?
+ *
+ * Sidecars rebuilt before RETR-011 lack valid_from/valid_until; the
+ * current-view validity clause would error on them, so the keyword leg
+ * checks once per search and degrades gracefully (no validity filtering)
+ * until the operator runs `duckbrain search-index rebuild`.
+ */
+async function sidecarHasValidityColumns(db: Database): Promise<boolean> {
+  try {
+    const rows = await allAsync(db, "PRAGMA table_info(memories)");
+    const names = new Set(
+      rows.map((r: any) => String(r.name ?? r.column_name ?? "")),
+    );
+    return names.has("valid_from") && names.has("valid_until");
+  } catch {
+    return false;
+  }
+}
+
 function closeAsync(db: Database): Promise<void> {
   return new Promise((resolve) => db.close(() => resolve()));
 }
 
 const ROW_COLUMNS =
-  "id, key, domain, timestamp, author, action, embedding_text, attributes, raw_text, search_text";
+  "id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, raw_text, search_text";
 
 function toIndexRow(row: any): IndexRow {
   return {
@@ -116,6 +151,14 @@ function toIndexRow(row: any): IndexRow {
     key: String(row.key ?? ""),
     domain: String(row.domain ?? ""),
     timestamp: String(row.timestamp ?? ""),
+    // RETR-011: optional validity window — echoed when the sidecar carries
+    // the columns (stale sidecars yield undefined).
+    ...(typeof row.valid_from === "string"
+      ? { valid_from: row.valid_from }
+      : {}),
+    ...(typeof row.valid_until === "string"
+      ? { valid_until: row.valid_until }
+      : {}),
     author: String(row.author ?? ""),
     action: String(row.action ?? ""),
     embedding_text: String(row.embedding_text ?? ""),
@@ -177,6 +220,19 @@ async function collectKeywordCandidates(
   const attrConditions = buildAttributeConditions(opts.attr);
   const attrClause =
     attrConditions.length > 0 ? ` AND ${attrConditions.join(" AND ")}` : "";
+  // RETR-011: same validity-window conditions as queryMemories — applied to
+  // BOTH candidate passes. DEFENSIVE: the clause references valid_from/
+  // valid_until columns that only exist on sidecars rebuilt after RETR-011;
+  // on a stale sidecar the columns are missing and the clause would make
+  // every keyword search error, so it is skipped (the keyword leg degrades
+  // to unfiltered validity until `duckbrain search-index rebuild`).
+  const validityConditions = (await sidecarHasValidityColumns(db))
+    ? buildValidityConditions(opts.historical, opts.now)
+    : [];
+  const validityClause =
+    validityConditions.length > 0
+      ? ` AND ${validityConditions.join(" AND ")}`
+      : "";
   try {
     if (ftsTokens.length > 0) {
       // Digit-map + collapse separator runs so the query never produces
@@ -187,7 +243,7 @@ async function collectKeywordCandidates(
       );
       const literal = escapeSqlLiteral(mapped.trim());
       const ftsSql = (conjunctive: number) =>
-        `SELECT ${ROW_COLUMNS}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0${timeClause}${attrClause} ORDER BY score DESC LIMIT ${maxCandidates}`;
+        `SELECT ${ROW_COLUMNS}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0${timeClause}${attrClause}${validityClause} ORDER BY score DESC LIMIT ${maxCandidates}`;
       let rows = await allAsync(db, ftsSql(1));
       if (rows.length === 0) {
         // AND found nothing — relax to OR (any token) and let rank.ts
@@ -204,7 +260,7 @@ async function collectKeywordCandidates(
       // Raw-text prefix pass (digit-exact, stemmer-free). Candidates get
       // no BM25 score — tier + recency order them.
       const pattern = `${escapeLikePattern(prefix)}%`;
-      const sql = `SELECT ${ROW_COLUMNS}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\'${timeClause}${attrClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
+      const sql = `SELECT ${ROW_COLUMNS}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\'${timeClause}${attrClause}${validityClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
       const rows = await allAsync(db, sql);
       for (const r of rows) {
         const row = toIndexRow(r);
@@ -263,6 +319,13 @@ export async function keywordSearch(
     // RETR-008: highlighted display form — matched terms wrapped in
     // `<mark>…</mark>` (raw snippet stays available above).
     highlightedSnippet: highlightMatches(hit.snippet, kept, prefix, body),
+    // RETR-011: echo the validity window when the row carries it.
+    ...(hit.row.valid_from !== undefined
+      ? { valid_from: hit.row.valid_from }
+      : {}),
+    ...(hit.row.valid_until !== undefined
+      ? { valid_until: hit.row.valid_until }
+      : {}),
     namespace: hit.row.namespace ?? namespace,
   }));
 
@@ -361,6 +424,13 @@ export async function keywordSearchAllNamespaces(
     // RETR-008: highlighted display form — matched terms wrapped in
     // `<mark>…</mark>` (raw snippet stays available above).
     highlightedSnippet: highlightMatches(hit.snippet, kept, prefix, body),
+    // RETR-011: echo the validity window when the row carries it.
+    ...(hit.row.valid_from !== undefined
+      ? { valid_from: hit.row.valid_from }
+      : {}),
+    ...(hit.row.valid_until !== undefined
+      ? { valid_until: hit.row.valid_until }
+      : {}),
     namespace: hit.row.namespace ?? "",
   }));
 

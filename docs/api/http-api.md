@@ -205,6 +205,13 @@ Query memories with filters.
 | `domain` | — | Domain filter |
 | `author` | — | Author email filter |
 | `q` | — | Text search query |
+| `contains` | — | Keyword filter (offline full-text search over content/key/attributes) |
+| `after` | — | Only rows at or after this ISO-8601 instant (timestamp or chat-archive key date facet) |
+| `before` | — | Only rows at or before this ISO-8601 instant |
+| `between` | — | ISO-8601 range as `START,END` — shorthand for `after` + `before` |
+| `as_of` | — | Read the namespace state at a git ref or ISO-8601 date (memory-as-of) |
+| `attr.<name>` | — | Attribute filter: only rows whose `attributes` match `name=value` (repeatable) |
+| `historical` | `false` | View selector: `true` = historical view including ALL rows regardless of validity window (expired `valid_until` / future `valid_from` facts stay visible); `false`/absent = current view (validity-filtered) |
 | `limit` | 50 | Max results to return |
 | `offset` | 0 | Pagination offset |
 | `namespace` | `default` | Namespace to query |
@@ -221,6 +228,8 @@ Query memories with filters.
       "content": "Using PostgreSQL with PgBouncer",
       "attributes": { "author": "alice", "confidence": "high" },
       "timestamp": "2026-07-19T12:00:00.000Z",
+      "valid_from": "2026-07-19T12:00:00.000Z",
+      "valid_until": "2026-12-31T23:59:59.000Z",
       "author": "alice@example.com",
       "isTombstone": false,
       "action": "add"
@@ -233,6 +242,8 @@ Query memories with filters.
   "nextOffset": null
 }
 ```
+
+`valid_from` / `valid_until` (RETR-011) are present only when the memory was written with them (optional validity window; omitted = always current). The current view (default) excludes memories whose `valid_until` is in the past or whose `valid_from` is in the future; pass `?historical=true` to include them.
 
 **Example:**
 
@@ -284,12 +295,16 @@ Create a new memory.
   "domain": "concept",
   "content": "Using PostgreSQL with PgBouncer for connection pooling",
   "namespace": "default",
+  "valid_from": "2026-07-19T12:00:00.000Z",
+  "valid_until": "2026-12-31T23:59:59.000Z",
   "attributes": {
     "author": "alice",
     "confidence": "high"
   }
 }
 ```
+
+> **Note — validity window (RETR-011):** `valid_from` / `valid_until` are optional ISO-8601 datetimes. Omitted = the memory is valid from the moment of writing, indefinitely. A past `valid_until` (or future `valid_from`) keeps the memory out of the default current recall view; it remains visible with `?historical=true` on `GET /api/memories`.
 
 > **Note — namespace selection:** The target namespace may be passed either as the `?namespace=` query parameter **or** as a `"namespace"` field in the JSON body. When both are present the query parameter wins; the body value is the fallback; when neither is supplied the memory is written to the `default` namespace.
 
@@ -305,6 +320,8 @@ Create a new memory.
   "content": "Using PostgreSQL with PgBouncer...",
   "attributes": { "author": "alice", "confidence": "high" },
   "timestamp": "2026-07-19T12:00:00.000Z",
+  "valid_from": "2026-07-19T12:00:00.000Z",
+  "valid_until": "2026-12-31T23:59:59.000Z",
   "author": "alice@example.com",
   "isTombstone": false,
   "action": "add"

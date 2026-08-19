@@ -69,6 +69,18 @@ export const MemorySchema = z.object({
   /** ISO-8601 timestamp of record creation */
   timestamp: z.string().datetime(),
 
+  /** RETR-011: optional validity-window start (ISO-8601 datetime).
+   *  Absent = valid from the moment of writing. A future valid_from keeps
+   *  the memory out of the current recall view until that instant (it
+   *  remains visible with historical=true). */
+  valid_from: z.string().datetime().optional(),
+
+  /** RETR-011: optional validity-window end (ISO-8601 datetime).
+   *  Absent = valid indefinitely (always current). A past valid_until
+   *  keeps the memory out of the current recall view; it remains visible
+   *  with historical=true. */
+  valid_until: z.string().datetime().optional(),
+
   /** Git email address for authorship attribution */
   author: z.string().email(),
 
@@ -126,12 +138,24 @@ export function createMemory(params: {
   embedding_text: string;
   attributes?: Record<string, unknown>;
   action?: Action;
+  /** RETR-011: optional validity-window start (ISO-8601) — absent = valid
+   *  from the moment of writing */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601) — absent = valid
+   *  indefinitely */
+  valid_until?: string;
 }): MemoryType {
   return {
     id: crypto.randomUUID(),
     key: params.key,
     domain: params.domain,
     timestamp: new Date().toISOString(),
+    ...(params.valid_from !== undefined
+      ? { valid_from: params.valid_from }
+      : {}),
+    ...(params.valid_until !== undefined
+      ? { valid_until: params.valid_until }
+      : {}),
     author: params.author,
     action: params.action ?? "add",
     embedding_text: params.embedding_text,

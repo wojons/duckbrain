@@ -43,6 +43,25 @@ const RememberInputSchema = z.object({
     .describe("Memory attributes"),
   /** Text for vector embedding */
   embedding_text: z.string().describe("Text for vector embedding"),
+  /** RETR-011: optional validity-window start (ISO-8601 datetime, e.g.
+   *  2026-08-19T00:00:00.000Z). Absent = valid from the moment of
+   *  writing. A future valid_from keeps the memory out of the current
+   *  recall view until that instant. */
+  valid_from: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Validity window start (ISO-8601); absent = valid immediately"),
+  /** RETR-011: optional validity-window end (ISO-8601 datetime). Absent =
+   *  valid indefinitely. A past valid_until excludes the memory from the
+   *  current recall view (visible with recall historical=true). */
+  valid_until: z
+    .string()
+    .datetime()
+    .optional()
+    .describe(
+      "Validity window end (ISO-8601); absent = valid indefinitely. Past value = expired (current view excludes it; historical view shows it)",
+    ),
   /** Namespace to write to (defaults to the ACTIVE namespace — config
    *  defaultNamespace, which switch_namespace persists and is therefore
    *  sticky across processes; see docs/api/mcp-tools.md) */
@@ -131,6 +150,14 @@ export async function rememberTool(
       embedding_text,
       attributes: normalizedAttributes,
       action: "add",
+      // RETR-011: optional validity window — passthrough from the input;
+      // omitted fields keep the legacy always-current behavior.
+      ...(parseResult.data.valid_from !== undefined
+        ? { valid_from: parseResult.data.valid_from }
+        : {}),
+      ...(parseResult.data.valid_until !== undefined
+        ? { valid_until: parseResult.data.valid_until }
+        : {}),
     });
 
     // Validate complete memory

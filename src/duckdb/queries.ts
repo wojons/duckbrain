@@ -120,6 +120,17 @@ export interface MemoryQueryFilters {
    *  their string form, so attr.tick=403 matches both 403 and "403").
    *  Empty record = no-op. */
   attr?: Record<string, string>;
+  /** RETR-011: validity-window filtering — when `now` is provided and
+   *  `historical` is not true, only rows whose validity window contains
+   *  `now` are included: valid_until in the past (expired) and valid_from
+   *  in the future (not yet valid) are excluded. historical=true (or no
+   *  `now`) disables the filter. Callers outside the recall surface never
+   *  set `now`, so their behavior is unchanged. */
+  historical?: boolean;
+  /** RETR-011: the "now" instant (ISO-8601) the validity window is
+   *  compared against — set once per recall request so the whole query
+   *  (and its count) sees one fixed instant. */
+  now?: string;
   limit?: number;
 }
 
@@ -225,6 +236,34 @@ export function buildAttributeConditions(
   return conditions;
 }
 
+/**
+ * RETR-011: SQL conditions for the validity window, if the caller opted in.
+ *
+ * Current view (historical !== true AND now provided): a row is visible
+ * only while its validity window contains `now`:
+ *   - valid_until IS NULL OR valid_until >= now   (not expired)
+ *   - valid_from IS NULL OR valid_from <= now     (already valid)
+ * Both fields are VARCHAR ISO-8601 (READ_JSON_COLUMNS), compared as
+ * TIMESTAMP via try_cast — the same pattern as the RETR-003 time bounds
+ * (a lexicographic string compare would be wrong across mixed formats).
+ * historical=true (or no `now`) → no conditions, all rows regardless of
+ * validity — the historical view where expired facts remain visible.
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same semantics to its sidecar candidate SQL.
+ */
+export function buildValidityConditions(
+  historical: boolean | undefined,
+  now: string | undefined,
+): string[] {
+  if (historical === true || now === undefined) return [];
+  const nowLit = escapeSqlLiteral(now);
+  return [
+    `(valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= try_cast('${nowLit}' AS TIMESTAMP))`,
+    `(valid_from IS NULL OR try_cast(valid_from AS TIMESTAMP) <= try_cast('${nowLit}' AS TIMESTAMP))`,
+  ];
+}
+
 function buildTimestampBound(kind: "after" | "before", value: string): string {
   const cmp = kind === "after" ? ">=" : "<=";
   return `try_cast(timestamp AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
@@ -298,6 +337,15 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
   // the dedup window like the time bounds.
   conditions.push(...buildAttributeConditions(filters?.attr));
 
+  // RETR-011: validity-window filter — current view excludes expired
+  // (past valid_until) and not-yet-valid (future valid_from) rows.
+  // Applied inside the dedup window, mirroring the time bounds; the
+  // recall surface always sets `now`, so non-recall callers (which never
+  // set it) keep legacy behavior.
+  conditions.push(
+    ...buildValidityConditions(filters?.historical, filters?.now),
+  );
+
   // Semantic search with vector similarity
   if (filters?.query && filters?.embedding) {
     conditions.push("embedding IS NOT NULL");
@@ -327,7 +375,7 @@ function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
  * drops, instead of a native throw.
  */
 export const READ_JSON_COLUMNS =
-  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', valid_from:'VARCHAR', valid_until:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
 
 /**
  * Query memories from DuckDB with optional filters
@@ -390,7 +438,7 @@ export function queryMemories(
   // Use read_json with explicit file list instead of glob pattern
   const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
   const sql = `
-    SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
+    SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
@@ -434,6 +482,14 @@ export function queryMemories(
               key: row.key,
               domain: row.domain,
               timestamp: row.timestamp,
+              // RETR-011: optional validity window — absent on rows written
+              // before the fields existed (NULL → undefined).
+              ...(typeof row.valid_from === "string"
+                ? { valid_from: row.valid_from }
+                : {}),
+              ...(typeof row.valid_until === "string"
+                ? { valid_until: row.valid_until }
+                : {}),
               author: row.author,
               action: row.action,
               embedding_text: row.embedding_text,

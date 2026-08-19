@@ -85,6 +85,14 @@ function transformMemory(memory: any): MemoryResponse {
     content: memory.embedding_text,
     attributes: memory.attributes || {},
     timestamp: memory.timestamp,
+    // RETR-011: optional validity window — echoed from the stored row when
+    // present (absent on pre-RETR-011 memories).
+    ...(typeof memory.valid_from === "string"
+      ? { valid_from: memory.valid_from }
+      : {}),
+    ...(typeof memory.valid_until === "string"
+      ? { valid_until: memory.valid_until }
+      : {}),
     author: memory.author,
     isTombstone: memory.action === "tombstone",
     action: memory.action,
@@ -138,6 +146,9 @@ router.get(
       // RETR-004: memory-as-of — git ref or ISO-8601 date (validated below
       // so invalid values surface as a clean 400, not a recallTool 500).
       as_of: req.query.as_of as string | undefined,
+      // RETR-011: view selector — ?historical=true includes expired /
+      // not-yet-valid rows (the current view is the default).
+      historical: req.query.historical === "true",
       namespace: (req.query.namespace as string) || "default",
     };
 
@@ -235,6 +246,8 @@ router.get(
       // RETR-006: forward the prefix-stripped attribute filters
       // (?attr.domain=config → attr: {domain: "config"}).
       ...(Object.keys(attr).length > 0 ? { attr } : {}),
+      // RETR-011: forward the view selector (absent = current view).
+      ...(params.historical ? { historical: true } : {}),
     });
 
     if (result.error) {
@@ -394,6 +407,12 @@ router.post(
       // response echoes it — the stored row and the response must agree.
       attributes: normalizeAttributes(body.attributes),
       embedding_text: body.content,
+      // RETR-011: optional validity window — passthrough; omitted fields
+      // keep the legacy always-current behavior.
+      ...(body.valid_from !== undefined ? { valid_from: body.valid_from } : {}),
+      ...(body.valid_until !== undefined
+        ? { valid_until: body.valid_until }
+        : {}),
       namespace: (req.query.namespace as string) || body.namespace || "default",
       ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
@@ -410,6 +429,12 @@ router.post(
       content: body.content,
       attributes: normalizeAttributes(body.attributes),
       timestamp: new Date().toISOString(),
+      // RETR-011: echo the validity window exactly as stored (the tool
+      // normalized nothing here — the values pass through verbatim).
+      ...(body.valid_from !== undefined ? { valid_from: body.valid_from } : {}),
+      ...(body.valid_until !== undefined
+        ? { valid_until: body.valid_until }
+        : {}),
       author: result.author!,
       isTombstone: false,
       action: "add",

@@ -21,6 +21,12 @@ export interface MemoryResponse {
   attributes: Record<string, unknown>;
   /** ISO timestamp */
   timestamp: string;
+  /** RETR-011: optional validity-window start (ISO-8601) — present when the
+   *  memory was written with one */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601) — present when the
+   *  memory was written with one */
+  valid_until?: string;
   /** Author email from git */
   author: string;
   /** Whether this is a tombstone (deleted) */
@@ -99,6 +105,15 @@ export interface CreateMemoryRequest {
   content: string;
   /** Optional attributes */
   attributes?: Record<string, unknown>;
+  /** RETR-011: optional validity-window start (ISO-8601 datetime, e.g.
+   *  2026-08-19T00:00:00.000Z) — absent = valid from the moment of
+   *  writing; a future value keeps the memory out of the current recall
+   *  view until that instant */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601 datetime) — absent =
+   *  valid indefinitely; a past value excludes the memory from the current
+   *  recall view (visible with ?historical=true) */
+  valid_until?: string;
   /** Optional target namespace — fallback when the ?namespace= query param is absent */
   namespace?: string;
 }
@@ -147,6 +162,10 @@ export interface QueryParams {
    *  existed at that point in history (date resolves to the nearest commit
    *  at-or-before it) */
   as_of?: string;
+  /** RETR-011: view selector — false (default) = current (validity-filtered:
+   *  expired valid_until / future valid_from excluded); true = historical
+   *  (all rows, expired facts included) */
+  historical?: boolean;
   /** Namespace to query */
   namespace?: string;
 }

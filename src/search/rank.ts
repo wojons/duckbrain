@@ -34,6 +34,11 @@ export interface IndexRow {
   search_text: string;
   /** BM25 score from the FTS query (absent for LIKE-only candidates) */
   bm25?: number;
+  /** RETR-011: optional validity-window start (ISO-8601) — echoed from the
+   *  sidecar row when the rebuilt sidecar carries the columns */
+  valid_from?: string;
+  /** RETR-011: optional validity-window end (ISO-8601) */
+  valid_until?: string;
   /** Source namespace of the row (RETR-007) — set by the search query
    *  paths so the response facet is explicit, never inferred from the key. */
   namespace?: string;

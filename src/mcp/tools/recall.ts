@@ -133,6 +133,18 @@ const RecallInputSchema = z.object({
     .describe(
       "Attribute filters: only rows whose attributes match every name→value pair",
     ),
+  /** RETR-011: view selector — false (default) = CURRENT view: rows whose
+   *  validity window does not contain now are excluded (valid_until in
+   *  the past = expired; valid_from in the future = not yet valid).
+   *  true = HISTORICAL view: ALL rows regardless of validity — expired
+   *  facts remain visible here. Does not apply to as_of reads (those are
+   *  inherently historical git-state reads). */
+  historical: z
+    .boolean()
+    .optional()
+    .describe(
+      "View selector: false (default) = current (validity-filtered); true = historical (all rows, expired facts included)",
+    ),
 });
 
 /**
@@ -160,6 +172,11 @@ interface RecallOutput {
      *  the searched namespace for single-namespace searches, each hit's
      *  own namespace for all-namespaces unions */
     namespace?: string;
+    /** RETR-011: optional validity-window start (ISO-8601) — echoed from
+     *  the row when present */
+    valid_from?: string;
+    /** RETR-011: optional validity-window end (ISO-8601) */
+    valid_until?: string;
   }>;
   count: number;
   /** True total of matching memories, unlimited by limit/offset (GAP-024) */
@@ -257,6 +274,9 @@ async function runSemanticLeg(opts: {
   provider: EmbeddingProvider;
   queryVector: number[];
   searchMinScore: number | undefined;
+  /** RETR-011: the fixed "now" instant the validity window is compared
+   *  against (set once per request in recallTool) */
+  now: string;
 }): Promise<{ ranked: RankedMemory[]; candidatesCount: number }> {
   const {
     namespacePath,
@@ -291,6 +311,12 @@ async function runSemanticLeg(opts: {
   // RETR-006: attribute filters — the candidate pool is attr-scoped too, so
   // out-of-scope rows can never be ranked or fused.
   if (validated.attr) candidateFilters.attr = validated.attr;
+  // RETR-011: validity-window filter — the candidate pool is validity-scoped
+  // too, so expired / not-yet-valid rows can never be ranked or fused in
+  // the current view (historical=true disables the filter inside
+  // buildValidityConditions).
+  candidateFilters.historical = validated.historical === true;
+  candidateFilters.now = opts.now;
 
   const result = await withTimeout(
     (async () => {
@@ -352,6 +378,12 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
 
   const validated = parseResult.data;
   console.error("[recall] Validated input:", validated);
+
+  // RETR-011: one fixed "now" instant for the whole request — the validity
+  // window is compared against the same instant across the list, keyword,
+  // semantic-candidate and count paths, so a request never sees a row flip
+  // in or out of the current view mid-flight.
+  const now = new Date().toISOString();
 
   // RETR-003: validate + normalize the time-range params up front. Invalid
   // ISO-8601 values (or between= combined with after/before) surface as a
@@ -524,6 +556,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
               ...(timeRange.before ? { before: timeRange.before } : {}),
               // RETR-006: attr-scope the keyword candidate pool too.
               ...(validated.attr ? { attr: validated.attr } : {}),
+              // RETR-011: validity-scope the keyword candidate pool too
+              // (historical=true disables the clause).
+              historical: validated.historical === true,
+              now,
             },
           )
         : await keywordSearch(namespacePath, validated.contains, {
@@ -534,6 +570,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             ...(timeRange.before ? { before: timeRange.before } : {}),
             // RETR-006: attr-scope the keyword candidate pool too.
             ...(validated.attr ? { attr: validated.attr } : {}),
+            // RETR-011: validity-scope the keyword candidate pool too
+            // (historical=true disables the clause).
+            historical: validated.historical === true,
+            now,
           });
       return {
         memories: keywordResult.memories,
@@ -608,6 +648,14 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // queryMemories and countMemories so the reported total always matches
     // the returned window.
     if (validated.attr) filters.attr = validated.attr;
+
+    // RETR-011: validity-window filter on the list path — shared by
+    // queryMemories and countMemories so the reported total always matches
+    // the returned window. Default (historical unset/false) = current view:
+    // expired (past valid_until) and not-yet-valid (future valid_from)
+    // rows are excluded; historical=true includes every row.
+    filters.historical = validated.historical === true;
+    filters.now = now;
 
     // GAP-023/GAP-024: limit=0 is a valid "empty page" request — no rows are
     // fetched, but the true total is still reported. A zero limit must never
@@ -704,6 +752,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           // RETR-006: attr-scope the keyword leg so fusion can never
           // surface out-of-scope rows.
           ...(validated.attr ? { attr: validated.attr } : {}),
+          // RETR-011: validity-scope the keyword leg so fusion can never
+          // surface expired / not-yet-valid rows in the current view.
+          historical: validated.historical === true,
+          now,
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -733,6 +785,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             provider,
             queryVector,
             searchMinScore,
+            now,
           });
           semanticRanked = leg.ranked;
         } catch (e: any) {
@@ -803,6 +856,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             provider,
             queryVector,
             searchMinScore,
+            now,
           });
         } catch (e: any) {
           const msg = e instanceof Error ? e.message : String(e);

@@ -110,6 +110,8 @@ const REMEMBER_FLAGS = new Set([
   "embedding-text",
   "content",
   "text",
+  "valid-from",
+  "valid-until",
 ]);
 
 /**
@@ -196,10 +198,10 @@ async function rememberCommand(args: string[]): Promise<void> {
     if (!REMEMBER_FLAGS.has(flag)) {
       console.error(`Error: unknown flag '--${flag}' for 'remember'.`);
       console.error(
-        "Valid flags: --domain=<d> --attr=<json> --namespace=<name> --wait --content=<text> --text=<text> --embedding-text=<text>",
+        "Valid flags: --domain=<d> --attr=<json> --namespace=<name> --wait --content=<text> --text=<text> --embedding-text=<text> --valid-from=<iso> --valid-until=<iso>",
       );
       console.error(
-        "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--wait]",
+        "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--valid-from=<iso>] [--valid-until=<iso>] [--wait]",
       );
       process.exit(1);
     }
@@ -207,7 +209,7 @@ async function rememberCommand(args: string[]): Promise<void> {
 
   if (positional.length < 1) {
     console.error(
-      "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--wait]",
+      "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--valid-from=<iso>] [--valid-until=<iso>] [--wait]",
     );
     process.exit(1);
   }
@@ -236,6 +238,14 @@ async function rememberCommand(args: string[]): Promise<void> {
       attributes,
       embedding_text: embeddingText,
       namespace,
+      // RETR-011: optional validity window — passthrough from the flags;
+      // omitted fields keep the legacy always-current behavior.
+      ...(flags["valid-from"] !== undefined
+        ? { valid_from: flags["valid-from"] }
+        : {}),
+      ...(flags["valid-until"] !== undefined
+        ? { valid_until: flags["valid-until"] }
+        : {}),
     });
 
     if (result.success) {
@@ -338,6 +348,9 @@ async function recallCommand(args: string[]): Promise<void> {
     console.log(
       "  --attr=<name>=<value>  Attribute filter: only rows whose attributes match name=value (repeatable, e.g. --attr=domain=config --attr=tick=403)",
     );
+    console.log(
+      "  --historical         Historical view: include ALL rows regardless of validity window (expired valid_until / future valid_from facts stay visible). Default: current view only",
+    );
     console.log("  --limit=<n>        Max results (default: 10)");
     console.log(
       "  --namespace=<name> Select namespace (default: config defaultNamespace)",
@@ -393,6 +406,9 @@ async function recallCommand(args: string[]): Promise<void> {
     ...(asOfRef ? { asOf: asOfRef } : {}),
     // RETR-006: repeatable --attr filters (empty = no-op).
     ...(attrFilters ? { attr: attrFilters } : {}),
+    // RETR-011: --historical selects the historical view (expired facts
+    // included); absent = the default current (validity-filtered) view.
+    ...(flags.historical !== undefined ? { historical: true } : {}),
   };
 
   if (flags.key) {
