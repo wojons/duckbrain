@@ -19,7 +19,12 @@ import {
   listNamespaces,
 } from "./index";
 import { mapDigits, splitQuery } from "./transform";
-import { dropStopwords, rankKeywordResults, type IndexRow } from "./rank";
+import {
+  dropStopwords,
+  rankKeywordResults,
+  highlightMatches,
+  type IndexRow,
+} from "./rank";
 import {
   buildTimeRangeConditions,
   buildAttributeConditions,
@@ -41,6 +46,10 @@ export interface KeywordHit {
   score: number;
   /** Snippet around the first matched token */
   snippet: string;
+  /** RETR-008: snippet with the matched term(s) wrapped in `<mark>…</mark>`
+   *  — a marker style the CLI can print. The raw `snippet` field above
+   *  stays marker-free for API/MCP consumers; this rides alongside it. */
+  highlightedSnippet?: string;
   /** Source namespace of this hit (RETR-007) — an explicit facet, never
    *  inferred from the key. Single-namespace searches carry the searched
    *  namespace; all-namespaces unions carry each hit's own namespace. */
@@ -251,6 +260,9 @@ export async function keywordSearch(
     attributes: parseAttributes(hit.row.attributes),
     score: hit.score,
     snippet: hit.snippet,
+    // RETR-008: highlighted display form — matched terms wrapped in
+    // `<mark>…</mark>` (raw snippet stays available above).
+    highlightedSnippet: highlightMatches(hit.snippet, kept, prefix, body),
     namespace: hit.row.namespace ?? namespace,
   }));
 
@@ -346,6 +358,9 @@ export async function keywordSearchAllNamespaces(
     attributes: parseAttributes(hit.row.attributes),
     score: hit.score,
     snippet: hit.snippet,
+    // RETR-008: highlighted display form — matched terms wrapped in
+    // `<mark>…</mark>` (raw snippet stays available above).
+    highlightedSnippet: highlightMatches(hit.snippet, kept, prefix, body),
     namespace: hit.row.namespace ?? "",
   }));
 

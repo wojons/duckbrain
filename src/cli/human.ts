@@ -433,6 +433,24 @@ async function recallCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * RETR-008: normalize the space-separated `--namespace <name>` form to
+ * `--namespace=<name>` before parseArgs (which only splits on `=`). Without
+ * this, `duckbrain search "GAP-020" --namespace chat-archive` would set
+ * namespace="true" and leak the namespace name into the positional query.
+ * Scoped to the search command — parseArgs stays globally untouched.
+ */
+function normalizeNamespaceArgs(args: string[]): string[] {
+  const out = args.slice();
+  for (let i = 0; i < out.length - 1; i++) {
+    if (out[i] === "--namespace") {
+      out.splice(i, 2, `--namespace=${out[i + 1]}`);
+      break;
+    }
+  }
+  return out;
+}
+
+/**
  * Search command (RETR-001)
  *
  * Keyword full-text search over a namespace's rebuilt FTS sidecar:
@@ -468,7 +486,7 @@ async function searchCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const { positional, flags } = parseArgs(args);
+  const { positional, flags } = parseArgs(normalizeNamespaceArgs(args));
 
   const query = positional.join(" ").trim();
   if (!query) {
@@ -510,7 +528,7 @@ async function searchCommand(args: string[]): Promise<void> {
         console.log(
           `=== ${memory.key} [${memory.domain} · ${memory.timestamp}] (score ${memory.score.toFixed(4)})${allNamespaces ? ` [ns: ${memory.namespace}]` : ""} ===`,
         );
-        console.log(memory.snippet);
+        console.log(memory.highlightedSnippet ?? memory.snippet);
       }
     } else {
       console.log("No memories found");

@@ -209,3 +209,64 @@ export function makeSnippet(
   if (to < words.length - 1) parts.push("…");
   return parts.join(" ");
 }
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * RETR-008: highlight the matched query terms inside a snippet with
+ * `<mark>…</mark>` wrappers — a marker style the CLI can print directly
+ * (the raw `snippet` field stays marker-free for API/MCP consumers).
+ *
+ * Non-prefix queries match the raw query literal FIRST — the exact-token
+ * tier's dominant regime is ticket IDs ("GAP-020"), and highlighting the
+ * intact literal beats breaking it into per-token marks
+ * ("<mark>GAP</mark>-<mark>020</mark>"). The remaining tokens (longest
+ * first) fill in the any-token cases. All alternatives run in ONE ordered
+ * regex pass, so matches never overlap and nothing double-wraps; original
+ * casing is preserved ($1).
+ *
+ * Prefix queries wrap whole whitespace-delimited words whose alphanumeric
+ * segments start with the prefix — the same segment rule makeSnippet's
+ * anchor uses, so "GAP-02*" wraps "GAP-020" whole.
+ */
+export function highlightMatches(
+  text: string,
+  tokens: string[],
+  prefix?: string,
+  literal?: string,
+): string {
+  if (!text) return "";
+
+  if (prefix) {
+    const p = prefix.toLowerCase();
+    return text
+      .split(/(\s+)/)
+      .map((word) => {
+        if (!/\S/.test(word)) return word;
+        const segs = word.toLowerCase().split(/[^a-z0-9]+/);
+        return segs.some((s) => s.startsWith(p))
+          ? `<mark>${word}</mark>`
+          : word;
+      })
+      .join("");
+  }
+
+  const alternatives: string[] = [];
+  const lit = literal?.trim();
+  if (lit) alternatives.push(escapeRegExp(lit));
+  const seen = new Set<string>();
+  for (const t of [...tokens].sort((a, b) => b.length - a.length)) {
+    const escaped = escapeRegExp(t);
+    if (t && !seen.has(escaped)) {
+      alternatives.push(escaped);
+      seen.add(escaped);
+    }
+  }
+  if (alternatives.length === 0) return text;
+  return text.replace(
+    new RegExp(`(${alternatives.join("|")})`, "gi"),
+    "<mark>$1</mark>",
+  );
+}

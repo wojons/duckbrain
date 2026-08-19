@@ -39,6 +39,11 @@ export interface MemoryResponse {
    */
   snippet?: string;
   /**
+   * RETR-008: snippet with the matched term(s) wrapped in `<mark>…</mark>`
+   * — present on keyword ?contains= responses alongside the raw snippet
+   */
+  highlightedSnippet?: string;
+  /**
    * Source namespace — present on keyword ?contains= hits (RETR-007): the
    * searched namespace for single-namespace requests, each hit's own
    * namespace for ?allNamespaces=true unions

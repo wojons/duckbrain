@@ -152,6 +152,10 @@ interface RecallOutput {
     score?: number;
     /** Snippet around the first matched token — present only on the keyword contains= path (RETR-001) */
     snippet?: string;
+    /** RETR-008: snippet with the matched term(s) wrapped in `<mark>…</mark>`
+     *  — rides alongside the raw snippet on keyword contains= hits and
+     *  hybrid fused items whose keyword leg found the document. */
+    highlightedSnippet?: string;
     /** Source namespace — present on keyword contains= hits (RETR-007);
      *  the searched namespace for single-namespace searches, each hit's
      *  own namespace for all-namespaces unions */
@@ -764,6 +768,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             // RETR-001: the keyword leg's snippet rides along when it found
             // the document (absent for semantic-only candidates).
             ...(kw && kw.snippet !== undefined ? { snippet: kw.snippet } : {}),
+            // RETR-008: the highlighted display form rides along with it.
+            ...(kw && kw.highlightedSnippet !== undefined
+              ? { highlightedSnippet: kw.highlightedSnippet }
+              : {}),
             // RETR-002: fused RRF score (normalized 0..1) — NOT the raw
             // cosine similarity or BM25 score.
             score,

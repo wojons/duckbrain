@@ -94,6 +94,11 @@ function transformMemory(memory: any): MemoryResponse {
     // RETR-001: keyword ?contains= results carry a snippet around the
     // first matched token; other paths have none.
     ...(typeof memory.snippet === "string" ? { snippet: memory.snippet } : {}),
+    // RETR-008: the highlighted display form rides alongside the raw
+    // snippet on keyword ?contains= responses.
+    ...(typeof memory.highlightedSnippet === "string"
+      ? { highlightedSnippet: memory.highlightedSnippet }
+      : {}),
     // RETR-007: keyword hits carry their source namespace (single-namespace
     // requests: the searched namespace; ?allNamespaces=true unions: each
     // hit's own).
