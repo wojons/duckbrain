@@ -654,3 +654,13 @@ tasks:
   status: complete
   created_at: '2026-08-19T08:11:47.877657+00:00'
   completed_at: '2026-08-19T08:28:38.678031+00:00'
+- id: RETR-010
+  title: "P2 \u2014 Search-index-as-cache doctrine (Q-7): search-index rebuild + git\
+    \ hooks installer"
+  criteria:
+  - 'Index module + hooks installer so RETR-001 search index is rebuilt on clone and
+    after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild
+    idempotent; suite green'
+  status: complete
+  created_at: '2026-08-19T10:24:58.568385+00:00'
+  completed_at: '2026-08-19T10:33:23.916718+00:00'
