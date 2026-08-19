@@ -682,3 +682,11 @@ tasks:
   status: complete
   created_at: '2026-08-19T13:01:49.166067+00:00'
   completed_at: '2026-08-19T13:12:42.232393+00:00'
+- id: RETR-011
+  title: 'Fact versioning convention (T-4): valid_from/valid_until write-side attributes'
+  criteria:
+  - Memory with valid_until in the past excluded from current recall view, visible
+    in historical view; schema docs updated; test suite green
+  status: complete
+  created_at: '2026-08-19T14:29:18.143545+00:00'
+  completed_at: '2026-08-19T14:50:05.099179+00:00'
