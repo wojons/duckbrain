@@ -92,15 +92,13 @@ async function cmdRebuild(opts: EmbeddingsArgs): Promise<void> {
   if (opts.detached) {
     // Re-spawn detached: hook context must return immediately
     const bin = process.argv[1];
-    const child = spawn(
-      process.execPath,
-      [bin, "embeddings", "rebuild", `--namespace=${name}`],
-      {
-        detached: true,
-        stdio: "ignore",
-        env: { ...process.env, DUCKBRAIN_SKIP_EMBED_REBUILD: "1" },
-      },
-    );
+    const childArgs = [bin, "embeddings", "rebuild", `--namespace=${name}`];
+    if (opts.log) childArgs.push(`--log=${opts.log}`);
+    const child = spawn(process.execPath, childArgs, {
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, DUCKBRAIN_SKIP_EMBED_REBUILD: "1" },
+    });
     child.unref();
     console.log(
       `Detached rebuild started for namespace '${name}' (pid ${child.pid})`,

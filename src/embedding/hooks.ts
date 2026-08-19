@@ -11,6 +11,11 @@
  *
  * The hook script locates the duckbrain CLI from the namespace repo layout
  * (bin/duckbrain.js at repo root) and writes a log to `<ns>/.embeddings/rebuild.log`.
+ *
+ * Cwd parity (EMB-001, mirror of RETR-010): git fires hooks with cwd = the
+ * namespace repo top level, so the hook steps up to the duckbrain root when
+ * the CLI resolves to an absolute path — namespace resolution is
+ * cwd-independent.
  */
 
 import fs from "fs";
@@ -38,6 +43,17 @@ if [ -n "$DUCKBRAIN_SKIP_EMBED_REBUILD" ]; then
   exit 0
 fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# Git fires hooks with cwd = the namespace repo root, but duckbrain.config.json
+# and the relative namespacesPath live at the duckbrain root (parent of
+# namespaces/). When the bin resolved to an absolute path (canonical layout,
+# <root>/bin/duckbrain.js), step up to the duckbrain root so namespace
+# resolution is cwd-independent. Bare 'duckbrain' (PATH) keeps the cwd.
+case "${duckbrainBin}" in
+  /*)
+    DUCKBRAIN_ROOT="$(dirname "$(dirname "${duckbrainBin}")")"
+    [ -d "\${DUCKBRAIN_ROOT}" ] && cd "\${DUCKBRAIN_ROOT}"
+    ;;
+esac
 "${duckbrainBin}" embeddings rebuild --namespace "${namespaceName}" --detached --log "\${REPO_ROOT}/${cacheDir}/rebuild.log" >/dev/null 2>&1 &
 exit 0
 `;
