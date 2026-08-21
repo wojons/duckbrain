@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -85,5 +85,35 @@ describe("appendToJsonl chunk rotation", () => {
     expect(files).toContain("0001.jsonl");
     expect(files).toContain("0NaN.jsonl"); // legacy file left untouched
     expect(files).not.toContain("0000.jsonl");
+  });
+});
+
+describe("DB-GAP-035: write-path validation", () => {
+  it("skips an unserializable record (circular attributes) instead of corrupting the file", () => {
+    const filePath = path.join(tmpDir, "current.jsonl");
+
+    // A circular attributes object passes MemorySchema.parse (z.any() value
+    // schema never recurses into the value) but FAILS JSON.stringify — the
+    // exact class of payload that would land a garbage line in the store.
+    const record = makeRecord(0);
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    record.attributes = circular as never;
+
+    const errSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const written = appendToJsonl(filePath, record);
+
+    // The append must be skipped (0 lines written), logged, and the store
+    // left untouched — not even created. (Assert before mockRestore — a
+    // restored spy loses its call history.)
+    expect(written).toBe(0);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining("refusing to append unserializable record"),
+    );
+    errSpy.mockRestore();
+    expect(fs.existsSync(filePath)).toBe(false);
   });
 });

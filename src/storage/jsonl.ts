@@ -144,7 +144,23 @@ export function appendToJsonl(filePath: string, record: MemoryType): number {
   }
 
   // Serialize to JSON (single line, no trailing newline yet)
-  const line = safeJsonStringify(record);
+  // DB-GAP-035: never write garbage. MemorySchema.parse validates the
+  // schema, but a value can still fail to serialize to JSON (e.g. a
+  // circular reference — zod accepts it, JSON.stringify throws). Such a
+  // line would corrupt the JSONL store and break every downstream reader
+  // (read_json, readFromJsonl). Verify the serialized line round-trips; on
+  // failure log and SKIP the append — the record is dropped rather than
+  // poisoning the store.
+  let line: string;
+  try {
+    line = safeJsonStringify(record);
+    JSON.parse(line);
+  } catch (e) {
+    console.error(
+      `[jsonl] appendToJsonl: refusing to append unserializable record to ${filePath}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return 0;
+  }
 
   // Check if we need a new chunk
   let targetPath = filePath;

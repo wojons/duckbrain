@@ -28,6 +28,7 @@ import {
   notFoundHandler,
 } from "../http/middleware/errorHandler.js";
 import { listNamespacesTool } from "../mcp/tools/namespace.js";
+import { probeKeysStore } from "../mcp/tools/list_keys.js";
 import { createMemoryRoutes } from "../http/routes/memories.js";
 import { createKeyRoutes } from "../http/routes/keys.js";
 import { createNamespaceRoutes } from "../http/routes/namespaces.js";
@@ -90,7 +91,7 @@ function dnsRebindingProtection(allowedHosts: string[]) {
 }
 
 /**
- * Health check endpoint handler (DOGFOOD-020)
+ * Health check endpoint handler (DOGFOOD-020, DB-GAP-035)
  *
  * Reports embedding provider health alongside process liveness. The top-level
  * status is "degraded" when no embedding provider passed a real embed probe —
@@ -98,13 +99,22 @@ function dnsRebindingProtection(allowedHosts: string[]) {
  * 500ed (configured model 400ing on LM Studio with the model file on an
  * offline host; Ollama not having the model in /api/tags).
  *
+ * DB-GAP-035: also probes the keys store (same resilient read as list_keys)
+ * and surfaces keys_error — null when the store answers, a short error
+ * string when the keys read path fails (corrupt JSONL, missing namespace,
+ * connection loss). A failed keys probe flips status to degraded: every
+ * consumer of keys over HTTP/MCP would fail, so a green /health would be a
+ * false green.
+ *
  * HTTP status stays 200 in both cases (liveness monitors; the systemd unit
  * has no health check) — the body carries the signal.
  *
  * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
+ * @param keysProbe injectable for tests (defaults to probeKeysStore)
  */
 export function createHealthHandler(
   probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
+  keysProbe: () => Promise<string | null> = probeKeysStore,
 ): (req: Request, res: Response) => Promise<void> {
   return async (_req: Request, res: Response) => {
     let embedding: EmbeddingHealthResult;
@@ -125,11 +135,26 @@ export function createHealthHandler(
         ],
       };
     }
+
+    // DB-GAP-035: keys-store probe. Must never take /health down either —
+    // report keys_error and let the status field carry the signal.
+    let keysError: string | null = null;
+    try {
+      keysError = await keysProbe();
+    } catch (e) {
+      keysError = `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
+        0,
+        200,
+      );
+    }
+
     res.json({
-      status: embedding.healthy ? "healthy" : "degraded",
+      status:
+        embedding.healthy && keysError === null ? "healthy" : "degraded",
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       embedding,
+      keys_error: keysError,
     });
   };
 }
