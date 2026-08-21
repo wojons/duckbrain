@@ -709,3 +709,13 @@ tasks:
   status: complete
   created_at: '2026-08-19T19:46:19.825232+00:00'
   completed_at: '2026-08-19T19:54:41.959520+00:00'
+- id: DB-GAP-035
+  title: Fix /api/keys HTTP 500 from corrupt keys store line
+  criteria:
+  - 'PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns
+    200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl
+    repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced
+    in /health; full suite pnpm test + tsc --noEmit green'
+  status: complete
+  created_at: '2026-08-21T17:38:38.416971+00:00'
+  completed_at: '2026-08-21T17:49:18.956264+00:00'
