@@ -216,6 +216,8 @@ Query memories with filters.
 | `offset` | 0 | Pagination offset |
 | `namespace` | `default` | Namespace to query |
 
+> **Note — semantic search (`?q=`) and embeddings (DB-GAP-036):** `?q=` needs a reachable embedding provider at query time (LM Studio / Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider). When no provider can embed, the endpoint returns **503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start an embedding provider or run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) works offline. Check `GET /health` — its `embedding` block reports provider health.
+
 **Response:**
 
 ```json

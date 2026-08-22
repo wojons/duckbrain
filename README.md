@@ -164,6 +164,40 @@ DuckBrain exposes these MCP tools (available over stdio and MCP-over-HTTP at `PO
 - **`server_status`** — Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints
 - **`server_http_start`** — Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit)
 
+## HTTP API
+
+The HTTP server (`pnpm start -- http`, default `http://127.0.0.1:3000`) also serves a REST API under `/api/` for scripts, dashboards, and non-MCP clients. Core read routes (all verified against a live daemon):
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/keys` | Hierarchical memory key tree (`?namespace=`, `?prefix=`, `?depth=`) |
+| `GET /api/memories` | Query memories — filters (`?namespace=`, `?domain=`, `?contains=`), pagination (`?limit=`, `?offset=`), semantic search (`?q=`) |
+| `GET /api/memories/key/:key` | Latest memory for a key path (`?namespace=`) |
+| `GET /api/memories/:id` | Single memory by ID (`?namespace=`) |
+
+```bash
+# Key tree
+curl "http://localhost:3000/api/keys?namespace=default"
+
+# Query memories (keyword filter ?contains= works offline)
+curl "http://localhost:3000/api/memories?namespace=default&limit=10"
+
+# Semantic search — needs a reachable embedding provider (see note below)
+curl "http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
+
+# Latest memory for a key path
+curl "http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
+
+# Single memory by ID
+curl "http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
+```
+
+- Namespace-scoped routes default to `default` when `?namespace=` is omitted.
+- Semantic search (`?q=`) requires a reachable embedding provider at query time. Verified live: with embeddings down the endpoint fails closed with an explicit message — e.g. `{"error":"Embedding generation failed: ... No models loaded ..."}` — never a silent unfiltered list. On a current build this is **503 `EMBEDDINGS_UNAVAILABLE`**; a daemon started before the DB-GAP-036 fix surfaces the same message with status 500, so restart an old daemon to pick up the 503.
+- There is **no `/api/memory` route** — `/api/memory`, `/api/memory/key/...`, and `/api/memory/:id` all return 404 `ROUTE_NOT_FOUND`. The plural `/api/memories` is the correct prefix.
+
+Full endpoint reference (writes, namespaces, SSE events, compaction, auth): [HTTP API Reference](docs/api/http-api.md).
+
 ## Embeddings & Semantic Search
 
 DuckBrain supports semantic (`query`) search via a **content-addressed embedding cache**. Design principles (Bane, 2026-08-02):
