@@ -729,3 +729,11 @@ tasks:
   status: complete
   created_at: '2026-08-21T23:57:40.307091+00:00'
   completed_at: '2026-08-22T00:01:57.575707+00:00'
+- id: DB-GAP-037
+  title: README HTTP endpoints documentation
+  criteria:
+  - README lists /api/keys and /api/memories (incl. key/:key and /:id) routes with
+    curl examples; each documented curl returns 200 against live daemon; suite green
+  status: complete
+  created_at: '2026-08-22T10:12:55.464424+00:00'
+  completed_at: '2026-08-22T10:17:51.891074+00:00'
