@@ -43,9 +43,41 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
 {
   "status": "healthy",
   "uptime": 1234.56,
-  "timestamp": "2026-07-19T12:00:00.000Z"
+  "timestamp": "2026-07-19T12:00:00.000Z",
+  "embedding": {
+    "provider": "ollama",
+    "model": "nomic-embed-text",
+    "healthy": true,
+    "providers": [
+      {
+        "id": "lmstudio",
+        "healthy": false,
+        "note": "no models loaded"
+      },
+      {
+        "id": "ollama",
+        "healthy": true,
+        "note": ""
+      },
+      {
+        "id": "openai",
+        "healthy": false,
+        "note": "missing API key (DUCKBRAIN_EMBEDDING_API_KEY)"
+      }
+    ]
+  },
+  "keys_error": null
 }
 ```
+
+Status is `degraded` (HTTP stays 200 — the systemd unit has no HTTP health
+check, the body carries the signal) when no embedding provider can embed
+(`embedding.healthy: false`, `embedding.provider` empty, per-provider
+`note` explains why) or when the keys store probe fails
+(`keys_error` carries a short error string instead of `null`). Semantic
+endpoints (`/api/memories?q=`, MCP recall with a query) return HTTP 503
+`EMBEDDINGS_UNAVAILABLE` while embeddings are down; non-semantic reads
+still work.
 
 **Example:**
 
