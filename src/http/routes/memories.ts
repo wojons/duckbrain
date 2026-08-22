@@ -36,6 +36,36 @@ import {
   requireNamespaceGrant,
 } from "../../auth/middleware";
 
+/**
+ * DB-GAP-036: detect the embeddings-down recall error so semantic endpoints
+ * answer 503 (operator-actionable, client-visible) instead of 500. recallTool
+ * (src/mcp/tools/recall.ts) surfaces exactly two embeddings-down shapes —
+ * no provider configured, and every configured provider failing to embed —
+ * distinguished here by prefix. Every other recall error (DuckDB failure,
+ * missing keyword index, invalid query combinations) keeps its 500 status.
+ */
+function isEmbeddingsDownError(message: string): boolean {
+  return (
+    message.startsWith("Semantic search requires an embedding provider") ||
+    message.startsWith("Embedding generation failed")
+  );
+}
+
+/**
+ * DB-GAP-036: map a recallTool error to the right HTTP status. When
+ * embeddings are down the request cannot be served until an embedding
+ * provider is reachable (start LM Studio/Ollama, set DUCKBRAIN_EMBEDDING_PROVIDER,
+ * or set DUCKBRAIN_EMBEDDING_API_KEY), so the failure is surfaced as 503
+ * EMBEDDINGS_UNAVAILABLE with recall.ts's existing operator guidance verbatim
+ * — never a silent unfiltered list. All other recall errors stay 500.
+ */
+function throwRecallError(error: string): never {
+  if (isEmbeddingsDownError(error)) {
+    throw new ApiError(error, 503, "EMBEDDINGS_UNAVAILABLE");
+  }
+  throw new ApiError(error, 500);
+}
+
 const router: Router = Router();
 
 // DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
@@ -251,7 +281,9 @@ router.get(
     });
 
     if (result.error) {
-      throw new ApiError(result.error, 500);
+      // DB-GAP-036: embeddings down → 503 EMBEDDINGS_UNAVAILABLE with the
+      // recall.ts operator message; any other recall error stays 500.
+      throwRecallError(result.error);
     }
 
     const memories = result.memories.map(transformMemory);

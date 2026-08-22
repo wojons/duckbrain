@@ -185,6 +185,8 @@ duckbrain embeddings providers                       # list providers + env over
 
 Semantic search (`recall` with `query`) ranks candidates by cosine similarity using cached vectors, embedding cache misses on the fly (capped) so a cold clone still works.
 
+**Prerequisites & failure behavior.** Semantic (`?q=`) search needs a reachable embedding provider at query time: LM Studio or Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider. Check `GET /health` first — its `embedding` block reports `healthy` plus per-provider `providers[]` entries (`id`/`healthy`/`note`). When no provider can embed, semantic endpoints return **HTTP 503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start LM Studio/Ollama or set `DUCKBRAIN_EMBEDDING_PROVIDER` and run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) remains available offline.
+
 ## Requirements
 
 - Node.js 22+

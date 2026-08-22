@@ -444,7 +444,7 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
     expect(body.items[0].score).toBeGreaterThan(0);
   });
 
-  it("both legs unavailable → the legacy semantic error (never a silent list)", async () => {
+  it("both legs unavailable → 503 with the explicit embeddings-down message (never a silent list)", async () => {
     vi.mocked(createAutoProviders).mockResolvedValueOnce([]);
     try {
       hideIndex();
@@ -452,7 +452,9 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
         "GET",
         `/api/memories?q=alpha%20ocean&namespace=${NS_NAME}&limit=10`,
       );
-      expect(status).toBe(500);
+      // DB-GAP-036: embeddings down → 503 EMBEDDINGS_UNAVAILABLE (was 500).
+      expect(status).toBe(503);
+      expect(body.code).toBe("EMBEDDINGS_UNAVAILABLE");
       expect(body.error).toContain(
         "Semantic search requires an embedding provider",
       );

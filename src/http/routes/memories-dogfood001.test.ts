@@ -133,7 +133,7 @@ describe("DOGFOOD-001: GET /api/memories?q= forwards query to semantic recall", 
     expect(body.items[0].content).toBe("SQLite storage notes");
   });
 
-  it("returns 500 with the recall error when q= is set and semantic search fails (no silent full list)", async () => {
+  it("returns 503 with the explicit embeddings-down message when q= is set and no embedding provider is configured", async () => {
     const recallError =
       "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'";
     vi.mocked(recallTool).mockResolvedValue({
@@ -147,8 +147,11 @@ describe("DOGFOOD-001: GET /api/memories?q= forwards query to semantic recall", 
       "/api/memories?q=zzzznothing",
     );
 
-    expect(status).toBe(500);
+    // DB-GAP-036: embeddings down is operator-actionable and client-visible
+    // → 503 EMBEDDINGS_UNAVAILABLE with the recall.ts message (was 500).
+    expect(status).toBe(503);
     expect(body.error).toBe(recallError);
+    expect(body.code).toBe("EMBEDDINGS_UNAVAILABLE");
     expect(body.items).toBeUndefined();
   });
 
