@@ -719,3 +719,13 @@ tasks:
   status: complete
   created_at: '2026-08-21T17:38:38.416971+00:00'
   completed_at: '2026-08-21T17:49:18.956264+00:00'
+- id: DB-GAP-036
+  title: Semantic endpoints 503 when embeddings down
+  criteria:
+  - GET /api/memories?q= returns HTTP 503 with explicit embeddings-down message when
+    no embedding provider is healthy; still 200 with items when >=1 provider healthy;
+    /health keeps per-provider embedding block; README documents embedding prerequisites;
+    suite green
+  status: complete
+  created_at: '2026-08-21T23:57:40.307091+00:00'
+  completed_at: '2026-08-22T00:01:57.575707+00:00'
