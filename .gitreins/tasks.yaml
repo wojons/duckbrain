@@ -737,3 +737,14 @@ tasks:
   status: complete
   created_at: '2026-08-22T10:12:55.464424+00:00'
   completed_at: '2026-08-22T10:17:51.891074+00:00'
+- id: DB-GAP-036-VERIFY
+  title: "DB-GAP-036 \u2014 live :3000 daemon serves 503 EMBEDDINGS_UNAVAILABLE on\
+    \ semantic endpoints"
+  criteria:
+  - Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE
+    (or 200 with items if embeddings healthy); GET /health returns 200 with embedding
+    block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain
+    200
+  status: complete
+  created_at: '2026-08-22T16:24:26.066034+00:00'
+  completed_at: '2026-08-22T16:24:53.011975+00:00'
