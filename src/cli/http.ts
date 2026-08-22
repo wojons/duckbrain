@@ -142,15 +142,15 @@ export function createHealthHandler(
     try {
       keysError = await keysProbe();
     } catch (e) {
-      keysError = `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
-        0,
-        200,
-      );
+      keysError =
+        `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
+          0,
+          200,
+        );
     }
 
     res.json({
-      status:
-        embedding.healthy && keysError === null ? "healthy" : "degraded",
+      status: embedding.healthy && keysError === null ? "healthy" : "degraded",
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       embedding,

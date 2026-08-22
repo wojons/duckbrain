@@ -100,9 +100,7 @@ describe("DB-GAP-035: write-path validation", () => {
     circular.self = circular;
     record.attributes = circular as never;
 
-    const errSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const written = appendToJsonl(filePath, record);
 

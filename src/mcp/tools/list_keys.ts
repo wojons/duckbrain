@@ -78,9 +78,7 @@ function extractPrefixes(key: string, maxDepth: number): string[] {
  *
  * Throws on failure; callers decide how to surface the error.
  */
-async function runKeysQuery(
-  validated: ValidatedListKeysInput,
-): Promise<{
+async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
   keys: string[];
   hasMore: boolean;
   nextOffset: number | null;

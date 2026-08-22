@@ -50,7 +50,7 @@ describe("DB-GAP-035: /health keys_error", () => {
   it("flips status to degraded and reports the error string when the keys probe fails", async () => {
     const handler = createHealthHandler(
       async () => healthyEmbedding,
-      async () => "Malformed JSON in file \".../10000.jsonl\", at byte 33",
+      async () => 'Malformed JSON in file ".../10000.jsonl", at byte 33',
     );
     const { res, captured } = fakeRes();
     await handler({} as any, res as any);
