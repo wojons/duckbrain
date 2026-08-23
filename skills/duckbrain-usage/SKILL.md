@@ -125,6 +125,15 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 12. **Temp-file hygiene** — every daemon spawn/crash leaves
     `/tmp/duckbrain-<pid>-*.db` files (DOGFOOD-016, open); they accumulate.
     Harmless but untidy.
+13. **All-embedding-providers-down degraded state (recurred 3+× Aug 21-23):**
+    `/health` shows `embedding.healthy:false` for lmstudio ("No models
+    loaded"), ollama ("model not in /api/tags"), openai ("missing
+    DUCKBRAIN_EMBEDDING_API_KEY"). Writes + exact/prefix recall keep working
+    (JSONL path); only VSS/semantic recall misses new entries. Recovery is
+    HOST-side: `lms load` the configured model in LM Studio (it does not
+    auto-reload after host reboot/daemon restart), `ollama pull <model>`, and
+    export DUCKBRAIN_EMBEDDING_API_KEY before daemon start. Verify with
+    `curl -s localhost:3000/health` until `healthy:true`.
 
 ## Testing your changes safely
 

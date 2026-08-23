@@ -758,3 +758,11 @@ tasks:
   status: complete
   created_at: '2026-08-22T22:30:24.042411+00:00'
   completed_at: '2026-08-22T22:32:11.641642+00:00'
+- id: DB-GAP-036-2
+  title: Restore embedding health on live :3000 daemon (DB-GAP-036 reopen)
+  criteria:
+  - GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1
+    returns HTTP 200 with items
+  status: complete
+  created_at: '2026-08-23T04:55:27.132004+00:00'
+  completed_at: '2026-08-23T04:57:26.187319+00:00'
