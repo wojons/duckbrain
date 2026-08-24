@@ -12,11 +12,13 @@
 
 ## 1. Vision
 
-Make S3 a **first-class storage tier inside DuckBrain**: every namespace is
-continuously, incrementally mirrored to any S3-compatible bucket; memory is
-**queryable with SQL straight from the archive** (no restore); and any other
-machine can pull a namespace back — giving DR, multi-host shared memory, and a
-tamper-evident history without external tooling.
+Make S3 a **first-class storage tier inside DuckBrain** — **additive to the
+git-based design, never a replacement**: JSONL-in-git stays canonical and fully
+operational. Every namespace is continuously, incrementally mirrored to any
+S3-compatible bucket; memory is **queryable with SQL straight from the archive**
+(no restore); and any other machine can pull a namespace back — giving DR,
+multi-host shared memory, and a tamper-evident history without external tooling.
+Provider-agnostic by construction: client-side SQL, path-style, custom endpoint.
 
 ## 2. Measurable outcomes
 
@@ -166,7 +168,9 @@ lock conflicts with MCP/HTTP servers).
 
 1. **Phase 0** — code prepared, inert, reviewed (current state)
 2. **Phase 1** — enable on the `duckbrain` bucket (Hetzner) alongside existing crons; run AC-1.x; compare with cron behavior for 1 week
-3. **Phase 2** — flip `pushOnCommit`; retire the daily cron (keep weekly tar.xz)
+3. **Phase 2** — flip `pushOnCommit`; the daily cron becomes **redundant, not
+the design** (kept or retired by choice — the git-based version remains
+canonical and operational; keep weekly tar.xz)
 4. **Phase 3** — dogfood `s3 query`; decide squash-to-S3
 5. **Phase 4** — optional AWS migration for Athena/lifecycle/eventing
 

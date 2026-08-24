@@ -85,10 +85,10 @@ ol li,ul li{margin:7px 0;font-size:14.5px}
 
 <!-- 1 · HERO -->
 <div class="hero"><div class="wrap">
-<div class="tag">Product Requirements Document · v1.1</div>
+<div class="tag">Product Requirements Document · v1.2</div>
 <h1>DuckBrain Native S3</h1>
 <p class="sub">Memory that survives the machine — and answers without coming back first.</p>
-<div class="meta"><span>PRD v1.1 · 2026-08-22</span><span>Status: Phase 0 complete · Phase 1 ready</span><span>Confidential — Internal</span></div>
+<div class="meta"><span>PRD v1.2 · 2026-08-24</span><span>Status: Phase 0 complete · Phase 1 ready</span><span>Confidential — Internal</span></div>
 </div></div>
 
 <!-- 2 · EXECUTIVE SUMMARY -->
@@ -97,6 +97,7 @@ ol li,ul li{margin:7px 0;font-size:14.5px}
 <h2>Storage becomes a first-class tier.</h2>
 <p class="lead">DuckBrain Native S3 turns object storage into the same kind of thing a filesystem already is to the memory engine: continuously mirrored, always queryable, and pullable from anywhere. It is not a backup tool bolted on the side. It is a storage tier built into the product.</p>
 <p>Every namespace is mirrored to any S3-compatible bucket in delta-sized increments — seconds after a write, not the next morning. The archive is <strong>queryable with full SQL straight from the bucket</strong>, with no restore step and no provider-side features required. Any other machine materializes a namespace with one command. <em>Does full SQL over S3. Does not require S3 Select.</em></p>
+<div class="callout"><strong style="font-style:normal;color:#fff">Additive, not a replacement.</strong> Native S3 does not replace the git-based memory engine — JSONL-in-git stays canonical and fully operational. The S3 tier is an additional mirror: continuously synced, SQL-queryable, pullable on any provider, in parallel. The git version remains the source of truth; the bucket is the archive that answers.</div>
 <div class="callout">"A memory system's first duty is not being lost. Its second is being asked. Native S3 makes both structural — the backup is the database, and the database is the backup."</div>
 <div class="stats">
 <div class="stat"><div class="n">≤30s</div><div class="l">Recovery point with pushOnCommit (today: 24h)</div></div>
@@ -196,7 +197,7 @@ ol li,ul li{margin:7px 0;font-size:14.5px}
 <tr><th>Deployment Mode</th><th>What It Means</th></tr>
 <tr><td><strong>Phase 0 — Prepared &amp; inert</strong></td><td>Module in tree, 10/10 FRs done, suite green, CLI refuses to run while disabled</td></tr>
 <tr><td><strong>Phase 1 — Activated alongside crons</strong></td><td>s3.enabled=true on the dedicated duckbrain bucket; existing crons stay as belt-and-suspenders for one week of comparison</td></tr>
-<tr><td><strong>Phase 2 — pushOnCommit</strong></td><td>~30s RPO; daily cron retired; weekly tar.xz stays</td></tr>
+<tr><td><strong>Phase 2 — pushOnCommit</strong></td><td>~30s RPO; daily cron redundant (kept or retired by choice); weekly tar.xz stays</td></tr>
 <tr><td><strong>Phase 3 — Query dogfood</strong></td><td>s3 query becomes a working habit; squash-to-S3 decision</td></tr>
 <tr><td><strong>Phase 4 — AWS extras</strong></td><td>Optional: Athena, lifecycle tiering, event-driven sync — only if the fleet moves to AWS proper</td></tr>
 </table></div>
@@ -234,7 +235,7 @@ ol li,ul li{margin:7px 0;font-size:14.5px}
 <div class="timeline">
 <div class="phase done"><div class="dot">✓</div><h4>Phase 0</h4><p>Prepared &amp; inert — 10/10 FRs, tests, CLI guards</p><span class="st st-done">COMPLETE</span></div>
 <div class="phase active"><div class="dot">1</div><h4>Phase 1</h4><p>Activate on the duckbrain bucket; run alongside crons 1 week</p><span class="st st-ready">READY — AWAITS GO</span></div>
-<div class="phase"><div class="dot">2</div><h4>Phase 2</h4><p>pushOnCommit (~30s RPO); retire daily cron</p><span class="st st-future">DESIGNED</span></div>
+<div class="phase"><div class="dot">2</div><h4>Phase 2</h4><p>pushOnCommit (~30s RPO); daily cron redundant — kept or retired by choice</p><span class="st st-future">DESIGNED</span></div>
 <div class="phase"><div class="dot">3</div><h4>Phase 3</h4><p>Dogfood s3 query; squash-to-S3 decision</p><span class="st st-future">DESIGNED</span></div>
 <div class="phase"><div class="dot">4</div><h4>Phase 4</h4><p>AWS extras: Athena, lifecycle, eventing</p><span class="st st-future">OPTIONAL</span></div>
 </div>
@@ -269,7 +270,7 @@ ol li,ul li{margin:7px 0;font-size:14.5px}
 <!-- 10 · FOOTER -->
 <div class="footer">
 <div class="fname">DuckBrain Native S3</div>
-<p>Product Requirements Document · v1.1 · 2026-08-22 · Confidential — Internal</p>
+<p>Product Requirements Document · v1.2 · 2026-08-22 · Confidential — Internal</p>
 <p>Phase 0 complete · Phase 1 staged &amp; battery-tested · Source: docs/PRD-s3-native.md · docs/s3-native.md</p>
 </div>
 
