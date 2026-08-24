@@ -7,6 +7,8 @@ import {
   commitNamespaceWithParams,
   flushAllCommits,
   flushNamespaceCommit,
+  selectPushRemote,
+  buildPushCommand,
   type BatchingParams,
 } from "./autocommit";
 
@@ -148,5 +150,32 @@ describe("autocommit batching", () => {
     } finally {
       fs.rmSync(ns, { recursive: true, force: true });
     }
+  });
+});
+
+describe("pushNamespace remote/branch resolution (AUTOPUSH-001)", () => {
+  it("selects s3daily when present among remotes", () => {
+    expect(selectPushRemote("s3daily")).toBe("s3daily");
+    expect(selectPushRemote("origin\ns3daily")).toBe("s3daily");
+    expect(selectPushRemote("s3daily\nbackup")).toBe("s3daily");
+  });
+
+  it("falls back to the first remote when s3daily is absent", () => {
+    expect(selectPushRemote("origin")).toBe("origin");
+    expect(selectPushRemote("upstream\norigin")).toBe("upstream");
+  });
+
+  it("returns null for an empty remote list", () => {
+    expect(selectPushRemote("")).toBeNull();
+    expect(selectPushRemote("   \n  ")).toBeNull();
+  });
+
+  it("builds an explicit push command that sets upstream", () => {
+    expect(buildPushCommand("s3daily", "master")).toBe(
+      "git push --set-upstream s3daily master",
+    );
+    expect(buildPushCommand("origin", "feat/native-s3")).toBe(
+      "git push --set-upstream origin feat/native-s3",
+    );
   });
 });

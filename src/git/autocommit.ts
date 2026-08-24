@@ -111,6 +111,11 @@ function immediateCommit(namespacePath: string, message: string): void {
     // Native S3 push hook — inert unless s3.enabled && s3.pushOnCommit.
     // Fire-and-forget: never blocks or fails the write path.
     maybeSyncOnCommit(namespacePath);
+    // AUTOPUSH-001: push the namespace repo to the s3daily remote after
+    // every commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>).
+    // Synchronous + best-effort so short-lived CLI processes (remember →
+    // commit → exit in <1s) push without waiting for the 03:47 daily cron.
+    pushNamespace(namespacePath);
   } catch (error) {
     // Log but don't fail the tool — git is best-effort
     console.warn(
@@ -228,6 +233,30 @@ export function commitNamespace(
 }
 
 /**
+ * Select the remote a namespace repo should be pushed to. Prefers the
+ * canonical `s3daily` remote (git-remote-s3, duckbrain profile — the path
+ * the daily cron uses), falling back to the first configured remote.
+ * Returns null when no remote is configured.
+ */
+export function selectPushRemote(remotes: string): string | null {
+  const list = remotes
+    .split(/\s+/)
+    .map((r) => r.trim())
+    .filter(Boolean);
+  if (list.length === 0) return null;
+  return list.includes("s3daily") ? "s3daily" : list[0];
+}
+
+/**
+ * Build the git push command for a namespace repo whose branch has no
+ * upstream: push explicitly to the remote and set upstream so later bare
+ * `git push` calls resolve too.
+ */
+export function buildPushCommand(remote: string, branch: string): string {
+  return `git push --set-upstream ${remote} ${branch}`;
+}
+
+/**
  * Push namespace repo to remote if configured.
  * Non-blocking — failures are logged and swallowed.
  *
@@ -242,9 +271,35 @@ export function pushNamespace(namespacePath: string): void {
     })
       .toString()
       .trim();
-    if (!remotes) return;
+    const remote = selectPushRemote(remotes);
+    if (!remote) return;
 
-    execSync("git push", { cwd: namespacePath, stdio: "pipe", timeout: 30000 });
+    // Resolve the current branch. Namespace repos have no upstream (only the
+    // s3daily remote), so a bare `git push` would no-op/fail — push
+    // explicitly to remote + branch instead.
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd: namespacePath,
+      stdio: "pipe",
+    })
+      .toString()
+      .trim();
+    if (!branch || branch === "HEAD") return;
+
+    execSync(buildPushCommand(remote, branch), {
+      cwd: namespacePath,
+      stdio: "pipe",
+      timeout: 30000,
+      // git-remote-s3 needs the duckbrain AWS profile + Hetzner endpoint —
+      // the exact env the daily cron (duckbrain-s3-push.sh) exports.
+      // Without them the helper dies with "invalid credentials" because
+      // neither the daemon nor CLI processes carry AWS vars.
+      env: {
+        ...process.env,
+        AWS_PROFILE: "duckbrain",
+        AWS_ENDPOINT_URL: "https://hel1.your-objectstorage.com",
+        AWS_DEFAULT_REGION: "us-east-1",
+      },
+    });
   } catch (error) {
     console.warn(
       `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
