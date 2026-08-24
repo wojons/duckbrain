@@ -766,3 +766,12 @@ tasks:
   status: complete
   created_at: '2026-08-23T04:55:27.132004+00:00'
   completed_at: '2026-08-23T04:57:26.187319+00:00'
+- id: AUTOPUSH-001
+  title: Wire auto-push of namespace git repos after debounced commit flush
+  criteria:
+  - "A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT\
+    \ the daily cron; second write is idempotent (no duplicate bundles); full suite\
+    \ green + tsc --noEmit clean; gitBatching semantics unchanged"
+  status: complete
+  created_at: '2026-08-24T11:11:34.854663+00:00'
+  completed_at: '2026-08-24T11:16:08.896935+00:00'
