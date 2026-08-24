@@ -99,7 +99,8 @@
     "hermes-telemetry": "namespaces/hermes-telemetry",
     "relationships": "namespaces/relationships",
     "temple-runner": "namespaces/temple-runner",
-    "bankai": "namespaces/bankai"
+    "bankai": "namespaces/bankai",
+    "routing": "namespaces/routing"
   },
   "embedding": {
     "provider": "auto",
@@ -116,6 +117,6 @@
     "prefix": "duckbrain",
     "forcePathStyle": true,
     "pushOnCommit": false,
-    "intervalSec": 300
+    "intervalSec": 900
   }
 }
