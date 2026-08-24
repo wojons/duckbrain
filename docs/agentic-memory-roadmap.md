@@ -27,6 +27,8 @@ Retrieval surface today (all verified in src/):
 
 **Why day-to-day feels complete:** the working paths are key-addressed (structured keys like `/project/duckbrain/status`, dated chat-archive keys). That's precise and fast — it's a well-organized filesystem. What's absent is the *free-text and time* query surface: "find everything mentioning GAP-020", "what did we know on Aug 10".
 
+> **Consolidation note (2026-08-24, Bane):** the daily chat cron is DuckBrain's **consolidation pass**, not a push job — it extracts the day's chat, writes raw rows AND summaries, and surfaces work agents did but never documented (proven when raw chat data was lost but summaries survived). Native S3 (pushOnCommit) automates only the push leg; the summarization stays a deliberate daily act. The extraction/consolidation GAP is *scope* (chat-only) + no dedup/supersession — not absence.
+
 ---
 
 ## 1. Time-Based Features

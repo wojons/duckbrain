@@ -168,9 +168,11 @@ lock conflicts with MCP/HTTP servers).
 
 1. **Phase 0** — code prepared, inert, reviewed (current state)
 2. **Phase 1** — enable on the `duckbrain` bucket (Hetzner) alongside existing crons; run AC-1.x; compare with cron behavior for 1 week
-3. **Phase 2** — flip `pushOnCommit`; the daily cron becomes **redundant, not
-the design** (kept or retired by choice — the git-based version remains
-canonical and operational; keep weekly tar.xz)
+3. **Phase 2** — flip `pushOnCommit`. The daily cron **keeps its
+consolidation role permanently** — it is not a push job: it extracts the
+day's chat, writes raw rows + summaries, and surfaces undocumented agent
+work (proven when chat raw data was lost but summaries survived). Only its
+push leg becomes optional; keep weekly tar.xz
 4. **Phase 3** — dogfood `s3 query`; decide squash-to-S3
 5. **Phase 4** — optional AWS migration for Athena/lifecycle/eventing
 
