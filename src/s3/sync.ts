@@ -30,6 +30,7 @@ import {
   type FileMeta,
 } from "./manifest";
 import type { S3Config } from "./config";
+import { isPidAlive } from "../utils/pidfile";
 
 /** Directories never synced (per-namespace repo internals). */
 const EXCLUDED_DIRS = new Set([
@@ -174,6 +175,14 @@ export function acquireLock(namespacesPath: string): SyncLock | null {
     try {
       const raw = fs.readFileSync(lockPath, "utf-8");
       const data = JSON.parse(raw) as { pid: number; ts: number };
+      // A lock held by a dead process is broken immediately, regardless of
+      // age — a hard-killed sync never releases its lock. Guard on a valid
+      // pid first: a corrupt lock (missing/NaN pid) counts as unreadable and
+      // keeps the 10-min stale window below.
+      if (Number.isInteger(data.pid) && data.pid > 0 && !isPidAlive(data.pid)) {
+        fs.unlinkSync(lockPath);
+        return acquireLock(namespacesPath);
+      }
       if (Date.now() - data.ts > LOCK_STALE_MS) {
         fs.unlinkSync(lockPath);
         return acquireLock(namespacesPath);

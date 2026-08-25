@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { spawn } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -160,5 +161,39 @@ describe("sync lock", () => {
     const lock2 = acquireLock(nsRoot);
     expect(lock2).not.toBeNull();
     releaseLock(lock2);
+  });
+
+  it("breaks a dead-pid lock immediately without waiting for the stale window", async () => {
+    const nsRoot = path.join(tmp, "namespaces");
+    // Spawn a short-lived child and wait for it to exit — its pid is then
+    // real but dead (signal-0 probe throws ESRCH once reaped).
+    const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
+    await new Promise<void>((resolve) => child.on("exit", () => resolve()));
+    const deadPid = child.pid!;
+    expect(() => process.kill(deadPid, 0)).toThrow();
+
+    // Fresh ts, well under LOCK_STALE_MS — only the dead-pid check can free it.
+    const lockDir = path.join(nsRoot, ".s3state");
+    fs.mkdirSync(lockDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(lockDir, ".lock"),
+      JSON.stringify({ pid: deadPid, ts: Date.now() }),
+    );
+
+    const lock = acquireLock(nsRoot);
+    expect(lock).not.toBeNull();
+    releaseLock(lock);
+  });
+
+  it("keeps the stale window for a live-pid lock", () => {
+    const nsRoot = path.join(tmp, "namespaces");
+    const lockDir = path.join(nsRoot, ".s3state");
+    fs.mkdirSync(lockDir, { recursive: true });
+    // Current process is alive — a fresh lock owned by it must block.
+    fs.writeFileSync(
+      path.join(lockDir, ".lock"),
+      JSON.stringify({ pid: process.pid, ts: Date.now() }),
+    );
+    expect(acquireLock(nsRoot)).toBeNull();
   });
 });
