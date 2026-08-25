@@ -783,3 +783,11 @@ tasks:
   status: complete
   created_at: '2026-08-25T00:24:38.888843+00:00'
   completed_at: '2026-08-25T00:29:58.803041+00:00'
+- id: DB-GAP-041
+  title: duckbrain-usage SKILL.md auth coverage (post-auth-flip docs drift)
+  criteria:
+  - SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns
+    200 with the documented header; suite green + tsc --noEmit clean
+  status: complete
+  created_at: '2026-08-25T10:45:29.795195+00:00'
+  completed_at: '2026-08-25T10:52:48.136611+00:00'
