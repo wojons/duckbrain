@@ -24,7 +24,7 @@ REST API, CLI, Web UI**.
 
 | Surface | How to start | Notes |
 |---|---|---|
-| HTTP daemon | `node bin/duckbrain.js http --port 3000` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported |
+| HTTP daemon | `node bin/duckbrain.js http --port 3000 --auth=apikey` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported; auth REQUIRED on hardened deployments — every request sends `-H 'X-API-Key: <token>'` (401 without it); mint tokens with `duckbrain token --namespace=<ns>` |
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
 | CLI | `node bin/duckbrain.js <cmd>` | remember, recall, list-keys, forget, namespace(s), squash, embeddings, status |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
@@ -35,27 +35,40 @@ REST API, CLI, Web UI**.
 
 ```bash
 # 1. CREATE the namespace first — this is what git-inits it (versioning!)
-curl -X POST http://127.0.0.1:3000/api/namespaces -H 'Content-Type: application/json' \
+curl -X POST http://127.0.0.1:3000/api/namespaces -H 'Content-Type: application/json' -H 'X-API-Key: <token>' \
   -d '{"name":"my-project"}'
 
 # 2. Write — domain MUST be one of: person|event|concept|message|config|raw_note
 curl -X POST "http://127.0.0.1:3000/api/memories?namespace=my-project" \
-  -H 'Content-Type: application/json' \
+  -H 'Content-Type: application/json' -H 'X-API-Key: <token>' \
   -d '{"key":"/projects/myapp/db","domain":"concept","content":"PostgreSQL + PgBouncer","attributes":{"confidence":"high"}}'
 
 # 3. Read — exact key, prefix list, key tree, semantic search
-curl "http://127.0.0.1:3000/api/memories/key/projects/myapp/db?namespace=my-project"
-curl "http://127.0.0.1:3000/api/memories?namespace=my-project&prefix=/projects/&limit=50"
-curl "http://127.0.0.1:3000/api/keys?namespace=my-project"
-curl "http://127.0.0.1:3000/api/memories?namespace=my-project&q=postgres"   # semantic; items carry .score
+curl -H 'X-API-Key: <token>' "http://127.0.0.1:3000/api/memories/key/projects/myapp/db?namespace=my-project"
+curl -H 'X-API-Key: <token>' "http://127.0.0.1:3000/api/memories?namespace=my-project&prefix=/projects/&limit=50"
+curl -H 'X-API-Key: <token>' "http://127.0.0.1:3000/api/keys?namespace=my-project"
+curl -H 'X-API-Key: <token>' "http://127.0.0.1:3000/api/memories?namespace=my-project&q=postgres"   # semantic; items carry .score
 
 # 4. MCP-over-HTTP — the Accept header is REQUIRED or tools/list returns empty
 curl -X POST http://127.0.0.1:3000/mcp -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
+  -H 'Accept: application/json, text/event-stream' -H 'X-API-Key: <token>' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 # remember/recall via tools/call; remember REQUIRES "attributes": {} AND the
 # content field is "embedding_text" (NOT "content") — see pitfall #1
 ```
+
+## Authentication
+
+Hardened deployments run the daemon with `--auth=apikey`; then EVERY request
+above must carry `-H 'X-API-Key: <token>'` — omitting it returns **401**.
+Credentials live in `~/.duckbrain/auth.json` as an `apiKeys` array of
+`{key, name, namespaces?}` objects. Mint a scoped token with
+`duckbrain token --namespace=<ns>[,<ns>...]`: when `namespaces` is present the
+token may ONLY touch those namespaces (**403** otherwise); absent =
+unrestricted. With `--auth=apikey` the API stamps the `author` of every memory
+write from the token `name` (client-supplied `?author=` is ignored).
+Authoritative reference: `docs/guide/configuration.md` (Authentication
+Configuration).
 
 MCP stdio (`node bin/duckbrain.js stdio`) works with any SDK client
 (`@modelcontextprotocol/sdk`); a full working client session (create ns →
@@ -138,8 +151,12 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 ## Testing your changes safely
 
 ```bash
-mkdir -p /tmp/db-test && DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999
-# then point every curl/CLI call at :3999 and /tmp/db-test. Never write to the live :3000 daemon's
+mkdir -p /tmp/db-test && DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999 --auth=apikey
+# then point every curl/CLI call at :3999 and /tmp/db-test (with -H 'X-API-Key: <token>' — auth is ON).
+# Scratch auth file: the daemon reads $HOME/.duckbrain/auth.json (no --auth-file flag), so run it under an
+# isolated HOME (e.g. HOME=/tmp/db-test-home with its own .duckbrain/auth.json) instead of minting tokens
+# against your real ~/.duckbrain/auth.json.
+# Never write to the live :3000 daemon's
 # namespaces — other fleet agents' memories live there (80+ namespaces in production use).
 # ⚠️ ALWAYS also set DUCKBRAIN_CONFIG_PATH=/tmp/db-test-config.json (a copy of the repo config):
 # create_namespace / namespace registration PERSISTS the mapping into the config file even when
