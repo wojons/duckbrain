@@ -25,6 +25,7 @@ pnpm start -- http --auth=apikey --rate-limit=60
 | `--port` | 3000 | HTTP server port |
 | `--bind-all` | — | Bind to `0.0.0.0` (all interfaces) instead of localhost |
 | `--auth` | none | Authentication type: `none`, `basic`, or `apikey` |
+| `--auth-file` | `~/.duckbrain/auth.json` | Read auth users/apiKeys from this file instead (env fallback: `DUCKBRAIN_AUTH_FILE`); the file must exist — intended for scratch/test daemons |
 | `--rate-limit` | 100 | Requests per minute per IP |
 
 ---
@@ -760,6 +761,29 @@ The HTTP server supports three authentication modes configured via `--auth` or `
 | `apikey` | API key in header | `X-API-Key: <key>` |
 
 The `/health` endpoint always bypasses authentication.
+
+### Custom Auth Store Path (`--auth-file`)
+
+By default the server reads credentials from `~/.duckbrain/auth.json`. A
+scratch or test daemon can point at a different auth store so it never
+touches the production one:
+
+```bash
+# Flag form
+pnpm start -- http --auth=apikey --auth-file=/tmp/scratch-auth.json
+
+# Env fallback (used when the flag is absent)
+DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start -- http --auth=apikey
+```
+
+- Precedence: `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env > prod default.
+- When an override is set, `~/.duckbrain/auth.json` is **not consulted at
+  all** — the override file must exist and parse, otherwise the server
+  exits at startup with a clear error (never a silent fallback to the prod
+  store).
+- When unset, behavior is unchanged: the prod file is authoritative.
+- The override is runtime-only and never persisted (same philosophy as
+  `DUCKBRAIN_CONFIG_PATH`).
 
 ### Using API Key Authentication
 

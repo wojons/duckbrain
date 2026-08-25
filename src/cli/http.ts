@@ -71,6 +71,46 @@ export interface HttpServerOptions {
    *  runs with exactly this config. Production callers omit it and keep
    *  the file-based behavior. */
   authConfig?: AuthConfig;
+  /** Auth store file override (DB-GAP-043) — CLI `--auth-file`, env
+   *  fallback DUCKBRAIN_AUTH_FILE. When set, the server reads users/apiKeys
+   *  from THAT file ONLY (os.homedir()/.duckbrain/auth.json is never
+   *  consulted) and the file MUST exist and parse — missing/unparseable is
+   *  a fatal startup error. When unset, the prod default remains
+   *  authoritative. Scratch/judge daemons use this so they can never touch
+   *  the production auth store. */
+  authFile?: string;
+}
+
+/**
+ * Production auth store path: ~/.duckbrain/auth.json
+ */
+export function defaultAuthStorePath(): string {
+  return path.join(os.homedir(), ".duckbrain", "auth.json");
+}
+
+/**
+ * Resolve the auth store path for the HTTP server (DB-GAP-043).
+ *
+ * Precedence: explicit `authFile` (CLI --auth-file) > DUCKBRAIN_AUTH_FILE
+ * env > prod default. Same env-only philosophy as DUCKBRAIN_CONFIG_PATH
+ * (GAP-022): runtime-only override, never persisted anywhere, unset in
+ * production = the prod file is authoritative.
+ *
+ * The returned `explicit` flag marks an operator-chosen path: a
+ * missing/unparseable explicit file is a FATAL startup error — never a
+ * silent fallback to the prod store (the DB-GAP-041 judge incident wiped
+ * 13 prod tokens because scratch daemons shared the prod path).
+ *
+ * @param authFile - CLI --auth-file value, if any
+ */
+export function resolveAuthStorePath(authFile?: string): {
+  authFilePath: string;
+  explicit: boolean;
+} {
+  if (authFile) return { authFilePath: authFile, explicit: true };
+  const envOverride = process.env.DUCKBRAIN_AUTH_FILE;
+  if (envOverride) return { authFilePath: envOverride, explicit: true };
+  return { authFilePath: defaultAuthStorePath(), explicit: false };
 }
 
 /**
@@ -211,19 +251,36 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
 
-  // 3. Authentication — read credentials from ~/.duckbrain/auth.json if
-  // available (unless an explicit authConfig override was injected).
+  // 3. Authentication — read credentials from the auth store (default
+  // ~/.duckbrain/auth.json; --auth-file / DUCKBRAIN_AUTH_FILE redirect, see
+  // resolveAuthStorePath) unless an explicit authConfig override was
+  // injected. An explicit auth-file that is missing or unparseable is
+  // fatal: scratch/judge daemons must never fall back to the prod store
+  // (DB-GAP-043).
   const authConfig: AuthConfig = options.authConfig ?? {
     type: options.authType ?? "none",
   };
   if (!options.authConfig) {
-    const authFilePath = path.join(os.homedir(), ".duckbrain", "auth.json");
+    const { authFilePath, explicit } = resolveAuthStorePath(options.authFile);
+    if (explicit && !fs.existsSync(authFilePath)) {
+      throw new Error(
+        `--auth-file not found: ${authFilePath}. An explicit auth store ` +
+          "must exist — refusing to fall back to the production " +
+          "~/.duckbrain/auth.json (DB-GAP-043).",
+      );
+    }
     if (fs.existsSync(authFilePath)) {
       try {
         const authFile = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
         if (authFile.users) authConfig.users = authFile.users;
         if (authFile.apiKeys) authConfig.apiKeys = authFile.apiKeys;
-      } catch {
+      } catch (e) {
+        if (explicit) {
+          throw new Error(
+            `Could not parse --auth-file ${authFilePath}: ` +
+              `${e instanceof Error ? e.message : String(e)} (DB-GAP-043).`,
+          );
+        }
         console.error("[duckbrain] Warning: Could not parse auth.json");
       }
     }

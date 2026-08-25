@@ -136,6 +136,26 @@ Authentication credentials can be stored in `~/.duckbrain/auth.json`:
 | `apiKeys` | For `apikey` auth | Array of key/name objects |
 | `apiKeys[].namespaces` | No | Per-token namespace grants (DB-GAP-031): when present, the token may only access these namespaces (403 otherwise); absent = unrestricted. Mint scoped tokens with `duckbrain token --namespace=<ns>[,<ns>...]` (repeatable). |
 
+### Alternate Auth Store Path (`--auth-file`, DB-GAP-043)
+
+The HTTP server normally reads this file at `~/.duckbrain/auth.json`. A
+scratch/test daemon can be pointed at a different auth store so it never
+reads or writes the production one:
+
+```bash
+duckbrain http --auth=apikey --auth-file=/tmp/scratch-auth.json
+# or, via environment (used only when the flag is absent):
+DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json duckbrain http --auth=apikey
+```
+
+Precedence: `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env > the default
+`~/.duckbrain/auth.json`. With an override set, the default file is not
+consulted at all; the override file must exist and parse or the server
+refuses to start (exit non-zero). With no override, behavior is unchanged.
+The override is runtime-only and is never written back into any file
+(same philosophy as `DUCKBRAIN_CONFIG_PATH`). `duckbrain token` minting is
+unaffected — it always writes to `~/.duckbrain/auth.json`.
+
 ### Author Stamping
 
 With `--auth=apikey` or `--auth=basic`, the HTTP API stamps the `author`

@@ -74,6 +74,9 @@ HTTP Options:
   --port=PORT        HTTP server port (default: 3000)
   --bind-all         Bind to all interfaces (0.0.0.0) instead of localhost
   --auth=TYPE        Authentication type: none, basic, apikey (default: none)
+  --auth-file=PATH   Read auth users/apiKeys from PATH instead of
+                     ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
+                     the file must exist — for scratch/test daemons
   --rate-limit=N     Requests per minute per IP (default: 100)
   --unix-socket=PATH     Also listen on a Unix domain socket at PATH
   --unix-socket-mode=OCTAL  Socket file permissions (default: 0660)
@@ -251,6 +254,9 @@ async function main() {
         const authIdx = commandArgs.findIndex(
           (arg) => arg === "--auth" || arg.startsWith("--auth="),
         );
+        const authFileIdx = commandArgs.findIndex(
+          (arg) => arg === "--auth-file" || arg.startsWith("--auth-file="),
+        );
         const rateLimitIdx = commandArgs.findIndex(
           (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
         );
@@ -281,6 +287,12 @@ async function main() {
                 ? commandArgs[authIdx].split("=")[1]
                 : commandArgs[authIdx + 1]) as "none" | "basic" | "apikey")
             : "none";
+        const authFile =
+          authFileIdx !== -1
+            ? commandArgs[authFileIdx].includes("=")
+              ? commandArgs[authFileIdx].split("=")[1]
+              : commandArgs[authFileIdx + 1]
+            : undefined;
         const rateLimit =
           rateLimitIdx !== -1
             ? commandArgs[rateLimitIdx].includes("=")
@@ -309,6 +321,7 @@ async function main() {
         await startHttpMode({
           port,
           authType,
+          authFile,
           rateLimit,
           bindAll,
           socket,
