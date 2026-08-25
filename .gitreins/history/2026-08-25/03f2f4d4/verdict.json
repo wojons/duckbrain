@@ -1,0 +1,79 @@
+{
+  "task_id": "DB-GAP-043",
+  "task_title": "Auth-store isolation for scratch/judge daemons (--auth-file)",
+  "task_criteria": [
+    "Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json (prod store bytes unchanged)",
+    "Prod daemon undisturbed: scratch daemon with --auth-file never reads/writes the prod auth store and never affects the live :3000 daemon",
+    "Full suite green + tsc clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:34PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12356633 bytes (12.36 MB) in 6.69s\u001b[0m\n\u001b[90m12:34PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:34PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12356633 bytes (12.36 MB) in 6.69s\u001b[0m\n\u001b[90m12:34PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1049\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1292\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1315\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json (prod store bytes unchanged): src/cli/auth-file.test.ts:307-335 'daemon with --auth-file serves auth from the temp file and never touches ~/.duckbrain/auth.json' captures prodBefore=snapshotProdAuth() (sha256+mtime), spawns daemon with --auth-file=<temp>, asserts 401/401/200 auth from temp file, then expect(snapshotProdAuth()).toEqual(prodBefore). Test passed (11/11 in auth-file.test.ts). Code: src/cli/http.ts:264-276 reads only authFilePath (scratch file when explicit), never the prod path.\n  \u2713 Prod daemon undisturbed: scratch daemon with --auth-file never reads/writes the prod auth store and never affects the live :3000 daemon: resolveAuthStorePath (src/cli/http.ts:106-113) returns {authFilePath: authFile, explicit:true} when authFile set \u2014 prod ~/.duckbrain/auth.json never consulted. Missing-file test (auth-file.test.ts:380-393) confirms scratch daemon with missing --auth-file exits nonzero with clear error and leaves prod untouched (snapshotProdAuth()==prodBefore). startHttpMode passes options (incl authFile) to createHttpServer (http.ts:680). All isolation tests passed.\n  \u2713 Full suite green + tsc clean: npx vitest run \u2192 93 test files, 805 tests passed, exit 0. npx tsc --noEmit \u2192 exit 0. LSP diagnostics: 0 findings.\nDB-GAP-043 --auth-file isolation is correctly implemented and verified: scratch/judge daemons read auth from the scratch file only, prod ~/.duckbrain/auth.json bytes stay unchanged (sha256+mtime asserted), and the full suite (805 tests) plus tsc are green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json (prod store bytes unchanged): src/cli/auth-file.test.ts:307-335 'daemon with --auth-file serves auth from the temp file and never touches ~/.duckbrain/auth.json' captures prodBefore=snapshotProdAuth() (sha256+mtime), spawns daemon with --auth-file=<temp>, asserts 401/401/200 auth from temp file, then expect(snapshotProdAuth()).toEqual(prodBefore). Test passed (11/11 in auth-file.test.ts). Code:",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json (prod store bytes unchanged)",
+                "status": "PASS",
+                "detail": "src/cli/auth-file.test.ts:307-335 'daemon with --auth-file serves auth from the temp file and never touches ~/.duckbrain/auth.json' captures prodBefore=snapshotProdAuth() (sha256+mtime), spawns daemon with --auth-file=<temp>, asserts 401/401/200 auth from temp file, then expect(snapshotProdAuth()).toEqual(prodBefore). Test passed (11/11 in auth-file.test.ts). Code: src/cli/http.ts:264-276 reads only authFilePath (scratch file when explicit), never the prod path."
+              },
+              {
+                "criterion": "Prod daemon undisturbed: scratch daemon with --auth-file never reads/writes the prod auth store and never affects the live :3000 daemon",
+                "status": "PASS",
+                "detail": "resolveAuthStorePath (src/cli/http.ts:106-113) returns {authFilePath: authFile, explicit:true} when authFile set \u2014 prod ~/.duckbrain/auth.json never consulted. Missing-file test (auth-file.test.ts:380-393) confirms scratch daemon with missing --auth-file exits nonzero with clear error and leaves prod untouched (snapshotProdAuth()==prodBefore). startHttpMode passes options (incl authFile) to createHttpServer (http.ts:680). All isolation tests passed."
+              },
+              {
+                "criterion": "Full suite green + tsc clean",
+                "status": "PASS",
+                "detail": "npx vitest run \u2192 93 test files, 805 tests passed, exit 0. npx tsc --noEmit \u2192 exit 0. LSP diagnostics: 0 findings."
+              }
+            ],
+            "summary": "DB-GAP-043 --auth-file isolation is correctly implemented and verified: scratch/judge daemons read auth from the scratch file only, prod ~/.duckbrain/auth.json bytes stay unchanged (sha256+mtime asserted), and the full suite (805 tests) plus tsc are green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-043\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:34PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12356633 bytes (12.36 MB) in 6.69s\u001b[0m\n\u001b[90m12:34PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json (prod store bytes unchanged): src/cli/auth-file.test.ts:307-335 'daemon with --auth-file serves auth from the temp file and never touches ~/.duckbrain/auth.json' captures prodBefore=snapshotProdAuth() (sha256+mtime), spawns daemon with --auth-file=<temp>, asserts 401/401/200 auth from temp file, then expect(snapshotProdAuth()).toEqual(prodBefore). Test passed (11/11 in auth-file.test.ts). Code: src/cli/http.ts:264-276 reads only authFilePath (scratch file when explicit), never the prod path.\n  \u2713 Prod daemon undisturbed: scratch daemon with --auth-file never reads/writes the prod auth store and never affects the live :3000 daemon: resolveAuthStorePath (src/cli/http.ts:106-113) returns {authFilePath: authFile, explicit:true} when authFile set \u2014 prod ~/.duckbrain/auth.json never consulted. Missing-file test (auth-file.test.ts:380-393) confirms scratch daemon with missing --auth-file exits nonzero with clear error and leaves prod untouched (snapshotProdAuth()==prodBefore). startHttpMode passes options (incl authFile) to createHttpServer (http.ts:680). All isolation tests passed.\n  \u2713 Full suite green + tsc clean: npx vitest run \u2192 93 test files, 805 tests passed, exit 0. npx tsc --noEmit \u2192 exit 0. LSP diagnostics: 0 findings.\nDB-GAP-043 --auth-file isolation is correctly implemented and verified: scratch/judge daemons read auth from the scratch file only, prod ~/.duckbrain/auth.json bytes stay unchanged (sha256+mtime asserted), and the full suite (805 tests) plus tsc are green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-25T17:35:35.706276"
+}

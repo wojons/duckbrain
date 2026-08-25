@@ -791,3 +791,14 @@ tasks:
   status: complete
   created_at: '2026-08-25T10:45:29.795195+00:00'
   completed_at: '2026-08-25T10:52:48.136611+00:00'
+- id: DB-GAP-043
+  title: Auth-store isolation for scratch/judge daemons (--auth-file)
+  criteria:
+  - Judge live-verification runs against scratch auth without touching ~/.duckbrain/auth.json
+    (prod store bytes unchanged)
+  - 'Prod daemon undisturbed: scratch daemon with --auth-file never reads/writes the
+    prod auth store and never affects the live :3000 daemon'
+  - Full suite green + tsc clean
+  status: complete
+  created_at: '2026-08-25T17:34:04.219592+00:00'
+  completed_at: '2026-08-25T17:34:07.399055+00:00'
