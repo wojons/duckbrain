@@ -1,0 +1,67 @@
+{
+  "task_id": "S3Q-FIX-002",
+  "task_title": "s3 sync acquireLock: dead-pid lock should break immediately",
+  "task_criteria": [
+    "acquireLock in src/s3/sync.ts unlinks a stale .lock immediately when the holder PID is dead (process.kill(pid,0) ESRCH via isPidAlive from src/utils/pidfile.ts) instead of waiting the 10-min LOCK_STALE_MS window; a live sync still blocks while its lock is held; new regression test covers the dead-pid case; suite green + tsc clean."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:30PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11802823 bytes (11.80 MB) in 5.38s\u001b[0m\n\u001b[90m7:30PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:30PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11802823 bytes (11.80 MB) in 5.38s\u001b[0m\n\u001b[90m7:30PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1347\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m combines with keyPrefix and domain filters \u2014 intersection semantics \u001b[33m 564\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1523\u001b[2mms\u001b[22m\u001b[39m\n       \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m should create partition if not exists \u001b[33m 52",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 acquireLock in src/s3/sync.ts unlinks a stale .lock immediately when the holder PID is dead (process.kill(pid,0) ESRCH via isPidAlive from src/utils/pidfile.ts) instead of waiting the 10-min LOCK_STALE_MS window; a live sync still blocks while its lock is held; new regression test covers the dead-pid case; suite green + tsc clean.: commit 0ee7a28 src/s3/sync.ts:178-183 adds `if (Number.isInteger(data.pid) && data.pid > 0 && !isPidAlive(data.pid)) { fs.unlinkSync(lockPath); return acquireLock(namespacesPath); }` before the LOCK_STALE_MS check; isPidAlive (src/utils/pidfile.ts) uses process.kill(pid,0) signal-0 probe (ESRCH=false, EPERM=true). Live-pid test 'keeps the stale window for a live-pid lock' asserts acquireLock returns null for a fresh lock owned by the live process. New regression test 'breaks a dead-pid lock immediately without waiting for the stale window' spawns a short-lived child, waits for exit, writes a fresh lock with the dead pid, and asserts acquireLock returns non-null. Suite: `npx vitest run` -> 92 files/794 tests passed (exit 0); `npx tsc --noEmit` -> exit 0; LSP diagnostics empty.\nacquireLock now breaks dead-pid locks immediately via isPidAlive signal-0 probe before the stale window, live-pid locks still block, regression tests added, and the full suite (794 tests) plus tsc are green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 acquireLock in src/s3/sync.ts unlinks a stale .lock immediately when the holder PID is dead (process.kill(pid,0) ESRCH via isPidAlive from src/utils/pidfile.ts) instead of waiting the 10-min LOCK_STALE_MS window; a live sync still blocks while its lock is held; new regression test covers the dead-pid case; suite green + tsc clean.: commit 0ee7a28 src/s3/sync.ts:178-183 adds `if (Number.isInteger(data.pid) && data.pid > 0 && !isPidAlive(data.pid)) { fs.unlinkSync(lockPath); return ac",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "acquireLock in src/s3/sync.ts unlinks a stale .lock immediately when the holder PID is dead (process.kill(pid,0) ESRCH via isPidAlive from src/utils/pidfile.ts) instead of waiting the 10-min LOCK_STALE_MS window; a live sync still blocks while its lock is held; new regression test covers the dead-pid case; suite green + tsc clean.",
+                "status": "PASS",
+                "detail": "commit 0ee7a28 src/s3/sync.ts:178-183 adds `if (Number.isInteger(data.pid) && data.pid > 0 && !isPidAlive(data.pid)) { fs.unlinkSync(lockPath); return acquireLock(namespacesPath); }` before the LOCK_STALE_MS check; isPidAlive (src/utils/pidfile.ts) uses process.kill(pid,0) signal-0 probe (ESRCH=false, EPERM=true). Live-pid test 'keeps the stale window for a live-pid lock' asserts acquireLock returns null for a fresh lock owned by the live process. New regression test 'breaks a dead-pid lock immediately without waiting for the stale window' spawns a short-lived child, waits for exit, writes a fresh lock with the dead pid, and asserts acquireLock returns non-null. Suite: `npx vitest run` -> 92 files/794 tests passed (exit 0); `npx tsc --noEmit` -> exit 0; LSP diagnostics empty."
+              }
+            ],
+            "summary": "acquireLock now breaks dead-pid locks immediately via isPidAlive signal-0 probe before the stale window, live-pid locks still block, regression tests added, and the full suite (794 tests) plus tsc are green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3Q-FIX-002\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:30PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11802823 bytes (11.80 MB) in 5.38s\u001b[0m\n\u001b[90m7:30PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 acquireLock in src/s3/sync.ts unlinks a stale .lock immediately when the holder PID is dead (process.kill(pid,0) ESRCH via isPidAlive from src/utils/pidfile.ts) instead of waiting the 10-min LOCK_STALE_MS window; a live sync still blocks while its lock is held; new regression test covers the dead-pid case; suite green + tsc clean.: commit 0ee7a28 src/s3/sync.ts:178-183 adds `if (Number.isInteger(data.pid) && data.pid > 0 && !isPidAlive(data.pid)) { fs.unlinkSync(lockPath); return acquireLock(namespacesPath); }` before the LOCK_STALE_MS check; isPidAlive (src/utils/pidfile.ts) uses process.kill(pid,0) signal-0 probe (ESRCH=false, EPERM=true). Live-pid test 'keeps the stale window for a live-pid lock' asserts acquireLock returns null for a fresh lock owned by the live process. New regression test 'breaks a dead-pid lock immediately without waiting for the stale window' spawns a short-lived child, waits for exit, writes a fresh lock with the dead pid, and asserts acquireLock returns non-null. Suite: `npx vitest run` -> 92 files/794 tests passed (exit 0); `npx tsc --noEmit` -> exit 0; LSP diagnostics empty.\nacquireLock now breaks dead-pid locks immediately via isPidAlive signal-0 probe before the stale window, live-pid locks still block, regression tests added, and the full suite (794 tests) plus tsc are green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-25T00:30:58.514350"
+}
