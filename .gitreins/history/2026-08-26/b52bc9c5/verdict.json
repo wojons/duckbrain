@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-042",
+  "task_title": "SECURITY.md documents non-existent DUCKBRAIN_API_TOKEN as auth mechanism",
+  "task_criteria": [
+    "SECURITY.md contains zero occurrences of DUCKBRAIN_API_TOKEN (grep returns 0, exit 1) and its API-auth instructions match docs/guide/configuration.md: enable with --auth=apikey, credentials in ~/.duckbrain/auth.json apiKeys, mint scoped tokens with 'duckbrain token --namespace'"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:54PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12367835 bytes (12.37 MB) in 6.88s\u001b[0m\n\u001b[90m12:54PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:54PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12367835 bytes (12.37 MB) in 6.88s\u001b[0m\n\u001b[90m12:54PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 693\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1051\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m rebuild is idempotent \u2014 two runs both succeed with identical row counts \u001b[33m 603\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m git status stays clean after rebuild (si",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 SECURITY.md contains zero occurrences of DUCKBRAIN_API_TOKEN (grep returns 0, exit 1) and its API-auth instructions match docs/guide/configuration.md: enable with --auth=apikey, credentials in ~/.duckbrain/auth.json apiKeys, mint scoped tokens with 'duckbrain token --namespace': grep -c 'DUCKBRAIN_API_TOKEN' SECURITY.md returned '0' with exit 1 (confirmed via run_command). SECURITY.md:68-73 now reads: 'the HTTP API runs with --auth=none... running the server with --auth=apikey and configuring API keys in ~/.duckbrain/auth.json. Mint scoped per-namespace tokens with duckbrain token --namespace=<ns>', matching all criterion-enumerated instructions. Test suite: npx vitest run \u2192 93 files / 805 tests passed (docs-only change, no breakage).\nSECURITY.md no longer references the phantom DUCKBRAIN_API_TOKEN (grep=0, exit 1) and its API-auth instructions now match the documented --auth=apikey / ~/.duckbrain/auth.json / duckbrain token --namespace flow.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 SECURITY.md contains zero occurrences of DUCKBRAIN_API_TOKEN (grep returns 0, exit 1) and its API-auth instructions match docs/guide/configuration.md: enable with --auth=apikey, credentials in ~/.duckbrain/auth.json apiKeys, mint scoped tokens with 'duckbrain token --namespace': grep -c 'DUCKBRAIN_API_TOKEN' SECURITY.md returned '0' with exit 1 (confirmed via run_command). SECURITY.md:68-73 now reads: 'the HTTP API runs with --auth=none... running the server with --auth=apikey and c",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "SECURITY.md contains zero occurrences of DUCKBRAIN_API_TOKEN (grep returns 0, exit 1) and its API-auth instructions match docs/guide/configuration.md: enable with --auth=apikey, credentials in ~/.duckbrain/auth.json apiKeys, mint scoped tokens with 'duckbrain token --namespace'",
+                "status": "PASS",
+                "detail": "grep -c 'DUCKBRAIN_API_TOKEN' SECURITY.md returned '0' with exit 1 (confirmed via run_command). SECURITY.md:68-73 now reads: 'the HTTP API runs with --auth=none... running the server with --auth=apikey and configuring API keys in ~/.duckbrain/auth.json. Mint scoped per-namespace tokens with duckbrain token --namespace=<ns>', matching all criterion-enumerated instructions. Test suite: npx vitest run \u2192 93 files / 805 tests passed (docs-only change, no breakage)."
+              }
+            ],
+            "summary": "SECURITY.md no longer references the phantom DUCKBRAIN_API_TOKEN (grep=0, exit 1) and its API-auth instructions now match the documented --auth=apikey / ~/.duckbrain/auth.json / duckbrain token --namespace flow."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-042\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:54PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12367835 bytes (12.37 MB) in 6.88s\u001b[0m\n\u001b[90m12:54PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 SECURITY.md contains zero occurrences of DUCKBRAIN_API_TOKEN (grep returns 0, exit 1) and its API-auth instructions match docs/guide/configuration.md: enable with --auth=apikey, credentials in ~/.duckbrain/auth.json apiKeys, mint scoped tokens with 'duckbrain token --namespace': grep -c 'DUCKBRAIN_API_TOKEN' SECURITY.md returned '0' with exit 1 (confirmed via run_command). SECURITY.md:68-73 now reads: 'the HTTP API runs with --auth=none... running the server with --auth=apikey and configuring API keys in ~/.duckbrain/auth.json. Mint scoped per-namespace tokens with duckbrain token --namespace=<ns>', matching all criterion-enumerated instructions. Test suite: npx vitest run \u2192 93 files / 805 tests passed (docs-only change, no breakage).\nSECURITY.md no longer references the phantom DUCKBRAIN_API_TOKEN (grep=0, exit 1) and its API-auth instructions now match the documented --auth=apikey / ~/.duckbrain/auth.json / duckbrain token --namespace flow.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-26T17:55:52.593798"
+}

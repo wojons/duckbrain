@@ -65,8 +65,13 @@ docker run --cap-drop=ALL duckbrain:latest
 
 ## Known Security Considerations
 
-1. **API Tokens**: By default, tokens are not required. Enable authentication
-   in production by setting `DUCKBRAIN_API_TOKEN`.
+1. **API Tokens**: By default, the HTTP API runs with `--auth=none` and
+   tokens are not required. Enable authentication in production by running
+   the server with `--auth=apikey` and configuring API keys in
+   `~/.duckbrain/auth.json`. Mint scoped per-namespace tokens with
+   `duckbrain token --namespace=<ns>`. See
+   [Authentication Configuration](docs/guide/configuration.md#authentication-configuration)
+   for the full setup.
 
 2. **Memory Data**: Stored as plain JSONL files. Encrypt sensitive data before
    storing.
