@@ -18,6 +18,8 @@ import {
 } from "../../storage/jsonl";
 import { addPartition } from "../../storage/manifest";
 import { getAuthorEmail } from "../../git/attribution";
+import { getMcpRequestPrincipal } from "../../cli/http";
+import { principalAuthorEmail } from "../../auth/middleware";
 import { commitNamespace } from "../../git/autocommit";
 import { normalizeAttributes } from "../../utils/serialize";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
@@ -137,10 +139,17 @@ export async function rememberTool(
     // the reader parses back; duplicate keys are impossible in JS objects).
     const normalizedAttributes = normalizeAttributes(attributes);
 
-    // DB-GAP-031: the authenticated principal's identity wins when provided
-    // (HTTP routes never forward a client-supplied author); the git-config
-    // fallback remains for local single-user (auth=none) mode.
-    const authorIdentity = author ?? getAuthorEmail();
+    // DOGFOOD-025: an authenticated MCP-over-HTTP request (--auth=apikey /
+    // basic) stamps the principal's identity — mirroring the REST routes,
+    // a client-supplied `author` argument is NEVER honored when a principal
+    // is present (provenance cannot be erased by the caller). In stdio/local
+    // (auth=none) mode getMcpRequestPrincipal() is undefined and the
+    // client-supplied author (or the git-config fallback) keeps its exact
+    // legacy behavior.
+    const mcpPrincipal = getMcpRequestPrincipal();
+    const authorIdentity = mcpPrincipal
+      ? principalAuthorEmail(mcpPrincipal)
+      : (author ?? getAuthorEmail());
 
     // Create memory with defaults
     const memory = createMemory({

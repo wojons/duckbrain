@@ -21,7 +21,12 @@ import http from "http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Mutex } from "async-mutex";
 import { server, stopServer, registerTools } from "../mcp/server.js";
-import { authMiddleware, AuthConfig } from "../auth/middleware.js";
+import {
+  authMiddleware,
+  AuthConfig,
+  getPrincipal,
+} from "../auth/middleware.js";
+import type { AuthPrincipal } from "../auth/middleware.js";
 import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
 import {
   errorHandler,
@@ -535,6 +540,13 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     parsedBody?: unknown,
   ): Promise<void> =>
     mcpMutex.runExclusive(async () => {
+      // DOGFOOD-025: the auth middleware runs before /mcp, so an
+      // authenticated request (--auth=apikey / basic) carries its principal
+      // here; auth=none leaves it undefined and MCP tools keep their
+      // local-mode fallbacks. Requests are serialized through mcpMutex, so
+      // setting the module-scope slot here and clearing it in finally is
+      // single-flight safe (see getMcpRequestPrincipal below).
+      mcpRequestPrincipal = getPrincipal(req);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         // Return a single JSON response per request instead of an open SSE
@@ -546,6 +558,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         await transport.handleRequest(req, res, parsedBody);
       } finally {
         await transport.close().catch(() => {});
+        mcpRequestPrincipal = undefined;
       }
     });
 
@@ -586,6 +599,28 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use(notFoundHandler);
 
   return app;
+}
+
+// DOGFOOD-025: module-scope slot holding the authenticated principal of the
+// MCP request currently being served. The /mcp route sets it inside its
+// mutex (single-flight — requests are serialized) and clears it in finally;
+// MCP tool handlers read it via getMcpRequestPrincipal(). In stdio/local
+// (auth=none) mode nothing ever sets it, so it stays undefined and tools
+// keep their git-config author fallback. The stdio entry point never calls
+// createHttpServer, so the singleton MCP server's stdio session is
+// unaffected by this slot.
+let mcpRequestPrincipal: AuthPrincipal | undefined;
+
+/**
+ * DOGFOOD-025: resolve the authenticated principal of the in-flight MCP
+ * request, if any.
+ *
+ * Returns undefined for stdio transports and auth=none local mode — MCP
+ * tools then fall back to their client-supplied author / git-config
+ * behavior, which must stay unchanged.
+ */
+export function getMcpRequestPrincipal(): AuthPrincipal | undefined {
+  return mcpRequestPrincipal;
 }
 
 /**
