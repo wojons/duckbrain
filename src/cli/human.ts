@@ -360,7 +360,9 @@ async function recallCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const { flags, positional } = parseArgs(args);
+  const { flags, positional } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace", "--as-of"]),
+  );
 
   // RETR-006: attribute filters — repeatable --attr=<name>=<value> (or
   // bare `--attr <name>=<value>`). Malformed pairs exit cleanly above.
@@ -451,18 +453,24 @@ async function recallCommand(args: string[]): Promise<void> {
 }
 
 /**
- * RETR-008: normalize the space-separated `--namespace <name>` form to
- * `--namespace=<name>` before parseArgs (which only splits on `=`). Without
- * this, `duckbrain search "GAP-020" --namespace chat-archive` would set
- * namespace="true" and leak the namespace name into the positional query.
- * Scoped to the search command — parseArgs stays globally untouched.
+ * RETR-008 / DOGFOOD-027 / CLI-FIX-001: normalize the space-separated flag
+ * forms (`--namespace <name>`, `--as-of <ref>`) to their `=` form before
+ * parseArgs (which only splits on `=`). Without this,
+ * `duckbrain search "GAP-020" --namespace chat-archive` would set
+ * namespace="true" and leak the namespace name into the positional query,
+ * `duckbrain recall --namespace dogfood-scratch` would run a silent
+ * wrong-namespace query, and `recall --as-of 2026-08-10` would fail with
+ * "Invalid --as-of value 'true'". Scoped to the commands that opt in via the
+ * `flags` list — parseArgs stays globally untouched.
  */
-function normalizeNamespaceArgs(args: string[]): string[] {
+function normalizeSpaceFormFlags(
+  args: string[],
+  flags: string[],
+): string[] {
   const out = args.slice();
   for (let i = 0; i < out.length - 1; i++) {
-    if (out[i] === "--namespace") {
-      out.splice(i, 2, `--namespace=${out[i + 1]}`);
-      break;
+    if (flags.includes(out[i])) {
+      out.splice(i, 2, `${out[i]}=${out[i + 1]}`);
     }
   }
   return out;
@@ -504,7 +512,9 @@ async function searchCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const { positional, flags } = parseArgs(normalizeNamespaceArgs(args));
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace"]),
+  );
 
   const query = positional.join(" ").trim();
   if (!query) {
