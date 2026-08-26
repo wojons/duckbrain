@@ -184,3 +184,68 @@ not the alternative name the caller likely used.
 4. Board/foreman: the duckbrain-http systemd service restart loop is the canary
    for this class of bug — a watchdog that flags `status=6/ABRT` restarts would
    have caught DOGFOOD-010 the first time it happened.
+
+## 11. Post-auth-flip state (2026-08-26 dogfood) — how auth actually works now
+
+The 08-24 DB-GAP-031 flip made the fleet daemon require API keys. Architecture of the
+current auth path:
+
+- Daemon runs `--auth=apikey` (+ `--rate-limit 600`, unix socket). Keys live in
+  `~/.duckbrain/auth.json` as `apiKeys: [{key, name, namespaces?}]`; `namespaces`
+  absent = unrestricted, present = only those namespaces (403 otherwise).
+- Request flow: missing key → 401; bad key → 401; scoped key to non-granted ns → 403;
+  good key → handler. REST writes stamp `author: <token-name>@duckbrain.local`.
+- **Known asymmetry (DOGFOOD-025):** the REST handler stamps token identity, but the
+  MCP-over-HTTP path (`src/mcp/tools/remember.ts`) stamps the host git identity. The
+  DB-GAP-031 fix landed in one handler only. Same request, same key, two authors.
+- **Known isolation hole (DOGFOOD-026):** `duckbrain token` (the minting CLI) hardcodes
+  `~/.duckbrain/auth.json`; `--auth-file`/`DUCKBRAIN_AUTH_FILE` (DB-GAP-043, 08-25)
+  redirect only the http daemon's reader. A scratch/judge mint pollutes prod — happened
+  to me during this run; restored from backup. The 08-25 incident (auth.json wiped by a
+  judge's scratch daemon) is the same class of failure, and DB-GAP-043 fixed only half
+  of it.
+- The 08-25 incident history is instructive: a judge's tier-2 live verification spawned
+  scratch daemons that (a) replaced ~/.duckbrain/auth.json with test keys and (b)
+  SIGTERMed the live daemon. Recovery: key-file restore + re-mint + restart. The
+  `--auth-file` flag exists precisely so scratch daemons never see the prod store —
+  use it for every scratch daemon (I did; prod store untouched all run).
+
+## 12. The arg-parser trap class (recall vs search)
+
+Two CLI parsers drifted: `search` got space-form value capture fixed (RETR-008,
+08-19), `recall` did not — `--namespace X` / `--as-of Y` silently become
+boolean `true` (DOGFOOD-027, CLI-FIX-001). Worse than an error: it returns
+"No memories found" against namespace 'true' — silent wrong results. Lesson:
+flag parsers in this codebase need a shared helper, and every "space-form
+fixed" task must grep for sibling parsers (search/recall/list-keys/query all
+have bespoke parseArgs).
+
+## 13. Semantic search stability (old P0, now fixed)
+
+08-16: every REST `?q=` crashed the daemon (`duckdb::InvalidInputException "Map
+keys must be unique."` → SIGABRT; DuckDB auto-infer of duplicate keys in
+real-world JSONL). Fix: explicit all-VARCHAR `read_json` schema + `ignore_errors`.
+08-26: `?q=` returns ranked scores (0.78/0.559 on a scratch ns), never crashes;
+`?q=zzznothing` returns everything on a 4-row ns (ranked) — the 0.25 score floor
+is a rank filter, not a relevance gate; small namespaces will always return
+something. Treat `.score` as the signal.
+
+## 14. The SQL surface's blind spot
+
+`duckbrain query` runs read-only SQL over a `memories` view (latest per id,
+tombstones excluded; mutating keywords and out-of-scope table functions
+rejected with explicit messages — verified). But the view does NOT apply the
+valid_from/valid_until window that `recall` applies (DOGFOOD-031): expired and
+future-dated rows appear in SQL results while the REST current view hides
+them. If you query memories, expect raw records, not the validity-filtered
+"now" view.
+
+## 15. S3 tier status
+
+Live daemon syncs every 15 min (`intervalSec: 900`, `pushOnCommit: false` +
+AUTOPUSH-001 immediate-push on commit flush). `s3 status` against the real
+bucket: 80+ namespaces, lastSync timestamps minutes old, local/remote counts
+(some namespaces show small local>remote deltas — next sync window catches
+them). Cosmetic wart: status prints the placeholder endpoint from config
+(`hel1.your-objectstorage.com`) while the real endpoint comes from AWS env
+(DOGFOOD-030).
