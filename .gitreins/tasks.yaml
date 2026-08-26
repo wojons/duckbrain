@@ -830,3 +830,16 @@ tasks:
   status: complete
   created_at: '2026-08-26T23:02:27.023276+00:00'
   completed_at: '2026-08-26T23:02:30.510043+00:00'
+- id: duckbrain-482-recall-space-form
+  title: 'DOGFOOD-027 + CLI-FIX-001: recall CLI accepts space-form --namespace/--as-of
+    (no silent ''true'')'
+  criteria:
+  - duckbrain recall --namespace <ns> (space form) selects the right namespace; flag
+    value is not 'true'; namespace name does not leak into positional args
+  - duckbrain recall --namespace=<ns> (equals form) unchanged
+  - duckbrain recall --as-of <ref> (space form) resolves the ref; value is not 'true'
+  - duckbrain recall --as-of=<ref> (equals form) unchanged
+  - pnpm tsc --noEmit clean; full vitest suite green (819 tests)
+  status: complete
+  created_at: '2026-08-26T23:33:53.699712+00:00'
+  completed_at: '2026-08-26T23:33:56.533687+00:00'
