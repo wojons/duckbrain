@@ -40,6 +40,7 @@ import {
   installRemote,
 } from "../ssh/client";
 import { createTunnel, listTunnels } from "../ssh/tunnel";
+import { resolveAuthStorePath } from "./http";
 import { execSync } from "child_process";
 import http from "http";
 import fs from "fs";
@@ -1579,7 +1580,7 @@ async function tokenCommand(args: string[]): Promise<void> {
   // generate + persist a token — side-effect-free help like every other command)
   if (args.includes("--help") || args.includes("-h")) {
     console.log(
-      `Usage: duckbrain token [--name=<token-name>] [--namespace=<ns>[,<ns>...]]
+      `Usage: duckbrain token [--name=<token-name>] [--namespace=<ns>[,<ns>...]] [--auth-file=<path>]
 
   Generate an API token for HTTP authentication (--auth=apikey).
 
@@ -1587,8 +1588,13 @@ async function tokenCommand(args: string[]): Promise<void> {
     --name=<name>         Human-readable token name (also the author identity)
     --namespace=<ns>      Namespace grants — repeatable and/or comma-separated.
                           Absent = unrestricted (all namespaces).
+    --auth-file=<path>    Write the token to PATH instead of the default store
+                          (env: DUCKBRAIN_AUTH_FILE). An explicit path that is
+                          missing or unparseable is a fatal error — the token
+                          is never silently written to the production store.
 
-  The token is printed once and saved to ~/.duckbrain/auth.json.`,
+  The token is printed once and saved to the resolved auth store (default:
+  ~/.duckbrain/auth.json; override with --auth-file or DUCKBRAIN_AUTH_FILE).`,
     );
     return;
   }
@@ -1616,15 +1622,54 @@ async function tokenCommand(args: string[]): Promise<void> {
   // Generate secure random token
   const token = crypto.randomBytes(32).toString("hex");
 
-  // Determine auth config path
-  const authPath = path.join(os.homedir(), ".duckbrain", "auth.json");
+  // Determine auth config path — explicit --auth-file > DUCKBRAIN_AUTH_FILE
+  // env > prod default (same precedence as the HTTP daemon, DB-GAP-043).
+  // An explicit path that is missing or unparseable is FATAL: scratch/judge
+  // workflows must never silently fall back to the production store
+  // (DOGFOOD-026 — minting with DUCKBRAIN_AUTH_FILE set used to write prod).
+  // --auth-file supports both --auth-file=<path> and --auth-file <path>
+  // (space form), matching the --namespace convention below. parseArgs alone
+  // would turn a bare --auth-file into "true", so the raw args are scanned.
+  let authFileFlag: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--auth-file") {
+      authFileFlag = args[i + 1];
+    } else if (arg.startsWith("--auth-file=")) {
+      authFileFlag = arg.slice("--auth-file=".length);
+    }
+    if (authFileFlag !== undefined) break;
+  }
+  const { authFilePath, explicit } = resolveAuthStorePath(authFileFlag);
+  // A missing explicit --auth-file is FATAL — never fall back to prod
+  // (DB-GAP-043). The DUCKBRAIN_AUTH_FILE env override is a write-target
+  // redirect for scratch/judge workflows: a missing env path is CREATED on
+  // first mint (DOGFOOD-026 acceptance: DUCKBRAIN_AUTH_FILE=/tmp/scratch
+  // duckbrain token writes the scratch file only, prod untouched).
+  if (authFileFlag !== undefined && !fs.existsSync(authFilePath)) {
+    console.error(
+      `--auth-file not found: ${authFilePath}. An explicit auth store ` +
+        "must exist — refusing to fall back to the production " +
+        "~/.duckbrain/auth.json (DB-GAP-043).",
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   // Load or create auth config
   let authConfig: any = { apiKeys: [] };
-  if (fs.existsSync(authPath)) {
+  if (fs.existsSync(authFilePath)) {
     try {
-      authConfig = JSON.parse(fs.readFileSync(authPath, "utf-8"));
-    } catch {
+      authConfig = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
+    } catch (e) {
+      if (explicit) {
+        console.error(
+          `Could not parse --auth-file ${authFilePath}: ` +
+            `${e instanceof Error ? e.message : String(e)} (DB-GAP-043).`,
+        );
+        process.exitCode = 1;
+        return;
+      }
       // Ignore parse errors
     }
   }
@@ -1641,13 +1686,13 @@ async function tokenCommand(args: string[]): Promise<void> {
   authConfig.apiKeys.push(tokenEntry);
 
   // Ensure directory exists
-  const authDir = path.dirname(authPath);
+  const authDir = path.dirname(authFilePath);
   if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true });
   }
 
   // Write config
-  fs.writeFileSync(authPath, JSON.stringify(authConfig, null, 2) + "\n");
+  fs.writeFileSync(authFilePath, JSON.stringify(authConfig, null, 2) + "\n");
 
   console.log("Generated API token:");
   console.log(token);
@@ -1662,7 +1707,7 @@ async function tokenCommand(args: string[]): Promise<void> {
   console.log("Use with HTTP requests:");
   console.log(`  curl -H "X-API-Key: ${token}" http://localhost:3000/health`);
   console.log("");
-  console.log(`Token saved to ${authPath}`);
+  console.log(`Token saved to ${authFilePath}`);
 }
 
 /**
