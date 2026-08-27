@@ -12,6 +12,7 @@
 
 import path from "path";
 import { getConfig } from "../config";
+import { safeJsonStringify } from "../utils/serialize";
 import { S3ConfigSchema } from "./config";
 import { loadManifest } from "./manifest";
 import { walkLocal, syncNamespace, syncAllNamespaces } from "./sync";
@@ -120,6 +121,10 @@ export async function s3Sync(
   }
 }
 
+export function formatS3Row(row: Record<string, unknown>): string {
+  return safeJsonStringify(row);
+}
+
 export async function s3Query(configDir: string, sql: string): Promise<void> {
   const s3 = requireEnabled(configDir);
   if (!sql.trim()) {
@@ -132,7 +137,7 @@ export async function s3Query(configDir: string, sql: string): Promise<void> {
   console.log(`columns: ${result.columns.join(", ")}`);
   console.log(`rows: ${result.count}`);
   for (const row of result.rows.slice(0, 50)) {
-    console.log(JSON.stringify(row));
+    console.log(formatS3Row(row));
   }
   if (result.count > 50) console.log(`... ${result.count - 50} more`);
 }
