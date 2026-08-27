@@ -8,7 +8,8 @@
  *   duckbrain query --template cost-series [--namespace=<name>]
  *
  * The SQL runs against a `memories` view of the selected namespace (latest
- * record per id, tombstones excluded — same semantics as recall). The
+ * record per id, tombstones excluded, validity-filtered — same semantics as
+ * recall). The
  * surface is strictly read-only and auto-capped at QUERY_MAX_ROWS rows
  * (src/duckdb/query-surface.ts); mutating statements, non-numeric LIMITs,
  * and namespace-escaping table functions are rejected.
@@ -31,7 +32,7 @@ Usage:
   duckbrain query --template <name> [--namespace=<name>]
 
 The SQL runs against a \`memories\` view (latest record per id, tombstones
-excluded). Read-only: mutating statements are rejected, results are
+excluded, validity-filtered). Read-only: mutating statements are rejected, results are
 auto-capped at ${QUERY_MAX_ROWS} rows.
 
 Options:

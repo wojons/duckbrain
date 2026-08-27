@@ -407,7 +407,9 @@ export function collectNamespaceJsonl(namespacePath: string): string[] {
  * read_json_auto WITH the explicit all-VARCHAR columns override — never
  * bare (DOGFOOD-010/018/019 duplicate-key SIGABRT). The dedup window
  * (ROW_NUMBER() per id, timestamp DESC) + tombstone exclusion mirror
- * queryMemories exactly, so the SQL surface sees the live memory store.
+ * queryMemories exactly. Validity filtering (DOGFOOD-031) excludes rows
+ * with expired valid_until or not-yet-valid valid_from, matching the
+ * recall layer's default behavior.
  */
 export function buildNamespaceViewSql(jsonlFiles: string[]): string {
   const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
@@ -417,7 +419,10 @@ FROM (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) AS __rn
   FROM read_json_auto([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
 ) sub
-WHERE __rn = 1 AND action != 'tombstone'`;
+WHERE __rn = 1
+  AND action != 'tombstone'
+  AND (valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= now())
+  AND (valid_from IS NULL OR try_cast(valid_from AS TIMESTAMP) <= now())`;
 }
 
 /** node-duckdb db.exec promisified. */
