@@ -7,9 +7,10 @@ description: >-
   ranks with a 0.25 score floor, MCP remember needs embedding_text + attributes,
   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
   active namespace — remember/recall echo it now, compaction stats/status
-  still instance-blind). Load this
+  still instance-blind, HTTP omitted-?namespace= means the literal 'default'
+  namespace while the CLI defaults to config defaultNamespace). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.3.0
+version: 1.4.0
 category: software-development
 ---
 
@@ -26,7 +27,7 @@ REST API, CLI, Web UI**.
 |---|---|---|
 | HTTP daemon | `node bin/duckbrain.js http --port 3000 --auth=apikey` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported; auth REQUIRED on hardened deployments — every request sends `-H 'X-API-Key: <token>'` (401 without it); mint tokens with `duckbrain token --namespace=<ns>` |
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
-| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, list-keys, forget, namespace(s), squash, embeddings, status |
+| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget, namespace(s), squash, embeddings, status, s3 |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
 | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
@@ -70,12 +71,55 @@ write from the token `name` (client-supplied `?author=` is ignored).
 Authoritative reference: `docs/guide/configuration.md` (Authentication
 Configuration).
 
+**Auth-store override (DB-GAP-043, shipped 2026-08-25):** both `http` and
+`token` accept `--auth-file=<path>` (env fallback `DUCKBRAIN_AUTH_FILE`).
+The daemon reads users/apiKeys from that file instead of
+`~/.duckbrain/auth.json`; `token` writes new tokens there. An explicit
+auth-file that is missing or unparseable is a FATAL startup error — never a
+silent fallback to the production store. Use this for every scratch/test
+daemon so it can never clobber the real auth store (see "Testing your
+changes safely").
+
 MCP stdio (`node bin/duckbrain.js stdio`) works with any SDK client
 (`@modelcontextprotocol/sdk`); a full working client session (create ns →
 remember → recall → semantic recall → forget by UUID → delete ns with
 `confirm: true`) is in `docs/dogfood/2026-08-16-integration.md`.
 
 Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-integration.md`.
+
+## RETR query surface (shipped 2026-08-18/19)
+
+The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
+
+- **`duckbrain search "<query>"`** — offline full-text keyword search over
+  content, key, and attributes. Requires the index: `duckbrain
+  search-index rebuild` first. Hits print a **highlighted snippet**
+  (`highlightedSnippet`), not just the raw row. `--limit=<n>` (default 10).
+- **`duckbrain search --all-namespaces "<query>"`** (RETR-007) — union of
+  keyword hits over every namespace with a rebuilt index; each hit shows its
+  source namespace. Namespaces without an index are **skipped with a stderr
+  warning** (single-namespace mode keeps the hard error — run
+  `search-index rebuild` for them).
+- **`duckbrain search-index <rebuild|status|install-hooks>`** — manage the
+  keyword index.
+- **`duckbrain query "SELECT ..." [--namespace=<ns>] [--limit=<n>]`** — read-only
+  SQL over a `memories` view (latest record per id, tombstones excluded;
+  mutating statements rejected; results auto-capped at 1000 rows). Templates:
+  `--template incidents-by-day|per-project-status|cost-series`. ⚠️ The view is
+  the RAW latest-record-per-id store — **no validity window is applied**
+  (expired `valid_until` / future `valid_from` rows ARE visible via SQL, where
+  the recall layer and REST current view hide them). Validity filtering is a
+  recall-layer feature; see `--historical` below.
+- **`duckbrain token`** — `--name=<name>` (author identity), `--namespace=<ns>`
+  grants, `--auth-file=<path>` override (DB-GAP-043).
+- **`duckbrain recall --historical`** (RETR-011) — include ALL rows regardless
+  of validity window. Default = current view only. Paired with
+  `valid_from`/`valid_until` on writes: a memory written with a validity
+  window is hidden from the current view before `valid_from` or after
+  `valid_until`; `--historical` shows it. `--as-of=<ref>` reads the namespace
+  as of a git ref or ISO date.
+- **`duckbrain recall --attr=<name>=<value>`** (repeatable) — filter rows by
+  attribute, e.g. `--attr=domain=config --attr=tick=403`.
 
 ## Pitfalls that WILL bite you (verified live 2026-08-16/17 against source + scratch daemon)
 
@@ -132,8 +176,16 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 9. **CLI `remember --content=` WORKS now** (DOGFOOD-003 fixed): content is
    persisted as `embedding_text` and recalled correctly. `list-keys` prints a
    readable tree (DOGFOOD-009 fixed).
-10. **Default namespace is NOT `default`** — it's `defaultNamespace` in the
-    config. Always pass `--namespace` / `?namespace=` / `namespace:`.
+10. **Default namespace: HTTP and CLI resolve it DIFFERENTLY.** The CLI
+    (`--namespace` omitted) uses `defaultNamespace` from the config — NOT
+    `'default'`. The **HTTP API** (`?namespace=` omitted) uses the literal
+    **`'default'`** namespace (README: "Namespace-scoped routes default to
+    `default` when `?namespace=` is omitted") — regardless of config
+    `defaultNamespace` (verified live 2026-08-26: no-ns `/api/memories`
+    returned `default` data while config `defaultNamespace` was
+    `eduos.dexdat.com.co`). An agent omitting `?namespace=` on HTTP reads/
+    writes the real `'default'` namespace while believing it uses the config
+    default — ALWAYS pass `namespace` explicitly on HTTP.
 11. **Domain enum** — `person|event|concept|message|config|raw_note` everywhere.
 12. **Temp-file hygiene** — every daemon spawn/crash leaves
     `/tmp/duckbrain-<pid>-*.db` files (DOGFOOD-016, open); they accumulate.
@@ -151,11 +203,16 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 ## Testing your changes safely
 
 ```bash
-mkdir -p /tmp/db-test && DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999 --auth=apikey
-# then point every curl/CLI call at :3999 and /tmp/db-test (with -H 'X-API-Key: <token>' — auth is ON).
-# Scratch auth file: the daemon reads $HOME/.duckbrain/auth.json (no --auth-file flag), so run it under an
-# isolated HOME (e.g. HOME=/tmp/db-test-home with its own .duckbrain/auth.json) instead of minting tokens
-# against your real ~/.duckbrain/auth.json.
+mkdir -p /tmp/db-test /tmp/db-test-home && cp ~/.duckbrain/auth.json /tmp/db-test-home/ 2>/dev/null || true
+# Scratch daemon with ISOLATED auth store (DB-GAP-043): --auth-file redirects
+# the auth store, so the scratch daemon can NEVER clobber the production
+# ~/.duckbrain/auth.json. The file must pre-exist with users/apiKeys.
+DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999 \
+  --auth=apikey --auth-file=/tmp/db-test-home/auth.json
+# Mint tokens for the scratch daemon into its own store:
+node bin/duckbrain.js token --name=scratch --namespace=dogfood-ns --auth-file=/tmp/db-test-home/auth.json
+# Env alternative: DUCKBRAIN_AUTH_FILE=/tmp/db-test-home/auth.json (both http and token honor it).
+# Then point every curl/CLI call at :3999 and /tmp/db-test (with -H 'X-API-Key: <token>' — auth is ON).
 # Never write to the live :3000 daemon's
 # namespaces — other fleet agents' memories live there (80+ namespaces in production use).
 # ⚠️ ALWAYS also set DUCKBRAIN_CONFIG_PATH=/tmp/db-test-config.json (a copy of the repo config):
