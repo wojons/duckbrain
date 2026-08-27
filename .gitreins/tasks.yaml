@@ -881,3 +881,15 @@ tasks:
   status: complete
   created_at: '2026-08-27T03:18:47.402145+00:00'
   completed_at: '2026-08-27T03:22:44.459228+00:00'
+- id: S3Q-FIX-001
+  title: s3 query BigInt serialization
+  criteria:
+  - 's3 query result printer serializes BigInt rows without throwing: src/s3/cli.ts
+    uses safeJsonStringify via exported formatS3Row; count(*) prints rows cleanly;
+    cast-free; regression tests in src/s3/cli-query.test.ts cover safe-int BigInt,
+    >MAX_SAFE_INTEGER BigInt, and normal rows; npx vitest run (98 suites, 836 tests),
+    npx tsc --noEmit, and npx prettier --check src/ all pass; AGENTS.md suite counts
+    synced.'
+  status: complete
+  created_at: '2026-08-27T04:46:56.019712+00:00'
+  completed_at: '2026-08-27T04:47:02.196193+00:00'
