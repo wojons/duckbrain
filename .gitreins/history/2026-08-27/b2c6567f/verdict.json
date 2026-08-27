@@ -1,0 +1,67 @@
+{
+  "task_id": "S3-PHASE1-001",
+  "task_title": "Native S3 Phase 1 activation + AC verification (PRD v1.3)",
+  "task_criteria": [
+    "AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> 's3 status' lists namespaces with remote counts. AC-1.2: 's3 sync all push' uploads all namespaces; second run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete semantics; remote object count unchanged after re-push). AC-1.4: 's3 pull' on a fresh clone of a namespace dir restores all files (diff empty vs original). PASS: all four ACs verified live with evidence; no config changes beyond env; cron untouched."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m10:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12486840 bytes (12.49 MB) in 5.32s\u001b[0m\n\u001b[90m10:22PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m10:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12486840 bytes (12.49 MB) in 5.32s\u001b[0m\n\u001b[90m10:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1070\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1517\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m applies key/prefix/domain/author filters at the ref \u001b[33m 321\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1673",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> 's3 status' lists namespaces with remote counts. AC-1.2: 's3 sync all push' uploads all namespaces; second run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete semantics; remote object count unchanged after re-push). AC-1.4: 's3 pull' on a fresh clone of a namespace dir restores all files (diff empty vs original). PASS: all four ACs verified live with evidence; no config changes beyond env; cron untouched.: All four ACs verified live. AC-1.1: `AWS_PROFILE=duckbrain node bin/duckbrain.js s3 status` printed 'S3 config: ENABLED' and per-ns lines e.g. 'hermes-memory: local=389 remote=389 lastSync=...', 'default: local=31 remote=31'. AC-1.2: `s3 sync all push` run twice, both ended '[S3] push complete: 110 namespaces, 0 files transferred' (idempotent, second run uploads 0). AC-1.3: deleted namespaces/s3-native/config/2026-08/.gitkeep (local 5->4), re-push reported 'uploaded=0 downloaded=0 skipped=4', then `s3 status s3-native` showed 'local=4 remote=5' \u2014 remote object count unchanged (no --delete semantics). AC-1.4: deleted concept/2026-08/current.jsonl, `s3 sync s3-native pull` reported 'downloaded=1', file restored, `diff -r` vs pristine copy empty. Config: duckbrain.config.json s3.enabled=true already committed (no diff in this task); cron untouched (crontab shows only pre-existing duckbrain-ns-gc.sh, no S3 cron). Test suite: `npx vitest run` -> 97 files/833 tests passed. Only working-tree change is the .gitreins/tasks.yaml task record.\nAll four S3 ACs (status listing, idempotent push, no-delete semantics, pull restore) verified live with concrete command output; config already enabled, cron untouched, test suite green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> 's3 status' lists namespaces with remote counts. AC-1.2: 's3 sync all push' uploads all namespaces; second run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete semantics; remote object count unchanged after re-push). AC-1.4: 's3 pull' on a fresh clone of a namespace dir restores all files (diff empty vs original). PASS: all four ACs verified live with evidence; no config changes beyond env; cron untouc",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> 's3 status' lists namespaces with remote counts. AC-1.2: 's3 sync all push' uploads all namespaces; second run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete semantics; remote object count unchanged after re-push). AC-1.4: 's3 pull' on a fresh clone of a namespace dir restores all files (diff empty vs original). PASS: all four ACs verified live with evidence; no config changes beyond env; cron untouched.",
+                "status": "PASS",
+                "detail": "All four ACs verified live. AC-1.1: `AWS_PROFILE=duckbrain node bin/duckbrain.js s3 status` printed 'S3 config: ENABLED' and per-ns lines e.g. 'hermes-memory: local=389 remote=389 lastSync=...', 'default: local=31 remote=31'. AC-1.2: `s3 sync all push` run twice, both ended '[S3] push complete: 110 namespaces, 0 files transferred' (idempotent, second run uploads 0). AC-1.3: deleted namespaces/s3-native/config/2026-08/.gitkeep (local 5->4), re-push reported 'uploaded=0 downloaded=0 skipped=4', then `s3 status s3-native` showed 'local=4 remote=5' \u2014 remote object count unchanged (no --delete semantics). AC-1.4: deleted concept/2026-08/current.jsonl, `s3 sync s3-native pull` reported 'downloaded=1', file restored, `diff -r` vs pristine copy empty. Config: duckbrain.config.json s3.enabled=true already committed (no diff in this task); cron untouched (crontab shows only pre-existing duckbrain-ns-gc.sh, no S3 cron). Test suite: `npx vitest run` -> 97 files/833 tests passed. Only working-tree change is the .gitreins/tasks.yaml task record."
+              }
+            ],
+            "summary": "All four S3 ACs (status listing, idempotent push, no-delete semantics, pull restore) verified live with concrete command output; config already enabled, cron untouched, test suite green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-PHASE1-001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m10:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12486840 bytes (12.49 MB) in 5.32s\u001b[0m\n\u001b[90m10:22PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> 's3 status' lists namespaces with remote counts. AC-1.2: 's3 sync all push' uploads all namespaces; second run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete semantics; remote object count unchanged after re-push). AC-1.4: 's3 pull' on a fresh clone of a namespace dir restores all files (diff empty vs original). PASS: all four ACs verified live with evidence; no config changes beyond env; cron untouched.: All four ACs verified live. AC-1.1: `AWS_PROFILE=duckbrain node bin/duckbrain.js s3 status` printed 'S3 config: ENABLED' and per-ns lines e.g. 'hermes-memory: local=389 remote=389 lastSync=...', 'default: local=31 remote=31'. AC-1.2: `s3 sync all push` run twice, both ended '[S3] push complete: 110 namespaces, 0 files transferred' (idempotent, second run uploads 0). AC-1.3: deleted namespaces/s3-native/config/2026-08/.gitkeep (local 5->4), re-push reported 'uploaded=0 downloaded=0 skipped=4', then `s3 status s3-native` showed 'local=4 remote=5' \u2014 remote object count unchanged (no --delete semantics). AC-1.4: deleted concept/2026-08/current.jsonl, `s3 sync s3-native pull` reported 'downloaded=1', file restored, `diff -r` vs pristine copy empty. Config: duckbrain.config.json s3.enabled=true already committed (no diff in this task); cron untouched (crontab shows only pre-existing duckbrain-ns-gc.sh, no S3 cron). Test suite: `npx vitest run` -> 97 files/833 tests passed. Only working-tree change is the .gitreins/tasks.yaml task record.\nAll four S3 ACs (status listing, idempotent push, no-delete semantics, pull restore) verified live with concrete command output; config already enabled, cron untouched, test suite green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-27T03:30:21.248797"
+}

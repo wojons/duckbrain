@@ -868,3 +868,16 @@ tasks:
   status: complete
   created_at: '2026-08-27T02:02:33.726184+00:00'
   completed_at: '2026-08-27T02:05:33.703454+00:00'
+- id: S3-PHASE1-001
+  title: Native S3 Phase 1 activation + AC verification (PRD v1.3)
+  criteria:
+  - 'AC-1.1: s3.enabled=true + AWS_PROFILE=duckbrain -> ''s3 status'' lists namespaces
+    with remote counts. AC-1.2: ''s3 sync all push'' uploads all namespaces; second
+    run uploads 0 (idempotent). AC-1.3: a file deleted locally stays on S3 (no --delete
+    semantics; remote object count unchanged after re-push). AC-1.4: ''s3 pull'' on
+    a fresh clone of a namespace dir restores all files (diff empty vs original).
+    PASS: all four ACs verified live with evidence; no config changes beyond env;
+    cron untouched.'
+  status: complete
+  created_at: '2026-08-27T03:18:47.402145+00:00'
+  completed_at: '2026-08-27T03:22:44.459228+00:00'
