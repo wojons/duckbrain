@@ -344,9 +344,10 @@ export async function keywordSearch(
  *
  * Namespaces without a rebuilt index are skipped (reported via
  * namespacesSkipped) — a partial union beats a hard failure when some
- * sidecars are stale — but when NO namespace has an index the rebuild-hint
- * error is thrown, preserving the single-namespace contract that a missing
- * index must error rather than silently return nothing.
+ * sidecars are stale — and when NO namespace has an index the union is
+ * simply empty: every namespace is reported as skipped and the CLI
+ * surfaces the rebuild hint on stderr (RETR-007 contract). The
+ * single-namespace search keeps its hard error on a missing index.
  *
  * @param namespacesRoot absolute path to the namespaces root (config
  *   namespacesPath)
@@ -395,10 +396,15 @@ export async function keywordSearchAllNamespaces(
   }
 
   if (searched.length === 0) {
-    // No namespace was searchable — surface the rebuild hint instead of a
-    // silently-empty union.
-    const first = nsNames[0];
-    throw new SearchIndexMissingError(first, path.join(namespacesRoot, first));
+    // No namespace had a searchable index — return the empty union with
+    // every namespace reported as skipped; the CLI surfaces the rebuild
+    // hint via its stderr note (RETR-007 contract, DOGFOOD-029).
+    return {
+      memories: [],
+      total: 0,
+      namespacesSearched: [],
+      namespacesSkipped: nsNames,
+    };
   }
 
   // Rank the union once with the same ordering a single-namespace search

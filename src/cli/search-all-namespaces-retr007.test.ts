@@ -141,6 +141,30 @@ describe("RETR-007: CLI search --all-namespaces", () => {
     expect(errors.some((e) => e.includes("chat-archive"))).toBe(true);
   });
 
+  it("all namespaces unindexed: exits 0 with the skip note, no hard error (DOGFOOD-029)", async () => {
+    // The all-unindexed union used to surface a rebuild-hint ERROR that
+    // made the CLI print `✗ …` and exit 1 before returning any results.
+    // Now it returns an empty union with every namespace reported as
+    // skipped: the CLI must exit 0 and warn on stderr instead.
+    vi.mocked(searchTool).mockResolvedValue({
+      memories: [],
+      count: 0,
+      total: 0,
+      namespace: "all",
+      namespacesSearched: [],
+      namespacesSkipped: ["dogfood-ns2"],
+    });
+
+    const { logs, errors, rejected } = await capture(() =>
+      runHumanCLI("search", ["S3", "--all-namespaces"]),
+    );
+    expect(rejected).toBe(false);
+    expect(logs.some((l) => l.includes("No memories found"))).toBe(true);
+    expect(errors.some((e) => e.includes("✗"))).toBe(false);
+    expect(errors.some((e) => e.includes("skipped 1 namespace"))).toBe(true);
+    expect(errors.some((e) => e.includes("dogfood-ns2"))).toBe(true);
+  });
+
   it("--help lists --all-namespaces", async () => {
     const { logs } = await capture(() => runHumanCLI("search", ["--help"]));
     expect(logs.join("\n")).toContain("--all-namespaces");

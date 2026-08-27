@@ -9,7 +9,8 @@
  *   - each hit carries an explicit `namespace` facet identifying its
  *     source — never inferred from the key
  *   - index-less namespaces are skipped and reported (namespacesSkipped);
- *     when NO namespace has an index the rebuild-hint error is thrown
+ *     when NO namespace has an index the union is empty with every
+ *     namespace reported as skipped (no throw — the CLI warns on stderr)
  *   - the default single-namespace search is UNCHANGED: no
  *     cross-namespace leakage, no union bookkeeping fields
  *   - searchTool surfaces the union via allNamespaces=true and rejects
@@ -19,7 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "fs";
 import path from "path";
-import { rebuildNamespaceIndex, SearchIndexMissingError } from "./index";
+import { rebuildNamespaceIndex } from "./index";
 import { keywordSearch, keywordSearchAllNamespaces } from "./query";
 import { searchTool } from "../mcp/tools/search";
 
@@ -186,16 +187,16 @@ describe("RETR-007: keywordSearchAllNamespaces", () => {
     expect(restricted.namespacesSkipped).toEqual([]);
   });
 
-  it("throws the rebuild hint when NO namespace has an index", async () => {
-    try {
-      await keywordSearchAllNamespaces(NS_ROOT, "S3", {
-        namespaces: ["search-retr007-bare"],
-      });
-      expect.unreachable("expected SearchIndexMissingError");
-    } catch (e) {
-      expect(e).toBeInstanceOf(SearchIndexMissingError);
-      expect((e as Error).message).toContain("search-index rebuild");
-    }
+  it("returns an empty union with all namespaces skipped when NO namespace has an index", async () => {
+    const res = await keywordSearchAllNamespaces(NS_ROOT, "S3", {
+      namespaces: ["search-retr007-bare"],
+    });
+    expect(res).toEqual({
+      memories: [],
+      total: 0,
+      namespacesSearched: [],
+      namespacesSkipped: ["search-retr007-bare"],
+    });
   });
 
   it("returns an empty result, not an error, for a root with no namespaces", async () => {
