@@ -383,8 +383,10 @@ describe("CONSOLIDATE-001: CLI wiring", () => {
     const contentFile = path.join(root, "digest.txt");
     fs.writeFileSync(contentFile, "summarized by cron agent");
     const original = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const originalKey = process.env.DUCKBRAIN_API_KEY;
     try {
       process.env.DUCKBRAIN_NAMESPACES_PATH = root;
+      delete process.env.DUCKBRAIN_API_KEY;
       const { logs } = await capture(() =>
         runHumanCLI("consolidate", [
           "--date=2026-08-10",
@@ -395,6 +397,8 @@ describe("CONSOLIDATE-001: CLI wiring", () => {
     } finally {
       if (original === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
       else process.env.DUCKBRAIN_NAMESPACES_PATH = original;
+      if (originalKey === undefined) delete process.env.DUCKBRAIN_API_KEY;
+      else process.env.DUCKBRAIN_API_KEY = originalKey;
       fs.rmSync(root, { recursive: true, force: true });
     }
   });

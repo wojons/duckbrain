@@ -31,9 +31,8 @@ vi.mock("../mcp/tools/recall", async () => {
 });
 
 vi.mock("../git/asof", async () => {
-  const actual = await vi.importActual<typeof import("../git/asof")>(
-    "../git/asof",
-  );
+  const actual =
+    await vi.importActual<typeof import("../git/asof")>("../git/asof");
   return {
     ...actual,
     resolveAsOfRef: vi.fn(),
@@ -80,11 +79,7 @@ async function capture(
 describe("DOGFOOD-027 + CLI-FIX-001: recall space-form flags", () => {
   it("--namespace <ns> (space form) selects the right namespace, no 'true' anywhere", async () => {
     await capture(() =>
-      runHumanCLI("recall", [
-        "--prefix=/",
-        "--namespace",
-        "dogfood-scratch",
-      ]),
+      runHumanCLI("recall", ["--prefix=/", "--namespace", "dogfood-scratch"]),
     );
     // Exact input equality — the namespace name must not leak into
     // positional/key/prefix, and namespace must be the real value.
@@ -101,10 +96,7 @@ describe("DOGFOOD-027 + CLI-FIX-001: recall space-form flags", () => {
 
   it("--namespace=<ns> (equals form) is unchanged", async () => {
     await capture(() =>
-      runHumanCLI("recall", [
-        "--prefix=/",
-        "--namespace=dogfood-scratch",
-      ]),
+      runHumanCLI("recall", ["--prefix=/", "--namespace=dogfood-scratch"]),
     );
     expect(vi.mocked(recallTool)).toHaveBeenCalledWith({
       namespace: "dogfood-scratch",

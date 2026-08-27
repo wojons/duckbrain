@@ -856,3 +856,15 @@ tasks:
   status: complete
   created_at: '2026-08-27T00:47:54.803236+00:00'
   completed_at: '2026-08-27T00:48:38.203895+00:00'
+- id: duckbrain-484-consolidate001
+  title: Daily consolidate CLI (CONSOLIDATE-001)
+  criteria:
+  - duckbrain consolidate scans all namespace JSONL deltas for the target day, prints
+    per-namespace delta row counts + dedup stats (content-hash collapse) + capped
+    previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts
+    the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched;
+    AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit,
+    npx prettier --check src/ all clean.
+  status: complete
+  created_at: '2026-08-27T02:02:33.726184+00:00'
+  completed_at: '2026-08-27T02:05:33.703454+00:00'
