@@ -13,6 +13,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import type { S3Config } from "./config";
+import { resolveEffectiveEndpoint } from "./config";
 
 export interface RemoteObject {
   key: string;
@@ -20,16 +21,22 @@ export interface RemoteObject {
   etag?: string;
 }
 
-/** Build an S3Client honoring endpoint + path-style settings from config. */
+/**
+ * Build an S3Client honoring endpoint + path-style settings from config.
+ *
+ * The endpoint is resolved via resolveEffectiveEndpoint() so an
+ * AWS_ENDPOINT_URL_S3 / AWS_ENDPOINT_URL env override wins over the config
+ * value — the client and the `s3 status` display can never diverge about
+ * which store is actually in use. (DOGFOOD-030)
+ */
 export function buildClient(cfg: S3Config): S3Client {
+  const endpoint = resolveEffectiveEndpoint(cfg);
   return new S3Client({
     region: cfg.region,
     // Profile is honored via AWS_PROFILE env by the default chain; pass it
     // explicitly only when set in config so callers don't need env juggling.
     ...(cfg.profile ? { profile: cfg.profile } : {}),
-    ...(cfg.endpoint
-      ? { endpoint: cfg.endpoint, forcePathStyle: cfg.forcePathStyle }
-      : {}),
+    ...(endpoint ? { endpoint, forcePathStyle: cfg.forcePathStyle } : {}),
   });
 }
 

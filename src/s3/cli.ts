@@ -13,7 +13,7 @@
 import path from "path";
 import { getConfig } from "../config";
 import { safeJsonStringify } from "../utils/serialize";
-import { S3ConfigSchema } from "./config";
+import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
 import { loadManifest } from "./manifest";
 import { walkLocal, syncNamespace, syncAllNamespaces } from "./sync";
 import { runS3Query } from "./query";
@@ -52,7 +52,7 @@ export async function s3Status(
   const nsRoot = namespacesPath(configDir);
   console.log("S3 config:", s3?.enabled ? "ENABLED" : "disabled");
   if (!s3?.enabled) return;
-  console.log(`  endpoint: ${s3.endpoint ?? "(AWS default)"}`);
+  console.log(`  endpoint: ${resolveEffectiveEndpoint(s3) ?? "(AWS default)"}`);
   console.log(`  bucket:   ${s3.bucket}  prefix: ${s3.prefix}`);
   console.log(
     `  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`,

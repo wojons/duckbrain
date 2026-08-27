@@ -59,3 +59,20 @@ export type S3Config = z.infer<typeof S3ConfigSchema>;
 
 /** Default S3 config (disabled). */
 export const DEFAULT_S3_CONFIG = S3ConfigSchema.parse({});
+
+/**
+ * Resolve the EFFECTIVE S3 endpoint with env-override precedence:
+ *   AWS_ENDPOINT_URL_S3 → AWS_ENDPOINT_URL → cfg.endpoint → undefined (AWS default).
+ *
+ * The ecosystem controls the endpoint via AWS_ENDPOINT_URL env (the
+ * git-remote-s3 push path in src/git/autocommit.ts and duckbrain-s3-push.sh
+ * both export it), so the CLI display and the client must agree on what is
+ * actually in use — the config value alone is not authoritative. (DOGFOOD-030)
+ */
+export function resolveEffectiveEndpoint(cfg: S3Config): string | undefined {
+  const s3Url = process.env.AWS_ENDPOINT_URL_S3;
+  if (s3Url) return s3Url;
+  const url = process.env.AWS_ENDPOINT_URL;
+  if (url) return url;
+  return cfg.endpoint;
+}
