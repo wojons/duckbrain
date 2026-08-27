@@ -933,5 +933,6 @@ tasks:
   - events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416)
     and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total
     reflects latest tick; board.db max-id lockstep with events.jsonl
-  status: in_progress
+  status: complete
   created_at: '2026-08-27T16:58:26.148862+00:00'
+  completed_at: '2026-08-27T17:00:32.251214+00:00'
