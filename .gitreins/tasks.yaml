@@ -904,3 +904,14 @@ tasks:
   status: complete
   created_at: '2026-08-27T05:58:04.132843+00:00'
   completed_at: '2026-08-27T06:04:51.654381+00:00'
+- id: DOGFOOD-030
+  title: s3 status endpoint display
+  criteria:
+  - 'duckbrain s3 status prints the effective endpoint actually used by the S3 client:
+    AWS_ENDPOINT_URL_S3 or AWS_ENDPOINT_URL env override when set, else the config
+    endpoint, else ''(AWS default)''. The S3 client resolves the same effective endpoint.
+    Regression test added. Full suite + tsc + prettier + integration green. AGENTS.md
+    suite counts synced.'
+  status: complete
+  created_at: '2026-08-27T08:28:43.356042+00:00'
+  completed_at: '2026-08-27T08:38:53.621924+00:00'
