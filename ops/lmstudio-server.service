@@ -1,0 +1,14 @@
+[Unit]
+Description=LM Studio Server (Headless)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/xvfb-run -a /opt/LM-Studio/lm-studio --run-as-service
+ExecStartPost=/bin/bash -c 'for i in $(seq 1 30); do /home/kara/.lmstudio/bin/lms load text-embedding-qwen3-embedding-0.6b >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1'
+Restart=on-failure
+RestartSec=5
+Environment=HOME=/home/kara
+
+[Install]
+WantedBy=default.target

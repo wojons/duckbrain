@@ -98,6 +98,18 @@ Set `DUCKBRAIN_SKIP_EMBED_REBUILD=1` to suppress (e.g. in CI).
 - `duckdb.db` remains tracked (schema/query layer, 12K per namespace) — vectors
   never enter it.
 
+## Boot durability (LM Studio host)
+
+The embedding provider depends on LM Studio serving the model. On the fleet
+host, `lmstudio-server.service` (user unit, tracked at `ops/lmstudio-server.service`)
+auto-loads `text-embedding-qwen3-embedding-0.6b` after boot via an
+`ExecStartPost` retry loop (`lms load ...` up to 30×2s until the LM Link is
+ready), so `/health` reports `embedding.healthy=true` without manual `lms load`
+after restart/reboot. Deploy: copy the unit to
+`~/.config/systemd/user/lmstudio-server.service`, `systemctl --user daemon-reload`,
+then `systemctl --user restart lmstudio-server.service` and verify with
+`lms ps` + `curl -s http://127.0.0.1:3000/health | jq .embedding`.
+
 ## Tests
 
 `src/embedding/*.test.ts` + `src/cli/embeddings.test.ts` — 46 tests covering:

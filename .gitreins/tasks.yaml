@@ -915,3 +915,14 @@ tasks:
   status: complete
   created_at: '2026-08-27T08:28:43.356042+00:00'
   completed_at: '2026-08-27T08:38:53.621924+00:00'
+- id: EMB-BOOT-001
+  title: 'Embedding model boot-durability: auto-load text-embedding-qwen3-embedding-0.6b
+    on LM Studio service start'
+  criteria:
+  - lmstudio-server.service unit contains an ExecStartPost loader (or equivalent)
+    that runs lms load text-embedding-qwen3-embedding-0.6b after boot; after the lmstudio
+    user service is cycled (stop then start), lms ps shows the embedding model loaded
+    WITHOUT manual lms load; duckbrain /health at 127.0.0.1:3000 reports embedding.healthy=true
+  status: complete
+  created_at: '2026-08-27T11:43:24.444743+00:00'
+  completed_at: '2026-08-27T11:50:11.621496+00:00'
