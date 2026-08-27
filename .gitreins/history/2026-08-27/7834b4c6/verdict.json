@@ -1,0 +1,57 @@
+{
+  "task_id": "DB-GAP-040",
+  "task_title": "Post-flip token distribution: mint per-namespace scoped tokens + wire into cron",
+  "task_criteria": [
+    "Every *-duckbrain-sync cron write lands 201; other foremen status writes 201; no unrestricted keys added"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 lint: \n  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m8:20AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12054766 \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/cli/http.test.ts (6 te",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m8:20AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12054766 bytes (12.05 MB) in 8.12s\u001b[0m\n\u001b[90m8:20AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/cli/http.test.ts (6 tests | 1 failed) 12914ms\n     \u00d7 concurrent instances on different ports do not clobber each other's pidfiles 5012ms\n\n Test Files  1 failed | 98 passed (99)\n      Tests  1 failed | 842 passed (843)\n   Start at  08:20:46\n   Duration  18.94s (transform 9.37s, setup 2.45s, import 68.10s, tests 146.62s, environment 13ms)\n\n",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Every *-duckbrain-sync cron write lands 201; other foremen status writes 201; no unrestricted keys added: No implementation or verification exists. The only working-tree change is .gitreins/tasks.yaml metadata marking DB-GAP-040 complete (completed_at 2026-08-27T13:20:44). No code mints per-namespace tokens, wires cron prompts, or updates foremen status writes. No test, verdict file (.gitreins/history has no DB-GAP-040 entry), or live-verification record shows cron writes landing 201. Board .coding-hermes/board/events.jsonl tick #490 (2026-08-27 06:52) explicitly states 'DB-GAP-040 remains open (multi-tick token distribution, attempts 0)' \u2014 directly contradicting the completion claim, which postdates that tick with no intervening work.\nDB-GAP-040 was marked complete in tasks.yaml metadata only, with no implementation, no verification that cron/foremen writes land 201, and board evidence (tick #490) explicitly stating the task remains open.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Every *-duckbrain-sync cron write lands 201; other foremen status writes 201; no unrestricted keys added: No implementation or verification exists. The only working-tree change is .gitreins/tasks.yaml metadata marking DB-GAP-040 complete (completed_at 2026-08-27T13:20:44). No code mints per-namespace tokens, wires cron prompts, or updates foremen status writes. No test, verdict file (.gitreins/history has no DB-GAP-040 entry), or live-verification record shows cron writes landing ",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-040\n\nStage tier1: PASS\n    \u2713 lint: \n  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m8:20AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12054766 \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/cli/http.test.ts (6 te\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Every *-duckbrain-sync cron write lands 201; other foremen status writes 201; no unrestricted keys added: No implementation or verification exists. The only working-tree change is .gitreins/tasks.yaml metadata marking DB-GAP-040 complete (completed_at 2026-08-27T13:20:44). No code mints per-namespace tokens, wires cron prompts, or updates foremen status writes. No test, verdict file (.gitreins/history has no DB-GAP-040 entry), or live-verification record shows cron writes landing 201. Board .coding-hermes/board/events.jsonl tick #490 (2026-08-27 06:52) explicitly states 'DB-GAP-040 remains open (multi-tick token distribution, attempts 0)' \u2014 directly contradicting the completion claim, which postdates that tick with no intervening work.\nDB-GAP-040 was marked complete in tasks.yaml metadata only, with no implementation, no verification that cron/foremen writes land 201, and board evidence (tick #490) explicitly stating the task remains open.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-27T13:22:04.262948"
+}
