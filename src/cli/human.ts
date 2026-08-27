@@ -34,6 +34,7 @@ import {
 } from "../config/index";
 import { s3Command } from "../s3/cli";
 import { queryCommand } from "./query";
+import { consolidateCommand } from "./consolidate";
 import {
   connectToRemote,
   checkRemoteInstall,
@@ -463,10 +464,7 @@ async function recallCommand(args: string[]): Promise<void> {
  * "Invalid --as-of value 'true'". Scoped to the commands that opt in via the
  * `flags` list — parseArgs stays globally untouched.
  */
-function normalizeSpaceFormFlags(
-  args: string[],
-  flags: string[],
-): string[] {
+function normalizeSpaceFormFlags(args: string[], flags: string[]): string[] {
   const out = args.slice();
   for (let i = 0; i < out.length - 1; i++) {
     if (flags.includes(out[i])) {
@@ -1833,6 +1831,7 @@ export async function runHumanCLI(
     remote: remoteCommand,
     query: queryCommand,
     s3: (args: string[]) => s3Command(args),
+    consolidate: consolidateCommand,
     help: async () => showHelp(),
   };
 

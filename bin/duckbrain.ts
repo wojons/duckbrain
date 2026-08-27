@@ -384,6 +384,7 @@ async function main() {
       case "servers":
       case "query":
       case "s3":
+      case "consolidate":
         await runHumanCLI(command, commandArgs);
         break;
 
