@@ -13,8 +13,11 @@
  *
  * Selection (highest priority first):
  *   1. Config `embedding.provider` / env `DUCKBRAIN_EMBEDDING_PROVIDER`
- *   2. auto (default): probe providers in priority order, use ALL healthy ones
- *      so callers can fall back at embed time (DOGFOOD-002)
+ *   2. auto (default): probe providers in PARALLEL (cheap gates only — no
+ *      embed probes on the recall path, DOGFOOD-002), use ALL healthy ones
+ *      so callers can fall back at embed time; probe results are cached
+ *      in-process for AUTO_PROBE_TTL_MS so consecutive recall/rebuild calls
+ *      don't re-probe dead providers (GAP-029)
  *   3. lmstudio fallback (matches historical behavior)
  */
 
@@ -268,6 +271,29 @@ export async function createAutoProvider(
 }
 
 /**
+ * Short TTL for cached auto-probe results (GAP-029).
+ *
+ * Cheap-gate probe results are cached in-process so consecutive recall /
+ * rebuild calls don't re-probe dead providers (the all-dead cold path drops
+ * from ~3s of sequential 1.5s gate timeouts to ~1.5s once, then instant).
+ * 5s is deliberately short: a provider that boots is picked up within
+ * seconds without a restart.
+ */
+export const AUTO_PROBE_TTL_MS = 5_000;
+
+/** Module-level cache for the auto branch. Key = JSON.stringify(resolved). */
+let autoProbeCache: {
+  key: string;
+  at: number;
+  providers: EmbeddingProvider[];
+} | null = null;
+
+/** Clear the auto-probe cache (tests, config reloads). */
+export function resetAutoProvidersCache(): void {
+  autoProbeCache = null;
+}
+
+/**
  * Resolve ALL healthy auto providers in priority order (DOGFOOD-002).
  *
  * Reachability is not usability: LM Studio's /v1/models answers even when the
@@ -277,6 +303,16 @@ export async function createAutoProvider(
  * surface the error. Explicit provider config (DUCKBRAIN_EMBEDDING_PROVIDER
  * or config embedding.provider != "auto") is a HARD requirement: a single
  * provider, no fallback.
+ *
+ * The auto branch probes every provider's cheap isHealthy() gate in PARALLEL
+ * (GAP-029) — never an embed probe (DOGFOOD-002: that would force model loads
+ * on every query) — so the all-dead worst case is ONE gate timeout (~1.5s)
+ * instead of the sequential sum (~3s). Healthy providers are collected by
+ * registry index, so priority order (lmstudio → ollama → openai) is preserved
+ * regardless of resolution order. Results are cached for AUTO_PROBE_TTL_MS
+ * keyed by the full resolved config (env/config overrides get distinct keys);
+ * the cached array is shared and MUST be treated as immutable by callers
+ * (recall.ts only iterates it).
  *
  * @returns healthy providers in priority order (lmstudio → ollama → openai),
  *          or a single-element list for an explicit provider, or [] if none
@@ -292,30 +328,52 @@ export async function createAutoProviders(
     return [createProvider({ ...resolved, provider: resolved.provider })];
   }
 
-  // Auto: probe providers in priority order
-  const ordered = [...PROVIDERS].sort((a, b) => {
-    const pa = a.id === "lmstudio" ? 0 : a.id === "ollama" ? 1 : 2;
-    const pb = b.id === "lmstudio" ? 0 : b.id === "ollama" ? 1 : 2;
-    return pa - pb;
-  });
-  const healthy: EmbeddingProvider[] = [];
-  for (const ctor of ordered) {
-    try {
-      if (await ctor.isHealthy({ ...resolved, provider: ctor.id })) {
-        healthy.push(
-          ctor.build({
-            baseUrl: resolved.baseUrl ?? "",
-            model: resolved.model,
-            dimensions: resolved.dimensions,
-            timeoutMs: resolved.timeoutMs,
-            apiKey: resolved.apiKey,
-          }),
-        );
-      }
-    } catch {
-      // probe failed — try next
-    }
+  // Auto: probe providers in parallel (cheap gates only), cache short-TTL.
+  const cacheKey = JSON.stringify(resolved);
+  const now = Date.now();
+  if (
+    autoProbeCache &&
+    autoProbeCache.key === cacheKey &&
+    now - autoProbeCache.at < AUTO_PROBE_TTL_MS
+  ) {
+    return autoProbeCache.providers;
   }
+
+  // PROVIDERS is already priority-ordered (lmstudio → ollama → openai); map
+  // each entry to its gate result and collect healthy ctors by index so the
+  // returned order is the registry order even when probes resolve out of
+  // order. Each probe is isolated — a throw or a false is just "not healthy".
+  const gates = await Promise.all(
+    PROVIDERS.map(async (ctor) => {
+      try {
+        return (await ctor.isHealthy({ ...resolved, provider: ctor.id }))
+          ? ctor
+          : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const healthy: EmbeddingProvider[] = [];
+  // Promise.all preserves registry order in `gates`, so pushing aligned
+  // entries yields priority order regardless of probe resolution order.
+  gates.forEach((ctor) => {
+    if (ctor) {
+      healthy.push(
+        ctor.build({
+          baseUrl: resolved.baseUrl ?? "",
+          model: resolved.model,
+          dimensions: resolved.dimensions,
+          timeoutMs: resolved.timeoutMs,
+          apiKey: resolved.apiKey,
+        }),
+      );
+    }
+  });
+
+  // Cache the empty array too (all-dead) so consecutive cold calls are
+  // instant — the "consistently fast" half of the GAP-029 requirement.
+  autoProbeCache = { key: cacheKey, at: Date.now(), providers: healthy };
   return healthy;
 }
 
