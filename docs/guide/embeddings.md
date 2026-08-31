@@ -110,6 +110,45 @@ after restart/reboot. Deploy: copy the unit to
 then `systemctl --user restart lmstudio-server.service` and verify with
 `lms ps` + `curl -s http://127.0.0.1:3000/health | jq .embedding`.
 
+## Ollama deployment (recommended)
+
+The default model id `text-embedding-qwen3-embedding-0.6b` is a **deployment
+alias** of the real Ollama library tag `qwen3-embedding:0.6b`. Deploy with:
+
+```bash
+ollama pull qwen3-embedding:0.6b          # ~500MB, the real library tag
+ollama cp qwen3-embedding:0.6b text-embedding-qwen3-embedding-0.6b   # alias under the configured id
+```
+
+**Why the alias — never rename the model id in config.** The `.embeddings`
+cache keys are `sha256(modelId + contentHash)` (see Design above), so the
+cache is keyed by `provider/model`. Renaming the model id in
+`duckbrain.config.json` / `src/config/index.ts` invalidates every namespace's
+`.embeddings` cache and forces a fleet-wide cold rebuild. `ollama cp` creates
+a second name for the **same weights**, so the configured id resolves against
+the live server while every existing cache key stays valid.
+
+**Dimensions note.** `qwen3-embedding:0.6b` emits 1024-dim vectors. The
+config `dimensions=384` is metadata-only: `cache.ts` stores
+`vector.length` and search ranks by cosine over the stored vectors, so
+there is no dimension mismatch. `duckbrain embeddings status` reports the
+real dims (1024) from a live embed.
+
+**Warmup before health.** Ollama unloads models after idle (default 5m), and
+the first embed after load pays model-load latency (seconds). Warm the model
+once after deploy so the first real query — and the daemon's health probe —
+don't pay load latency:
+
+```bash
+curl -s -m 120 http://localhost:11434/api/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"text-embedding-qwen3-embedding-0.6b","input":"ping"}'
+```
+
+Verify the alias is live: `ollama list` and `http://localhost:11434/api/tags`
+must both show `text-embedding-qwen3-embedding-0.6b` with capabilities
+`["embedding"]`.
+
 ## Tests
 
 `src/embedding/*.test.ts` + `src/cli/embeddings.test.ts` — 46 tests covering:
