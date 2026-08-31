@@ -32,7 +32,10 @@ function waitForHealth(port: number, timeout = 5000): Promise<void> {
       const req = http.get(
         { host: "127.0.0.1", port, path: "/health", timeout: 500 },
         (res) => {
-          if (res.statusCode === 200) {
+          // GAP-030: the in-process server probes the host's real embedding
+          // providers and may legitimately answer 503 (degraded) — liveness
+          // is proven by any HTTP answer, 200 or 503.
+          if (res.statusCode === 200 || res.statusCode === 503) {
             res.resume();
             resolve();
             return;

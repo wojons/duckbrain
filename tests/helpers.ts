@@ -104,7 +104,9 @@ export async function waitForUrl(
       const result = run(
         `curl -sf -o /dev/null -w '%{http_code}' --max-time 10 ${url}`,
       );
-      if (result === "200" || result === "401") return;
+      // GAP-030: scratch daemons are deliberately started degraded (openai +
+      // empty key) and /health now answers 503 there — accept it as ready.
+      if (result === "200" || result === "401" || result === "503") return;
     } catch {}
     await sleep(200);
   }

@@ -65,7 +65,9 @@ describe("HTTP Auth Integration", () => {
 
   it("should allow /health without auth", async () => {
     const res = await curl(`http://127.0.0.1:${port}/health`);
-    expect(res.status).toBe(200);
+    // GAP-030: /health answers 503 when degraded — the scratch daemon may be
+    // degraded on this host, so accept both codes (body carries the signal).
+    expect([200, 503]).toContain(res.status);
     const body = JSON.parse(res.body);
     // DOGFOOD-020: status may be "degraded" (embedding providers broken) —
     // the scratch daemon probes the host's real providers.

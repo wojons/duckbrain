@@ -62,7 +62,9 @@ function waitForHealth(port: number, timeout = 30000): Promise<void> {
       const req = http.get(
         { host: "127.0.0.1", port, path: "/health", timeout: 500 },
         (res) => {
-          if (res.statusCode === 200) {
+          // GAP-030: this test spawns with openai + empty key (degraded
+          // state), so /health answers 503 — accept it as live.
+          if (res.statusCode === 200 || res.statusCode === 503) {
             res.resume();
             resolve();
             return;

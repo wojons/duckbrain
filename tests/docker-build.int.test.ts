@@ -55,7 +55,9 @@ describe("Docker Build Integration", () => {
     try {
       await waitForUrl(`http://127.0.0.1:${port}/health`, 60000);
       const res = await curl(`http://127.0.0.1:${port}/health`);
-      expect(res.status).toBe(200);
+      // GAP-030: the container has no embedding provider (degraded state) —
+      // /health answers 503 there; accept both codes.
+      expect([200, 503]).toContain(res.status);
       const body = JSON.parse(res.body);
       // DOGFOOD-020: /health status is "degraded" when no embedding provider
       // passed a real embed probe (the container has none) — accept both.

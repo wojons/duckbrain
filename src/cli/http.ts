@@ -151,8 +151,10 @@ function dnsRebindingProtection(allowedHosts: string[]) {
  * consumer of keys over HTTP/MCP would fail, so a green /health would be a
  * false green.
  *
- * HTTP status stays 200 in both cases (liveness monitors; the systemd unit
- * has no health check) — the body carries the signal.
+ * GAP-030: HTTP status now carries the signal too — 503 when degraded
+ * (embedding.healthy=false or keys_error set), 200 when healthy — so a
+ * supervisor watching HTTP codes sees non-200 while semantic search is
+ * down. The body still carries the detail.
  *
  * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
  * @param keysProbe injectable for tests (defaults to probeKeysStore)
@@ -194,8 +196,11 @@ export function createHealthHandler(
         );
     }
 
-    res.json({
-      status: embedding.healthy && keysError === null ? "healthy" : "degraded",
+    const degraded = !embedding.healthy || keysError !== null;
+    // GAP-030: a supervisor watching HTTP status codes must see non-200 while
+    // the KB's semantic search is down — 503 when degraded, 200 when healthy.
+    res.status(degraded ? 503 : 200).json({
+      status: degraded ? "degraded" : "healthy",
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
       embedding,

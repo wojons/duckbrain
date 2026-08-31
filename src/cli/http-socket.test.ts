@@ -53,7 +53,9 @@ describe("HTTP server Unix socket support", () => {
         },
       );
 
-      expect(res.status).toBe(200);
+      // GAP-030: /health answers 503 when degraded — host-dependent (embedding
+      // providers on this box), so accept both codes.
+      expect([200, 503]).toContain(res.status);
       // DOGFOOD-020: /health status is "degraded" when the host's embedding
       // providers fail the embed probe — host-dependent, so accept both.
       expect(["healthy", "degraded"]).toContain(res.body.status);

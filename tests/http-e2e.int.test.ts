@@ -34,7 +34,8 @@ describe("HTTP Server E2E Integration", () => {
 
   it("should respond to /health with uptime and status", async () => {
     const res = await curl(`http://127.0.0.1:${port}/health`);
-    expect(res.status).toBe(200);
+    // GAP-030: /health answers 503 when degraded — accept both codes.
+    expect([200, 503]).toContain(res.status);
     const body = JSON.parse(res.body);
     // DOGFOOD-020: status is "degraded" when no embedding provider passed a
     // real embed probe. The scratch daemon probes the HOST's real providers,
@@ -112,7 +113,9 @@ describe("HTTP Server E2E Integration", () => {
         localServer,
       );
       const res = await curl(`http://127.0.0.1:${localPort}/health`);
-      expect(res.status).toBe(200);
+      // GAP-030: /health answers 503 when degraded (no embedding provider on
+      // this host) — accept both codes; the bind check is about the address.
+      expect([200, 503]).toContain(res.status);
     } finally {
       killProcess(localServer);
     }

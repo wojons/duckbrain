@@ -71,14 +71,16 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
 }
 ```
 
-Status is `degraded` (HTTP stays 200 — the systemd unit has no HTTP health
-check, the body carries the signal) when no embedding provider can embed
+Status is `degraded` when no embedding provider can embed
 (`embedding.healthy: false`, `embedding.provider` empty, per-provider
 `note` explains why) or when the keys store probe fails
-(`keys_error` carries a short error string instead of `null`). Semantic
-endpoints (`/api/memories?q=`, MCP recall with a query) return HTTP 503
-`EMBEDDINGS_UNAVAILABLE` while embeddings are down; non-semantic reads
-still work.
+(`keys_error` carries a short error string instead of `null`). A degraded
+`/health` returns HTTP **503** with `status: "degraded"` in the body; a
+healthy service returns HTTP **200** with `status: "healthy"` — a
+supervisor watching HTTP codes sees non-200 while embeddings are down
+(GAP-030). Semantic endpoints (`/api/memories?q=`, MCP recall with a
+query) return HTTP 503 `EMBEDDINGS_UNAVAILABLE` while embeddings are down;
+non-semantic reads still work.
 
 **Example:**
 
