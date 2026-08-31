@@ -122,6 +122,43 @@ describe("makeHttpEmbed empty-vector rejection (DOGFOOD-002)", () => {
   });
 });
 
+describe("makeHttpEmbed request payload key (GAP-029)", () => {
+  async function bodyOf(
+    provider: "ollama" | "lmstudio" | "openai",
+    extra: Record<string, unknown> = {},
+  ) {
+    let captured = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        captured = init?.body ?? "";
+        return jsonResponse({ embedding: [0.1, 0.2, 0.3] });
+      }),
+    );
+    const p = createProvider({ provider, model: "nomic", ...extra });
+    await p.embed("ping");
+    return JSON.parse(captured);
+  }
+
+  it("sends the text under 'prompt' to Ollama's legacy /api/embeddings", async () => {
+    const body = await bodyOf("ollama");
+    // GAP-029 regression: Ollama's /api/embeddings ignores an "input" key and
+    // answers 200 with {"embedding":[]} (rejected by DOGFOOD-002). The real
+    // server only embeds when the body key is "prompt".
+    expect(body.prompt).toBe("ping");
+    expect(body.input).toBeUndefined();
+  });
+
+  it("keeps 'input' for OpenAI-compatible endpoints (lmstudio, openai)", async () => {
+    const lmstudio = await bodyOf("lmstudio", { baseUrl: "http://lm.test/v1" });
+    expect(lmstudio.input).toBe("ping");
+    expect(lmstudio.prompt).toBeUndefined();
+    const openai = await bodyOf("openai", { apiKey: "k" });
+    expect(openai.input).toBe("ping");
+    expect(openai.prompt).toBeUndefined();
+  });
+});
+
 describe("createAutoProviders (DOGFOOD-002)", () => {
   // The auto path only engages when provider resolves to "auto" — the config
   // file default. resolveEmbeddingConfig() defaults to "lmstudio" when no env

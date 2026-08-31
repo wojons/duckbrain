@@ -63,6 +63,13 @@ function makeHttpEmbed(
   body: Record<string, unknown>,
   headers: Record<string, string>,
   timeoutMs: number,
+  /**
+   * Body key carrying the text to embed. OpenAI-compatible endpoints
+   * (/v1/embeddings) use "input"; Ollama's legacy /api/embeddings endpoint
+   * uses "prompt" (GAP-029: an unknown "input" key is silently ignored and
+   * the server answers 200 with {"embedding":[]}).
+   */
+  inputKey: string = "input",
 ): EmbeddingProvider {
   return {
     id,
@@ -72,7 +79,7 @@ function makeHttpEmbed(
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ ...body, input: text }),
+        body: JSON.stringify({ ...body, [inputKey]: text }),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) {
@@ -155,6 +162,10 @@ export const PROVIDERS: readonly ProviderCtor[] = [
         { model: cfg.model },
         {},
         cfg.timeoutMs,
+        // GAP-029: Ollama's legacy /api/embeddings ignores an "input" key and
+        // answers 200 with {"embedding":[]} (which makeHttpEmbed rejects).
+        // The legacy endpoint's body key is "prompt".
+        "prompt",
       );
     },
     async isHealthy(cfg) {
