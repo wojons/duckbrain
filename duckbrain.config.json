@@ -100,7 +100,8 @@
     "relationships": "namespaces/relationships",
     "temple-runner": "namespaces/temple-runner",
     "bankai": "namespaces/bankai",
-    "routing": "namespaces/routing"
+    "routing": "namespaces/routing",
+    "watson-ent": "namespaces/watson-ent"
   },
   "embedding": {
     "provider": "auto",
