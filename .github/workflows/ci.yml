@@ -49,10 +49,12 @@ jobs:
         run: npm run test:run 2>&1 | tee /tmp/vitest.out
 
       - name: Assert AGENTS.md test counts match live suite
+        if: matrix.node-version == '22.x'   # package.json engines: node >=22 — assert once, not per matrix cell
         run: |
           STRIP='sed -r "s/\x1B\[[0-9;]*[mK]//g"'
-          SUITES=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Test Files\s+\d+ passed \(\d+\)' | grep -oP '\d+' | tail -1)
-          TESTS=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Tests\s+\d+ passed \(\d+\)' | grep -oP '\d+' | tail -1)
+          SUITES=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Test Files\s+.*\(\K\d+(?=\))' | tail -1)
+          TESTS=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Tests\s+.*\(\K\d+(?=\))' | tail -1)
+          [ -n "$SUITES" ] && [ -n "$TESTS" ] || { echo "GAP-032: vitest summary unparseable"; exit 1; }
           echo "Live: ${SUITES} suites / ${TESTS} tests"
           grep -q "(${SUITES} suites, ${TESTS} tests)" AGENTS.md \
             || { echo "GAP-012 drift: AGENTS.md Tech Stack count != live (${SUITES} suites, ${TESTS} tests)"; exit 1; }
