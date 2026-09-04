@@ -8,9 +8,11 @@ description: >-
   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
   active namespace — remember/recall echo it now, compaction stats/status
   still instance-blind, HTTP omitted-?namespace= means the literal 'default'
-  namespace while the CLI defaults to config defaultNamespace). Load this
+  namespace while the CLI defaults to config defaultNamespace, CLI `forget`
+  hardcodes namespace 'default' so it fails for every other namespace — use
+  MCP forget). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.4.0
+version: 1.5.0
 category: software-development
 ---
 
@@ -27,7 +29,7 @@ REST API, CLI, Web UI**.
 |---|---|---|
 | HTTP daemon | `node bin/duckbrain.js http --port 3000 --auth=apikey` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported; auth REQUIRED on hardened deployments — every request sends `-H 'X-API-Key: <token>'` (401 without it); mint tokens with `duckbrain token --namespace=<ns>` |
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
-| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget, namespace(s), squash, embeddings, status, s3 |
+| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3 |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
 | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
@@ -199,6 +201,27 @@ The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
     auto-reload after host reboot/daemon restart), `ollama pull <model>`, and
     export DUCKBRAIN_EMBEDDING_API_KEY before daemon start. Verify with
     `curl -s localhost:3000/health` until `healthy:true`.
+    **GAP-030 (shipped, verified 09-04):** degraded `/health` now returns HTTP
+    **503** (200 only when healthy), so code-level monitors can watch the
+    status code. The probes are 30s-TTL cached — give a state change ~30s to
+    show up. In the degraded window writes still 201 and semantic `?q=` still
+    returns results (RETR-002 fusion falls back to the keyword/BM25 leg;
+    those scores are keyword ranks, NOT cosine similarities — don't compare
+    them to healthy-mode scores). Cold-boot race: for the first seconds
+    `keys_error` can read `Namespace 'undefined' does not exist`, then
+    self-clears; harmless but ugly.
+14. **CLI `forget` is broken outside the 'default' namespace (DOGFOOD-0904-01,
+    open as of 09-04):** `duckbrain forget <id> --namespace=<ns>` hardcodes
+    `namespace:"default"` internally (src/cli/human.ts:636) — the flag is
+    never parsed, and usage text doesn't document it. Every non-default
+    namespace errors with `Namespace 'default' not found`. Use the MCP
+    `forget` tool (`{"id":"<uuid>","namespace":"<ns>"}` — verified working)
+    or the REST route until the fix lands.
+15. **Fresh clones of `main` crash on first boot (DOGFOOD-0904-02, open as of
+    09-04):** `Cannot find module 'express'` after a clean `pnpm install` —
+    express is a phantom dep (present only transitively in the lockfile).
+    Dev checkouts with an older node_modules work. If booting a fresh clone,
+    `pnpm add express@5.2.1` unblocks (one-liner fix tracked on the board).
 
 ## Testing your changes safely
 

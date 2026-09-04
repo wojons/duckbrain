@@ -249,3 +249,49 @@ bucket: 80+ namespaces, lastSync timestamps minutes old, local/remote counts
 them). Cosmetic wart: status prints the placeholder endpoint from config
 (`hel1.your-objectstorage.com`) while the real endpoint comes from AWS env
 (DOGFOOD-030).
+
+## 16. The health endpoint's degraded contract (GAP-030), and how to test it
+
+`/health` derives one boolean: `degraded = !embedding.healthy || keys_error`.
+Degraded ⇒ HTTP **503**, healthy ⇒ 200; the body always carries the detail
+(`embedding.providers[].note`, `keys_error`). Two traps when verifying it live:
+
+- **The probes are 30s-TTL cached.** Corrupt something, curl, and you may hit a
+  cached healthy answer. Wait out the TTL between state change and probe.
+- **The keys probe is a resilient read.** Appending junk bytes to a JSONL chunk
+  does NOT fail it (the read path skips bad lines by design — the same
+  resilience that keeps duplicate JSON keys from crashing reads, see §13). The
+  reliable way to force degraded is a dead embedding provider: point
+  `embedding` at an unreachable baseUrl in a scratch config and restart.
+
+Verified 09-04 on a scratch daemon: dead embedder ⇒ 503 + `status:degraded` +
+`note:"unreachable"`, while writes stayed 201 and semantic `?q=` still returned
+results via the RETR-002 keyword/BM25 fusion fallback (scores are keyword ranks
+there, not cosine similarities — don't compare them to healthy-mode scores).
+Also seen: during the first seconds after a cold boot the keys probe can report
+`Namespace 'undefined' does not exist` (harmless startup race, self-clears);
+the `undefined` string in the error is cosmetically wrong and worth a cleanup
+task someday.
+
+## 17. The fresh-user path is where the dev box lies to you (09-04)
+
+The dev checkout on the fleet host works even when the repo manifest is wrong,
+because its `node_modules` accumulates history: root-level `express` present in
+a pnpm repo is a stale artifact, not a dependency. `src/cli/http.ts` imports
+express, but no package.json (main OR feat/native-s3) declares it — it enters
+the lockfile only transitively via `express-rate-limit@8.6.0(express@5.2.1)`.
+pnpm's isolated layout hides transitive deps from application imports, so a
+fresh clone + clean `pnpm install --frozen-lockfile` boots straight into
+`Cannot find module 'express'`. Proven 09-04 on a throwaway bunker agent
+(clean clone of main @ ce936ae): install 32s OK, first boot crash; `pnpm add
+express@5.2.1` → /health 200 + full write/read flow 201s. Lesson: on this
+project, "works on my machine" proves nothing about the manifest; the
+bunker install leg exists precisely to catch this class. Tracked as
+DOGFOOD-0904-02; the README prerequisite gap is DOGFOOD-0904-03.
+
+Same class, older sibling: `duckbrain forget` on the CLI hardcodes
+`namespace:"default"` (src/cli/human.ts:636) and ignores `--namespace` — it
+fails for every non-default namespace while MCP forget works. Found because
+the dogfood ran with an isolated scratch config whose default namespace
+didn't exist; a dev-box run against the live `default` ns would have masked
+it. Isolation finds real bugs. Tracked as DOGFOOD-0904-01.
