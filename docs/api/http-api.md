@@ -67,7 +67,13 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
       }
     ]
   },
-  "keys_error": null
+  "keys_error": null,
+  "durability": {
+    "defaultMode": "buffered",
+    "overrides": {
+      "coding-hermes": "fsync"
+    }
+  }
 }
 ```
 
@@ -81,6 +87,12 @@ supervisor watching HTTP codes sees non-200 while embeddings are down
 (GAP-030). Semantic endpoints (`/api/memories?q=`, MCP recall with a
 query) return HTTP 503 `EMBEDDINGS_UNAVAILABLE` while embeddings are down;
 non-semantic reads still work.
+
+`durability` reports the write durability contract (SUPA-1) derived from
+config only — `defaultMode` plus the **non-default** per-namespace
+overrides, so the payload stays bounded. It is never a filesystem probe:
+`/health` cannot fail or stall over durability reporting. See
+[Write Durability (SUPA-1)](#write-durability-supa-1).
 
 **Example:**
 
@@ -228,6 +240,62 @@ curl -X POST http://localhost:3000/cli \
 
 All REST routes are registered under `/api/`. Responses use a consistent JSON format and return appropriate HTTP status codes (200, 201, 204, 400, 404, 500).
 
+### Write Durability (SUPA-1)
+
+Every namespace has an explicit write-durability contract, configured in
+`duckbrain.config.json`:
+
+```json
+{
+  "durability": {
+    "defaultMode": "buffered",
+    "overrides": { "coding-hermes": "fsync" }
+  }
+}
+```
+
+`DUCKBRAIN_DURABILITY_MODE=buffered|fsync|direct` overrides the runtime
+default (never persisted). Precedence:
+`overrides[<namespace>]` > `DUCKBRAIN_DURABILITY_MODE` > `defaultMode` >
+`buffered`. An invalid value in either place **fails config load with a zod
+error** — there is no silent fallback to buffered, because a silently
+buffered namespace means acknowledged writes that are not durable while the
+operator believes they are.
+
+| Mode | Append mechanism | Barrier before the 2xx | RPO for acked writes (single node) |
+|---|---|---|---|
+| `buffered` (default) | `appendFileSync` — page cache | none | Process-kill safe (the page cache outlives the process). **OS crash / power loss: the loss window is unbounded — recent acked writes can be lost.** |
+| `fsync` | `open`/`write`/`fdatasync`/`close` + `fsync` on the parent directory when a file or directory was created | file `fdatasync` **and** directory `fsync` complete | **0** on a single node: survives process kill, OS crash and power loss |
+| `direct` | `O_DIRECT` append (page cache bypassed) over SUPA-2 block-framed records, same commit protocol as `fsync` | same as `fsync` | **0** |
+
+**RPO to git / S3:** unchanged in every mode. Git commits stay debounced by
+`gitBatching.maxSeconds` (default **30 s**), and with `s3.pushOnCommit` the
+S3 remote rides the same window. In `fsync`/`direct` mode the JSONL is
+already durable, so the commit is history transport, not the durability
+mechanism. RPO = 0 is a **single-node** claim: there is no synchronous
+cross-machine replication.
+
+**Response header:** every successful (2xx) write response carries
+`X-Durability: buffered|fsync|direct`, resolved from the namespace actually
+written. Denied or failed writes never emit it.
+
+**Failure modes are loud** (HTTP 500 with the code in the error envelope,
+never a silent downgrade):
+
+| Code | Meaning |
+|---|---|
+| `DURABILITY_UNSUPPORTED` | The filesystem rejects `O_DIRECT` (tmpfs, overlayfs). No byte is written. |
+| `DURABILITY_DIRECT_FRAME_ERROR` | A bare (unframed) append to a `direct`-mode namespace; SUPA-2 block framing is required. |
+| `DURABILITY_FSYNC_FAILED` | `fdatasync`/`fsync` failed (e.g. `EIO`). The record may or may not be on disk; it is **never acknowledged**. |
+| `DURABILITY_DIR_FSYNC_UNSUPPORTED` | Directory `fsync` unsupported (some NFS mounts return `EINVAL`). Acked RPO would be a lie, so the write fails. |
+
+> **Contract note:** in `fsync`/`direct` mode a durable namespace must be
+> written through the durability appenders (and, once SUPA-2 lands, the
+> namespace serializer). A direct buffered-path append to such a namespace
+> fails with `500 DURABILITY_BYPASS`. Tombstone appends (`forgetTool`) still
+> use the buffered path and are outside the RPO = 0 claim until SUPA-2 owns
+> every filesystem write.
+
 ### Memories
 
 #### `GET /api/memories`
@@ -346,6 +414,14 @@ Create a new memory.
 > **Note — namespace selection:** The target namespace may be passed either as the `?namespace=` query parameter **or** as a `"namespace"` field in the JSON body. When both are present the query parameter wins; the body value is the fallback; when neither is supplied the memory is written to the `default` namespace.
 
 > **Note — field naming across surfaces:** The HTTP API accepts `content` for the memory body. This maps directly to the MCP `remember` tool's `embedding_text` field — both surfaces store and return the **same** underlying text field (see [MCP Tools Reference](mcp-tools.md#remember)). A memory written via HTTP with `content` is retrievable via MCP `recall` with the text in `embedding_text`, and vice versa.
+
+> **Note — write durability (SUPA-1):** the response carries
+> `X-Durability: buffered|fsync|direct` for the namespace actually written.
+> In `fsync`/`direct` mode the `fdatasync` + directory `fsync` complete
+> **before** the 201 is sent (RPO = 0 for acked writes on a single node); in
+> `buffered` mode the write is a page-cache append with the documented
+> OS-crash/power-loss window. See
+> [Write Durability (SUPA-1)](#write-durability-supa-1).
 
 **Response:** (201 Created)
 

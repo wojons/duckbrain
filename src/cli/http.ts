@@ -46,6 +46,12 @@ import fs from "fs";
 import os from "os";
 import { httpPidFilePath, cleanupStalePidFile } from "../utils/pidfile.js";
 import {
+  drainDurableWrites,
+  getDurabilityHealth,
+  type DurabilityHealth,
+} from "../storage/durability.js";
+import { flushAllCommits } from "../git/autocommit.js";
+import {
   getEmbeddingHealth,
   type EmbeddingHealthResult,
 } from "../embedding/health.js";
@@ -156,12 +162,20 @@ function dnsRebindingProtection(allowedHosts: string[]) {
  * supervisor watching HTTP codes sees non-200 while semantic search is
  * down. The body still carries the detail.
  *
+ * SUPA-1: the body also carries a `durability` block
+ * `{ defaultMode, overrides }` — the per-namespace write durability contract
+ * (`docs/specs/SUPA-1-write-durability.md`). Config-derived only, never a
+ * filesystem probe, so /health cannot fail or stall over durability
+ * reporting.
+ *
  * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
  * @param keysProbe injectable for tests (defaults to probeKeysStore)
+ * @param durabilityProbe injectable for tests (defaults to getDurabilityHealth)
  */
 export function createHealthHandler(
   probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
   keysProbe: () => Promise<string | null> = probeKeysStore,
+  durabilityProbe: () => DurabilityHealth = getDurabilityHealth,
 ): (req: Request, res: Response) => Promise<void> {
   return async (_req: Request, res: Response) => {
     let embedding: EmbeddingHealthResult;
@@ -197,6 +211,13 @@ export function createHealthHandler(
     }
 
     const degraded = !embedding.healthy || keysError !== null;
+    // SUPA-1: durability reporting can never take /health down.
+    let durability: DurabilityHealth;
+    try {
+      durability = durabilityProbe();
+    } catch {
+      durability = { defaultMode: "buffered", overrides: {} };
+    }
     // GAP-030: a supervisor watching HTTP status codes must see non-200 while
     // the KB's semantic search is down — 503 when degraded, 200 when healthy.
     res.status(degraded ? 503 : 200).json({
@@ -205,6 +226,7 @@ export function createHealthHandler(
       timestamp: new Date().toISOString(),
       embedding,
       keys_error: keysError,
+      durability,
     });
   };
 }
@@ -762,6 +784,17 @@ export async function startHttpMode(
               }),
           ),
         ).then(async () => {
+          // SUPA-1 (AC-7): drain the durability barrier BEFORE the debounced
+          // commit flush — every fsync-mode append has already hit its barrier
+          // (appends are synchronous), and the SUPA-2 serializer's queued
+          // appends hook into drainDurableWrites() once it lands. Commit flush
+          // last: it is the history transport, not the durability mechanism.
+          await drainDurableWrites().catch(() => {});
+          try {
+            flushAllCommits();
+          } catch {
+            // Git is best-effort — never block shutdown on it.
+          }
           await stopServer();
           process.exit(0);
         });

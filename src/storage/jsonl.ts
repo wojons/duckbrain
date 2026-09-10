@@ -12,6 +12,8 @@ import fs from "fs";
 import path from "path";
 import { MemorySchema, type MemoryType } from "../schema/memory";
 import { safeJsonStringify } from "../utils/serialize";
+import { getConfig, resolveDurabilityMode } from "../config";
+import { DurabilityError } from "./durability-errors";
 
 /**
  * Maximum lines per chunk file before creating new one
@@ -83,7 +85,7 @@ export function createPartition(partitionPath: string): void {
  * @param partitionPath - Partition directory path
  * @returns Next chunk filename (e.g., '0001.jsonl')
  */
-function getNextChunkName(partitionPath: string): string {
+export function getNextChunkName(partitionPath: string): string {
   // Only numeric chunk files (0001.jsonl, 0002.jsonl, ...) participate in
   // rotation. Non-numeric names — current.jsonl, chunk_<ts>.jsonl, or the
   // legacy 0NaN.jsonl — are ignored. Without this filter, parseInt("current")
@@ -123,60 +125,206 @@ function countLines(filePath: string): number {
 }
 
 /**
+ * Serialize a memory record to a single JSONL line (no trailing newline).
+ *
+ * DB-GAP-035: never hand out a line that would corrupt the store. The schema
+ * check happens before this call; a value can still fail to serialize (e.g. a
+ * circular reference — zod accepts it, JSON.stringify throws). Such a line
+ * would break every downstream reader (read_json, readFromJsonl), so verify
+ * the serialized line round-trips and return null on failure. Callers decide
+ * whether to skip the append (buffered path) or fail loudly.
+ *
+ * Shared with the SUPA-1 durability appenders so fsync/direct mode writes the
+ * exact same bytes the buffered path would.
+ *
+ * @param record - Record to serialize
+ * @returns JSON line, or null when the record is unserializable
+ */
+export function serializeJsonlLine(record: unknown): string | null {
+  try {
+    const line = safeJsonStringify(record);
+    JSON.parse(line);
+    return line;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the file the next append lands in, applying chunk rotation.
+ *
+ * Rotation fires when the current file is at MAX_BYTES_PER_CHUNK or
+ * MAX_LINES_PER_CHUNK; the rotated target is `getNextChunkName(dirPath)` —
+ * a NEW file whose directory entry itself must be fsynced in fsync/direct
+ * mode (SUPA-1) or the name can be lost on crash even though the data was
+ * fsynced.
+ *
+ * @param filePath - Candidate file path (e.g. .../current.jsonl)
+ * @param line - The serialized line about to be appended
+ * @returns Path the append should target
+ */
+export function resolveJsonlTargetPath(filePath: string, line: string): string {
+  if (!fs.existsSync(filePath)) {
+    return filePath;
+  }
+
+  const stats = fs.statSync(filePath);
+  const lines = countLines(filePath);
+
+  if (
+    stats.size + line.length > MAX_BYTES_PER_CHUNK ||
+    lines >= MAX_LINES_PER_CHUNK
+  ) {
+    const dirPath = path.dirname(filePath) + path.sep;
+    return path.join(dirPath, getNextChunkName(dirPath));
+  }
+
+  return filePath;
+}
+
+/**
+ * Create the directory chain for a file path, reporting exactly which
+ * directories were CREATED by this call (shallowest first, deepest last).
+ *
+ * SUPA-1: in fsync/direct mode the parent of the deepest newly-created
+ * directory must be fsynced in addition to the file's own parent — a brand new
+ * directory whose entry never reached stable storage can vanish on crash.
+ *
+ * @param dir - Directory that must exist
+ * @returns Paths created by this call (empty when it already existed)
+ */
+export function ensureJsonlDir(dir: string): string[] {
+  if (fs.existsSync(dir)) {
+    return [];
+  }
+
+  // Walk up to the deepest existing ancestor so we know which levels are new.
+  const created: string[] = [];
+  let current = path.resolve(dir);
+  const chain: string[] = [];
+  while (current && current !== path.dirname(current)) {
+    if (fs.existsSync(current)) {
+      break;
+    }
+    chain.push(current);
+    current = path.dirname(current);
+  }
+
+  fs.mkdirSync(dir, { recursive: true });
+
+  // chain is deepest-first; return shallowest-first for deterministic fsync
+  // order (parents before children).
+  for (let i = chain.length - 1; i >= 0; i--) {
+    created.push(chain[i]);
+  }
+  return created;
+}
+
+/**
+ * Derive the namespace name a JSONL file belongs to, from its path.
+ *
+ * SUPA-1 bypass guard support: `<namespacesPath>/<ns>/<domain>/<partition>/
+ * <chunk>.jsonl`. Returns undefined when the file is not inside the configured
+ * namespaces root (e.g. ad-hoc temp paths) — callers then cannot make a
+ * statement about the namespace's mode and must not guess.
+ *
+ * @param filePath - Absolute or relative JSONL path
+ */
+export function namespaceForJsonlPath(filePath: string): string | undefined {
+  let nsRoot: string;
+  try {
+    nsRoot = path.resolve(getConfig(".").namespacesPath || "./namespaces");
+  } catch {
+    return undefined;
+  }
+  const resolved = path.resolve(filePath);
+  const rel = path.relative(nsRoot, resolved);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+    return undefined;
+  }
+  const segments = rel.split(path.sep).filter((s) => s !== "");
+  if (segments.length < 2) {
+    return undefined;
+  }
+  return segments[0];
+}
+
+/**
+ * SUPA-1 bypass guard: the buffered append path must never be used for an
+ * fsync/direct namespace.
+ *
+ * `docs/specs/SUPA-1-write-durability.md` assigns all file writes for
+ * fsync/direct namespaces to the durability appenders (and, once it lands, the
+ * SUPA-2 serializer). A direct `appendToJsonl` call against such a namespace
+ * would ack an unbarriered write while the operator believes RPO = 0 — so it
+ * is a loud contract violation, not a silent downgrade.
+ *
+ * No-op when the namespace cannot be derived from the path or when config
+ * loading itself fails (that failure surfaces on its own).
+ */
+function assertBufferedAppendAllowed(filePath: string): void {
+  const ns = namespaceForJsonlPath(filePath);
+  if (ns === undefined) {
+    return;
+  }
+  let mode: string;
+  try {
+    mode = resolveDurabilityMode(ns);
+  } catch {
+    return;
+  }
+  if (mode !== "buffered") {
+    throw new DurabilityError(
+      "DURABILITY_BYPASS",
+      `appendToJsonl (buffered path) refused for namespace '${ns}' configured ` +
+        `with durability mode '${mode}' — durable namespaces must be written ` +
+        "through appendJsonlDurable/appendJsonlDirect (SUPA-1) or the SUPA-2 " +
+        `serializer. File: ${filePath}`,
+    );
+  }
+}
+
+/**
  * Append memory record to JSONL file
  *
  * Synchronous write for durability (git commits are async).
  * Validates record against MemorySchema before writing.
  *
+ * Durability contract (SUPA-1): this is the BUFFERED path — page-cache write,
+ * no fdatasync/fsync before the caller acknowledges. Process-kill safe, NOT
+ * OS-crash/power-loss safe. Namespaces configured `fsync`/`direct` must use
+ * `appendJsonlDurable`/`appendJsonlDirect` (`src/storage/durability.ts`).
+ *
  * @param filePath - Full path to JSONL file
  * @param record - Memory record to append
  * @returns Number of lines written (1 on success)
  * @throws Error if validation fails or write errors
+ * @throws DurabilityError DURABILITY_BYPASS for an fsync/direct namespace
  */
 export function appendToJsonl(filePath: string, record: MemoryType): number {
   // Validate record before writing
   MemorySchema.parse(record);
 
+  // SUPA-1: refuse the buffered path for durable namespaces (contract guard).
+  assertBufferedAppendAllowed(filePath);
+
   // Ensure directory exists
   const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  ensureJsonlDir(dir);
 
-  // Serialize to JSON (single line, no trailing newline yet)
-  // DB-GAP-035: never write garbage. MemorySchema.parse validates the
-  // schema, but a value can still fail to serialize to JSON (e.g. a
-  // circular reference — zod accepts it, JSON.stringify throws). Such a
-  // line would corrupt the JSONL store and break every downstream reader
-  // (read_json, readFromJsonl). Verify the serialized line round-trips; on
-  // failure log and SKIP the append — the record is dropped rather than
-  // poisoning the store.
-  let line: string;
-  try {
-    line = safeJsonStringify(record);
-    JSON.parse(line);
-  } catch (e) {
+  // Serialize to JSON (single line, no trailing newline yet).
+  // DB-GAP-035: refuse to append an unserializable record — log and SKIP the
+  // append (the record is dropped rather than poisoning the store).
+  const line = serializeJsonlLine(record);
+  if (line === null) {
     console.error(
-      `[jsonl] appendToJsonl: refusing to append unserializable record to ${filePath}: ${e instanceof Error ? e.message : String(e)}`,
+      `[jsonl] appendToJsonl: refusing to append unserializable record to ${filePath}`,
     );
     return 0;
   }
 
   // Check if we need a new chunk
-  let targetPath = filePath;
-  if (fs.existsSync(filePath)) {
-    const stats = fs.statSync(filePath);
-    const lines = countLines(filePath);
-
-    // Create new chunk if at capacity
-    if (
-      stats.size + line.length > MAX_BYTES_PER_CHUNK ||
-      lines >= MAX_LINES_PER_CHUNK
-    ) {
-      const dirPath = path.dirname(filePath) + path.sep;
-      targetPath = path.join(dirPath, getNextChunkName(dirPath));
-    }
-  }
+  const targetPath = resolveJsonlTargetPath(filePath, line);
 
   // Append with newline
   fs.appendFileSync(targetPath, line + "\n", "utf-8");

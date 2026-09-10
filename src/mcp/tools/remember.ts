@@ -16,6 +16,12 @@ import {
   createPartition,
   appendToJsonl,
 } from "../../storage/jsonl";
+import {
+  appendJsonlDirect,
+  appendJsonlDurable,
+  resolveWriteMode,
+} from "../../storage/durability";
+import { isDurabilityError } from "../../storage/durability-errors";
 import { addPartition } from "../../storage/manifest";
 import { getAuthorEmail } from "../../git/attribution";
 import { getMcpRequestPrincipal } from "../../cli/http";
@@ -94,6 +100,9 @@ interface RememberOutput {
   /** Present when the write landed outside the 'default' namespace
    *  (DOGFOOD-017) */
   warning?: string;
+  /** SUPA-1: machine-readable failure code (e.g. DURABILITY_UNSUPPORTED,
+   *  DURABILITY_DIRECT_FRAME_ERROR) so HTTP routes can surface it verbatim */
+  code?: string;
   error?: string;
 }
 
@@ -202,9 +211,25 @@ export async function rememberTool(
     // Create partition if not exists
     createPartition(partitionPath);
 
-    // Append to JSONL
+    // Append to JSONL, honoring the namespace's SUPA-1 durability mode.
+    //
+    // buffered (default) — page-cache append, the historical semantics.
+    // fsync   — fdatasync + directory fsync BEFORE this call returns, so the
+    //           record is on stable storage before the caller can ack it.
+    // direct  — O_DIRECT append of a block-framed record; an unframed line
+    //           (the only kind this tool produces) fails loudly with
+    //           DURABILITY_DIRECT_FRAME_ERROR until the SUPA-2 serializer
+    //           owns the framing. No silent fallback to buffered.
     const chunkPath = path.join(partitionPath, "current.jsonl");
-    appendToJsonl(chunkPath, memory);
+    const writeMode = resolveWriteMode(resolvedNamespace);
+    if (writeMode === "fsync") {
+      appendJsonlDurable(chunkPath, memory);
+    } else if (writeMode === "direct") {
+      // Unframed input: throws DURABILITY_DIRECT_FRAME_ERROR by contract.
+      appendJsonlDirect(chunkPath, memory);
+    } else {
+      appendToJsonl(chunkPath, memory);
+    }
 
     // Update manifest
     addPartition(namespacePath, partitionRelPath);
@@ -231,6 +256,11 @@ export async function rememberTool(
   } catch (error) {
     return {
       success: false,
+      // SUPA-1: a durability-contract failure (O_DIRECT unsupported, fdatasync
+      // EIO, unframed direct append) carries its machine-readable code through
+      // to the route so the client sees 500 DURABILITY_* rather than a bare
+      // internal error. The write is never acknowledged in these paths.
+      ...(isDurabilityError(error) ? { code: error.code } : {}),
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }

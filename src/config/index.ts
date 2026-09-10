@@ -10,6 +10,38 @@ import path from "path";
 import { z } from "zod";
 
 /**
+ * SUPA-1: per-namespace write durability modes.
+ *
+ * - `buffered` — `fs.appendFileSync` page-cache write, no barrier before the
+ *   ack. Process-kill safe (the page cache survives the process); OS crash /
+ *   power loss has an unbounded loss window, and git is debounced
+ *   (`gitBatching.maxSeconds`, default 30s).
+ * - `fsync` — `fdatasync` on the JSONL file plus `fsync` on the containing
+ *   directory (when a file/dir was created) BEFORE the 2xx. RPO = 0 for acked
+ *   writes on a single node.
+ * - `direct` — `O_DIRECT` I/O bypassing the page cache over SUPA-2
+ *   block-framed records, with the same fsync-before-ack commit protocol.
+ *
+ * Defined here (not in `src/storage/durability.ts`) so the storage layer can
+ * consult it without a module cycle; durability.ts re-exports the type.
+ */
+export const WriteModeSchema = z.enum(["buffered", "fsync", "direct"]);
+
+export type WriteMode = z.infer<typeof WriteModeSchema>;
+
+/**
+ * SUPA-1 durability config block (`duckbrain.config.json`).
+ */
+export const DurabilityBlockSchema = z.object({
+  /** Mode for namespaces without an explicit override */
+  defaultMode: WriteModeSchema.default("buffered"),
+  /** Per-namespace mode overrides (namespace name -> mode) */
+  overrides: z.record(z.string(), WriteModeSchema).default({}),
+});
+
+export type DurabilityBlock = z.infer<typeof DurabilityBlockSchema>;
+
+/**
  * Configuration schema
  */
 export const DuckBrainConfigSchema = z.object({
@@ -43,6 +75,12 @@ export const DuckBrainConfigSchema = z.object({
       maxBytesPerChunk: z.number().default(1024 * 1024),
     })
     .default({ maxLinesPerChunk: 1000, maxBytesPerChunk: 1024 * 1024 }),
+
+  /** SUPA-1 write durability modes (per-namespace, default buffered) */
+  durability: DurabilityBlockSchema.default({
+    defaultMode: "buffered",
+    overrides: {},
+  }),
 
   /** Squash/compaction settings */
   squash: z
@@ -176,10 +214,26 @@ function readFileConfig(configDir: string): DuckBrainConfig {
     return DuckBrainConfigSchema.parse({});
   }
 
+  let raw: unknown;
   try {
-    const content = fs.readFileSync(configPath, "utf-8");
-    const parsed = JSON.parse(content);
-    return DuckBrainConfigSchema.parse(parsed);
+    raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  } catch {
+    console.warn(
+      `Warning: Could not parse config at ${configPath}, using defaults`,
+    );
+    return DuckBrainConfigSchema.parse({});
+  }
+
+  // SUPA-1: an invalid durability block is a durability-contract violation, not
+  // a cosmetic config typo — a namespace silently falling back to buffered
+  // would mean acked writes are not durable while the operator believes they
+  // are. Fail loudly (zod error) instead of taking the generic
+  // warn-and-use-defaults path below. Every other field keeps its historical
+  // lenient behavior.
+  assertDurabilityBlockValid(raw);
+
+  try {
+    return DuckBrainConfigSchema.parse(raw);
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.warn(
@@ -193,6 +247,26 @@ function readFileConfig(configDir: string): DuckBrainConfig {
     }
     return DuckBrainConfigSchema.parse({});
   }
+}
+
+/**
+ * SUPA-1: validate a raw config object's `durability` block, throwing the zod
+ * error when it is present and invalid (unknown mode string, wrong types).
+ *
+ * Missing block = schema defaults (buffered). Present-but-invalid = load
+ * failure. This is the ONLY block that fails load loudly; see readFileConfig.
+ */
+export function assertDurabilityBlockValid(raw: unknown): void {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return;
+  }
+  const block = (raw as Record<string, unknown>).durability;
+  if (block === undefined || block === null) {
+    return;
+  }
+  // Throws z.ZodError on an unknown mode, a wrong type (non-object block), or
+  // an invalid override value — never a silent fallback to buffered.
+  DurabilityBlockSchema.parse(block);
 }
 
 /**
@@ -215,11 +289,57 @@ export function getConfig(configDir: string = "."): DuckBrainConfig {
  * Unset in production — file config is authoritative there.
  */
 function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
+  let next = config;
+
   const nsPathOverride = process.env.DUCKBRAIN_NAMESPACES_PATH;
   if (nsPathOverride) {
-    return { ...config, namespacesPath: nsPathOverride };
+    next = { ...next, namespacesPath: nsPathOverride };
   }
-  return config;
+
+  // SUPA-1: DUCKBRAIN_DURABILITY_MODE overrides the runtime DEFAULT write mode
+  // (never persisted — same convention as DUCKBRAIN_NAMESPACES_PATH). A
+  // malformed value fails config load through the zod enum: no silent fallback
+  // to buffered, because a silently-buffered namespace means acked writes are
+  // not durable while the operator believes they are.
+  const envMode = process.env.DUCKBRAIN_DURABILITY_MODE;
+  if (envMode !== undefined && envMode !== "") {
+    const parsedMode = WriteModeSchema.parse(envMode);
+    next = {
+      ...next,
+      durability: { ...next.durability, defaultMode: parsedMode },
+    };
+  }
+
+  return next;
+}
+
+/**
+ * SUPA-1: resolve the effective write mode for a namespace.
+ *
+ * Precedence: `durability.overrides[ns]` > `DUCKBRAIN_DURABILITY_MODE` (when
+ * set and valid) > `durability.defaultMode` > `"buffered"`.
+ *
+ * A malformed DUCKBRAIN_DURABILITY_MODE throws the zod enum error (never a
+ * silent fallback); invalid config-file values already failed load in
+ * readFileConfig.
+ *
+ * @param ns - Namespace name (the namespace actually written)
+ * @param config - Config override for tests/embedders (defaults to getConfig())
+ */
+export function resolveDurabilityMode(
+  ns: string,
+  config?: DuckBrainConfig,
+): WriteMode {
+  const cfg = config ?? getConfig(".");
+  const override = cfg.durability?.overrides?.[ns];
+  if (override !== undefined) {
+    return override;
+  }
+  const envMode = process.env.DUCKBRAIN_DURABILITY_MODE;
+  if (envMode !== undefined && envMode !== "") {
+    return WriteModeSchema.parse(envMode);
+  }
+  return cfg.durability?.defaultMode ?? "buffered";
 }
 
 /**
@@ -283,6 +403,10 @@ export function initializeConfig(
     storage: {
       maxLinesPerChunk: 1000,
       maxBytesPerChunk: 1024 * 1024,
+    },
+    durability: {
+      defaultMode: "buffered",
+      overrides: {},
     },
     squash: {
       maxAgeDays: 30,

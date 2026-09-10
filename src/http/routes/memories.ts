@@ -30,6 +30,7 @@ import {
 } from "../../utils/timerange";
 import { resolveAsOfRef } from "../../git/asof";
 import { resolveNamespacePath } from "../../mcp/tools/shared";
+import { durabilityHeaderFor } from "../../storage/durability";
 import {
   getPrincipal,
   principalAuthorEmail,
@@ -432,6 +433,8 @@ router.post(
     // DB-GAP-031: an authenticated principal stamps the record — a
     // client-supplied ?author= or body author is never honored on writes.
     const principal = getPrincipal(req);
+    const writtenNamespace =
+      (req.query.namespace as string) || body.namespace || "default";
     const result = await rememberTool({
       key: body.key,
       domain: body.domain as any,
@@ -445,12 +448,20 @@ router.post(
       ...(body.valid_until !== undefined
         ? { valid_until: body.valid_until }
         : {}),
-      namespace: (req.query.namespace as string) || body.namespace || "default",
+      namespace: writtenNamespace,
       ...(principal ? { author: principalAuthorEmail(principal) } : {}),
     });
 
     if (!result.success) {
-      throw new ApiError(result.error || "Failed to create memory", 500);
+      // SUPA-1: a durability-contract failure carries its code (e.g.
+      // DURABILITY_UNSUPPORTED for a direct-mode namespace on a filesystem
+      // without O_DIRECT) — the client sees 500 + the code, never a silent
+      // downgrade to buffered semantics.
+      throw new ApiError(
+        result.error || "Failed to create memory",
+        500,
+        result.code,
+      );
     }
 
     // Return the created memory
@@ -471,6 +482,13 @@ router.post(
       isTombstone: false,
       action: "add",
     };
+
+    // SUPA-1 (AC-6): every 2xx write response advertises the durability mode
+    // of the namespace actually written, resolved from config.
+    res.setHeader(
+      "X-Durability",
+      durabilityHeaderFor(result.namespace ?? writtenNamespace),
+    );
 
     res.status(201).json(memory);
   }),
@@ -562,6 +580,15 @@ router.put(
       isTombstone: false,
       action: "update",
     };
+
+    // SUPA-1 (AC-6): the new version is written through the durability-aware
+    // append path; advertise the namespace's mode. (The tombstone from the
+    // forget step still takes the buffered path until SUPA-2 owns every
+    // filesystem write — see src/storage/durability.ts.)
+    res.setHeader(
+      "X-Durability",
+      durabilityHeaderFor(rememberResult.namespace ?? namespace),
+    );
 
     res.json(memory);
   }),
