@@ -384,7 +384,10 @@ describe("getEmbeddingHealth TTL cache (DOGFOOD-020)", () => {
 describe("createHealthHandler (DOGFOOD-020)", () => {
   function fakeRes() {
     const json = vi.fn();
-    return { json, res: { json } as unknown as Response };
+    // GAP-030: handler chains res.status(code).json(body) — mock must support it
+    const res: Record<string, unknown> = { json };
+    res.status = vi.fn(() => res);
+    return { json, res: res as unknown as Response };
   }
 
   it("returns status degraded + embedding object when the probe reports unhealthy", async () => {

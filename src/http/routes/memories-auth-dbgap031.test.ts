@@ -158,9 +158,10 @@ describe("DB-GAP-031: apikey auth + per-token namespace grants", () => {
     expect(vi.mocked(recallTool)).not.toHaveBeenCalled();
   });
 
-  it("allows /health without a token (still 200)", async () => {
+  it("allows /health without a token (200 healthy / 503 degraded — never 401)", async () => {
     const { status, body } = await httpRequest("GET", "/health");
-    expect(status).toBe(200);
+    // GAP-030: /health reports 503 when degraded; auth exemption is what we test
+    expect([200, 503]).toContain(status);
     expect(["healthy", "degraded"]).toContain(body.status);
   });
 

@@ -46,7 +46,7 @@ jobs:
         run: npm run typecheck --if-present
 
       - name: Run tests
-        run: npm run test:run 2>&1 | tee /tmp/vitest.out
+        run: npm run test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
 
       - name: Assert AGENTS.md test counts match live suite
         if: matrix.node-version == '22.x'   # package.json engines: node >=22 — assert once, not per matrix cell

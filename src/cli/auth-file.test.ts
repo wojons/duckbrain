@@ -61,7 +61,7 @@ function waitForHealth(port: number, timeout = 30000): Promise<void> {
       const req = http.get(
         { host: "127.0.0.1", port, path: "/health", timeout: 500 },
         (res) => {
-          if (res.statusCode === 200) {
+          if (res.statusCode === 200 || res.statusCode === 503) { // GAP-030: 503=degraded but UP
             res.resume();
             resolve();
             return;

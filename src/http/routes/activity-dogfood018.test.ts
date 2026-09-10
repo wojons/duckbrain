@@ -282,7 +282,7 @@ describe("DOGFOOD-018: /activity survives duplicate-key attributes (no abort)", 
 
     // The process must still be alive and serving.
     const health = await httpRequest("GET", "/health");
-    expect(health.status).toBe(200);
+    expect([200, 503]).toContain(health.status); // GAP-030: 503=degraded but alive
     // DOGFOOD-020: /health status is "degraded" when the host's embedding
     // providers fail the embed probe — host-dependent, so accept both.
     expect(["healthy", "degraded"]).toContain(health.body.status);
@@ -332,6 +332,6 @@ describe("DOGFOOD-018: /activity survives duplicate-key attributes (no abort)", 
 
     // Server still healthy after the empty-scan path.
     const health = await httpRequest("GET", "/health");
-    expect(health.status).toBe(200);
+    expect([200, 503]).toContain(health.status); // GAP-030: 503=degraded but alive
   });
 });

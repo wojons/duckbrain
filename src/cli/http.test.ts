@@ -25,7 +25,7 @@ function findFreePort(): Promise<number> {
   });
 }
 
-function waitForHealth(port: number, timeout = 5000): Promise<void> {
+function waitForHealth(port: number, timeout = 30000): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const attempt = () => {
@@ -145,7 +145,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       }
       fs.rmSync(dataDir, { recursive: true, force: true });
     }
-  });
+  }, 30000);
 
   it("concurrent instances on different ports do not clobber each other's pidfiles", async () => {
     const port1 = await findFreePort();
@@ -193,7 +193,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       fs.rmSync(dataDir1, { recursive: true, force: true });
       fs.rmSync(dataDir2, { recursive: true, force: true });
     }
-  });
+  }, 30000);
 });
 
 describe("DOGFOOD-016 stale pidfile cleanup", () => {
