@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
 ```bash
 pnpm install
 pnpm build
-pnpm test          # 851 tests, 99 suites
+pnpm test          # 877 tests, 102 suites
 pnpm tsc --noEmit  # TypeScript check
 ```
 
