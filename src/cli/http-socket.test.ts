@@ -117,7 +117,9 @@ describe("HTTP server Unix socket support", () => {
         req.end();
       });
 
-      expect(viaNode).toBe(200);
+      // GAP-030: /health answers 503 when degraded — CI has no embedding
+      // providers, so accept both codes (503 still proves the socket works).
+      expect([200, 503]).toContain(viaNode);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
