@@ -21,11 +21,11 @@ Target audiences are:
 
 1. Agent-platform engineers who need durable, inspectable memory with MCP and HTTP access.
 2. Teams that value namespace-local git history, branch/ref investigation, and offline-readable JSONL over a hosted opaque database service.
-3. Developers evaluating an embedded/agent-first data layer who need to distinguish DuckBrain's current memory product from the planned generic REST/auth/realtime/DDL work.
+3. Developers evaluating an embedded/agent-first data layer who need to distinguish DuckBrain's current memory product and implemented-on-branch role/auth controls (pending public release evidence) from planned generic REST, realtime, and declared-DDL work.
 
 Approved one-sentence category statement, for README lead and docs overview:
 
-> DuckBrain is a git-native, agent-first memory system built on DuckDB, with MCP and HTTP access and namespace-local history; the “Supabase-for-DuckDB” phrase is a roadmap analogy for an additive REST, auth, realtime, and declared-schema surface—not a claim of Supabase compatibility or managed-service parity.
+> DuckBrain is a git-native, agent-first memory system built on DuckDB, with MCP and HTTP access and namespace-local history; the “Supabase-for-DuckDB” phrase is a roadmap analogy for additive generic REST, declared-schema, and realtime work, alongside implemented-on-branch role/auth controls that still await public release evidence—not a claim of Supabase compatibility or managed-service parity.
 
 The phrase may appear only with its qualifier in the same paragraph or adjacent table cell. Headlines may use “A git-native data layer for agent memory” but may not use “Supabase clone,” “drop-in Supabase,” or “Supabase compatible.” The category statement is a documentation claim, not an API compatibility promise.
 
@@ -40,12 +40,13 @@ The phrase may appear only with its qualifier in the same paragraph or adjacent 
 | S3-native sync / remote replication | Available now only where configured | `src/git/autocommit.ts:111-118, 260-307`; say “optional configured S3 sync,” never “multi-region HA” |
 | fsync/direct durability modes | Implemented by SUPA-1; evidence must be checked before public promotion | `docs/specs/SUPA-1-write-durability.md` is a build contract, not release evidence |
 | per-namespace serialized writes and audit rows | Implemented by SUPA-2; evidence must be checked before public promotion | `src/serialization/namespaceWriter.ts:670-850`; public claims require current tests and release proof |
-| declared schema, generic table REST, role grants | Planned by SUPA-3/SUPA-4/SUPA-6 | Use future tense only: “planned declared-schema REST and role-based access” |
+| declared schema and generic table REST | Planned by SUPA-3/SUPA-6 | Use future tense only: “planned declared-schema generic REST” |
+| role grants, auth backends, and token lifecycle | Implemented on branch by DB-SUPA-4; pending public release evidence | `src/auth/middleware.ts`; `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, and `src/auth/backend-interface.test.ts`; say “implemented-on-branch role/auth controls awaiting release evidence,” never “available now” from board status alone |
 | committed resumable change feed | Planned by SUPA-5 | Use future tense only: “planned committed SSE change feed” |
 | hosted tenant management, billing, global control plane | Explicit non-goal | Do not imply it exists |
 | full PostgREST grammar, Supabase Realtime protocol, full Supabase SDK parity | Explicit non-goal | Do not imply compatibility |
 
-The documentation owner must update a matrix row only after the implementation task is merged, its named tests pass on the target branch, and the source/route exists. A board status or unverified spec is insufficient evidence. The matrix must always distinguish “available now,” “implemented by a named SUPA row but awaiting release evidence,” “planned,” and “non-goal”; it must not flatten all rows into a feature checklist.
+The documentation owner must update a matrix row only after the implementation task is merged, its named tests pass on the target branch, and the source/route exists. A complete board status or unverified spec alone is insufficient evidence for “available now.” The matrix must always distinguish “available now,” “implemented on branch and awaiting public release evidence,” “planned,” and “non-goal”; it must not flatten all rows into a feature checklist.
 
 ### Contract: README and documentation placement
 
@@ -55,7 +56,7 @@ The planned public update has these files and outline. This task creates none of
    - lead: approved one-sentence statement;
    - “What exists now” short matrix, limited to current evidence;
    - “Why git-native” with branch/ref/rollback proof links;
-   - “Roadmap surface” with SUPA-3/4/5/6 named as planned, not present;
+   - “Roadmap surface” with SUPA-3/5/6 named as planned and DB-SUPA-4 named as implemented-on-branch/pending public release evidence;
    - “What this is not” prohibited-claim summary.
 2. `docs/guide/positioning.md`
    - audience and use-case fit;
@@ -102,7 +103,7 @@ Sources:
 ### Behavioral acceptance criteria
 
 - **AC-1 (approved category statement):** GIVEN a maintainer writes a README or guide lead, WHEN it uses the Supabase comparison, THEN it uses the approved one-sentence statement or a meaning-preserving variant with the same-paragraph roadmap qualifier and does not say clone, drop-in, compatible, or parity. **Checks:** `docs-positioning.test.mjs` / `"comparison phrase has qualifier and no prohibited synonym"`; manual copy review.
-- **AC-2 (current versus roadmap):** GIVEN the public capability matrix, WHEN it lists a feature, THEN every entry is labeled available now, implemented-and-verified, planned, or non-goal and its source/evidence supports that label; SUPA-3/4/5/6 remain future tense until their implementation evidence is verified. **Checks:** `docs-positioning.test.mjs` / `"matrix rows cite current source or named roadmap"`; release checklist `"feature evidence gate"`.
+- **AC-2 (current versus roadmap):** GIVEN the public capability matrix, WHEN it lists a feature, THEN every entry is labeled available now, implemented-on-branch/release-evidence-pending, planned, or non-goal and its source/evidence supports that label; SUPA-3/5/6 remain future tense, while DB-SUPA-4 role/auth controls are implemented-on-branch and remain short of an “available now” claim until release evidence is verified. **Checks:** `docs-positioning.test.mjs` / `"matrix rows cite current source or named roadmap"`, `"DB-SUPA-4 is implemented-on-branch not planned"`; release checklist `"feature evidence gate"`.
 - **AC-3 (git proof points):** GIVEN public docs describe branches, time travel, or rollback, WHEN a reader follows the cited source/doc link, THEN the claim is limited to namespace-local git history and `resolveAsOfRef`/`queryMemoriesAtRef` read-only behavior; it does not imply an unimplemented UI, merge system, or API undo route. **Checks:** `docs-positioning.test.mjs` / `"git claims link to asof source-supported guide"`; `src/git/asof.test.ts` targeted verification.
 - **AC-4 (citation integrity):** GIVEN an external comparison appears, WHEN its source list is inspected, THEN it uses one of [1]-[6] or a newly opened official source with title, URL, access date, and Primary evidence/Analogy/Precedent label; it never says PostgREST runs on SQLite. **Checks:** `docs-positioning.test.mjs` / `"external references are labeled and PostgREST boundary is explicit"`; `scripts/verify-doc-links.mjs` / `"SUPA-8 authoritative URLs resolve"`.
 - **AC-5 (placement and drift):** GIVEN the later README and guide update lands, WHEN the repository documentation is scanned, THEN the long matrix exists only in `docs/guide/positioning.md`, README has the prescribed compact structure and link, and a SUPA task landing prompts a matrix review rather than silently aging the roadmap. **Checks:** `docs-positioning.test.mjs` / `"single matrix owner and README outline"`; release checklist `"SUPA drift review"`.
@@ -129,7 +130,7 @@ Sources:
 ## Dependencies
 
 - **Current repository proof.** `AGENTS.md`, `src/git/autocommit.ts`, `src/git/asof.ts`, `src/cli/http.ts`, and `src/serialization/namespaceWriter.ts` provide the source-backed current-state claims. Documentation implementation must re-check line references on its target commit.
-- **SUPA implementation dependencies.** SUPA-3 supplies generic resource REST, SUPA-4 role/auth semantics, SUPA-5 committed change feed, and SUPA-6 declared DDL. Their current specs are implementation authority but not public-release evidence.
+- **SUPA implementation dependencies.** SUPA-3 supplies planned generic resource REST, DB-SUPA-4 supplies implemented-on-branch role/auth semantics with source and named Vitest evidence in `src/auth/middleware.ts`, `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, and `src/auth/backend-interface.test.ts`, SUPA-5 supplies planned committed change feed, and SUPA-6 supplies planned declared DDL. A complete board row and source/test presence establish the implemented-on-branch classification, but neither is public-release evidence for an “available now” claim.
 - **Documentation implementation dependencies.** A planned docs check (`scripts/docs-positioning.test.mjs` or repository-equivalent) must own the prohibited-claim deny-list, matrix owner rule, reference labels, and URL link validation. It must be run in CI with outbound links allowed or in a scheduled evidence job whose committed result is CI-consumed.
 - **Authoritative source handling.** Sources [1]-[6] above are the initial approved list. They are primary official sources where stated; [1] and [4] are explicitly precedent, while [2] is an analogy bounded by its PostgreSQL-only reality. Their inclusion creates no runtime dependency.
 
@@ -140,7 +141,7 @@ This is a documentation contract. The named checks are planned and must run when
 | Check | Acceptance criteria |
 |---|---|
 | `scripts/docs-positioning.test.mjs` — `comparison phrase has qualifier and no prohibited synonym` | AC-1 |
-| `scripts/docs-positioning.test.mjs` — `matrix rows cite current source or named roadmap`; release checklist `feature evidence gate` | AC-2 |
+| `scripts/docs-positioning.test.mjs` — `matrix rows cite current source or named roadmap`; `DB-SUPA-4 is implemented-on-branch not planned`; release checklist `feature evidence gate` | AC-2 |
 | `scripts/docs-positioning.test.mjs` — `git claims link to asof source-supported guide`; targeted `src/git/asof.test.ts` | AC-3 |
 | `scripts/docs-positioning.test.mjs` — `external references are labeled and PostgREST boundary is explicit`; `scripts/verify-doc-links.mjs` — `SUPA-8 authoritative URLs resolve` | AC-4 |
 | `scripts/docs-positioning.test.mjs` — `single matrix owner and README outline`; release checklist `SUPA drift review` | AC-5 |
