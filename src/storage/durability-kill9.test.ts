@@ -15,13 +15,7 @@
  *   commit flush, so the record IS committed on SIGTERM.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, execSync, type ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -76,12 +70,22 @@ async function makeFixture(): Promise<Fixture> {
   );
 
   const authFilePath = path.join(dataDir, "auth.json");
-  fs.writeFileSync(authFilePath, JSON.stringify({ users: {}, apiKeys: {} }), "utf-8");
+  fs.writeFileSync(
+    authFilePath,
+    JSON.stringify({ users: {}, apiKeys: {} }),
+    "utf-8",
+  );
 
   initNamespaceRepo(path.join(nsPath, "nsA"));
   initNamespaceRepo(path.join(nsPath, "nsB"));
 
-  return { dataDir, nsPath, configPath, authFilePath, port: await findFreePort() };
+  return {
+    dataDir,
+    nsPath,
+    configPath,
+    authFilePath,
+    port: await findFreePort(),
+  };
 }
 
 function initNamespaceRepo(nsDir: string): void {
@@ -99,7 +103,10 @@ function initNamespaceRepo(nsDir: string): void {
   });
 }
 
-function spawnServer(fixture: Fixture): { child: ChildProcess; output: () => string } {
+function spawnServer(fixture: Fixture): {
+  child: ChildProcess;
+  output: () => string;
+} {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     DUCKBRAIN_CONFIG_PATH: fixture.configPath,
@@ -112,7 +119,12 @@ function spawnServer(fixture: Fixture): { child: ChildProcess; output: () => str
 
   const child = spawn(
     process.execPath,
-    [BIN_PATH, "http", `--port=${fixture.port}`, `--auth-file=${fixture.authFilePath}`],
+    [
+      BIN_PATH,
+      "http",
+      `--port=${fixture.port}`,
+      `--auth-file=${fixture.authFilePath}`,
+    ],
     { env, stdio: "pipe" },
   );
 
@@ -123,7 +135,11 @@ function spawnServer(fixture: Fixture): { child: ChildProcess; output: () => str
   return { child, output: () => buffer };
 }
 
-function waitForHealth(port: number, child: ChildProcess, timeout = 30_000): Promise<void> {
+function waitForHealth(
+  port: number,
+  child: ChildProcess,
+  timeout = 30_000,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const attempt = () => {
@@ -160,7 +176,10 @@ function waitForHealth(port: number, child: ChildProcess, timeout = 30_000): Pro
   });
 }
 
-function waitForExit(child: ChildProcess, timeout = 20_000): Promise<number | null> {
+function waitForExit(
+  child: ChildProcess,
+  timeout = 20_000,
+): Promise<number | null> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
@@ -219,7 +238,7 @@ function jsonlFiles(nsDir: string): string[] {
   const found: string[] = [];
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git") continue;
+      if (entry.name === ".git" || entry.name === "_audit") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.name.endsWith(".jsonl")) found.push(full);
@@ -314,7 +333,11 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       await waitForHealth(fixture.port, child);
 
       const nsDir = path.join(fixture.nsPath, "nsB");
-      const res = await postMemory(fixture.port, "nsB", "/supa1/kill9/buffered");
+      const res = await postMemory(
+        fixture.port,
+        "nsB",
+        "/supa1/kill9/buffered",
+      );
       expect(res.status).toBe(201);
       expect(res.headers["x-durability"]).toBe("buffered");
 
@@ -341,7 +364,11 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       await waitForHealth(fixture.port, child);
 
       const nsDir = path.join(fixture.nsPath, "nsA");
-      const res = await postMemory(fixture.port, "nsA", "/supa1/kill9/graceful");
+      const res = await postMemory(
+        fixture.port,
+        "nsA",
+        "/supa1/kill9/graceful",
+      );
       expect(res.status).toBe(201);
       expect(res.headers["x-durability"]).toBe("fsync");
 
@@ -359,7 +386,10 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       expect(gitCommitCount(nsDir)).toBe(2);
       const rel = path.relative(nsDir, files[0]);
       expect(
-        execSync(`git show HEAD:${rel}`, { cwd: nsDir, stdio: "pipe" }).toString(),
+        execSync(`git show HEAD:${rel}`, {
+          cwd: nsDir,
+          stdio: "pipe",
+        }).toString(),
       ).toContain("/supa1/kill9/graceful");
     },
     TEST_TIMEOUT,

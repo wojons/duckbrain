@@ -67,6 +67,40 @@ function throwRecallError(error: string): never {
   throw new ApiError(error, 500);
 }
 
+interface ToolWriteFailure {
+  error?: string;
+  code?: string;
+  fields?: Record<string, string>;
+  retryAfter?: number;
+}
+
+/** Map serializer backpressure/fencing honestly onto the REST envelope. */
+function throwWriteError(
+  res: Response,
+  result: ToolWriteFailure,
+  fallback: string,
+): never {
+  const message = result.error || fallback;
+  if (result.code === "SERIALIZER_QUEUE_FULL") {
+    res.setHeader("Retry-After", String(result.retryAfter ?? 1));
+  }
+  if (result.code === "VALIDATION_ERROR") {
+    throw new ValidationError(message, result.fields);
+  }
+  const status =
+    result.code === "FORBIDDEN"
+      ? 403
+      : result.code === "NOT_FOUND"
+        ? 404
+        : result.code === "SERIALIZER_QUEUE_FULL" ||
+            result.code === "SERIALIZER_LOCKED" ||
+            result.code === "SERIALIZER_FENCED" ||
+            result.code === "SERVER_SHUTTING_DOWN"
+          ? 503
+          : 500;
+  throw new ApiError(message, status, result.code);
+}
+
 const router: Router = Router();
 
 // DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
@@ -435,33 +469,30 @@ router.post(
     const principal = getPrincipal(req);
     const writtenNamespace =
       (req.query.namespace as string) || body.namespace || "default";
-    const result = await rememberTool({
-      key: body.key,
-      domain: body.domain as any,
-      // DOGFOOD-010: canonicalize before it reaches the tool AND before the
-      // response echoes it — the stored row and the response must agree.
-      attributes: normalizeAttributes(body.attributes),
-      embedding_text: body.content,
-      // RETR-011: optional validity window — passthrough; omitted fields
-      // keep the legacy always-current behavior.
-      ...(body.valid_from !== undefined ? { valid_from: body.valid_from } : {}),
-      ...(body.valid_until !== undefined
-        ? { valid_until: body.valid_until }
-        : {}),
-      namespace: writtenNamespace,
-      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
-    });
+    const result = await rememberTool(
+      {
+        key: body.key,
+        domain: body.domain as any,
+        // DOGFOOD-010: canonicalize before it reaches the tool AND before the
+        // response echoes it — the stored row and the response must agree.
+        attributes: normalizeAttributes(body.attributes),
+        embedding_text: body.content,
+        // RETR-011: optional validity window — passthrough; omitted fields
+        // keep the legacy always-current behavior.
+        ...(body.valid_from !== undefined
+          ? { valid_from: body.valid_from }
+          : {}),
+        ...(body.valid_until !== undefined
+          ? { valid_until: body.valid_until }
+          : {}),
+        namespace: writtenNamespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
 
     if (!result.success) {
-      // SUPA-1: a durability-contract failure carries its code (e.g.
-      // DURABILITY_UNSUPPORTED for a direct-mode namespace on a filesystem
-      // without O_DIRECT) — the client sees 500 + the code, never a silent
-      // downgrade to buffered semantics.
-      throw new ApiError(
-        result.error || "Failed to create memory",
-        500,
-        result.code,
-      );
+      throwWriteError(res, result, "Failed to create memory");
     }
 
     // Return the created memory
@@ -531,15 +562,18 @@ router.put(
     }
 
     // Step 2: Forget the old version (create tombstone)
-    const forgetResult = await forgetTool({
-      id,
-      reason: "Updated via API",
-      namespace,
-      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
-    });
+    const forgetResult = await forgetTool(
+      {
+        id,
+        reason: "Updated via API",
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
 
     if (!forgetResult.success) {
-      throw new ApiError(forgetResult.error || "Failed to update memory", 500);
+      throwWriteError(res, forgetResult, "Failed to update memory");
     }
 
     // Step 3: Remember the new version
@@ -552,19 +586,23 @@ router.put(
         }
       : existingMemory.attributes;
 
-    const rememberResult = await rememberTool({
-      key: existingMemory.key,
-      domain: existingMemory.domain as any,
-      attributes: newAttributes,
-      embedding_text: newContent,
-      namespace,
-      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
-    });
+    const rememberResult = await rememberTool(
+      {
+        key: existingMemory.key,
+        domain: existingMemory.domain as any,
+        attributes: newAttributes,
+        embedding_text: newContent,
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
 
     if (!rememberResult.success) {
-      throw new ApiError(
-        rememberResult.error || "Failed to create new memory version",
-        500,
+      throwWriteError(
+        res,
+        rememberResult,
+        "Failed to create new memory version",
       );
     }
 
@@ -581,10 +619,8 @@ router.put(
       action: "update",
     };
 
-    // SUPA-1 (AC-6): the new version is written through the durability-aware
-    // append path; advertise the namespace's mode. (The tombstone from the
-    // forget step still takes the buffered path until SUPA-2 owns every
-    // filesystem write — see src/storage/durability.ts.)
+    // SUPA-1/SUPA-2: both the tombstone and new version were serialized
+    // through the same namespace writer; advertise the effective mode.
     res.setHeader(
       "X-Durability",
       durabilityHeaderFor(rememberResult.namespace ?? namespace),
@@ -607,20 +643,24 @@ router.delete(
     // client-supplied author value is never honored.
     const principal = getPrincipal(req);
 
-    const result = await forgetTool({
-      id,
-      reason: "Deleted via API",
-      namespace,
-      ...(principal ? { author: principalAuthorEmail(principal) } : {}),
-    });
+    const result = await forgetTool(
+      {
+        id,
+        reason: "Deleted via API",
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
 
     if (!result.success) {
       if (result.error?.includes("not found")) {
         throw new NotFoundError("Memory", id);
       }
-      throw new ApiError(result.error || "Failed to delete memory", 500);
+      throwWriteError(res, result, "Failed to delete memory");
     }
 
+    res.setHeader("X-Durability", durabilityHeaderFor(namespace));
     res.status(204).send();
   }),
 );

@@ -233,11 +233,15 @@ describe("DB-GAP-031: apikey auth + per-token namespace grants", () => {
     expect(status).toBe(201);
     // rememberTool received the token identity (email-mapped), never the
     // spoof value — the memory schema requires an email author.
-    expect(vi.mocked(rememberTool)).toHaveBeenCalledWith(
+    const [toolInput, toolContext] = vi.mocked(rememberTool).mock.calls[0];
+    expect(toolInput).toEqual(
       expect.objectContaining({ author: "scoped-agent@duckbrain.local" }),
     );
-    expect(vi.mocked(rememberTool)).not.toHaveBeenCalledWith(
-      expect.objectContaining({ author: "spoof" }),
+    expect(toolInput).not.toEqual(expect.objectContaining({ author: "spoof" }));
+    expect(toolContext).toEqual(
+      expect.objectContaining({
+        principal: expect.objectContaining({ name: "scoped-agent" }),
+      }),
     );
     // the stored record (echoed in the response) carries the principal
     expect(body.author).toBe("scoped-agent@duckbrain.local");

@@ -7,9 +7,12 @@
 
 import type { Database } from "./connection";
 import type { MemoryType } from "../schema/memory";
+import type { AuthPrincipal } from "../auth/middleware";
+import { getConfig } from "../config";
+import { getNamespaceWriter } from "../serialization/namespaceWriter";
 import path from "path";
 import fs from "fs";
-import { safeJsonStringify, deepConvertBigInts } from "../utils/serialize";
+import { deepConvertBigInts } from "../utils/serialize";
 
 /**
  * Parse DuckDB STRUCT format string into a JavaScript object
@@ -586,56 +589,104 @@ export function countMemories(
 }
 
 /**
- * Insert a memory record into a partition file
+ * Insert a memory record through the SUPA-2 namespace serializer.
  *
- * @param db - DuckDB database instance (for validation)
+ * @param db - DuckDB database instance (retained for API compatibility)
  * @param memory - Memory record to insert
  * @param partitionPath - Absolute path to partition directory
+ * @param principal - Authenticated principal for the SUPA-4 authorization seam
  */
-export function insertMemory(
+export async function insertMemory(
   _db: Database,
   memory: MemoryType,
   partitionPath: string,
-): void {
-  insertMemoryToPartition(memory, partitionPath);
+  principal?: AuthPrincipal,
+): Promise<void> {
+  await insertMemoryToPartition(memory, partitionPath, principal);
 }
 
-/**
- * Insert memory to partition (shared utility)
- */
-function insertMemoryToPartition(
+interface SerializationTarget {
+  namespacesPath: string;
+  ns: string;
+  namespacePath: string;
+  targetPath: string;
+  partitionPath?: string;
+}
+
+/** Resolve a production namespace partition, with a legacy test-path fallback. */
+function resolveSerializationTarget(
+  partitionPath: string,
+): SerializationTarget {
+  const configuredRoot = path.resolve(getConfig(".").namespacesPath);
+  const resolvedPartition = path.resolve(partitionPath);
+  const relative = path.relative(configuredRoot, resolvedPartition);
+  const parts = relative.split(path.sep).filter(Boolean);
+  if (
+    relative !== "" &&
+    !relative.startsWith("..") &&
+    !path.isAbsolute(relative) &&
+    parts.length >= 2
+  ) {
+    const [ns, ...partitionParts] = parts;
+    const relativePartition = partitionParts.join(path.sep) + path.sep;
+    return {
+      namespacesPath: configuredRoot,
+      ns,
+      namespacePath: path.join(configuredRoot, ns),
+      targetPath: path.join(relativePartition, "current.jsonl"),
+      partitionPath: relativePartition,
+    };
+  }
+
+  // `insertMemory` is a historical exported helper used by isolated tests with
+  // an arbitrary partition directory. Treat that directory as a standalone
+  // namespace while still routing its write through the serializer.
+  return {
+    namespacesPath: path.dirname(resolvedPartition),
+    ns: path.basename(resolvedPartition),
+    namespacePath: resolvedPartition,
+    targetPath: "current.jsonl",
+  };
+}
+
+/** Insert memory to partition through the one writer that owns its namespace. */
+async function insertMemoryToPartition(
   memory: MemoryType,
   partitionPath: string,
-): void {
-  // Ensure partition directory exists
-  if (!fs.existsSync(partitionPath)) {
-    fs.mkdirSync(partitionPath, { recursive: true });
-  }
-
-  // Find or create chunk file
-  const chunkFiles = fs
-    .readdirSync(partitionPath)
-    .filter((f) => f.endsWith(".jsonl"))
-    .sort();
-
-  let targetChunk = chunkFiles.find((chunk) => {
-    const chunkPath = path.join(partitionPath, chunk);
-    const stats = fs.statSync(chunkPath);
-    const lineCount = countLines(chunkPath);
-    return lineCount < 1000 && stats.size < 1024 * 1024; // 1000 lines or 1MB
+  principal?: AuthPrincipal,
+): Promise<void> {
+  const target = resolveSerializationTarget(partitionPath);
+  fs.mkdirSync(target.namespacePath, { recursive: true });
+  const writerOptions = target.partitionPath
+    ? { namespacesPath: target.namespacesPath }
+    : {
+        namespacesPath: target.namespacesPath,
+        // Historical standalone test helper paths are not namespace git repositories.
+        scheduleCommit: () => undefined,
+      };
+  const result = await getNamespaceWriter(target.ns, writerOptions).enqueue({
+    ns: target.ns,
+    table: "memories",
+    op:
+      memory.action === "tombstone"
+        ? "delete"
+        : memory.action === "update"
+          ? "update"
+          : "insert",
+    record: memory,
+    principal,
+    targetPath: target.targetPath,
+    ...(target.partitionPath ? { partitionPath: target.partitionPath } : {}),
   });
-
-  if (!targetChunk) {
-    // Create new chunk
-    const timestamp = Date.now();
-    targetChunk = `chunk_${timestamp}.jsonl`;
+  if (!result.ok) {
+    const error = new Error(`${result.code}: ${result.message}`) as Error & {
+      code?: string;
+      retryAfter?: number;
+    };
+    error.code = result.code;
+    error.retryAfter = result.retryAfter;
+    throw error;
   }
-
-  const chunkPath = path.join(partitionPath, targetChunk);
-
-  // Append memory as JSON line
-  const line = safeJsonStringify(memory) + "\n";
-  fs.appendFileSync(chunkPath, line, "utf-8");
 }
 
 /**
@@ -657,6 +708,7 @@ export async function tombstoneMemory(
   partitionPath: string,
   reason?: string,
   author?: string,
+  principal?: AuthPrincipal,
 ): Promise<void> {
   // Find the original memory in the partition using DuckDB WHERE clause
   const memories = await queryMemories(db, [partitionPath], {
@@ -673,12 +725,12 @@ export async function tombstoneMemory(
       key: "/unknown",
       domain: "raw_note",
       timestamp: new Date().toISOString(),
-      author: author ?? "system",
+      author: author ?? "system@localhost.localdomain",
       action: "tombstone",
       embedding_text: "",
       attributes: reason ? { tombstone_reason: reason } : {},
     };
-    insertMemoryToPartition(tombstone, partitionPath);
+    await insertMemoryToPartition(tombstone, partitionPath, principal);
     return;
   }
 
@@ -696,17 +748,5 @@ export async function tombstoneMemory(
     },
   };
 
-  insertMemoryToPartition(tombstone, partitionPath);
-}
-
-/**
- * Count lines in a file
- */
-function countLines(filePath: string): number {
-  try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    return content.split("\n").filter((line) => line.trim() !== "").length;
-  } catch {
-    return 0;
-  }
+  await insertMemoryToPartition(tombstone, partitionPath, principal);
 }

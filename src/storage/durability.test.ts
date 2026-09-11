@@ -7,7 +7,16 @@
  * WHICH mode — measured numbers are DB-SUPA-7's deliverable, not this row's.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+} from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -25,7 +34,11 @@ import {
   type FramedJsonlWrite,
 } from "./durability";
 import { isDurabilityError } from "./durability-errors";
-import { DuckBrainConfigSchema, getConfig, type DuckBrainConfig } from "../config";
+import {
+  DuckBrainConfigSchema,
+  getConfig,
+  type DuckBrainConfig,
+} from "../config";
 
 function makeRecord(i: number): MemoryType {
   const hex = (i % 16).toString(16);
@@ -106,7 +119,9 @@ function spyFs() {
     const isDir = String(flags) === "r";
     fdPath.set(fd, String(p));
     fdIsDir.set(fd, isDir);
-    events.push(`open ${isDir ? "dir" : "file"} ${String(p)} flags=${String(flags)}`);
+    events.push(
+      `open ${isDir ? "dir" : "file"} ${String(p)} flags=${String(flags)}`,
+    );
     return fd;
   }) as any);
 
@@ -118,7 +133,9 @@ function spyFs() {
 
   const fsyncSpy = vi.spyOn(fs, "fsyncSync");
   fsyncSpy.mockImplementation(((fd: number) => {
-    events.push(`fsync ${fdIsDir.get(fd) ? "dir" : "file"} ${fdPath.get(fd) ?? fd}`);
+    events.push(
+      `fsync ${fdIsDir.get(fd) ? "dir" : "file"} ${fdPath.get(fd) ?? fd}`,
+    );
     return realFsyncSync(fd);
   }) as any);
 
@@ -139,7 +156,8 @@ describe("SUPA-1 fsync mode", () => {
       (e) => e.startsWith("fdatasync ") && e.endsWith("current.jsonl"),
     );
     const dirBarrier = events.findIndex(
-      (e) => e.startsWith("fsync dir ") && e.endsWith(path.join("event", "2026-09")),
+      (e) =>
+        e.startsWith("fsync dir ") && e.endsWith(path.join("event", "2026-09")),
     );
     expect(dataBarrier).toBeGreaterThanOrEqual(0);
     expect(dirBarrier).toBeGreaterThanOrEqual(0);
@@ -183,7 +201,9 @@ describe("SUPA-1 fsync mode", () => {
     // both get a directory fsync.
     expect(
       events.some(
-        (e) => e.startsWith("fsync dir ") && e.endsWith(path.join("person", "2026-09")),
+        (e) =>
+          e.startsWith("fsync dir ") &&
+          e.endsWith(path.join("person", "2026-09")),
       ),
     ).toBe(true);
     expect(
@@ -287,7 +307,9 @@ describe("SUPA-1 direct mode", () => {
    * the scenario asserts the FAILURE path instead of the success path.
    */
   function filesystemSupportsODirect(): boolean {
-    const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-odirect-"));
+    const probeDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-odirect-"),
+    );
     try {
       const probe = path.join(probeDir, "probe.bin");
       const fd = fs.openSync(
@@ -336,7 +358,10 @@ describe("SUPA-1 direct mode", () => {
     expect(written).toBe(1);
     const flags = openSpy.mock.calls
       .map((call) => call[1])
-      .find((f) => typeof f === "number" && (Number(f) & fs.constants.O_DIRECT) !== 0);
+      .find(
+        (f) =>
+          typeof f === "number" && (Number(f) & fs.constants.O_DIRECT) !== 0,
+      );
     expect(flags).toBeDefined();
     // Same commit protocol as fsync mode.
     expect(events.some((e) => e.startsWith("fdatasync "))).toBe(true);

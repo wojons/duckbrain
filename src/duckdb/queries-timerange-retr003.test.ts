@@ -21,6 +21,14 @@ import type { MemoryType } from "../schema/memory";
 import path from "path";
 import fs from "fs";
 
+function fixtureId(label: string): string {
+  const suffix = Buffer.from(label)
+    .toString("hex")
+    .padEnd(12, "0")
+    .slice(0, 12);
+  return `00000000-0000-4000-8000-${suffix}`;
+}
+
 function memory(
   id: string,
   key: string,
@@ -28,14 +36,14 @@ function memory(
   action: "add" | "update" | "tombstone" = "add",
 ): MemoryType {
   return {
-    id,
+    id: fixtureId(id),
     key,
     domain: "message",
     timestamp,
     author: "test@example.com",
     action,
     embedding_text: `Record ${id}`,
-    attributes: {},
+    attributes: { fixture_id: id },
   };
 }
 
@@ -59,12 +67,12 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
     }
   });
 
-  function seed(records: MemoryType[]): void {
-    for (const r of records) insertMemory(db, r, testPartition);
+  async function seed(records: MemoryType[]): Promise<void> {
+    for (const r of records) await insertMemory(db, r, testPartition);
   }
 
   it("after= excludes older rows and is inclusive on the boundary", async () => {
-    seed([
+    await seed([
       memory("a1", "/t/early", "2026-08-09T23:59:59.000Z"),
       memory("a2", "/t/at-boundary", "2026-08-10T00:00:00.000Z"),
       memory("a3", "/t/later", "2026-08-11T00:00:00.000Z"),
@@ -74,14 +82,17 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       after: "2026-08-10",
       limit: 10,
     });
-    expect(rows.map((r) => r.id).sort()).toEqual(["a2", "a3"]);
+    expect(rows.map((r) => r.attributes.fixture_id).sort()).toEqual([
+      "a2",
+      "a3",
+    ]);
     expect(
       await countMemories(db, [testPartition], { after: "2026-08-10" }),
     ).toBe(2);
   });
 
   it("before= excludes newer rows and is inclusive on the boundary", async () => {
-    seed([
+    await seed([
       memory("b1", "/t/early", "2026-08-10T00:00:00.000Z"),
       memory("b2", "/t/at-boundary", "2026-08-12T00:00:00.000Z"),
       memory("b3", "/t/newer", "2026-08-13T00:00:00.000Z"),
@@ -91,14 +102,17 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-08-12",
       limit: 10,
     });
-    expect(rows.map((r) => r.id).sort()).toEqual(["b1", "b2"]);
+    expect(rows.map((r) => r.attributes.fixture_id).sort()).toEqual([
+      "b1",
+      "b2",
+    ]);
     expect(
       await countMemories(db, [testPartition], { before: "2026-08-12" }),
     ).toBe(2);
   });
 
   it("after+before windows the result and the count matches", async () => {
-    seed([
+    await seed([
       memory("w1", "/t/out-before", "2026-08-09T00:00:00.000Z"),
       memory("w2", "/t/in-1", "2026-08-10T12:00:00.000Z"),
       memory("w3", "/t/in-2", "2026-08-11T12:00:00.000Z"),
@@ -110,7 +124,10 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-08-12",
       limit: 10,
     });
-    expect(rows.map((r) => r.id).sort()).toEqual(["w2", "w3"]);
+    expect(rows.map((r) => r.attributes.fixture_id).sort()).toEqual([
+      "w2",
+      "w3",
+    ]);
     expect(
       await countMemories(db, [testPartition], {
         after: "2026-08-10",
@@ -125,7 +142,7 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
     // `…+00:00` BELOW `…Z` (0x2B '+' < 0x5A 'Z') and wrongly EXCLUDE the
     // +00:00 row from an inclusive after=…Z bound. try_cast parses both
     // to the same TIMESTAMP, so the boundary row must be included.
-    seed([
+    await seed([
       memory("fmt1", "/t/plus00", "2026-08-07T09:27:00.749+00:00"),
       memory("fmt2", "/t/zulu", "2026-08-07T09:27:00.749Z"),
       memory("fmt3", "/t/earlier", "2026-08-07T09:27:00.500Z"),
@@ -135,13 +152,16 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       after: "2026-08-07T09:27:00.749Z",
       limit: 10,
     });
-    expect(rows.map((r) => r.id).sort()).toEqual(["fmt1", "fmt2"]);
+    expect(rows.map((r) => r.attributes.fixture_id).sort()).toEqual([
+      "fmt1",
+      "fmt2",
+    ]);
   });
 
   it("chat-archive date facets match since/until even when the row timestamp is ingestion time", async () => {
     // The record's timestamp is when the archive job INGESTED the chat
     // (2026-08-07); the message date lives in the key facet (2026-05-24).
-    seed([
+    await seed([
       memory(
         "chat1",
         "/chats/karahermes-dm/2026-05-24/part-1",
@@ -169,7 +189,11 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-05-24T23:59:59.999Z",
       limit: 10,
     });
-    expect(rows.map((r) => r.id).sort()).toEqual(["chat1", "chat2", "plain"]);
+    expect(rows.map((r) => r.attributes.fixture_id).sort()).toEqual([
+      "chat1",
+      "chat2",
+      "plain",
+    ]);
     expect(
       await countMemories(db, [testPartition], {
         after: "2026-05-24T00:00:00.000Z",
@@ -184,11 +208,11 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-06-01T23:59:59.999Z",
       limit: 10,
     });
-    expect(later.map((r) => r.id)).toEqual(["chat3"]);
+    expect(later.map((r) => r.attributes.fixture_id)).toEqual(["chat3"]);
   });
 
   it("applies the window inside the dedup — the latest in-window record wins", async () => {
-    seed([
+    await seed([
       memory("v1", "/notes/versioned", "2026-08-01T00:00:00.000Z"),
       memory("v1", "/notes/versioned", "2026-08-20T00:00:00.000Z"),
       memory("v2", "/notes/other", "2026-08-15T00:00:00.000Z"),
@@ -201,7 +225,7 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-08-10",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["v1"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual(["v1"]);
     expect(
       await countMemories(db, [testPartition], {
         after: "2026-08-01",
@@ -211,7 +235,7 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
   });
 
   it("excludes tombstoned memories inside the window", async () => {
-    seed([
+    await seed([
       memory("t1", "/t/dead", "2026-08-11T00:00:00.000Z"),
       memory("t1", "/t/dead", "2026-08-12T00:00:00.000Z", "tombstone"),
       memory("t2", "/t/alive", "2026-08-12T00:00:00.000Z"),
@@ -222,11 +246,11 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       before: "2026-08-13",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["t2"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual(["t2"]);
   });
 
   it("combines time filters with other filters (keyPrefix)", async () => {
-    seed([
+    await seed([
       memory("p1", "/proj/alpha", "2026-08-10T00:00:00.000Z"),
       memory("p2", "/proj/beta", "2026-08-11T00:00:00.000Z"),
       memory("p3", "/other/gamma", "2026-08-11T00:00:00.000Z"),
@@ -237,6 +261,6 @@ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
       after: "2026-08-11",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["p2"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual(["p2"]);
   });
 });

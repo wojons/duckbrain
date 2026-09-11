@@ -35,7 +35,7 @@ describe("DuckDB Queries", () => {
   });
 
   describe("insertMemory", () => {
-    it("should insert memory to partition", () => {
+    it("should insert memory to partition", async () => {
       const memory = createMemory({
         key: "/test/memory1",
         domain: "raw_note",
@@ -43,13 +43,13 @@ describe("DuckDB Queries", () => {
         embedding_text: "Test memory",
       });
 
-      insertMemory(db, memory, testPartition);
+      await insertMemory(db, memory, testPartition);
 
       // Verify file was created
       expect(fs.existsSync(testPartition)).toBe(true);
     });
 
-    it("should create partition if not exists", () => {
+    it("should create partition if not exists", async () => {
       const memory = createMemory({
         key: "/test/new-partition",
         domain: "raw_note",
@@ -58,7 +58,7 @@ describe("DuckDB Queries", () => {
       });
 
       expect(fs.existsSync(testPartition)).toBe(false);
-      insertMemory(db, memory, testPartition);
+      await insertMemory(db, memory, testPartition);
       expect(fs.existsSync(testPartition)).toBe(true);
     });
   });
@@ -72,7 +72,7 @@ describe("DuckDB Queries", () => {
         embedding_text: "Will be tombstoned",
       });
 
-      insertMemory(db, originalMemory, testPartition);
+      await insertMemory(db, originalMemory, testPartition);
 
       // Create tombstone
       await tombstoneMemory(
@@ -104,7 +104,11 @@ describe("DuckDB Queries", () => {
     it("should handle non-existent memory gracefully", async () => {
       // Should not throw
       await expect(
-        tombstoneMemory(db, "non-existent-id", testPartition),
+        tombstoneMemory(
+          db,
+          "00000000-0000-4000-8000-000000000099",
+          testPartition,
+        ),
       ).resolves.not.toThrow();
     });
   });
@@ -125,8 +129,8 @@ describe("DuckDB Queries", () => {
         embedding_text: "Second memory",
       });
 
-      insertMemory(db, memory1, testPartition);
-      insertMemory(db, memory2, testPartition);
+      await insertMemory(db, memory1, testPartition);
+      await insertMemory(db, memory2, testPartition);
 
       const results = await queryMemories(db, [testPartition]);
       expect(results.length).toBeGreaterThanOrEqual(2);
@@ -140,7 +144,7 @@ describe("DuckDB Queries", () => {
         embedding_text: "Filter test",
       });
 
-      insertMemory(db, memory, testPartition);
+      await insertMemory(db, memory, testPartition);
       await tombstoneMemory(db, memory.id, testPartition);
 
       const results = await queryMemories(db, [testPartition]);
@@ -163,7 +167,7 @@ describe("DuckDB Queries", () => {
         embedding_text: "Specific key",
       });
 
-      insertMemory(db, memory1, testPartition);
+      await insertMemory(db, memory1, testPartition);
 
       const results = await queryMemories(db, [testPartition], {
         key: "/test/specific",
@@ -187,8 +191,8 @@ describe("DuckDB Queries", () => {
         embedding_text: "Event memory",
       });
 
-      insertMemory(db, memory1, testPartition);
-      insertMemory(db, memory2, testPartition);
+      await insertMemory(db, memory1, testPartition);
+      await insertMemory(db, memory2, testPartition);
 
       const personResults = await queryMemories(db, [testPartition], {
         domain: "person",

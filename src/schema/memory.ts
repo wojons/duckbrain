@@ -67,7 +67,7 @@ export const MemorySchema = z.object({
   domain: DomainEnum,
 
   /** ISO-8601 timestamp of record creation */
-  timestamp: z.string().datetime(),
+  timestamp: z.string().datetime({ offset: true }),
 
   /** RETR-011: optional validity-window start (ISO-8601 datetime).
    *  Absent = valid from the moment of writing. A future valid_from keeps

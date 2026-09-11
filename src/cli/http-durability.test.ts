@@ -135,7 +135,7 @@ function readNamespaceRecords(ns: string): unknown[] {
   const records: unknown[] = [];
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git") continue;
+      if (entry.name === ".git" || entry.name === "_audit") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.name.endsWith(".jsonl")) {
@@ -187,9 +187,9 @@ describe("SUPA-1 AC-6: X-Durability header on POST /api/memories", () => {
 
     // The write really landed in the namespace's JSONL store.
     expect(readNamespaceRecords(FSYNC_NS)).toHaveLength(1);
-    expect(
-      (readNamespaceRecords(FSYNC_NS)[0] as { key: string }).key,
-    ).toBe("/supa1/http/fsync");
+    expect((readNamespaceRecords(FSYNC_NS)[0] as { key: string }).key).toBe(
+      "/supa1/http/fsync",
+    );
   });
 });
 
@@ -235,7 +235,10 @@ describe("SUPA-1 AC-6: /health durability block", () => {
 describe("SUPA-1 AC-8: concurrent fsync-mode writes amortize the barrier", () => {
   it("issues at most one fdatasync per write (K acks → ≤ K barriers)", async () => {
     writeConfig({
-      durability: { defaultMode: "buffered", overrides: { [FSYNC_NS]: "fsync" } },
+      durability: {
+        defaultMode: "buffered",
+        overrides: { [FSYNC_NS]: "fsync" },
+      },
     });
 
     const realFdatasync = fs.fdatasyncSync.bind(fs);
@@ -265,19 +268,20 @@ describe("SUPA-1 AC-8: concurrent fsync-mode writes amortize the barrier", () =>
   });
 });
 
-describe("SUPA-1 AC-4: direct mode fails loud through the API", () => {
-  it("returns 500 DURABILITY_DIRECT_FRAME_ERROR for an unframed append and writes nothing", async () => {
+describe("SUPA-1/SUPA-2: direct mode is framed through the serializer", () => {
+  it("returns 201 for the serializer-framed append and writes one memory", async () => {
     writeConfig({
-      durability: { defaultMode: "buffered", overrides: { [DIRECT_NS]: "direct" } },
+      durability: {
+        defaultMode: "buffered",
+        overrides: { [DIRECT_NS]: "direct" },
+      },
     });
 
     const res = await postMemory(DIRECT_NS, "/supa1/http/direct");
 
-    expect(res.status).toBe(500);
-    expect(res.body.code).toBe("DURABILITY_DIRECT_FRAME_ERROR");
-    expect(res.headers["x-durability"]).toBeUndefined();
-    // No silent buffered fallback: not one byte for this record.
-    expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(0);
+    expect(res.status).toBe(201);
+    expect(res.headers["x-durability"]).toBe("direct");
+    expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(1);
   });
 });
 

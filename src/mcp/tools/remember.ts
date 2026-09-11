@@ -11,25 +11,16 @@ import {
   safeValidateMemory,
   createMemory,
 } from "../../schema/memory";
-import {
-  getPartitionPath,
-  createPartition,
-  appendToJsonl,
-} from "../../storage/jsonl";
-import {
-  appendJsonlDirect,
-  appendJsonlDurable,
-  resolveWriteMode,
-} from "../../storage/durability";
-import { isDurabilityError } from "../../storage/durability-errors";
-import { addPartition } from "../../storage/manifest";
+import { getPartitionPath } from "../../storage/jsonl";
 import { getAuthorEmail } from "../../git/attribution";
 import { getMcpRequestPrincipal } from "../../cli/http";
-import { principalAuthorEmail } from "../../auth/middleware";
-import { commitNamespace } from "../../git/autocommit";
+import {
+  principalAuthorEmail,
+  type AuthPrincipal,
+} from "../../auth/middleware";
+import { getNamespaceWriter } from "../../serialization/namespaceWriter";
 import { normalizeAttributes } from "../../utils/serialize";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
-import path from "path";
 import fs from "fs";
 
 /**
@@ -85,6 +76,11 @@ const RememberInputSchema = z.object({
 
 type RememberInput = z.infer<typeof RememberInputSchema>;
 
+export interface RememberContext {
+  /** Injectable SUPA-4 principal seam; MCP-over-HTTP falls back to ALS. */
+  principal?: AuthPrincipal;
+}
+
 /**
  * Output schema for remember tool (hybrid format per D-05)
  */
@@ -103,6 +99,8 @@ interface RememberOutput {
   /** SUPA-1: machine-readable failure code (e.g. DURABILITY_UNSUPPORTED,
    *  DURABILITY_DIRECT_FRAME_ERROR) so HTTP routes can surface it verbatim */
   code?: string;
+  fields?: Record<string, string>;
+  retryAfter?: number;
   error?: string;
 }
 
@@ -129,6 +127,7 @@ function getTimeBasedPartition(): string {
  */
 export async function rememberTool(
   input: RememberInput,
+  context: RememberContext = {},
 ): Promise<RememberOutput> {
   try {
     // Validate input
@@ -155,7 +154,7 @@ export async function rememberTool(
     // (auth=none) mode getMcpRequestPrincipal() is undefined and the
     // client-supplied author (or the git-config fallback) keeps its exact
     // legacy behavior.
-    const mcpPrincipal = getMcpRequestPrincipal();
+    const mcpPrincipal = context.principal ?? getMcpRequestPrincipal();
     const authorIdentity = mcpPrincipal
       ? principalAuthorEmail(mcpPrincipal)
       : (author ?? getAuthorEmail());
@@ -198,44 +197,41 @@ export async function rememberTool(
       fs.mkdirSync(namespacePath, { recursive: true });
     }
 
-    // Determine partition path (time-based)
+    // Determine partition path (time-based). Directory creation, chunk
+    // rotation, manifest update, durability barrier, audit, and commit
+    // scheduling all run inside the namespace serializer's fenced flush.
     const partitionValue = getTimeBasedPartition();
     const partitionRelPath = getPartitionPath(
-      namespace!,
+      resolvedNamespace,
       domain,
       "time",
       partitionValue,
     );
-    const partitionPath = path.join(namespacePath, partitionRelPath);
-
-    // Create partition if not exists
-    createPartition(partitionPath);
-
-    // Append to JSONL, honoring the namespace's SUPA-1 durability mode.
-    //
-    // buffered (default) — page-cache append, the historical semantics.
-    // fsync   — fdatasync + directory fsync BEFORE this call returns, so the
-    //           record is on stable storage before the caller can ack it.
-    // direct  — O_DIRECT append of a block-framed record; an unframed line
-    //           (the only kind this tool produces) fails loudly with
-    //           DURABILITY_DIRECT_FRAME_ERROR until the SUPA-2 serializer
-    //           owns the framing. No silent fallback to buffered.
-    const chunkPath = path.join(partitionPath, "current.jsonl");
-    const writeMode = resolveWriteMode(resolvedNamespace);
-    if (writeMode === "fsync") {
-      appendJsonlDurable(chunkPath, memory);
-    } else if (writeMode === "direct") {
-      // Unframed input: throws DURABILITY_DIRECT_FRAME_ERROR by contract.
-      appendJsonlDirect(chunkPath, memory);
-    } else {
-      appendToJsonl(chunkPath, memory);
+    const writeResult = await getNamespaceWriter(resolvedNamespace).enqueue({
+      ns: resolvedNamespace,
+      table: "memories",
+      op:
+        memory.action === "tombstone"
+          ? "delete"
+          : memory.action === "update"
+            ? "update"
+            : "insert",
+      record: memory,
+      principal: mcpPrincipal,
+      targetPath: `${partitionRelPath}current.jsonl`,
+      partitionPath: partitionRelPath,
+    });
+    if (!writeResult.ok) {
+      return {
+        success: false,
+        code: writeResult.code,
+        error: writeResult.message,
+        ...(writeResult.fields ? { fields: writeResult.fields } : {}),
+        ...(writeResult.retryAfter
+          ? { retryAfter: writeResult.retryAfter }
+          : {}),
+      };
     }
-
-    // Update manifest
-    addPartition(namespacePath, partitionRelPath);
-
-    // Auto-commit to namespace git repo
-    commitNamespace(namespacePath);
 
     // Return hybrid response — DOGFOOD-017: echo the namespace actually
     // written, and warn when it is not the 'default' namespace (the active
@@ -254,13 +250,10 @@ export async function rememberTool(
     }
     return response;
   } catch (error) {
+    const coded = error as { code?: string };
     return {
       success: false,
-      // SUPA-1: a durability-contract failure (O_DIRECT unsupported, fdatasync
-      // EIO, unframed direct append) carries its machine-readable code through
-      // to the route so the client sees 500 DURABILITY_* rather than a bare
-      // internal error. The write is never acknowledged in these paths.
-      ...(isDurabilityError(error) ? { code: error.code } : {}),
+      ...(typeof coded?.code === "string" ? { code: coded.code } : {}),
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }

@@ -82,6 +82,21 @@ export const DuckBrainConfigSchema = z.object({
     overrides: {},
   }),
 
+  /** SUPA-2 per-namespace fan-in queue bounds */
+  serialization: z
+    .object({
+      maxPendingRows: z.number().int().positive().default(10_000),
+      maxPendingBytes: z
+        .number()
+        .int()
+        .positive()
+        .default(32 * 1024 * 1024),
+    })
+    .default({
+      maxPendingRows: 10_000,
+      maxPendingBytes: 32 * 1024 * 1024,
+    }),
+
   /** Squash/compaction settings */
   squash: z
     .object({
@@ -407,6 +422,10 @@ export function initializeConfig(
     durability: {
       defaultMode: "buffered",
       overrides: {},
+    },
+    serialization: {
+      maxPendingRows: 10_000,
+      maxPendingBytes: 32 * 1024 * 1024,
     },
     squash: {
       maxAgeDays: 30,

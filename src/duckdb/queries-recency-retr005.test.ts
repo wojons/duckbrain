@@ -25,6 +25,14 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 
+function fixtureId(label: string): string {
+  const suffix = Buffer.from(label)
+    .toString("hex")
+    .padEnd(12, "0")
+    .slice(0, 12);
+  return `00000000-0000-4000-8000-${suffix}`;
+}
+
 function memory(
   id: string,
   key: string,
@@ -32,14 +40,14 @@ function memory(
   action: "add" | "update" | "tombstone" = "add",
 ): MemoryType {
   return {
-    id,
+    id: fixtureId(id),
     key,
     domain: "message",
     timestamp,
     author: "test@example.com",
     action,
     embedding_text: `Record ${id}`,
-    attributes: {},
+    attributes: { fixture_id: id },
   };
 }
 
@@ -66,12 +74,12 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
     }
   });
 
-  function seed(records: MemoryType[]): void {
-    for (const r of records) insertMemory(db, r, testPartition);
+  async function seed(records: MemoryType[]): Promise<void> {
+    for (const r of records) await insertMemory(db, r, testPartition);
   }
 
   it("exact-key listing returns newest first (was oldest-first)", async () => {
-    seed([
+    await seed([
       memory("oldest", "/notes/same-key", "2026-08-01T00:00:00.000Z"),
       memory("middle", "/notes/same-key", "2026-08-10T00:00:00.000Z"),
       memory("newest", "/notes/same-key", "2026-08-20T00:00:00.000Z"),
@@ -81,11 +89,15 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
       key: "/notes/same-key",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["newest", "middle", "oldest"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual([
+      "newest",
+      "middle",
+      "oldest",
+    ]);
   });
 
   it("glob/keyPrefix listing returns newest first", async () => {
-    seed([
+    await seed([
       memory("g1", "/proj/alpha", "2026-08-01T00:00:00.000Z"),
       memory("g2", "/proj/beta", "2026-08-05T00:00:00.000Z"),
       memory("g3", "/proj/gamma", "2026-08-09T00:00:00.000Z"),
@@ -96,25 +108,33 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
       keyPrefix: "/proj/",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["g3", "g2", "g1"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual([
+      "g3",
+      "g2",
+      "g1",
+    ]);
   });
 
   it("plain and domain listing legs are newest-first too", async () => {
-    seed([
+    await seed([
       memory("d1", "/dom/person", "2026-08-01T00:00:00.000Z"),
       memory("d2", "/dom/event", "2026-08-02T00:00:00.000Z"),
       memory("d3", "/dom/person", "2026-08-03T00:00:00.000Z"),
     ]);
 
     const all = await queryMemories(db, [testPartition], { limit: 10 });
-    expect(all.map((r) => r.id)).toEqual(["d3", "d2", "d1"]);
+    expect(all.map((r) => r.attributes.fixture_id)).toEqual(["d3", "d2", "d1"]);
 
     const persons = await queryMemories(db, [testPartition], {
       domain: "message",
       keyPrefix: "/dom/",
       limit: 10,
     });
-    expect(persons.map((r) => r.id)).toEqual(["d3", "d2", "d1"]);
+    expect(persons.map((r) => r.attributes.fixture_id)).toEqual([
+      "d3",
+      "d2",
+      "d1",
+    ]);
   });
 
   it("mixed timestamp formats order as instants, not strings (RETR-003 try_cast semantics)", async () => {
@@ -124,7 +144,7 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
     // so `.749Z` sorts ABOVE the newer `.749525+00:00` row — a string DESC
     // would wrongly put the OLDER row first. try_cast parses both to
     // TIMESTAMPs and orders them as instants.
-    seed([
+    await seed([
       memory("zulu", "/fmt/z", "2026-08-07T09:27:00.749Z"),
       memory("micros", "/fmt/m", "2026-08-07T09:27:00.749525+00:00"),
       memory("earlier", "/fmt/e", "2026-08-07T09:27:00.500Z"),
@@ -134,12 +154,16 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
       keyPrefix: "/fmt/",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["micros", "zulu", "earlier"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual([
+      "micros",
+      "zulu",
+      "earlier",
+    ]);
   });
 
   it("equal timestamps fall back to id ascending (deterministic)", async () => {
     const sameTs = "2026-08-15T12:00:00.000Z";
-    seed([
+    await seed([
       memory("c-id", "/tie/c", sameTs),
       memory("a-id", "/tie/a", sameTs),
       memory("b-id", "/tie/b", sameTs),
@@ -149,11 +173,15 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
       keyPrefix: "/tie/",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["a-id", "b-id", "c-id"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual([
+      "a-id",
+      "b-id",
+      "c-id",
+    ]);
   });
 
   it("dedup + tombstone semantics survive: latest non-tombstone record decides", async () => {
-    seed([
+    await seed([
       // v1 updated over time — the 08-20 record surfaces.
       memory("v1", "/ver/dupe", "2026-08-01T00:00:00.000Z"),
       memory("v1", "/ver/dupe", "2026-08-20T00:00:00.000Z"),
@@ -169,7 +197,7 @@ describe("RETR-005: recency-aware listing — queryMemories", () => {
       keyPrefix: "/ver/",
       limit: 10,
     });
-    expect(rows.map((r) => r.id)).toEqual(["v1"]);
+    expect(rows.map((r) => r.attributes.fixture_id)).toEqual(["v1"]);
     expect(rows[0].timestamp).toBe("2026-08-20T00:00:00.000Z");
   });
 });

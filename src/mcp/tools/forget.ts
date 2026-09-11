@@ -9,8 +9,9 @@ import { z } from "zod";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { queryMemories, tombstoneMemory } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import { resolveNamespacePath } from "./shared";
-import { commitNamespace } from "../../git/autocommit";
+import { getMcpRequestPrincipal } from "../../cli/http";
+import type { AuthPrincipal } from "../../auth/middleware";
+import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import path from "path";
 import fs from "fs";
 
@@ -37,6 +38,10 @@ const ForgetInputSchema = z.object({
 
 type ForgetInput = z.infer<typeof ForgetInputSchema>;
 
+export interface ForgetContext {
+  principal?: AuthPrincipal;
+}
+
 /**
  * Output schema for forget tool
  */
@@ -44,6 +49,8 @@ interface ForgetOutput {
   success: boolean;
   id?: string;
   tombstoned?: boolean;
+  code?: string;
+  retryAfter?: number;
   error?: string;
 }
 
@@ -84,7 +91,10 @@ function getAllPartitionPaths(
  * @param input - Tool input parameters
  * @returns Success status with tombstone confirmation
  */
-export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
+export async function forgetTool(
+  input: ForgetInput,
+  context: ForgetContext = {},
+): Promise<ForgetOutput> {
   try {
     // Validate input
     const parseResult = ForgetInputSchema.safeParse(input);
@@ -98,13 +108,14 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     const { id, reason, namespace, domain, author } = parseResult.data;
 
     // Resolve namespace path
-    const namespacePath = resolveNamespacePath(namespace);
+    const resolvedNamespace = resolveNamespaceName(namespace);
+    const namespacePath = resolveNamespacePath(resolvedNamespace);
 
     // Check if namespace exists
     if (!fs.existsSync(namespacePath)) {
       return {
         success: false,
-        error: `Namespace '${namespace}' not found`,
+        error: `Namespace '${resolvedNamespace}' not found`,
       };
     }
 
@@ -140,12 +151,10 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
     );
     const partitionPath = path.join(namespacePath, partitionRelPath);
 
-    // Create tombstone record — DB-GAP-031: stamp the authenticated
-    // principal's identity when provided, else keep the original author.
-    await tombstoneMemory(db, id, partitionPath, reason, author);
-
-    // Auto-commit to namespace git repo
-    commitNamespace(namespacePath);
+    // Create tombstone record. The authenticated principal is evaluated by
+    // the SUPA-4 seam before enqueue and again while the flush lock is held.
+    const principal = context.principal ?? getMcpRequestPrincipal();
+    await tombstoneMemory(db, id, partitionPath, reason, author, principal);
 
     return {
       success: true,
@@ -153,8 +162,13 @@ export async function forgetTool(input: ForgetInput): Promise<ForgetOutput> {
       tombstoned: true,
     };
   } catch (error) {
+    const coded = error as { code?: string; retryAfter?: number };
     return {
       success: false,
+      ...(typeof coded?.code === "string" ? { code: coded.code } : {}),
+      ...(typeof coded?.retryAfter === "number"
+        ? { retryAfter: coded.retryAfter }
+        : {}),
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }

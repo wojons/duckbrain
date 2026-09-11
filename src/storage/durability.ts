@@ -31,9 +31,8 @@
  *   exposure to git (and, with `s3.pushOnCommit`, to the S3 remote) remains
  *   ≤ `gitBatching.maxSeconds` (default 30s) / the S3 push window. RPO = 0 is a
  *   SINGLE-NODE claim: no synchronous cross-machine replication.
- * - **Tombstone appends** (`forgetTool` → `insertMemoryToPartition`,
- *   `src/duckdb/queries.ts`) still take the buffered append path; unifying all
- *   filesystem writes behind the serializer is DB-SUPA-2.
+ * - **Tombstone appends** (`forgetTool` → `tombstoneMemory`) are routed through
+ *   the SUPA-2 namespace serializer alongside remember writes.
  *
  * ── Mode selection ───────────────────────────────────────────────────────────
  *
@@ -123,7 +122,7 @@ export function isFramedJsonlWrite(value: unknown): value is FramedJsonlWrite {
  * @throws Error when the record cannot be serialized (never a silent skip:
  *   fsync/direct mode cannot drop a write it acknowledged)
  */
-export function frameJsonlRecord(record: MemoryType): FramedJsonlWrite {
+export function frameJsonlRecord(record: unknown): FramedJsonlWrite {
   const line = serializeJsonlLine(record);
   if (line === null) {
     throw new Error(
@@ -132,10 +131,7 @@ export function frameJsonlRecord(record: MemoryType): FramedJsonlWrite {
     );
   }
   const payload = Buffer.from(line + "\n", "utf-8");
-  const blocks = Math.max(
-    1,
-    Math.ceil(payload.length / DURABILITY_BLOCK_SIZE),
-  );
+  const blocks = Math.max(1, Math.ceil(payload.length / DURABILITY_BLOCK_SIZE));
   // 0x0a (newline) padding keeps the framed unit valid JSONL for every reader.
   const buffer = Buffer.alloc(blocks * DURABILITY_BLOCK_SIZE, 0x0a);
   payload.copy(buffer, 0);
@@ -194,7 +190,9 @@ export interface DurabilityHealth {
  *
  * @param config - Config override for tests (defaults to getConfig())
  */
-export function getDurabilityHealth(config?: DuckBrainConfig): DurabilityHealth {
+export function getDurabilityHealth(
+  config?: DuckBrainConfig,
+): DurabilityHealth {
   try {
     const cfg = config ?? getConfig(".");
     const defaultMode = cfg.durability?.defaultMode ?? "buffered";
