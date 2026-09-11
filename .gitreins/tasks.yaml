@@ -936,3 +936,15 @@ tasks:
   status: complete
   created_at: '2026-08-27T16:58:26.148862+00:00'
   completed_at: '2026-08-27T17:00:32.251214+00:00'
+- id: DB-SUPA-2
+  title: SUPA serialization layer
+  criteria:
+  - Concurrent API writers across multiple namespaces produce zero torn/interleaved
+    JSONL lines and zero lost acknowledged writes
+  - Writes are deterministically ordered per namespace through one writer with cross-process
+    locking and dead-holder recovery
+  - Role authorization happens before enqueue, durable modes write WAL before acknowledgement,
+    and accepted writes retain audit evidence
+  status: complete
+  created_at: '2026-09-11T00:41:25.154034+00:00'
+  completed_at: '2026-09-11T01:48:18.147374+00:00'

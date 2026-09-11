@@ -15,8 +15,8 @@ guards:
   lsp: false
 
 evaluator:
-  max_iterations: 150
-  max_time: "15m"
+  max_iterations: 250
+  max_time: "25m"
   max_input_tokens: "4M"
   max_output_tokens: "0.05M"
   tool_call_weight: 0.1
