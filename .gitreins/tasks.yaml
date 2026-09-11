@@ -970,3 +970,15 @@ tasks:
   status: complete
   created_at: '2026-09-11T11:35:11.775182+00:00'
   completed_at: '2026-09-11T12:14:24.134192+00:00'
+- id: DB-SUPA-10
+  title: "SPEC SET B \u2014 specs for realtime, declared DDL, and positioning"
+  criteria:
+  - Create docs/specs/SUPA-5-realtime.md, SUPA-6-ddl.md, and SUPA-8-positioning.md.
+    Each must contain the six canonical sections (Problem Statement, Acceptance Criteria,
+    Edge Cases, Non-Goals, Dependencies, Test Plan); acceptance criteria must use
+    testable Given/When/Then form; content must pin the board-required contracts,
+    cite real repository symbols and authoritative sources, avoid invented APIs, and
+    remain docs-only.
+  status: complete
+  created_at: '2026-09-11T19:15:54.654950+00:00'
+  completed_at: '2026-09-11T19:27:28.021207+00:00'
