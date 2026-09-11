@@ -72,7 +72,7 @@ async function makeFixture(): Promise<Fixture> {
   const authFilePath = path.join(dataDir, "auth.json");
   fs.writeFileSync(
     authFilePath,
-    JSON.stringify({ users: {}, apiKeys: {} }),
+    JSON.stringify({ users: [], apiKeys: [] }),
     "utf-8",
   );
 

@@ -42,6 +42,7 @@ import {
 } from "../ssh/client";
 import { createTunnel, listTunnels } from "../ssh/tunnel";
 import { resolveAuthStorePath } from "./http";
+import { hashApiKey } from "../auth/storeSchema";
 import { execSync } from "child_process";
 import http from "http";
 import fs from "fs";
@@ -1687,7 +1688,11 @@ async function tokenCommand(args: string[]): Promise<void> {
   if (!authConfig.apiKeys) {
     authConfig.apiKeys = [];
   }
-  const tokenEntry: any = { key: token, name: tokenName };
+  const tokenEntry: any = {
+    keyHash: hashApiKey(token),
+    name: tokenName,
+    roles: ["admin"],
+  };
   if (namespaceGrants.length > 0) {
     tokenEntry.namespaces = namespaceGrants;
   }

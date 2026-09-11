@@ -106,7 +106,7 @@ function mintedToken(stdout: string): string {
   return match[0];
 }
 
-/** Assert the scratch auth store contains exactly the minted token. */
+/** Assert the scratch auth store contains only the minted token's digest. */
 function expectScratchHasToken(
   authFile: string,
   token: string,
@@ -114,9 +114,16 @@ function expectScratchHasToken(
 ): void {
   const parsed = JSON.parse(fs.readFileSync(authFile, "utf-8"));
   expect(Array.isArray(parsed.apiKeys)).toBe(true);
-  const entry = parsed.apiKeys.find((k: { key: string }) => k.key === token);
+  const digest =
+    "$sha256$" + crypto.createHash("sha256").update(token).digest("hex");
+  const entry = parsed.apiKeys.find(
+    (candidate: { keyHash?: string }) => candidate.keyHash === digest,
+  );
   expect(entry).toBeDefined();
   expect(entry.name).toBe(name);
+  expect(entry.roles).toEqual(["admin"]);
+  expect(entry).not.toHaveProperty("key");
+  expect(fs.readFileSync(authFile, "utf-8")).not.toContain(token);
 }
 
 /* ------------------------------------------------------------------ tests */

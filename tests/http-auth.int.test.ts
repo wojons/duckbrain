@@ -15,28 +15,38 @@ import bcrypt from "bcryptjs";
 
 const port = getRandomPort();
 let server: ChildProcess;
-const authDir = path.join(os.homedir(), ".duckbrain");
-const authFile = path.join(authDir, "auth.json");
-let savedAuth: string | null = null;
+let scratchDir: string;
+let authFile: string;
 
 describe("HTTP Auth Integration", () => {
   beforeAll(async () => {
-    if (fs.existsSync(authFile)) {
-      savedAuth = fs.readFileSync(authFile, "utf-8");
-    }
+    scratchDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-http-auth-int-"),
+    );
+    const authDir = path.join(scratchDir, "home", ".duckbrain");
+    const namespacesPath = path.join(scratchDir, "namespaces");
+    authFile = path.join(authDir, "auth.json");
+    fs.mkdirSync(authDir, { recursive: true });
+    fs.mkdirSync(path.join(namespacesPath, "default"), { recursive: true });
     const hash = await bcrypt.hash("testpass123", 4);
-    if (!fs.existsSync(authDir)) {
-      fs.mkdirSync(authDir, { recursive: true });
-    }
     fs.writeFileSync(
       authFile,
       JSON.stringify({
-        users: [{ username: "admin", passwordHash: hash }],
-        apiKeys: [{ key: "test-api-key-123", name: "test-key" }],
+        users: [{ username: "admin", passwordHash: hash, roles: ["admin"] }],
+        apiKeys: [],
       }),
     );
 
-    server = await startDuckbrainHttp({ port, authType: "basic" });
+    server = await startDuckbrainHttp({
+      port,
+      authType: "basic",
+      authFile,
+      env: {
+        HOME: path.join(scratchDir, "home"),
+        DUCKBRAIN_DATA_DIR: scratchDir,
+        DUCKBRAIN_NAMESPACES_PATH: namespacesPath,
+      },
+    });
     // INT-CI-002: 15s was occasionally insufficient for tsx compile +
     // node-duckdb native load under CI Node-22 parallel load. 30s + the
     // child's stderr tail (surfaced by waitForUrl on timeout) turns the
@@ -54,13 +64,7 @@ describe("HTTP Auth Integration", () => {
 
   afterAll(() => {
     killProcess(server);
-    if (savedAuth !== null) {
-      fs.writeFileSync(authFile, savedAuth);
-    } else {
-      try {
-        fs.unlinkSync(authFile);
-      } catch {}
-    }
+    fs.rmSync(scratchDir, { recursive: true, force: true });
   });
 
   it("should allow /health without auth", async () => {

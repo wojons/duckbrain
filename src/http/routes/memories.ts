@@ -32,9 +32,11 @@ import { resolveAsOfRef } from "../../git/asof";
 import { resolveNamespacePath } from "../../mcp/tools/shared";
 import { durabilityHeaderFor } from "../../storage/durability";
 import {
+  auditRequestDenial,
   getPrincipal,
   principalAuthorEmail,
   requireNamespaceGrant,
+  requireTableGrant,
 } from "../../auth/middleware";
 
 /**
@@ -108,13 +110,30 @@ const router: Router = Router();
 // mirrors each route's own (query param, falling back to body.namespace for
 // writes, else "default"). Passes through untouched in auth=none mode and
 // for unrestricted tokens.
-router.use(
-  requireNamespaceGrant(
-    (req) =>
-      (req.query.namespace as string) ||
-      (req.body as { namespace?: string } | undefined)?.namespace ||
-      "default",
-  ),
+const resolveRequestNamespace = (req: Request): string =>
+  (req.query.namespace as string) ||
+  (req.body as { namespace?: string } | undefined)?.namespace ||
+  "default";
+
+router.use(requireNamespaceGrant(resolveRequestNamespace));
+
+// SUPA-4: the current memory routes are the existing table surface. Legacy
+// principals and auth=none pass through; role-aware principals are checked
+// before any MCP tool or serializer work begins.
+const requireMemoryRead = requireTableGrant(
+  resolveRequestNamespace,
+  () => "memories",
+  "read",
+);
+const requireMemoryWrite = requireTableGrant(
+  resolveRequestNamespace,
+  () => "memories",
+  "write",
+);
+router.use((req, res, next) =>
+  req.method === "GET" || req.method === "HEAD"
+    ? requireMemoryRead(req, res, next)
+    : requireMemoryWrite(req, res, next),
 );
 
 // GAP-023: upper bound on a single page so one request can never force a
@@ -233,6 +252,11 @@ router.get(
     if (params.allNamespaces) {
       const principal = getPrincipal(req);
       if (principal && principal.namespaces !== undefined) {
+        auditRequestDenial(req, {
+          op: "memories.search_all_namespaces",
+          principal: principal.name,
+          reason: "namespace_scope",
+        });
         throw new ApiError(
           `Forbidden: token '${principal.name}' has no grant for cross-namespace search — ?allNamespaces=true requires an unrestricted token`,
           403,

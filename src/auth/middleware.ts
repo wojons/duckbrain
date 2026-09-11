@@ -1,236 +1,426 @@
 /**
- * Authentication Middleware
+ * Authentication and authorization middleware.
  *
- * Provides configurable authentication for the HTTP server.
- * Supports three modes: none, basic (HTTP Basic Auth with bcrypt),
- * and apikey (X-API-Key header).
- *
- * Health endpoint (/health) always bypasses authentication.
+ * The shipped none/basic/apikey modes are implemented behind AuthBackend.
+ * Health remains pre-auth; auth=none remains local pass-through.
  */
 
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { Request, Response, NextFunction, RequestHandler } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
+import {
+  AuthStoreSchema,
+  hashApiKey,
+  type ApiKeyEntry,
+  type AuthStoreSource,
+  type UserEntry,
+} from "./storeSchema";
+import {
+  authorizeRawSql,
+  authorizeTableAccess,
+  hasAnyRole,
+  type DenialReason,
+  type PrincipalSqlPolicy,
+  type Role,
+  type TableGrant,
+} from "./roles";
 
-/**
- * API key entry for apikey auth
- */
-export interface ApiKeyEntry {
-  /** The secret key sent in the X-API-Key header */
-  key: string;
-  /** Human-readable token name — also the identity stamped on writes */
-  name: string;
-  /** Namespace grants (DB-GAP-031): when present, the token may only
-   *  access these namespaces (403 otherwise). Absent = unrestricted
-   *  (backward compatible — existing tokens keep full access). */
-  namespaces?: string[];
+export type { ApiKeyEntry, Role, TableGrant, UserEntry };
+
+export interface DenialAuditEvent {
+  ts: string;
+  ns?: string;
+  table?: string;
+  op: string;
+  principal?: string | null;
+  outcome: "denied";
+  reason: DenialReason;
 }
 
-/**
- * Authentication configuration
- */
+export type DenialAuditor = (event: DenialAuditEvent) => void | Promise<void>;
+
 export interface AuthConfig {
-  /** Auth type: 'none' = no auth, 'basic' = HTTP Basic, 'apikey' = API key header */
   type: "none" | "basic" | "apikey";
-  /** Users for basic auth (passwords stored as bcrypt hashes) */
-  users?: Array<{ username: string; passwordHash: string }>;
-  /** API keys for apikey auth */
+  users?: UserEntry[];
   apiKeys?: ApiKeyEntry[];
+  /** Live, validated file store. Inline users/apiKeys remain test/embed seams. */
+  store?: AuthStoreSource;
+  /** Injectable server clock for expiry boundary tests. */
+  now?: () => Date;
+  /** Non-blocking audit sink attached to the request for grant middleware. */
+  auditDenial?: DenialAuditor;
 }
 
-/**
- * Authenticated principal attached to req.user by authMiddleware.
- *
- * Present on every request that passed basic/apikey authentication.
- * In auth=none mode no principal is attached (local single-user mode).
- */
 export interface AuthPrincipal {
-  /** Identity used for author stamping (token name / basic username) */
   name: string;
-  /** Always true on an authenticated principal */
   authenticated: boolean;
-  /** Namespace grants — undefined = unrestricted (all namespaces) */
   namespaces?: string[];
+  roles?: Role[];
+  tableGrants?: Record<string, TableGrant>;
+  tokenType?: "basic" | "apikey";
+  expiresAt?: string;
+  sql?: PrincipalSqlPolicy;
+  /** Kept for HTTP Basic consumers that used the pre-SUPA-4 request shape. */
+  username?: string;
 }
 
-/**
- * Read the authenticated principal off a request.
- *
- * @param req - Express request
- * @returns The principal, or undefined when the request is unauthenticated
- *  (auth=none mode, /health bypass)
- */
+export interface AuthBackend {
+  readonly type: "none" | "basic" | "apikey";
+  authenticate(req: Request): Promise<AuthPrincipal | null>;
+}
+
+export class AuthFailure extends Error {
+  readonly status = 401;
+
+  constructor(
+    message: string,
+    readonly reason: DenialReason = "role",
+    readonly code?: string,
+    readonly principal?: string,
+  ) {
+    super(message);
+    this.name = "AuthFailure";
+  }
+}
+
+const REQUEST_AUDITOR = Symbol("duckbrain.denialAuditor");
+
+type AuditedRequest = Request & {
+  [REQUEST_AUDITOR]?: DenialAuditor;
+};
+
+function inlineStore(config: AuthConfig): AuthStoreSource {
+  const snapshot = AuthStoreSchema.parse({
+    users: config.users ?? [],
+    apiKeys: config.apiKeys ?? [],
+  });
+  return { getSnapshot: () => snapshot };
+}
+
+function principalFields(
+  entry: Pick<ApiKeyEntry | UserEntry, "roles" | "namespaces" | "expiresAt"> &
+    Partial<Pick<ApiKeyEntry, "tableGrants" | "sql">>,
+): Partial<AuthPrincipal> {
+  return {
+    ...(entry.namespaces !== undefined ? { namespaces: entry.namespaces } : {}),
+    ...(entry.roles !== undefined ? { roles: entry.roles } : {}),
+    ...(entry.expiresAt !== undefined ? { expiresAt: entry.expiresAt } : {}),
+    ...(entry.tableGrants !== undefined
+      ? { tableGrants: entry.tableGrants }
+      : {}),
+    ...(entry.sql !== undefined ? { sql: entry.sql } : {}),
+  };
+}
+
+function assertNotExpired(
+  entry: { name?: string; username?: string; expiresAt?: string },
+  now: () => Date,
+): void {
+  if (entry.expiresAt === undefined) return;
+  if (Date.parse(entry.expiresAt) > now().getTime()) return;
+  const name = entry.name ?? entry.username;
+  throw new AuthFailure(
+    "Unauthorized: Token expired",
+    "expired",
+    "TOKEN_EXPIRED",
+    name,
+  );
+}
+
+function digestEquals(presented: string, expectedHash: string): boolean {
+  const presentedDigest = Buffer.from(hashApiKey(presented).slice(8), "hex");
+  const expectedDigest = Buffer.from(expectedHash.slice(8), "hex");
+  return (
+    presentedDigest.length === expectedDigest.length &&
+    crypto.timingSafeEqual(presentedDigest, expectedDigest)
+  );
+}
+
+class NoneAuthBackend implements AuthBackend {
+  readonly type = "none" as const;
+
+  async authenticate(_req: Request): Promise<null> {
+    return null;
+  }
+}
+
+class BasicAuthBackend implements AuthBackend {
+  readonly type = "basic" as const;
+
+  constructor(
+    private readonly store: AuthStoreSource,
+    private readonly now: () => Date,
+  ) {}
+
+  async authenticate(req: Request): Promise<AuthPrincipal> {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Basic ")) {
+      throw new AuthFailure("Unauthorized: Basic auth required");
+    }
+    try {
+      const decoded = Buffer.from(authHeader.slice(6), "base64").toString(
+        "utf-8",
+      );
+      const colonIndex = decoded.indexOf(":");
+      if (colonIndex === -1) {
+        throw new AuthFailure("Unauthorized: Invalid credentials format");
+      }
+      const username = decoded.slice(0, colonIndex);
+      const password = decoded.slice(colonIndex + 1);
+      const snapshot = await this.store.getSnapshot();
+      const user = snapshot.users.find(
+        (candidate) => candidate.username === username,
+      );
+      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+        throw new AuthFailure("Unauthorized: Invalid credentials");
+      }
+      assertNotExpired(user, this.now);
+      return {
+        username,
+        name: username,
+        authenticated: true,
+        tokenType: "basic",
+        ...principalFields(user),
+      };
+    } catch (error) {
+      if (error instanceof AuthFailure) throw error;
+      throw new AuthFailure("Unauthorized: Invalid credentials");
+    }
+  }
+}
+
+class ApiKeyAuthBackend implements AuthBackend {
+  readonly type = "apikey" as const;
+
+  constructor(
+    private readonly store: AuthStoreSource,
+    private readonly now: () => Date,
+  ) {}
+
+  async authenticate(req: Request): Promise<AuthPrincipal> {
+    const presented = req.headers["x-api-key"];
+    const apiKey = Array.isArray(presented) ? presented[0] : presented;
+    if (!apiKey) throw new AuthFailure("Unauthorized: API key required");
+
+    const snapshot = await this.store.getSnapshot();
+    let matched: ApiKeyEntry | undefined;
+    for (const entry of snapshot.apiKeys) {
+      const expected =
+        "keyHash" in entry ? entry.keyHash : hashApiKey(entry.key);
+      if (digestEquals(apiKey, expected)) {
+        matched = entry;
+        break;
+      }
+    }
+    if (!matched) throw new AuthFailure("Unauthorized: Invalid API key");
+    assertNotExpired(matched, this.now);
+
+    if ("key" in matched && this.store.migrateLegacyApiKey) {
+      await this.store.migrateLegacyApiKey(matched.name, apiKey);
+    }
+    return {
+      name: matched.name,
+      authenticated: true,
+      tokenType: "apikey",
+      ...principalFields(matched),
+    };
+  }
+}
+
+export function createAuthBackend(config: AuthConfig): AuthBackend {
+  const store = config.store ?? inlineStore(config);
+  const now = config.now ?? (() => new Date());
+  switch (config.type) {
+    case "none":
+      return new NoneAuthBackend();
+    case "basic":
+      return new BasicAuthBackend(store, now);
+    case "apikey":
+      return new ApiKeyAuthBackend(store, now);
+  }
+}
+
 export function getPrincipal(req: Request): AuthPrincipal | undefined {
-  return (req as any).user as AuthPrincipal | undefined;
+  return (req as Request & { user?: AuthPrincipal }).user;
 }
 
-/**
- * Map an authenticated principal to the author identity stamped on writes.
- *
- * The memory schema requires an email-shaped author (z.string().email()).
- * Token names are frequently not emails (e.g. "agent-alpha"), so non-email
- * names map deterministically to <name>@duckbrain.local — per-agent
- * provenance is preserved (each token yields its own author) while the
- * schema contract holds for every token, including pre-existing ones.
- * Email-shaped names pass through unchanged.
- *
- * @param principal - Authenticated principal
- * @returns Email-shaped author identity derived from the principal name
- */
 export function principalAuthorEmail(principal: AuthPrincipal): string {
   const name = principal.name.trim();
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(name)) {
-    return name;
-  }
-  // Fold whitespace so arbitrary token names still validate as emails.
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(name)) return name;
   return `${name.replace(/\s+/g, "-")}@duckbrain.local`;
 }
 
-/**
- * Create authentication middleware based on config
- *
- * @param config - Authentication configuration
- * @returns Express middleware
- */
+function inferredNamespace(req: Request): string | undefined {
+  const query = req.query?.namespace;
+  if (typeof query === "string" && query) return query;
+  const body = req.body as { namespace?: unknown } | undefined;
+  if (typeof body?.namespace === "string" && body.namespace)
+    return body.namespace;
+  const param = req.params?.namespace ?? req.params?.name;
+  if (typeof param === "string" && param) return param;
+  return undefined;
+}
+
+function auditWithoutBlocking(
+  req: Request,
+  event: Omit<DenialAuditEvent, "ts" | "outcome">,
+): void {
+  const auditor = (req as AuditedRequest)[REQUEST_AUDITOR];
+  if (!auditor) return;
+  const complete: DenialAuditEvent = {
+    ts: new Date().toISOString(),
+    outcome: "denied",
+    ...event,
+  };
+  try {
+    void Promise.resolve(auditor(complete)).catch(() => undefined);
+  } catch {
+    // Auditing is best-effort and never changes a denial response.
+  }
+}
+
+export function auditRequestDenial(
+  req: Request,
+  event: Omit<DenialAuditEvent, "ts" | "outcome">,
+): void {
+  auditWithoutBlocking(req, event);
+}
+
 export function authMiddleware(config: AuthConfig): RequestHandler {
+  const backend = createAuthBackend(config);
   return async (
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
-    // Always allow health endpoint — pre-auth health check
-    if (req.path === "/health") {
-      return next();
+    (req as AuditedRequest)[REQUEST_AUDITOR] = config.auditDenial;
+    if (req.path === "/health") return next();
+    if (backend.type === "none") return next();
+
+    try {
+      const principal = await backend.authenticate(req);
+      if (principal)
+        (req as Request & { user?: AuthPrincipal }).user = principal;
+      next();
+    } catch (error) {
+      const failure =
+        error instanceof AuthFailure
+          ? error
+          : new AuthFailure("Unauthorized: Invalid credentials");
+      auditWithoutBlocking(req, {
+        op: "authenticate",
+        principal: failure.principal ?? null,
+        reason: failure.reason,
+      });
+      res.status(failure.status).json({
+        error: failure.message,
+        ...(failure.code ? { code: failure.code } : {}),
+      });
     }
-
-    // No auth required
-    if (config.type === "none") {
-      return next();
-    }
-
-    // HTTP Basic Auth
-    if (config.type === "basic") {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Basic ")) {
-        res.status(401).json({ error: "Unauthorized: Basic auth required" });
-        return;
-      }
-
-      try {
-        const encoded = authHeader.slice(6); // Remove "Basic "
-        const decoded = Buffer.from(encoded, "base64").toString("utf-8");
-        const colonIndex = decoded.indexOf(":");
-        if (colonIndex === -1) {
-          res
-            .status(401)
-            .json({ error: "Unauthorized: Invalid credentials format" });
-          return;
-        }
-
-        const username = decoded.slice(0, colonIndex);
-        const password = decoded.slice(colonIndex + 1);
-
-        const user = config.users?.find((u) => u.username === username);
-        if (!user) {
-          res.status(401).json({ error: "Unauthorized: Invalid credentials" });
-          return;
-        }
-
-        // Verify bcrypt hash
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) {
-          res.status(401).json({ error: "Unauthorized: Invalid credentials" });
-          return;
-        }
-
-        // Attach user info to request for downstream use.
-        // name + authenticated mirror the apikey principal shape so author
-        // stamping and grant checks treat both modes uniformly (DB-GAP-031).
-        (req as any).user = {
-          username,
-          name: username,
-          authenticated: true,
-        };
-        return next();
-      } catch {
-        res.status(401).json({ error: "Unauthorized: Invalid credentials" });
-        return;
-      }
-    }
-
-    // API Key Auth
-    if (config.type === "apikey") {
-      const apiKey = req.headers["x-api-key"] as string | undefined;
-      if (!apiKey) {
-        res.status(401).json({ error: "Unauthorized: API key required" });
-        return;
-      }
-
-      const keyEntry = config.apiKeys?.find((k) => k.key === apiKey);
-      if (!keyEntry) {
-        res.status(401).json({ error: "Unauthorized: Invalid API key" });
-        return;
-      }
-
-      // Attach key info to request — name is the author-stamping identity,
-      // namespaces carries the token's grants (undefined = unrestricted).
-      (req as any).user = {
-        name: keyEntry.name,
-        authenticated: true,
-        ...(keyEntry.namespaces !== undefined
-          ? { namespaces: keyEntry.namespaces }
-          : {}),
-      };
-      return next();
-    }
-
-    // Unknown auth type — deny by default
-    res.status(500).json({ error: "Unknown auth type" });
   };
 }
 
-/**
- * Require authentication — use after authMiddleware to ensure user is set
- * Useful for protecting specific routes
- */
 export function requireAuth(
   req: Request,
   res: Response,
   next: NextFunction,
 ): void {
-  if (!(req as any).user) {
+  if (!getPrincipal(req)) {
+    auditWithoutBlocking(req, {
+      ns: inferredNamespace(req),
+      op: "authenticate",
+      principal: null,
+      reason: "role",
+    });
     res.status(401).json({ error: "Authentication required" });
     return;
   }
   next();
 }
 
-/**
- * Namespace grant enforcement (DB-GAP-031)
- *
- * Mount on namespace-scoped routers AFTER authMiddleware. Resolves the
- * target namespace via getNamespace(req) and rejects with 403 when the
- * authenticated principal holds an explicit namespaces grant list that does
- * not include it.
- *
- * Passes through untouched when:
- *  - there is no principal (auth=none local single-user mode, /health), or
- *  - the principal has no namespaces list (unrestricted token — backward
- *    compatible with pre-grant tokens).
- *
- * @param getNamespace - Resolves the namespace a request targets (query
- *  param, body field, etc.) — must mirror the route's own resolution.
- * @returns Express middleware
- */
+export function requireRole(...roles: Role[]): RequestHandler {
+  return (req, res, next) => {
+    const principal = getPrincipal(req);
+    if (!principal || hasAnyRole(principal, roles)) return next();
+    auditWithoutBlocking(req, {
+      ns: inferredNamespace(req),
+      op: `require_role:${roles.join(",")}`,
+      principal: principal.name,
+      reason: "role",
+    });
+    res.status(403).json({
+      error: `Forbidden: principal '${principal.name}' lacks required role`,
+      code: "FORBIDDEN",
+    });
+  };
+}
+
+export function requireTableGrant(
+  getNamespace: (req: Request) => string,
+  getTable: (req: Request) => string,
+  operation: "read" | "write",
+): RequestHandler {
+  return (req, res, next) => {
+    const principal = getPrincipal(req);
+    if (!principal) return next();
+    const namespace = getNamespace(req);
+    const table = getTable(req);
+    const decision = authorizeTableAccess(
+      principal,
+      namespace,
+      table,
+      operation,
+    );
+    if (decision.allowed) return next();
+    auditWithoutBlocking(req, {
+      ns: namespace,
+      table,
+      op: `tables.${operation}`,
+      principal: principal.name,
+      reason: decision.reason,
+    });
+    res.status(403).json({ error: decision.message, code: "FORBIDDEN" });
+  };
+}
+
+export function requireRawSqlGrant(
+  getNamespace: (req: Request) => string,
+  direction: "read" | "write",
+): RequestHandler {
+  return (req, res, next) => {
+    const principal = getPrincipal(req);
+    if (!principal) return next();
+    const namespace = getNamespace(req);
+    const decision = authorizeRawSql(principal, namespace, direction);
+    if (decision.allowed) {
+      res.locals.sqlPolicy = decision.policy;
+      return next();
+    }
+    auditWithoutBlocking(req, {
+      ns: namespace,
+      table: "query",
+      op: `sql.${direction}`,
+      principal: principal.name,
+      reason: decision.reason,
+    });
+    res.status(403).json({ error: decision.message, code: "FORBIDDEN" });
+  };
+}
+
 export function requireNamespaceGrant(
   getNamespace: (req: Request) => string,
 ): RequestHandler {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req, res, next) => {
     const principal = getPrincipal(req);
-    if (!principal || principal.namespaces === undefined) {
-      return next();
-    }
+    if (!principal || principal.namespaces === undefined) return next();
     const ns = getNamespace(req);
     if (!principal.namespaces.includes(ns)) {
+      auditWithoutBlocking(req, {
+        ns,
+        op: "namespace.access",
+        principal: principal.name,
+        reason: "namespace_scope",
+      });
       res.status(403).json({
         error: `Forbidden: token '${principal.name}' has no grant for namespace '${ns}'`,
       });

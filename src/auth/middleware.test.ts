@@ -48,14 +48,14 @@ function mockNext(): NextFunction {
 
 describe("authMiddleware", () => {
   describe("type=none", () => {
-    it("should allow all requests when type is none", () => {
+    it("should allow all requests when type is none", async () => {
       const config: AuthConfig = { type: "none" };
       const middleware = authMiddleware(config);
       const req = mockReq();
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalled();
     });
@@ -147,7 +147,7 @@ describe("authMiddleware", () => {
   });
 
   describe("type=apikey", () => {
-    it("should return 401 when no X-API-Key header is provided", () => {
+    it("should return 401 when no X-API-Key header is provided", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [{ key: "my-secret-key", name: "test-key" }],
@@ -157,13 +157,13 @@ describe("authMiddleware", () => {
       const { res, status } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(status).toHaveBeenCalledWith(401);
       expect(next).not.toHaveBeenCalled();
     });
 
-    it("should return 401 for invalid API key", () => {
+    it("should return 401 for invalid API key", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [{ key: "my-secret-key", name: "test-key" }],
@@ -176,12 +176,12 @@ describe("authMiddleware", () => {
       const { res, status } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(status).toHaveBeenCalledWith(401);
     });
 
-    it("should call next() for valid API key", () => {
+    it("should call next() for valid API key", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [{ key: "my-secret-key", name: "test-key" }],
@@ -194,12 +194,12 @@ describe("authMiddleware", () => {
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalled();
     });
 
-    it("should attach principal name + authenticated for a valid key (DB-GAP-031)", () => {
+    it("should attach principal name + authenticated for a valid key (DB-GAP-031)", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [{ key: "my-secret-key", name: "test-key" }],
@@ -212,18 +212,19 @@ describe("authMiddleware", () => {
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       const principal = getPrincipal(req as Request);
       expect(principal).toEqual({
         name: "test-key",
         authenticated: true,
+        tokenType: "apikey",
       });
       // Unrestricted token: no namespaces list (backward compat)
       expect(principal!.namespaces).toBeUndefined();
     });
 
-    it("should surface namespace grants on the principal for a restricted key (DB-GAP-031)", () => {
+    it("should surface namespace grants on the principal for a restricted key (DB-GAP-031)", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [
@@ -238,19 +239,20 @@ describe("authMiddleware", () => {
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       const principal = getPrincipal(req as Request);
       expect(principal).toEqual({
         name: "agent-alpha",
         authenticated: true,
+        tokenType: "apikey",
         namespaces: ["a"],
       });
     });
   });
 
   describe("health endpoint bypass", () => {
-    it("should bypass auth for /health endpoint regardless of auth type", () => {
+    it("should bypass auth for /health endpoint regardless of auth type", async () => {
       const config: AuthConfig = {
         type: "basic",
         users: [{ username: "admin", passwordHash: "hash" }],
@@ -260,12 +262,12 @@ describe("authMiddleware", () => {
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalled();
     });
 
-    it("should bypass auth for /health with API key auth type", () => {
+    it("should bypass auth for /health with API key auth type", async () => {
       const config: AuthConfig = {
         type: "apikey",
         apiKeys: [{ key: "key123", name: "test" }],
@@ -275,7 +277,7 @@ describe("authMiddleware", () => {
       const { res } = mockRes();
       const next = mockNext();
 
-      middleware(req as Request, res as Response, next);
+      await middleware(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalled();
     });

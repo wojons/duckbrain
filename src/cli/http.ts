@@ -27,6 +27,11 @@ import {
   getPrincipal,
 } from "../auth/middleware.js";
 import type { AuthPrincipal } from "../auth/middleware.js";
+import { FileAuthStore } from "../auth/storeSchema.js";
+import { authorizeTableAccess } from "../auth/roles.js";
+import { createDenialAuditor } from "../serialization/audit.js";
+import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
+import { getConfig } from "../config/index.js";
 import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
 import {
   errorHandler,
@@ -90,6 +95,8 @@ export interface HttpServerOptions {
    *  authoritative. Scratch/judge daemons use this so they can never touch
    *  the production auth store. */
   authFile?: string;
+  /** Namespace root override for isolated embedders/tests and denial audit. */
+  namespacesPath?: string;
 }
 
 /**
@@ -283,16 +290,20 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
 
-  // 3. Authentication — read credentials from the auth store (default
-  // ~/.duckbrain/auth.json; --auth-file / DUCKBRAIN_AUTH_FILE redirect, see
-  // resolveAuthStorePath) unless an explicit authConfig override was
-  // injected. An explicit auth-file that is missing or unparseable is
-  // fatal: scratch/judge daemons must never fall back to the prod store
-  // (DB-GAP-043).
-  const authConfig: AuthConfig = options.authConfig ?? {
-    type: options.authType ?? "none",
+  // 3. Authentication — production loads a validated, hot-reloadable store.
+  // Inline authConfig remains the hermetic embed/test seam.
+  const namespacesPath = path.resolve(
+    options.namespacesPath ?? getConfig(".").namespacesPath,
+  );
+  const authConfig: AuthConfig = {
+    ...(options.authConfig ?? { type: options.authType ?? "none" }),
   };
-  if (!options.authConfig) {
+  if (
+    !options.authConfig &&
+    (authConfig.type !== "none" ||
+      options.authFile !== undefined ||
+      process.env.DUCKBRAIN_AUTH_FILE !== undefined)
+  ) {
     const { authFilePath, explicit } = resolveAuthStorePath(options.authFile);
     if (explicit && !fs.existsSync(authFilePath)) {
       throw new Error(
@@ -303,20 +314,24 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     }
     if (fs.existsSync(authFilePath)) {
       try {
-        const authFile = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
-        if (authFile.users) authConfig.users = authFile.users;
-        if (authFile.apiKeys) authConfig.apiKeys = authFile.apiKeys;
-      } catch (e) {
+        authConfig.store = new FileAuthStore(authFilePath);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
         if (explicit) {
           throw new Error(
-            `Could not parse --auth-file ${authFilePath}: ` +
-              `${e instanceof Error ? e.message : String(e)} (DB-GAP-043).`,
+            `Could not parse --auth-file ${authFilePath}: ${detail} (DB-GAP-043).`,
           );
         }
-        console.error("[duckbrain] Warning: Could not parse auth.json");
+        // SUPA-4: an invalid default store is a fatal startup error too. A
+        // malformed credential store must never silently become an empty one.
+        throw new Error(`Could not load auth store ${authFilePath}: ${detail}`);
       }
     }
   }
+  authConfig.auditDenial ??= createDenialAuditor(namespacesPath);
+  setSerializerAuthorizationHook((request) =>
+    authorizeTableAccess(request.principal, request.ns, request.table, "write"),
+  );
   app.use(authMiddleware(authConfig));
 
   // 4. CORS middleware for UI development

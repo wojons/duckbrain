@@ -145,9 +145,11 @@ export function getRandomPort(): number {
 export async function startDuckbrainHttp(opts: {
   port: number;
   authType?: string;
+  authFile?: string;
   rateLimit?: number;
   bindAll?: boolean;
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
 }): Promise<DuckbrainChild> {
   const args = [
     "node",
@@ -158,6 +160,7 @@ export async function startDuckbrainHttp(opts: {
     `--port=${opts.port}`,
   ];
   if (opts.authType) args.push(`--auth=${opts.authType}`);
+  if (opts.authFile) args.push(`--auth-file=${opts.authFile}`);
   if (opts.rateLimit) args.push(`--rate-limit=${opts.rateLimit}`);
   if (opts.bindAll) args.push("--bind-all");
 
@@ -182,6 +185,7 @@ export async function startDuckbrainHttp(opts: {
       // answered within 60s). Tests already accept the "degraded" status.
       DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
       DUCKBRAIN_EMBEDDING_API_KEY: "",
+      ...opts.env,
     },
     // Own process group so killProcess can SIGTERM the whole tree —
     // without this, killing the npx wrapper orphans the node daemon
