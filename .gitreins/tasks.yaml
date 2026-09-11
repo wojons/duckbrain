@@ -948,3 +948,14 @@ tasks:
   status: complete
   created_at: '2026-09-11T00:41:25.154034+00:00'
   completed_at: '2026-09-11T01:48:18.147374+00:00'
+- id: DB-SUPA-4
+  title: SUPA roles and auth types
+  criteria:
+  - 'Implement docs/specs/SUPA-4-auth.md AC-1 through AC-12: role matrix, namespace
+    and per-table grants, token expiry/revocation/hash-at-rest and legacy migration,
+    pluggable none/basic/apikey backends, denial auditing, and raw-SQL authorization
+    caps; preserve auth=none and legacy-token compatibility; full TypeScript, unit,
+    integration, and formatting gates green.'
+  status: complete
+  created_at: '2026-09-11T03:46:31.298236+00:00'
+  completed_at: '2026-09-11T04:55:53.940217+00:00'
