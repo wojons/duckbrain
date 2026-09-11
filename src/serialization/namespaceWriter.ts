@@ -730,7 +730,8 @@ export class NamespaceWriter implements AuditSink {
     };
 
     const resolved = new Map<PendingWrite, WriteResult>();
-    const entries: PreparedAppend[] = [];
+    const dataEntries: PreparedAppend[] = [];
+    const auditEntries: PreparedAppend[] = [];
     const accepted: PendingWrite[] = [];
     try {
       await this.afterLockAcquired?.(lock);
@@ -751,7 +752,7 @@ export class NamespaceWriter implements AuditSink {
             ),
           );
           const audit = deniedAudit(pending.request, authorization.reason);
-          entries.push({
+          auditEntries.push({
             filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
             line: serializeJsonlLine(audit)!,
             record: audit,
@@ -763,13 +764,13 @@ export class NamespaceWriter implements AuditSink {
           this.namespacePath,
           pending.request.targetPath,
         );
-        entries.push({
+        dataEntries.push({
           filePath: dataPath,
           line: pending.line,
           record: pending.request.record,
         });
         const audit = acceptedAudit(pending.request);
-        entries.push({
+        auditEntries.push({
           filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
           line: serializeJsonlLine(audit)!,
           record: audit,
@@ -778,7 +779,7 @@ export class NamespaceWriter implements AuditSink {
       }
 
       for (const audit of batch.audits) {
-        entries.push({
+        auditEntries.push({
           filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
           line: serializeJsonlLine(audit.entry)!,
           record: audit.entry,
@@ -786,9 +787,15 @@ export class NamespaceWriter implements AuditSink {
       }
 
       const mode = resolveWriteMode(this.ns);
-      if (mode === "fsync") appendFsyncBatch(entries, assertCurrent);
-      else if (mode === "direct") appendDirectBatch(entries, assertCurrent);
-      else appendBufferedBatch(entries, assertCurrent);
+      if (mode === "fsync") appendFsyncBatch(dataEntries, assertCurrent);
+      else if (mode === "direct") appendDirectBatch(dataEntries, assertCurrent);
+      else appendBufferedBatch(dataEntries, assertCurrent);
+
+      // Audit rows follow their accepted data writes but intentionally use the
+      // buffered path. SUPA-2 documents a bounded crash window for audit tails;
+      // syncing the separate audit file here would add a second fdatasync per
+      // batch and violate SUPA-1's fan-in amortization contract.
+      appendBufferedBatch(auditEntries, assertCurrent);
       assertCurrent();
 
       const partitions = new Set(
@@ -798,7 +805,8 @@ export class NamespaceWriter implements AuditSink {
       );
       for (const partition of partitions)
         addPartition(this.namespacePath, partition);
-      if (entries.length > 0) this.scheduleCommit(this.namespacePath);
+      if (dataEntries.length > 0 || auditEntries.length > 0)
+        this.scheduleCommit(this.namespacePath);
 
       for (const pending of accepted) {
         resolved.set(pending, { seq: pending.request.seq, ok: true });
