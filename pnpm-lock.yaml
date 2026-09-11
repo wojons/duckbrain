@@ -23,6 +23,9 @@ importers:
       duckdb:
         specifier: 1.4.4
         version: 1.4.4(encoding@0.1.13)
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       simple-git:
         specifier: ^3.36.0
         version: 3.36.0
