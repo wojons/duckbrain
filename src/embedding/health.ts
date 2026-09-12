@@ -43,6 +43,33 @@ export const EMBEDDING_HEALTH_TTL_MS = 30_000;
 /** Embed probe timeout: short on purpose — /health must never hang. */
 export const EMBEDDING_HEALTH_PROBE_TIMEOUT_MS = 3_000;
 
+/**
+ * Hard deadline for ONE whole health probe attempt (OPS-002).
+ *
+ * The per-request timeouts above bound each individual fetch, but nothing
+ * bounded the probe as a WHOLE. A single await that never settles (an abort
+ * that is never delivered while the event loop is occupied, a provider socket
+ * that parks mid-request, a native binding that never calls back) left the
+ * shared in-flight promise in `getEmbeddingHealth` pending forever — and
+ * because the TTL cache is only written once a probe settles, EVERY later
+ * caller inherited that dead promise: `/health` stayed parked until the
+ * process was restarted (observed live: an idle daemon with zero sockets, zero
+ * CPU across every thread, /stats and /api/* answering in milliseconds, and
+ * /health never responding — the keys sub-probe provably never ran, so the
+ * handler never got past `await probe()`).
+ *
+ * This deadline is that missing bound: the probe ALWAYS settles (degraded,
+ * with a deadline note) inside it, the in-flight slot is released, and the
+ * next caller probes afresh instead of inheriting a stuck promise.
+ *
+ * Deliberately BELOW the /health handler's own deadline
+ * (`HEALTH_HANDLER_DEADLINE_MS`, src/cli/http.ts) so the embedding probe
+ * normally reports inside its own budget and by its own precise cause; the
+ * handler bound stays the last-resort backstop for callers that bypass this
+ * module's cache entirely.
+ */
+export const EMBEDDING_HEALTH_DEADLINE_MS = 3_500;
+
 /** Reachability classification timeout (same budget as isHealthy probes). */
 const CLASSIFY_TIMEOUT_MS = 1_500;
 
@@ -240,32 +267,118 @@ export async function probeEmbeddingHealth(
 
 let healthCache: { at: number; result: EmbeddingHealthResult } | null = null;
 let inFlight: Promise<EmbeddingHealthResult> | null = null;
+/** Generation counter for probes — a stale-write guard for late results. */
+let probeGeneration = 0;
+
+/** Degraded result for a probe that could not answer inside its deadline. */
+function deadlineResult(note: string): EmbeddingHealthResult {
+  return {
+    provider: "",
+    model: "",
+    healthy: false,
+    providers: [{ id: "deadline", healthy: false, note }],
+  };
+}
 
 /**
- * Cached view of embedding provider health (DOGFOOD-020).
+ * Run one probe attempt, hard-bounded by EMBEDDING_HEALTH_DEADLINE_MS.
+ *
+ * The returned promise ALWAYS settles inside the deadline — that is the
+ * contract `getEmbeddingHealth` depends on to release the in-flight slot. The
+ * underlying probe is ABANDONED when the deadline wins (never awaited again,
+ * handlers left attached so a late rejection cannot surface as an unhandled
+ * rejection) and the cache only accepts a result from the LATEST generation:
+ * a stale answer from an abandoned probe can never overwrite a newer one.
+ */
+function boundedProbe(
+  generation: number,
+  probe: () => Promise<EmbeddingHealthResult>,
+): Promise<EmbeddingHealthResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<EmbeddingHealthResult>((resolve) => {
+    timer = setTimeout(() => {
+      const result = deadlineResult(
+        `embedding probe exceeded its ${EMBEDDING_HEALTH_DEADLINE_MS}ms deadline — degraded (provider stuck or event loop starved); the stuck probe was abandoned so later probes still run`,
+      );
+      // Cache the degraded answer (monitor-polling budget): /health keeps
+      // answering instantly instead of re-waiting the deadline on every poll.
+      if (generation === probeGeneration) {
+        healthCache = { at: Date.now(), result };
+      }
+      resolve(result);
+    }, EMBEDDING_HEALTH_DEADLINE_MS);
+    timer.unref?.();
+  });
+
+  return Promise.race([probe(), expiry])
+    .then((result) => {
+      if (generation === probeGeneration) {
+        healthCache = { at: Date.now(), result };
+      }
+      return result;
+    })
+    .catch((e) => {
+      const result = deadlineResult(`probe error: ${errMsg(e).slice(0, 160)}`);
+      if (generation === probeGeneration) {
+        healthCache = { at: Date.now(), result };
+      }
+      return result;
+    })
+    .finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+}
+
+/**
+ * Cached, bounded view of embedding provider health (DOGFOOD-020, OPS-002).
  *
  * In-process ~30s TTL so monitor polling doesn't hammer providers; concurrent
  * callers share one in-flight probe instead of probing N times in a burst.
+ *
+ * @param probe injectable probe (tests); production uses probeEmbeddingHealth
+ *
+ * OPS-002 invariants — a stuck probe must never poison later callers:
+ *   1. the cache only ever holds a SETTLED result, never a promise;
+ *   2. the returned promise always settles within EMBEDDING_HEALTH_DEADLINE_MS
+ *      (the in-flight slot is released in `finally`, which the deadline
+ *      guarantees will run even when the underlying probe never settles);
+ *   3. a deadline-expired probe is abandoned: later callers start a fresh
+ *      probe instead of being handed the dead one, and its late result can
+ *      never overwrite a newer cached answer.
  */
-export function getEmbeddingHealth(): Promise<EmbeddingHealthResult> {
+export function getEmbeddingHealth(
+  probe: () => Promise<EmbeddingHealthResult> = probeEmbeddingHealth,
+): Promise<EmbeddingHealthResult> {
   const now = Date.now();
   if (healthCache && now - healthCache.at < EMBEDDING_HEALTH_TTL_MS) {
     return Promise.resolve(healthCache.result);
   }
   if (!inFlight) {
-    inFlight = probeEmbeddingHealth()
-      .then((result) => {
-        healthCache = { at: Date.now(), result };
-        return result;
-      })
-      .finally(() => {
-        inFlight = null;
-      });
+    const generation = ++probeGeneration;
+    const promise: Promise<EmbeddingHealthResult> = boundedProbe(
+      generation,
+      probe,
+    ).finally(() => {
+      // Always reached: boundedProbe settles at the deadline even when the
+      // underlying probe never does. Clearing the slot here is what keeps ONE
+      // stuck probe from being handed to every future caller forever.
+      if (inFlight === promise) inFlight = null;
+    });
+    inFlight = promise;
   }
   return inFlight;
 }
 
-/** Clear the TTL cache (tests, config reloads). */
+/**
+ * Clear the TTL cache and any in-flight probe state (tests, config reloads).
+ *
+ * Also releases a stuck in-flight slot: a config reload must not inherit a
+ * probe that never settled.
+ */
 export function resetEmbeddingHealthCache(): void {
   healthCache = null;
+  inFlight = null;
+  // probeGeneration only ever rises, so a late result from a superseded probe
+  // is still recognised as stale after a reset.
+  probeGeneration += 1;
 }

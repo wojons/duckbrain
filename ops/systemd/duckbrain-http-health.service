@@ -4,6 +4,10 @@ Description=Dark-port watchdog for duckbrain-http (OPS-001)
 [Service]
 Type=oneshot
 # ALIVE = /health answers 200 or 503 (degraded is an intentional
-# embedding-health state, not an outage). DARK = connection failure or any
-# other status. /health is auth-exempt: no API keys here, ever.
+# embedding-health state, not an outage) → exit 0. DARK = connection failure
+# or any other status → exit 1. HUNG = the port accepted the connection but
+# /health did not answer within --timeout-ms → exit 3 (a stuck handler, NOT a
+# dead daemon: it may still serve /api/* and MCP traffic, so any
+# restart-on-dark escalation must key on exit 1 only — OPS-002).
+# /health is auth-exempt: no API keys here, ever.
 ExecStart=node %h/duckbrain/scripts/health-check.js --url=http://127.0.0.1:3000/health --timeout-ms=5000

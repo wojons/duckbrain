@@ -148,8 +148,52 @@ function dnsRebindingProtection(allowedHosts: string[]) {
   };
 }
 
+/** Outer deadline for the whole /health response (OPS-002). */
+export const HEALTH_HANDLER_DEADLINE_MS = 4_000;
+
+/** A sub-probe outcome: it settled with a value, or missed the deadline. */
+type ProbeOutcome<T> = { ok: true; value: T } | { ok: false };
+
 /**
- * Health check endpoint handler (DOGFOOD-020, DB-GAP-035)
+ * Bound `promise` by `ms`: resolve with its value when it settles in time, or
+ * `{ ok: false }` at the deadline.
+ *
+ * The abandoned promise keeps its handlers attached, so a late rejection can
+ * never surface as an unhandled rejection — the stuck probe is quarantined,
+ * not allowed to take the process down. `setTimeout` is unref'd (a pending
+ * deadline must never hold the event loop open) and always cleared.
+ */
+async function withDeadline<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<ProbeOutcome<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const expiry = new Promise<ProbeOutcome<T>>((resolve) => {
+      timer = setTimeout(() => resolve({ ok: false }), ms);
+      timer.unref?.();
+    });
+    return await Promise.race([
+      promise.then((value) => ({ ok: true as const, value })),
+      expiry,
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Degraded embedding block for a sub-probe that missed the deadline. */
+function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
+  return {
+    provider: "",
+    model: "",
+    healthy: false,
+    providers: [{ id: "deadline", healthy: false, note }],
+  };
+}
+
+/**
+ * Health check endpoint handler (DOGFOOD-020, DB-GAP-035, OPS-002)
  *
  * Reports embedding provider health alongside process liveness. The top-level
  * status is "degraded" when no embedding provider passed a real embed probe —
@@ -175,19 +219,49 @@ function dnsRebindingProtection(allowedHosts: string[]) {
  * filesystem probe, so /health cannot fail or stall over durability
  * reporting.
  *
+ * OPS-002: EVERY await in this handler is bounded by
+ * HEALTH_HANDLER_DEADLINE_MS, so the handler always answers within that budget
+ * on every path. The live incident this closes: a sub-probe whose await never
+ * settled left /health parked forever (no bytes ever written, an idle daemon)
+ * while the process happily served /stats and /api/*; monitors were blind and
+ * the dark-port watchdog reported DARK for a daemon that was serving traffic.
+ * When a sub-probe misses the deadline the handler answers 503
+ * `status: "degraded"`, names the culprit in `deadline_exceeded` (an array of
+ * "embedding" / "keys"), and puts the reason in that section's own note. Each
+ * sub-probe gets the budget REMAINING at its turn, so the whole handler —
+ * probes and response — stays inside the deadline.
+ *
  * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
  * @param keysProbe injectable for tests (defaults to probeKeysStore)
  * @param durabilityProbe injectable for tests (defaults to getDurabilityHealth)
+ * @param deadlineMs injectable for tests (defaults to HEALTH_HANDLER_DEADLINE_MS)
  */
 export function createHealthHandler(
   probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
   keysProbe: () => Promise<string | null> = probeKeysStore,
   durabilityProbe: () => DurabilityHealth = getDurabilityHealth,
+  deadlineMs: number = HEALTH_HANDLER_DEADLINE_MS,
 ): (req: Request, res: Response) => Promise<void> {
   return async (_req: Request, res: Response) => {
+    // OPS-002: one budget for the WHOLE response. Each sub-probe gets whatever
+    // is left when its turn comes, so a slow/hung probe can never push the
+    // handler past the deadline — the rest of the response is reported as
+    // deadline-exceeded instead of hanging.
+    const deadlineExceeded: string[] = [];
+    const deadlineAt = Date.now() + deadlineMs;
+    const remaining = (): number => Math.max(0, deadlineAt - Date.now());
+
     let embedding: EmbeddingHealthResult;
     try {
-      embedding = await probe();
+      const outcome = await withDeadline(probe(), remaining());
+      if (outcome.ok) {
+        embedding = outcome.value;
+      } else {
+        deadlineExceeded.push("embedding");
+        embedding = embeddingDeadlineResult(
+          `embedding probe did not settle within the ${deadlineMs}ms /health deadline`,
+        );
+      }
     } catch (e) {
       // The probe must never take /health down (liveness) — report degraded.
       embedding = {
@@ -208,7 +282,17 @@ export function createHealthHandler(
     // report keys_error and let the status field carry the signal.
     let keysError: string | null = null;
     try {
-      keysError = await keysProbe();
+      const outcome = await withDeadline(keysProbe(), remaining());
+      if (outcome.ok) {
+        keysError = outcome.value;
+      } else {
+        deadlineExceeded.push("keys");
+        keysError =
+          `keys probe did not settle within the ${deadlineMs}ms /health deadline`.slice(
+            0,
+            200,
+          );
+      }
     } catch (e) {
       keysError =
         `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
@@ -227,6 +311,8 @@ export function createHealthHandler(
     }
     // GAP-030: a supervisor watching HTTP status codes must see non-200 while
     // the KB's semantic search is down — 503 when degraded, 200 when healthy.
+    // OPS-002: `deadline_exceeded` names any sub-probe that missed the handler
+    // deadline (empty array when everything answered in budget).
     res.status(degraded ? 503 : 200).json({
       status: degraded ? "degraded" : "healthy",
       uptime: process.uptime(),
@@ -234,6 +320,7 @@ export function createHealthHandler(
       embedding,
       keys_error: keysError,
       durability,
+      deadline_exceeded: deadlineExceeded,
     });
   };
 }

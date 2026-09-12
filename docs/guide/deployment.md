@@ -136,10 +136,14 @@ What each asset guarantees:
 - `duckbrain-http-health.service` + `.timer` — probes `/health` every
   minute via `scripts/health-check.js`. **Alive = HTTP 200 or 503** (503
   "degraded" is the intentional embedding-health contract — the daemon
-  still serves traffic; GAP-030). **Dark = connection failure or any other
-  status** (e.g. a 404 squatter on the port). `/health` is auth-exempt:
-  the check needs and accepts no API keys. Wire the on-failure action into
-  your alerting:
+  still serves traffic; GAP-030) → exit 0. **Dark = connection failure or
+  any other status** (e.g. a 404 squatter on the port) → exit 1. **Hung =
+  the port accepted the connection but `/health` did not answer within
+  `--timeout-ms`** → exit 3: the handler is stuck, which is NOT the same as
+  a dead daemon (it may still be serving `/api/*` and MCP traffic), so a
+  restart-on-dark escalation built on exit 1 must never treat exit 3 as
+  dark. `/health` is auth-exempt: the check needs and accepts no API keys.
+  Wire the on-failure action into your alerting:
 
 ```bash
 # Verify the watchdog wiring without touching the daemon:

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * Dark-port health check wrapper — OPS-001.
+ * Dark-port health check wrapper — OPS-001, OPS-002.
  *
  * Loads tsx (same pattern as bin/duckbrain.js) and runs the typed
  * implementation in src/cli/health-check.ts. Exit 0 = alive (HTTP 200 or
  * 503 — degraded is intentional), exit 1 = dark (connection failure or any
- * other status), exit 2 = usage error. No API keys needed or accepted —
- * /health is auth-exempt.
+ * other status), exit 3 = hung (the port was reachable but /health did not
+ * answer within --timeout-ms — the handler is stuck, which is NOT the same as
+ * a dead daemon and must not drive a restart-on-dark escalation), exit 2 =
+ * usage error. No API keys needed or accepted — /health is auth-exempt.
  */
 
 require("tsx/cjs");

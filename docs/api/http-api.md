@@ -73,7 +73,8 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
     "overrides": {
       "coding-hermes": "fsync"
     }
-  }
+  },
+  "deadline_exceeded": []
 }
 ```
 
@@ -87,6 +88,16 @@ supervisor watching HTTP codes sees non-200 while embeddings are down
 (GAP-030). Semantic endpoints (`/api/memories?q=`, MCP recall with a
 query) return HTTP 503 `EMBEDDINGS_UNAVAILABLE` while embeddings are down;
 non-semantic reads still work.
+
+Every await in the handler is bounded (OPS-002): `/health` **always**
+answers within `HEALTH_HANDLER_DEADLINE_MS` (4000ms). A sub-probe that does
+not settle in its share of that budget is abandoned and reported as
+`deadline_exceeded: ["embedding"]` (or `["keys"]`) with HTTP 503 +
+`status: "degraded"`, and the corresponding section's `note` / `keys_error`
+says so. The array is empty on a normal response. This closes the failure
+mode where one never-settling probe left `/health` parked forever while the
+daemon kept serving `/stats` and `/api/*` — monitors and the dark-port
+watchdog were blind, and a hung daemon looked identical to a dead one.
 
 `durability` reports the write durability contract (SUPA-1) derived from
 config only — `defaultMode` plus the **non-default** per-namespace

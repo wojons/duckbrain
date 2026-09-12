@@ -1,19 +1,23 @@
 /**
- * Dark-port health check for ONE DuckBrain HTTP daemon (OPS-001).
+ * Dark-port health check for ONE DuckBrain HTTP daemon (OPS-001, OPS-002).
  *
  * The Restart=always unit in `ops/systemd/` covers crash-loop recovery; this
  * helper is the alert path for the remaining dark state: the unit disabled,
  * masked, or the port squatted by something else. Contract (fixed by the
- * embedding-health design, GAP-030):
+ * embedding-health design, GAP-030; HUNG split out by OPS-002):
  *
  *   - HTTP 200  → ALIVE (fully healthy)
  *   - HTTP 503  → ALIVE for liveness purposes (the daemon intentionally
  *                 reports degraded when the embedding provider or keys store
  *                 is down; a degraded DuckBrain still serves MCP/REST and
  *                 must NOT page as dark)
- *   - connection refused/reset/timeout, or ANY other status (e.g. a 404
- *                 from a non-DuckBrain squatter, 401 from a misconfigured
- *                 proxy) → DARK
+ *   - our own timeout elapsed with no answer → HUNG (the port was reachable
+ *                 but /health never completed: a stuck handler — NOT a dead
+ *                 daemon. Distinct exit code so a restart-on-dark escalation
+ *                 can never restart-loop a daemon that is serving traffic)
+ *   - connection refused/reset, or ANY other status (e.g. a 404 from a
+ *                 non-DuckBrain squatter, 401 from a misconfigured proxy) →
+ *                 DARK
  *
  * /health is auth-exempt, so this check never needs or exposes API keys.
  * Pure liveness: the response body is not parsed.
@@ -22,7 +26,10 @@
 /** The only HTTP statuses accepted as proof the daemon is alive. */
 export const ALIVE_STATUSES: ReadonlySet<number> = new Set([200, 503]);
 
-export type HealthStatus = "alive" | "dark";
+/** Exit code for HUNG — distinct from DARK (1) so escalations can tell them apart. */
+export const HUNG_EXIT_CODE = 3;
+
+export type HealthStatus = "alive" | "dark" | "hung";
 
 export interface HealthCheckResult {
   status: HealthStatus;
@@ -30,6 +37,33 @@ export interface HealthCheckResult {
   httpStatus: number | null;
   /** Short human-readable detail for logs/alert text. */
   detail: string;
+}
+
+/**
+ * Is this error our own timeout elapsing (the daemon accepted the connection
+ * and never answered), as opposed to the port being unreachable?
+ *
+ * `AbortSignal.timeout()` rejects with a `TimeoutError` DOMException
+ * ("The operation was aborted due to timeout"); a caller-supplied abort
+ * surfaces as `AbortError`. Connection failures (ECONNREFUSED, ECONNRESET,
+ * ENOTFOUND, ETIMEDOUT from the TCP handshake) are NOT timeouts of the
+ * REQUEST — they mean unreachable, i.e. dark.
+ */
+export function isRequestTimeout(error: unknown): boolean {
+  if (error === null || typeof error !== "object") {
+    return typeof error === "string" && /aborted due to timeout/i.test(error);
+  }
+  const e = error as {
+    name?: string;
+    code?: string;
+    message?: string;
+    cause?: unknown;
+  };
+  if (e.name === "TimeoutError" || e.name === "AbortError") return true;
+  if (/aborted due to timeout/i.test(e.message ?? "")) return true;
+  // Node wraps fetch failures; a nested timeout cause counts too.
+  if (e.cause && e.cause !== error) return isRequestTimeout(e.cause);
+  return false;
 }
 
 /** Injectable transport seam — tests never open sockets. */
@@ -50,7 +84,7 @@ export const httpFetcher: HealthFetcher = async (url, timeoutMs) => {
 
 /**
  * Probe `url` (normally http://127.0.0.1:<port>/health) and classify it.
- * Any error (refused, DNS, timeout, TLS) maps to DARK — never throws.
+ * Any error (refused, DNS, timeout, TLS) is classified — never throws.
  */
 export async function checkHttpHealth(
   url: string,
@@ -75,6 +109,13 @@ export async function checkHttpHealth(
       detail: `unexpected HTTP ${status} from ${url} — port answered but not with the DuckBrain /health contract (200 or 503); possible squatter or proxy misroute`,
     };
   } catch (error) {
+    if (isRequestTimeout(error)) {
+      return {
+        status: "hung",
+        httpStatus: null,
+        detail: `reachable but /health did not answer within ${timeoutMs}ms (hung — the port accepted the connection and the handler never completed; the daemon may still be serving other routes)`,
+      };
+    }
     const detail = error instanceof Error ? error.message : String(error);
     return {
       status: "dark",
@@ -149,12 +190,14 @@ function printUsage(): void {
     [
       "Usage: node scripts/health-check.js [--url=URL] [--timeout-ms=N] [--json]",
       "",
-      "Report whether a DuckBrain HTTP daemon's port is ALIVE or DARK.",
+      "Report whether a DuckBrain HTTP daemon's port is ALIVE, DARK, or HUNG.",
       "ALIVE: /health answers 200 or 503 (degraded is intentional, not dark).",
-      "DARK:  connection failure, timeout, or any other HTTP status.",
+      "HUNG:  reachable but /health did not answer within --timeout-ms (the",
+      "       handler is stuck; the daemon may still serve other routes).",
+      "DARK:  connection failure, or any other HTTP status.",
       "",
       "No API keys needed or accepted — /health is auth-exempt.",
-      "Exit codes: 0 alive, 1 dark, 2 usage error.",
+      `Exit codes: 0 alive, 1 dark, ${HUNG_EXIT_CODE} hung, 2 usage error.`,
     ].join("\n"),
   );
 }
@@ -179,8 +222,10 @@ export async function runHealthCheckCli(
     console.log(JSON.stringify(result));
   } else {
     const line = `health-check: ${result.status.toUpperCase()} — ${result.detail}`;
-    if (result.status === "dark") console.error(line);
-    else console.log(line);
+    if (result.status === "alive") console.log(line);
+    else console.error(line);
   }
-  return result.status === "alive" ? 0 : 1;
+  if (result.status === "alive") return 0;
+  if (result.status === "hung") return HUNG_EXIT_CODE;
+  return 1;
 }

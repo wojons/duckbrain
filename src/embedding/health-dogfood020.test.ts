@@ -26,10 +26,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Request, Response } from "express";
 import {
+  EMBEDDING_HEALTH_DEADLINE_MS,
   EMBEDDING_HEALTH_TTL_MS,
   getEmbeddingHealth,
   probeEmbeddingHealth,
   resetEmbeddingHealthCache,
+  type EmbeddingHealthResult,
 } from "./health";
 import { createHealthHandler } from "../cli/http";
 
@@ -458,5 +460,106 @@ describe("createHealthHandler (DOGFOOD-020)", () => {
     expect(body.status).toBe("healthy");
     expect(body.embedding.provider).toBe("lmstudio");
     expect(embedProbeCalls(fetchMock)).toBe(1);
+  });
+});
+
+/**
+ * OPS-002: the live defect was not "a slow provider" — it was a probe whose
+ * await never settled (the cache is only written on settle, so the shared
+ * in-flight promise was handed to EVERY later caller and /health stayed parked
+ * until the process restarted). These tests pin the bound that makes that
+ * impossible: the probe settles at its deadline, the in-flight slot is
+ * released, a stuck probe is abandoned, and its late result can never
+ * overwrite a newer answer.
+ */
+describe("OPS-002: a stuck probe can never poison later callers", () => {
+  const healthy: EmbeddingHealthResult = {
+    provider: "lmstudio",
+    model: "text-embedding-qwen3-embedding-0.6b",
+    healthy: true,
+    providers: [{ id: "lmstudio", healthy: true, note: "ok" }],
+  };
+
+  it("settles AT the deadline with a degraded, named result when the probe never settles", async () => {
+    vi.useFakeTimers();
+    const pending = getEmbeddingHealth(() => new Promise<never>(() => {}));
+
+    await vi.advanceTimersByTimeAsync(EMBEDDING_HEALTH_DEADLINE_MS + 1);
+    const result = await pending;
+
+    expect(result.healthy).toBe(false);
+    expect(result.providers[0].id).toBe("deadline");
+    expect(result.providers[0].note).toContain(
+      `${EMBEDDING_HEALTH_DEADLINE_MS}ms deadline`,
+    );
+  });
+
+  it("releases the in-flight slot: the degraded answer is cached for the TTL, then a NEW probe runs", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const stuck = () => {
+      calls += 1;
+      return new Promise<never>(() => {});
+    };
+
+    const first = getEmbeddingHealth(stuck);
+    await vi.advanceTimersByTimeAsync(EMBEDDING_HEALTH_DEADLINE_MS + 1);
+    expect((await first).healthy).toBe(false);
+    expect(calls).toBe(1);
+
+    // Within the TTL the degraded answer is served from the cache: no new
+    // probe attempt (monitor polling must not re-wait the deadline per poll).
+    const cachedCall = await getEmbeddingHealth(stuck);
+    expect(cachedCall.healthy).toBe(false);
+    expect(calls).toBe(1);
+
+    // Past the TTL a FRESH probe runs — the stuck one was abandoned, not
+    // handed to later callers (this is the live OPS-002 failure).
+    await vi.advanceTimersByTimeAsync(EMBEDDING_HEALTH_TTL_MS + 1);
+    const recovered = await getEmbeddingHealth(async () => healthy);
+    expect(recovered.healthy).toBe(true);
+    expect(recovered.provider).toBe("lmstudio");
+  });
+
+  it("a late result from an abandoned probe cannot overwrite a newer answer", async () => {
+    vi.useFakeTimers();
+    let resolveStuck!: (value: EmbeddingHealthResult) => void;
+    const slow = new Promise<EmbeddingHealthResult>((resolve) => {
+      resolveStuck = resolve;
+    });
+
+    const abandoned = getEmbeddingHealth(() => slow);
+    await vi.advanceTimersByTimeAsync(EMBEDDING_HEALTH_DEADLINE_MS + 1);
+    expect((await abandoned).healthy).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(EMBEDDING_HEALTH_TTL_MS + 1);
+    const fresh = await getEmbeddingHealth(async () => healthy);
+    expect(fresh).toBe(healthy);
+
+    // The abandoned probe finally settles with a DIFFERENT answer — it must
+    // not replace the newer cached one.
+    resolveStuck({
+      provider: "stale",
+      model: "stale",
+      healthy: true,
+      providers: [{ id: "stale", healthy: true, note: "ok" }],
+    });
+    await vi.advanceTimersByTimeAsync(1);
+
+    const served = await getEmbeddingHealth(async () => {
+      throw new Error("must not re-probe — the cache must still be warm");
+    });
+    expect(served).toBe(fresh);
+    expect(served.provider).toBe("lmstudio");
+  });
+
+  it("resetEmbeddingHealthCache() releases a stuck in-flight probe", async () => {
+    vi.useFakeTimers();
+    getEmbeddingHealth(() => new Promise<never>(() => {})); // parked in flight
+
+    resetEmbeddingHealthCache();
+    const result = await getEmbeddingHealth(async () => healthy);
+
+    expect(result.healthy).toBe(true);
   });
 });
