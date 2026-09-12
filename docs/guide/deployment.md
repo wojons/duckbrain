@@ -94,25 +94,6 @@ systemctl --user enable duckbrain
 systemctl --user status duckbrain
 ```
 
-The user service file is installed at `~/.config/systemd/user/duckbrain.service`:
-
-```ini
-[Unit]
-Description=DuckBrain MCP Server
-After=network.target
-
-[Service]
-Type=simple
-User=%I
-ExecStart=/path/to/duckbrain/bin/duckbrain.js http --port=3000
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=default.target
-```
-
 ### System-Wide Service
 
 ```bash
@@ -124,6 +105,101 @@ sudo systemctl daemon-reload
 sudo systemctl start duckbrain
 sudo systemctl enable duckbrain
 ```
+
+### Hardened Lifecycle Assets (OPS-001): Restart=always + dark-port watchdog
+
+The `service install` template predates the 2026-09-11 incident in which a
+graceful SIGTERM exited status 0 and, under `Restart=on-failure`, left
+`:3000` dark for ~7 minutes. For production daemons, install the
+repo-owned hardened assets from `ops/systemd/` instead — no prose to copy,
+just files:
+
+```bash
+# From the repo root. Installs as USER units (recommended for dev hosts).
+mkdir -p ~/.config/systemd/user
+cp ops/systemd/duckbrain-http.service \
+   ops/systemd/duckbrain-http-health.service \
+   ops/systemd/duckbrain-http-health.timer \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now duckbrain-http.service
+systemctl --user enable --now duckbrain-http-health.timer
+```
+
+What each asset guarantees:
+
+- `duckbrain-http.service` — `Restart=always` (a graceful stop is still
+  restarted), `RestartSec=3`, `StartLimitIntervalSec=300` +
+  `StartLimitBurst=10` (crash-loop rate limit), `KillSignal=SIGTERM` +
+  `TimeoutStopSec=30` (bounded graceful window before SIGKILL). Edit
+  `ExecStart` only to change the port or add flags; keep everything else.
+- `duckbrain-http-health.service` + `.timer` — probes `/health` every
+  minute via `scripts/health-check.js`. **Alive = HTTP 200 or 503** (503
+  "degraded" is the intentional embedding-health contract — the daemon
+  still serves traffic; GAP-030). **Dark = connection failure or any other
+  status** (e.g. a 404 squatter on the port). `/health` is auth-exempt:
+  the check needs and accepts no API keys. Wire the on-failure action into
+  your alerting:
+
+```bash
+# Verify the watchdog wiring without touching the daemon:
+systemctl --user list-timers duckbrain-http-health.timer
+systemctl --user start duckbrain-http-health.service && echo "port alive (200/503)"
+journalctl --user -u duckbrain-http-health.service -n 5
+```
+
+```bash
+# Graceful-SIGTERM restart verification (OPS-001 acceptance probe):
+systemctl --user restart duckbrain-http.service
+sleep 5
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/health   # expect 200 or 503
+systemctl --user show duckbrain-http.service -p NRestarts               # restart counter moved up
+```
+
+### Stopping daemons: scoped stop only (OPS-001)
+
+`pnpm stop` no longer pattern-kills. It runs
+`scripts/scoped-stop.js`, which SIGTERMs ONLY the single daemon proven by
+the port's pidfile (`duckbrain-http-<port>.pid`) to be a live
+`duckbrain … http` command for that port. Missing pidfile = safe no-op
+(exit 0); stale, malformed, pid-reuse, wrong-command, wrong-port, or
+unreadable-argv cases refuse to signal anything and exit nonzero.
+
+```bash
+pnpm stop                 # scoped stop of the :3000 instance (SIGTERM only)
+pnpm stop --port=4777     # scoped stop of a scratch instance on :4777
+pnpm stop --socket=/tmp/duckbrain.sock   # socket-named pidfile (--unix-socket instances)
+pnpm stop --json          # machine-readable outcome
+pnpm ops:check            # guard: no pkill/killall/pattern kills in package scripts
+```
+
+Never stop the Vite/UI dev server with this command — it is scoped to the
+HTTP daemon only; stop UI processes from their own terminal.
+
+### Scratch / judge servers: isolation and cleanup contract (OPS-001)
+
+Production uses the systemd unit above. Every scratch or judge daemon MUST:
+
+```bash
+# 1. Unique port (never 3000)
+node bin/duckbrain.js http --port=4777 &   # e.g. — keep the child PID
+SCRATCH_PID=$!
+
+# 2. Isolated auth + config + namespace paths (never the prod store)
+export DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json      # or --auth-file=…
+export DUCKBRAIN_CONFIG_PATH=/tmp/scratch-config.json
+export DUCKBRAIN_NAMESPACES_PATH=/tmp/scratch-namespaces
+
+# 3. Terminate ONLY that PID / process group — never broad cleanup
+kill $SCRATCH_PID          # SIGTERM to the exact child you spawned
+wait $SCRATCH_PID
+```
+
+**Forbidden as scratch cleanup: `pnpm stop` and every pkill/killall/pattern
+kill.** `pnpm stop` is scoped to ONE pidfile-proven instance — it is not a
+bulk tool — and pattern kills match unrelated processes (agents, editors,
+other ports' daemons). A scratch daemon on port 4777 is stopped with
+`pnpm stop --port=4777` or by killing its own recorded PID.
 
 ### Non-systemd Fallback
 

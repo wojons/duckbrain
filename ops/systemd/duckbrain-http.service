@@ -1,0 +1,26 @@
+[Unit]
+Description=DuckBrain HTTP MCP daemon (auto-restart hardened, OPS-001)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=node %h/duckbrain/bin/duckbrain.js http --port=3000
+WorkingDirectory=%h/duckbrain
+# OPS-001: a graceful SIGTERM exits 0, which on-failure restart policies
+# treat as success and leave the daemon dark. Restart=always covers BOTH
+# crash exits and graceful stops.
+Restart=always
+RestartSec=3
+# Start-limit: allow a burst of restarts, then cool down instead of giving
+# up (StartLimitAction=default = the unit enters failed state, which monitoring
+# should alert on alongside the dark-port check).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+# Graceful stop: SIGTERM, then SIGKILL after the grace window. Matches the
+# daemon's graceful shutdown (durability drain + commit flush) plus headroom.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

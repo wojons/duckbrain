@@ -295,3 +295,43 @@ fails for every non-default namespace while MCP forget works. Found because
 the dogfood ran with an isolated scratch config whose default namespace
 didn't exist; a dev-box run against the live `default` ns would have masked
 it. Isolation finds real bugs. Tracked as DOGFOOD-0904-01.
+
+## 18. Scoped shutdown and daemon lifecycle hardening (OPS-001, 09-12)
+
+On 2026-09-11 a graceful `SIGTERM` to the production daemon exited status 0
+and `:3000` stayed dark for 6m57s: the custom unit ran `Restart=on-failure`,
+and a graceful stop is not a failure — systemd did exactly what it was told.
+The same day's review found the second half of the problem: `pnpm stop` was
+`pkill -f 'duckbrain.*http'; pkill -f 'vite'` — a pattern kill that matches
+ANY process whose argv mentions the pattern (agents, editors, scratch
+daemons on other ports).
+
+Both halves are fixed in-tree; nothing here needs host access:
+
+- **Scoped stop** — `pnpm stop` now runs `scripts/scoped-stop.js`
+  (`src/cli/scoped-stop.ts`). It signals only the pid proven by the selected
+  port's pidfile (`duckbrain-http-<port>.pid`) to be a live `duckbrain …
+  http` command FOR THAT PORT. Missing pidfile → safe no-op (exit 0);
+  stale, malformed, pid-reuse, wrong-command, wrong-port, or unreadable-argv
+  → refuse, signal nothing, exit nonzero (codes 3/4/5/7; 6 = alive past the
+  grace window). Only SIGTERM, never SIGKILL — escalation belongs to
+  system. `--port=N` selects the instance; `--socket=PATH` addresses the
+  socket-named pidfile of a `--unix-socket` instance; `--json` for scripts.
+  Vite/UI is never touched — stop it from its own terminal.
+- **Restart=always unit** — `ops/systemd/duckbrain-http.service` (user
+  unit). `Restart=always` covers graceful stops AND crashes;
+  `StartLimitIntervalSec=300` / `StartLimitBurst=10` rate-limit crash
+  loops; `TimeoutStopSec=30` bounds the SIGTERM→SIGKILL window.
+- **Dark-port watchdog** — `ops/systemd/duckbrain-http-health.service` +
+  `.timer`: probes `/health` every minute through
+  `scripts/health-check.js` (`src/cli/health-check.ts`). Contract: HTTP 200
+  or 503 = ALIVE (503 degraded is the intentional embedding-health state,
+  GAP-030); connection failure or any other status (squatter 404, proxy
+  401) = DARK, exit 1. `/health` is auth-exempt, so the check carries no
+  keys. This catches the states Restart cannot: unit disabled/masked, port
+  squatted by something else.
+
+Install/verify/scratch-isolation commands live in
+[docs/guide/deployment.md § systemd hardening](../guide/deployment.md).
+`pnpm ops:check` fails the build if a pattern/numeric kill ever re-enters
+package scripts.

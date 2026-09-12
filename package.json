@@ -19,7 +19,8 @@
     "build": "pnpm --dir packages/ui build",
     "docker:build": "docker build -t duckbrain .",
     "docker:run": "docker run -p 3000:3000 -p 5173:5173 -v duckbrain-data:/data duckbrain",
-    "stop": "pkill -f 'duckbrain.*http' || true; pkill -f 'vite' || true"
+    "stop": "node scripts/scoped-stop.js",
+    "ops:check": "node scripts/check-no-pattern-kill.js"
   },
   "repository": {
     "type": "git",

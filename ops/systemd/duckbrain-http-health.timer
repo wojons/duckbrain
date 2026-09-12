@@ -1,0 +1,12 @@
+[Unit]
+Description=Probe duckbrain-http /health every minute (OPS-001)
+
+[Timer]
+# Fire every minute; catch up once if the machine slept.
+OnCalendar=*-*-* *:*:00
+Persistent=true
+# Jitter so fleets of instances do not probe in lockstep.
+RandomizedDelaySec=10
+
+[Install]
+WantedBy=timers.target

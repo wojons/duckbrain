@@ -1,0 +1,9 @@
+[Unit]
+Description=Dark-port watchdog for duckbrain-http (OPS-001)
+
+[Service]
+Type=oneshot
+# ALIVE = /health answers 200 or 503 (degraded is an intentional
+# embedding-health state, not an outage). DARK = connection failure or any
+# other status. /health is auth-exempt: no API keys here, ever.
+ExecStart=node %h/duckbrain/scripts/health-check.js --url=http://127.0.0.1:3000/health --timeout-ms=5000
