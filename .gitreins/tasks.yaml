@@ -992,3 +992,15 @@ tasks:
   status: complete
   created_at: '2026-09-12T02:24:18.622601+00:00'
   completed_at: '2026-09-12T12:32:52.937785+00:00'
+- id: OPS-002
+  title: 'P1 /health hangs forever: bound the health handler and classify hung-vs-dark
+    in the watchdog'
+  criteria:
+  - Live daemon /health answers within the deadline (200 or 503) after redeploy; /health
+    handler wrapped in a hard outer deadline with the exceeding sub-probe named; hermetic
+    regression covers a never-settling injected probe; scripts/health-check.js exit
+    codes separate hung (timeout) from dark (refused); tsc --noEmit + prettier clean;
+    AGENTS.md suite/test counts equal live.
+  status: complete
+  created_at: '2026-09-12T19:03:15.463298+00:00'
+  completed_at: '2026-09-12T19:39:12.754859+00:00'
