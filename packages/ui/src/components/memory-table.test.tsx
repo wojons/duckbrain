@@ -120,10 +120,11 @@ describe("MemoryTable", () => {
     renderWithProviders(<MemoryTable namespace="default" />);
     await screen.findByText("/search/000");
 
-    // GAP: the term goes out as ?query= while the backend route reads ?q=
-    // (see src/lib/api-client.test.ts). This pins the UI's current contract.
+    // FIXED: the term now goes out as ?q=, the name the backend route reads
+    // (was ?query=, which the backend ignored — UI search never matched).
     const params = api.requestsFor("/api/memories")[0].params;
-    expect(params.get("query")).toBe("alpha");
+    expect(params.get("q")).toBe("alpha");
+    expect(params.get("query")).toBeNull();
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("0");
   });

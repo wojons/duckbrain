@@ -75,17 +75,17 @@ describe("memoriesApi.list — REST query params", () => {
     expect(api.urlFor("/api/memories")).toBe("/api/memories?limit=5&offset=0");
   });
 
-  it("sends the omnibar search term as `query` (backend /api/memories reads `q`)", async () => {
-    // GAP (UI side): the client puts the search term under ?query=, while
-    // src/http/routes/memories.ts maps `query: req.query.q`. A term typed into
-    // the omnibar therefore reaches the backend under a name it ignores.
+  it("sends the omnibar search term as `q` (the param the backend reads)", async () => {
+    // FIXED: the client previously sent ?query=, which the backend ignores
+    // (src/http/routes/memories.ts maps `query: req.query.q`) — UI search
+    // never reached the engine. The term now rides as ?q=.
     const api = installApiStub([memoriesRoute({ items: [] })]);
 
     await memoriesApi.list({ query: "alpha" });
 
     const params = api.lastFor("/api/memories")!.params;
-    expect(params.get("query")).toBe("alpha");
-    expect(params.has("q")).toBe(false);
+    expect(params.get("q")).toBe("alpha");
+    expect(params.get("query")).toBeNull();
   });
 
   it("forwards temporal / multi-namespace params verbatim when a caller supplies them", async () => {

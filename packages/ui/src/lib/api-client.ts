@@ -138,10 +138,13 @@ export const memoriesApi = {
     offset?: number;
     domain?: string;
     author?: string;
+    /** Search term — sent as `q`, the name the backend reads (memories.ts). */
     query?: string;
     namespace?: string;
   }): Promise<MemoryListResponse> => {
-    return apiFetch<MemoryListResponse>(`/memories${buildQuery(params || {})}`);
+    const { query, ...rest } = params || {};
+    const wire = query ? { ...rest, q: query } : rest;
+    return apiFetch<MemoryListResponse>(`/memories${buildQuery(wire)}`);
   },
 
   /**
