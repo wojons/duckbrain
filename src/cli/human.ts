@@ -8,7 +8,7 @@
  * - remember <key> --domain=<domain> [--content=<text>|--text=<text>|stdin] --attr=<json> [--namespace=<name>]
  * - recall [options]
  * - list-keys [options]
- * - forget <id> [--reason=<reason>]
+ * - forget <id> [--namespace=<name>] [--reason=<reason>]
  * - config show|set
  * - namespaces list|add
  * - status [--namespace=<name>]
@@ -623,18 +623,26 @@ async function listKeysCommand(args: string[]): Promise<void> {
  * Forget command
  */
 async function forgetCommand(args: string[]): Promise<void> {
-  const { positional, flags } = parseArgs(args);
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace"]),
+  );
 
   if (positional.length < 1) {
-    console.error("Usage: duckbrain forget <id> [--reason=<reason>]");
+    console.error(
+      "Usage: duckbrain forget <id> [--namespace=<name>] [--reason=<reason>]",
+    );
     process.exit(1);
   }
 
   const id = positional[0];
   const reason = flags.reason || "User requested";
+  // DOGFOOD-0904-01: the namespace was hardcoded to "default", so tombstones
+  // for every other namespace failed with "Namespace 'default' not found".
+  // Resolve it the same way recall/search/status do.
+  const namespace = flags.namespace || getDefaultNamespace();
 
   try {
-    const result = await forgetTool({ id, namespace: "default", reason });
+    const result = await forgetTool({ id, namespace, reason });
 
     if (result.success) {
       console.log(`✓ Forgotten ${id}`);
@@ -1740,7 +1748,7 @@ function showHelp(): void {
     search <query>     Keyword full-text search (offline; needs search-index rebuild)
     search-index       Manage the keyword search index (rebuild|status|install-hooks)
     list-keys          Browse memory structure
-    forget <id>        Delete a memory
+    forget <id>        Delete a memory (--namespace=<name>, --reason=<reason>)
     config             Show or set configuration
     namespace(s)       Manage namespaces
     pull               Pull from remote (auto-merge conflicts)
@@ -1782,6 +1790,7 @@ function showHelp(): void {
     duckbrain recall --between=2026-08-10,2026-08-12
     duckbrain list-keys --depth=3 --limit=20
     duckbrain forget abc-123 --reason="obsolete"
+    duckbrain forget abc-123 --namespace=<ns> --reason="obsolete"
     duckbrain status --namespace=default
     duckbrain config set git.batchLines 100
     duckbrain ssh-connect --host=user@server --name=prod
