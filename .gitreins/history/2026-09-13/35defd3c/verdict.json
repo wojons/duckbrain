@@ -1,0 +1,67 @@
+{
+  "task_id": "OPS-004",
+  "task_title": "Repair live embedding provider health",
+  "task_criteria": [
+    "A real semantic query completes, /health reports embedding.healthy=true, provider choice is fail-closed and documented, and regression tests prevent an auth/config mismatch from being reported healthy."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m9:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7545693 bytes (7.55 MB) in 1.34s\u001b[0m\n\u001b[90m9:08PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  118 passed (118)\n      Tests  1020 passed (1020)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7545693 bytes (7.55 MB) in 1.34s\u001b[0m\n\u001b[90m9:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  118 passed (118)\n      Tests  1020 passed (1020)\n   Start at  21:08:36\n   Duration  33.07s (transform 1.50s, setup 693ms, import 25.45s, tests 92.02s, environment 10ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A real semantic query completes, /health reports embedding.healthy=true, provider choice is fail-closed and documented, and regression tests prevent an auth/config mismatch from being reported healthy.: (1) Real semantic query: recallTool({namespace:'coding-hermes-boardctl',query:'embedding provider health',limit:3}) with live env (openai/qwen3-embedding-8b/openrouter/4096/30000ms) returned 'RECALL OK' with a scored memory (score 0.49965619701174013). (2) /health healthy=true: live daemon :3000 polled 5x -> status=healthy, embedding.healthy=True, provider=openai (5/5); fresh probeEmbeddingHealth() with live env -> {provider:'openai',healthy:true,note:'ok'}. (3) Fail-closed: src/embedding/preflight.ts ok=checks.every(c=>c.verdict!=='fail'), asymmetric=reachability pass && usability fail, summary 'FAIL (closed)'; src/cli/embedding-preflight.ts runEmbeddingPreflightCli returns 1 when !ok (live preflight exit 0 on usable path). (4) Documented: docs/guide/embeddings.md lines 154-290 (exit codes, check table, verified signal table, config precedence incl. systemd env-at-start, latency table, rollback), plus README.md and docs/api/http-api.md. (5) Regression tests: src/embedding/health-dogfood020.test.ts describe('OPS-004...') covers auth-class distinction (credential_not_presented vs credential_rejected), 'names the auth class in the /health note when the credential never arrives' (asserts healthy=false), 'fails closed on the OPS-004 asymmetric condition (/models 200, /embeddings 401)', and secret redaction. Full suite: npx vitest run -> Test Files 118 passed (118), Tests 1020 passed (1020), EXIT=0.\nAll sub-parts verified with live evidence: a real semantic query returns scored results, live /health reports embedding.healthy=true with provider=openai, the preflight fails closed on the asymmetric condition, the runbook is documented, and the OPS-004 regression tests plus the full 1020-test suite pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A real semantic query completes, /health reports embedding.healthy=true, provider choice is fail-closed and documented, and regression tests prevent an auth/config mismatch from being reported healthy.: (1) Real semantic query: recallTool({namespace:'coding-hermes-boardctl',query:'embedding provider health',limit:3}) with live env (openai/qwen3-embedding-8b/openrouter/4096/30000ms) returned 'RECALL OK' with a scored memory (score 0.49965619701174013). (2) /health healthy=true: live ",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A real semantic query completes, /health reports embedding.healthy=true, provider choice is fail-closed and documented, and regression tests prevent an auth/config mismatch from being reported healthy.",
+                "status": "PASS",
+                "detail": "(1) Real semantic query: recallTool({namespace:'coding-hermes-boardctl',query:'embedding provider health',limit:3}) with live env (openai/qwen3-embedding-8b/openrouter/4096/30000ms) returned 'RECALL OK' with a scored memory (score 0.49965619701174013). (2) /health healthy=true: live daemon :3000 polled 5x -> status=healthy, embedding.healthy=True, provider=openai (5/5); fresh probeEmbeddingHealth() with live env -> {provider:'openai',healthy:true,note:'ok'}. (3) Fail-closed: src/embedding/preflight.ts ok=checks.every(c=>c.verdict!=='fail'), asymmetric=reachability pass && usability fail, summary 'FAIL (closed)'; src/cli/embedding-preflight.ts runEmbeddingPreflightCli returns 1 when !ok (live preflight exit 0 on usable path). (4) Documented: docs/guide/embeddings.md lines 154-290 (exit codes, check table, verified signal table, config precedence incl. systemd env-at-start, latency table, rollback), plus README.md and docs/api/http-api.md. (5) Regression tests: src/embedding/health-dogfood020.test.ts describe('OPS-004...') covers auth-class distinction (credential_not_presented vs credential_rejected), 'names the auth class in the /health note when the credential never arrives' (asserts healthy=false), 'fails closed on the OPS-004 asymmetric condition (/models 200, /embeddings 401)', and secret redaction. Full suite: npx vitest run -> Test Files 118 passed (118), Tests 1020 passed (1020), EXIT=0."
+              }
+            ],
+            "summary": "All sub-parts verified with live evidence: a real semantic query returns scored results, live /health reports embedding.healthy=true with provider=openai, the preflight fails closed on the asymmetric condition, the runbook is documented, and the OPS-004 regression tests plus the full 1020-test suite pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-004\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m9:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7545693 bytes (7.55 MB) in 1.34s\u001b[0m\n\u001b[90m9:08PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  118 passed (118)\n      Tests  1020 passed (1020)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A real semantic query completes, /health reports embedding.healthy=true, provider choice is fail-closed and documented, and regression tests prevent an auth/config mismatch from being reported healthy.: (1) Real semantic query: recallTool({namespace:'coding-hermes-boardctl',query:'embedding provider health',limit:3}) with live env (openai/qwen3-embedding-8b/openrouter/4096/30000ms) returned 'RECALL OK' with a scored memory (score 0.49965619701174013). (2) /health healthy=true: live daemon :3000 polled 5x -> status=healthy, embedding.healthy=True, provider=openai (5/5); fresh probeEmbeddingHealth() with live env -> {provider:'openai',healthy:true,note:'ok'}. (3) Fail-closed: src/embedding/preflight.ts ok=checks.every(c=>c.verdict!=='fail'), asymmetric=reachability pass && usability fail, summary 'FAIL (closed)'; src/cli/embedding-preflight.ts runEmbeddingPreflightCli returns 1 when !ok (live preflight exit 0 on usable path). (4) Documented: docs/guide/embeddings.md lines 154-290 (exit codes, check table, verified signal table, config precedence incl. systemd env-at-start, latency table, rollback), plus README.md and docs/api/http-api.md. (5) Regression tests: src/embedding/health-dogfood020.test.ts describe('OPS-004...') covers auth-class distinction (credential_not_presented vs credential_rejected), 'names the auth class in the /health note when the credential never arrives' (asserts healthy=false), 'fails closed on the OPS-004 asymmetric condition (/models 200, /embeddings 401)', and secret redaction. Full suite: npx vitest run -> Test Files 118 passed (118), Tests 1020 passed (1020), EXIT=0.\nAll sub-parts verified with live evidence: a real semantic query returns scored results, live /health reports embedding.healthy=true with provider=openai, the preflight fails closed on the asymmetric condition, the runbook is documented, and the OPS-004 regression tests plus the full 1020-test suite pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-13T02:13:55.615774"
+}
