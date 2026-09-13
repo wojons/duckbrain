@@ -1022,3 +1022,13 @@ tasks:
   status: complete
   created_at: '2026-09-13T10:56:35.641249+00:00'
   completed_at: '2026-09-13T11:02:37.991110+00:00'
+- id: GAP-028
+  title: Document HTTP API authentication in README
+  criteria:
+  - README HTTP API section states the API-key prerequisite for auth-enabled daemons;
+    all five curl examples send X-API-Key; the text links to docs/api/http-api.md#using-api-key-authentication;
+    README-only diff is structurally verified and the documented reads return HTTP
+    200 against the live authenticated daemon when supplied the existing scoped key.
+  status: complete
+  created_at: '2026-09-13T17:27:44.156767+00:00'
+  completed_at: '2026-09-13T17:32:14.753821+00:00'
