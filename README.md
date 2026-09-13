@@ -168,28 +168,30 @@ DuckBrain exposes these MCP tools (available over stdio and MCP-over-HTTP at `PO
 
 The HTTP server (`pnpm start -- http`, default `http://127.0.0.1:3000`) also serves a REST API under `/api/` for scripts, dashboards, and non-MCP clients. Core read routes (all verified against a live daemon):
 
-| Route | Description |
-|-------|-------------|
-| `GET /api/keys` | Hierarchical memory key tree (`?namespace=`, `?prefix=`, `?depth=`) |
-| `GET /api/memories` | Query memories — filters (`?namespace=`, `?domain=`, `?contains=`), pagination (`?limit=`, `?offset=`), semantic search (`?q=`) |
-| `GET /api/memories/key/:key` | Latest memory for a key path (`?namespace=`) |
-| `GET /api/memories/:id` | Single memory by ID (`?namespace=`) |
+| Route                        | Description                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/keys`              | Hierarchical memory key tree (`?namespace=`, `?prefix=`, `?depth=`)                                                             |
+| `GET /api/memories`          | Query memories — filters (`?namespace=`, `?domain=`, `?contains=`), pagination (`?limit=`, `?offset=`), semantic search (`?q=`) |
+| `GET /api/memories/key/:key` | Latest memory for a key path (`?namespace=`)                                                                                    |
+| `GET /api/memories/:id`      | Single memory by ID (`?namespace=`)                                                                                             |
+
+When the server is started with `--auth=apikey`, clients must send `X-API-Key`; keys are configured in `~/.duckbrain/auth.json`. See [Using API Key Authentication](docs/api/http-api.md#using-api-key-authentication).
 
 ```bash
 # Key tree
-curl "http://localhost:3000/api/keys?namespace=default"
+curl -H "X-API-Key: <key>" "http://localhost:3000/api/keys?namespace=default"
 
 # Query memories (keyword filter ?contains= works offline)
-curl "http://localhost:3000/api/memories?namespace=default&limit=10"
+curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories?namespace=default&limit=10"
 
 # Semantic search — needs a reachable embedding provider (see note below)
-curl "http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
+curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
 
 # Latest memory for a key path
-curl "http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
+curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
 
 # Single memory by ID
-curl "http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
+curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
 ```
 
 - Namespace-scoped routes default to `default` when `?namespace=` is omitted.
