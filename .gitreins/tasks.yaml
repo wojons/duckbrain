@@ -1013,3 +1013,12 @@ tasks:
   status: complete
   created_at: '2026-09-13T01:53:17.516546+00:00'
   completed_at: '2026-09-13T02:54:45.162149+00:00'
+- id: DOGFOOD-0904-01
+  title: CLI forget honors --namespace
+  criteria:
+  - duckbrain forget parses --namespace (space and = forms) with config defaultNamespace
+    fallback, documents it in usage text, and forgets the memory in the named namespace
+    (regression test proves tombstone lands in a non-default namespace via CLI)
+  status: complete
+  created_at: '2026-09-13T10:56:35.641249+00:00'
+  completed_at: '2026-09-13T11:02:37.991110+00:00'
