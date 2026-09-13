@@ -158,7 +158,9 @@ function printUsage(): void {
  * `fetch` rather than injecting a runner, so the CLI's own arg handling and
  * exit-code mapping sit on the real probe path.
  */
-export async function runEmbeddingPreflightCli(argv: string[]): Promise<number> {
+export async function runEmbeddingPreflightCli(
+  argv: string[],
+): Promise<number> {
   const parsed = parsePreflightArgs(argv);
   if (parsed.error) {
     console.error(`embedding-preflight: ${parsed.error}`);

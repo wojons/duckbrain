@@ -33,10 +33,7 @@ import {
   resetEmbeddingHealthCache,
   type EmbeddingHealthResult,
 } from "./health";
-import {
-  classifyEmbedFailure,
-  redactSecrets,
-} from "./providers";
+import { classifyEmbedFailure, redactSecrets } from "./providers";
 import { preflightEmbedding } from "./preflight";
 import { runEmbeddingPreflightCli } from "../cli/embedding-preflight";
 import { createHealthHandler } from "../cli/http";
@@ -807,7 +804,9 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
       }),
     );
 
-    const report = await preflightEmbedding({ config: { provider: "lmstudio" } });
+    const report = await preflightEmbedding({
+      config: { provider: "lmstudio" },
+    });
 
     const dims = report.checks.find((c) => c.id === "dimensions")!;
     expect(dims.verdict).toBe("warn");
@@ -1045,9 +1044,9 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
       expect(report.provider).toBe("ollama");
       const calls = fetchMock.mock.calls.map(([u]) => String(u));
       // THE TRAP: lmstudio's embeddings route was NEVER called…
-      expect(calls.some((u) => u.includes("localhost:1234/v1/embeddings"))).toBe(
-        false,
-      );
+      expect(
+        calls.some((u) => u.includes("localhost:1234/v1/embeddings")),
+      ).toBe(false);
       // …even though its gate route WAS probed (the failure is recorded).
       expect(calls.some((u) => u.includes("localhost:1234/v1/models"))).toBe(
         true,
@@ -1066,8 +1065,7 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
       // Same contract, transport-failure flavour: the gate route refuses the
       // connection, the embeddings route would succeed if called.
       const fetchMock = vi.fn(async (url: string) => {
-        if (url.includes("localhost:1234"))
-          throw new TypeError("fetch failed");
+        if (url.includes("localhost:1234")) throw new TypeError("fetch failed");
         if (url.includes("localhost:11434/api/tags"))
           return httpResponse({
             json: {
@@ -1091,9 +1089,9 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
       expect(report.ok).toBe(true);
       expect(report.provider).toBe("ollama");
       const calls = fetchMock.mock.calls.map(([u]) => String(u));
-      expect(calls.some((u) => u.includes("localhost:1234/v1/embeddings"))).toBe(
-        false,
-      );
+      expect(
+        calls.some((u) => u.includes("localhost:1234/v1/embeddings")),
+      ).toBe(false);
       const lmstudio = report.checks.filter((c) => c.provider === "lmstudio");
       expect(lmstudio.find((c) => c.id === "reachability")!.verdict).toBe(
         "fail",
@@ -1180,13 +1178,13 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
       expect(unusable.find((c) => c.provider === "openai")!.verdict).toBe(
         "fail",
       );
-      expect(
-        unusable.find((c) => c.provider === "openai")!.failure_class,
-      ).toBe("credential_not_presented");
-      const calls = fetchMock.mock.calls.map(([u]) => String(u));
-      expect(calls.some((u) => u.includes("localhost:11434/api/embeddings"))).toBe(
-        false,
+      expect(unusable.find((c) => c.provider === "openai")!.failure_class).toBe(
+        "credential_not_presented",
       );
+      const calls = fetchMock.mock.calls.map(([u]) => String(u));
+      expect(
+        calls.some((u) => u.includes("localhost:11434/api/embeddings")),
+      ).toBe(false);
 
       // The CLI maps the all-unusable auto verdict to exit 1 (fail closed).
       const log = vi.spyOn(console, "log").mockImplementation(() => {});

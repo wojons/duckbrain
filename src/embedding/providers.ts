@@ -201,7 +201,10 @@ export function classifyEmbedFailure(
   const name = typeof e.name === "string" ? e.name : "";
   const rawMessage =
     typeof e.message === "string" ? e.message : String(error ?? "");
-  const detail = redactSecrets(providerDetail(rawMessage), secrets).slice(0, 200);
+  const detail = redactSecrets(providerDetail(rawMessage), secrets).slice(
+    0,
+    200,
+  );
 
   // AbortSignal.timeout() → DOMException name "TimeoutError", message "The
   // operation was aborted due to timeout"; an explicit abort is "AbortError".
@@ -231,7 +234,8 @@ export function classifyEmbedFailure(
       return { class: "credential_rejected", status, detail };
     }
     if (status === 403) return { class: "forbidden", status, detail };
-    if (status === 404) return { class: "route_or_model_missing", status, detail };
+    if (status === 404)
+      return { class: "route_or_model_missing", status, detail };
     if (status === 429) return { class: "rate_limited", status, detail };
     if (status >= 500) return { class: "upstream_error", status, detail };
     return { class: "http_error", status, detail };

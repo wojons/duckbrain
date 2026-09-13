@@ -77,7 +77,8 @@ export const PREFLIGHT_REACH_TIMEOUT_MS = 2_000;
 export type PreflightVerdict = "pass" | "warn" | "fail" | "skip";
 
 export interface PreflightCheck {
-  id: "provider" | "reachability" | "usability" | "dimensions" | "health_budget";
+  id:
+    "provider" | "reachability" | "usability" | "dimensions" | "health_budget";
   /** Candidate provider this check belongs to (>1 only under provider=auto). */
   provider: string;
   verdict: PreflightVerdict;
@@ -150,7 +151,10 @@ function sanitizeEndpoint(url: string): string {
  * mismatch there is reported as a warning instead of a false alarm.
  */
 function dimsAreContract(explicit: number | undefined): boolean {
-  return explicit !== undefined || Boolean(process.env.DUCKBRAIN_EMBEDDING_DIMENSIONS);
+  return (
+    explicit !== undefined ||
+    Boolean(process.env.DUCKBRAIN_EMBEDDING_DIMENSIONS)
+  );
 }
 
 /** One candidate provider's probe outcome (auto mode probes several). */
@@ -366,8 +370,7 @@ async function probeCandidate(
     // A `skip` usability (cheap-gate exclusion) is never usable and never
     // asymmetric: the asymmetric condition requires a PASSING gate.
     usable: usabilityVerdict === "pass",
-    asymmetric:
-      reachability.verdict === "pass" && usability.verdict === "fail",
+    asymmetric: reachability.verdict === "pass" && usability.verdict === "fail",
     usabilityNote: usability.note,
   };
 }
@@ -438,9 +441,9 @@ export async function preflightEmbedding(
   // ok requires a PROVEN-usable winner whose own checks are otherwise clean
   // (a strict-dimensions failure on the winning embed still fails closed);
   // failures recorded for skipped auto candidates do not poison the verdict.
-  const ok = winner !== null && winner.checks.every((c) => c.verdict !== "fail");
-  const asymmetric =
-    winner === null && attempts.some((a) => a.asymmetric);
+  const ok =
+    winner !== null && winner.checks.every((c) => c.verdict !== "fail");
+  const asymmetric = winner === null && attempts.some((a) => a.asymmetric);
 
   const summary = ok
     ? `PASS: ${selected.id}/${resolved.model} embedded a live vector (${selected.vectorLen} dims)` +
@@ -489,7 +492,9 @@ export async function preflightEmbedding(
  * Render the report for humans (stdout). Every line is safe to paste into a
  * board row or a tick log: no credential value can reach it.
  */
-export function renderPreflightReport(report: EmbeddingPreflightReport): string {
+export function renderPreflightReport(
+  report: EmbeddingPreflightReport,
+): string {
   const lines = [
     `embedding preflight: ${report.summary}`,
     `  provider: ${report.provider}   model: ${report.model}   key_present: ${report.key_present ? "yes" : "no"}`,
