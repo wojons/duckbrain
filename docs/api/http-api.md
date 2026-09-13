@@ -81,7 +81,15 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
 Status is `degraded` when no embedding provider can embed
 (`embedding.healthy: false`, `embedding.provider` empty, per-provider
 `note` explains why) or when the keys store probe fails
-(`keys_error` carries a short error string instead of `null`). A degraded
+(`keys_error` carries a short error string instead of `null`).
+Since OPS-004 a failing provider's `note` also names the failure CLASS for the
+auth / timeout / empty-vector cases (`"auth: credential not presented …"`,
+`"timeout: the embed probe exceeded its 3000ms health budget …"`) so an
+operator can tell "the credential never arrived" from "the credential was
+rejected" without decoding provider JSON; other classes keep the raw provider
+string. For the reachable-but-unusable state (`/models` 200 while every embed
+fails) run `pnpm ops:embedding-preflight` — it fails closed and never prints
+the key. A degraded
 `/health` returns HTTP **503** with `status: "degraded"` in the body; a
 healthy service returns HTTP **200** with `status: "healthy"` — a
 supervisor watching HTTP codes sees non-200 while embeddings are down

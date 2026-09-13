@@ -105,6 +105,200 @@ function makeHttpEmbed(
 }
 
 /**
+ * Embedding-failure classes (OPS-004).
+ *
+ * `makeHttpEmbed` throws exactly two shapes — `[<id>] embed HTTP <status>:
+ * <body>` and `[<id>] no embedding vector in response` — while a transport
+ * failure (abort/timeout, DNS, refused) propagates its own DOMException or
+ * TypeError. Callers that surface a failure to an operator (/health notes, the
+ * embedding preflight in `./preflight.ts`) must name the CLASS, not just relay
+ * the provider text: the OPS-004 row cost a full investigation because the raw
+ * `401 {"message":"Missing Authentication header"}` had to be decoded by hand,
+ * and the /health note for the other half of the incident ("The operation was
+ * aborted due to timeout") named neither the class nor the budget that expired.
+ *
+ * Verified provider signatures (OpenRouter `/api/v1/embeddings`, 2026-09-12):
+ *   - empty OR scheme-less `Authorization`      → 401 "Missing Authentication
+ *     header"                                     → credential_not_presented
+ *   - no `Authorization` header at all          → 401 "No cookie auth
+ *     credentials found"                          → credential_not_presented
+ *   - unknown/revoked key                       → 401 "User not found."
+ *                                                   → credential_rejected
+ * `credential_not_presented` is the ONLY class an empty API key (Bearer + "")
+ * can produce. It can never mean "the key lacks embeddings scope" — a
+ * reachable route with a rejected credential reports differently — which is
+ * exactly the ambiguity that made OPS-004 expensive to resolve.
+ */
+export type EmbedFailureClass =
+  | "credential_not_presented"
+  | "credential_rejected"
+  | "forbidden"
+  | "rate_limited"
+  | "route_or_model_missing"
+  | "upstream_error"
+  | "timeout"
+  | "unreachable"
+  | "empty_vector"
+  | "http_error"
+  | "provider_error";
+
+export interface EmbedFailure {
+  class: EmbedFailureClass;
+  /** HTTP status when the failure was an HTTP response, else null. */
+  status: number | null;
+  /** Short provider detail — credential-redacted, never a secret. */
+  detail: string;
+}
+
+/**
+ * Remove every occurrence of the given secrets (and their `Bearer <secret>`
+ * form) from a string. Used before ANY provider text reaches a note, a log
+ * line, or a preflight report: a provider that echoes the presented credential
+ * back in an error body must not turn into a leak.
+ */
+export function redactSecrets(
+  text: string,
+  secrets: readonly string[] = [],
+): string {
+  let out = text;
+  for (const secret of secrets) {
+    if (!secret || secret.length < 8) continue;
+    out = out.split(`Bearer ${secret}`).join("Bearer <redacted>");
+    out = out.split(secret).join("<redacted>");
+  }
+  return out;
+}
+
+/** Extract `[<id>] ` — the provider prefix makeHttpEmbed adds. */
+function providerDetail(message: string): string {
+  return message.replace(/^\[[^\]]*\]\s*/, "");
+}
+
+/** OpenRouter's "the request carried no usable credential" signatures. */
+const CREDENTIAL_NOT_PRESENTED =
+  /missing authentication header|no cookie auth credentials|no auth credentials|missing api key header/i;
+
+/** A rejected-but-presented credential (wrong/revoked key). */
+const CREDENTIAL_REJECTED =
+  /user not found|invalid api key|incorrect api key|invalid_api_key|invalid bearer|unauthorized/i;
+
+/**
+ * Classify a failed embedding attempt into an operator-actionable class.
+ *
+ * @param error anything thrown by a provider's `embed()` or by `fetch`
+ * @param secrets credential values to scrub out of the returned detail
+ */
+export function classifyEmbedFailure(
+  error: unknown,
+  secrets: readonly string[] = [],
+): EmbedFailure {
+  const e = (error ?? {}) as {
+    name?: unknown;
+    message?: unknown;
+    code?: unknown;
+    cause?: unknown;
+  };
+  const name = typeof e.name === "string" ? e.name : "";
+  const rawMessage =
+    typeof e.message === "string" ? e.message : String(error ?? "");
+  const detail = redactSecrets(providerDetail(rawMessage), secrets).slice(0, 200);
+
+  // AbortSignal.timeout() → DOMException name "TimeoutError", message "The
+  // operation was aborted due to timeout"; an explicit abort is "AbortError".
+  if (
+    name === "TimeoutError" ||
+    name === "AbortError" ||
+    /aborted due to timeout/i.test(rawMessage)
+  ) {
+    return { class: "timeout", status: null, detail };
+  }
+
+  // makeHttpEmbed's HTTP failure: "embed HTTP <status>: <body>". The body is
+  // untrusted provider text — it reaches notes/reports only redacted.
+  const http = /HTTP\s+(\d{3})\s*:?\s*([\s\S]*)$/i.exec(detail);
+  if (http) {
+    const status = Number.parseInt(http[1], 10);
+    const body = redactSecrets(http[2] ?? "", secrets);
+    if (status === 401) {
+      if (CREDENTIAL_NOT_PRESENTED.test(body)) {
+        return { class: "credential_not_presented", status, detail };
+      }
+      if (CREDENTIAL_REJECTED.test(body)) {
+        return { class: "credential_rejected", status, detail };
+      }
+      // A 401 whose body matches nothing known is still an auth verdict; say
+      // so without pretending to know which.
+      return { class: "credential_rejected", status, detail };
+    }
+    if (status === 403) return { class: "forbidden", status, detail };
+    if (status === 404) return { class: "route_or_model_missing", status, detail };
+    if (status === 429) return { class: "rate_limited", status, detail };
+    if (status >= 500) return { class: "upstream_error", status, detail };
+    return { class: "http_error", status, detail };
+  }
+
+  if (/no embedding vector in response/i.test(detail)) {
+    return { class: "empty_vector", status: null, detail };
+  }
+
+  // Node wraps transport failures in TypeError("fetch failed") with the real
+  // cause nested; a bare code (ECONNREFUSED, ENOTFOUND, ETIMEDOUT) counts too.
+  const cause = (e.cause ?? {}) as { code?: unknown; message?: unknown };
+  const causeCode = typeof cause.code === "string" ? cause.code : "";
+  if (
+    name === "TypeError" ||
+    causeCode.length > 0 ||
+    /fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up/i.test(
+      `${rawMessage} ${String(cause.message ?? "")}`,
+    )
+  ) {
+    return { class: "unreachable", status: null, detail };
+  }
+
+  return { class: "provider_error", status: null, detail };
+}
+
+/**
+ * The cheap reachability route each provider's `isHealthy()` gate uses.
+ *
+ * OPS-004: exported so the embedding preflight (`./preflight.ts`) probes the
+ * EXACT route the daemon's own gate probes — a preflight that reported on a
+ * route the gate never calls would "prove" reachability the daemon never had.
+ */
+export function reachabilityUrl(
+  id: string,
+  cfg: Pick<EmbeddingConfig, "baseUrl">,
+): string {
+  if (id === "ollama") {
+    return `${normBase(cfg.baseUrl, "http://localhost:11434")}/api/tags`;
+  }
+  if (id === "openai") {
+    return `${normBase(cfg.baseUrl, "https://api.openai.com/v1")}/models`;
+  }
+  return `${normBase(cfg.baseUrl, "http://localhost:1234/v1")}/models`;
+}
+
+/**
+ * The embed route each provider's `build()` posts to.
+ *
+ * Exported for the same reason as `reachabilityUrl`: the preflight reports the
+ * endpoint it actually exercised, and one route table means the report cannot
+ * drift from what recall calls.
+ */
+export function embedUrl(
+  id: string,
+  cfg: Pick<EmbeddingConfig, "baseUrl">,
+): string {
+  if (id === "ollama") {
+    return `${normBase(cfg.baseUrl, "http://localhost:11434")}/api/embeddings`;
+  }
+  if (id === "openai") {
+    return `${normBase(cfg.baseUrl, "https://api.openai.com/v1")}/embeddings`;
+  }
+  return `${normBase(cfg.baseUrl, "http://localhost:1234/v1")}/embeddings`;
+}
+
+/**
  * Provider registry in priority order (lmstudio → ollama → openai).
  * Exported for the DOGFOOD-020 health probe (src/embedding/health.ts), which
  * runs each provider's cheap isHealthy() gate and then a real embed probe via
@@ -115,12 +309,11 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "lmstudio",
     label: "LM Studio (OpenAI-compatible, local)",
     build(cfg) {
-      const base = normBase(cfg.baseUrl, "http://localhost:1234/v1");
       return makeHttpEmbed(
         `lmstudio/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
-        `${base}/embeddings`,
+        embedUrl("lmstudio", cfg),
         { model: cfg.model },
         {},
         cfg.timeoutMs,
@@ -128,8 +321,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     },
     async isHealthy(cfg) {
       try {
-        const base = normBase(cfg.baseUrl, "http://localhost:1234/v1");
-        const res = await fetch(`${base}/models`, {
+        const res = await fetch(reachabilityUrl("lmstudio", cfg), {
           signal: AbortSignal.timeout(1500),
         });
         if (!res.ok) return false;
@@ -153,12 +345,11 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "ollama",
     label: "Ollama (local)",
     build(cfg) {
-      const base = normBase(cfg.baseUrl, "http://localhost:11434");
       return makeHttpEmbed(
         `ollama/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
-        `${base}/api/embeddings`,
+        embedUrl("ollama", cfg),
         { model: cfg.model },
         {},
         cfg.timeoutMs,
@@ -170,8 +361,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     },
     async isHealthy(cfg) {
       try {
-        const base = normBase(cfg.baseUrl, "http://localhost:11434");
-        const res = await fetch(`${base}/api/tags`, {
+        const res = await fetch(reachabilityUrl("ollama", cfg), {
           signal: AbortSignal.timeout(1500),
         });
         if (!res.ok) return false;
@@ -201,12 +391,11 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "openai",
     label: "OpenAI API (remote)",
     build(cfg) {
-      const base = normBase(cfg.baseUrl, "https://api.openai.com/v1");
       return makeHttpEmbed(
         `openai/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
-        `${base}/embeddings`,
+        embedUrl("openai", cfg),
         { model: cfg.model },
         { Authorization: `Bearer ${cfg.apiKey || ""}` },
         cfg.timeoutMs,

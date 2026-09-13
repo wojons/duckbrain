@@ -33,6 +33,7 @@
 import { getConfig } from "../config";
 import {
   PROVIDERS,
+  classifyEmbedFailure,
   resolveEmbeddingConfig,
   type EmbeddingConfig,
 } from "./providers";
@@ -104,8 +105,14 @@ function errMsg(e: unknown): string {
  * must sit ABOVE the file layer (recall resolves env+defaults only), so a
  * DUCKBRAIN_EMBEDDING_PROVIDER override still wins over an explicit
  * embedding.provider in duckbrain.config.json.
+ *
+ * Exported for the OPS-004 preflight (`./preflight.ts`): the CLI check must
+ * report against the SAME effective config /health uses. A second copy of this
+ * precedence chain would be exactly the config-drift class OPS-004 is about.
  */
-function resolveHealthConfig(cfg: EmbeddingConfig): Required<EmbeddingConfig> {
+export function resolveHealthConfig(
+  cfg: EmbeddingConfig,
+): Required<EmbeddingConfig> {
   const env = process.env;
   const envCfg: EmbeddingConfig = {
     provider: env.DUCKBRAIN_EMBEDDING_PROVIDER,
@@ -183,15 +190,49 @@ async function classifyUnhealthy(
  * Shorten a makeHttpEmbed error for the note. Strips the "[provider/model] "
  * prefix; Ollama's "model not found" 404 becomes the actionable
  * "model not in /api/tags" (the DOGFOOD-020 failure mode).
+ *
+ * OPS-004: the note must also NAME THE CLASS. The live incident reported
+ * `embedding.healthy=false` with the note "The operation was aborted due to
+ * timeout" — which says neither that the expired budget was the 3s HEALTH
+ * probe (not the configured 30s embedding timeout) nor that the provider may
+ * well be usable. Two classes get an explicit prefix so an operator can tell
+ * "the credential never arrived" from "the credential was rejected" without
+ * decoding provider JSON by hand; every other class keeps the historical note
+ * shape verbatim (curl-able, grep-able).
+ *
+ * `secrets` is the presented credential — a provider that echoes it back in an
+ * error body must not leak it into /health.
  */
-function embedNote(id: string, e: unknown): string {
-  let msg = errMsg(e)
-    .replace(/^\[[^\]]+\]\s*/, "")
-    .slice(0, 160);
-  if (id === "ollama" && /not found/i.test(msg)) {
-    msg = "model not in /api/tags";
+function embedNote(
+  id: string,
+  e: unknown,
+  secrets: readonly string[] = [],
+): string {
+  const failure = classifyEmbedFailure(e, secrets);
+  const detail = failure.detail.slice(0, 160);
+  if (id === "ollama" && /not found/i.test(detail)) {
+    return "model not in /api/tags";
   }
-  return msg;
+  switch (failure.class) {
+    case "timeout":
+      return (
+        `timeout: the embed probe exceeded its ${EMBEDDING_HEALTH_PROBE_TIMEOUT_MS}ms health budget` +
+        ` (health-probe budget, NOT DUCKBRAIN_EMBEDDING_TIMEOUT_MS)` +
+        ` — the provider may still be usable for real queries`
+      );
+    case "credential_not_presented":
+      return (
+        `auth: credential not presented — ${detail}` +
+        ` (empty/malformed Authorization header; NOT a key-scope or route failure)`
+      );
+    case "credential_rejected":
+      return `auth: credential rejected — ${detail}`;
+    case "empty_vector":
+      // DOGFOOD-002: a 200 with an empty vector is a failed embed.
+      return "empty embedding vector in a 200 response";
+    default:
+      return detail;
+  }
 }
 
 /**
@@ -247,7 +288,7 @@ export async function probeEmbeddingHealth(
         providers.push({
           id: ctor.id,
           healthy: false,
-          note: embedNote(ctor.id, e),
+          note: embedNote(ctor.id, e, [resolved.apiKey]),
         });
       }
     } else {
