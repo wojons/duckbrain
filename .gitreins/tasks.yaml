@@ -1032,3 +1032,13 @@ tasks:
   status: complete
   created_at: '2026-09-13T17:27:44.156767+00:00'
   completed_at: '2026-09-13T17:32:14.753821+00:00'
+- id: DB-SUPA-3
+  title: "SUPA \u2014 PostgREST-equal resource layer: generic table\u2192REST derivation"
+  criteria:
+  - HTTP surface exposes /api/ns/:ns/tables/:table CRUD with querystring filters,
+    order, limit/offset with caps, count; NDJSON batch insert; OpenAPI generated from
+    the schema registry. postgrest-conventions CRUD battery passes against a fixture
+    namespace; pnpm tsc --noEmit and a focused vitest run on the new code are green.
+  status: complete
+  created_at: '2026-09-14T10:27:39.556943+00:00'
+  completed_at: '2026-09-14T12:18:41.537549+00:00'
