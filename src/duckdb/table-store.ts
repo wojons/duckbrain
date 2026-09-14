@@ -28,7 +28,10 @@
 import fs from "fs";
 import path from "path";
 import { Database } from "duckdb";
-import type { TableDeclaration, TableColumn } from "../schema/table-registry.js";
+import type {
+  TableDeclaration,
+  TableColumn,
+} from "../schema/table-registry.js";
 import { deepConvertBigInts } from "../utils/serialize.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
 
@@ -52,9 +55,7 @@ function duckType(type: TableColumn["type"]): string {
 }
 
 /** The explicit read_json columns spec for a declared table. */
-export function readJsonColumnsSpec(
-  declaration: TableDeclaration,
-): string {
+export function readJsonColumnsSpec(declaration: TableDeclaration): string {
   const parts = declaration.columns.map(
     (col) => `${quoteIdentifier(col.name)}:'${duckType(col.type)}'`,
   );
@@ -88,9 +89,7 @@ export function resolveTableFiles(
   const parts = pattern.split("/").filter((p) => p.length > 0);
   const files: DiscoveredFile[] = [];
 
-  const hasWildcard = parts.some(
-    (p) => p.includes("*") || p.includes("?"),
-  );
+  const hasWildcard = parts.some((p) => p.includes("*") || p.includes("?"));
   if (!hasWildcard) {
     const abs = path.resolve(nsDir, pattern);
     if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
@@ -119,7 +118,10 @@ export function resolveTableFiles(
         continue;
       }
       const regex = new RegExp(
-        `^${part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`,
+        `^${part
+          .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+          .replace(/\*/g, ".*")
+          .replace(/\?/g, ".")}$`,
       );
       if (!regex.test(ent.name)) continue;
       const full = path.join(dir, ent.name);
@@ -281,7 +283,12 @@ export function buildSelectPlan(
   const filters = opts.filters ?? {};
   for (const [rawKey, rawValue] of Object.entries(filters)) {
     // Reserved params that are not column filters.
-    if (rawKey === "order" || rawKey === "limit" || rawKey === "offset" || rawKey === "count") {
+    if (
+      rawKey === "order" ||
+      rawKey === "limit" ||
+      rawKey === "offset" ||
+      rawKey === "count"
+    ) {
       continue;
     }
     const col = declaration.columns.find((c) => c.name === rawKey);
@@ -326,7 +333,11 @@ export function buildSelectPlan(
           `${quoteIdentifier(col.name)} IN (${placeholders.length > 0 ? placeholders : "NULL"})`,
         );
       } else {
-        params.push(operand === "null" || operand === "" ? null : coercePrimitiveOperand(operand, col.type));
+        params.push(
+          operand === "null" || operand === ""
+            ? null
+            : coercePrimitiveOperand(operand, col.type),
+        );
         whereParts.push(sqlComparison(col, op));
       }
     }
@@ -375,9 +386,10 @@ export function buildSelectPlan(
   const orderSql =
     orderParts.length > 0 ? `ORDER BY ${orderParts.join(", ")}` : "";
   const countSql = `SELECT count(*)::BIGINT AS __total_count FROM ${fileSql} ${whereSql}`;
-  const rowsSql = `SELECT ${columnsSql} FROM ${fileSql} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`
-    .replace(/\s+/g, " ")
-    .trim();
+  const rowsSql =
+    `SELECT ${columnsSql} FROM ${fileSql} ${whereSql} ${orderSql} LIMIT ? OFFSET ?`
+      .replace(/\s+/g, " ")
+      .trim();
 
   return {
     sql: rowsSql,
@@ -489,7 +501,11 @@ export async function executeSelectPlan(
 
     if (files.length === 0) return { rows: [], totalCount };
     const readSql = buildReadSqlForFiles(files, declaration);
-    const rows = await allAsync(db, plan.sql.replace(READ_SOURCE_SENTINEL, () => readSql), plan.params);
+    const rows = await allAsync(
+      db,
+      plan.sql.replace(READ_SOURCE_SENTINEL, () => readSql),
+      plan.params,
+    );
     return {
       rows: rows.map((r) => deepConvertBigInts(r) as Record<string, unknown>),
       totalCount,
@@ -606,7 +622,12 @@ function coerceCell(
     }
     case "timestamp": {
       if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
-        throw typeMismatch(col, value, declaration, "an ISO-8601 timestamp string");
+        throw typeMismatch(
+          col,
+          value,
+          declaration,
+          "an ISO-8601 timestamp string",
+        );
       }
       return value;
     }
@@ -785,7 +806,9 @@ export function patchRowsByPk(
     opts.upsertBody !== undefined,
   );
   if (outcome.mutated === 0 && opts.upsertBody !== undefined) {
-    appendRowsToTable(nsDir, declaration, [coerceRowAgainstDeclaration(declaration, opts.upsertBody)]);
+    appendRowsToTable(nsDir, declaration, [
+      coerceRowAgainstDeclaration(declaration, opts.upsertBody),
+    ]);
     outcome.inserted = 1;
   }
   return outcome;
@@ -816,7 +839,9 @@ function pkCompareValue(
   operand: string,
 ): (cell: unknown) => boolean {
   const decoded =
-    operand === "null" || operand === "" ? null : coercePrimitiveOperand(operand, col.type);
+    operand === "null" || operand === ""
+      ? null
+      : coercePrimitiveOperand(operand, col.type);
   return (cell: unknown) => {
     if (cell === null || cell === undefined) return decoded === null;
     return String(cell) === String(decoded);

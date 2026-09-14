@@ -126,19 +126,28 @@ describe("DB-SUPA-3: NDJSON insert over the production wiring", () => {
     invalidateTableRegistry(FIXTURE_NS);
     const BASE = `/api/ns/${FIXTURE_NS}/tables`;
 
-    const post = await httpRequest(createHttpServer({ authType: "none" }), "POST", `${BASE}/widgets`, {
-      headers: { "Content-Type": "application/x-ndjson" },
-      body:
-        JSON.stringify({ id: 5, name: "eps", qty: 2.0 }) +
-        "\n" +
-        JSON.stringify({ id: 6, name: "zeta", qty: 3.0 }) +
-        "\n",
-    });
+    const post = await httpRequest(
+      createHttpServer({ authType: "none" }),
+      "POST",
+      `${BASE}/widgets`,
+      {
+        headers: { "Content-Type": "application/x-ndjson" },
+        body:
+          JSON.stringify({ id: 5, name: "eps", qty: 2.0 }) +
+          "\n" +
+          JSON.stringify({ id: 6, name: "zeta", qty: 3.0 }) +
+          "\n",
+      },
+    );
     expect(post.status).toBe(201);
     expect(post.body).toEqual({ inserted: 2 });
 
     // Both new rows must be readable through the same production app.
-    const read = await httpRequest(createHttpServer({ authType: "none" }), "GET", `${BASE}/widgets?id=gte.5&order=id.asc`);
+    const read = await httpRequest(
+      createHttpServer({ authType: "none" }),
+      "GET",
+      `${BASE}/widgets?id=gte.5&order=id.asc`,
+    );
     expect(read.status).toBe(200);
     expect(read.body.map((r: any) => r.id)).toEqual([5, 6]);
     expect(read.body.map((r: any) => r.name)).toEqual(["eps", "zeta"]);

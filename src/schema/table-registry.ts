@@ -132,7 +132,10 @@ function validateTableDeclaration(
     }
     const col_ = col as Record<string, unknown>;
     const colName = col_.name;
-    if (typeof colName !== "string" || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName)) {
+    if (
+      typeof colName !== "string" ||
+      !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName)
+    ) {
       throw new ApiError(
         `Invalid table declaration ${fileName}: column name ${JSON.stringify(colName)} is not a valid identifier`,
         500,
@@ -205,7 +208,10 @@ export function namespaceDir(ns: string): string {
 }
 
 /** Absolute path of a table's data file(s) resolved from its declared glob. */
-export function tableDataGlobPath(nsDir: string, declaration: TableDeclaration): string {
+export function tableDataGlobPath(
+  nsDir: string,
+  declaration: TableDeclaration,
+): string {
   return path.resolve(nsDir, declaration.glob);
 }
 
@@ -227,9 +233,7 @@ function readNamespaceDeclarations(ns: string): TableDeclaration[] {
     if (!entry.endsWith(".table.json")) continue;
     let raw: unknown;
     try {
-      raw = JSON.parse(
-        fs.readFileSync(path.join(tablesDir, entry), "utf-8"),
-      );
+      raw = JSON.parse(fs.readFileSync(path.join(tablesDir, entry), "utf-8"));
     } catch (e) {
       throw new ApiError(
         `Unparseable table declaration ${entry} in namespace '${ns}': ${e instanceof Error ? e.message : String(e)}`,

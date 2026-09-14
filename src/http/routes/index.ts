@@ -10,7 +10,4 @@ export { createKeyRoutes } from "./keys";
 export { createNamespaceRoutes } from "./namespaces";
 export { createEventsRoutes } from "./events";
 export { createCompactionRoutes } from "./compaction";
-export {
-  createTableRoutes,
-  createNamespaceOpenApiRoutes,
-} from "./tables";
+export { createTableRoutes, createNamespaceOpenApiRoutes } from "./tables";

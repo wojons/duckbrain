@@ -61,7 +61,13 @@ function filterParams(
 ): Record<string, string | string[]> {
   const out: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(req.query)) {
-    if (key === "order" || key === "limit" || key === "offset" || key === "count" || key === "pk") {
+    if (
+      key === "order" ||
+      key === "limit" ||
+      key === "offset" ||
+      key === "count" ||
+      key === "pk"
+    ) {
       continue;
     }
     if (!declaration.columns.some((c) => c.name === key)) {
@@ -124,7 +130,9 @@ function renderCsv(
 // OpenAPI 3.1 generation (from the registry — never hand-written blobs)
 // ---------------------------------------------------------------------------
 
-function columnSchema(col: TableDeclaration["columns"][number]): Record<string, unknown> {
+function columnSchema(
+  col: TableDeclaration["columns"][number],
+): Record<string, unknown> {
   switch (col.type) {
     case "integer":
       return { type: "integer", format: "int32" };
@@ -161,14 +169,16 @@ function filterParameters(
     {
       name: "order",
       in: "query",
-      description: "Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc).",
+      description:
+        "Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc).",
       required: false,
       schema: { type: "string" },
     },
     {
       name: "limit",
       in: "query",
-      description: "Row limit (default 100, hard cap 1000 — larger values clamp).",
+      description:
+        "Row limit (default 100, hard cap 1000 — larger values clamp).",
       required: false,
       schema: { type: "integer", default: 100, maximum: 1000 },
     },
@@ -182,7 +192,8 @@ function filterParameters(
     {
       name: "count",
       in: "query",
-      description: "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+      description:
+        "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
       required: false,
       schema: { type: "string", enum: ["exact"] },
     },
@@ -190,9 +201,7 @@ function filterParameters(
   return params;
 }
 
-function tablePathItem(
-  declaration: TableDeclaration,
-): Record<string, unknown> {
+function tablePathItem(declaration: TableDeclaration): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   for (const col of declaration.columns) {
     properties[col.name] = columnSchema(col);
@@ -398,11 +407,7 @@ function createTableRoutes(): Router {
     if (contentType.includes("application/x-ndjson")) {
       const text = typeof req.body === "string" ? req.body : "";
       if (!text.trim()) {
-        throw new ApiError(
-          "NDJSON body required",
-          400,
-          "VALIDATION_ERROR",
-        );
+        throw new ApiError("NDJSON body required", 400, "VALIDATION_ERROR");
       }
       return text
         .split("\n")
@@ -468,7 +473,9 @@ function createTableRoutes(): Router {
         "VALIDATION_ERROR",
       );
     }
-    const col = declaration.columns.find((c) => c.name === declaration.primary)!;
+    const col = declaration.columns.find(
+      (c) => c.name === declaration.primary,
+    )!;
     const pkRaw = req.query.pk;
     const pkValue = Array.isArray(pkRaw) ? pkRaw[0] : pkRaw;
     const pk = pkValue === undefined ? undefined : String(pkValue);
@@ -550,12 +557,7 @@ function createTableRoutes(): Router {
       const tableName = param(req, "table");
       const declaration = getTable(ns, tableName);
       const { col, value } = requirePkFilter(declaration, req);
-      const removed = deleteRowsByPk(
-        namespaceDir(ns),
-        declaration,
-        col,
-        value,
-      );
+      const removed = deleteRowsByPk(namespaceDir(ns), declaration, col, value);
       res.json({ deleted: removed });
     }),
   );

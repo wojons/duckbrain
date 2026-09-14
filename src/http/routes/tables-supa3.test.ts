@@ -95,9 +95,7 @@ function createApp(): express.Express {
   const app = express();
   app.use(express.json());
   // NDJSON bodies must survive as raw text for the x-ndjson content type.
-  app.use(
-    express.text({ type: "application/x-ndjson", limit: "1mb" }),
-  );
+  app.use(express.text({ type: "application/x-ndjson", limit: "1mb" }));
   app.use(`/api/ns/:ns/tables`, createTableRoutes());
   app.use(`/api/ns/:ns/openapi.json`, createNamespaceOpenApiRoutes());
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -170,9 +168,7 @@ function httpRequest(
       });
       if (opts.body !== undefined) {
         req.write(
-          typeof opts.body === "string"
-            ? opts.body
-            : JSON.stringify(opts.body),
+          typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body),
         );
       }
       req.end();
@@ -246,16 +242,32 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
   });
 
   it("filters with gt / gte / lt / lte", async () => {
-    const gt = await httpRequest(createApp(), "GET", `${BASE}/widgets?qty=gt.2.5`);
+    const gt = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?qty=gt.2.5`,
+    );
     expect(gt.body.map((r: any) => r.id).sort()).toEqual([3, 4]);
 
-    const gte = await httpRequest(createApp(), "GET", `${BASE}/widgets?qty=gte.2.5`);
+    const gte = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?qty=gte.2.5`,
+    );
     expect(gte.body.map((r: any) => r.id).sort()).toEqual([2, 3, 4]);
 
-    const lt = await httpRequest(createApp(), "GET", `${BASE}/widgets?qty=lt.2.5`);
+    const lt = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?qty=lt.2.5`,
+    );
     expect(lt.body.map((r: any) => r.id)).toEqual([1]);
 
-    const lte = await httpRequest(createApp(), "GET", `${BASE}/widgets?qty=lte.2.5`);
+    const lte = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?qty=lte.2.5`,
+    );
     expect(lte.body.map((r: any) => r.id).sort()).toEqual([1, 2]);
   });
 
@@ -331,9 +343,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     const bigPath = path.join(nsDir, "tables", "big.jsonl");
     fs.writeFileSync(
       bigPath,
-      Array.from(
-        { length: 1500 },
-        (_, i) => JSON.stringify({ id: i + 1, name: `n${i}`, qty: 0, tags: null }),
+      Array.from({ length: 1500 }, (_, i) =>
+        JSON.stringify({ id: i + 1, name: `n${i}`, qty: 0, tags: null }),
       ).join("\n") + "\n",
     );
     fs.writeFileSync(
@@ -519,7 +530,11 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
       "GET",
       `${BASE}/widgets?id=eq.2`,
     );
-    expect(read.body[0]).toMatchObject({ id: 2, name: "beta-updated", qty: 22.5 });
+    expect(read.body[0]).toMatchObject({
+      id: 2,
+      name: "beta-updated",
+      qty: 22.5,
+    });
   });
 
   it("400s PATCH without the pk filter", async () => {
@@ -604,9 +619,7 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     const { authMiddleware } = await import("../../auth/middleware.js");
     const app = express();
     app.use(express.json());
-    app.use(
-      express.text({ type: "application/x-ndjson", limit: "1mb" }),
-    );
+    app.use(express.text({ type: "application/x-ndjson", limit: "1mb" }));
     app.use(
       authMiddleware({
         type: "apikey",
@@ -616,9 +629,11 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
       }),
     );
     app.use(`/api/ns/:ns/tables`, createTableRoutes());
-  app.use(`/api/ns/:ns/openapi.json`, createNamespaceOpenApiRoutes());
+    app.use(`/api/ns/:ns/openapi.json`, createNamespaceOpenApiRoutes());
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      res.status(err.status || 500).json({ error: err.message, code: err.code });
+      res
+        .status(err.status || 500)
+        .json({ error: err.message, code: err.code });
     });
 
     const denied = await httpRequest(app, "GET", `${BASE}/widgets`, {
@@ -626,12 +641,9 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     });
     expect(denied.status).toBe(403);
 
-    const granted = await httpRequest(
-      app,
-      "GET",
-      "/api/ns/other-ns/tables",
-      { headers: { "x-api-key": "supa3-scoped-key" } },
-    );
+    const granted = await httpRequest(app, "GET", "/api/ns/other-ns/tables", {
+      headers: { "x-api-key": "supa3-scoped-key" },
+    });
     expect(granted.status).toBe(200);
   });
 });
