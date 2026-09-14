@@ -44,6 +44,10 @@ import { createKeyRoutes } from "../http/routes/keys.js";
 import { createNamespaceRoutes } from "../http/routes/namespaces.js";
 import { createEventsRoutes } from "../http/routes/events.js";
 import { createCompactionRoutes } from "../http/routes/compaction.js";
+import {
+  createTableRoutes,
+  createNamespaceOpenApiRoutes,
+} from "../http/routes/tables.js";
 import { createUsersRoutes } from "../http/routes/users.js";
 import { createActivityRoutes } from "../http/routes/activity.js";
 import path from "path";
@@ -457,6 +461,14 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use("/api/namespaces", createNamespaceRoutes);
   app.use("/api/events", createEventsRoutes);
   app.use("/api/compaction", createCompactionRoutes);
+
+  // DB-SUPA-3: generic table→REST resource layer (declared tables only).
+  // The factory is CALLED (passing the function itself would install it as
+  // dead middleware) and mounted at the :ns prefix so mergeParams surfaces
+  // req.params.ns inside the routes. The tables instance serves the table
+  // routes; the openapi.json instance's "/" route serves the registry doc.
+  app.use("/api/ns/:ns/tables", createTableRoutes());
+  app.use("/api/ns/:ns/openapi.json", createNamespaceOpenApiRoutes());
 
   // Legacy namespaces — delegate to real MCP tool
   app.get("/namespaces", async (_req: Request, res: Response) => {

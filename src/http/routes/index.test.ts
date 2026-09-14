@@ -41,6 +41,9 @@ describe("Routes barrel exports (index.ts)", () => {
       "createNamespaceRoutes",
       "createEventsRoutes",
       "createCompactionRoutes",
+      // DB-SUPA-3: generic table→REST layer (additive export)
+      "createTableRoutes",
+      "createNamespaceOpenApiRoutes",
     ];
     const actualExports = Object.keys(routeIndex).filter(
       (k) => k !== "default",
