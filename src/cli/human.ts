@@ -1591,6 +1591,10 @@ async function squashCommand(args: string[]): Promise<void> {
  * DB-GAP-031: --namespace=NS grants — repeatable AND comma-separated
  * (parseArgs keeps only the last --flag=value, so grants are collected by
  * re-scanning the raw args). Absent = unrestricted token (backward compat).
+ *
+ * TOKEN-ROLES-001: --role=<r> grants — repeatable, `=`-form and space form
+ * (same raw-args scan). Valid: admin, writer, analyst, uploader. Absent =
+ * ["admin"] (backward-compat default). Unknown roles are a fatal error.
  */
 async function tokenCommand(args: string[]): Promise<void> {
   // Handle --help before minting anything (DB-GAP-034: --help must not
@@ -1605,6 +1609,8 @@ async function tokenCommand(args: string[]): Promise<void> {
     --name=<name>         Human-readable token name (also the author identity)
     --namespace=<ns>      Namespace grants — repeatable and/or comma-separated.
                           Absent = unrestricted (all namespaces).
+    --role=<role>         Role grants — repeatable (admin, writer, analyst,
+                          uploader). Absent = admin (backward compatible).
     --auth-file=<path>    Write the token to PATH instead of the default store
                           (env: DUCKBRAIN_AUTH_FILE). An explicit path that is
                           missing or unparseable is a fatal error — the token
@@ -1635,6 +1641,35 @@ async function tokenCommand(args: string[]): Promise<void> {
       }
     }
   }
+
+  // TOKEN-ROLES-001: --role=<r> grants — repeatable, `=`-form and space
+  // form (same raw-args scan as --namespace above; parseArgs keeps only the
+  // last --flag=value). Unknown roles are FATAL: exit before minting so the
+  // auth store is never written with an invalid entry.
+  const validRoles = ["admin", "writer", "analyst", "uploader"];
+  const roleGrants: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--role") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--role=")) {
+      value = arg.slice("--role=".length);
+    }
+    if (value === undefined) continue;
+    const trimmed = value.trim();
+    if (!validRoles.includes(trimmed)) {
+      console.error(
+        `Unknown role: ${trimmed}. Valid roles: ${validRoles.join(", ")}.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (!roleGrants.includes(trimmed)) {
+      roleGrants.push(trimmed);
+    }
+  }
+  const grantedRoles = roleGrants.length > 0 ? roleGrants : ["admin"];
 
   // Generate secure random token
   const token = crypto.randomBytes(32).toString("hex");
@@ -1691,7 +1726,8 @@ async function tokenCommand(args: string[]): Promise<void> {
     }
   }
 
-  // Add new token — namespaces carries the grants when scoped
+  // Add new token — namespaces carries the grants when scoped; roles carries
+  // the SUPA-4 role grants (default ["admin"] for back-compat).
   const tokenName = flags.name || `token-${Date.now()}`;
   if (!authConfig.apiKeys) {
     authConfig.apiKeys = [];
@@ -1699,7 +1735,7 @@ async function tokenCommand(args: string[]): Promise<void> {
   const tokenEntry: any = {
     keyHash: hashApiKey(token),
     name: tokenName,
-    roles: ["admin"],
+    roles: grantedRoles,
   };
   if (namespaceGrants.length > 0) {
     tokenEntry.namespaces = namespaceGrants;
@@ -1718,6 +1754,7 @@ async function tokenCommand(args: string[]): Promise<void> {
   console.log("Generated API token:");
   console.log(token);
   console.log("");
+  console.log(`Roles: ${grantedRoles.join(", ")}`);
   if (namespaceGrants.length > 0) {
     console.log(`Namespace grants: ${namespaceGrants.join(", ")}`);
     console.log("(requests to other namespaces will be rejected with 403)");
