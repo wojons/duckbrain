@@ -446,7 +446,21 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     next();
   });
 
-  // 5. JSON body parser (after rate limit and auth)
+  // 5. Body parsers (after rate limit and auth)
+  // DB-SUPA-3 REWORK: the generic table→REST layer (src/http/routes/tables.ts)
+  // accepts batch inserts as `application/x-ndjson`. express.json() never
+  // matches that content type, so without a text parser the request stream is
+  // left unconsumed, req.body stays undefined, and every live NDJSON insert
+  // 400s with "NDJSON body required" — the exact defect the module battery
+  // missed because its hand-built test app mounted its own parser. Scoped to
+  // the tables mounts so every other route's JSON parsing semantics are
+  // byte-for-byte unchanged; ordered BEFORE express.json() so an x-ndjson
+  // body is consumed here and the JSON parser simply skips the mismatched
+  // content type.
+  app.use(
+    "/api/ns/:ns/tables",
+    express.text({ type: "application/x-ndjson", limit: "1mb" }),
+  );
   app.use(express.json());
 
   // Health check (bypasses auth via middleware, must be registered here)
