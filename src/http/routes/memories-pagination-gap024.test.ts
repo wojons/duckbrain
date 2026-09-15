@@ -71,6 +71,14 @@ const AUTHOR_OTHER = "other@example.com";
 
 const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
 
+function readRepoConfig(): string | null {
+  // The instance config is untracked (gitignored; see
+  // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
+  // the afterAll assert then requires it to STILL be missing (GAP-022 AC1:
+  // tests must never create or mutate the repo-root instance config).
+  return fs.existsSync(REPO_CONFIG) ? fs.readFileSync(REPO_CONFIG, "utf-8") : null;
+}
+
 function seedMemory(i: number, author: string) {
   return {
     id: crypto.randomUUID(),
@@ -85,11 +93,11 @@ function seedMemory(i: number, author: string) {
 }
 
 describe("GAP-024: pagination response correctness — GET /api/memories", () => {
-  let configBefore: string;
+  let configBefore: string | null;
 
   beforeAll(async () => {
     // GAP-022 AC1: the repo config file must be byte-identical after the run
-    configBefore = fs.readFileSync(REPO_CONFIG, "utf-8");
+    configBefore = readRepoConfig();
 
     // Seed a real namespace: JSONL partition + manifest (dogfood002 pattern)
     fs.mkdirSync(PARTITION, { recursive: true });
@@ -123,7 +131,7 @@ describe("GAP-024: pagination response correctness — GET /api/memories", () =>
   afterAll(() => {
     server.close();
     // GAP-022 AC1: config file must be byte-identical after the test run
-    expect(fs.readFileSync(REPO_CONFIG, "utf-8")).toBe(configBefore);
+    expect(readRepoConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });

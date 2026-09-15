@@ -66,6 +66,14 @@ const MANIFEST = path.join(NS, "manifest.json");
 
 const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
 
+function readRepoConfig(): string | null {
+  // The instance config is untracked (gitignored; see
+  // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
+  // the afterAll assert then requires it to STILL be missing (GAP-022 AC1:
+  // tests must never create or mutate the repo-root instance config).
+  return fs.existsSync(REPO_CONFIG) ? fs.readFileSync(REPO_CONFIG, "utf-8") : null;
+}
+
 // Timestamps spread across 2026-08-10 .. 2026-08-14.
 function seedMemory(i: number) {
   return {
@@ -86,10 +94,10 @@ function seedMemory(i: number) {
 const SEEDED = 7;
 
 describe("RETR-003: time-scoped recall — GET /api/memories", () => {
-  let configBefore: string;
+  let configBefore: string | null;
 
   beforeAll(async () => {
-    configBefore = fs.readFileSync(REPO_CONFIG, "utf-8");
+    configBefore = readRepoConfig();
 
     fs.mkdirSync(PARTITION, { recursive: true });
     const lines: string[] = [];
@@ -118,7 +126,7 @@ describe("RETR-003: time-scoped recall — GET /api/memories", () => {
 
   afterAll(() => {
     server.close();
-    expect(fs.readFileSync(REPO_CONFIG, "utf-8")).toBe(configBefore);
+    expect(readRepoConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });

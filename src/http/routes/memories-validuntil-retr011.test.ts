@@ -79,6 +79,14 @@ const MANIFEST = path.join(NS, "manifest.json");
 
 const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
 
+function readRepoConfig(): string | null {
+  // The instance config is untracked (gitignored; see
+  // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
+  // the afterAll assert then requires it to STILL be missing (GAP-022 AC1:
+  // tests must never create or mutate the repo-root instance config).
+  return fs.existsSync(REPO_CONFIG) ? fs.readFileSync(REPO_CONFIG, "utf-8") : null;
+}
+
 const PAST = "2020-01-01T00:00:00.000Z";
 const FUTURE = "2999-01-01T00:00:00.000Z";
 
@@ -109,10 +117,10 @@ function seedMemory(i: number) {
 const SEEDED = 5;
 
 describe("RETR-011: fact versioning — GET /api/memories", () => {
-  let configBefore: string;
+  let configBefore: string | null;
 
   beforeAll(async () => {
-    configBefore = fs.readFileSync(REPO_CONFIG, "utf-8");
+    configBefore = readRepoConfig();
 
     fs.mkdirSync(PARTITION, { recursive: true });
     const lines: string[] = [];
@@ -141,7 +149,7 @@ describe("RETR-011: fact versioning — GET /api/memories", () => {
 
   afterAll(() => {
     server.close();
-    expect(fs.readFileSync(REPO_CONFIG, "utf-8")).toBe(configBefore);
+    expect(readRepoConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });
@@ -199,10 +207,10 @@ describe("RETR-011: fact versioning — GET /api/memories", () => {
 });
 
 describe("RETR-011: fact versioning — POST /api/memories", () => {
-  let configBefore: string;
+  let configBefore: string | null;
 
   beforeAll(async () => {
-    configBefore = fs.readFileSync(REPO_CONFIG, "utf-8");
+    configBefore = readRepoConfig();
 
     fs.mkdirSync(PARTITION, { recursive: true });
     const lines: string[] = [];
@@ -231,7 +239,7 @@ describe("RETR-011: fact versioning — POST /api/memories", () => {
 
   afterAll(() => {
     server.close();
-    expect(fs.readFileSync(REPO_CONFIG, "utf-8")).toBe(configBefore);
+    expect(readRepoConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });
