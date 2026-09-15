@@ -1042,3 +1042,11 @@ tasks:
   status: complete
   created_at: '2026-09-14T10:27:39.556943+00:00'
   completed_at: '2026-09-14T12:18:41.537549+00:00'
+- id: OPS-003
+  title: Sync AGENTS.md test counts to live suite per board row OPS-003
+  criteria:
+  - 'AGENTS.md line 14 reads ''Vitest (122 suites, 1071 tests)'' AND line 33 reads
+    ''pnpm test          # 1071 tests, 122 suites'' (both confirmed by grep), AND
+    the working tree contains no other file modifications'
+  status: in_progress
+  created_at: '2026-09-15T01:44:29.115807+00:00'
