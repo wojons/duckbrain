@@ -63,7 +63,11 @@ jobs:
           echo "AGENTS.md test counts match live suite"
 
       - name: Assert config unchanged after tests
-        run: git diff --exit-code duckbrain.config.json
+        run: |
+          # The instance config (duckbrain.config.json) is untracked by design
+          # (see duckbrain.config.example.json) — the tracked artifact tests
+          # must never mutate is the example file.
+          git diff --exit-code duckbrain.config.example.json
 
       - name: Run integration tests
         run: npm run test:integration
