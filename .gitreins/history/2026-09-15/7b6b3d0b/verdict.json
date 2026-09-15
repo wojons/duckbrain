@@ -1,0 +1,67 @@
+{
+  "task_id": "INT-CI-008",
+  "task_title": "P1 \u2014 CI recurrence: node-20 integration leg fails on waitForUrl timeout (tests/http-e2e.int.test.ts:332 via helpers.ts:115) while node 22 passes \u2014 same class as INT-CI-001/002/003/007",
+  "task_criteria": [
+    "Integration suite green on both Node 20.x and 22.x after the fix"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9068945 bytes (9.07 MB) in 3.02s\u001b[0m\n\u001b[90m12:50PM\u001b[0m \u001b[3\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9068945 bytes (9.07 MB) in 3.02s\u001b[0m\n\u001b[90m12:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n   Start at  12:50:43\n   Duration  78.88s (transform 6.90s, setup 2.84s, import 80.63s, tests 193.21s, environment 27ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Integration suite green on both Node 20.x and 22.x after the fix: No fix was applied for this task. `git diff HEAD` shows only `.gitreins/tasks.yaml` (+9 lines, the task row); `git status --short` = ` M .gitreins/tasks.yaml` only. No changes to tests/helpers.ts, tests/http-e2e.int.test.ts, vitest.integration.config.ts, or .github/workflows/ci.yml. The task was closed as 'resolved-no-recurrence' (commit f116ac6, tick 511) with guard_result 'n/a (premise falsified \u2014 admin close)', attempts 0, files_changed [], commit_hash null. The only related commit (24834a2) fixes a CI config-assert (duckbrain.config.json -> duckbrain.config.example.json), not waitForUrl, and predates the task's completed_at (2026-09-15T17:50:41Z) by ~6h. Local verification on Node v22.22.3: `./node_modules/.bin/vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6) / Tests 44 passed (44)', exit 0 (green on 22.x). Node 20.x could NOT be verified: only node v22.22.3 is installed (no nvm/alternate versions), and no CI run logs/run IDs are present in the repo to substantiate a green Node 20.x integration leg after the fix. Criterion requires green on BOTH legs after a fix; neither the fix nor the Node 20.x evidence exists.\nNo code fix was made (only a board/task-row edit) and there is no evidence of a green Node 20.x integration leg, so the criterion fails despite the local Node 22.x suite passing 44/44.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Integration suite green on both Node 20.x and 22.x after the fix: No fix was applied for this task. `git diff HEAD` shows only `.gitreins/tasks.yaml` (+9 lines, the task row); `git status --short` = ` M .gitreins/tasks.yaml` only. No changes to tests/helpers.ts, tests/http-e2e.int.test.ts, vitest.integration.config.ts, or .github/workflows/ci.yml. The task was closed as 'resolved-no-recurrence' (commit f116ac6, tick 511) with guard_result 'n/a (premise falsified \u2014 admin close)', a",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Integration suite green on both Node 20.x and 22.x after the fix",
+                "status": "FAIL",
+                "detail": "No fix was applied for this task. `git diff HEAD` shows only `.gitreins/tasks.yaml` (+9 lines, the task row); `git status --short` = ` M .gitreins/tasks.yaml` only. No changes to tests/helpers.ts, tests/http-e2e.int.test.ts, vitest.integration.config.ts, or .github/workflows/ci.yml. The task was closed as 'resolved-no-recurrence' (commit f116ac6, tick 511) with guard_result 'n/a (premise falsified \u2014 admin close)', attempts 0, files_changed [], commit_hash null. The only related commit (24834a2) fixes a CI config-assert (duckbrain.config.json -> duckbrain.config.example.json), not waitForUrl, and predates the task's completed_at (2026-09-15T17:50:41Z) by ~6h. Local verification on Node v22.22.3: `./node_modules/.bin/vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6) / Tests 44 passed (44)', exit 0 (green on 22.x). Node 20.x could NOT be verified: only node v22.22.3 is installed (no nvm/alternate versions), and no CI run logs/run IDs are present in the repo to substantiate a green Node 20.x integration leg after the fix. Criterion requires green on BOTH legs after a fix; neither the fix nor the Node 20.x evidence exists."
+              }
+            ],
+            "summary": "No code fix was made (only a board/task-row edit) and there is no evidence of a green Node 20.x integration leg, so the criterion fails despite the local Node 22.x suite passing 44/44."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-008\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9068945 bytes (9.07 MB) in 3.02s\u001b[0m\n\u001b[90m12:50PM\u001b[0m \u001b[3\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Integration suite green on both Node 20.x and 22.x after the fix: No fix was applied for this task. `git diff HEAD` shows only `.gitreins/tasks.yaml` (+9 lines, the task row); `git status --short` = ` M .gitreins/tasks.yaml` only. No changes to tests/helpers.ts, tests/http-e2e.int.test.ts, vitest.integration.config.ts, or .github/workflows/ci.yml. The task was closed as 'resolved-no-recurrence' (commit f116ac6, tick 511) with guard_result 'n/a (premise falsified \u2014 admin close)', attempts 0, files_changed [], commit_hash null. The only related commit (24834a2) fixes a CI config-assert (duckbrain.config.json -> duckbrain.config.example.json), not waitForUrl, and predates the task's completed_at (2026-09-15T17:50:41Z) by ~6h. Local verification on Node v22.22.3: `./node_modules/.bin/vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6) / Tests 44 passed (44)', exit 0 (green on 22.x). Node 20.x could NOT be verified: only node v22.22.3 is installed (no nvm/alternate versions), and no CI run logs/run IDs are present in the repo to substantiate a green Node 20.x integration leg after the fix. Criterion requires green on BOTH legs after a fix; neither the fix nor the Node 20.x evidence exists.\nNo code fix was made (only a board/task-row edit) and there is no evidence of a green Node 20.x integration leg, so the criterion fails despite the local Node 22.x suite passing 44/44.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-15T17:55:03.926710"
+}

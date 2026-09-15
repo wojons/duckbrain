@@ -1064,3 +1064,12 @@ tasks:
   status: complete
   created_at: '2026-09-15T10:35:32.179959+00:00'
   completed_at: '2026-09-15T11:00:37.810793+00:00'
+- id: INT-CI-008
+  title: "P1 \u2014 CI recurrence: node-20 integration leg fails on waitForUrl timeout\
+    \ (tests/http-e2e.int.test.ts:332 via helpers.ts:115) while node 22 passes \u2014\
+    \ same class as INT-CI-001/002/003/007"
+  criteria:
+  - Integration suite green on both Node 20.x and 22.x after the fix
+  status: complete
+  created_at: '2026-09-15T17:29:21.061676+00:00'
+  completed_at: '2026-09-15T17:50:41.338723+00:00'
