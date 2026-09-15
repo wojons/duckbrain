@@ -231,7 +231,11 @@ describe("GAP-022: updateConfig with DUCKBRAIN_CONFIG_PATH set", () => {
 
   it("writes ONLY to the override file — the repo config is untouched", () => {
     const repoConfigPath = path.join(process.cwd(), "duckbrain.config.json");
-    const repoConfigBefore = fs.readFileSync(repoConfigPath, "utf-8");
+    // Missing instance config is valid state (untracked; fresh clones have
+    // none) — snapshot null and require it to stay absent.
+    const repoConfigBefore = fs.existsSync(repoConfigPath)
+      ? fs.readFileSync(repoConfigPath, "utf-8")
+      : null;
 
     updateConfig(".", { defaultNamespace: "warpfs" });
 
@@ -242,8 +246,11 @@ describe("GAP-022: updateConfig with DUCKBRAIN_CONFIG_PATH set", () => {
     expect(overrideFile.defaultNamespace).toBe("warpfs");
     expect(overrideFile.namespacesPath).toBe("./namespaces");
 
-    // The tracked repo config is byte-identical — never read, never written.
-    expect(fs.readFileSync(repoConfigPath, "utf-8")).toBe(repoConfigBefore);
+    // The repo config is byte-identical — never read, never written.
+    const repoConfigAfter = fs.existsSync(repoConfigPath)
+      ? fs.readFileSync(repoConfigPath, "utf-8")
+      : null;
+    expect(repoConfigAfter).toBe(repoConfigBefore);
   });
 
   it("never persists the override path value into the config file", () => {

@@ -83,10 +83,15 @@ describe("GAP-022: DUCKBRAIN_CONFIG_PATH env override", () => {
     delete process.env.DUCKBRAIN_CONFIG_PATH;
     // Also unset the namespace override so the read is purely file-driven.
     delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+    // A fresh clone has NO instance config (untracked; see
+    // duckbrain.config.example.json) — expected values come from the file
+    // when present, else the schema defaults.
+    const repoConfigPath = path.join(process.cwd(), "duckbrain.config.json");
+    const fileConfig = fs.existsSync(repoConfigPath)
+      ? JSON.parse(fs.readFileSync(repoConfigPath, "utf-8"))
+      : { namespacesPath: "./namespaces", defaultNamespace: "default" };
     const config = getConfig(".");
-    // The tracked repo config has namespacesPath "./namespaces" and a
-    // defaultNamespace that is not the schema default.
-    expect(config.namespacesPath).toBe("./namespaces");
-    expect(config.defaultNamespace).not.toBe("default");
+    expect(config.namespacesPath).toBe(fileConfig.namespacesPath);
+    expect(config.defaultNamespace).toBe(fileConfig.defaultNamespace);
   });
 });
