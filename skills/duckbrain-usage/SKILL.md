@@ -185,7 +185,7 @@ The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
     `default` when `?namespace=` is omitted") — regardless of config
     `defaultNamespace` (verified live 2026-08-26: no-ns `/api/memories`
     returned `default` data while config `defaultNamespace` was
-    `eduos.dexdat.com.co`). An agent omitting `?namespace=` on HTTP reads/
+    `my-project`). An agent omitting `?namespace=` on HTTP reads/
     writes the real `'default'` namespace while believing it uses the config
     default — ALWAYS pass `namespace` explicitly on HTTP.
 11. **Domain enum** — `person|event|concept|message|config|raw_note` everywhere.

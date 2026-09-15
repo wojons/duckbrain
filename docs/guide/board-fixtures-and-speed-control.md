@@ -1,5 +1,11 @@
 # Board Schema: Perpetual Fixtures & Adaptive Speed Control (SCHED-GAP-104/105/106)
 
+> **Scope note:** the `.coding-hermes/board/` row schema documented here is a
+> DuckBrain product convention (this repo ships the board). The *scheduler*
+> that consumes it for speed control lives in the authors' private fleet
+> infrastructure and is not required to use boards — outside installers get
+> the board, fixtures, and never-done conventions out of the box.
+
 > Audience: fleet operators + foreman implementers. This is the DuckBrain-side
 > spec of the board-row convention that drives scheduler speed control.
 > Scheduler-side implementation: `coding-hermes/scheduler` `internal/scheduler/adaptive_cooldown.go`

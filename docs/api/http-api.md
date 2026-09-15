@@ -71,7 +71,7 @@ Unauthenticated endpoint — always bypasses authentication and rate limiting.
   "durability": {
     "defaultMode": "buffered",
     "overrides": {
-      "coding-hermes": "fsync"
+      "analytics": "fsync"
     }
   },
   "deadline_exceeded": []
@@ -268,7 +268,7 @@ Every namespace has an explicit write-durability contract, configured in
 {
   "durability": {
     "defaultMode": "buffered",
-    "overrides": { "coding-hermes": "fsync" }
+    "overrides": { "analytics": "fsync" }
   }
 }
 ```
