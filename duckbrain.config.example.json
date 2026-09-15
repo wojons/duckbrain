@@ -1,0 +1,42 @@
+{
+  "defaultNamespace": "default",
+  "authorEmail": "you@example.com",
+  "namespacesPath": "./namespaces",
+  "gitBatching": {
+    "maxLines": 100,
+    "maxSeconds": 30,
+    "enabled": true
+  },
+  "storage": {
+    "maxLinesPerChunk": 1000,
+    "maxBytesPerChunk": 1048576
+  },
+  "squash": {
+    "maxAgeDays": 30,
+    "thresholdRecords": 1000,
+    "autoCompact": false,
+    "squashGitHistory": true,
+    "compressionLevel": 6
+  },
+  "namespaceMappings": {
+    "default": "namespaces/default",
+    "my-project": "namespaces/my-project"
+  },
+  "embedding": {
+    "provider": "auto",
+    "model": "text-embedding-qwen3-embedding-0.6b",
+    "dimensions": 384,
+    "cacheDir": ".embeddings",
+    "concurrency": 4
+  },
+  "s3": {
+    "enabled": true,
+    "endpoint": "https://s3.<your-region>.your-provider.com",
+    "region": "us-east-1",
+    "bucket": "duckbrain",
+    "prefix": "duckbrain",
+    "forcePathStyle": true,
+    "pushOnCommit": false,
+    "intervalSec": 900
+  }
+}

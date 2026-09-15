@@ -64,3 +64,6 @@ dagger.db-wal
 
 # stray empty sqlite created by accident in repo root (2026-08-27)
 /board.db
+
+# instance config (deployment-specific — never commit; see duckbrain.config.example.json)
+duckbrain.config.json

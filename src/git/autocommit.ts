@@ -257,6 +257,24 @@ export function buildPushCommand(remote: string, branch: string): string {
 }
 
 /**
+ * Build the AWS env for the git-remote-s3 helper from the s3 config block.
+ * Endpoint/region come from the user's own config (provider-agnostic — never
+ * hardcode a deployment's endpoint here); AWS_PROFILE is only forced when the
+ * config names a profile, otherwise the caller's AWS env / ~/.aws decides.
+ */
+export function buildPushEnv(s3?: {
+  endpoint?: string;
+  region?: string;
+  profile?: string;
+}): Record<string, string> {
+  const env: Record<string, string> = {};
+  if (s3?.endpoint) env.AWS_ENDPOINT_URL = s3.endpoint;
+  if (s3?.region) env.AWS_DEFAULT_REGION = s3.region;
+  if (s3?.profile) env.AWS_PROFILE = s3.profile;
+  return env;
+}
+
+/**
  * Push namespace repo to remote if configured.
  * Non-blocking — failures are logged and swallowed.
  *
@@ -289,15 +307,14 @@ export function pushNamespace(namespacePath: string): void {
       cwd: namespacePath,
       stdio: "pipe",
       timeout: 30000,
-      // git-remote-s3 needs the duckbrain AWS profile + Hetzner endpoint —
-      // the exact env the daily cron (duckbrain-s3-push.sh) exports.
-      // Without them the helper dies with "invalid credentials" because
-      // neither the daemon nor CLI processes carry AWS vars.
+      // git-remote-s3 needs AWS creds + a compatible endpoint. Endpoint and
+      // region derive from the USER'S s3 config block (provider-agnostic);
+      // credentials come from the caller's AWS env / ~/.aws — a deployment
+      // may pin its profile via s3.profile. Without any AWS env the helper
+      // dies with "invalid credentials" and we log + swallow (non-blocking).
       env: {
         ...process.env,
-        AWS_PROFILE: "duckbrain",
-        AWS_ENDPOINT_URL: "https://hel1.your-objectstorage.com",
-        AWS_DEFAULT_REGION: "us-east-1",
+        ...buildPushEnv(getConfig(".").s3),
       },
     });
   } catch (error) {

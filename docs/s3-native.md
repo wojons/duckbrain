@@ -72,8 +72,8 @@ big-data scans without transferring everything.
 
 ## Activation checklist (when ready)
 
-1. `duckbrain.config.json` → `"s3": { "enabled": true, "endpoint": "https://hel1.your-objectstorage.com", "bucket": "duckbrain", "prefix": "duckbrain", "pushOnCommit": true }`
-2. Export credentials in the daemon/CLI env: `AWS_PROFILE=duckbrain` (or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`).
+1. `duckbrain.config.json` → `"s3": { "enabled": true, "endpoint": "https://s3.<your-region>.your-provider.com", "bucket": "my-duckbrain", "prefix": "duckbrain", "pushOnCommit": true }`
+2. Export credentials in the daemon/CLI env: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`).
 3. `duckbrain s3 status` → verify listing works.
 4. `duckbrain s3 sync all push` → first full push.
 5. `duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"` → SQL over S3.

@@ -79,15 +79,15 @@ DuckBrain can back memory onto any S3-compatible object store (Hetzner Object St
 {
   "s3": {
     "enabled": true,
-    "endpoint": "https://hel1.your-objectstorage.com",
-    "bucket": "duckbrain",
+    "endpoint": "https://s3.<your-region>.your-provider.com",
+    "bucket": "my-duckbrain",
     "prefix": "duckbrain",
     "pushOnCommit": true
   }
 }
 ```
 
-Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=duckbrain` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Then:
+Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Then:
 
 ```bash
 duckbrain s3 status          # verify bucket listing works

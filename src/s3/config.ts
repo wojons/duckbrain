@@ -20,7 +20,7 @@ export const S3ConfigSchema = z
     /** Master switch — all S3 features inert while false */
     enabled: z.boolean().default(false),
     /**
-     * S3-compatible endpoint URL, e.g. https://hel1.your-objectstorage.com
+     * S3-compatible endpoint URL (e.g. "https://s3.provider.com").
      * Omit (undefined) for real AWS S3.
      */
     endpoint: z.string().url().optional(),
