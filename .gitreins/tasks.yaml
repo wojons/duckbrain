@@ -1051,3 +1051,16 @@ tasks:
   status: complete
   created_at: '2026-09-15T01:44:29.115807+00:00'
   completed_at: '2026-09-15T01:44:48.896298+00:00'
+- id: S3-GIT-002
+  title: 'Failure-tolerant DuckBrain S3 git-history layer: one rejecting namespace
+    must not re-run the whole 140-repo pass every 15m'
+  criteria:
+  - push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run
+    whose only failures are already-backed-off namespaces does not block the 24h daily
+    marker; hermetic harness proves run2 skips healthy namespaces (no push attempt)
+    and retries only the expired-backoff one; real cron log shows the pass no longer
+    recurring every 15m while hermes-canopy/scheduler remain retried at a bounded
+    cadence
+  status: complete
+  created_at: '2026-09-15T10:35:32.179959+00:00'
+  completed_at: '2026-09-15T11:00:37.810793+00:00'
