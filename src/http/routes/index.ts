@@ -11,3 +11,4 @@ export { createNamespaceRoutes } from "./namespaces";
 export { createEventsRoutes } from "./events";
 export { createCompactionRoutes } from "./compaction";
 export { createTableRoutes, createNamespaceOpenApiRoutes } from "./tables";
+export { createRealtimeRoutes, REALTIME_ROUTE_PATH } from "./realtime";

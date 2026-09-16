@@ -97,6 +97,47 @@ export const DuckBrainConfigSchema = z.object({
       maxPendingBytes: 32 * 1024 * 1024,
     }),
 
+  /**
+   * DB-SUPA-5 committed append-log change feed (SSE).
+   *
+   * Every bound here is a specified behaviour, not a tuning knob: exceeding a
+   * queue bound is `duckbrain.overflow.v1` on that one subscriber, exceeding
+   * the replay/retention bound is `410 CHANGE_CURSOR_GONE` with a full-resync
+   * instruction — never unbounded memory growth.
+   */
+  realtime: z
+    .object({
+      /** Master switch for the /api/ns/:ns/changes route */
+      enabled: z.boolean().default(true),
+      /** HEAD observation interval per subscribed namespace (ms) */
+      pollIntervalMs: z.number().int().positive().default(1000),
+      /** Comment heartbeat interval (ms) */
+      heartbeatMs: z.number().int().positive().default(15_000),
+      /** Maximum concurrent subscribers per process */
+      maxSubscribers: z.number().int().positive().default(100),
+      /** Per-subscriber queued event bound */
+      maxQueueEvents: z.number().int().positive().default(256),
+      /** Per-subscriber queued payload byte bound */
+      maxQueueBytes: z.number().int().positive().default(1024 * 1024),
+      /** Maximum committed events replayed for one resuming cursor */
+      maxReplayEvents: z.number().int().positive().default(10_000),
+      /** Maximum first-parent commits retained for cursor resolution */
+      maxReplayCommits: z.number().int().positive().default(10_000),
+      /** Maximum age (days) of a commit a cursor may still reference */
+      retentionDays: z.number().positive().default(7),
+    })
+    .default({
+      enabled: true,
+      pollIntervalMs: 1000,
+      heartbeatMs: 15_000,
+      maxSubscribers: 100,
+      maxQueueEvents: 256,
+      maxQueueBytes: 1024 * 1024,
+      maxReplayEvents: 10_000,
+      maxReplayCommits: 10_000,
+      retentionDays: 7,
+    }),
+
   /** Squash/compaction settings */
   squash: z
     .object({
@@ -325,6 +366,43 @@ function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
     };
   }
 
+  // DB-SUPA-5: runtime-only timing overrides (never persisted — same
+  // convention as DUCKBRAIN_NAMESPACES_PATH). The spawned-server tests need a
+  // short HEAD-observation and heartbeat interval; production keeps the
+  // documented 1s / 15s defaults. A malformed value fails config load rather
+  // than silently falling back.
+  const envPoll = process.env.DUCKBRAIN_REALTIME_POLL_MS;
+  const envHeartbeat = process.env.DUCKBRAIN_REALTIME_HEARTBEAT_MS;
+  if (
+    (envPoll !== undefined && envPoll !== "") ||
+    (envHeartbeat !== undefined && envHeartbeat !== "")
+  ) {
+    const parseMs = (raw: string, name: string): number => {
+      const value = Number(raw);
+      if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${name} must be a positive integer number of ms`);
+      }
+      return value;
+    };
+    next = {
+      ...next,
+      realtime: {
+        ...next.realtime,
+        ...(envPoll !== undefined && envPoll !== ""
+          ? { pollIntervalMs: parseMs(envPoll, "DUCKBRAIN_REALTIME_POLL_MS") }
+          : {}),
+        ...(envHeartbeat !== undefined && envHeartbeat !== ""
+          ? {
+              heartbeatMs: parseMs(
+                envHeartbeat,
+                "DUCKBRAIN_REALTIME_HEARTBEAT_MS",
+              ),
+            }
+          : {}),
+      },
+    };
+  }
+
   return next;
 }
 
@@ -426,6 +504,17 @@ export function initializeConfig(
     serialization: {
       maxPendingRows: 10_000,
       maxPendingBytes: 32 * 1024 * 1024,
+    },
+    realtime: {
+      enabled: true,
+      pollIntervalMs: 1000,
+      heartbeatMs: 15_000,
+      maxSubscribers: 100,
+      maxQueueEvents: 256,
+      maxQueueBytes: 1024 * 1024,
+      maxReplayEvents: 10_000,
+      maxReplayCommits: 10_000,
+      retentionDays: 7,
     },
     squash: {
       maxAgeDays: 30,

@@ -44,6 +44,9 @@ describe("Routes barrel exports (index.ts)", () => {
       // DB-SUPA-3: generic table→REST layer (additive export)
       "createTableRoutes",
       "createNamespaceOpenApiRoutes",
+      // DB-SUPA-5: committed append-log SSE change feed (additive export)
+      "createRealtimeRoutes",
+      "REALTIME_ROUTE_PATH",
     ];
     const actualExports = Object.keys(routeIndex).filter(
       (k) => k !== "default",

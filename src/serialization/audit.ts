@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import {
+  AUDIT_DIR,
+  auditSegmentOrderOnDisk,
+} from "./auditLedger";
 
 export const AuditEntrySchema = z.object({
   ts: z.string().datetime(),
@@ -11,6 +15,16 @@ export const AuditEntrySchema = z.object({
   outcome: z.enum(["accepted", "denied"]),
   reason: z.string().optional(),
   seq: z.number().int().positive().optional(),
+  // --- DB-SUPA-5 accepted change-record fields ---------------------------
+  // Additive on the SUPA-2 audit row: absent on denial rows and on legacy
+  // accepted rows, present (and then fully required) on every change record
+  // the serializer appends for an accepted write. See
+  // src/serialization/changeRecord.ts.
+  row: z.unknown().optional(),
+  key: z.record(z.string(), z.unknown()).optional(),
+  targetPath: z.string().min(1).optional(),
+  tombstone: z.boolean().optional(),
+  schemaVersion: z.number().int().positive().optional(),
 });
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
@@ -137,15 +151,25 @@ export function readServerDenials(namespacesPath: string): AuditEntry[] {
     .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
 }
 
+/**
+ * Read every audit row of a namespace in canonical ledger order:
+ * `_audit/current.jsonl` first, then numeric segments in ascending numeric
+ * order (DB-SUPA-5 append-only segmented ledger).
+ */
 export function readAuditRows(
   namespacesPath: string,
   ns: string,
 ): AuditEntry[] {
-  const file = path.join(namespacesPath, ns, "_audit", "current.jsonl");
-  if (!fs.existsSync(file)) return [];
-  return fs
-    .readFileSync(file, "utf-8")
-    .split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
+  const namespacePath = path.join(namespacesPath, ns);
+  const auditDir = path.join(namespacePath, AUDIT_DIR);
+  const rows: AuditEntry[] = [];
+  for (const segment of auditSegmentOrderOnDisk(namespacePath)) {
+    const file = path.join(auditDir, segment);
+    if (!fs.existsSync(file)) continue;
+    for (const line of fs.readFileSync(file, "utf-8").split("\n")) {
+      if (line.trim() === "") continue;
+      rows.push(AuditEntrySchema.parse(JSON.parse(line)));
+    }
+  }
+  return rows;
 }

@@ -23,6 +23,16 @@ import {
 } from "../storage/jsonl";
 import { AuditEntrySchema, type AuditEntry, type AuditSink } from "./audit";
 import {
+  AUDIT_DIR,
+  appendAuditLedger,
+  type AuditLedgerLimits,
+} from "./auditLedger";
+import {
+  declaredSchemaVersion,
+  keyMaterialFor,
+  missingKeyColumns,
+} from "./changeRecord";
+import {
   acquireNamespaceWriteLock,
   releaseNamespaceWriteLock,
   tokenStillCurrent,
@@ -54,6 +64,12 @@ interface PreparedAppend {
   filePath: string;
   line: string;
   record: unknown;
+  /**
+   * Physical path the append actually landed in (rotation-aware). DB-SUPA-5
+   * change records persist this as `targetPath` so replay can find the data
+   * row at the same committed ref.
+   */
+  resolvedPath?: string;
 }
 
 export interface NamespaceWriterOptions {
@@ -66,6 +82,10 @@ export interface NamespaceWriterOptions {
   scheduleCommit?: (namespacePath: string) => void;
   /** Deterministic fencing seam used by process/lock acceptance tests. */
   afterLockAcquired?: (lock: NamespaceWriteLock) => void | Promise<void>;
+  /** DB-SUPA-5 audit-ledger segment line bound (config `storage.maxLinesPerChunk`). */
+  auditMaxLinesPerChunk?: number;
+  /** DB-SUPA-5 audit-ledger segment byte bound (config `storage.maxBytesPerChunk`). */
+  auditMaxBytesPerChunk?: number;
 }
 
 const allowAll: AuthorizationHook = () => ({ allowed: true });
@@ -150,6 +170,63 @@ function safeTarget(namespacePath: string, relativeTarget?: string): string {
   return resolved;
 }
 
+/** Namespace-relative POSIX path (the form a committed git path takes). */
+function namespaceRelative(targetPath: string, namespacePath: string): string {
+  return path.relative(namespacePath, targetPath).split(path.sep).join("/");
+}
+
+/**
+ * DB-SUPA-5 post-commit notifier seam.
+ *
+ * The serializer appends and then merely SCHEDULES a debounced namespace
+ * commit, so it cannot know when the commit lands. The notifier therefore only
+ * wakes the change feed, which confirms every published change against a
+ * successful reachable `HEAD` — never against timer execution.
+ */
+export type CommitNotifier = (namespace: string) => void;
+
+let commitNotifier: CommitNotifier | undefined;
+
+export function setCommitNotifier(
+  notifier: CommitNotifier | undefined,
+): void {
+  commitNotifier = notifier;
+}
+
+function notifyCommit(namespace: string): void {
+  if (!commitNotifier) return;
+  try {
+    commitNotifier(namespace);
+  } catch (error) {
+    console.warn(
+      `[serialization] commit notifier failed for ${namespace}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+/**
+ * Build the DB-SUPA-5 accepted change record: the SUPA-2 audit row plus the
+ * operation, table, row image/tombstone, declared key material, physical
+ * `targetPath`, and declared `schemaVersion` a later replay needs.
+ */
+function changeRecordFor(
+  namespacePath: string,
+  request: WriteRequest,
+  audit: AuditEntry,
+  targetPath: string,
+): AuditEntry {
+  return {
+    ...audit,
+    row: request.record,
+    key: keyMaterialFor(namespacePath, request.table, request.record),
+    targetPath,
+    tombstone: request.op === "delete",
+    schemaVersion: declaredSchemaVersion(namespacePath, request.table),
+  };
+}
+
 function fsyncDirectory(dir: string): void {
   let fd: number;
   try {
@@ -190,6 +267,7 @@ function appendFsyncBatch(
       assertCurrent();
       const createdDirs = ensureJsonlDir(path.dirname(entry.filePath));
       const targetPath = resolveJsonlTargetPath(entry.filePath, entry.line);
+      entry.resolvedPath = targetPath;
       let handle = handles.get(targetPath);
       if (!handle) {
         const fileExisted = fs.existsSync(targetPath);
@@ -248,6 +326,7 @@ function appendBufferedBatch(
     assertCurrent();
     ensureJsonlDir(path.dirname(entry.filePath));
     const targetPath = resolveJsonlTargetPath(entry.filePath, entry.line);
+    entry.resolvedPath = targetPath;
     fs.appendFileSync(targetPath, entry.line + "\n", "utf-8");
   }
 }
@@ -258,6 +337,10 @@ function appendDirectBatch(
 ): void {
   for (const entry of entries) {
     assertCurrent();
+    // appendJsonlDirect resolves chunk rotation itself from the same line;
+    // resolving it here first records the physical path a DB-SUPA-5 change
+    // record must point at (the file state cannot change between the two).
+    entry.resolvedPath = resolveJsonlTargetPath(entry.filePath, entry.line);
     appendJsonlDirect(entry.filePath, frameJsonlRecord(entry.record as never));
   }
 }
@@ -273,6 +356,8 @@ export class NamespaceWriter implements AuditSink {
   readonly maxPendingRows: number;
   readonly maxPendingBytes: number;
   readonly autoFlush: boolean;
+  /** DB-SUPA-5 audit-ledger segment bounds (immutable-segment invariant). */
+  readonly auditLimits: AuditLedgerLimits;
 
   private readonly enqueueMutex = new Mutex();
   private readonly scheduleCommit: (namespacePath: string) => void;
@@ -304,6 +389,12 @@ export class NamespaceWriter implements AuditSink {
     this.autoFlush = options.autoFlush ?? true;
     this.scheduleCommit = options.scheduleCommit ?? commitNamespace;
     this.afterLockAcquired = options.afterLockAcquired;
+    this.auditLimits = {
+      maxLines:
+        options.auditMaxLinesPerChunk ?? config.storage.maxLinesPerChunk,
+      maxBytes:
+        options.auditMaxBytesPerChunk ?? config.storage.maxBytesPerChunk,
+    };
   }
 
   get pendingRows(): number {
@@ -626,6 +717,30 @@ export class NamespaceWriter implements AuditSink {
         }),
       };
     }
+    // DB-SUPA-5: a delete that lacks all declared key columns fails BEFORE
+    // enqueue — it could never generate an addressable deletion event.
+    if (input.op === "delete") {
+      const missing = missingKeyColumns(
+        this.namespacePath,
+        input.table,
+        parsed.data,
+      );
+      if (missing.length > 0) {
+        return {
+          ok: false,
+          result: failed(
+            "VALIDATION_ERROR",
+            `delete requires the declared key column(s) ${missing.join(", ")}`,
+            0,
+            {
+              fields: Object.fromEntries(
+                missing.map((column) => [column, "key column is required"]),
+              ),
+            },
+          ),
+        };
+      }
+    }
     return {
       ok: true,
       record: parsed.data,
@@ -730,8 +845,17 @@ export class NamespaceWriter implements AuditSink {
     };
 
     const resolved = new Map<PendingWrite, WriteResult>();
-    const dataEntries: PreparedAppend[] = [];
-    const auditEntries: PreparedAppend[] = [];
+    const dataEntries: Array<PreparedAppend & { pending: PendingWrite }> = [];
+    /**
+     * Ordered audit plan. Accepted writes become DB-SUPA-5 change records only
+     * AFTER the data append, so the plan is materialized once the physical
+     * target of each accepted row is known; the row order is exactly the
+     * order the audit ledger would have had without the change fields.
+     */
+    const auditPlan: Array<
+      | { kind: "entry"; entry: AuditEntry }
+      | { kind: "change"; pending: PendingWrite; audit: AuditEntry }
+    > = [];
     const accepted: PendingWrite[] = [];
     try {
       await this.afterLockAcquired?.(lock);
@@ -751,11 +875,9 @@ export class NamespaceWriter implements AuditSink {
               pending.request.seq,
             ),
           );
-          const audit = deniedAudit(pending.request, authorization.reason);
-          auditEntries.push({
-            filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
-            line: serializeJsonlLine(audit)!,
-            record: audit,
+          auditPlan.push({
+            kind: "entry",
+            entry: deniedAudit(pending.request, authorization.reason),
           });
           continue;
         }
@@ -768,22 +890,18 @@ export class NamespaceWriter implements AuditSink {
           filePath: dataPath,
           line: pending.line,
           record: pending.request.record,
+          pending,
         });
-        const audit = acceptedAudit(pending.request);
-        auditEntries.push({
-          filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
-          line: serializeJsonlLine(audit)!,
-          record: audit,
+        auditPlan.push({
+          kind: "change",
+          pending,
+          audit: acceptedAudit(pending.request),
         });
         accepted.push(pending);
       }
 
       for (const audit of batch.audits) {
-        auditEntries.push({
-          filePath: path.join(this.namespacePath, "_audit", "current.jsonl"),
-          line: serializeJsonlLine(audit.entry)!,
-          record: audit.entry,
-        });
+        auditPlan.push({ kind: "entry", entry: audit.entry });
       }
 
       const mode = resolveWriteMode(this.ns);
@@ -795,7 +913,40 @@ export class NamespaceWriter implements AuditSink {
       // buffered path. SUPA-2 documents a bounded crash window for audit tails;
       // syncing the separate audit file here would add a second fdatasync per
       // batch and violate SUPA-1's fan-in amortization contract.
-      appendBufferedBatch(auditEntries, assertCurrent);
+      //
+      // DB-SUPA-5: `_audit/` is an append-only segmented ledger. Sealing a
+      // segment is permanent — `appendAuditLedger` starts the next zero-padded
+      // numeric segment and never reopens, shortens, renames, or reorders one.
+      const auditLines: string[] = [];
+      for (const item of auditPlan) {
+        if (item.kind === "entry") {
+          const line = serializeJsonlLine(item.entry);
+          if (line !== null) auditLines.push(line);
+          continue;
+        }
+        const physical = item.pending.request;
+        const dataEntry = dataEntries.find(
+          (entry) => entry.pending === item.pending,
+        );
+        const targetPath = namespaceRelative(
+          dataEntry?.resolvedPath ??
+            safeTarget(this.namespacePath, physical.targetPath),
+          this.namespacePath,
+        );
+        const change = changeRecordFor(
+          this.namespacePath,
+          physical,
+          item.audit,
+          targetPath,
+        );
+        const line = serializeJsonlLine(change);
+        if (line !== null) auditLines.push(line);
+      }
+      appendAuditLedger(
+        path.join(this.namespacePath, AUDIT_DIR),
+        auditLines,
+        this.auditLimits,
+      );
       assertCurrent();
 
       const partitions = new Set(
@@ -805,8 +956,12 @@ export class NamespaceWriter implements AuditSink {
       );
       for (const partition of partitions)
         addPartition(this.namespacePath, partition);
-      if (dataEntries.length > 0 || auditEntries.length > 0)
+      if (dataEntries.length > 0 || auditLines.length > 0) {
         this.scheduleCommit(this.namespacePath);
+        // DB-SUPA-5: wake the change feed. The feed still publishes only what
+        // a successful reachable HEAD proves.
+        notifyCommit(this.ns);
+      }
 
       for (const pending of accepted) {
         resolved.set(pending, { seq: pending.request.seq, ok: true });

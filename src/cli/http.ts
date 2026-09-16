@@ -48,6 +48,10 @@ import {
   createTableRoutes,
   createNamespaceOpenApiRoutes,
 } from "../http/routes/tables.js";
+import {
+  createRealtimeRoutes,
+  REALTIME_ROUTE_PATH,
+} from "../http/routes/realtime.js";
 import { createUsersRoutes } from "../http/routes/users.js";
 import { createActivityRoutes } from "../http/routes/activity.js";
 import path from "path";
@@ -483,6 +487,13 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // routes; the openapi.json instance's "/" route serves the registry doc.
   app.use("/api/ns/:ns/tables", createTableRoutes());
   app.use("/api/ns/:ns/openapi.json", createNamespaceOpenApiRoutes());
+
+  // DB-SUPA-5: committed append-log change feed (SSE). Mounted after the auth
+  // middleware so every subscription carries a SUPA-4 principal, and before
+  // errorHandler so a rejected subscription gets its documented JSON error
+  // code (400/403/410/500) with no partial event stream. It shares no
+  // connection state with the legacy /api/events scaffold above.
+  app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes());
 
   // Legacy namespaces — delegate to real MCP tool
   app.get("/namespaces", async (_req: Request, res: Response) => {
