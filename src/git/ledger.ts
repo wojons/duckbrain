@@ -95,10 +95,18 @@ export function resolveCommitSha(repoDir: string, ref: string): string | null {
   return gitTry(repoDir, ["rev-parse", "--verify", `${ref}^{commit}`]);
 }
 
-/** Whether a commit object exists in the repository at all. */
+/**
+ * Whether a commit object exists in the repository at all.
+ *
+ * `git cat-file -e` exits 0 and prints NOTHING on success, so it cannot be run
+ * through `gitTry` (which maps empty output to null): every existing commit
+ * looked absent and every cursor resume answered 410 CHANGE_CURSOR_GONE.
+ * `cat-file -t` names the resolved type, which also proves the object really
+ * is a commit.
+ */
 export function commitExists(repoDir: string, sha: string): boolean {
   if (!/^[0-9a-f]{40}$/.test(sha)) return false;
-  return gitTry(repoDir, ["cat-file", "-e", `${sha}^{commit}`]) !== null;
+  return gitTry(repoDir, ["cat-file", "-t", `${sha}^{commit}`]) === "commit";
 }
 
 /** Commit time of a commit as strict ISO-8601 (e.g. 2026-09-16T10:00:00-05:00). */
