@@ -178,6 +178,8 @@ describe("DOGFOOD-001: GET /api/memories?q= forwards query to semantic recall", 
       limit: 3,
       domain: "raw_note",
       namespace: "default",
+      // DB-GAP-046: the route forwards the validated offset (0 when absent).
+      offset: 0,
     });
     expect(body.items).toHaveLength(2);
     expect(body.items[0].id).toBe("p1");

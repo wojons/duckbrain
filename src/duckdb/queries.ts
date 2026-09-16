@@ -135,6 +135,13 @@ export interface MemoryQueryFilters {
    *  (and its count) sees one fixed instant. */
   now?: string;
   limit?: number;
+  /** DB-GAP-046: page window start — rows [offset, offset+limit) of the
+   *  ORDERED, deduplicated, tombstone-filtered result set. Applied as SQL
+   *  LIMIT/OFFSET (only along with `limit`), never as a post-query slice of
+   *  an already-truncated page: an offset applied outside the query cannot
+   *  reach rows the LIMIT never fetched. countMemories ignores this field —
+   *  `total` is always the unlimited match count (GAP-024). */
+  offset?: number;
 }
 
 /**
@@ -438,6 +445,17 @@ export function queryMemories(
   const limitClause =
     filters?.limit !== undefined ? `LIMIT ${filters.limit}` : "";
 
+  // DB-GAP-046: the page window (offset) is applied HERE, to the ordered
+  // deduped result set, so the DB returns rows [offset, offset+limit) and
+  // callers never have to slice a page they already truncated. Emitted only
+  // alongside a LIMIT: a bare OFFSET is meaningless for this query shape and
+  // would split callers onto a second SQL path. A non-positive offset is a
+  // no-op (the HTTP route rejects negative/non-numeric offsets up front).
+  const offsetClause =
+    filters?.limit !== undefined && (filters?.offset ?? 0) > 0
+      ? `OFFSET ${filters.offset}`
+      : "";
+
   // Use read_json with explicit file list instead of glob pattern
   const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
   const sql = `
@@ -450,6 +468,7 @@ export function queryMemories(
     WHERE ${outerWhereClause}
     ${orderByClause}
     ${limitClause}
+    ${offsetClause}
   `;
 
   // Use db.all() directly instead of prepared statements to avoid parameter binding issues
@@ -521,7 +540,8 @@ export function queryMemories(
  *
  * @param db - DuckDB database instance
  * @param partitionPaths - Array of absolute partition paths to query
- * @param filters - Optional query filters (limit is ignored)
+ * @param filters - Optional query filters (limit AND offset are ignored —
+ *   GAP-024/DB-GAP-046: the total must be the unlimited match count)
  * @returns Number of matching memory records
  */
 export function countMemories(

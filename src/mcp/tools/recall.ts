@@ -69,6 +69,19 @@ const RecallInputSchema = z.object({
     ),
   /** Max results to return */
   limit: z.number().default(10).describe("Max results to return"),
+  /** DB-GAP-046: page window start over the matching rows (default 0).
+   *  The offset is applied to the ORDERED result set — SQL LIMIT/OFFSET on
+   *  the list path (which is what makes rows past the first page reachable at
+   *  all), and to the already-bounded candidate pool on the ranked
+   *  (semantic/hybrid/keyword) paths. Never applied twice: callers pass the
+   *  offset HERE instead of slicing a page they already truncated. */
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .default(0)
+    .describe("Row offset for paging (non-negative integer)"),
   /** Namespace to query (defaults to the ACTIVE namespace — config
    *  defaultNamespace, which switch_namespace persists and is therefore
    *  sticky across processes; see docs/api/mcp-tools.md). Mutually
@@ -246,6 +259,17 @@ function withTimeout<T>(
       },
     );
   });
+}
+
+/**
+ * DB-GAP-046: apply the page window (offset, limit) to an in-memory result
+ * set. Only the SQL list path can push the window into the query; the ranked
+ * legs (semantic / hybrid-fused / keyword) return a bounded, score-ordered
+ * candidate pool, so their page is taken from that pool — an offset beyond
+ * the pool yields an empty page (bounded degradation, never a wrong row).
+ */
+function pageWindow<T>(items: T[], offset: number, limit: number): T[] {
+  return items.slice(offset, offset + limit);
 }
 
 /** Parsed recall input shape (used by the semantic-leg helper). */
@@ -470,6 +494,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // full match count, unlimited by limit).
     const asOfFilters: Parameters<typeof queryMemoriesAtRef>[2] = {
       limit: validated.limit,
+      // DB-GAP-046: the as-of row set is materialized in memory and sorted
+      // newest-first (no DuckDB), so the page window is a slice of that
+      // ordering — same [offset, offset+limit) semantics as the list path.
+      offset: validated.offset,
     };
     if (validated.author) asOfFilters.author = validated.author;
     if (validated.key) asOfFilters.key = validated.key;
@@ -544,12 +572,18 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       };
     }
     try {
+      // DB-GAP-046: fetch THROUGH the end of the requested page (bounded by
+      // the candidate cap), so the page window below can reach past page 1.
+      const keywordLimit = Math.min(
+        validated.offset + validated.limit,
+        MAX_CANDIDATES,
+      );
       const keywordResult = validated.allNamespaces
         ? await keywordSearchAllNamespaces(
             getConfig(".").namespacesPath || "./namespaces",
             validated.contains,
             {
-              limit: validated.limit,
+              limit: keywordLimit,
               maxCandidates: MAX_CANDIDATES,
               // RETR-003: window the keyword candidate pool too.
               ...(timeRange.after ? { after: timeRange.after } : {}),
@@ -563,7 +597,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             },
           )
         : await keywordSearch(namespacePath, validated.contains, {
-            limit: validated.limit,
+            limit: keywordLimit,
             maxCandidates: MAX_CANDIDATES,
             // RETR-003: window the keyword candidate pool too.
             ...(timeRange.after ? { after: timeRange.after } : {}),
@@ -575,9 +609,16 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             historical: validated.historical === true,
             now,
           });
+      // DB-GAP-046: the page window (offset, limit) is applied to the ranked
+      // keyword hits — the fetch above already reached through the page end.
+      const hits = pageWindow(
+        keywordResult.memories,
+        validated.offset,
+        validated.limit,
+      );
       return {
-        memories: keywordResult.memories,
-        count: keywordResult.memories.length,
+        memories: hits,
+        count: hits.length,
         // GAP-024: total = the full ranked match set (bounded by
         // MAX_CANDIDATES), unlimited by limit/offset.
         total: keywordResult.total,
@@ -622,6 +663,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // Build query filters
     const filters: Parameters<typeof queryMemories>[2] = {
       limit: validated.limit,
+      // DB-GAP-046: the page window is pushed INTO the query (SQL
+      // LIMIT/OFFSET) instead of being applied by the caller to the
+      // truncated page it already fetched — that is what made every
+      // offset >= limit return an empty page.
+      offset: validated.offset,
     };
 
     if (validated.author) {
@@ -796,7 +842,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             "[recall] Semantic leg failed in hybrid mode — degrading to keyword-only:",
             msg,
           );
-          const top = keywordResult.memories.slice(0, validated.limit);
+          const top = pageWindow(
+            keywordResult.memories,
+            validated.offset,
+            validated.limit,
+          );
           return {
             memories: top,
             count: top.length,
@@ -814,22 +864,28 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         const keywordById = new Map(
           keywordResult.memories.map((m) => [m.id, m]),
         );
-        const top = fused.slice(0, validated.limit).map(({ item, score }) => {
-          const kw = keywordById.get(item.id);
-          return {
-            ...item,
-            // RETR-001: the keyword leg's snippet rides along when it found
-            // the document (absent for semantic-only candidates).
-            ...(kw && kw.snippet !== undefined ? { snippet: kw.snippet } : {}),
-            // RETR-008: the highlighted display form rides along with it.
-            ...(kw && kw.highlightedSnippet !== undefined
-              ? { highlightedSnippet: kw.highlightedSnippet }
-              : {}),
-            // RETR-002: fused RRF score (normalized 0..1) — NOT the raw
-            // cosine similarity or BM25 score.
-            score,
-          };
-        });
+        // DB-GAP-046: page window over the fused pool (bounded by
+        // 2 × FUSION_TOP_K) — offset beyond it degrades to an empty page.
+        const top = pageWindow(fused, validated.offset, validated.limit).map(
+          ({ item, score }) => {
+            const kw = keywordById.get(item.id);
+            return {
+              ...item,
+              // RETR-001: the keyword leg's snippet rides along when it found
+              // the document (absent for semantic-only candidates).
+              ...(kw && kw.snippet !== undefined
+                ? { snippet: kw.snippet }
+                : {}),
+              // RETR-008: the highlighted display form rides along with it.
+              ...(kw && kw.highlightedSnippet !== undefined
+                ? { highlightedSnippet: kw.highlightedSnippet }
+                : {}),
+              // RETR-002: fused RRF score (normalized 0..1) — NOT the raw
+              // cosine similarity or BM25 score.
+              score,
+            };
+          },
+        );
         return {
           memories: top,
           count: top.length,
@@ -869,7 +925,7 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
           };
         }
 
-        const top = leg.ranked.slice(0, validated.limit);
+        const top = pageWindow(leg.ranked, validated.offset, validated.limit);
         // GAP-024: for ?q=, total reflects the candidate pool the semantic
         // search actually ranked (bounded by max(limit*10, 100)), not the
         // full namespace count — semantic results are ranked, not enumerated.
@@ -884,7 +940,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       // ---- KEYWORD-ONLY: embeddings unavailable (no providers / embed
       // failure) but the FTS sidecar works — offline fallback (RETR-002).
       if (keywordResult) {
-        const top = keywordResult.memories.slice(0, validated.limit);
+        const top = pageWindow(
+          keywordResult.memories,
+          validated.offset,
+          validated.limit,
+        );
         return {
           memories: top,
           count: top.length,

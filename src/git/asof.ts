@@ -79,6 +79,10 @@ export interface AsOfFilters {
    *  json_extract_string stringification: numeric 403 matches "403"). */
   attr?: Record<string, string>;
   limit?: number;
+  /** DB-GAP-046: page window start — mirrors MemoryQueryFilters.offset so the
+   *  as-of read (in-memory mirror of the list path) pages identically:
+   *  rows [offset, offset+limit) of the newest-first ordering. */
+  offset?: number;
 }
 
 /** Chat-archive key facet: /chats/<view>/<YYYY-MM-DD>[/...] (RETR-003). */
@@ -365,7 +369,12 @@ export function queryMemoriesAtRef(
   // Outer WHERE mirror: a memory whose latest record is a tombstone is gone.
   const live = deduped.filter((r) => r.action !== "tombstone");
   const sorted = live.sort(compareNewestFirst);
+  // DB-GAP-046: the page window is [offset, offset+limit) of the ordering —
+  // same semantics as the DuckDB list path's SQL LIMIT/OFFSET.
+  const offset = filters.offset ?? 0;
   const memories =
-    filters.limit !== undefined ? sorted.slice(0, filters.limit) : sorted;
+    filters.limit !== undefined
+      ? sorted.slice(offset, offset + filters.limit)
+      : sorted.slice(offset);
   return { memories, total: sorted.length };
 }

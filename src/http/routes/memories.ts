@@ -159,6 +159,25 @@ function parseLimit(raw: unknown): number {
 }
 
 /**
+ * Parse and validate the ?offset= query parameter (DB-GAP-046).
+ *
+ * Rejects negative and non-numeric values with 400 VALIDATION_ERROR (the same
+ * contract as ?limit=), defaults to 0 when absent. The offset is a window
+ * selector forwarded to the query layer — a negative value would reach SQL as
+ * an invalid OFFSET and silently return an empty page.
+ */
+function parseOffset(raw: unknown): number {
+  if (raw === undefined) {
+    return 0;
+  }
+  const parsed = parseInt(raw as string, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new ValidationError("offset must be a non-negative integer");
+  }
+  return parsed;
+}
+
+/**
  * Transform MCP memory to API response format
  */
 function transformMemory(memory: any): MemoryResponse {
@@ -212,7 +231,8 @@ router.get(
       // GAP-023: validated — rejects negative/non-numeric with 400
       // VALIDATION_ERROR, caps at MAX_LIMIT, 0 = valid empty page.
       limit: parseLimit(req.query.limit),
-      offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
+      // DB-GAP-046: validated like limit — negative/non-numeric → 400.
+      offset: parseOffset(req.query.offset),
       domain: req.query.domain as string | undefined,
       author: req.query.author as string | undefined,
       query: req.query.q as string | undefined,
@@ -305,6 +325,12 @@ router.get(
       // Fetch one extra to detect hasMore. limit=0 is an explicit empty page
       // — recallTool short-circuits to a count-only result (GAP-024).
       limit: params.limit! > 0 ? params.limit! + 1 : 0,
+      // DB-GAP-046: the offset is forwarded so the QUERY LAYER applies the
+      // window (SQL LIMIT/OFFSET on the list path). Slicing the returned
+      // page by offset instead — what this route used to do — can only ever
+      // reach rows the LIMIT already fetched, so every offset >= limit
+      // returned an empty page while 15+ matching rows sat on disk.
+      offset: params.offset || 0,
       domain: params.domain,
       // RETR-007: ?allNamespaces=true unions over every manifest namespace
       // — recallTool rejects namespace+allNamespaces together, so the
@@ -354,21 +380,21 @@ router.get(
 
     // Check if there are more results. limit=0 is an explicit empty page —
     // hasMore must be false even when rows exist (GAP-024).
+    // DB-GAP-046: the query layer already returned the requested page — rows
+    // [offset, offset+limit) plus the one extra hasMore probe — so the extra
+    // item is dropped here and the result is NEVER re-sliced by offset.
     const hasMore =
       params.limit! > 0 && filteredMemories.length > params.limit!;
     if (hasMore) {
       filteredMemories.pop(); // Remove the extra item
     }
 
-    // Apply offset
     const offset = params.offset || 0;
-    const paginatedMemories = filteredMemories.slice(
-      offset,
-      offset + params.limit!,
-    );
 
     const response: MemoryListResponse = {
-      items: paginatedMemories,
+      // Defensive slice: a stubbed/ranked path that ignores limit still
+      // yields at most one page.
+      items: filteredMemories.slice(0, params.limit!),
       // GAP-024: true COUNT(*) of all rows matching the active filters,
       // unlimited by limit/offset. Falls back to the fetched-page length for
       // callers that stub recallTool without a total.

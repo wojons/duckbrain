@@ -71,7 +71,9 @@ function readRepoConfig(): string | null {
   // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
   // the afterAll assert then requires it to STILL be missing (GAP-022 AC1:
   // tests must never create or mutate the repo-root instance config).
-  return fs.existsSync(REPO_CONFIG) ? fs.readFileSync(REPO_CONFIG, "utf-8") : null;
+  return fs.existsSync(REPO_CONFIG)
+    ? fs.readFileSync(REPO_CONFIG, "utf-8")
+    : null;
 }
 
 // Timestamps spread across 2026-08-10 .. 2026-08-14.
