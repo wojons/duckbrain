@@ -1082,3 +1082,34 @@ tasks:
   status: complete
   created_at: '2026-09-15T23:53:56.143711+00:00'
   completed_at: '2026-09-16T00:22:34.495128+00:00'
+- id: DB-SUPA-5
+  title: "DB-SUPA-5 \u2014 realtime + change feed: committed append-log SSE change\
+    \ feed (Supabase-realtime parity)"
+  criteria:
+  - GET /api/ns/:ns/changes streams SSE (text/event-stream) emitting duckbrain.ready.v1
+    then duckbrain.change.v1 frames whose SSE id equals the event cursor, per docs/specs/SUPA-5-realtime.md
+  - Cursors are opaque dbch1.<base64url(canonical-json)> values ({v,ns,commit,ordinal})
+    carrying no signature/HMAC/seq, and resume is strictly-after the supplied cursor
+  - "Committed-only: no event is emitted for an accepted write before its namespace\
+    \ commit exists; positions are derived from the committed parent\u2192child _audit\
+    \ diff (ordinal = 1-based index in canonical current-then-numeric segment+line\
+    \ order)"
+  - "Replay enumerates every committed _audit segment (not just current.jsonl, not\
+    \ manifest membership); corruption (parent prefix violation, numeric gap, rewrite,\
+    \ truncation, deletion, malformed accepted record) fails closed \u2014 feed closed,\
+    \ nothing invented, CHANGELOG_CORRUPT logged"
+  - Authorization uses SUPA-4 namespace + per-table read grants before replay and
+    before every live delivery; an unauthorized table fails the whole request without
+    leaking a partial stream
+  - 'Bounded fan-out: a slow subscriber that exceeds the configured queue bound receives
+    duckbrain.overflow.v1 and is closed alone while healthy subscribers continue in
+    order; 15s comment heartbeats; close cleans timer/queue state'
+  - 'The legacy /api/events/:namespace broadcast scaffold stays isolated: it publishes
+    no change records and shares no active-connection state with the feed'
+  - "Verification evidence: full suite 130 files / 1100 tests green and tsc clean,\
+    \ plus a live scratch-daemon probe showing ready(head cursor) \u2192 live change\
+    \ frame whose cursor decodes to the real commit sha in git log \u2192 strictly-after\
+    \ resume delivering the next commit"
+  status: complete
+  created_at: '2026-09-16T06:08:49.068067+00:00'
+  completed_at: '2026-09-16T06:18:49.046015+00:00'
