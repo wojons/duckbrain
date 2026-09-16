@@ -1079,5 +1079,6 @@ tasks:
   - Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/
     with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty
     page at offset>0); hermetic regression test exists in the tree
-  status: in_progress
+  status: complete
   created_at: '2026-09-15T23:53:56.143711+00:00'
+  completed_at: '2026-09-16T00:22:34.495128+00:00'
