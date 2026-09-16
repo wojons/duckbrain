@@ -5,11 +5,22 @@
  * we test the GET by reading first event chunk, and POST/GET(stats) normally.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 
 import { createEventsRoutes } from "./events";
+import { REALTIME_ROUTE_PATH, createRealtimeRoutes } from "./realtime";
+import { RealtimeHub } from "../realtime/hub";
+import {
+  createRealtimeFixture,
+  memoryInput,
+  openSseClient,
+  principalMiddleware,
+  startApp,
+  type RealtimeFixture,
+  type RunningApp,
+} from "../realtime/fixtures";
 
 function createApp() {
   const app = express();
@@ -270,4 +281,101 @@ describe("GET /api/events/:namespace/stats", () => {
       expect(typeof entry.connections).toBe("number");
     }
   });
+});
+
+/**
+ * DB-SUPA-5 — the legacy broadcast scaffold is not the committed change feed.
+ *
+ * The legacy route keeps its own process-local connection map and writes
+ * caller-supplied payloads. It must never publish a `duckbrain.change.v1`
+ * record, and it must not share active-connection state with the realtime
+ * feed. The positive control below proves the feed was live in the same app
+ * while the legacy broadcast went out — otherwise "nothing leaked" would only
+ * mean "nothing worked".
+ */
+describe("legacy events route remains isolated", () => {
+  const fixtures: RealtimeFixture[] = [];
+  const hubs: RealtimeHub[] = [];
+  const apps: RunningApp[] = [];
+
+  afterEach(async () => {
+    for (const app of apps.splice(0)) await app.close();
+    for (const hub of hubs.splice(0)) hub.closeAll();
+    for (const fixture of fixtures.splice(0)) fixture.cleanup();
+  });
+
+  it("does not publish change records and shares no connection state", async () => {
+    const fixture = createRealtimeFixture("duckbrain-supa5-legacy-", {
+      commitOnFlush: false,
+    });
+    fixtures.push(fixture);
+    const { ns } = fixture;
+    const hub = new RealtimeHub({
+      namespacesPath: fixture.root,
+      pollIntervalMs: 60 * 60 * 1000,
+      heartbeatMs: 60 * 60 * 1000,
+    });
+    hubs.push(hub);
+
+    const app = express();
+    app.use(express.json());
+    app.use(principalMiddleware(undefined));
+    app.use("/api/events", createEventsRoutes);
+    app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes({ hub }));
+    const running = await startApp(app);
+    apps.push(running);
+
+    const legacy = await openSseClient(running.port, `/api/events/${ns}`);
+    const feed = await openSseClient(
+      running.port,
+      `/api/ns/${ns}/changes?tables=memories`,
+    );
+    expect(legacy.status).toBe(200);
+    expect(feed.status).toBe(200);
+    await legacy.waitFor((client) => client.frames().length >= 1);
+    await feed.waitFor((client) => client.frames().length >= 1);
+
+    // A caller-supplied broadcast on the legacy route.
+    const response = await fetch(
+      running.url(`/api/events/${ns}/broadcast`),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "custom", data: { hello: "legacy" } }),
+      },
+    );
+    expect(response.status).toBe(200);
+    await response.text();
+
+    // The legacy client still receives its payload, as an unnamed data frame.
+    await legacy.waitFor((client) => client.text().includes("legacy"));
+    expect(legacy.text()).not.toContain("duckbrain.change.v1");
+    expect(legacy.text()).not.toContain("dbch1.");
+
+    // Nothing from that broadcast reached the change feed: no change record,
+    // no cursor, no revisioned position.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(feed.frames().some((frame) => frame.event === "duckbrain.change.v1")).toBe(false);
+    expect(feed.text()).not.toContain("dbch1.");
+    expect(feed.text()).not.toContain("legacy");
+
+    // Positive control: the feed in this very app delivers a real committed
+    // change, so the negative above is isolation and not a dead route.
+    await fixture.writer.enqueue(memoryInput(1, ns));
+    fixture.commit("test: legacy isolation control");
+    await hub.check(ns);
+    await feed.waitFor((client) =>
+      client.frames().some((frame) => frame.event === "duckbrain.change.v1"),
+    );
+    const change = feed
+      .frames()
+      .filter((frame) => frame.event === "duckbrain.change.v1")[0];
+    expect(change.id).toMatch(/^dbch1\./);
+    expect(JSON.parse(change.data ?? "{}").namespace).toBe(ns);
+    // The legacy client never sees committed change records either.
+    expect(legacy.text()).not.toContain("duckbrain.change.v1");
+
+    legacy.close();
+    feed.close();
+  }, 45_000);
 });
