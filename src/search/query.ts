@@ -17,6 +17,7 @@ import {
   SearchIndexMissingError,
   DB_CONFIG,
   listNamespaces,
+  ensureFreshIndex,
 } from "./index";
 import { mapDigits, splitQuery } from "./transform";
 import {
@@ -100,6 +101,10 @@ export interface KeywordSearchOptions {
   /** RETR-007: restrict the all-namespaces union to these namespace names
    *  (default: every manifest namespace under the namespaces root). */
   namespaces?: string[];
+  /** DB-GAP-047: row bound for the read-path auto-build, overriding
+   *  DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS / DEFAULT_AUTOBUILD_MAX_ROWS
+   *  (single-namespace reads only). */
+  autoBuildMaxRows?: number;
 }
 
 function escapeSqlLiteral(s: string): string {
@@ -191,13 +196,17 @@ async function collectKeywordCandidates(
   namespacePath: string,
   query: string,
   opts: KeywordSearchOptions,
+  /** DB-GAP-047: why the read-path auto-build did not produce an index
+   *  (over-bound namespace / rebuild failure) — appended to the
+   *  missing-index error so the refusal is visible to the operator. */
+  autoBuildNote?: string,
 ): Promise<IndexRow[]> {
   const maxCandidates = opts.maxCandidates ?? MAX_KEYWORD_CANDIDATES;
   const namespace = path.basename(namespacePath);
 
   const dbPath = indexDbPath(namespacePath);
   if (!fs.existsSync(dbPath)) {
-    throw new SearchIndexMissingError(namespace, namespacePath);
+    throw new SearchIndexMissingError(namespace, namespacePath, autoBuildNote);
   }
 
   const { tokens, prefix } = splitQuery(query);
@@ -281,10 +290,18 @@ async function collectKeywordCandidates(
 /**
  * Run a keyword search against a namespace's rebuilt FTS sidecar.
  *
+ * DB-GAP-047: the read owns the sidecar's freshness — a missing or stale
+ * index is rebuilt (bounded, single-flight) BEFORE the query runs, so a
+ * single-namespace keyword read never requires a human `search-index
+ * rebuild`. The bounded auto-build is the ONLY behavior change here; the
+ * candidate/rank/limit contract below is untouched.
+ *
  * @param namespacePath absolute path to the namespace
  * @param rawQuery the raw search string (trailing `*` = prefix on last token)
- * @param opts limit / candidate cap
- * @throws SearchIndexMissingError when the sidecar has not been rebuilt
+ * @param opts limit / candidate cap / auto-build row bound
+ * @throws SearchIndexMissingError when the sidecar is unusable AND the
+ *   bounded auto-build refused or failed (over-bound namespace, read-only
+ *   media, missing fts extension) — the pre-change error path.
  */
 export async function keywordSearch(
   namespacePath: string,
@@ -295,7 +312,31 @@ export async function keywordSearch(
   const limit = opts.limit ?? 10;
   const namespace = path.basename(namespacePath);
 
-  const rows = await collectKeywordCandidates(namespacePath, query, opts);
+  // DB-GAP-047: rebuild-before-answer (missing / stale only, bounded,
+  // single-flight). A refusal or failure is reported through `reason` and
+  // surfaces below as the existing missing-index error.
+  const ensured = await ensureFreshIndex(namespacePath, {
+    ...(opts.autoBuildMaxRows !== undefined
+      ? { maxRows: opts.autoBuildMaxRows }
+      : {}),
+  });
+  if (ensured.reason && fs.existsSync(indexDbPath(namespacePath))) {
+    // Degraded path: an index exists but could not be refreshed (over-bound
+    // namespace / failed rebuild). The pre-change behavior for that namespace
+    // is to answer from it — say so, because the answer may be stale. The
+    // response shape is deliberately NOT changed (HTTP/MCP contract).
+    console.warn(
+      `[search] namespace '${namespace}' answered from an index that could not ` +
+        `be refreshed (${ensured.reason}) — results may be stale`,
+    );
+  }
+
+  const rows = await collectKeywordCandidates(
+    namespacePath,
+    query,
+    opts,
+    ensured.reason,
+  );
 
   // Rank: exact-literal → all-tokens → any-token, then BM25, then recency.
   const body = query.endsWith("*") ? query.slice(0, -1).trimEnd() : query;
@@ -346,8 +387,13 @@ export async function keywordSearch(
  * namespacesSkipped) — a partial union beats a hard failure when some
  * sidecars are stale — and when NO namespace has an index the union is
  * simply empty: every namespace is reported as skipped and the CLI
- * surfaces the rebuild hint on stderr (RETR-007 contract). The
- * single-namespace search keeps its hard error on a missing index.
+ * surfaces the rebuild hint on stderr (RETR-007 contract).
+ *
+ * DB-GAP-047: the read-path auto-build (ensureFreshIndex) is deliberately
+ * NOT applied here. The union's contract is to skip index-less namespaces
+ * and report them — rebuilding each namespace behind a cross-namespace
+ * search would multiply the work by the namespace count and change the
+ * reported union bookkeeping. Single-namespace reads own that fix.
  *
  * @param namespacesRoot absolute path to the namespaces root (config
  *   namespacesPath)

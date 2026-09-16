@@ -108,6 +108,41 @@ export interface MemoryRecord {
 }
 
 /**
+ * Directories under a namespace that never hold source JSONL: git metadata
+ * and the two rebuildable caches (`.embeddings`, `.search`). Shared by every
+ * source walk so the freshness check, the row guard and the rebuild always
+ * agree on which files are sources.
+ */
+export function isSkippedSourceDir(name: string): boolean {
+  return name === ".git" || name === ".embeddings" || name === SEARCH_INDEX_DIR;
+}
+
+/** Every `*.jsonl` source file under a namespace, in walk order. */
+export function collectSourceFiles(namespacePath: string): string[] {
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      // Missing / unreadable directory — no sources below it.
+      return;
+    }
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (isSkippedSourceDir(ent.name)) continue;
+        walk(full);
+      } else if (ent.name.endsWith(".jsonl")) {
+        files.push(full);
+      }
+    }
+  };
+  walk(namespacePath);
+  return files;
+}
+
+/**
  * Collect the LIVE memory rows of a namespace.
  *
  * Walks every *.jsonl file under the namespace (skipping git and cache
@@ -130,11 +165,7 @@ export function collectLiveMemoryRows(namespacePath: string): MemoryRecord[] {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        if (
-          ent.name === ".git" ||
-          ent.name === ".embeddings" ||
-          ent.name === SEARCH_INDEX_DIR
-        ) {
+        if (isSkippedSourceDir(ent.name)) {
           continue;
         }
         walk(full);
@@ -348,27 +379,239 @@ export async function rebuildNamespaceIndex(
 }
 
 function countSourceFiles(namespacePath: string): number {
-  let n = 0;
-  const walk = (dir: string): void => {
-    if (!fs.existsSync(dir)) return;
-    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        if (
-          ent.name === ".git" ||
-          ent.name === ".embeddings" ||
-          ent.name === SEARCH_INDEX_DIR
-        ) {
-          continue;
+  return collectSourceFiles(namespacePath).length;
+}
+
+// ---------------------------------------------------------------------------
+// DB-GAP-047: read-path freshness — bounded, single-flight rebuild-before-answer
+//
+// The sidecar is a cache (Q-7 cache doctrine), and a cache whose lifecycle
+// needs a human is a leak into every consumer: a fresh namespace 500s on
+// `contains=`, `q=` silently loses its keyword leg, and a sidecar that
+// predates the newest write keeps answering with stale rows. The read path
+// therefore owns the cache's freshness — `ensureFreshIndex` detects
+// missing/stale and rebuilds BEFORE the read runs, under two hard limits:
+//
+//   - BOUNDED: a namespace with more source rows than
+//     DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS (default 5000) is refused, never
+//     indexed inline — the read keeps its pre-change behavior (skipped /
+//     rebuild-hint error) instead of blocking on a multi-minute rebuild.
+//   - SINGLE-FLIGHT: concurrent readers of one namespace share ONE rebuild,
+//     so a burst of requests cannot stack rebuilds (each of which wipes and
+//     rewrites the sidecar directory).
+//
+// Writes never call this: indexing stays out of the write path, so a write
+// costs the same as before (no write amplification).
+// ---------------------------------------------------------------------------
+
+/** Env override for the bounded read-path auto-build row guard. */
+export const AUTOBUILD_MAX_ROWS_ENV = "DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS";
+
+/** Default row bound for a read-path auto-build. */
+export const DEFAULT_AUTOBUILD_MAX_ROWS = 5000;
+
+/**
+ * The active auto-build row bound: the env override when it parses to a
+ * non-negative integer, the default otherwise. A bound of 0 refuses every
+ * namespace that has at least one source row.
+ */
+export function autoBuildMaxRows(): number {
+  const raw = process.env[AUTOBUILD_MAX_ROWS_ENV];
+  if (raw === undefined || raw.trim() === "") return DEFAULT_AUTOBUILD_MAX_ROWS;
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_AUTOBUILD_MAX_ROWS;
+  return parsed;
+}
+
+export type IndexFreshnessState = "missing" | "stale" | "fresh";
+
+export interface IndexFreshness {
+  /** missing = no sidecar at all; stale = indexed before the newest source
+   *  write (or an unreadable meta); fresh = newer than every source write. */
+  state: IndexFreshnessState;
+  /** Newest source `*.jsonl` mtime (epoch ms); 0 when there are no sources. */
+  newestSourceMtimeMs: number;
+  /** `meta.indexedAt` as epoch ms; null when absent/unparseable. */
+  indexedAt: number | null;
+  /** `meta.indexedAt` verbatim (ISO-8601); null when absent/unparseable. */
+  indexedAtIso: string | null;
+}
+
+/** Newest source `*.jsonl` mtime under a namespace (epoch ms; 0 = none). */
+export function newestSourceMtimeMs(namespacePath: string): number {
+  let newest = 0;
+  for (const file of collectSourceFiles(namespacePath)) {
+    try {
+      const mtime = fs.statSync(file).mtimeMs;
+      if (mtime > newest) newest = mtime;
+    } catch {
+      // Unreadable file — ignore (mirrors the read-side skip).
+    }
+  }
+  return newest;
+}
+
+/**
+ * Classify a namespace's sidecar without touching it (read-only): `missing`
+ * when there is no DuckDB file, `stale` when the newest source write is
+ * newer than `meta.indexedAt` (or the meta is missing/unreadable), `fresh`
+ * otherwise. Decides; never rebuilds.
+ */
+export function indexFreshness(namespacePath: string): IndexFreshness {
+  const newestSource = newestSourceMtimeMs(namespacePath);
+  const meta = readIndexMeta(namespacePath);
+  const parsed = meta ? Date.parse(meta.indexedAt) : Number.NaN;
+  const indexedAt = Number.isFinite(parsed) ? parsed : null;
+  const base = {
+    newestSourceMtimeMs: newestSource,
+    indexedAt,
+    indexedAtIso: indexedAt === null ? null : (meta?.indexedAt ?? null),
+  };
+  if (!fs.existsSync(indexDbPath(namespacePath))) {
+    return { state: "missing", ...base };
+  }
+  if (indexedAt === null) {
+    // Sidecar present but unverifiable — treat as stale (rebuild).
+    return { state: "stale", ...base };
+  }
+  // Strictly newer: a source write in the same millisecond as the last
+  // rebuild is not staleness (and must not thrash rebuilds).
+  return { state: newestSource > indexedAt ? "stale" : "fresh", ...base };
+}
+
+/**
+ * Upper-bound row count for the auto-build guard: newline count across every
+ * source file, abandoning the scan as soon as the bound is exceeded — so an
+ * over-bound namespace costs one bounded read, never a full parse.
+ */
+function countSourceRowsUpTo(namespacePath: string, bound: number): number {
+  const CHUNK = 64 * 1024;
+  const buf = Buffer.allocUnsafe(CHUNK);
+  let count = 0;
+  for (const file of collectSourceFiles(namespacePath)) {
+    let fd: number | null = null;
+    try {
+      fd = fs.openSync(file, "r");
+      let bytes = 0;
+      while ((bytes = fs.readSync(fd, buf, 0, CHUNK, null)) > 0) {
+        for (let i = 0; i < bytes; i++) {
+          if (buf[i] === 0x0a) {
+            count += 1;
+            if (count > bound) return count;
+          }
         }
-        walk(full);
-      } else if (ent.name.endsWith(".jsonl")) {
-        n += 1;
+      }
+    } catch {
+      // Unreadable file — contributes no countable rows.
+    } finally {
+      if (fd !== null) {
+        try {
+          fs.closeSync(fd);
+        } catch {
+          // Best effort.
+        }
       }
     }
-  };
-  walk(namespacePath);
-  return n;
+  }
+  return count;
+}
+
+export interface EnsureFreshIndexOptions {
+  /** Row bound override; defaults to autoBuildMaxRows() (env / const). */
+  maxRows?: number;
+}
+
+export interface EnsureFreshIndexResult {
+  /** Freshness as observed BEFORE this call's rebuild. */
+  freshness: IndexFreshness;
+  /** True when THIS call performed the rebuild. */
+  rebuilt: boolean;
+  /** Set while the index is still not usable: bound refusal or failure. */
+  reason?: string;
+  /** Rebuild stats when a rebuild happened. */
+  meta?: IndexMeta;
+}
+
+/** In-process single-flight registry: one rebuild per namespace at a time. */
+const autoBuildInFlight = new Map<string, Promise<EnsureFreshIndexResult>>();
+
+/** Rebuilds the read path performed, per namespace (observability/tests). */
+const autoBuildCounts = new Map<string, number>();
+
+/** DB-GAP-047 observability: read-path rebuilds performed for a namespace. */
+export function autoBuildCount(namespacePath: string): number {
+  return autoBuildCounts.get(path.resolve(namespacePath)) ?? 0;
+}
+
+async function runEnsureFreshIndex(
+  namespacePath: string,
+  opts: EnsureFreshIndexOptions,
+): Promise<EnsureFreshIndexResult> {
+  const freshness = indexFreshness(namespacePath);
+  if (freshness.state === "fresh") {
+    return { freshness, rebuilt: false };
+  }
+
+  const namespace = path.basename(namespacePath);
+  // Never materialise a sidecar (or the namespace directory) for a path that
+  // does not exist — for a typo'd namespace the loud rebuild-hint error is
+  // still the right answer, and a read must not create directories.
+  if (!fs.existsSync(namespacePath)) {
+    return {
+      freshness,
+      rebuilt: false,
+      reason: `namespace directory not found: ${namespacePath}`,
+    };
+  }
+
+  const bound = opts.maxRows ?? autoBuildMaxRows();
+  const rows = countSourceRowsUpTo(namespacePath, bound);
+  if (rows > bound) {
+    return {
+      freshness,
+      rebuilt: false,
+      reason:
+        `namespace '${namespace}' has more than ${bound} source rows ` +
+        `(${AUTOBUILD_MAX_ROWS_ENV}=${bound})`,
+    };
+  }
+
+  try {
+    const meta = await rebuildNamespaceIndex(namespacePath);
+    const key = path.resolve(namespacePath);
+    autoBuildCounts.set(key, (autoBuildCounts.get(key) ?? 0) + 1);
+    return { freshness, rebuilt: true, meta };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[search] read-path auto-build failed for namespace '${namespace}' — ` +
+        `falling back to the manual rebuild path: ${message}`,
+    );
+    return { freshness, rebuilt: false, reason: `rebuild failed: ${message}` };
+  }
+}
+
+/**
+ * Make a namespace's keyword index fresh enough to answer a read: rebuild
+ * when the sidecar is missing or predates the newest source write, under the
+ * row bound. Concurrent callers for the same namespace share ONE rebuild
+ * (in-process promise map keyed by resolved path).
+ *
+ * Never throws: a refusal or a failed rebuild is reported as `reason` so the
+ * caller keeps the pre-change behavior for that namespace.
+ */
+export async function ensureFreshIndex(
+  namespacePath: string,
+  opts: EnsureFreshIndexOptions = {},
+): Promise<EnsureFreshIndexResult> {
+  const key = path.resolve(namespacePath);
+  const inFlight = autoBuildInFlight.get(key);
+  if (inFlight) return inFlight;
+  const run = runEnsureFreshIndex(namespacePath, opts).finally(() => {
+    autoBuildInFlight.delete(key);
+  });
+  autoBuildInFlight.set(key, run);
+  return run;
 }
 
 /**
@@ -452,11 +695,16 @@ export function indexStatus(namespacePath: string): SearchIndexStatus {
 }
 
 /** Error thrown when a search is attempted without an index (or a stale
- *  half-written one). Carries the rebuild hint for CLI/HTTP surfacing. */
+ *  half-written one). Carries the rebuild hint for CLI/HTTP surfacing.
+ *
+ *  DB-GAP-047: the read path rebuilds a missing/stale sidecar itself, so this
+ *  now surfaces only when the bounded auto-build refuses (over-bound
+ *  namespace) or the rebuild fails — `note` carries that reason so the
+ *  operator sees why the manual path is still needed. */
 export class SearchIndexMissingError extends Error {
-  constructor(namespace: string, nsPath: string) {
+  constructor(namespace: string, nsPath: string, note?: string) {
     super(
-      `No keyword search index for namespace '${namespace}' at ${sidecarDir(nsPath)} — run 'duckbrain search-index rebuild${namespace !== "default" ? ` --namespace=${namespace}` : ""}' first`,
+      `No keyword search index for namespace '${namespace}' at ${sidecarDir(nsPath)} — run 'duckbrain search-index rebuild${namespace !== "default" ? ` --namespace=${namespace}` : ""}' first${note ? ` (auto-build skipped: ${note})` : ""}`,
     );
     this.name = "SearchIndexMissingError";
   }

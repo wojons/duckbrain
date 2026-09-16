@@ -13,8 +13,11 @@
  *     the stock DuckDB tokenizer drops pure-numeric tokens, which is why
  *     the index uses the digit-mapped search_text column (transform.ts)
  *   - trailing `*` prefix queries work via the raw_text LIKE pass
- *   - recallTool's `contains` param and searchTool surface the same path,
- *     with the same missing-index guidance
+ *   - recallTool's `contains` param and searchTool surface the same path
+ *   - DB-GAP-047: a single-namespace read no longer needs a human
+ *     `search-index rebuild` — the sidecar is rebuilt (bounded,
+ *     single-flight) before the query runs; the rebuild hint survives only
+ *     for the bounded refusal (over-bound namespace / failed rebuild)
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -24,6 +27,7 @@ import {
   rebuildNamespaceIndex,
   ensureSearchGitignored,
   indexStatus,
+  indexFreshness,
   SEARCH_INDEX_DIR,
   SearchIndexMissingError,
 } from "./index";
@@ -304,13 +308,50 @@ describe("RETR-001: keyword search", () => {
     expect(zero.total).toBe(3);
   });
 
-  it("throws a rebuild-hint error when no index exists", async () => {
+  it("answers instead of throwing when no index exists (DB-GAP-047)", async () => {
+    // DB-GAP-047: the read path rebuilds a missing sidecar before answering
+    // (bounded + single-flight), so a namespace that never ran
+    // `search-index rebuild` no longer needs a human. BARE_NS has a manifest
+    // and no rows, so the rebuilt index is empty and the read answers with it.
+    expect(indexFreshness(BARE_NS).state).toBe("missing");
+
+    const res = await keywordSearch(BARE_NS, "GAP-020");
+
+    expect(res.memories).toEqual([]);
+    expect(res.total).toBe(0);
+    // The read materialised the sidecar it needed — no manual step.
+    expect(
+      fs.existsSync(path.join(BARE_NS, SEARCH_INDEX_DIR, "fts.duckdb")),
+    ).toBe(true);
+    expect(indexFreshness(BARE_NS).state).toBe("fresh");
+  });
+
+  it("still throws the rebuild hint when the bounded auto-build refuses (DB-GAP-047)", async () => {
+    // Over-bound namespaces are never indexed inline: the pre-change error
+    // path stays reachable and names why the manual rebuild is needed.
+    const overBound = path.join(NS_ROOT, "search-retr001-overbound");
+    const partition = path.join(overBound, "concept", "2026-08");
+    fs.mkdirSync(partition, { recursive: true });
+    fs.writeFileSync(
+      path.join(partition, "current.jsonl"),
+      mem("ob1", "/proj/overbound", "an over-bound GAP-020 row") + "\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(overBound, "manifest.json"),
+      JSON.stringify({ partitions: ["concept/2026-08"] }),
+    );
     try {
-      await keywordSearch(BARE_NS, "GAP-020");
+      await keywordSearch(overBound, "GAP-020", { autoBuildMaxRows: 0 });
       expect.unreachable("expected SearchIndexMissingError");
     } catch (e) {
       expect(e).toBeInstanceOf(SearchIndexMissingError);
       expect((e as Error).message).toContain("search-index rebuild");
+      expect((e as Error).message).toContain("auto-build skipped");
+      // Nothing was written for the refused namespace.
+      expect(fs.existsSync(path.join(overBound, SEARCH_INDEX_DIR))).toBe(false);
+    } finally {
+      fs.rmSync(overBound, { recursive: true, force: true });
     }
   });
 });
@@ -328,13 +369,15 @@ describe("RETR-001: searchTool surface", () => {
     expect(res.memories[0].snippet).toContain("GAP-020");
   });
 
-  it("surfaces the missing-index guidance as an error", async () => {
+  it("answers a bare namespace instead of erroring (DB-GAP-047)", async () => {
     const res = await searchTool({
       query: "GAP-020",
       namespace: "search-retr001-bare",
     });
-    expect(res.error).toContain("search-index rebuild");
+    // DB-GAP-047: no rebuild hint — the read refreshed the index itself.
+    expect(res.error).toBeUndefined();
     expect(res.memories).toHaveLength(0);
+    expect(res.total).toBe(0);
   });
 });
 
@@ -373,12 +416,16 @@ describe("RETR-001: recallTool contains path", () => {
     expect(res.memories).toHaveLength(0);
   });
 
-  it("reports a missing index instead of silently returning everything", async () => {
+  it("answers a bare namespace instead of silently returning everything (DB-GAP-047)", async () => {
     const res = await recallTool({
       contains: "GAP-020",
       namespace: "search-retr001-bare",
     });
-    expect(res.error).toContain("search-index rebuild");
+    // DB-GAP-047: the read refreshed the index, so there is no error — but
+    // the keyword filter still applies: an empty namespace yields no rows,
+    // never the unfiltered list.
+    expect(res.error).toBeUndefined();
     expect(res.memories).toHaveLength(0);
+    expect(res.total).toBe(0);
   });
 });

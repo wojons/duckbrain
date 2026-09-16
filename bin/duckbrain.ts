@@ -50,7 +50,7 @@ Commands:
   service            Manage systemd service
   remember <key>     Remember a memory (body via --content=, --text=, or stdin)
   recall             Query memories
-  search <query>     Keyword full-text search (offline; needs search-index rebuild)
+  search <query>     Keyword full-text search (offline; index refreshes automatically)
   search-index       Manage the keyword search index (rebuild|status|install-hooks)
   list-keys          Browse memory structure
   forget <id>        Delete a memory

@@ -334,7 +334,7 @@ async function recallCommand(args: string[]): Promise<void> {
     );
     console.log("  --query=<text>     Semantic search");
     console.log(
-      "  --contains=<text>  Keyword filter (offline full-text search; needs search-index rebuild)",
+      "  --contains=<text>  Keyword filter (offline full-text search; the index refreshes automatically)",
     );
     console.log(
       "  --after=<iso>      Only rows at or after this ISO-8601 date/datetime (e.g. 2026-08-10 or 2026-08-10T12:00:00Z)",
@@ -489,7 +489,9 @@ async function searchCommand(args: string[]): Promise<void> {
     console.log(
       "Full-text keyword search over memories (content, key, attributes).",
     );
-    console.log("Requires the search index: duckbrain search-index rebuild");
+    console.log(
+      "The keyword index refreshes automatically on a read; 'duckbrain search-index rebuild' forces one.",
+    );
     console.log("");
     console.log("Options:");
     console.log(
@@ -1782,7 +1784,7 @@ function showHelp(): void {
     stdio              Start MCP server for local Claude
     remember <key>     Remember a memory (body via --content=, --text=, or stdin)
     recall             Query memories
-    search <query>     Keyword full-text search (offline; needs search-index rebuild)
+    search <query>     Keyword full-text search (offline; index refreshes automatically)
     search-index       Manage the keyword search index (rebuild|status|install-hooks)
     list-keys          Browse memory structure
     forget <id>        Delete a memory (--namespace=<name>, --reason=<reason>)

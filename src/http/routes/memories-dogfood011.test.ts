@@ -16,6 +16,11 @@
  * containing "alpha", scores 0 otherwise). The embedding cache is pre-seeded
  * for every candidate text so ranking covers the whole pool deterministically
  * regardless of candidate order or the on-the-fly embed cap.
+ *
+ * DB-GAP-047: these assertions measure the SEMANTIC leg, so the bounded
+ * keyword auto-build is disabled for the suite — otherwise ?q= would take
+ * the HYBRID path (RETR-002) and a working keyword leg would answer queries
+ * the relevance floor is supposed to drop.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -69,6 +74,8 @@ let server: Server;
 let port: number;
 let scratchDir: string;
 let oldNamespacesPath: string | undefined;
+/** Env value DB-GAP-047's bounded auto-build guard had before the suite ran. */
+let previousAutoBuild: string | undefined;
 
 interface HttpResponse {
   status: number;
@@ -170,6 +177,10 @@ describe("DOGFOOD-011: semantic search relevance threshold + scores", () => {
     );
     oldNamespacesPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
     process.env.DUCKBRAIN_NAMESPACES_PATH = scratchDir;
+    // DB-GAP-047: keep the keyword leg unavailable (no auto-build) so ?q=
+    // stays semantic-only — the path whose floor and scores are asserted.
+    previousAutoBuild = process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS;
+    process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS = "0";
 
     const nsDir = path.join(scratchDir, "repro");
     const texts = buildNamespace(nsDir);
@@ -201,6 +212,11 @@ describe("DOGFOOD-011: semantic search relevance threshold + scores", () => {
       delete process.env.DUCKBRAIN_NAMESPACES_PATH;
     } else {
       process.env.DUCKBRAIN_NAMESPACES_PATH = oldNamespacesPath;
+    }
+    if (previousAutoBuild === undefined) {
+      delete process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS;
+    } else {
+      process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS = previousAutoBuild;
     }
     if (scratchDir) {
       fs.rmSync(scratchDir, { recursive: true, force: true });

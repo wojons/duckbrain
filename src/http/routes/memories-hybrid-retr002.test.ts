@@ -222,6 +222,25 @@ function restoreIndex(): void {
   if (fs.existsSync(SEARCH_ASIDE)) fs.renameSync(SEARCH_ASIDE, SEARCH_DIR);
 }
 
+/**
+ * DB-GAP-047: a single-namespace keyword read now rebuilds a missing sidecar
+ * before answering (`ensureFreshIndex`), so hiding `.search` alone no longer
+ * degrades the keyword leg. A row bound of 0 makes the bounded auto-build
+ * refuse every namespace that has source rows — i.e. exactly the pre-change
+ * "missing index" behavior these semantic-only measurements are about.
+ */
+async function withoutAutoBuild<T>(fn: () => Promise<T>): Promise<T> {
+  const KEY = "DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS";
+  const prev = process.env[KEY];
+  process.env[KEY] = "0";
+  try {
+    return await fn();
+  } finally {
+    if (prev === undefined) delete process.env[KEY];
+    else process.env[KEY] = prev;
+  }
+}
+
 describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
   beforeAll(async () => {
     // The host environment must not tighten the semantic floor out from
@@ -300,13 +319,17 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
       );
       hybrid.push(mrr(hy.body.items?.map((i: any) => i.id) ?? [], relevant));
 
-      // Semantic-only: hide the FTS sidecar — recall degrades exactly as
-      // it would on a namespace that never ran `search-index rebuild`.
+      // Semantic-only: hide the FTS sidecar AND refuse the read-path
+      // auto-build (DB-GAP-047) — recall then degrades exactly as it did on
+      // a namespace that never ran `search-index rebuild`, which is what
+      // this leg measures.
       try {
         hideIndex();
-        const se = await httpRequest(
-          "GET",
-          `/api/memories?q=${enc}&namespace=${NS_NAME}&limit=10`,
+        const se = await withoutAutoBuild(() =>
+          httpRequest(
+            "GET",
+            `/api/memories?q=${enc}&namespace=${NS_NAME}&limit=10`,
+          ),
         );
         semantic.push(
           mrr(se.body.items?.map((i: any) => i.id) ?? [], relevant),
@@ -413,9 +436,11 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
   it("missing FTS index → semantic-only fallback with cosine scores (regression-safe)", async () => {
     try {
       hideIndex();
-      const { status, body } = await httpRequest(
-        "GET",
-        `/api/memories?q=alpha%20ocean&namespace=${NS_NAME}&limit=10`,
+      const { status, body } = await withoutAutoBuild(() =>
+        httpRequest(
+          "GET",
+          `/api/memories?q=alpha%20ocean&namespace=${NS_NAME}&limit=10`,
+        ),
       );
       expect(status).toBe(200);
       expect(body.items[0].id).toBe("a1");
@@ -448,9 +473,11 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
     vi.mocked(createAutoProviders).mockResolvedValueOnce([]);
     try {
       hideIndex();
-      const { status, body } = await httpRequest(
-        "GET",
-        `/api/memories?q=alpha%20ocean&namespace=${NS_NAME}&limit=10`,
+      const { status, body } = await withoutAutoBuild(() =>
+        httpRequest(
+          "GET",
+          `/api/memories?q=alpha%20ocean&namespace=${NS_NAME}&limit=10`,
+        ),
       );
       // DB-GAP-036: embeddings down → 503 EMBEDDINGS_UNAVAILABLE (was 500).
       expect(status).toBe(503);

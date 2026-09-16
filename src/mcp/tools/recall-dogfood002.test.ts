@@ -42,6 +42,9 @@ const PARTITION = path.join(NS, "concept", "2026-08");
 const JSONL = path.join(PARTITION, "current.jsonl");
 const MANIFEST = path.join(NS, "manifest.json");
 
+/** Env value DB-GAP-047's bounded auto-build guard had before the suite ran. */
+let previousAutoBuild: string | undefined;
+
 function failingProvider(id: string): EmbeddingProvider {
   return {
     id,
@@ -76,6 +79,14 @@ function emptyVectorProvider(id: string): EmbeddingProvider {
 }
 
 beforeAll(() => {
+  // DB-GAP-047: a single-namespace keyword read now refreshes its FTS
+  // sidecar before answering, so ?q= would take the HYBRID path (RETR-002)
+  // and a working keyword leg would mask the provider-failure contract this
+  // suite pins. Disable the bounded auto-build so the measured condition is
+  // exactly the pre-DB-GAP-047 one: no keyword leg at all.
+  previousAutoBuild = process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS;
+  process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS = "0";
+
   fs.mkdirSync(PARTITION, { recursive: true });
   fs.writeFileSync(
     JSONL,
@@ -103,6 +114,11 @@ afterAll(() => {
   fs.rmSync(PARTITION, { recursive: true, force: true });
   fs.rmSync(MANIFEST, { force: true });
   fs.rmSync(path.join(NS, ".embeddings"), { recursive: true, force: true });
+  if (previousAutoBuild === undefined) {
+    delete process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS;
+  } else {
+    process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS = previousAutoBuild;
+  }
 });
 
 beforeEach(() => {

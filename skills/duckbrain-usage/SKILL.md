@@ -94,16 +94,18 @@ Full transcript, error table, and copy-paste recipes: `docs/dogfood/2026-08-07-i
 The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
 
 - **`duckbrain search "<query>"`** — offline full-text keyword search over
-  content, key, and attributes. Requires the index: `duckbrain
-  search-index rebuild` first. Hits print a **highlighted snippet**
+  content, key, and attributes. The index refreshes itself when it is missing
+  or older than the newest write (bounded + single-flight, DB-GAP-047), so a
+  read never needs a manual rebuild first. Hits print a **highlighted snippet**
   (`highlightedSnippet`), not just the raw row. `--limit=<n>` (default 10).
 - **`duckbrain search --all-namespaces "<query>"`** (RETR-007) — union of
   keyword hits over every namespace with a rebuilt index; each hit shows its
   source namespace. Namespaces without an index are **skipped with a stderr
-  warning** (single-namespace mode keeps the hard error — run
-  `search-index rebuild` for them).
+  warning** — the union never rebuilds them (only single-namespace reads
+  auto-refresh), so run `search-index rebuild` to pull one into the union.
 - **`duckbrain search-index <rebuild|status|install-hooks>`** — manage the
-  keyword index.
+  keyword index. `rebuild` is the escape hatch for a namespace the bounded
+  auto-build refuses (`DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS`, default 5000).
 - **`duckbrain query "SELECT ..." [--namespace=<ns>] [--limit=<n>]`** — read-only
   SQL over a `memories` view (latest record per id, tombstones excluded;
   mutating statements rejected; results auto-capped at 1000 rows). Templates:
