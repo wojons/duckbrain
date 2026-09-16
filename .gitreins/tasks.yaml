@@ -1113,3 +1113,13 @@ tasks:
   status: complete
   created_at: '2026-09-16T06:08:49.068067+00:00'
   completed_at: '2026-09-16T06:18:49.046015+00:00'
+- id: DB-GAP-047
+  title: 'Keyword search freshness: no manual rebuild required'
+  criteria:
+  - A row written seconds earlier is found by q= on a fresh namespace (no manual search-index
+    rebuild), contains= never 500s on a missing sidecar, stale sidecars refresh before
+    answering, RETR-007/029 union semantics unchanged, full unit+tsc+prettier+integration
+    green
+  status: complete
+  created_at: '2026-09-16T11:29:20.545393+00:00'
+  completed_at: '2026-09-16T11:52:39.188237+00:00'
