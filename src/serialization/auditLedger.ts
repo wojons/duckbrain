@@ -49,7 +49,9 @@ export class ChangelogCorruptError extends Error {
   }
 }
 
-export function isChangelogCorrupt(error: unknown): error is ChangelogCorruptError {
+export function isChangelogCorrupt(
+  error: unknown,
+): error is ChangelogCorruptError {
   return error instanceof ChangelogCorruptError;
 }
 
@@ -210,7 +212,8 @@ export function appendAuditLedger(
     0,
   );
 
-  let activeName = ordered.length > 0 ? ordered[ordered.length - 1] : AUDIT_CURRENT_SEGMENT;
+  let activeName =
+    ordered.length > 0 ? ordered[ordered.length - 1] : AUDIT_CURRENT_SEGMENT;
   let activePath = path.join(auditDir, activeName);
   let activeLines = 0;
   let activeBytes = 0;

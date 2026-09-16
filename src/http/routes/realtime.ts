@@ -31,7 +31,10 @@ import { Router, type Request, type Response } from "express";
 import { getPrincipal } from "../../auth/middleware";
 import { authorizeTableAccess } from "../../auth/roles";
 import { getConfig } from "../../config";
-import { invalidateTableRegistry, listTables } from "../../schema/table-registry";
+import {
+  invalidateTableRegistry,
+  listTables,
+} from "../../schema/table-registry";
 import { ChangelogCorruptError } from "../../serialization/auditLedger";
 import {
   CHANGE_OPERATIONS,
@@ -193,10 +196,7 @@ export function createRealtimeRoutes(
 
       const cursorParam = queryValue(req, "cursor");
       if (cursorParam !== null && cursorParam === "") {
-        throw new RealtimeError(
-          "INVALID_CURSOR",
-          "cursor must not be empty",
-        );
+        throw new RealtimeError("INVALID_CURSOR", "cursor must not be empty");
       }
       const lastEventId =
         typeof req.headers["last-event-id"] === "string"
@@ -227,7 +227,10 @@ export function createRealtimeRoutes(
         MEMORIES_TABLE,
         "read",
       );
-      if (!scopeDecision.allowed && scopeDecision.reason === "namespace_scope") {
+      if (
+        !scopeDecision.allowed &&
+        scopeDecision.reason === "namespace_scope"
+      ) {
         sendError(res, 403, "FORBIDDEN", scopeDecision.message);
         return;
       }
@@ -294,13 +297,7 @@ export function createRealtimeRoutes(
       res.on("close", close);
     } catch (error) {
       if (error instanceof RealtimeError) {
-        sendError(
-          res,
-          error.status,
-          error.code,
-          error.message,
-          error.guidance,
-        );
+        sendError(res, error.status, error.code, error.message, error.guidance);
         return;
       }
       if (error instanceof ChangelogCorruptError) {
@@ -314,7 +311,9 @@ export function createRealtimeRoutes(
         ]
           .filter(Boolean)
           .join(" ");
-        console.warn(`[realtime] ${error.message}${detail ? ` (${detail})` : ""}`);
+        console.warn(
+          `[realtime] ${error.message}${detail ? ` (${detail})` : ""}`,
+        );
         sendError(res, 500, "CHANGELOG_CORRUPT", error.message);
         return;
       }

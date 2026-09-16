@@ -217,7 +217,9 @@ describe("DB-SUPA-5 realtime end to end", () => {
     const restarted = await server(fixture);
     const resumed = await openSseClient(
       restarted.app.port,
-      restarted.feed(`tables=memories&cursor=${encodeURIComponent(firstCursor)}`),
+      restarted.feed(
+        `tables=memories&cursor=${encodeURIComponent(firstCursor)}`,
+      ),
     );
     expect(resumed.status).toBe(200);
     await resumed.waitFor((c) => c.events().length >= 1);

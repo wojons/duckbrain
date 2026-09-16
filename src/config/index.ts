@@ -118,7 +118,11 @@ export const DuckBrainConfigSchema = z.object({
       /** Per-subscriber queued event bound */
       maxQueueEvents: z.number().int().positive().default(256),
       /** Per-subscriber queued payload byte bound */
-      maxQueueBytes: z.number().int().positive().default(1024 * 1024),
+      maxQueueBytes: z
+        .number()
+        .int()
+        .positive()
+        .default(1024 * 1024),
       /** Maximum committed events replayed for one resuming cursor */
       maxReplayEvents: z.number().int().positive().default(10_000),
       /** Maximum first-parent commits retained for cursor resolution */

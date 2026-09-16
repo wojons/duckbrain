@@ -97,7 +97,10 @@ describe("DB-SUPA-5 subscription grammar", () => {
     const { ns } = fixture;
 
     // ---- accepted grammar -------------------------------------------------
-    const ok = await openSseClient(app.port, feed("ops=insert&tables=memories"));
+    const ok = await openSseClient(
+      app.port,
+      feed("ops=insert&tables=memories"),
+    );
     expect(ok.status).toBe(200);
     expect(ok.headers["content-type"]).toContain("text/event-stream");
     expect(ok.headers["cache-control"]).toBe("no-cache, no-transform");
@@ -113,9 +116,9 @@ describe("DB-SUPA-5 subscription grammar", () => {
       namespace: ns,
       head: null,
     });
-    expect(ok.frames().some((frame) => frame.event === "duckbrain.change.v1")).toBe(
-      false,
-    );
+    expect(
+      ok.frames().some((frame) => frame.event === "duckbrain.change.v1"),
+    ).toBe(false);
 
     // An absent cursor is legal; an empty one is not.
     await expectJsonError(app.port, feed("cursor="), 400, "INVALID_CURSOR");
@@ -158,7 +161,12 @@ describe("DB-SUPA-5 subscription grammar", () => {
       400,
       "INVALID_SUBSCRIPTION",
     );
-    await expectJsonError(app.port, feed("tables="), 400, "INVALID_SUBSCRIPTION");
+    await expectJsonError(
+      app.port,
+      feed("tables="),
+      400,
+      "INVALID_SUBSCRIPTION",
+    );
     // An unknown table never yields a partial stream.
     await expectJsonError(
       app.port,
@@ -192,15 +200,22 @@ describe("DB-SUPA-5 subscription grammar", () => {
       "INVALID_CURSOR",
     );
     // An unknown namespace is a documented 404, not an empty stream.
-    const missing = await openSseClient(app.port, feed("", "ns-does-not-exist"));
+    const missing = await openSseClient(
+      app.port,
+      feed("", "ns-does-not-exist"),
+    );
     expect(missing.status).toBe(404);
     expect(JSON.parse(missing.text()).code).toBe("NOT_FOUND");
     missing.close();
 
     // `cursor` and a non-identical `Last-Event-ID` are mutually exclusive.
-    const conflicting = await openSseClient(app.port, feed("cursor=dbch1.abc"), {
-      headers: { "Last-Event-ID": "dbch1.def" },
-    });
+    const conflicting = await openSseClient(
+      app.port,
+      feed("cursor=dbch1.abc"),
+      {
+        headers: { "Last-Event-ID": "dbch1.def" },
+      },
+    );
     expect(conflicting.status).toBe(400);
     expect(JSON.parse(conflicting.text()).code).toBe("INVALID_SUBSCRIPTION");
     conflicting.close();
@@ -321,7 +336,10 @@ describe("DB-SUPA-5 subscription grammar", () => {
       expect(code, file).not.toMatch(/\bwss?:\/\//);
     }
     const pkg = JSON.parse(
-      fs.readFileSync(path.resolve(__dirname, "..", "..", "..", "package.json"), "utf-8"),
+      fs.readFileSync(
+        path.resolve(__dirname, "..", "..", "..", "package.json"),
+        "utf-8",
+      ),
     ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;

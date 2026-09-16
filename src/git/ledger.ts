@@ -126,7 +126,11 @@ export function isAncestor(
   descendant: string,
 ): boolean {
   try {
-    runGit(repoDir, ["merge-base", "--is-ancestor", ancestor, descendant], "utf-8");
+    runGit(
+      repoDir,
+      ["merge-base", "--is-ancestor", ancestor, descendant],
+      "utf-8",
+    );
     return true;
   } catch {
     return false;
@@ -194,7 +198,11 @@ export function readTreeEntries(
   const prefix = dir.endsWith("/") ? dir.slice(0, -1) : dir;
   let raw: string;
   try {
-    raw = (runGit(repoDir, ["ls-tree", "-r", "-z", ref, "--", prefix], "utf-8") as string);
+    raw = runGit(
+      repoDir,
+      ["ls-tree", "-r", "-z", ref, "--", prefix],
+      "utf-8",
+    ) as string;
   } catch {
     return [];
   }

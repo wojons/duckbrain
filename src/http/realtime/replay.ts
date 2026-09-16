@@ -70,7 +70,12 @@ export interface DeriveOptions {
 
 function corrupt(
   message: string,
-  detail: { commit: string; parent?: string | null; path?: string; line?: number },
+  detail: {
+    commit: string;
+    parent?: string | null;
+    path?: string;
+    line?: number;
+  },
 ): ChangelogCorruptError {
   return new ChangelogCorruptError(message, detail);
 }
@@ -129,7 +134,8 @@ export function addedAuditLines(
   parentRef: string | null,
 ): AddedLine[] {
   const child = readSegmentView(repoDir, childRef);
-  const parent = parentRef === null ? null : readSegmentView(repoDir, parentRef);
+  const parent =
+    parentRef === null ? null : readSegmentView(repoDir, parentRef);
   const parentOrder = parent?.order ?? [];
   assertCanonicalSegmentAdvance(
     parentOrder,
@@ -146,7 +152,9 @@ export function addedAuditLines(
 
     const childBytes = readBlobBytes(repoDir, childSha);
     const parentBytes =
-      parentSha !== undefined ? readBlobBytes(repoDir, parentSha) : Buffer.alloc(0);
+      parentSha !== undefined
+        ? readBlobBytes(repoDir, parentSha)
+        : Buffer.alloc(0);
 
     if (
       childBytes.length < parentBytes.length ||
@@ -157,10 +165,7 @@ export function addedAuditLines(
         { commit: childRef, parent: parentRef, path: childPath },
       );
     }
-    if (
-      childBytes.length > 0 &&
-      childBytes[childBytes.length - 1] !== 0x0a
-    ) {
+    if (childBytes.length > 0 && childBytes[childBytes.length - 1] !== 0x0a) {
       throw corrupt(
         `committed audit segment '${segment}' does not end on a line boundary`,
         { commit: childRef, parent: parentRef, path: childPath },
@@ -221,10 +226,13 @@ function assertDataRowPresent(
   row: unknown,
 ): void {
   if (!isSafeRepoRelativePath(targetPath)) {
-    throw corrupt(`change record targetPath '${targetPath}' escapes the namespace`, {
-      commit,
-      path: targetPath,
-    });
+    throw corrupt(
+      `change record targetPath '${targetPath}' escapes the namespace`,
+      {
+        commit,
+        path: targetPath,
+      },
+    );
   }
   const bytes = readPathBytes(repoDir, commit, targetPath);
   if (bytes === null) {
@@ -281,13 +289,27 @@ export function deriveCommitChanges(
     } catch {
       throw corrupt(
         `audit line ${added.line} of '${added.segment}' is not valid JSON`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       throw corrupt(
         `audit line ${added.line} of '${added.segment}' is not a JSON object`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
     const entry = parsed as Record<string, unknown>;
@@ -301,9 +323,17 @@ export function deriveCommitChanges(
       throw corrupt(
         `accepted change record at '${AUDIT_DIR}/${added.segment}:${added.line}' ` +
           `is malformed: ${validation.error.issues
-            .map((issue) => `${issue.path.map(String).join(".") || "general"}: ${issue.message}`)
+            .map(
+              (issue) =>
+                `${issue.path.map(String).join(".") || "general"}: ${issue.message}`,
+            )
             .join(", ")}`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
     const record = validation.data;
@@ -311,36 +341,55 @@ export function deriveCommitChanges(
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' claims namespace ` +
           `'${record.ns}' but the ledger belongs to '${options.ns}'`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
     if (record.tombstone !== (record.op === "delete")) {
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has a tombstone ` +
           `flag inconsistent with op '${record.op}'`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
     const row = (entry as Record<string, unknown>).row;
     if (row === undefined || row === null) {
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no row image`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
-    const missing = missingKeyColumns(
-      options.namespacePath,
-      record.table,
-      row,
-    );
+    const missing = missingKeyColumns(options.namespacePath, record.table, row);
     if (missing.length > 0) {
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' is missing declared key ` +
           `column(s) ${missing.join(", ")}`,
-        { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
       );
     }
-    const declaredKeys = declaredKeyColumns(options.namespacePath, record.table);
+    const declaredKeys = declaredKeyColumns(
+      options.namespacePath,
+      record.table,
+    );
     if (declaredKeys.length > 0) {
       const derived = keyMaterialFor(options.namespacePath, record.table, row);
       for (const column of declaredKeys) {
@@ -348,7 +397,12 @@ export function deriveCommitChanges(
           throw corrupt(
             `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' key.${column} does ` +
               `not match the row image`,
-            { commit: childRef, parent: parentRef, path: `${AUDIT_DIR}/${added.segment}`, line: added.line },
+            {
+              commit: childRef,
+              parent: parentRef,
+              path: `${AUDIT_DIR}/${added.segment}`,
+              line: added.line,
+            },
           );
         }
       }
@@ -379,7 +433,10 @@ export function commitOrdinalCount(
 }
 
 /** Canonical segment file name for a namespace directory (tests/diagnostics). */
-export function auditSegmentPath(namespacePath: string, segment: string): string {
+export function auditSegmentPath(
+  namespacePath: string,
+  segment: string,
+): string {
   return path.join(namespacePath, AUDIT_DIR, segment);
 }
 

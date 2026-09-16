@@ -115,7 +115,10 @@ export function decodeCursor(raw: string): DecodedCursor | null {
   if (Object.keys(record).length !== 4) return null;
   if (record.v !== CURSOR_VERSION) return null;
   if (typeof record.ns !== "string" || record.ns === "") return null;
-  if (typeof record.commit !== "string" || !/^[0-9a-f]{40}$/.test(record.commit)) {
+  if (
+    typeof record.commit !== "string" ||
+    !/^[0-9a-f]{40}$/.test(record.commit)
+  ) {
     return null;
   }
   if (

@@ -35,7 +35,12 @@ import {
 import { ChangelogCorruptError } from "../../serialization/auditLedger";
 import type { ChangeOperation } from "../../serialization/changeRecord";
 import { setCommitNotifier } from "../../serialization/namespaceWriter";
-import { decodeCursor, encodeCursor, RealtimeError, type DecodedCursor } from "./cursor";
+import {
+  decodeCursor,
+  encodeCursor,
+  RealtimeError,
+  type DecodedCursor,
+} from "./cursor";
 import { deriveCommitChanges, type DerivedChange } from "./replay";
 import {
   HEARTBEAT_FRAME,
@@ -265,9 +270,7 @@ export class RealtimeHub {
         }
         for (const change of anchor) {
           if (change.ordinal > boundary.ordinal) {
-            replayFrames.push(
-              changeFrame(this.eventFor(request.ns, change)),
-            );
+            replayFrames.push(changeFrame(this.eventFor(request.ns, change)));
           }
         }
         for (const commit of firstParentCommitsAfter(
@@ -486,7 +489,11 @@ export class RealtimeHub {
   private heartbeat(subscriber: Subscriber): void {
     // Only when the subscriber is keeping up: a pending queue or a blocked
     // socket means the client has not read what it already has.
-    if (subscriber.closed || subscriber.blocked || subscriber.queue.length > 0) {
+    if (
+      subscriber.closed ||
+      subscriber.blocked ||
+      subscriber.queue.length > 0
+    ) {
       return;
     }
     try {
@@ -547,7 +554,9 @@ export class RealtimeHub {
     subscriber.queue = [];
     subscriber.queueBytes = 0;
     try {
-      subscriber.sink.write(overflowFrame(subscriber.ns, subscriber.lastDeliveredCursor));
+      subscriber.sink.write(
+        overflowFrame(subscriber.ns, subscriber.lastDeliveredCursor),
+      );
     } catch {
       // The sink is already gone; the close below is still correct.
     }

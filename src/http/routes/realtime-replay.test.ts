@@ -70,7 +70,10 @@ async function subscribe(
   hub: RealtimeHub,
   ns: string,
   cursor: string | null = null,
-): Promise<{ sink: ReturnType<typeof createRecordingSink>; sub: Subscription }> {
+): Promise<{
+  sink: ReturnType<typeof createRecordingSink>;
+  sub: Subscription;
+}> {
   const sink = createRecordingSink();
   const sub = await hub.subscribe(
     {
@@ -114,7 +117,10 @@ async function subscribeError(
 function ledgerIds(nsPath: string, order: string[]): string[] {
   const ids: string[] = [];
   for (const segment of order) {
-    const text = fs.readFileSync(path.join(nsPath, AUDIT_DIR, segment), "utf-8");
+    const text = fs.readFileSync(
+      path.join(nsPath, AUDIT_DIR, segment),
+      "utf-8",
+    );
     for (const line of text.split("\n")) {
       if (line.trim() === "") continue;
       const record = JSON.parse(line) as Record<string, unknown>;
@@ -133,7 +139,9 @@ function canonicalOrder(nsPath: string): string[] {
   const all = fs.readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
   const numeric = all
     .filter((name) => name !== AUDIT_CURRENT_SEGMENT)
-    .sort((a, b) => (auditSegmentNumber(a) ?? 0) - (auditSegmentNumber(b) ?? 0));
+    .sort(
+      (a, b) => (auditSegmentNumber(a) ?? 0) - (auditSegmentNumber(b) ?? 0),
+    );
   return [
     ...(all.includes(AUDIT_CURRENT_SEGMENT) ? [AUDIT_CURRENT_SEGMENT] : []),
     ...numeric,
@@ -153,9 +161,7 @@ function idsOf(events: Array<Record<string, unknown>>): string[] {
 }
 
 function ordinalsOf(events: Array<Record<string, unknown>>): unknown[] {
-  return events.map(
-    (event) => (event.position as { ordinal: number }).ordinal,
-  );
+  return events.map((event) => (event.position as { ordinal: number }).ordinal);
 }
 
 describe("DB-SUPA-5 committed replay", () => {
@@ -182,7 +188,9 @@ describe("DB-SUPA-5 committed replay", () => {
     const events = sink.changeEvents();
     expect(events).toHaveLength(3);
     // Every chunk contributed, exactly once, in canonical ledger order.
-    expect(idsOf(events)).toEqual(ledgerIds(fixture.nsPath, canonicalOrder(fixture.nsPath)));
+    expect(idsOf(events)).toEqual(
+      ledgerIds(fixture.nsPath, canonicalOrder(fixture.nsPath)),
+    );
     expect(new Set(idsOf(events)).size).toBe(3);
     expect(ordinalsOf(events)).toEqual([1, 2, 3]);
   }, 30_000);
@@ -234,7 +242,9 @@ describe("DB-SUPA-5 committed replay", () => {
       commitOnFlush: false,
     });
     fixtures.push(restarted);
-    const firstAfterRestart = await restarted.writer.enqueue(memoryInput(3, ns));
+    const firstAfterRestart = await restarted.writer.enqueue(
+      memoryInput(3, ns),
+    );
     expect(firstAfterRestart.ok).toBe(true);
     expect(firstAfterRestart.seq).toBe(1);
     await restarted.writer.enqueue(memoryInput(4, ns));
@@ -249,7 +259,9 @@ describe("DB-SUPA-5 committed replay", () => {
     // cannot produce a duplicate or a reset ordinal on the wire.
     expect(ordinalsOf(events)).toEqual([1, 2, 3, 4]);
     expect(new Set(idsOf(events)).size).toBe(4);
-    expect(idsOf(events)).toEqual(ledgerIds(fixture.nsPath, canonicalOrder(fixture.nsPath)));
+    expect(idsOf(events)).toEqual(
+      ledgerIds(fixture.nsPath, canonicalOrder(fixture.nsPath)),
+    );
   }, 30_000);
 
   it("current then numeric segment order is not lexicographic", async () => {
@@ -286,7 +298,8 @@ describe("DB-SUPA-5 committed replay", () => {
     const { ns } = fixture;
     const { sink } = await subscribe(hub, ns);
 
-    for (const index of [1, 2, 3]) await fixture.writer.enqueue(memoryInput(index, ns));
+    for (const index of [1, 2, 3])
+      await fixture.writer.enqueue(memoryInput(index, ns));
     fixture.commit("test: three committed changes");
     await hub.check(ns);
     const live = sink.changeEvents();
@@ -317,7 +330,11 @@ describe("DB-SUPA-5 committed replay", () => {
     // longer) contain is the pruned-history shape: the position cannot be
     // resolved from committed history, so the answer is a documented 410 with
     // full-resync guidance — never a silent empty stream.
-    const gone = await subscribeError(hub, ns, encodeCursor(ns, "0".repeat(40), 1));
+    const gone = await subscribeError(
+      hub,
+      ns,
+      encodeCursor(ns, "0".repeat(40), 1),
+    );
     expect({ code: gone.code, status: gone.status }).toEqual({
       code: "CHANGE_CURSOR_GONE",
       status: 410,
@@ -344,10 +361,15 @@ describe("DB-SUPA-5 committed replay", () => {
       const delivered = sink.changeEvents().length;
       expect(delivered).toBe(1);
 
-      const segment = path.join(fixture.nsPath, AUDIT_DIR, AUDIT_CURRENT_SEGMENT);
+      const segment = path.join(
+        fixture.nsPath,
+        AUDIT_DIR,
+        AUDIT_CURRENT_SEGMENT,
+      );
       const lines = fs.readFileSync(segment, "utf-8").split("\n");
       const first = JSON.parse(lines[0]) as Record<string, unknown>;
-      (first.row as Record<string, unknown>).embedding_text = "rewritten in place";
+      (first.row as Record<string, unknown>).embedding_text =
+        "rewritten in place";
       lines[0] = JSON.stringify(first);
       fs.writeFileSync(segment, lines.join("\n"), "utf-8");
 
@@ -407,7 +429,11 @@ describe("DB-SUPA-5 committed replay", () => {
       const delivered = sink.changeEvents().length;
       expect(delivered).toBe(2);
 
-      const segment = path.join(fixture.nsPath, AUDIT_DIR, AUDIT_CURRENT_SEGMENT);
+      const segment = path.join(
+        fixture.nsPath,
+        AUDIT_DIR,
+        AUDIT_CURRENT_SEGMENT,
+      );
       const lines = fs.readFileSync(segment, "utf-8").split("\n");
       const kept = lines.slice(0, lines.length - 2);
       fs.writeFileSync(segment, `${kept.join("\n")}\n`, "utf-8");

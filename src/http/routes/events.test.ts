@@ -336,14 +336,11 @@ describe("legacy events route remains isolated", () => {
     await feed.waitFor((client) => client.frames().length >= 1);
 
     // A caller-supplied broadcast on the legacy route.
-    const response = await fetch(
-      running.url(`/api/events/${ns}/broadcast`),
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "custom", data: { hello: "legacy" } }),
-      },
-    );
+    const response = await fetch(running.url(`/api/events/${ns}/broadcast`), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "custom", data: { hello: "legacy" } }),
+    });
     expect(response.status).toBe(200);
     await response.text();
 
@@ -355,7 +352,9 @@ describe("legacy events route remains isolated", () => {
     // Nothing from that broadcast reached the change feed: no change record,
     // no cursor, no revisioned position.
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(feed.frames().some((frame) => frame.event === "duckbrain.change.v1")).toBe(false);
+    expect(
+      feed.frames().some((frame) => frame.event === "duckbrain.change.v1"),
+    ).toBe(false);
     expect(feed.text()).not.toContain("dbch1.");
     expect(feed.text()).not.toContain("legacy");
 

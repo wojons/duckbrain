@@ -266,7 +266,8 @@ export function createRealtimeFixture(
   options: RealtimeFixtureOptions = {},
 ): RealtimeFixture {
   const ownsRoot = options.root === undefined;
-  if (options.root !== undefined) fs.mkdirSync(options.root, { recursive: true });
+  if (options.root !== undefined)
+    fs.mkdirSync(options.root, { recursive: true });
   const root = options.root ?? fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const ns = options.namespace ?? "nsA";
   const nsPath = path.join(root, ns);

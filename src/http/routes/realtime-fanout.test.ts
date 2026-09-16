@@ -53,7 +53,14 @@ function newHub(fixture: RealtimeFixture, overrides = {}): RealtimeHub {
 
 async function subscribe(hub: RealtimeHub, ns: string, sink: RecordingSink) {
   const sub = await hub.subscribe(
-    { ns, principal: undefined, tables: ["memories"], ops: ["insert", "update", "delete"], cursor: null, sink },
+    {
+      ns,
+      principal: undefined,
+      tables: ["memories"],
+      ops: ["insert", "update", "delete"],
+      cursor: null,
+      sink,
+    },
     () => undefined,
   );
   subs.push(sub);
@@ -111,12 +118,16 @@ describe("DB-SUPA-5 bounded fan-out", () => {
     // Positions are per-commit ordinals: the first change arrived in its own
     // commit, the next four in the second commit.
     expect(
-      healthy.changeEvents().map((event) => (event.position as { ordinal: number }).ordinal),
+      healthy
+        .changeEvents()
+        .map((event) => (event.position as { ordinal: number }).ordinal),
     ).toEqual([1, 1, 2, 3, 4]);
 
     // ...while only the slow one gets the overflow control event carrying its
     // last delivered cursor, and its connection closes.
-    const overflow = slow.sse().filter((frame) => frame.event === OVERFLOW_EVENT_NAME);
+    const overflow = slow
+      .sse()
+      .filter((frame) => frame.event === OVERFLOW_EVENT_NAME);
     expect(overflow).toHaveLength(1);
     // The overflow reports the last cursor actually handed to that sink: the
     // event whose write returned backpressure and started the stall.
@@ -134,9 +145,11 @@ describe("DB-SUPA-5 bounded fan-out", () => {
     // subscriber never receives the queued rows, and only one overflow frame
     // is emitted.
     expect(slowEvents).toHaveLength(2);
-    expect(slowEvents.map((event) => (event.position as { ordinal: number }).ordinal)).toEqual([
-      1, 1,
-    ]);
+    expect(
+      slowEvents.map(
+        (event) => (event.position as { ordinal: number }).ordinal,
+      ),
+    ).toEqual([1, 1]);
     expect(slow.text().split(OVERFLOW_EVENT_NAME)).toHaveLength(2);
 
     // The healthy subscriber is unaffected and still registered.
@@ -214,7 +227,9 @@ describe("DB-SUPA-5 bounded fan-out", () => {
     const stalledBefore = stalled.frames.length;
     await delay(150);
     expect(stalled.frames.length).toBe(stalledBefore);
-    expect(stalled.sse().filter((frame) => frame.comment !== null)).toHaveLength(0);
+    expect(
+      stalled.sse().filter((frame) => frame.comment !== null),
+    ).toHaveLength(0);
 
     // Pending queue state is dropped and the timer removed on close.
     await commitRows(fixture, hub, 1);

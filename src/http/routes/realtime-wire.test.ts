@@ -62,9 +62,7 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0)) fixture.cleanup();
 });
 
-function fixtureWithWriter(
-  commitOnFlush = false,
-): RealtimeFixture {
+function fixtureWithWriter(commitOnFlush = false): RealtimeFixture {
   const fixture = createRealtimeFixture("duckbrain-supa5-wire-", {
     commitOnFlush,
   });
@@ -113,7 +111,9 @@ describe("DB-SUPA-5 change feed wire contract", () => {
 
     // The ready control event is emitted first, carries no SSE id, and reports
     // the latest committed head only (null — nothing is committed yet).
-    const ready = sink.sse().filter((frame) => frame.event === READY_EVENT_NAME);
+    const ready = sink
+      .sse()
+      .filter((frame) => frame.event === READY_EVENT_NAME);
     expect(ready).toHaveLength(1);
     expect(JSON.parse(ready[0].data ?? "{}")).toEqual({
       version: 1,
@@ -185,8 +185,9 @@ describe("DB-SUPA-5 change feed wire contract", () => {
 
     // Contiguous one-based ordinals derived from the commit's ledger diff, in
     // physical `_audit/current.jsonl` line order.
-    expect(events.map((event) => (event.position as { ordinal: number }).ordinal))
-      .toEqual([1, 2, 3]);
+    expect(
+      events.map((event) => (event.position as { ordinal: number }).ordinal),
+    ).toEqual([1, 2, 3]);
 
     // Each event's SSE id equals its cursor, and the cursor is opaque ASCII v1.
     const cursors = sink.cursors();

@@ -59,10 +59,20 @@ async function subscribe(
   ns: string,
   cursor: string | null = null,
   tables: string[] = ["memories"],
-): Promise<{ sink: ReturnType<typeof createRecordingSink>; sub: Subscription }> {
+): Promise<{
+  sink: ReturnType<typeof createRecordingSink>;
+  sub: Subscription;
+}> {
   const sink = createRecordingSink();
   const sub = await hub.subscribe(
-    { ns, principal: undefined, tables, ops: ["insert", "update", "delete"], cursor, sink },
+    {
+      ns,
+      principal: undefined,
+      tables,
+      ops: ["insert", "update", "delete"],
+      cursor,
+      sink,
+    },
     () => undefined,
   );
   return { sink, sub };
@@ -105,7 +115,8 @@ describe("DB-SUPA-5 cursor semantics", () => {
     const inputs = [1, 2, 3].map((index) => memoryInput(index, ns));
     const ids = inputs.map((input) => (input.record as MemoryType).id);
     const results: WriteResult[] = [];
-    for (const input of inputs) results.push(await fixture.writer.enqueue(input));
+    for (const input of inputs)
+      results.push(await fixture.writer.enqueue(input));
     for (const result of results) expect(result.ok).toBe(true);
     expect(results.map((result) => result.seq)).toEqual([1, 2, 3]);
     expect(fixture.head()).toBeNull();
@@ -144,7 +155,9 @@ describe("DB-SUPA-5 cursor semantics", () => {
     }
     // Ordinals are commit-diff derived, not the serializer's seq ordering by
     // luck: the same rows read straight off the ledger agree, in write order.
-    expect(events.map((event) => (event.row as { id: string }).id)).toEqual(ids);
+    expect(events.map((event) => (event.row as { id: string }).id)).toEqual(
+      ids,
+    );
   }, 30_000);
 
   it("cursor replays after process restart without secret state", async () => {
@@ -201,13 +214,16 @@ describe("DB-SUPA-5 cursor semantics", () => {
     expect(replayed).toHaveLength(2);
     // No duplicate of the cursor's own event, no gap: contiguous commit-diff
     // ordinals from the same new commit.
-    expect(replayed.map((event) => (event.position as { ordinal: number }).ordinal))
-      .toEqual([1, 2]);
-    expect(replayed.map((event) => (event.row as { id: string }).id).length).toBe(2);
-    expect(replayed.map((event) => event.cursor)).not.toContain(captured);
     expect(
-      (replayed[0].position as { commit: string }).commit,
-    ).toBe(fixture.head());
+      replayed.map((event) => (event.position as { ordinal: number }).ordinal),
+    ).toEqual([1, 2]);
+    expect(
+      replayed.map((event) => (event.row as { id: string }).id).length,
+    ).toBe(2);
+    expect(replayed.map((event) => event.cursor)).not.toContain(captured);
+    expect((replayed[0].position as { commit: string }).commit).toBe(
+      fixture.head(),
+    );
     // And the ready head advances to the latest committed cursor.
     const ready = resumed.sink.sse()[0];
     expect(JSON.parse(ready.data ?? "{}").head).toBe(

@@ -1,10 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
-import {
-  AUDIT_DIR,
-  auditSegmentOrderOnDisk,
-} from "./auditLedger";
+import { AUDIT_DIR, auditSegmentOrderOnDisk } from "./auditLedger";
 
 export const AuditEntrySchema = z.object({
   ts: z.string().datetime(),

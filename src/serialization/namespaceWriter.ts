@@ -187,9 +187,7 @@ export type CommitNotifier = (namespace: string) => void;
 
 let commitNotifier: CommitNotifier | undefined;
 
-export function setCommitNotifier(
-  notifier: CommitNotifier | undefined,
-): void {
+export function setCommitNotifier(notifier: CommitNotifier | undefined): void {
   commitNotifier = notifier;
 }
 

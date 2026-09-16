@@ -68,8 +68,14 @@ async function scenario(): Promise<{
   const { ns, nsPath } = fixture;
   registry.register(ns, "table_a", genericRow);
   registry.register(ns, "table_b", genericRow);
-  writeDeclaredTable(nsPath, "table_a", { primary: "id", columns: ["id", "v"] });
-  writeDeclaredTable(nsPath, "table_b", { primary: "id", columns: ["id", "v"] });
+  writeDeclaredTable(nsPath, "table_a", {
+    primary: "id",
+    columns: ["id", "v"],
+  });
+  writeDeclaredTable(nsPath, "table_b", {
+    primary: "id",
+    columns: ["id", "v"],
+  });
 
   const hub = new RealtimeHub({
     namespacesPath: fixture.root,
@@ -183,7 +189,11 @@ describe("DB-SUPA-5 authorization filtering", () => {
     const { fixture, hub, app } = await scenario();
     const ns = fixture.ns;
 
-    for (const query of ["tables=table_b", "tables=table_a,table_b", "tables=memories"]) {
+    for (const query of [
+      "tables=table_b",
+      "tables=table_a,table_b",
+      "tables=memories",
+    ]) {
       const client = await openSseClient(
         app.port,
         `/api/ns/${ns}/changes?${query}`,
