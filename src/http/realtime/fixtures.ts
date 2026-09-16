@@ -76,6 +76,10 @@ export function gitIn(repoDir: string, args: string[]): string {
  * Declare a generic table for a namespace (`tables/<table>.table.json`, the
  * SUPA-3/SUPA-6 declaration SUPA-5 consumes for key columns and schema
  * version) and drop the cached registry entry that would hide it.
+ *
+ * The emitted declaration satisfies the route's table-registry validation
+ * (`name`, `format`, non-empty `columns`, `primary` naming a column, relative
+ * `glob`) so declared tables are visible to both the registry and the feed.
  */
 export function writeDeclaredTable(
   namespacePath: string,
@@ -84,6 +88,7 @@ export function writeDeclaredTable(
     primary?: string;
     columns: string[];
     schemaVersion?: number;
+    glob?: string;
   },
 ): void {
   const dir = path.join(namespacePath, "tables");
@@ -92,11 +97,13 @@ export function writeDeclaredTable(
     path.join(dir, `${table}.table.json`),
     JSON.stringify({
       name: table,
+      format: "jsonl-objects",
+      glob: declaration.glob ?? `${table}/**/*.jsonl`,
       ...(declaration.primary ? { primary: declaration.primary } : {}),
       schemaVersion: declaration.schemaVersion ?? 1,
       columns: declaration.columns.map((name) => ({
         name,
-        type: "string",
+        type: "varchar",
       })),
     }),
     "utf-8",

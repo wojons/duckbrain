@@ -178,7 +178,7 @@ describe("DB-SUPA-5 change feed wire contract", () => {
       expect(event.namespace).toBe(ns);
       expect(event.table).toBe("memories");
       expect(event.schemaVersion).toBe(1);
-      expect(event.position.commit).toBe(head);
+      expect((event.position as { commit: string }).commit).toBe(head);
       expect(event.committedAt).toBe(commitTimeIso(fixture.nsPath, head!));
       expect(event.row).not.toBeNull();
     }
