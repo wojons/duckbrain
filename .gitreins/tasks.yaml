@@ -1201,3 +1201,76 @@ tasks:
   status: complete
   created_at: '2026-09-17T06:48:02.254017+00:00'
   completed_at: '2026-09-17T07:07:29.216931+00:00'
+- id: DB-SUPA-6
+  title: Persistent declared DDL and safe schema evolution
+  criteria:
+  - '**AC-1 (persistent declaration and types):** GIVEN a valid v1 `schema.json` containing
+    object and positional tables across every declared type, WHEN a fresh process
+    loads the namespace, THEN it reconstructs the same declared validators, storage
+    paths, keys, headers, canonical type representations, and table versions in `TableSchemaRegistry`
+    without inferring a data line or coercing a value. **Checks:** `schema-registry.test.ts`
+    / `"loads v1 object and positional declarations after restart"`; `schema-json.test.ts`
+    / `"rejects unknown fields and invalid declarations"`; `schema-types.test.ts`
+    / `"declared types use canonical JSONL and API representations"`.'
+  - '**AC-2 (schema/manifest separation):** GIVEN a namespace with both metadata files,
+    WHEN a table is created, a row is written, and a partition is added, THEN `schema.json`
+    contains only logical declarations, `manifest.json` remains only partitions plus
+    `lastUpdated`, and historical manifest reading in `src/git/asof.ts` remains compatible.
+    **Checks:** `ddl-manifest-contract.test.ts` / `"schema and manifest retain separate
+    ownership"`; `asof-ddl-compat.test.ts` / `"historical manifest remains readable"`.'
+  - '**AC-3 (atomic authorized create):** GIVEN an admin and a non-admin principal,
+    WHEN both attempt the same create-table request, THEN only the admin can create
+    it; a retry with the same idempotency key and canonical request returns the original
+    declaration, while a different declaration for that name is rejected without modifying
+    either metadata file. **Checks:** `ddl-create.test.ts` / `"admin create is idempotent
+    and conflicts are explicit"`; `ddl-auth.test.ts` / `"non-admin DDL is forbidden"`.'
+  - '**AC-4 (add-column compatibility):** GIVEN existing rows and an add-column request
+    using `null` or `default`, WHEN current rows are read after the atomic schema
+    replacement, THEN absent fields resolve to the pinned null/default value, new
+    non-nullable writes require the column, and source JSONL is not rewritten. **Checks:**
+    `ddl-evolution.test.ts` / `"null backfill is logical"`; `"default backfill is
+    logical and new writes materialize"`.'
+  - '**AC-5 (single-switch materialized migration and recovery):** GIVEN a permitted
+    add/materialize or retype/materialize operation, WHEN every new-generation row
+    validates and the immutable generation is fsynced, THEN the only reader-visible
+    switch is atomic `schema.json` replacement to that new path, the old generation
+    remains untouched, and the table schema version increments; WHEN a process crashes
+    before that switch, THEN old schema/path/data remain live and recovery removes
+    or quarantines only the unpublished generation; WHEN it crashes after that switch,
+    THEN recovery verifies the new path/hash and finalizes or fails closed without
+    an automatic rollback or overwrite of the old generation. **Checks:** `ddl-migration.test.ts`
+    / `"pre-switch crash preserves old schema and generation"`, `"schema switch exposes
+    complete immutable generation"`, `"post-switch crash verifies and finalizes without
+    rollback"`, `"conversion failure preserves old state"`.'
+  - '**AC-6 (serializer fencing and concurrency):** GIVEN a DDL operation in its drain/fence
+    phase and a concurrent write from another process, WHEN the writer attempts to
+    flush, THEN it waits or receives the defined retryable serializer result and writes
+    neither source nor replacement data; after DDL completion, a new write validates
+    against exactly one schema version. **Checks:** `ddl-concurrency.test.ts` / `"DDL
+    fence excludes cross-process write"`, `"post-migration write uses new schema only"`.'
+  - '**AC-7 (view re-declaration):** GIVEN a declared view and dependents, WHEN a
+    compatible re-declare changes only the validated query while retaining the same
+    exposed column names/types, THEN its version increments and dependent views validate;
+    WHEN it drops/changes an exposed column or introduces a cycle/undeclared dependency,
+    THEN it is rejected without replacing `schema.json`. **Checks:** `ddl-views.test.ts`
+    / `"compatible view redeclare increments version"`, `"dependency cycle and exposed-shape
+    drift are rejected"`.'
+  - '**AC-8 (bounded inference removal):** GIVEN the migration window is active and
+    an operator creates a table with `inferFrom` pointing to one existing JSONL file,
+    WHEN inference succeeds, THEN the generated declaration is shown for confirmation
+    and persisted once; after the configured deadline or first successful declaration,
+    all generic reads use declared types/headers and per-query `read_json_auto` inference
+    is rejected with a migration warning. **Checks:** `ddl-inference-compat.test.ts`
+    / `"create-only inference requires confirmation"`, `"declared read never calls
+    auto inference"`, `"expired compatibility window rejects inference"`.'
+  - '**AC-9 (strict value semantics):** GIVEN writes and defaults for every declared
+    v1 type, WHEN values are serialized and read through the generic table path, THEN
+    canonical `int64`, timestamp, and bytes forms round-trip without precision loss,
+    JSON null follows the declared nullable rule, and noncanonical strings/numbers/booleans
+    or implicit coercions are rejected before enqueue. **Checks:** `schema-types.test.ts`
+    / `"int64 precision survives JavaScript boundary"`, `"timestamp and bytes normalize
+    canonically"`, `"json null and nullable rule are explicit"`, `"no implicit primitive
+    coercion"`.'
+  status: complete
+  created_at: '2026-09-17T08:21:51.705923+00:00'
+  completed_at: '2026-09-17T08:53:38.842849+00:00'
