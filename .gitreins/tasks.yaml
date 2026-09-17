@@ -1288,5 +1288,6 @@ tasks:
     across repeated list calls, and was proven RED on the ACK-timestamp assertion
     against pre-fix code; AC5 tsc --noEmit clean, prettier --check src/ clean, vitest
     run green
-  status: in_progress
+  status: complete
   created_at: '2026-09-17T09:15:04.623894+00:00'
+  completed_at: '2026-09-17T09:51:21.780760+00:00'
