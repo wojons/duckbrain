@@ -125,6 +125,45 @@ The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
 - **`duckbrain recall --attr=<name>=<value>`** (repeatable) — filter rows by
   attribute, e.g. `--attr=domain=config --attr=tick=403`.
 
+## Realtime change feed (SUPA-5)
+
+Subscribe to **committed** changes for one namespace via SSE — `GET
+/api/ns/<ns>/changes`. A change appears only after its namespace git commit
+lands (pending writes are never published), events are `duckbrain.change.v1`
+with an opaque `dbch1.<…>` cursor (also the SSE `id`), and a
+`duckbrain.ready.v1` frame (no `id`) opens every stream. Heartbeat comment
+every 15 s. SSE-only in v1 — the legacy `/api/events/:namespace` route is a
+different, unversioned contract with no resume; do not confuse them.
+
+```bash
+# 1. The namespace MUST already exist (404 otherwise) — create it if needed
+#    (see "The right way" above), then subscribe:
+curl -N "http://127.0.0.1:3000/api/ns/my-project/changes" -H 'X-API-Key: <token>'
+
+# 2. Optional filters: tables (comma list, all readable tables if omitted),
+#    ops (subset of insert,update,delete)
+curl -N "http://127.0.0.1:3000/api/ns/my-project/changes?tables=memories&ops=insert,update" \
+  -H 'X-API-Key: <token>'
+
+# 3. Persist the last `id:` line verbatim, then RESUME strictly after it
+#    (?cursor=… or the SSE-standard Last-Event-ID header — equivalent):
+curl -N "http://127.0.0.1:3000/api/ns/my-project/changes?cursor=dbch1.<stored>" \
+  -H 'X-API-Key: <token>'
+
+# 4. Cursor expired (pruned / >7-day / >10k-event window) → HTTP 410
+#    CHANGE_CURSOR_GONE. Reconnecting alone does NOT recover: resync =
+#    reconnect WITHOUT a cursor (live-only from now) + fresh snapshot from
+#    GET /api/memories?namespace=<ns> + reconcile by declared key.
+```
+
+Guarantees: committed-only, ordered within the namespace subscription,
+**at-least-once** — dedupe by `cursor` (or `position.commit`+`ordinal`) and
+apply rows idempotently; no exactly-once promise. A subscriber that stops
+reading is overflow-disconnected alone (`duckbrain.overflow.v1` + last
+cursor); a revoked grant ends the stream (`duckbrain.revoked.v1`). Full wire
+schema, error table, and grammar: see
+[Realtime Change Feed (SUPA-5)](../../docs/api/http-api.md#realtime-change-feed-supa-5).
+
 ## Pitfalls that WILL bite you (verified live 2026-08-16/17 against source + scratch daemon)
 
 1. **MCP `remember` content field is `embedding_text`, NOT `content`**

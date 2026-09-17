@@ -765,6 +765,206 @@ Get SSE connection statistics for a namespace.
 
 ---
 
+### Realtime Change Feed (SUPA-5)
+
+`GET /api/ns/:ns/changes`
+
+Server-Sent Events stream of **committed** changes to one namespace. A change
+is published only after the namespace git commit containing both its data row
+and its accepted audit row exists — the feed never exposes pending, uncommitted
+writes, and every event is resumable after a server restart. WebSocket is not
+part of v1; SSE is the only transport.
+
+> **Legacy distinction:** the older `/api/events/:namespace` scaffold above is
+> a **different, incompatible contract**. Its unversioned `connected` /
+> `memory:*` payloads, broadcast POST, and connection stats share no state with
+> this route, offer no resume or replay, and must not be used as a change feed.
+> The change feed is always `duckbrain.change.v1` (event name carries the
+> version); the legacy route's payloads are unversioned.
+
+Requires the [namespace grant](#per-token-namespace-grants) for `:ns` plus
+`tables.read` on every selected table (SUPA-4). The namespace must already
+exist — an unknown namespace is a clean `404 NOT_FOUND` before any stream byte
+is written.
+
+#### Subscription grammar
+
+| Query param | Grammar | Semantics |
+|---|---|---|
+| `tables` | absent, or comma-separated declared table names | absent = every table the principal may read (always includes the built-in `memories` plus declared tables); present = allow-list. Duplicates or empty tokens are `400 INVALID_SUBSCRIPTION`. An unauthorized or unknown table fails the **whole** request (`403` / `400`) before any byte — never a partial stream. |
+| `ops` | absent, or comma-separated subset of `insert,update,delete` | absent = all three. Unknown token is `400 INVALID_SUBSCRIPTION`. |
+| `cursor` | one opaque cursor (see below) | Resume strictly after that committed event. Mutually exclusive with a *non-identical* `Last-Event-ID` header (`400` when both are supplied and differ). |
+
+A successful response is `200 text/event-stream` with
+`Cache-Control: no-cache, no-transform`, `Connection: keep-alive`, and
+`X-Accel-Buffering: no`. All subscription failures are returned as ordinary
+JSON errors **before** the headers switch to SSE, so a rejected request never
+produces a partial stream.
+
+**Example — subscribe to all readable tables:**
+
+```bash
+curl -N "http://localhost:3000/api/ns/my-project/changes" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY"
+```
+
+**Example — filter to inserts/updates on one table:**
+
+```bash
+curl -N "http://localhost:3000/api/ns/my-project/changes?tables=memories&ops=insert,update" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY"
+```
+
+#### Wire schema
+
+The first frame is always a control event (no SSE `id`):
+
+```
+event: duckbrain.ready.v1
+data: {"version":1,"namespace":"my-project","head":"dbch1.<…>|null"}
+```
+
+`head` is the latest committed cursor, or `null` when the namespace has no
+committed change yet. Then one `duckbrain.change.v1` per committed change:
+
+```
+event: duckbrain.change.v1
+id: dbch1.<…>
+data: {"version":1,"cursor":"dbch1.<…>","namespace":"my-project","table":"memories","op":"insert","row":{…},"position":{"commit":"<40-hex sha>","ordinal":3},"committedAt":"2026-09-17T12:00:00.000Z","tombstone":false,"schemaVersion":1,"key":{"id":"<uuid>"}}
+```
+
+| Field | Required | Rule |
+|---|---:|---|
+| `version` | yes | integer literal `1` |
+| `cursor` | yes | opaque restart-safe cursor; identical to the SSE `id` |
+| `namespace` | yes | equals the route `:ns` |
+| `table` | yes | declared table name (built-in `memories` included) |
+| `op` | yes | `insert`, `update`, or `delete` |
+| `row` | yes | post-operation row image; for `delete` the appended **tombstone row** — never `null` |
+| `position` | yes | `{ commit: <40-hex SHA>, ordinal: <positive int> }` |
+| `committedAt` | yes | ISO-8601 creation time of the containing commit (not client time) |
+| `tombstone` | yes | `true` only for `delete` |
+| `schemaVersion` | yes | declared table schema version (`1` for `memories`) |
+| `key` | yes | every declared key column and value (`{"id": <id>}` for `memories`) |
+
+Unknown fields must be ignored by v1 consumers; required fields are always
+present.
+
+**Heartbeat:** a `: heartbeat` SSE comment every `realtime.heartbeatMs`
+(default **15 s**). It is sent only while the subscriber is keeping up (empty
+queue, unblocked socket). Use it to detect half-open proxies; it carries no
+state.
+
+#### Cursor: the `dbch1` format and resume
+
+A cursor is opaque ASCII: `dbch1.<base64url(canonical-json)>` where the JSON is
+exactly `{"v":1,"ns":"<name>","commit":"<40-hex SHA>","ordinal":<n>}` — keys in
+that order, no whitespace, **not signed**. Treat it as a black box: store it
+verbatim and replay it verbatim; never construct, decode-and-re-encode, or
+persist a modified cursor. The server validates the exact canonical encoding,
+version, namespace match, and that the position is reachable from retained
+first-parent history — anything else is `400 INVALID_CURSOR`.
+
+**Resume (equivalent forms):** pass the last persisted cursor as `?cursor=` or
+as the SSE-standard `Last-Event-ID` header — event-source clients get the
+latter automatically:
+
+```bash
+# Explicit query param
+curl -N "http://localhost:3000/api/ns/my-project/changes?cursor=dbch1.<stored>" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY"
+
+# Last-Event-ID form (what a browser EventSource sends after reconnect)
+curl -N "http://localhost:3000/api/ns/my-project/changes" \
+  -H "Last-Event-ID: dbch1.<stored>" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY"
+```
+
+Replay is strictly after the cursor, in committed order, with no gap before
+live delivery begins. A cursor that is older than the retained window
+(configurable: `realtime.maxReplayEvents` default 10 000 events /
+`maxReplayCommits` default 10 000 commits / `retentionDays` default 7 days) or
+whose commit was pruned is:
+
+```
+410 CHANGE_CURSOR_GONE
+{"error":"…","code":"CHANGE_CURSOR_GONE","guidance":"Reconnect without a cursor to perform a full resync."}
+```
+
+**410 recovery is a full resync, not a retry:** reconnecting alone does NOT
+recover — the retained window is the entire replayable history. To resync,
+reconnect **without** a cursor (live-only from now), take a fresh snapshot via
+`GET /api/memories?namespace=<ns>&limit=…` pagination, and reconcile rows
+idempotently by declared key (memories: `id`). The stream buffers subscribed
+commits while you snapshot, so reconciliation over snapshot ∪ buffered events
+converges; there is no atomic snapshot+stream API in v1 — a row can change
+between your snapshot read and the buffered event that describes it, so apply
+events by committed order (compare `position`) rather than letting snapshot
+data overwrite newer buffered events.
+
+**Live-only, no cursor:** subscribing without a cursor streams changes
+committed **from now on** (strictly after the subscription's HEAD). It does not
+replay past history; that is what the cursor resume is for.
+
+#### Ordering and delivery guarantees
+
+- **Committed-only:** a write is invisible (and cursor-less) until its
+  namespace git commit lands. Delivery is driven by observed reachable HEAD
+  movement (post-flush notification plus a 1 s poll
+  (`realtime.pollIntervalMs`)), never by timers alone.
+- **Namespace ordering:** a total order **within one namespace subscription
+  only** — first-parent commit order oldest→newest, canonical audit-ledger
+  order within a commit (`position.ordinal`). No ordering claim across
+  namespaces or across concurrent client requests.
+- **At-least-once, dedupe required:** delivery is at-least-once, never
+  exactly-once. A disconnect after the server wrote bytes but before you
+  persisted the id can yield a duplicate on resume. Deduplicate by `cursor`
+  (or `position.commit` + `position.ordinal`) and apply rows idempotently by
+  declared key.
+- **Overflow isolation:** a subscriber that stops draining is disconnected
+  **alone** once its queue exceeds `maxQueueEvents` (default 256) or
+  `maxQueueBytes` (default 1 MiB). It receives `event: duckbrain.overflow.v1`
+  with its last delivered cursor, then the connection closes; healthy
+  subscribers on the same namespace are unaffected. Resume from the overflow
+  cursor; if it is now outside the retained window you get `410` (resync as
+  above).
+- **Authorization revocation:** grants are re-checked before every live
+  enqueue. A revoked grant ends the stream with
+  `event: duckbrain.revoked.v1` then close — no further rows leak.
+- **History rewrite:** a squash/compaction that rewrites first-parent history
+  re-anchors the feed on the new HEAD (already-delivered events are not
+  withdrawn); old cursors may become unreachable (`400` / `410` per the rules
+  above) — resync after a rewrite.
+- **Corrupt changelog:** a replay-integrity violation (segment rewrite, gap,
+  data/audit mismatch, …) fails the feed with `500 CHANGELOG_CORRUPT` rather
+  than silently skipping an event. Requires operator repair.
+
+#### Error codes
+
+| Status | `code` | When |
+|---|---|---|
+| 400 | `INVALID_SUBSCRIPTION` | Bad grammar: unknown/duplicate/empty `tables`/`ops` token, `cursor` + differing `Last-Event-ID` |
+| 400 | `INVALID_CURSOR` | Not a canonical `dbch1` cursor, wrong namespace, unreachable position |
+| 403 | `FORBIDDEN` | Missing namespace grant or `tables.read` (all-or-nothing) |
+| 404 | `NOT_FOUND` | Namespace does not exist, or realtime feed disabled (`realtime.enabled: false`) |
+| 410 | `CHANGE_CURSOR_GONE` | Cursor commit pruned or outside the retained window → full resync (reconnect without cursor + fresh snapshot) |
+| 503 | `SUBSCRIBER_LIMIT` | Process-wide subscriber cap (`maxSubscribers`, default 100) reached — retry with backoff |
+
+**Example — subscribe, then resume after restart:**
+
+```bash
+# Terminal 1: subscribe and persist the last seen id (jq extracts the SSE id lines)
+curl -Ns "http://localhost:3000/api/ns/my-project/changes" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY" | tee /tmp/feed.log
+# On the next event, the id line carries the cursor:
+#   id: dbch1.<…>   ← persist this verbatim
+
+# Terminal 2 (or after a crash/reconnect): resume strictly after the persisted id
+LAST=$(grep '^id: ' /tmp/feed.log | tail -1 | cut -d' ' -f2)
+curl -Ns "http://localhost:3000/api/ns/my-project/changes?cursor=$LAST" \
+  -H "X-API-Key: $DUCKBRAIN_API_KEY"
+```
+
 ### Compaction
 
 Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`).
