@@ -87,6 +87,10 @@ export interface RememberContext {
 interface RememberOutput {
   success: boolean;
   id?: string;
+  /** DB-GAP-045: the persisted write timestamp of the stored version
+   *  (ISO-8601), echoed so a client can correlate its ACK with the exact
+   *  version written by the `id` + `timestamp` pair. */
+  timestamp?: string;
   key?: string;
   partition?: string;
   author?: string;
@@ -240,6 +244,9 @@ export async function rememberTool(
     const response: RememberOutput = {
       success: true,
       id: memory.id,
+      // DB-GAP-045: echo the stored record's write timestamp so the HTTP 201
+      // can carry the persisted value instead of a response-time stamp.
+      timestamp: memory.timestamp,
       key: memory.key,
       partition: partitionRelPath,
       author: memory.author,

@@ -317,6 +317,18 @@ never a silent downgrade):
 
 ### Memories
 
+> **Note — same-key multi-version (SUPA-2 / DB-GAP-045):** same-key writes are
+> **append-only multi-version**, never last-write-wins. N concurrent (or
+> sequential) writes to one key are N independent versions with distinct
+> `id`s — nothing is overwritten, and a key has no privileged "current"
+> version. `GET /api/memories/key/:key` returns the most recent
+> non-tombstoned version, while the list route returns all of them. Versions
+> are ordered `timestamp DESC, id ASC`: deterministic per dataset (repeated
+> calls return the same order) but **not write order** within one millisecond
+> — the `id` tiebreak is a random UUIDv4, so a client that needs
+> same-millisecond ordering must use its own ACK order. The process-local
+> serializer `seq` is not durable and is not a cursor.
+
 #### `GET /api/memories`
 
 Query memories with filters.
@@ -441,6 +453,13 @@ Create a new memory.
 > `buffered` mode the write is a page-cache append with the documented
 > OS-crash/power-loss window. See
 > [Write Durability (SUPA-1)](#write-durability-supa-1).
+
+> **Note — write timestamp (DB-GAP-045):** the 201 body's `timestamp` is the
+> **persisted write timestamp of the stored version** — the exact value on
+> the JSONL row for the returned `id` — not a response-time stamp. A client
+> can therefore correlate its ACK with the stored version by the
+> `id` + `timestamp` pair. (Before DB-GAP-045 this field carried a
+> response-time value that did not match the stored row.)
 
 **Response:** (201 Created)
 

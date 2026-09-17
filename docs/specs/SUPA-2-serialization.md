@@ -76,6 +76,17 @@ The JSONL append **is** the WAL: no derived state (DuckDB materialization, embed
 - **AC-9 (audit row per accepted write):** GIVEN any accepted write, WHEN its ack resolves, THEN an `_audit` row (same namespace, same queue) with matching `seq` and `outcome: "accepted"` is present in the namespace's audit table.
 - **AC-10 (cross-process exclusion):** GIVEN a second server process writing a namespace whose lock is held by a live first process, WHEN the second attempts a flush, THEN it receives `503 SERIALIZER_LOCKED` and writes nothing; it never queues across the process boundary.
 
+## Same-key survivorship and version ordering
+
+Same-key writes are **append-only multi-version**, never last-write-wins. When N clients (or N processes) write the same key concurrently, the per-namespace single-writer serializes their requests into N independent appends: every accepted write becomes its own version with its own `id`, and nothing is overwritten, collapsed, or torn (proven at dogfood scale: 4 concurrent `POST /api/memories` writes to one key all ACKed 201 and all 4 rows persist — ops/dogfood-e2e.sh phase 4, 2026-09-13). A key therefore has **no privileged "current" version in the retrieval contract**; all N versions remain retrievable, and a client picks the version it means — by `id`, by its validity window (`valid_from`/`valid_until`), or by its own ACK.
+
+**Ordering contract:** retrieval orders versions by `timestamp DESC, id ASC` (`src/duckdb/queries.ts:301`, `DEFAULT_ORDER_BY`). Within a single millisecond the `id` tiebreak is a random UUIDv4, so the returned order is **deterministic for a given dataset** (identical across repeated calls) but is **explicitly NOT write order**. The only write-order ordinal is the process-local serializer `seq` (`src/serialization/changeRecord.ts:55-56` — "Internal process-local serializer sequence — never a cursor"), which is **not durable and not a cursor**: it never survives process restarts and must never be used to order or resume across them.
+
+**Client guidance:** to know which of two same-key versions written within the same millisecond is newer, a client must use its **own ACK order** (the order in which it received the write acknowledgements), not recall order.
+
+- **AC-11 (same-key survivorship + ACK fidelity):** GIVEN four concurrent same-key writes, WHEN each POST is acknowledged, THEN exactly four versions exist (no overwrite, no collapse, no tombstone among them) and each ACK's `timestamp`/`id` pair matches the stored version returned for that `id` — the ACK identifies the exact version the client wrote.
+- **AC-12 (deterministic same-millisecond order):** GIVEN a same-millisecond tie among versions of one key, WHEN the list route is called repeatedly, THEN the returned order is identical across calls (stable per dataset), even though that order is not write order.
+
 ## Edge Cases
 
 - **Lock file corrupt (unparseable):** owner cannot be verified → treated as busy until `LOCK_STALE_MS` elapses, then broken (rule 1/3 semantics, matching `src/s3/sync.ts:191-193`).

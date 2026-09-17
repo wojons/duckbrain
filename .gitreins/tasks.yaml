@@ -1274,3 +1274,19 @@ tasks:
   status: complete
   created_at: '2026-09-17T08:21:51.705923+00:00'
   completed_at: '2026-09-17T08:53:38.842849+00:00'
+- id: DB-GAP-045
+  title: 'Same-key concurrent write survivorship: declare multi-version semantics
+    + pin with ACK-fidelity hermetic test'
+  criteria:
+  - AC1 spec section in docs/specs/SUPA-2-serialization.md declaring multi-version
+    (NOT last-write-wins) + timestamp DESC,id ASC ordering contract with same-millisecond
+    caveat + seq non-durability citing changeRecord.ts; AC2 docs/api/http-api.md documents
+    persisted-timestamp 201 semantics + multi-version rule; AC3 rememberTool exposes
+    optional timestamp and POST /api/memories echoes it (fallback retained); AC4 new
+    suite src/http/memories-same-key-dbgap045.test.ts asserts 4 distinct concurrent
+    ACKs, ACK id+timestamp == stored version, 4 retrievable versions, identical order
+    across repeated list calls, and was proven RED on the ACK-timestamp assertion
+    against pre-fix code; AC5 tsc --noEmit clean, prettier --check src/ clean, vitest
+    run green
+  status: in_progress
+  created_at: '2026-09-17T09:15:04.623894+00:00'

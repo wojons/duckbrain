@@ -552,7 +552,10 @@ router.post(
       domain: body.domain,
       content: body.content,
       attributes: normalizeAttributes(body.attributes),
-      timestamp: new Date().toISOString(),
+      // DB-GAP-045: echo the persisted write timestamp of the stored version
+      // when the tool reports it — the response-time stamp stays only as a
+      // backwards-compatible fallback.
+      timestamp: result.timestamp ?? new Date().toISOString(),
       // RETR-011: echo the validity window exactly as stored (the tool
       // normalized nothing here — the values pass through verbatim).
       ...(body.valid_from !== undefined ? { valid_from: body.valid_from } : {}),
