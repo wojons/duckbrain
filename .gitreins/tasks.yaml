@@ -1148,5 +1148,6 @@ tasks:
     \ a genuine break (fixture row deleted in a scratch copy) still fails the suite,\
     \ so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx\
     \ prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched."
-  status: in_progress
+  status: complete
   created_at: '2026-09-17T01:39:19.315372+00:00'
+  completed_at: '2026-09-17T01:50:34.953972+00:00'

@@ -1,0 +1,70 @@
+{
+  "task_id": "TEST-001",
+  "task_title": "Load-brittle search suites: explicit bounded timeouts for FTS-building hooks",
+  "task_criteria": [
+    "AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047) declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive full-suite runs (npx vitest run) report 0 failed suites, or an honest report with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014 a genuine break (fixture row deleted in a scratch copy) still fails the suite, so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bf7ae0fe89d420522db9d3c42b636067433d96c0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m8:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9255408 bytes (9.26 MB) in 1.7s\u001b[0m\n\u001b[90m8:50PM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9255408 bytes (9.26 MB) in 1.7s\u001b[0m\n\u001b[90m8:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n   Start at  20:50:35\n   Duration  39.57s (transform 1.74s, setup 711ms, import 29.13s, tests 113.66s, environment 11ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047) declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive full-suite runs (npx vitest run) report 0 failed suites, or an honest report with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014 a genuine break (fixture row deleted in a scratch copy) still fails the suite, so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched.: AC-1: all five suites carry a file-scoped `vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 })` \u2014 src/search/search-retr001.test.ts:49, search-retr007.test.ts:30, search-retr008.test.ts:37, hooks.test.ts:30, search-freshness-dbgap047.test.ts:49 (each with an explanatory comment). vitest.config.ts is unchanged in commit bf7ae0f (`git diff HEAD~1 HEAD --name-only -- vitest.config.ts` = 0 files) and contains no hookTimeout key (grep: NONE); the only hookTimeout in the repo is the pre-existing vitest.integration.config.ts:6, a separate config. AC-2: three consecutive `npx vitest run` runs each reported `Test Files 132 passed (132)` / `Tests 1122 passed (1122)` with 0 failed suites (logs /tmp/run1.log, /tmp/run2.log, /tmp/run3.log); host load averages from uptime were 5.45, 7.24, 8.36 \u2014 i.e. genuinely loaded, not an idle host. AC-3: in a scratch copy (/tmp/scratch2) the baseline run of search-retr007.test.ts passed 10/10; after deleting the `a1` fixture row from writeNamespace(NS_A,...) the same suite reported `Test Files 1 failed (1)` / `Tests 7 failed | 3 passed (10)` with 7 AssertionErrors (e.g. `expected 1 to be 2`, `expected [] to deeply equal [ 'a1' ]`) \u2014 budgets do not mask assertion failures. Additionally the budget is load-bearing: setting hookTimeout:1 in the scratch copy produced `Error: Hook timed out in 1ms.` and 10 skipped, proving the file-scoped config is honored. AC-4: `npx tsc --noEmit` exit 0 (no output); `npx prettier --check src/` exit 0 with 'All matched files use Prettier code style!'. AC-5: `git diff --name-status HEAD~1 HEAD` lists only .gitreins/tasks.yaml plus the 5 modified test files; `--diff-filter=A` returns 0 added files (no new test files) and AGENTS.md is untouched (0 files changed). Scratch dirs removed; working tree clean apart from .gitreins/tasks.yaml.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047) declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive full-suite runs (npx vitest run) report 0 failed suites, or an honest report with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014 a genuine break (fixture row deleted in a scratch copy) still fails the suite, so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched.: AC-1: all five suites carry a file-scoped `vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 })` \u2014 src/search/search-retr001.test.ts:49, search-retr007.test.ts:30, search-retr008.test.ts:37, hooks.test.ts:30, search-freshness-dbgap047.test.ts:49 (each with an explanatory comment). vitest.config.ts is unchanged in commit bf7ae0f (`git diff HEAD~1 HEAD --name-only -- vitest.config.ts` = 0 files) and contains no hookTimeout key (grep: NONE); the only hookTimeout in the repo is the pre-existing vitest.integration.config.ts:6, a separate config. AC-2: three consecutive `npx vitest run` runs each reported `Test Files 132 passed (132)` / `Tests 1122 passed (1122)` with 0 failed suites (logs /tmp/run1.log, /tmp/run2.log, /tmp/run3.log); host load averages from uptime were 5.45, 7.24, 8.36 \u2014 i.e. genuinely loaded, not an idle host. AC-3: in a scratch copy (/tmp/scratch2) the baseline run of search-retr007.test.ts passed 10/10; after deleting the `a1` fixture row from writeNamespace(NS_A,...) the same suite reported `Test Files 1 failed (1)` / `Tests 7 failed | 3 passed (10)` with 7 AssertionErrors (e.g. `expected 1 to be 2`, `expected [] to deeply equal [ 'a1' ]`) \u2014 budgets do not mask assertion failures. Additionally the budget is load-bearing: setting hookTimeout:1 in the scratch copy produced `Error: Hook timed out in 1ms.` and 10 skipped, proving the file-scoped config is honored. AC-4: `npx tsc --noEmit` exit 0 (no output); `npx prettier --check src/` exit 0 with 'All matched files use Prettier code style!'. AC-5: `git diff --name-status HEAD~1 HEAD` lists only .gitreins/tasks.yaml plus the 5 modified test files; `--diff-filter=A` returns 0 added files (no new test files) and AGENTS.md is untouched (0 files changed). Scratch dirs removed; working tree clean apart from .gitreins/tasks.yaml.\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047) declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive full-suite runs (npx vitest run) report 0 failed suites, or an honest report with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014 a genuine break (fixture row deleted in a scratch copy) still fails the suite, so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched.",
+                "status": "PASS",
+                "detail": "AC-1: all five suites carry a file-scoped `vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 })` \u2014 src/search/search-retr001.test.ts:49, search-retr007.test.ts:30, search-retr008.test.ts:37, hooks.test.ts:30, search-freshness-dbgap047.test.ts:49 (each with an explanatory comment). vitest.config.ts is unchanged in commit bf7ae0f (`git diff HEAD~1 HEAD --name-only -- vitest.config.ts` = 0 files) and contains no hookTimeout key (grep: NONE); the only hookTimeout in the repo is the pre-existing vitest.integration.config.ts:6, a separate config. AC-2: three consecutive `npx vitest run` runs each reported `Test Files 132 passed (132)` / `Tests 1122 passed (1122)` with 0 failed suites (logs /tmp/run1.log, /tmp/run2.log, /tmp/run3.log); host load averages from uptime were 5.45, 7.24, 8.36 \u2014 i.e. genuinely loaded, not an idle host. AC-3: in a scratch copy (/tmp/scratch2) the baseline run of search-retr007.test.ts passed 10/10; after deleting the `a1` fixture row from writeNamespace(NS_A,...) the same suite reported `Test Files 1 failed (1)` / `Tests 7 failed | 3 passed (10)` with 7 AssertionErrors (e.g. `expected 1 to be 2`, `expected [] to deeply equal [ 'a1' ]`) \u2014 budgets do not mask assertion failures. Additionally the budget is load-bearing: setting hookTimeout:1 in the scratch copy produced `Error: Hook timed out in 1ms.` and 10 skipped, proving the file-scoped config is honored. AC-4: `npx tsc --noEmit` exit 0 (no output); `npx prettier --check src/` exit 0 with 'All matched files use Prettier code style!'. AC-5: `git diff --name-status HEAD~1 HEAD` lists only .gitreins/tasks.yaml plus the 5 modified test files; `--diff-filter=A` returns 0 added files (no new test files) and AGENTS.md is untouched (0 files changed). Scratch dirs removed; working tree clean apart from .gitreins/tasks.yaml."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TEST-001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m8:50PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9255408 bytes (9.26 MB) in 1.7s\u001b[0m\n\u001b[90m8:50PM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047) declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive full-suite runs (npx vitest run) report 0 failed suites, or an honest report with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014 a genuine break (fixture row deleted in a scratch copy) still fails the suite, so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched.: AC-1: all five suites carry a file-scoped `vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 })` \u2014 src/search/search-retr001.test.ts:49, search-retr007.test.ts:30, search-retr008.test.ts:37, hooks.test.ts:30, search-freshness-dbgap047.test.ts:49 (each with an explanatory comment). vitest.config.ts is unchanged in commit bf7ae0f (`git diff HEAD~1 HEAD --name-only -- vitest.config.ts` = 0 files) and contains no hookTimeout key (grep: NONE); the only hookTimeout in the repo is the pre-existing vitest.integration.config.ts:6, a separate config. AC-2: three consecutive `npx vitest run` runs each reported `Test Files 132 passed (132)` / `Tests 1122 passed (1122)` with 0 failed suites (logs /tmp/run1.log, /tmp/run2.log, /tmp/run3.log); host load averages from uptime were 5.45, 7.24, 8.36 \u2014 i.e. genuinely loaded, not an idle host. AC-3: in a scratch copy (/tmp/scratch2) the baseline run of search-retr007.test.ts passed 10/10; after deleting the `a1` fixture row from writeNamespace(NS_A,...) the same suite reported `Test Files 1 failed (1)` / `Tests 7 failed | 3 passed (10)` with 7 AssertionErrors (e.g. `expected 1 to be 2`, `expected [] to deeply equal [ 'a1' ]`) \u2014 budgets do not mask assertion failures. Additionally the budget is load-bearing: setting hookTimeout:1 in the scratch copy produced `Error: Hook timed out in 1ms.` and 10 skipped, proving the file-scoped config is honored. AC-4: `npx tsc --noEmit` exit 0 (no output); `npx prettier --check src/` exit 0 with 'All matched files use Prettier code style!'. AC-5: `git diff --name-status HEAD~1 HEAD` lists only .gitreins/tasks.yaml plus the 5 modified test files; `--diff-filter=A` returns 0 added files (no new test files) and AGENTS.md is untouched (0 files changed). Scratch dirs removed; working tree clean apart from .gitreins/tasks.yaml.\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-17T01:56:39.497742"
+}
