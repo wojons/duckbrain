@@ -33,6 +33,16 @@ import fs from "fs";
 import path from "path";
 import { getConfig } from "../config/index.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
+import {
+  duckColumnTypeForDeclared,
+  singleKeyColumn,
+  type DeclaredColumnType,
+} from "../serialization/schemaTypes.js";
+import type { RegisteredTableDeclaration } from "../serialization/registry.js";
+import {
+  invalidateNamespaceSchema,
+  listDeclaredTables,
+} from "../serialization/schemaRegistry.js";
 
 /** The declared column types (exact DuckDB type names). */
 export const TABLE_COLUMN_TYPES = [
@@ -55,6 +65,19 @@ export type TableFormat = (typeof TABLE_FORMATS)[number];
 export interface TableColumn {
   name: string;
   type: TableColumnTypeName;
+  /**
+   * DB-SUPA-6 declared type, present only for tables declared in a namespace
+   * `schema.json`. It carries the canonical representation rules (int64 as a
+   * canonical decimal STRING, `base64url:` bytes, canonical UTC timestamps)
+   * that the DuckDB type alone cannot express.
+   */
+  declaredType?: DeclaredColumnType;
+  /** DB-SUPA-6 nullability flag (from the persistent declaration). */
+  nullable?: boolean;
+  /** DB-SUPA-6 pinned default value (canonical representation). */
+  default?: unknown;
+  /** True when a `default` was declared (an explicit `null` default counts). */
+  hasDefault?: boolean;
 }
 
 export interface TableDeclaration {
@@ -67,6 +90,16 @@ export interface TableDeclaration {
   primary: string | null;
   /** Glob of JSONL file(s) relative to the namespace directory. */
   glob: string;
+  /** DB-SUPA-6 declared key columns (may be composite); absent for legacy declarations. */
+  declaredKeyColumns?: string[];
+  /** DB-SUPA-6 table version from the persistent declaration. */
+  schemaVersion?: number;
+  /**
+   * Provenance: `"schema.json"` for a persistent DB-SUPA-6 declaration,
+   * `"legacy"` for `tables/<table>.table.json`. Legacy declarations are
+   * unchanged by DB-SUPA-6 and always win on a name conflict.
+   */
+  source?: "schema.json" | "legacy";
 }
 
 /** Validate the declaration object (shape + name/identifier hygiene). */
@@ -199,6 +232,7 @@ function validateTableDeclaration(
     columns,
     primary: primary as string | null,
     glob: raw_.glob,
+    source: "legacy",
   };
 }
 
@@ -253,20 +287,71 @@ function readNamespaceDeclarations(ns: string): TableDeclaration[] {
  */
 const registryCache = new Map<string, TableDeclaration[] | null>();
 
+/**
+ * DB-SUPA-6: adapt a persistent `schema.json` declaration to the SUPA-3
+ * declaration shape. The canonical type travels with the column
+ * (`declaredType`) so the read/write layer keeps the exact representation the
+ * schema promised instead of the DuckDB type alone.
+ */
+export function tableDeclarationFromSchema(
+  declaration: RegisteredTableDeclaration,
+): TableDeclaration {
+  return {
+    name: declaration.table,
+    format:
+      declaration.rowShape === "positional"
+        ? "jsonl-positional"
+        : "jsonl-objects",
+    columns: declaration.columns.map((column) => ({
+      name: column.name,
+      type: duckColumnTypeForDeclared(column.type),
+      declaredType: column.type,
+      nullable: column.nullable,
+      ...(column.default !== undefined ? { default: column.default } : {}),
+      hasDefault: column.default !== undefined,
+    })),
+    primary: singleKeyColumn(declaration.keyColumns),
+    glob: declaration.storagePath,
+    declaredKeyColumns: [...declaration.keyColumns],
+    schemaVersion: declaration.schemaVersion,
+    source: "schema.json",
+  };
+}
+
+/**
+ * Legacy `tables/<table>.table.json` declarations for a namespace (cached).
+ * `listDeclaredTables` walks the persistent `schema.json` separately.
+ */
+function legacyDeclarations(ns: string): TableDeclaration[] {
+  if (registryCache.has(ns)) return registryCache.get(ns) ?? [];
+  const declarations = readNamespaceDeclarations(ns);
+  registryCache.set(ns, declarations);
+  return declarations;
+}
+
 /** Drop the cached declarations for one namespace (or all when omitted). */
 export function invalidateTableRegistry(ns?: string): void {
   if (ns === undefined) registryCache.clear();
   else registryCache.delete(ns);
+  invalidateNamespaceSchema(ns);
 }
 
-/** List every declared table in a namespace. Throws ApiError 500 on a bad declaration file. */
+/**
+ * List every declared table in a namespace: the persistent DB-SUPA-6
+ * `schema.json` declarations plus the legacy `tables/<table>.table.json`
+ * declarations. Legacy wins on a name conflict (working legacy declarations
+ * are never silently replaced); an invalid `schema.json` never contributes
+ * declarations and never turns into an empty schema.
+ * Throws ApiError 500 on a bad legacy declaration file.
+ */
 export function listTables(ns: string): TableDeclaration[] {
-  if (registryCache.has(ns)) {
-    return registryCache.get(ns) ?? [];
-  }
-  const declarations = readNamespaceDeclarations(ns);
-  registryCache.set(ns, declarations);
-  return declarations;
+  const legacy = legacyDeclarations(ns);
+  const fromSchema = listDeclaredTables(ns).map(tableDeclarationFromSchema);
+  const legacyNames = new Set(legacy.map((declaration) => declaration.name));
+  return [
+    ...legacy,
+    ...fromSchema.filter((declaration) => !legacyNames.has(declaration.name)),
+  ];
 }
 
 /**

@@ -142,6 +142,45 @@ export const DuckBrainConfigSchema = z.object({
       retentionDays: 7,
     }),
 
+  /**
+   * DB-SUPA-6 declared DDL.
+   *
+   * `inferenceCompat` bounds the `read_json_auto` compatibility window: the
+   * window is open until BOTH `minMinorReleases` minor releases have shipped
+   * since `shippedAt` AND `graceDays` have passed (spec: "two minor releases
+   * or 90 days after DB-SUPA-6 ships, whichever is later"). Generic declared
+   * reads never infer; inference exists only inside create-table with
+   * `inferFrom`, and only while this window is open.
+   */
+  ddl: z
+    .object({
+      inferenceCompat: z
+        .object({
+          /** The release date DB-SUPA-6 shipped (window clock start). */
+          shippedAt: z.string().default("2026-09-17T00:00:00.000Z"),
+          /** Days after `shippedAt` the window stays open. */
+          graceDays: z.number().positive().default(90),
+          /** Minor releases required before the window may close. */
+          minMinorReleases: z.number().int().positive().default(2),
+          /** Minor releases actually shipped since `shippedAt`. */
+          minorReleasesShipped: z.number().int().min(0).default(0),
+        })
+        .default({
+          shippedAt: "2026-09-17T00:00:00.000Z",
+          graceDays: 90,
+          minMinorReleases: 2,
+          minorReleasesShipped: 0,
+        }),
+    })
+    .default({
+      inferenceCompat: {
+        shippedAt: "2026-09-17T00:00:00.000Z",
+        graceDays: 90,
+        minMinorReleases: 2,
+        minorReleasesShipped: 0,
+      },
+    }),
+
   /** Squash/compaction settings */
   squash: z
     .object({
@@ -519,6 +558,14 @@ export function initializeConfig(
       maxReplayEvents: 10_000,
       maxReplayCommits: 10_000,
       retentionDays: 7,
+    },
+    ddl: {
+      inferenceCompat: {
+        shippedAt: "2026-09-17T00:00:00.000Z",
+        graceDays: 90,
+        minMinorReleases: 2,
+        minorReleasesShipped: 0,
+      },
     },
     squash: {
       maxAgeDays: 30,

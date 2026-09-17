@@ -34,6 +34,12 @@ import type {
 } from "../schema/table-registry.js";
 import { deepConvertBigInts } from "../utils/serialize.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
+import {
+  applyDeclaredReadCompat,
+  declaredReadType,
+  normalizeApiRow,
+  type DeclaredColumn,
+} from "../serialization/schemaTypes.js";
 
 // ---------------------------------------------------------------------------
 // SQL text helpers
@@ -54,10 +60,44 @@ function duckType(type: TableColumn["type"]): string {
   return type;
 }
 
+/**
+ * Read type for one column. A DB-SUPA-6 declared column reads as its canonical
+ * representation (`int64` / `timestamp` / `bytes` read as VARCHAR so the exact
+ * stored text survives the JavaScript boundary); a legacy column keeps its
+ * DuckDB type unchanged.
+ */
+function readType(col: TableColumn): string {
+  return col.declaredType
+    ? declaredReadType({
+        name: col.name,
+        type: col.declaredType,
+        nullable: col.nullable ?? true,
+      })
+    : duckType(col.type);
+}
+
+/**
+ * The DB-SUPA-6 declared column contract of a declaration, or `null` for a
+ * legacy `tables/<table>.table.json` declaration.
+ */
+export function declaredColumnsOf(
+  declaration: TableDeclaration,
+): DeclaredColumn[] | null {
+  if (declaration.source !== "schema.json") return null;
+  if (declaration.columns.some((column) => column.declaredType === undefined))
+    return null;
+  return declaration.columns.map((column) => ({
+    name: column.name,
+    type: column.declaredType!,
+    nullable: column.nullable ?? true,
+    ...(column.hasDefault ? { default: column.default } : {}),
+  }));
+}
+
 /** The explicit read_json columns spec for a declared table. */
 export function readJsonColumnsSpec(declaration: TableDeclaration): string {
   const parts = declaration.columns.map(
-    (col) => `${quoteIdentifier(col.name)}:'${duckType(col.type)}'`,
+    (col) => `${quoteIdentifier(col.name)}:'${readType(col)}'`,
   );
   return `columns={${parts.join(",")}}, auto_detect=false`;
 }
@@ -481,6 +521,7 @@ export async function executeSelectPlan(
   plan: SelectPlan,
 ): Promise<SelectResult> {
   const files = resolveTableFiles(nsDir, declaration);
+  const declared = declaredColumnsOf(declaration);
   const { countSql, countParams } = plan as SelectPlan & {
     countSql: string;
     countParams: unknown[];
@@ -507,7 +548,12 @@ export async function executeSelectPlan(
       plan.params,
     );
     return {
-      rows: rows.map((r) => deepConvertBigInts(r) as Record<string, unknown>),
+      rows: rows.map((r) => {
+        const row = deepConvertBigInts(r) as Record<string, unknown>;
+        // DB-SUPA-6 compatibility adapter: an absent historical field on a
+        // defaulted column reads as its pinned default (never a coercion).
+        return declared ? applyDeclaredReadCompat(declared, row) : row;
+      }),
       totalCount,
     };
   });
@@ -516,18 +562,16 @@ export async function executeSelectPlan(
 /**
  * FROM-clause read_sql for an explicit file list.
  *
- * jsonl-objects → read_json with the DECLARED columns spec (no
- * auto-detection; the DOGFOOD-010/018/019 SIGABRT class comes from bare
- * auto-inference, so heterogeneous data is handled by declared types +
- * ignore_errors instead).
+ * jsonl-objects → read_json with the DECLARED columns spec, built from the
+ * declared types (`auto_detect=false`; the DOGFOOD-010/018/019 SIGABRT class
+ * comes from bare auto-inference, so heterogeneous data is handled by declared
+ * types + ignore_errors instead).
  *
- * jsonl-positional → each line is a JSON ARRAY; read_json with an explicit
- * columns spec cannot type positional arrays (verified: every declared
- * column reads NULL), so use auto_detect (arrays infer as JSON[] safely —
- * a single homogeneous column type, no MAP inference) and project each
- * declared column from its ordinal via json_extract_string + try_cast.
- * Auto-detect here is bounded to exactly the declared array shape, not
- * the bare-multi-file-list hazard the board reasoning warns about.
+ * jsonl-positional → each line is a JSON ARRAY. The single column is read as
+ * JSON (`columns={'json':'JSON'}, auto_detect=false`) — no auto-detection —
+ * and every declared column is projected from its declared ordinal, so the
+ * positional HEADER comes from the declaration and never from a data line.
+ * Casts are explicit (`try_cast`) per declared type.
  */
 export function buildReadSqlForFiles(
   files: DiscoveredFile[],
@@ -537,16 +581,16 @@ export function buildReadSqlForFiles(
   if (declaration.format === "jsonl-positional") {
     const projections = declaration.columns
       .map((col, idx) => {
-        const ordinal = idx + 1;
         const id = quoteIdentifier(col.name);
-        if (col.type === "json") {
-          // Element is already JSON — VARCHAR cast keeps the exact text.
-          return `CASE WHEN json[${ordinal}] IS NULL THEN NULL ELSE CAST(json[${ordinal}] AS VARCHAR) END AS ${id}`;
-        }
-        return `try_cast(json_extract_string(json[${ordinal}], '$') AS ${duckType(col.type)}) AS ${id}`;
+        const element =
+          col.declaredType === "json" ||
+          (col.declaredType === undefined && col.type === "json")
+            ? `json_extract_string(json[${idx}], '$')`
+            : `try_cast(json_extract_string(json[${idx}], '$') AS ${readType(col)})`;
+        return `${element} AS ${id}`;
       })
       .join(", ");
-    return `(SELECT ${projections} FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, auto_detect=true))`;
+    return `(SELECT ${projections} FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, columns={'json':'JSON'}, auto_detect=false))`;
   }
   return `read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${readJsonColumnsSpec(declaration)})`;
 }
@@ -555,11 +599,32 @@ export function buildReadSqlForFiles(
 // INSERT
 // ---------------------------------------------------------------------------
 
-/** Coerce + validate one incoming row against the declaration. 422 on shape mismatch. */
+/**
+ * Coerce + validate one incoming row against the declaration.
+ *
+ * For a DB-SUPA-6 `schema.json` declaration the declared types govern and
+ * nothing is coerced: `int64` must arrive as a canonical decimal string,
+ * timestamps in ISO-8601 with an offset (normalized to canonical UTC),
+ * `bytes` with the `base64url:` envelope, `float64` as a finite JSON number,
+ * `json` verbatim. Absent values resolve through the pinned null/default
+ * compatibility adapter. Legacy declarations keep their historical coercion
+ * rules unchanged.
+ */
 export function coerceRowAgainstDeclaration(
   declaration: TableDeclaration,
   row: unknown,
 ): Record<string, unknown> {
+  const declared = declaredColumnsOf(declaration);
+  if (declared) {
+    const result = normalizeApiRow(declared, row);
+    if (!result.ok)
+      throw new ApiError(
+        `${result.issues.message} (table '${declaration.name}')`,
+        result.issues.status,
+        result.issues.code,
+      );
+    return result.value;
+  }
   if (typeof row !== "object" || row === null || Array.isArray(row)) {
     throw new ApiError(
       "Each row must be a JSON object",

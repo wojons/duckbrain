@@ -83,13 +83,21 @@ export interface DeclaredTableView {
   columns: string[];
   /** Declared table schema version (defaults to 1). */
   schemaVersion: number;
+  /**
+   * DB-SUPA-6 declared key columns (may be composite). Present only when the
+   * table is declared in the persistent namespace `schema.json`.
+   */
+  keyColumns?: string[];
 }
 
 /**
- * Read `tables/<table>.table.json` from a namespace directory — the SUPA-3
- * declaration SUPA-5 consumes for key columns and schema version. Returns
- * null when the table is not declared (or the declaration is unreadable);
- * undeclared tables simply carry no key columns and schemaVersion 1.
+ * Read a table declaration for a namespace directory.
+ *
+ * The legacy `tables/<table>.table.json` declaration keeps precedence; when it
+ * is absent the persistent DB-SUPA-6 `schema.json` declaration is consulted
+ * (key columns + table version), so SUPA-5's key material and `schemaVersion`
+ * follow a DDL-declared table without any change to the change-record format.
+ * Returns null when the table is not declared anywhere.
  */
 export function readDeclaredTableView(
   namespacePath: string,
@@ -100,9 +108,10 @@ export function readDeclaredTableView(
   try {
     parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
   } catch {
-    return null;
+    return readSchemaJsonTableView(namespacePath, table);
   }
-  if (typeof parsed !== "object" || parsed === null) return null;
+  if (typeof parsed !== "object" || parsed === null)
+    return readSchemaJsonTableView(namespacePath, table);
   const raw = parsed as Record<string, unknown>;
   const columns = Array.isArray(raw.columns)
     ? raw.columns
@@ -124,6 +133,47 @@ export function readDeclaredTableView(
   };
 }
 
+/** Persistent `schema.json` view of a declared table (DB-SUPA-6). */
+function readSchemaJsonTableView(
+  namespacePath: string,
+  table: string,
+): DeclaredTableView | null {
+  let document: { tables?: Record<string, unknown> } | null = null;
+  try {
+    const file = path.join(namespacePath, "schema.json");
+    document = JSON.parse(fs.readFileSync(file, "utf-8")) as {
+      tables?: Record<string, unknown>;
+    };
+  } catch {
+    return null;
+  }
+  const definition = document?.tables?.[table];
+  if (definition === null || typeof definition !== "object") return null;
+  const table_ = definition as Record<string, unknown>;
+  const columns = Array.isArray(table_.columns)
+    ? table_.columns
+        .map((column) =>
+          typeof column === "object" && column !== null
+            ? (column as Record<string, unknown>).name
+            : undefined,
+        )
+        .filter((name): name is string => typeof name === "string")
+    : [];
+  const keyColumns = Array.isArray(table_.keyColumns)
+    ? table_.keyColumns.filter((key): key is string => typeof key === "string")
+    : [];
+  const version = table_.schemaVersion;
+  return {
+    primary: keyColumns.length === 1 ? keyColumns[0]! : null,
+    columns,
+    schemaVersion:
+      typeof version === "number" && Number.isInteger(version) && version > 0
+        ? version
+        : 1,
+    keyColumns,
+  };
+}
+
 /**
  * Declared key columns for a table. `memories` uses the built-in
  * compatibility key `id` (it is never serialized into a namespace schema);
@@ -136,6 +186,8 @@ export function declaredKeyColumns(
 ): string[] {
   if (table === MEMORIES_TABLE) return ["id"];
   const declaration = readDeclaredTableView(namespacePath, table);
+  if (declaration?.keyColumns && declaration.keyColumns.length > 0)
+    return [...declaration.keyColumns];
   return declaration?.primary ? [declaration.primary] : [];
 }
 

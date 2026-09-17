@@ -32,7 +32,7 @@
 
 import { Router, Request, Response } from "express";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
-import { requireNamespaceGrant } from "../../auth/middleware";
+import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
 import {
   listTables,
   getTable,
@@ -47,6 +47,13 @@ import {
   deleteRowsByPk,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
+import { getNamespaceWriter } from "../../serialization/namespaceWriter";
+import {
+  assertNamespaceDdlUsable,
+  partitionForStoragePath,
+} from "../../serialization/ddl";
+import { assertNamespaceSchemaUsable } from "../../serialization/schemaRegistry";
+import { storedRowFromApiRow } from "../../serialization/schemaTypes";
 
 /** Express 5 types named params as string | string[] (GAP-002 pattern). */
 function param(req: Request, name: string): string {
@@ -437,6 +444,14 @@ function createTableRoutes(): Router {
 
   /**
    * POST /api/ns/:ns/tables/:table — insert (object / array / NDJSON).
+   *
+   * A DB-SUPA-6 `schema.json` declaration writes through the SUPA-2 serializer
+   * (`NamespaceWriter.enqueue`) at the table's DECLARED storage path, so the
+   * write rides the same validation → ordered write → audit/change-record →
+   * commit path as every other durable row, and it observes the DDL fence: a
+   * write attempted while a DDL operation holds the namespace lock receives the
+   * retryable `SERIALIZER_LOCKED` result and writes nothing. Legacy
+   * `tables/<table>.table.json` declarations keep the historical direct append.
    */
   router.post(
     "/:table",
@@ -456,6 +471,57 @@ function createTableRoutes(): Router {
       const coerced = rawRows.map((row) =>
         coerceRowAgainstDeclaration(declaration, row),
       );
+      if (declaration.source === "schema.json") {
+        // Fail closed on a failed DDL recovery and on an invalid on-disk
+        // schema before accepting new generic-table work.
+        assertNamespaceDdlUsable(ns);
+        assertNamespaceSchemaUsable(ns);
+        const declaredColumns = declaration.columns.map((column) => ({
+          name: column.name,
+          type: column.declaredType!,
+          nullable: column.nullable ?? true,
+          ...(column.hasDefault ? { default: column.default } : {}),
+        }));
+        const writer = getNamespaceWriter(ns);
+        const partition = partitionForStoragePath(declaration.glob);
+        let inserted = 0;
+        for (const row of coerced) {
+          const record = storedRowFromApiRow(
+            declaredColumns,
+            declaration.format === "jsonl-positional" ? "positional" : "object",
+            row,
+          );
+          const result = await writer.enqueue({
+            ns,
+            table: declaration.name,
+            op: "insert",
+            record,
+            principal: getPrincipal(req),
+            targetPath: declaration.glob,
+            ...(partition ? { partitionPath: partition } : {}),
+          });
+          if (!result.ok) {
+            const status =
+              result.code === "VALIDATION_ERROR"
+                ? 422
+                : result.code === "NOT_FOUND"
+                  ? 404
+                  : result.code === "FORBIDDEN"
+                    ? 403
+                    : result.code === "SERIALIZER_LOCKED" ||
+                        result.code === "SERIALIZER_FENCED" ||
+                        result.code === "SERVER_SHUTTING_DOWN"
+                      ? 503
+                      : 500;
+            if (result.retryAfter !== undefined)
+              res.setHeader("Retry-After", String(result.retryAfter));
+            throw new ApiError(result.message, status, result.code);
+          }
+          inserted += 1;
+        }
+        res.status(201).json({ inserted });
+        return;
+      }
       appendRowsToTable(namespaceDir(ns), declaration, coerced);
       res.status(201).json({ inserted: coerced.length });
     }),
