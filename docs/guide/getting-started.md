@@ -15,9 +15,26 @@ By the end of this guide, you'll have:
 
 Before you begin, you'll need:
 
-- **Node.js** 20+ ([Download](https://nodejs.org/))
+- **Node.js** 22+ (required by `package.json` `engines`: `>=22`). Easiest on a fresh box via [nvm](https://github.com/nvm-sh/nvm) (~11s), or install from [nodejs.org](https://nodejs.org/) / your distro's packages:
+
+  ```bash
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
+  . ~/.nvm/nvm.sh   # or open a new shell
+  nvm install 22 && nvm use 22
+  ```
+
+- **pnpm** 11+ — activate it via corepack (bundled with Node 22); fallback: `npm i -g pnpm`:
+
+  ```bash
+  corepack enable && corepack prepare pnpm@11 --activate
+  ```
+
+  pnpm 12 also works but rewrites `pnpm-lock.yaml` on first install — don't commit that churn.
+
 - **Git** ([Download](https://git-scm.com/))
 - **An AI agent** that supports MCP (Claude Desktop, Cursor, etc.)
+
+`duckbrain.config.json` is instance-local and untracked — `duckbrain.config.example.json` is the template; the defaults work out of the box.
 
 ## Installation
 
@@ -36,10 +53,34 @@ pnpm install
 
 ```bash
 # Test the CLI
-pnpm start -- help
+pnpm start help
 ```
 
 You should see the DuckBrain help output with available commands.
+
+Or verify the full HTTP path end to end — paste in order; the last command must print the memory you stored:
+
+```bash
+# 1. start the HTTP daemon in the background
+pnpm start http --port=3000 &
+
+# 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
+curl -s http://127.0.0.1:3000/health
+
+# 3. create a scratch namespace
+curl -s -X POST http://127.0.0.1:3000/api/namespaces \
+  -H 'Content-Type: application/json' -d '{"name":"quickstart"}'
+
+# 4. write a memory
+curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"/quickstart/hello","domain":"concept","content":"first memory from the quickstart"}'
+
+# 5. read it back — expect the stored content in the response
+curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
+```
+
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key. Stop the background daemon with `kill %1` when done.
 
 ## Quick Start
 
@@ -49,14 +90,14 @@ Start DuckBrain as an MCP server for your AI agent:
 
 ```bash
 # Start MCP server (stdio mode for Claude/Cursor)
-pnpm start -- stdio
+pnpm start stdio
 ```
 
 ### Option B: HTTP Server Mode (For Web UI or Remote Access)
 
 ```bash
 # Start HTTP API server
-pnpm start -- http --port 3000
+pnpm start http --port 3000
 ```
 
 ### Option C: Development Mode (API + Web UI)
@@ -69,6 +110,38 @@ pnpm run dev
 # - API: http://localhost:3000
 # - Web UI: http://localhost:8989
 ```
+
+## Optional extras (fresh hosts)
+
+These were needed to stand the repo up on a bare Debian 13 host (fresh-host leg, 2026-09-17) — a normal `pnpm install` + `pnpm start` does not require them.
+
+### Global git identity (required by the git-backed memory store)
+
+Each namespace is its own git repo and DuckBrain auto-commits after every write; the mainline test fixtures assume a global git identity exists:
+
+```bash
+git config --global user.name  "Your Name"
+git config --global user.email "you@example.com"
+```
+
+### S3 storage tier (only if you enable `s3.enabled`)
+
+The [Native S3 Storage Tier](../s3-native.md) pushes to S3-compatible remotes via `git-remote-s3`; it and the AWS CLI are Python packages — install them in a venv:
+
+```bash
+python3 -m venv ~/.venvs/duckbrain-s3
+~/.venvs/duckbrain-s3/bin/pip install git-remote-s3 awscli
+export PATH="$HOME/.venvs/duckbrain-s3/bin:$PATH"   # so git can find git-remote-s3
+```
+
+### Running the test suites
+
+```bash
+pnpm test:run            # unit suites
+pnpm test:integration    # integration suites — needs sshpass
+```
+
+`sshpass` is the only extra the integration suite needs beyond the dev dependencies (`apt install sshpass` on Debian/Ubuntu).
 
 ## Configuration
 
@@ -236,7 +309,7 @@ Examples:
 node /path/to/duckbrain/bin/duckbrain.js stdio
 
 # Check Node version
-node --version  # Should be 20+
+node --version  # Should be 22+
 ```
 
 ### "Permission denied"

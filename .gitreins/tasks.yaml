@@ -1185,3 +1185,18 @@ tasks:
   status: complete
   created_at: '2026-09-17T02:17:47.586622+00:00'
   completed_at: '2026-09-17T06:19:27.278098+00:00'
+- id: DOGFOOD-0904-03
+  title: 'Fresh-user install path: README + getting-started document node>=22/pnpm
+    prerequisites and a copy-paste quickstart smoke'
+  criteria:
+  - AC-1 README carries a Prerequisites block before Installation naming Node >= 22
+    (nvm one-liner + distro alternative), pnpm (corepack enable / npm i -g pnpm),
+    and git; AC-2 README + docs/guide/getting-started.md carry a copy-paste smoke
+    that starts the HTTP daemon, curls /health, creates a scratch namespace, writes
+    a memory and reads it back, with real commands that run in order; AC-3 the fresh-host
+    setup steps measured on a bare Debian box (global git identity, git-remote-s3+awscli
+    venv for the S3 tier, sshpass for the integration suite) are folded in and labelled
+    by feature; AC-4 getting-started prerequisites say Node 22+, consistent with package.json
+    engines >=22; AC-5 documented commands verified by the foreman on a scratch daemon
+  status: in_progress
+  created_at: '2026-09-17T06:48:02.254017+00:00'

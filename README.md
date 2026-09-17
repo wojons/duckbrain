@@ -30,6 +30,26 @@ DuckBrain provides AI agents with **persistent, queryable, version-controlled me
 
 ### Installation
 
+#### Prerequisites
+
+You need **git**, **Node.js 22+** and **pnpm 11+**. On a fresh Debian/Ubuntu box that only has git:
+
+```bash
+# Node.js 22+ via nvm (~11s on a fresh box), or install from nodejs.org / your distro's packages
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
+. ~/.nvm/nvm.sh   # or open a new shell
+nvm install 22 && nvm use 22
+
+# pnpm 11+ via corepack (bundled with Node 22) — fallback: npm i -g pnpm
+corepack enable && corepack prepare pnpm@11 --activate
+```
+
+pnpm 12 also works but rewrites `pnpm-lock.yaml` on first install — don't commit that churn.
+
+`duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
+
+**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`.
+
 ```bash
 # Clone the repository
 git clone https://github.com/wojons/duckbrain.git
@@ -42,24 +62,50 @@ pnpm install
 pnpm run dev
 ```
 
+### Verify the install
+
+Paste in order; the last command must print the memory you stored:
+
+```bash
+# 1. start the HTTP daemon in the background
+pnpm start http --port=3000 &
+
+# 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
+curl -s http://127.0.0.1:3000/health
+
+# 3. create a scratch namespace
+curl -s -X POST http://127.0.0.1:3000/api/namespaces \
+  -H 'Content-Type: application/json' -d '{"name":"quickstart"}'
+
+# 4. write a memory
+curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"/quickstart/hello","domain":"concept","content":"first memory from the quickstart"}'
+
+# 5. read it back — expect the stored content in the response
+curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
+```
+
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key. Stop the background daemon with `kill %1` when done.
+
 ### Running DuckBrain
 
 **MCP Server Mode (for Claude/Cursor):**
 
 ```bash
-pnpm start -- stdio
+pnpm start stdio
 ```
 
 **HTTP Server Mode (MCP-over-HTTP + REST API):**
 
 ```bash
-pnpm start -- http --port=3000
+pnpm start http --port=3000
 ```
 
 **HTTP Server Mode with Unix socket** (for MCP-over-HTTP over a permissioned filesystem socket):
 
 ```bash
-pnpm start -- http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
+pnpm start http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
 ```
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
@@ -166,7 +212,7 @@ DuckBrain exposes these MCP tools (available over stdio and MCP-over-HTTP at `PO
 
 ## HTTP API
 
-The HTTP server (`pnpm start -- http`, default `http://127.0.0.1:3000`) also serves a REST API under `/api/` for scripts, dashboards, and non-MCP clients. Core read routes (all verified against a live daemon):
+The HTTP server (`pnpm start http`, default `http://127.0.0.1:3000`) also serves a REST API under `/api/` for scripts, dashboards, and non-MCP clients. Core read routes (all verified against a live daemon):
 
 | Route                        | Description                                                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
