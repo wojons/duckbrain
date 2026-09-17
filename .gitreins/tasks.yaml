@@ -1151,3 +1151,17 @@ tasks:
   status: complete
   created_at: '2026-09-17T01:39:19.315372+00:00'
   completed_at: '2026-09-17T01:50:34.953972+00:00'
+- id: INT-CI-007
+  title: Verify SSH integration CI flake recovery
+  criteria:
+  - 'AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing
+    any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit
+    373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests
+    steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit
+    suite, TypeScript check, source formatting and full integration suite pass on
+    the unchanged product code. This is a verification-only stale CI-watch closure;
+    no production code change is required. Do not start extra daemons outside the
+    existing test suite; never modify production config/auth or stop production services.'
+  status: complete
+  created_at: '2026-09-17T02:05:00.695896+00:00'
+  completed_at: '2026-09-17T02:05:13.870593+00:00'

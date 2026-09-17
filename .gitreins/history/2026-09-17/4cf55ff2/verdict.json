@@ -1,0 +1,70 @@
+{
+  "task_id": "INT-CI-007",
+  "task_title": "Verify SSH integration CI flake recovery",
+  "task_criteria": [
+    "AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit 373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit suite, TypeScript check, source formatting and full integration suite pass on the unchanged product code. This is a verification-only stale CI-watch closure; no production code change is required. Do not start extra daemons outside the existing test suite; never modify production config/auth or stop production services."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "373925bef10191e238c7f668847d2e16b817bf73",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9278667 bytes (9.28 MB) in 1.96s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9278667 bytes (9.28 MB) in 1.96s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n   Start at  21:05:15\n   Duration  59.23s (transform 3.37s, setup 1.28s, import 51.40s, tests 158.63s, environment 17ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit 373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit suite, TypeScript check, source formatting and full integration suite pass on the unchanged product code. This is a verification-only stale CI-watch closure; no production code change is required. Do not start extra daemons outside the existing test suite; never modify production config/auth or stop production services.: AC-1: `git diff HEAD -- tests/ssh-tunnel.int.test.ts` is empty (file unchanged); the file has exactly 6 `it(` blocks and zero `.skip`/`.todo`; timeouts are unchanged (waitForPort 120000, beforeAll 180000) \u2014 this task's diff touches no test file. Fresh local run `npx vitest run --config vitest.integration.config.ts tests/ssh-tunnel.int.test.ts --reporter=verbose` printed all six named tests \u2713 ('should SSH into the container and run a command', 'should detect DuckBrain is NOT installed on a fresh container', 'should create an SSH tunnel with port forwarding', 'should write and read a file through SSH', 'should have git available in the container', 'should have ssh client available in the container') with 'Test Files 1 passed (1); Tests 6 passed (6)', exit 0. AC-2: `gh run view 35172638867 --json headSha,conclusion,jobs` returned headSha=373925bef10191e238c7f668847d2e16b817bf73 and conclusion=success; job 'test (22.x)' step 12 'Run integration tests' conclusion=success and job 'test (20.x)' step 12 'Run integration tests' conclusion=success. Job logs show '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5630ms' (22.x) and '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5768ms' (20.x), with 'Test Files 6 passed (6)' and 'Tests 44 passed (44)' on both. AC-3: fresh runs \u2014 `npx vitest run` => 'Test Files 132 passed (132); Tests 1122 passed (1122)', EXIT=0; `npx tsc --noEmit` => exit 0, no output; `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 6 passed (6); Tests 44 passed (44)', EXIT=0. `git diff HEAD --name-only` shows only .gitreins/tasks.yaml and pnpm-lock.yaml (a lockfile; CI installs via `npm ci`/package-lock.json, which is unchanged) \u2014 no production code, config, or auth modified, and no daemons were started outside the existing test suite.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit 373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit suite, TypeScript check, source formatting and full integration suite pass on the unchanged product code. This is a verification-only stale CI-watch closure; no production code change is required. Do not start extra daemons outside the existing test suite; never modify production config/auth or stop production services.: AC-1: `git diff HEAD -- tests/ssh-tunnel.int.test.ts` is empty (file unchanged); the file has exactly 6 `it(` blocks and zero `.skip`/`.todo`; timeouts are unchanged (waitForPort 120000, beforeAll 180000) \u2014 this task's diff touches no test file. Fresh local run `npx vitest run --config vitest.integration.config.ts tests/ssh-tunnel.int.test.ts --reporter=verbose` printed all six named tests \u2713 ('should SSH into the container and run a command', 'should detect DuckBrain is NOT installed on a fresh container', 'should create an SSH tunnel with port forwarding', 'should write and read a file through SSH', 'should have git available in the container', 'should have ssh client available in the container') with 'Test Files 1 passed (1); Tests 6 passed (6)', exit 0. AC-2: `gh run view 35172638867 --json headSha,conclusion,jobs` returned headSha=373925bef10191e238c7f668847d2e16b817bf73 and conclusion=success; job 'test (22.x)' step 12 'Run integration tests' conclusion=success and job 'test (20.x)' step 12 'Run integration tests' conclusion=success. Job logs show '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5630ms' (22.x) and '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5768ms' (20.x), with 'Test Files 6 passed (6)' and 'Tests 44 passed (44)' on both. AC-3: fresh runs \u2014 `npx vitest run` => 'Test Files 132 passed (132); Tests 1122 passed (1122)', EXIT=0; `npx tsc --noEmit` => exit 0, no output; `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 6 passed (6); Tests 44 passed (44)', EXIT=0. `git diff HEAD --name-only` shows only .gitreins/tasks.yaml and pnpm-lock.yaml (a lockfile; CI installs via `npm ci`/package-lock.json, which is unchanged) \u2014 no production code, config, or auth modified, and no daemons were started outside the existing test suite.\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit 373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit suite, TypeScript check, source formatting and full integration suite pass on the unchanged product code. This is a verification-only stale CI-watch closure; no production code change is required. Do not start extra daemons outside the existing test suite; never modify production config/auth or stop production services.",
+                "status": "PASS",
+                "detail": "AC-1: `git diff HEAD -- tests/ssh-tunnel.int.test.ts` is empty (file unchanged); the file has exactly 6 `it(` blocks and zero `.skip`/`.todo`; timeouts are unchanged (waitForPort 120000, beforeAll 180000) \u2014 this task's diff touches no test file. Fresh local run `npx vitest run --config vitest.integration.config.ts tests/ssh-tunnel.int.test.ts --reporter=verbose` printed all six named tests \u2713 ('should SSH into the container and run a command', 'should detect DuckBrain is NOT installed on a fresh container', 'should create an SSH tunnel with port forwarding', 'should write and read a file through SSH', 'should have git available in the container', 'should have ssh client available in the container') with 'Test Files 1 passed (1); Tests 6 passed (6)', exit 0. AC-2: `gh run view 35172638867 --json headSha,conclusion,jobs` returned headSha=373925bef10191e238c7f668847d2e16b817bf73 and conclusion=success; job 'test (22.x)' step 12 'Run integration tests' conclusion=success and job 'test (20.x)' step 12 'Run integration tests' conclusion=success. Job logs show '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5630ms' (22.x) and '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5768ms' (20.x), with 'Test Files 6 passed (6)' and 'Tests 44 passed (44)' on both. AC-3: fresh runs \u2014 `npx vitest run` => 'Test Files 132 passed (132); Tests 1122 passed (1122)', EXIT=0; `npx tsc --noEmit` => exit 0, no output; `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 6 passed (6); Tests 44 passed (44)', EXIT=0. `git diff HEAD --name-only` shows only .gitreins/tasks.yaml and pnpm-lock.yaml (a lockfile; CI installs via `npm ci`/package-lock.json, which is unchanged) \u2014 no production code, config, or auth modified, and no daemons were started outside the existing test suite."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-007\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9278667 bytes (9.28 MB) in 1.96s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  132 passed (132)\n      Tests  1122 passed (1122)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AC-1: Existing tests/ssh-tunnel.int.test.ts passes all six tests without increasing any timeout or skipping tests. AC-2: GitHub Actions run 35172638867 for commit 373925bef10191e238c7f668847d2e16b817bf73 has successful Run integration tests steps on both Node 20.x and Node 22.x jobs (inspect gh run view). AC-3: Full unit suite, TypeScript check, source formatting and full integration suite pass on the unchanged product code. This is a verification-only stale CI-watch closure; no production code change is required. Do not start extra daemons outside the existing test suite; never modify production config/auth or stop production services.: AC-1: `git diff HEAD -- tests/ssh-tunnel.int.test.ts` is empty (file unchanged); the file has exactly 6 `it(` blocks and zero `.skip`/`.todo`; timeouts are unchanged (waitForPort 120000, beforeAll 180000) \u2014 this task's diff touches no test file. Fresh local run `npx vitest run --config vitest.integration.config.ts tests/ssh-tunnel.int.test.ts --reporter=verbose` printed all six named tests \u2713 ('should SSH into the container and run a command', 'should detect DuckBrain is NOT installed on a fresh container', 'should create an SSH tunnel with port forwarding', 'should write and read a file through SSH', 'should have git available in the container', 'should have ssh client available in the container') with 'Test Files 1 passed (1); Tests 6 passed (6)', exit 0. AC-2: `gh run view 35172638867 --json headSha,conclusion,jobs` returned headSha=373925bef10191e238c7f668847d2e16b817bf73 and conclusion=success; job 'test (22.x)' step 12 'Run integration tests' conclusion=success and job 'test (20.x)' step 12 'Run integration tests' conclusion=success. Job logs show '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5630ms' (22.x) and '\u2713 tests/ssh-tunnel.int.test.ts (6 tests) 5768ms' (20.x), with 'Test Files 6 passed (6)' and 'Tests 44 passed (44)' on both. AC-3: fresh runs \u2014 `npx vitest run` => 'Test Files 132 passed (132); Tests 1122 passed (1122)', EXIT=0; `npx tsc --noEmit` => exit 0, no output; `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 6 passed (6); Tests 44 passed (44)', EXIT=0. `git diff HEAD --name-only` shows only .gitreins/tasks.yaml and pnpm-lock.yaml (a lockfile; CI installs via `npm ci`/package-lock.json, which is unchanged) \u2014 no production code, config, or auth modified, and no daemons were started outside the existing test suite.\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-17T02:09:32.006874"
+}
