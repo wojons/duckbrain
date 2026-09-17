@@ -1123,3 +1123,17 @@ tasks:
   status: complete
   created_at: '2026-09-16T11:29:20.545393+00:00'
   completed_at: '2026-09-16T11:52:39.188237+00:00'
+- id: CLI-FIX-002
+  title: 'CLI remember ignores space-form flags: --namespace <ns> silently writes
+    into a namespace named "true", --domain <d> fails loudly'
+  criteria:
+  - AC-1 rememberCommand applies normalizeSpaceFormFlags for the value-taking REMEMBER_FLAGS
+    subset (domain/attr/namespace/content/text/embedding-text/valid-from/valid-until);
+    AC-2 space-form --namespace <ns> reaches rememberTool as ns, never the literal
+    "true"; AC-3 equals forms unchanged; AC-4 --wait stays boolean; AC-5 unknown flag
+    still exits 1; AC-6 new regression suite src/cli/remember-space-form-clifix002.test.ts
+    proven RED before the fix and GREEN after; AC-7 full unit suite + tsc + prettier
+    --check src/ clean
+  status: complete
+  created_at: '2026-09-17T00:27:58.267908+00:00'
+  completed_at: '2026-09-17T00:41:47.431746+00:00'
