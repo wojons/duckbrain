@@ -22,7 +22,7 @@
  *     the single-namespace path)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { rebuildAllNamespaces } from "./index";
@@ -30,6 +30,11 @@ import { highlightMatches } from "./rank";
 import { keywordSearch, keywordSearchAllNamespaces } from "./query";
 import { searchTool } from "../mcp/tools/search";
 import { recallTool } from "../mcp/tools/recall";
+
+// File-scoped budget: beforeAll drives the production rebuild path
+// (rebuildAllNamespaces — real DuckDB `fts` sidecars), the slowest hook in
+// the search suites. Bounded here, not globally.
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
 // A chat-archive-shaped namespace: dated message rows.

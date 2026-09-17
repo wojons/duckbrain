@@ -12,7 +12,7 @@
  *    is a gitignored rebuildable cache, not tracked state
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -23,6 +23,11 @@ import {
   SEARCH_SKIP_ENV,
 } from "./hooks";
 import { rebuildNamespaceIndex } from "./index";
+
+// File-scoped budget: the cache-doctrine tests rebuild a real FTS sidecar
+// (DuckDB `fts` extension) inside individual tests. Bounded here, not
+// globally.
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 let tmpDir: string;
 let repoPath: string;

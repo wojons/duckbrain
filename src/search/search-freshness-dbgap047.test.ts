@@ -42,6 +42,12 @@ import {
 } from "./index";
 import { keywordSearch, keywordSearchAllNamespaces } from "./query";
 
+// File-scoped budget: read-path tests trigger real bounded rebuilds (DuckDB
+// `fts` sidecars) plus an HTTP surface; several tests already carry explicit
+// per-test timeouts. vi.setConfig makes the budget file-wide without
+// touching vitest.config.ts.
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
+
 vi.mock("../embedding/providers", async () => {
   const actual = await vi.importActual<typeof import("../embedding/providers")>(
     "../embedding/providers",

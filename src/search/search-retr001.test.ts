@@ -20,7 +20,7 @@
  *     for the bounded refusal (over-bound namespace / failed rebuild)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import {
@@ -42,6 +42,11 @@ import {
 import { keywordSearch } from "./query";
 import { searchTool } from "../mcp/tools/search";
 import { recallTool } from "../mcp/tools/recall";
+
+// File-scoped budget: the fixtures are written in beforeAll, but the FTS
+// sidecar itself is built lazily by the first keywordSearch tests (real
+// DuckDB `fts` extension load + rebuild). Bounded here, not globally.
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
 const NS = path.join(NS_ROOT, "search-retr001");

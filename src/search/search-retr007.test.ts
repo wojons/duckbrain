@@ -17,12 +17,17 @@
  *     the allNamespaces+namespace combination loudly
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { rebuildNamespaceIndex } from "./index";
 import { keywordSearch, keywordSearchAllNamespaces } from "./query";
 import { searchTool } from "../mcp/tools/search";
+
+// File-scoped budget: beforeAll rebuilds two real FTS sidecars (DuckDB
+// `fts` extension), which exceeds the 10s default hook timeout under
+// full-suite load. Bounded here, not globally.
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
 const NS_A = path.join(NS_ROOT, "search-retr007-a");

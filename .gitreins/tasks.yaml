@@ -1137,3 +1137,16 @@ tasks:
   status: complete
   created_at: '2026-09-17T00:27:58.267908+00:00'
   completed_at: '2026-09-17T00:41:47.431746+00:00'
+- id: TEST-001
+  title: 'Load-brittle search suites: explicit bounded timeouts for FTS-building hooks'
+  criteria:
+  - "AC-1: each FTS-building search suite (src/search/search-retr001,search-retr007,search-retr008,hooks,search-freshness-dbgap047)\
+    \ declares an explicit bounded budget (hookTimeout/testTimeout 60s) scoped to\
+    \ that file; no global hookTimeout raise in vitest.config.ts. AC-2: three consecutive\
+    \ full-suite runs (npx vitest run) report 0 failed suites, or an honest report\
+    \ with host evidence if load cannot be induced. AC-3: sensitivity guard \u2014\
+    \ a genuine break (fixture row deleted in a scratch copy) still fails the suite,\
+    \ so budgets bound build time, not assertions. AC-4: tsc --noEmit clean and npx\
+    \ prettier --check src/ clean. AC-5: no new test files, AGENTS.md untouched."
+  status: in_progress
+  created_at: '2026-09-17T01:39:19.315372+00:00'
