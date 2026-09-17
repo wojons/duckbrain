@@ -193,7 +193,24 @@ export async function resolveRememberBody(
  * Remember command
  */
 async function rememberCommand(args: string[]): Promise<void> {
-  const { positional, flags } = parseArgs(args);
+  // Space-form normalization for the value-taking remember flags (same
+  // treatment as recall/search/forget). parseArgs only splits on "=" so a
+  // bare `--domain concept` parses domain as the literal "true" and leaks
+  // the value into positionals — a silent wrong-namespace write when the
+  // flag is --namespace. --wait is deliberately absent: it is boolean and
+  // must not swallow the following token.
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, [
+      "--domain",
+      "--attr",
+      "--namespace",
+      "--content",
+      "--text",
+      "--embedding-text",
+      "--valid-from",
+      "--valid-until",
+    ]),
+  );
 
   // Reject unknown flags loudly (scoped to remember only — do NOT change
   // parseArgs globally; other commands keep their loose flag handling).
