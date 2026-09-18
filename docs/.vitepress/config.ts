@@ -43,6 +43,7 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
+            { text: 'Positioning & Roadmap', link: '/guide/positioning' },
             { text: 'Memory Keys', link: '/guide/memory-keys' },
             { text: 'Domains', link: '/guide/domains' },
             { text: 'Troubleshooting', link: '/guide/troubleshooting' },

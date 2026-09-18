@@ -8,8 +8,11 @@ DuckBrain provides AI agents with **persistent, queryable, version-controlled me
 
 **Core Value:** Agents can remember and learn across sessions with full history, zero-cost branching, and collaborative sharing — all without database operations.
 
+DuckBrain is a git-native, agent-first memory system built on DuckDB, with MCP and HTTP access and namespace-local history; the “Supabase-for-DuckDB” phrase is a roadmap analogy for additive generic REST, declared-schema, and realtime work, alongside implemented-on-branch role/auth controls that still await public release evidence — not a claim of Supabase compatibility or managed-service parity. See [Positioning & Roadmap](guide/positioning) for the full capability matrix (available now / implemented on branch / planned / non-goal), the as-of recall walkthrough, and source notes.
+
 ## Quick Links
 
+- [Positioning & Roadmap](guide/positioning) - What exists now, what is planned, and what DuckBrain is not
 - [Getting Started](guide/getting-started) - Installation and first steps
 - [AI Agent Configuration](guide/ai-configure) - Configure DuckBrain for Claude, Cursor, and other AI agents
 - [MCP Tools Reference](api/mcp-tools) - Complete MCP tool documentation

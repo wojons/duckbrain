@@ -15,6 +15,45 @@ DuckBrain provides AI agents with **persistent, queryable, version-controlled me
 
 **Core Value:** Agents can remember and learn across sessions with full history, zero-cost branching, and collaborative sharing — all without database operations.
 
+## Positioning: A git-native data layer for agent memory
+
+> DuckBrain is a git-native, agent-first memory system built on DuckDB, with MCP and HTTP access and namespace-local history; the “Supabase-for-DuckDB” phrase is a roadmap analogy for additive generic REST, declared-schema, and realtime work, alongside implemented-on-branch role/auth controls that still await public release evidence — not a claim of Supabase compatibility or managed-service parity.
+
+Full positioning — the complete capability matrix, source notes, and as-of walkthrough — lives in **[docs/guide/positioning.md](docs/guide/positioning.md)**. That page is the single owner of the long matrix; this section is the compact version.
+
+### What exists now
+
+| Capability                                                                    | Status                                                         |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| DuckDB-backed local query/storage runtime (via `node-duckdb`)                 | Available now                                                  |
+| Git repository per namespace; namespace files are committed                   | Available now                                                  |
+| Read-only as-of recall at a date, commit, branch, or tag — no checkout        | Available now                                                  |
+| MCP tools (`remember`, `recall`, `list_keys`, `forget`, `squash`, namespaces) | Available now                                                  |
+| HTTP API (`/api/memories`, `/api/keys`, `/api/namespaces`, …)                 | Available now                                                  |
+| Optional S3 sync / push-on-commit                                             | Available only where configured (`s3.enabled`, off by default) |
+
+### Why git-native
+
+- **Namespace-local history.** Each namespace is its own git repository: `git init` runs inside the namespace directory and its files are committed (`src/git/autocommit.ts`), so `git log`, `git diff`, `git branch`, and `git tag` work on your memory directly.
+- **Time travel without checkout.** `resolveAsOfRef` accepts an ISO-8601 date, commit hash, branch, or tag and reads the namespace's files at that ref (`git show <ref>:<path>`) — read-only, with no worktree mutation (`src/git/asof.ts`; see the [as-of recall walkthrough](docs/guide/positioning.md#git-history-refs-and-what-rollback-means-here)).
+- **Inspectable storage.** Memories are append-only JSONL files you can read, copy, and archive while DuckBrain is stopped; DuckDB is the query layer over them, not a locked store.
+- **“Rollback” means operator recovery, not an undo API.** An operator can inspect and recover a prior revision through the namespace's git history; there is no undo endpoint, merge UI, or automatic branch lifecycle, and recovery needs that commit to exist locally in the namespace repo.
+
+### Roadmap surface (not available now)
+
+- **Planned:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6).
+- **Planned:** committed, resumable SSE change feed (SUPA-5).
+- **Implemented on branch — release evidence pending:** role grants, pluggable auth backends, and token lifecycle (DB-SUPA-4). Implemented with named tests, but not “available now” until release evidence is verified.
+
+See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-status matrix and the evidence bar behind every label.
+
+### What this is not
+
+- Not a clone, drop-in replacement, or API-compatible equivalent of Supabase; no hosted control plane, billing, or managed-service parity.
+- Not a PostgREST deployment and not derived from PostgREST code — PostgREST is a REST server for PostgreSQL and does not run on SQLite or DuckDB.
+- Not multi-region HA, synchronous replication, or point-in-time recovery: S3 support is an optional, configured sync path, inert unless you enable it.
+- Not production-certified: no uptime, latency, or durability claim without a linked measurement.
+
 ## Features
 
 - 🧠 **Hierarchical Memory Keys** — Filesystem-style paths (`/projects/mcp/schema`)
@@ -291,6 +330,7 @@ Semantic search (`recall` with `query`) ranks candidates by cosine similarity us
 Full documentation is available at:
 
 - 📖 [Getting Started Guide](docs/guide/getting-started.md)
+- 📐 [Positioning & Roadmap](docs/guide/positioning.md) — what exists now, what is planned, what this is not
 - 🔧 [MCP Tools API Reference](docs/api/mcp-tools.md)
 - 🌐 [HTTP API Reference](docs/api/http-api.md)
 - 🤖 [AI-Agent Integration Guide](docs/guide/ai-configure.md)
