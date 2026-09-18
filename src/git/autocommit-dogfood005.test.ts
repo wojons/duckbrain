@@ -24,6 +24,7 @@ import path from "path";
 import { execSync } from "child_process";
 import {
   commitNamespaceWithParams,
+  drainAsyncCommits,
   flushAllCommits,
   type BatchingParams,
 } from "./autocommit";
@@ -50,7 +51,7 @@ function gitLogCount(dir: string): number {
 }
 
 describe("DOGFOOD-005: first write to a non-existent namespace inits git", () => {
-  it("commitNamespaceWithParams creates .git + initial commit on first write", () => {
+  it("commitNamespaceWithParams creates .git + initial commit on first write", async () => {
     const ns = path.join(NS_ROOT, "dogfood005-unit");
     fs.rmSync(ns, { recursive: true, force: true });
     try {
@@ -60,7 +61,10 @@ describe("DOGFOOD-005: first write to a non-existent namespace inits git", () =>
       // (the exact implicit-creation path: dir exists, no .git).
       fs.mkdirSync(ns, { recursive: true });
       fs.writeFileSync(path.join(ns, "current.jsonl"), '{"k":"v"}\n', "utf8");
-      commitNamespaceWithParams(ns, "chore: test first write", params30);
+      // OPS-006: the first-write commit is asynchronous (it must not block the
+      // event loop) — await the chain it returns instead of the old
+      // synchronous side effect.
+      await commitNamespaceWithParams(ns, "chore: test first write", params30);
 
       // .git MUST exist now (not deferred to the debounce timer).
       expect(fs.existsSync(path.join(ns, ".git"))).toBe(true);
@@ -80,14 +84,14 @@ describe("DOGFOOD-005: first write to a non-existent namespace inits git", () =>
     }
   });
 
-  it("subsequent writes still debounce (batching preserved)", () => {
+  it("subsequent writes still debounce (batching preserved)", async () => {
     const ns = path.join(NS_ROOT, "dogfood005-batching");
     fs.rmSync(ns, { recursive: true, force: true });
     fs.mkdirSync(ns, { recursive: true });
     try {
-      // First write: immediate commit (no .git yet).
+      // First write: immediate commit (no .git yet). OPS-006: async — await it.
       fs.writeFileSync(path.join(ns, "a.txt"), "one", "utf8");
-      commitNamespaceWithParams(ns, "chore: first", params30);
+      await commitNamespaceWithParams(ns, "chore: first", params30);
       const firstCount = gitLogCount(ns);
       expect(firstCount).toBeGreaterThanOrEqual(1);
 
@@ -167,9 +171,13 @@ describe("DOGFOOD-005: rememberTool implicit-namespace write inits git", () => {
 
     expect(result.success).toBe(true);
 
+    // OPS-006: the implicit-namespace commit runs off the event loop now, so
+    // wait for the in-flight chain before asserting git state.
+    await drainAsyncCommits();
+
     // The namespace dir now exists.
     expect(fs.existsSync(ns)).toBe(true);
-    // .git was initialized synchronously.
+    // .git was initialized by the (awaited) first-write commit above.
     expect(fs.existsSync(path.join(ns, ".git"))).toBe(true);
     // At least one commit exists (git rev-list works).
     expect(gitLogCount(ns)).toBeGreaterThanOrEqual(1);
@@ -198,6 +206,10 @@ describe("DOGFOOD-005: rememberTool implicit-namespace write inits git", () => {
       embedding_text: "identity check",
       namespace: nsName,
     });
+
+    // OPS-006: the implicit-namespace commit runs off the event loop — wait
+    // for the chain so `git config` has actually been written.
+    await drainAsyncCommits();
 
     // The repo must have user.email + user.name set so future commits work.
     const email = execSync("git config user.email", {

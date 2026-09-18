@@ -28,6 +28,7 @@ import http from "http";
 import type { AddressInfo } from "net";
 import type { Server } from "http";
 import { createHealthHandler, createHttpServer } from "./http";
+import { drainAsyncCommits } from "../git/autocommit";
 import { readFromJsonl } from "../storage/jsonl";
 
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH as string;
@@ -58,7 +59,12 @@ afterAll(async () => {
   }
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  // OPS-006: commits run off the event loop, so a namespace written by the
+  // previous test may still have a git child working inside it. Let that
+  // settle before deleting the tree — removing a namespace mid-commit leaves
+  // .git/ non-empty (ENOTEMPTY).
+  await drainAsyncCommits();
   fs.writeFileSync(
     CONFIG_PATH,
     JSON.stringify({ durability: { overrides: { nsA: "fsync" } } }),

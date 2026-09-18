@@ -1291,3 +1291,30 @@ tasks:
   status: complete
   created_at: '2026-09-17T09:15:04.623894+00:00'
   completed_at: '2026-09-17T09:51:21.780760+00:00'
+- id: OPS-006
+  title: 'P1 - /health hangs during in-flight namespace S3 push: make the serving-path
+    namespace auto-commit/push non-blocking'
+  criteria:
+  - 'Event-loop proof: a hermetic suite patches the synchronous child-process primitive
+    (execSync/spawnSync) so it blocks ~1500ms and asserts a heartbeat timer on the
+    SAME event loop still fires within 250ms while the namespace commit+push path
+    runs (RED pre-fix: heartbeat delayed >=1500ms or never fires). Suite must be shown
+    RED against pre-fix code.'
+  - 'Serving path non-blocking: no synchronous child-process spawn (execSync/spawnSync)
+    remains reachable from the HTTP/serving write path (debounced commit timer, line-cap
+    flush, first-write git-init path); the only remaining synchronous spawns are the
+    process-exit flush path used by short-lived CLI processes, documented in-code.'
+  - 'Push preserved: with a scratch namespace git repo whose remote is a local bare
+    repo, a namespace write produces a local commit AND the bare remote ref advances
+    to it (AUTOPUSH-001 parity kept).'
+  - 'CLI parity: a short-lived CLI process (duckbrain remember against a scratch namespace
+    with a bare remote) still pushes before exit - the remote ref advances after the
+    process has exited (DOGFOOD-005 exit-flush contract intact).'
+  - 'Bounded and fail-safe: the push keeps a timeout bound (<=30000ms), failures are
+    logged and swallowed (never thrown into the write path), and commit batching/debounce
+    semantics are unchanged.'
+  - 'Gates and docs: npx vitest run green, npx tsc --noEmit exit 0, npx prettier --check
+    src/ clean, integration suite green, and the AGENTS.md count lines synced to the
+    live suite in the same commit (foreman handles AGENTS.md).'
+  status: in_progress
+  created_at: '2026-09-18T04:53:56.706676+00:00'

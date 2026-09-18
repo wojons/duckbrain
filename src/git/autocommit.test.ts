@@ -5,6 +5,7 @@ import path from "path";
 import { execSync } from "child_process";
 import {
   commitNamespaceWithParams,
+  drainAsyncCommits,
   flushAllCommits,
   flushNamespaceCommit,
   selectPushRemote,
@@ -61,7 +62,7 @@ describe("autocommit batching", () => {
     vi.useRealTimers();
   });
 
-  it("debounces a burst of writes into one commit", () => {
+  it("debounces a burst of writes into one commit", async () => {
     const ns = makeTempNamespace();
     initGitRepo(ns);
     try {
@@ -76,6 +77,9 @@ describe("autocommit batching", () => {
       expect(commitCount(ns)).toBe(0);
 
       vi.advanceTimersByTime(30_000);
+      // OPS-006: the fired window now commits ASYNCHRONOUSLY (off the event
+      // loop) — wait for the in-flight chain before reading the history.
+      await drainAsyncCommits();
       expect(commitCount(ns)).toBe(1);
 
       // All three files landed in the single commit.
@@ -93,7 +97,7 @@ describe("autocommit batching", () => {
     }
   });
 
-  it("commits immediately when the line threshold is hit", () => {
+  it("commits immediately when the line threshold is hit", async () => {
     const ns = makeTempNamespace();
     initGitRepo(ns);
     try {
@@ -107,15 +111,16 @@ describe("autocommit batching", () => {
       expect(commitCount(ns)).toBe(0);
 
       writeRecord(ns, "b.txt", "two");
-      commitNamespaceWithParams(ns, "chore: test", tight);
-      // 2 calls >= maxLines 2 → immediate commit.
+      // 2 calls >= maxLines 2 → flush now. OPS-006: the flush is async, so
+      // await the promise this call returns (the chain promise).
+      await commitNamespaceWithParams(ns, "chore: test", tight);
       expect(commitCount(ns)).toBe(1);
     } finally {
       fs.rmSync(ns, { recursive: true, force: true });
     }
   });
 
-  it("commits per write when batching is disabled", () => {
+  it("commits per write when batching is disabled", async () => {
     const ns = makeTempNamespace();
     try {
       const immediate: BatchingParams = {
@@ -124,9 +129,11 @@ describe("autocommit batching", () => {
         enabled: false,
       };
       writeRecord(ns, "a.txt", "one");
-      commitNamespaceWithParams(ns, "chore: test", immediate);
+      // OPS-006: batching-disabled writes still commit one-per-write, but the
+      // commit happens off the event loop — await each triggered chain.
+      await commitNamespaceWithParams(ns, "chore: test", immediate);
       writeRecord(ns, "b.txt", "two");
-      commitNamespaceWithParams(ns, "chore: test", immediate);
+      await commitNamespaceWithParams(ns, "chore: test", immediate);
       expect(commitCount(ns)).toBe(2);
     } finally {
       fs.rmSync(ns, { recursive: true, force: true });

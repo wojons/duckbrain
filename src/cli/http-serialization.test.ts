@@ -10,6 +10,7 @@ import {
   resetSerializerStateForTests,
   setSerializerAuthorizationHook,
 } from "../serialization/namespaceWriter";
+import { drainAsyncCommits } from "../git/autocommit";
 
 const root = process.env.DUCKBRAIN_NAMESPACES_PATH as string;
 const configPath = process.env.DUCKBRAIN_CONFIG_PATH as string;
@@ -95,8 +96,13 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   resetSerializerStateForTests();
+  // OPS-006: commits run off the event loop now, so a previous test's
+  // namespace can still have a `git add -A` in flight. Let those settle before
+  // deleting the directories — removing a namespace mid-commit races the git
+  // child and leaves .git/ non-empty (ENOTEMPTY).
+  await drainAsyncCommits();
   fs.writeFileSync(
     configPath,
     JSON.stringify({

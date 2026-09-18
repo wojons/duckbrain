@@ -41,6 +41,7 @@ import { forgetTool } from "./forget";
 import { createNamespaceTool } from "./namespace";
 import { getCompactionStatsTool, squashTool } from "./squash";
 import { updateConfig } from "../../config/index";
+import { drainAsyncCommits } from "../../git/autocommit";
 
 // The config file the tools actually use: the GAP-022 env override when the
 // suite set it (src/test-setup.ts), else the repo-root file as fallback.
@@ -59,7 +60,7 @@ beforeEach(() => {
     : "";
 });
 
-afterEach(() => {
+afterEach(async () => {
   // Restore the (temp) config file so the test never leaks mappings or a
   // switched defaultNamespace.
   if (configSnapshot) {
@@ -67,6 +68,10 @@ afterEach(() => {
   } else if (fs.existsSync(CONFIG_PATH)) {
     fs.unlinkSync(CONFIG_PATH);
   }
+  // OPS-006: commits run off the event loop, so a namespace may still have a
+  // git child working inside it. Let that settle before deleting the tree —
+  // removing a namespace mid-commit leaves .git/ non-empty (ENOTEMPTY).
+  await drainAsyncCommits();
   // Remove scratch namespace dirs (JSONL + git repos + DuckDB files).
   for (const name of createdNamespaces) {
     fs.rmSync(path.join(NS_ROOT, name), { recursive: true, force: true });

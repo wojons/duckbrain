@@ -13,6 +13,7 @@ import {
 } from "../serialization/audit";
 import { streamWithSqlRowCap } from "../auth/roles";
 import { hashApiKey } from "../auth/storeSchema";
+import { drainAsyncCommits } from "../git/autocommit";
 import { createHttpServer } from "./http";
 
 vi.mock("../mcp/tools/remember", async () => {
@@ -131,6 +132,10 @@ describe("SUPA-4 HTTP auth integration", () => {
   afterEach(async () => {
     await Promise.all(servers.splice(0).map(close));
     await flushDenialAuditsForTests();
+    // OPS-006: commits run off the event loop, so a namespace may still have a
+    // git child working inside it. Let that settle before deleting the tree —
+    // removing a namespace mid-commit leaves .git/ non-empty (ENOTEMPTY).
+    await drainAsyncCommits();
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

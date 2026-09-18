@@ -63,7 +63,7 @@ import {
   getDurabilityHealth,
   type DurabilityHealth,
 } from "../storage/durability.js";
-import { flushAllCommits } from "../git/autocommit.js";
+import { drainAsyncCommits, flushAllCommits } from "../git/autocommit.js";
 import {
   getEmbeddingHealth,
   type EmbeddingHealthResult,
@@ -929,6 +929,15 @@ export async function startHttpMode(
           // appends hook into drainDurableWrites() once it lands. Commit flush
           // last: it is the history transport, not the durability mechanism.
           await drainDurableWrites().catch(() => {});
+          // OPS-006: give async git work already in flight (commit + push
+          // spawned off the event loop) a bounded chance to land before the
+          // windows that never fired are flushed synchronously below. Bounded
+          // and best-effort by contract — shutdown never hangs on git.
+          try {
+            await drainAsyncCommits();
+          } catch {
+            // Git is best-effort — never block shutdown on it.
+          }
           try {
             flushAllCommits();
           } catch {
