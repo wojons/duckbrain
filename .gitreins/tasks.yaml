@@ -1418,13 +1418,3 @@ tasks:
   status: complete
   created_at: '2026-09-18T18:03:23.923103+00:00'
   completed_at: '2026-09-18T18:08:30.089237+00:00'
-- id: S3-GIT-003
-  title: Periodic forced full pass for S3 git-history
-  criteria:
-  - A healthy namespace whose state is older than the configured full-pass threshold
-    is pushed again after its remote is deleted; normal unchanged runs remain skipped;
-    weekly/unified wiring emits observable forced-pass evidence; harness and existing
-    S3 tests pass.
-  status: complete
-  created_at: '2026-09-18T20:39:32.145318+00:00'
-  completed_at: '2026-09-18T21:06:33.636428+00:00'
