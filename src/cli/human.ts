@@ -66,8 +66,16 @@ function parseArgs(args: string[]): {
 
   for (const arg of args) {
     if (arg.startsWith("--")) {
-      const [key, value] = arg.slice(2).split("=");
-      flags[key] = value || "true";
+      // CLI-TRUNC-001: split at the FIRST "=" only. `split("=")` returned
+      // every segment and the destructure kept the first two, so any value
+      // containing "=" (an assignment, a URL query string, base64 padding)
+      // was silently truncated at the first "=" (`--content="rc=1 dims=4096"`
+      // stored "rc"). indexOf keeps the whole remainder.
+      const body = arg.slice(2);
+      const eq = body.indexOf("=");
+      const key = eq === -1 ? body : body.slice(0, eq);
+      const value = eq === -1 ? undefined : body.slice(eq + 1);
+      flags[key] = value === undefined || value === "" ? "true" : value;
     } else if (arg.startsWith("-")) {
       // Short flags
       flags[arg.slice(1)] = "true";
