@@ -94,7 +94,7 @@ durability: z
 ## Dependencies
 
 - **DB-SUPA-2 (serialization layer)** — fsync/direct mode appends are enqueued through the SUPA-2 per-namespace single-writer and flushed with the SUPA-1 durability barrier; direct mode additionally requires SUPA-2's block-framed WAL records. SUPA-1's buffered semantics, header, and health surface are shippable without SUPA-2.
-- **DB-SUPA-7 (storage modes research note)** — informs measured expectations only; SUPA-1 does not block on it.
+- **DB-SUPA-7 (storage modes research note)** — informs measured expectations only; SUPA-1 does not block on it. See [`docs/specs/SUPA-7-storage-modes.md`](SUPA-7-storage-modes.md) for the measured latency/throughput distributions, the `O_DIRECT` support matrix on real filesystems, and bounded crash/torn-line observations.
 - **DB-SUPA-4 (roles + auth)** — role checks precede enqueue in the SUPA-2 serializer; the `X-Durability` header is set only on successful (2xx) write responses, so denied requests never emit it.
 - **Existing code referenced:** `appendToJsonl` + chunk rotation (`src/storage/jsonl.ts`), `gitBatching` debounce (`src/git/autocommit.ts`), `DuckBrainConfigSchema` (`src/config/index.ts`), `createHealthHandler` (`src/cli/http.ts:162`), error envelope via `ApiError` (`src/http/middleware/errorHandler.ts`).
 
