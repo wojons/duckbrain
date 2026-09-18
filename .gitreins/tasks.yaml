@@ -1405,3 +1405,15 @@ tasks:
   status: complete
   created_at: '2026-09-18T17:27:44.570801+00:00'
   completed_at: '2026-09-18T17:42:50.712110+00:00'
+- id: S3-GIT-005
+  title: 'S3-GIT-005: duplicate-bundle harness must print a per-case ledger and refuse
+    a clean green when its case set is incomplete'
+  criteria:
+  - scripts/s3/test-duplicate-bundle-repair.sh prints a per-case ledger (case id,
+    assertions run, PASS/FAIL/SKIP) and a total; any run where a case does not execute
+    its full assertion set is reported explicitly (SKIP/PARTIAL) and exits non-zero;
+    a normal run reports the full roster (cases A-G, 51 assertions) and exits 0; no
+    vitest files added; AGENTS.md counts unchanged; scripts/s3/README.md documents
+    the ledger
+  status: in_progress
+  created_at: '2026-09-18T18:03:23.923103+00:00'

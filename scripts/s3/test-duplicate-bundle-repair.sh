@@ -25,9 +25,19 @@
 #   E  a git-remote-s3 process is running     -> repair skipped, zero aws calls.
 #   F  every aws call fails                   -> repair logged and swallowed,
 #      the pass still completes with only the push failure.
+#   G  the quarantine copy lands TRUNCATED    -> the copy is size-checked, the
+#      original is NOT deleted, and the leftover is reported honestly.
 #
 # Usage: bash scripts/s3/test-duplicate-bundle-repair.sh
-#   exit 0 = every assertion PASS, non-zero = at least one FAIL.
+#   exit 0 = every assertion PASS AND the ROSTER below was fully satisfied;
+#   exit 1 = at least one assertion FAILed;
+#   exit 2 = precondition failure (missing push script / no real git-remote-s3);
+#   exit 3 = incomplete run: a case did not run, a case ran fewer assertions than
+#            the ROSTER declares, or a case ran that the ROSTER does not declare.
+#            Never reported as the green "harness: N passed, M failed" line.
+# Test-only: DUCKBRAIN_S3_HARNESS_SKIP_CASE=<id[,id...]> marks those cases SKIP
+# and skips their bodies. It exists so the roster contract can be proven without
+# editing this script, and it can only make a run LESS green (never exit 0).
 # Requires: git, and the real git-remote-s3 on PATH (the push script's own
 # precondition check must be satisfiable in the un-stubbed environment).
 set -euo pipefail
@@ -216,6 +226,65 @@ stamp_written() { # <file> — 1 when it holds a unix timestamp
 }
 file_or() { cat "$1" 2>/dev/null || echo "${2:-missing}"; }
 
+# ---- per-case ledger + roster contract (S3-GIT-005) ------------------------
+# The ledger records, per case, HOW MANY assertions ran and the OUTCOME, so a
+# run that silently executes fewer cases/assertions can never print a green
+# line. The ROSTER is the declared truth those numbers are checked against:
+# adding, removing or dropping an assertion inside a case is a visible edit
+# HERE, right next to the ledger logic.
+ROSTER_IDS=(A B C D E F G)
+ROSTER_COUNTS=(17 6 4 6 5 5 8)
+LEDGER_IDS=(); LEDGER_RAN=(); LEDGER_OUTCOME=(); LEDGER_REASON=()
+CASE_ID=""; CASE_START_OK=0; CASE_START_BAD=0
+SKIP_ENV="DUCKBRAIN_S3_HARNESS_SKIP_CASE"
+
+case_skip_requested() { # <id> — test-only forcing hook (see SKIP_ENV above)
+  case ",${DUCKBRAIN_S3_HARNESS_SKIP_CASE:-}," in
+    *",$1,"*) return 0 ;;
+  esac
+  return 1
+}
+
+case_begin() { # <id> — open a case; assertions are counted against this mark
+  CASE_ID="$1"
+  CASE_START_OK="$n_ok"
+  CASE_START_BAD="$n_bad"
+}
+
+case_end() { # <id> [SKIP [reason]] — close the case and record it in the ledger
+  local id="$1" forced="${2:-}" reason="${3:-}" ran outcome
+  if [ "$forced" = "SKIP" ]; then
+    ran=0; outcome="SKIP"
+  else
+    ran=$(( (n_ok - CASE_START_OK) + (n_bad - CASE_START_BAD) ))
+    outcome="PASS"
+    if [ "$n_bad" -gt "$CASE_START_BAD" ]; then outcome="FAIL"; fi
+  fi
+  LEDGER_IDS+=("$id"); LEDGER_RAN+=("$ran")
+  LEDGER_OUTCOME+=("$outcome"); LEDGER_REASON+=("$reason")
+  CASE_ID=""
+}
+
+roster_index() { # <id> — position of <id> in ROSTER_IDS, or -1
+  local i n
+  n="${#ROSTER_IDS[@]}"; i=0
+  while [ "$i" -lt "$n" ]; do
+    if [ "${ROSTER_IDS[$i]}" = "$1" ]; then printf '%s' "$i"; return 0; fi
+    i=$((i+1))
+  done
+  printf '%s' "-1"
+}
+
+ledger_index() { # <id> — position of <id> in the ledger, or -1
+  local i n
+  n="${#LEDGER_IDS[@]}"; i=0
+  while [ "$i" -lt "$n" ]; do
+    if [ "${LEDGER_IDS[$i]}" = "$1" ]; then printf '%s' "$i"; return 0; fi
+    i=$((i+1))
+  done
+  printf '%s' "-1"
+}
+
 # ---- per-case scaffolding --------------------------------------------------
 case_dir() { # case_dir <label> <ns-name>
   C="$S/$1"
@@ -284,6 +353,10 @@ if [ "${LIVE_HELPERS:-0}" -gt 0 ]; then
 fi
 
 echo "=== CASE A — two bundles, stale sha present locally ==="
+case_begin A
+if case_skip_requested A; then
+  case_end A SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseA ns-dup
 NSDIR="$(mk_ns "$C/namespaces" ns-dup 2)"
 STALE_SHA="$(git -C "$NSDIR" rev-list --max-parents=0 HEAD | head -1)"   # NOT the tip
@@ -330,7 +403,14 @@ assert_eq "A: the quarantined copy carries the source size" 1 \
 assert_eq "A: ignored objects (LOCK#/.zip/PROTECTED#//LOCKS/) were left alone" 4 \
   "$(grep -c -e 'LOCK#.lock' -e 'repo.zip' -e 'PROTECTED#master' -e 'LOCKS/heads/master' "$AWS_STATE" || true)"
 
+case_end A
+fi
+
 echo "=== CASE B — stale sha NOT present locally ==="
+case_begin B
+if case_skip_requested B; then
+  case_end B SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseB ns-stale
 NSDIR="$(mk_ns "$C/namespaces" ns-stale 2)"
 TIP_SHA="$(git -C "$NSDIR" rev-parse HEAD)"
@@ -348,7 +428,14 @@ assert_has "B: honest leftover report" "$B_LOG" "repair ns-stale: still 2 bundle
 assert_ge "B: the push still ran" "1" "$(file_lines "$HELPER_CALLS")"
 assert_eq "B: both bundles are still there" 2 "$(state_bundles "$REFKEY/" | grep -c . || true)"
 
+case_end B
+fi
+
 echo "=== CASE C — exactly one bundle (idempotent no-op) ==="
+case_begin C
+if case_skip_requested C; then
+  case_end C SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseC ns-one
 NSDIR="$(mk_ns "$C/namespaces" ns-one 1)"
 TIP_SHA="$(git -C "$NSDIR" rev-parse HEAD)"
@@ -364,7 +451,14 @@ assert_has "C: says so at the normal log level" "$C_LOG" \
   "repair ns-one: 1 bundle under refs/heads/master (ok, nothing to repair)"
 assert_lacks "C: no quarantine line" "$C_LOG" "quarantined"
 
+case_end C
+fi
+
 echo "=== CASE D — non-s3:// template: guard skipped, zero aws calls ==="
+case_begin D
+if case_skip_requested D; then
+  case_end D SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseD ns-file
 NSDIR="$(mk_ns "$C/namespaces" ns-file 1)"
 git init -q --bare -b master "$C/remotes/ns-file"
@@ -378,7 +472,14 @@ assert_eq "D: ZERO aws calls" 0 "$(count_matches "$AWS_CALLS" '.')"
 assert_eq "D: the remote helper was never invoked" 0 "$(file_lines "$HELPER_CALLS")"
 assert_lacks "D: no repair activity logged at all" "$D_LOG" "repair"
 
+case_end D
+fi
+
 echo "=== CASE E — a git-remote-s3 helper for THIS namespace is already running ==="
+case_begin E
+if case_skip_requested E; then
+  case_end E SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseE ns-busy
 NSDIR="$(mk_ns "$C/namespaces" ns-busy 2)"
 STALE_SHA="$(git -C "$NSDIR" rev-list --max-parents=0 HEAD | head -1)"
@@ -408,7 +509,14 @@ assert_eq "E: both bundles untouched" 2 "$(state_bundles "$REFKEY/" | grep -c . 
 kill "$HELPER_PID" 2>/dev/null || true
 HELPER_PID=""
 
+case_end E
+fi
+
 echo "=== CASE F — every aws call fails: the repair never fails the pass ==="
+case_begin F
+if case_skip_requested F; then
+  case_end F SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseF ns-flaky
 NSDIR="$(mk_ns "$C/namespaces" ns-flaky 2)"
 STALE_SHA="$(git -C "$NSDIR" rev-list --max-parents=0 HEAD | head -1)"
@@ -428,7 +536,14 @@ assert_eq "F: the completion stamp is still written" 1 \
 assert_eq "F: nothing was deleted while aws was down" 2 \
   "$(state_bundles "$REFKEY/" | grep -c . || true)"
 
+case_end F
+fi
+
 echo "=== CASE G — the quarantine copy lands TRUNCATED: the original must survive ==="
+case_begin G
+if case_skip_requested G; then
+  case_end G SKIP "forced by $SKIP_ENV (test-only)"
+else
 case_dir caseG ns-short
 NSDIR="$(mk_ns "$C/namespaces" ns-short 2)"
 STALE_SHA="$(git -C "$NSDIR" rev-list --max-parents=0 HEAD | head -1)"
@@ -449,7 +564,70 @@ assert_eq "G: the (short) quarantine copy was kept" 1 \
 assert_eq "G: no quarantine summary line (nothing was pruned)" 0 \
   "$(grep -c -e 'quarantined' <<< "$G_LOG" || true)"
 
+case_end G
+fi
+
 echo "-----"
+echo "case ledger:"
+i=0
+while [ "$i" -lt "${#LEDGER_IDS[@]}" ]; do
+  printf 'case %s: %s assertions %s\n' "${LEDGER_IDS[$i]}" "${LEDGER_RAN[$i]}" "${LEDGER_OUTCOME[$i]}"
+  i=$((i+1))
+done
+
+# ---- roster contract: an incomplete case set is never green ----------------
+incomplete=0
+cases_ran=0; asserts_ran=0
+cases_total=0; asserts_total=0
+i=0
+while [ "$i" -lt "${#ROSTER_IDS[@]}" ]; do
+  rid="${ROSTER_IDS[$i]}"; rexp="${ROSTER_COUNTS[$i]}"
+  cases_total=$((cases_total+1))
+  asserts_total=$((asserts_total+rexp))
+  li="$(ledger_index "$rid")"
+  if [ "$li" -lt 0 ]; then
+    echo "PARTIAL: case $rid did not run (0/$rexp assertions)"
+    incomplete=1
+  elif [ "${LEDGER_OUTCOME[$li]}" = "SKIP" ]; then
+    echo "SKIP: case $rid — ${LEDGER_REASON[$li]:-skipped} (0/$rexp assertions)"
+    incomplete=1
+  else
+    rran="${LEDGER_RAN[$li]}"
+    cases_ran=$((cases_ran+1))
+    asserts_ran=$((asserts_ran+rran))
+    if [ "$rran" -lt "$rexp" ]; then
+      echo "PARTIAL: case $rid ran $rran/$rexp assertions"
+      incomplete=1
+    fi
+  fi
+  i=$((i+1))
+done
+
+# a case that ran but is not declared in the roster is a contract violation too
+i=0
+while [ "$i" -lt "${#LEDGER_IDS[@]}" ]; do
+  if [ "$(roster_index "${LEDGER_IDS[$i]}")" -lt 0 ]; then
+    echo "PARTIAL: case ${LEDGER_IDS[$i]} ran but is not declared in the roster"
+    incomplete=1
+  fi
+  i=$((i+1))
+done
+
+# ... and so is naming a case the roster does not have in the test-only knob
+for sid in $(printf '%s' "${DUCKBRAIN_S3_HARNESS_SKIP_CASE:-}" | tr ',' '\n'); do
+  if [ "$(roster_index "$sid")" -lt 0 ]; then
+    echo "PARTIAL: $SKIP_ENV names unknown case '$sid'"
+    incomplete=1
+  fi
+done
+
+echo "roster: $cases_ran/$cases_total cases, $asserts_ran/$asserts_total assertions"
+
+if [ "$incomplete" -ne 0 ]; then
+  echo "harness: INCOMPLETE — roster contract not satisfied (see SKIP/PARTIAL above); exit 3"
+  exit 3
+fi
+
 echo "harness: $n_ok passed, $n_bad failed"
 if [ "$n_bad" -gt 0 ]; then exit 1; fi
 exit 0

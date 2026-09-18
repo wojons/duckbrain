@@ -80,3 +80,59 @@ AWS_PROFILE=duckbrain AWS_ENDPOINT_URL=https://hel1.your-objectstorage.com \
 Only while no push is running: afterwards the ref holds two bundles again and
 the next pass repairs it again. The same command with the bucket/prefix of the
 `archives/git` (weekly) target restores that copy.
+
+## Harness output: per-case ledger + roster contract (`exit 3`)
+
+`test-duplicate-bundle-repair.sh` prints one `PASS:`/`FAIL:` line per assertion and
+then a per-case ledger, so a green total can never hide a case that did not run:
+
+```
+-----
+case ledger:
+case A: 17 assertions PASS
+case B: 6 assertions PASS
+case C: 4 assertions PASS
+case D: 6 assertions PASS
+case E: 5 assertions PASS
+case F: 5 assertions PASS
+case G: 8 assertions PASS
+roster: 7/7 cases, 51/51 assertions
+harness: 51 passed, 0 failed
+```
+
+The **roster** — the expected case ids and their expected assertion counts
+(`A=17 B=6 C=4 D=6 E=5 F=5 G=8`, 51 total) — is declared inside the script, next
+to the ledger logic. Dropping an assertion from a case, or losing a whole case,
+is therefore caught by the contract instead of being discovered later:
+
+```
+PARTIAL: case A ran 16/17 assertions
+PARTIAL: case C did not run (0/4 assertions)
+```
+
+Exit codes:
+
+| code | meaning |
+|------|---------|
+| 0 | every assertion PASS **and** the roster was fully satisfied |
+| 1 | at least one assertion FAILed |
+| 2 | precondition failure (missing `duckbrain-s3-push.sh`, or the real `git-remote-s3` is not on `PATH`) |
+| 3 | **incomplete run** — a case did not run, a case ran fewer assertions than the roster declares, a case ran that the roster does not declare, or the skip hook names an unknown case. The green `harness: N passed, M failed` line is never printed for these: the final line is `harness: INCOMPLETE — roster contract not satisfied (see SKIP/PARTIAL above); exit 3`. |
+
+### Test-only skip hook
+
+`DUCKBRAIN_S3_HARNESS_SKIP_CASE` (comma-separated case ids) marks those cases
+`SKIP` and skips their bodies. It exists so the roster contract can be exercised
+without editing the script, and it can only make a run *less* green:
+
+```bash
+$ DUCKBRAIN_S3_HARNESS_SKIP_CASE=G bash scripts/s3/test-duplicate-bundle-repair.sh
+case G: 0 assertions SKIP
+SKIP: case G — forced by DUCKBRAIN_S3_HARNESS_SKIP_CASE (test-only) (0/8 assertions)
+roster: 6/7 cases, 43/51 assertions
+harness: INCOMPLETE — roster contract not satisfied (see SKIP/PARTIAL above); exit 3
+$ echo $?
+3
+```
+
+Normal runs must not set it.
