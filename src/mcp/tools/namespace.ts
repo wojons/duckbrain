@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { getConfig, updateConfig, registerNamespace } from "../../config/index";
-import { execSync } from "child_process";
+import { runGitAsync } from "../../git/exec";
 import fs from "fs";
 import path from "path";
 import { deleteNamespace } from "../../namespaces/delete";
@@ -130,9 +130,19 @@ export async function createNamespaceTool(
     // Create namespace directory
     fs.mkdirSync(nsPath, { recursive: true });
 
-    // Initialize git repo
+    // Initialize git repo.
+    //
+    // OPS-007: bounded ASYNC spawn (src/git/exec.ts) — this ran through
+    // `execSync` on the POST /api/namespaces path, so a slow or wedged
+    // `git init` parked the event loop for every other route, /health
+    // included. Best-effort semantics are unchanged: a failing or timed-out
+    // init still warns and the namespace is still created.
     try {
-      execSync("git init", { cwd: nsPath, stdio: "pipe" });
+      await runGitAsync(["init"], nsPath, {
+        // Finite per-git bound; a fresh-dir init is milliseconds.
+        timeoutMs: 10_000,
+        maxBufferBytes: 1024 * 1024,
+      });
     } catch (gitError) {
       console.warn(
         `Warning: Could not init git: ${(gitError as Error).message}`,

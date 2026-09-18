@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { execSync } from "child_process";
+import { runGitAsync } from "../../git/exec";
 import { listNamespacesTool } from "../../mcp/tools/namespace";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
@@ -15,18 +15,30 @@ import fs from "fs";
 
 const router: Router = Router();
 
+/** Finite per-git bound for one namespace's author scan (was the execSync timeout). */
+const GIT_LOG_TIMEOUT_MS = 5000;
+/** Bounded output: a chatty/looping log cannot grow the capture without limit. */
+const GIT_LOG_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+
 /**
  * Extract unique authors from a git repository using git log.
  * Returns empty array if git is unavailable or repo has no commits.
+ *
+ * OPS-007: the spawn is bounded AND asynchronous (src/git/exec.ts) — it used
+ * to be `execSync` inside the GET /users handler loop, so one slow namespace
+ * repo stalled the event loop (and /health) for the whole scan. The caller
+ * awaits it sequentially, which keeps the previous per-namespace semantics
+ * while leaving the loop free between namespaces. Never rejects: a git error,
+ * timeout or empty log yields [] and the route falls back to DuckDB.
  */
-function getAuthorsFromGit(repoPath: string): string[] {
+async function getAuthorsFromGit(repoPath: string): Promise<string[]> {
   try {
-    const output = execSync("git log --all --format=%aN", {
-      cwd: repoPath,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 5000,
-    }).trim();
+    const output = (
+      await runGitAsync(["log", "--all", "--format=%aN"], repoPath, {
+        timeoutMs: GIT_LOG_TIMEOUT_MS,
+        maxBufferBytes: GIT_LOG_MAX_BUFFER_BYTES,
+      })
+    ).trim();
 
     if (!output) return [];
 
@@ -134,8 +146,10 @@ router.get(
     const allAuthors = new Set<string>();
 
     for (const ns of namespacesResult.namespaces) {
-      // Try git log first (commit history approach)
-      const gitAuthors = getAuthorsFromGit(ns.path);
+      // Try git log first (commit history approach). OPS-007: async — the
+      // scan awaits each namespace in turn, so the event loop (and /health)
+      // stays free while a slow repo's `git log` runs.
+      const gitAuthors = await getAuthorsFromGit(ns.path);
       if (gitAuthors.length > 0) {
         for (const author of gitAuthors) {
           allAuthors.add(author);
