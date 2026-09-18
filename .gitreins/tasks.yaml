@@ -1415,5 +1415,6 @@ tasks:
     a normal run reports the full roster (cases A-G, 51 assertions) and exits 0; no
     vitest files added; AGENTS.md counts unchanged; scripts/s3/README.md documents
     the ledger
-  status: in_progress
+  status: complete
   created_at: '2026-09-18T18:03:23.923103+00:00'
+  completed_at: '2026-09-18T18:08:30.089237+00:00'
