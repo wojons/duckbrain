@@ -135,6 +135,7 @@ Authentication credentials can be stored in `~/.duckbrain/auth.json`:
 | `users` | For `basic` auth | Array of username/passwordHash objects (bcrypt hashes) |
 | `apiKeys` | For `apikey` auth | Array of key/name objects |
 | `apiKeys[].namespaces` | No | Per-token namespace grants (DB-GAP-031): when present, the token may only access these namespaces (403 otherwise); absent = unrestricted. Mint scoped tokens with `duckbrain token --namespace=<ns>[,<ns>...]` (repeatable). |
+| `apiKeys[].roles` | No | Per-token role grants (SUPA-4): one or more of `admin`, `writer`, `analyst`, `uploader`; a multi-role token holds the union of its roles' grants and `admin` bypasses per-table grants. Absent = admin-equivalent (backward compatible). Mint with `duckbrain token --role=<role>` (repeatable; `--role=<r>` and `--role <r>` both accepted). |
 
 ### Alternate Auth Store Path (`--auth-file`, DB-GAP-043)
 
@@ -153,8 +154,12 @@ Precedence: `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env > the default
 consulted at all; the override file must exist and parse or the server
 refuses to start (exit non-zero). With no override, behavior is unchanged.
 The override is runtime-only and is never written back into any file
-(same philosophy as `DUCKBRAIN_CONFIG_PATH`). `duckbrain token` minting is
-unaffected — it always writes to `~/.duckbrain/auth.json`.
+(same philosophy as `DUCKBRAIN_CONFIG_PATH`). `duckbrain token` resolves the
+same override when minting — `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env >
+the default `~/.duckbrain/auth.json` (DOGFOOD-026). An explicit `--auth-file`
+that is missing or unparseable is a fatal error, so a minted token is never
+silently written to the production store; the env form is created on first
+mint.
 
 ### Author Stamping
 

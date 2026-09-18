@@ -1351,7 +1351,7 @@ duckbrain token --name=agent-alpha --namespace=my-project,chat-archive
 duckbrain token --name=agent-alpha --namespace=my-project --namespace=chat-archive
 ```
 
-The command prints the token and records the grants in `~/.duckbrain/auth.json`:
+The command prints the token and records the grants in the resolved auth store (default `~/.duckbrain/auth.json`):
 
 ```json
 {
@@ -1360,6 +1360,37 @@ The command prints the token and records the grants in `~/.duckbrain/auth.json`:
   ]
 }
 ```
+
+**Role grants (`--role`).** `duckbrain token --role=<role>` grants SUPA-4 roles (spec: `docs/specs/SUPA-4-auth.md`) to the token. Valid roles are exactly `admin`, `writer`, `analyst`, and `uploader`; the flag is repeatable and accepts both `--role=<role>` and the space form `--role <role>`. Absent = `["admin"]` (backward-compatible default). A token with several grants holds the union of them:
+
+```bash
+duckbrain token --name=agent-readonly --role=analyst
+duckbrain token --name=agent-pipeline --role=writer --role=uploader
+duckbrain token --name=agent-pipeline --role writer --role uploader   # space form
+```
+
+An unknown role is **fatal before minting**: the command prints
+`Unknown role: <v>. Valid roles: admin, writer, analyst, uploader.` to stderr,
+exits `1`, and never writes the auth store. The minted entry stores
+`roles: [...]`, e.g. `{ "key": "<generated>", "name": "agent-pipeline", "roles": ["writer", "uploader"] }`.
+
+| Role | `tables.read` | `tables.write` | `files.read` | `files.upload` | `sql.read` | `sql.write` |
+|------|:-------------:|:--------------:|:------------:|:--------------:|:----------:|:-----------:|
+| `admin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `writer` | ✓ | ✓ | — | — | ✓ | ✓ |
+| `analyst` | ✓ | — | ✓ | — | ✓ | ✓ |
+| `uploader` | ✓ | — | ✓ | ✓ | — | — |
+
+Precedence rules (SUPA-4): a multi-role token holds the **union** of its roles'
+grants; an explicit `tableGrants` map **restricts** a non-admin role's default
+(a table missing from the map is denied even when the role would allow it);
+`admin` bypasses per-table grants; a token with no `roles` field (pre-SUPA-4
+shape) is admin-equivalent; and namespace scope is orthogonal to roles — see
+[Per-Token Namespace Grants](#per-token-namespace-grants).
+
+Minting writes to the auth store resolved by `--auth-file` /
+`DUCKBRAIN_AUTH_FILE` (falling back to `~/.duckbrain/auth.json`) — see
+[Custom Auth Store Path](#custom-auth-store-path---auth-file).
 
 #### Author Stamping
 

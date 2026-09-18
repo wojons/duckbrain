@@ -228,6 +228,45 @@ The process PID is stored at `~/.duckbrain/duckbrain.pid` and logs go to `~/.duc
 
 DuckBrain supports SSH tunnels for securely connecting to remote DuckBrain instances. The tunnel forwards a remote HTTP server port to a local Unix socket.
 
+### Pre-Flight Check (`ssh-test`)
+
+Before creating a tunnel, confirm the target host and see the exact commands the tunnel will use. `ssh-test` is a dry pre-flight: it opens **no** SSH connection and touches no remote state.
+
+```bash
+node bin/duckbrain.js ssh-test --host=user@server
+# installed binary: duckbrain ssh-test --host=user@server
+```
+
+It prints the host, the remote stdio command, and a ready-to-paste Claude Desktop `claude_desktop_config.json` MCP entry:
+
+```
+SSH Tunnel Test
+===============
+Host: user@server
+
+To connect via SSH tunnel:
+  ssh user@server "duckbrain stdio"
+
+For Claude Desktop config, add to claude_desktop_config.json:
+  {
+    "mcpServers": {
+      "duckbrain": {
+        "command": "ssh",
+        "args": ["user@server", "duckbrain", "stdio"]
+      }
+    }
+  }
+```
+
+| Behavior | Detail |
+|----------|--------|
+| `--host` | Required (`--host=<user@server>`) |
+| Missing `--host` | Prints `Usage: duckbrain ssh-test --host=<user@server>` to stderr and exits `1` |
+| Connection | None — safe to run against an unreachable or not-yet-configured host |
+| Exit code | `0` when a host is supplied |
+
+Run this check first, then create the actual tunnel with `ssh-connect` below.
+
 ### Creating a Tunnel
 
 ```bash

@@ -117,6 +117,17 @@ cd packages/ui
 pnpm run dev
 ```
 
+### Remote Access over SSH
+
+DuckBrain can be reached through an SSH tunnel. Run the dry pre-flight `duckbrain ssh-test --host=<user@server>` first — it opens no connection and prints the exact remote command plus a ready-to-paste Claude Desktop MCP entry; `ssh-connect` then creates the local socket-backed tunnel:
+
+```bash
+duckbrain ssh-test --host=user@server        # pre-flight: prints tunnel command + MCP config, exits 0
+duckbrain ssh-connect --host=user@server --name=prod
+```
+
+See [docs/guide/deployment.md](docs/guide/deployment.md) for the full tunnel flow (socket paths, SSH flags, lifecycle, remote CLI execution).
+
 ### Native S3 Storage Tier (opt-in)
 
 DuckBrain can back memory onto any S3-compatible object store (Hetzner Object Storage, MinIO, AWS S3, …) as a first-class storage tier: incremental sync, push-on-commit, SQL over S3 via DuckDB's httpfs extension, and multi-host memory (pull on another machine = DR + shared memory). The module is **inert by default** (`s3.enabled: false`); activate it by setting `s3.enabled: true` in `duckbrain.config.json`:
