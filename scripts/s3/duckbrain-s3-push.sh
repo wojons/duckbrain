@@ -101,6 +101,194 @@ state_write() {
   mv -f "$tmp" "$f"
 }
 
+# ---- S3-GIT-004: duplicate-bundle ref repair --------------------------------
+# A ref on the remote is a DIRECTORY holding one bundle per tip:
+#   <prefix>/<repo>/refs/heads/<branch>/<tipsha>.bundle
+# Two racing pushes can each write a bundle with a DIFFERENT tip sha, leaving
+# two objects under one ref. From then on every push to that ref is refused
+# ("multiple bundles exists on server") and it never self-heals — the upstream
+# per-ref lock is not reliable on S3-compatible endpoints. So converge by
+# DETECTING and REPAIRING: quarantine the stale bundle OUTSIDE the ref tree
+# (size-verified), then delete it from the ref path. See scripts/s3/README.md.
+#
+# Rules that matter:
+#   * only for s3:// URLs — a file:// target makes ZERO aws calls;
+#   * every failure is logged and swallowed: a repair never fails the pass;
+#   * a bundle whose sha is not in the LOCAL repo is never deleted.
+_s3_split_url() {
+  local rest="${1#s3://}"
+  _S3_BUCKET="${rest%%/*}"
+  case "$rest" in
+    */*) _S3_KEYPREFIX="${rest#*/}"; _S3_KEYPREFIX="${_S3_KEYPREFIX%/}" ;;
+    *)   _S3_KEYPREFIX="" ;;
+  esac
+}
+
+# helper_running <namespace-url> — 0 = a git-remote-s3 process is pushing THIS
+# namespace's URL, 1 = none, 2 = the check could not be performed.
+# Two details make it safe and precise:
+#   * the helper execs its interpreter (python3), so a process-NAME match is
+#     useless. The argv read straight out of /proc is the exact, self-match-proof
+#     form — this script's own command line never names the helper as a token;
+#   * the check is scoped to OUR namespace's URL. A helper pushing a different
+#     namespace cannot add a bundle under our ref, and a host-wide check would
+#     stall repairs for as long as any other namespace is pushing (proven live:
+#     on this fleet the S3 layer keeps a helper alive for a minute at a time).
+helper_running() {
+  local url="$1" p cmd
+  command -v pgrep >/dev/null 2>&1 || return 2
+  [ -r /proc/self/cmdline ] || return 2
+  for p in $(pgrep -f 'git-remote-s3' 2>/dev/null || true); do
+    if [ "$p" = "$$" ] || [ "$p" = "$PPID" ]; then continue; fi
+    cmd="$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)" || continue
+    case "$cmd" in
+      *git-remote-s3*) ;;
+      *) continue ;;
+    esac
+    case "$cmd" in
+      *"$url"*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# _s3_list_ref_bundles <bucket> <ref-prefix> — one "key<TAB>LastModified<TAB>Size"
+# line per bundle under the ref directory (empty output = no bundle). Tab
+# separated because a namespace name may contain spaces. Excludes LOCK#/.lock/
+# PROTECTED#/.zip — exactly what the upstream helper's get_bundles_for_ref()
+# ignores. Returns non-zero when the listing itself failed.
+_s3_list_ref_bundles() {
+  local bucket="$1" prefix="$2" out
+  out="$(AWS_PROFILE="$AWS_PROFILE" aws --endpoint-url "$AWS_ENDPOINT_URL" \
+      s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" \
+      --query 'Contents[].[Key,LastModified,Size]' --output text 2>/dev/null)" || return 1
+  [ -n "$out" ] || return 0
+  printf '%s\n' "$out" | tr -d '\r' | awk -F'\t' '
+    NF >= 3 && $1 ~ /\.bundle$/ &&
+    $1 !~ /PROTECTED#/ && $1 !~ /LOCK#/ &&
+    index($1, ".zip") == 0 && index($1, "/LOCKS/") == 0 &&
+    $1 !~ /\.lock$/ { print }'
+}
+
+# repair_duplicate_bundles <url> <ns-name> <ns-dir> <branch> <local-tip> — best
+# effort, always returns 0. Prints its own log lines; a transient aws error is a
+# log line, not a failed pass. The namespace DIRECTORY is passed separately from
+# its NAME because the sha check runs against the local repo.
+repair_duplicate_bundles() {
+  local url="$1" ns="$2" nsdir="$3" branch="$4" tip="$5"
+  local bucket refprefix lines line stale sha qkey size qsize
+  local n=0 quarantined=0 shas=""
+
+  _s3_split_url "$url"
+  bucket="$_S3_BUCKET"
+  if [ -n "$_S3_KEYPREFIX" ]; then
+    refprefix="$_S3_KEYPREFIX/refs/heads/$branch/"
+  else
+    refprefix="refs/heads/$branch/"
+  fi
+
+  # A concurrent push can write a THIRD bundle while we prune: stand down.
+  helper_running "$url"
+  case "$?" in
+    0) log "repair $ns: skipped refs/heads/$branch (a git-remote-s3 process is already pushing this namespace — a concurrent push could add another bundle)"; return 0 ;;
+    2) log "repair $ns: skipped refs/heads/$branch (cannot check for a running git-remote-s3 process: pgrep unavailable)"; return 0 ;;
+  esac
+
+  lines="$(_s3_list_ref_bundles "$bucket" "$refprefix")" \
+    || { log "repair $ns: list failed for refs/heads/$branch (continuing)"; return 0; }
+  if [ -n "$lines" ]; then n="$(printf '%s\n' "$lines" | grep -c . || true)"; fi
+  if [ "$n" -eq 0 ]; then
+    log "repair $ns: no bundle under refs/heads/$branch yet (nothing to repair)"
+    return 0
+  fi
+  if [ "$n" -eq 1 ]; then
+    log "repair $ns: 1 bundle under refs/heads/$branch (ok, nothing to repair)"
+    return 0
+  fi
+
+  # keeper = the bundle whose sha IS the local branch tip (the local repo is the
+  # source of truth); if none matches, the newest by LastModified.
+  keeper=""
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    sha="$(printf '%s' "$line" | cut -f1)"; sha="${sha##*/}"; sha="${sha%.bundle}"
+    if [ "$sha" = "$tip" ]; then keeper="$(printf '%s' "$line" | cut -f1)"; fi
+  done <<< "$lines"
+  if [ -z "$keeper" ]; then
+    keeper="$(printf '%s\n' "$lines" | sort -t"$(printf '\t')" -k2 | tail -n1 | cut -f1)"
+    log "repair $ns: no bundle matches the local tip ${tip:0:12} under refs/heads/$branch — keeping the newest (${keeper##*/})"
+  fi
+  # never prune on a keeper we could not identify: that would delete the ref
+  if [ -z "$keeper" ]; then
+    log "repair $ns: could not identify a keeper under refs/heads/$branch — nothing deleted"
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    stale="$(printf '%s' "$line" | cut -f1)"
+    size="$(printf '%s' "$line" | cut -f3)"
+    if [ "$stale" = "$keeper" ]; then continue; fi
+    sha="${stale##*/}"; sha="${sha%.bundle}"
+    if ! git -C "$nsdir" cat-file -e "${sha}^{commit}" 2>/dev/null; then
+      log "repair-skip $ns: stale bundle $sha under refs/heads/$branch is NOT in the local repo — left alone"
+      continue
+    fi
+    qkey="quarantine/git/$ns/$branch/$sha.bundle"
+    if ! AWS_PROFILE="$AWS_PROFILE" aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp \
+        "s3://$bucket/$stale" "s3://$bucket/$qkey" >/dev/null 2>&1; then
+      log "repair $ns: quarantine copy failed for $sha (continuing, original kept)"
+      continue
+    fi
+    qsize="$(AWS_PROFILE="$AWS_PROFILE" aws --endpoint-url "$AWS_ENDPOINT_URL" \
+        s3api head-object --bucket "$bucket" --key "$qkey" \
+        --query 'ContentLength' --output text 2>/dev/null)" || qsize=""
+    if [ -z "$size" ] || [ -z "$qsize" ] || [ "$qsize" != "$size" ]; then
+      log "repair $ns: quarantine size mismatch for $sha (source=${size:-?} copy=${qsize:-?}) — original NOT deleted"
+      continue
+    fi
+    if ! AWS_PROFILE="$AWS_PROFILE" aws --endpoint-url "$AWS_ENDPOINT_URL" s3 rm \
+        "s3://$bucket/$stale" >/dev/null 2>&1; then
+      log "repair $ns: delete failed for $sha (quarantine copy kept) — continuing"
+      continue
+    fi
+    quarantined=$((quarantined+1)); shas="$shas ${sha:0:12}"
+  done <<< "$lines"
+
+  if [ "$quarantined" -gt 0 ]; then
+    log "repair $ns: quarantined $quarantined duplicate bundle(s) (${shas# })"
+  fi
+
+  # Assert exactly one bundle survives; if not, say so and let the push proceed
+  # (it will fail again — that is honest, we do not fabricate success).
+  if lines="$(_s3_list_ref_bundles "$bucket" "$refprefix")"; then
+    n=0
+    if [ -n "$lines" ]; then n="$(printf '%s\n' "$lines" | grep -c . || true)"; fi
+    if [ "$n" -ne 1 ]; then
+      log "repair $ns: still $n bundles after repair (refs/heads/$branch)"
+    fi
+  else
+    log "repair $ns: re-verify list failed for refs/heads/$branch (continuing)"
+  fi
+  return 0
+}
+
+# repair_ns_refs <url> <ns-name> <ns-dir> — repair the ref of every local branch
+# (the push does `--all`). No-op for a non-s3:// URL: zero aws calls.
+repair_ns_refs() {
+  local url="$1" nsname="$2" nsdir="$3" refname objname
+  case "$url" in
+    s3://*) : ;;
+    *) return 0 ;;
+  esac
+  while IFS=$'\t' read -r refname objname; do
+    if [ -n "${refname:-}" ]; then
+      repair_duplicate_bundles "$url" "$nsname" "$nsdir" "${refname#refs/heads/}" "$objname"
+    fi
+  done < <(git -C "$nsdir" for-each-ref --format=$'%(refname)\t%(objectname)' refs/heads 2>/dev/null)
+  return 0
+}
+
 if ! command -v git-remote-s3 >/dev/null 2>&1; then
   echo "FAIL: git-remote-s3 not on PATH"; log "FAIL: git-remote-s3 missing"; exit 1
 fi
@@ -143,6 +331,15 @@ for ns in "$NS_ROOT"/*/; do
   fi
 
   url="$(render_url "$URL_TEMPLATE" "$name")"
+
+  # S3-GIT-004 — converge a duplicate-bundle ref collision BEFORE pushing (the
+  # push would otherwise be rejected forever). Best effort: errexit is off for
+  # the repair, so a transient aws error can never abort the pass; it is a no-op
+  # with ZERO aws calls for a non-s3:// URL template.
+  if [[ "$url" == s3://* ]]; then
+    ( set +e; repair_ns_refs "$url" "$name" "$ns" ) || true
+  fi
+
   if git -C "$ns" remote get-url "$REMOTE_NAME" >/dev/null 2>&1; then
     git -C "$ns" remote set-url "$REMOTE_NAME" "$url"
   else

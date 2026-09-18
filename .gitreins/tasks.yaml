@@ -1382,3 +1382,25 @@ tasks:
   status: complete
   created_at: '2026-09-18T14:10:34.077805+00:00'
   completed_at: '2026-09-18T14:32:24.622993+00:00'
+- id: OPS-009
+  title: 'S3 git mirror: repair duplicate refs/heads/master bundles blocking push
+    for scheduler/default/hermes-canopy'
+  criteria:
+  - git ls-remote s3daily for scheduler/default/hermes-canopy each return exactly
+    ONE refs/heads/master; the stale duplicate bundle is quarantined outside the ref
+    tree (size-verified, reversible); a push lands and the remote tip advances to
+    the local tip; off-box clone of the namespace matches the local tip.
+  status: complete
+  created_at: '2026-09-18T17:25:07.298692+00:00'
+  completed_at: '2026-09-18T17:34:46.775867+00:00'
+- id: S3-GIT-004
+  title: S3 git layer self-heals duplicate-bundle ref collisions (quarantine + prune)
+  criteria:
+  - scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines
+    the stale bundle(s) outside the ref tree with size verification, deletes them
+    from the ref path, never deletes a bundle whose sha is missing locally, skips
+    the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp
+    contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing
+    test-push-backoff.sh stays green.
+  status: in_progress
+  created_at: '2026-09-18T17:27:44.570801+00:00'
