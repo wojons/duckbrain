@@ -1331,3 +1331,12 @@ tasks:
   status: complete
   created_at: '2026-09-18T09:57:11.963886+00:00'
   completed_at: '2026-09-18T10:09:49.339073+00:00'
+- id: OPS-007
+  title: Remove synchronous child spawns from HTTP routes
+  criteria:
+  - Namespace creation and users listing use bounded asynchronous git processes; no
+    synchronous child spawn reachable from these routes; tests prove behavior and
+    unaffected cheap-route latency; TypeScript, full suites, guard green
+  status: complete
+  created_at: '2026-09-18T11:22:34.565923+00:00'
+  completed_at: '2026-09-18T11:37:51.637243+00:00'
