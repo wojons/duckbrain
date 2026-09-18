@@ -1,0 +1,70 @@
+{
+  "task_id": "DB-SUPA-8-526",
+  "task_title": "Apply SUPA-8 positioning contract to public docs",
+  "task_criteria": [
+    "README and docs/guide/positioning.md implement the approved positioning contract; tests and source-backed citations pass"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "5729a10aae47a3e68766014b30070b5e67b131fc",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m8:11AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8711357 bytes (8.71 MB) in 2.04s\u001b[0m\n\u001b[90m8:11AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:11AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8711357 bytes (8.71 MB) in 2.04s\u001b[0m\n\u001b[90m8:11AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  08:11:07\n   Duration  130.01s (transform 4.95s, setup 2.88s, import 45.24s, tests 450.63s, environment 16ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 README and docs/guide/positioning.md implement the approved positioning contract; tests and source-backed citations pass: README.md:18-56 and docs/guide/positioning.md implement the SUPA-8 contract: the approved one-sentence category statement appears verbatim (README.md:20; positioning.md:3-8; docs/index.md:11) matching docs/specs/SUPA-8-positioning.md; the four-status capability matrix (Available now / Implemented-release-evidence-pending / Implemented on branch / Planned / Non-goal) is at positioning.md:80-95 with README's compact version at :26-56; the long matrix has a single owner (only positioning.md, README compact, and the spec contain 'Available now'; ai-configure.md and http-api.md do not duplicate it); prohibited phrasings appear only inside the deny-list section (positioning.md:216-217), never as claims. Source-backed citations verified against real code: src/git/asof.ts:126 resolveAsOfRef, :212 readRowsAtRef, :361 queryMemoriesAtRef; src/git/autocommit.ts:287 git init, :352 commitNamespaceWithParams, :407 flushNamespaceCommit, :181-183/:325-327 maybeSyncOnCommit; src/cli/http.ts:477-481 route mounts; AGENTS.md:5-16 and :18-25; src/auth/{middleware,roles}.ts plus roles.test.ts/token-lifecycle.test.ts/backend-interface.test.ts exist; src/serialization/{namespaceWriter,audit,auditLedger}.ts exist; s3.enabled defaults false (src/config/index.ts:239,258). Tests run fresh: `npx vitest run` exit_code 0 with 'Test Files 149 passed (149)' and 'Tests 1168 passed (1168)'; targeted `npx vitest run src/git/asof.test.ts` exit_code 0 with 'Tests 17 passed (17)'. Caveat: the spec's named checks docs-positioning.test.mjs and scripts/verify-doc-links.mjs were never created in the repo, so the contract's own automated doc-lint is absent; the repo's actual suite passes and every citation was manually confirmed against source, so the criterion's substance holds.\nREADME and docs/guide/positioning.md faithfully implement the SUPA-8 positioning contract with verified source citations, and the full vitest suite passes (149 files / 1168 tests, exit 0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 README and docs/guide/positioning.md implement the approved positioning contract; tests and source-backed citations pass: README.md:18-56 and docs/guide/positioning.md implement the SUPA-8 contract: the approved one-sentence category statement appears verbatim (README.md:20; positioning.md:3-8; docs/index.md:11) matching docs/specs/SUPA-8-positioning.md; the four-status capability matrix (Available now / Implemented-release-evidence-pending / Implemented on branch / Planned / Non-goal) is at positioning.md:80-95 with README's compact version at :26-56; the long matrix has a single owner (only positioning.md, README compact, and the spec contain 'Available now'; ai-configure.md and http-api.md do not duplicate it); prohibited phrasings appear only inside the deny-list section (positioning.md:216-217), never as claims. Source-backed citations verified against real code: src/git/asof.ts:126 resolveAsOfRef, :212 readRowsAtRef, :361 queryMemoriesAtRef; src/git/autocommit.ts:287 git init, :352 commitNamespaceWithParams, :407 flushNamespaceCommit, :181-183/:325-327 maybeSyncOnCommit; src/cli/http.ts:477-481 route mounts; AGENTS.md:5-16 and :18-25; src/auth/{middleware,roles}.ts plus roles.test.ts/token-lifecycle.test.ts/backend-interface.test.ts exist; src/serialization/{namespaceWriter,audit,auditLedger}.ts exist; s3.enabled defaults false (src/config/index.ts:239,258). Tests run fresh: `npx vitest run` exit_code 0 with 'Test Files 149 passed (149)' and 'Tests 1168 passed (1168)'; targeted `npx vitest run src/git/asof.test.ts` exit_code 0 with 'Tests 17 passed (17)'. Caveat: the spec's named checks docs-positioning.test.mjs and scripts/verify-doc-links.mjs were never created in the repo, so the contract's own automated doc-lint is absent; the repo's actual suite passes and every citation was manually confirmed against source, so the criterion's substance holds.\nREADME and docs/guide/positioning.md faithfully implement the SUPA-8 positioning contract with verified source citations, and the full vitest suite passes (149 files / 1168 tests, exit 0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "README and docs/guide/positioning.md implement the approved positioning contract; tests and source-backed citations pass",
+                "status": "PASS",
+                "detail": "README.md:18-56 and docs/guide/positioning.md implement the SUPA-8 contract: the approved one-sentence category statement appears verbatim (README.md:20; positioning.md:3-8; docs/index.md:11) matching docs/specs/SUPA-8-positioning.md; the four-status capability matrix (Available now / Implemented-release-evidence-pending / Implemented on branch / Planned / Non-goal) is at positioning.md:80-95 with README's compact version at :26-56; the long matrix has a single owner (only positioning.md, README compact, and the spec contain 'Available now'; ai-configure.md and http-api.md do not duplicate it); prohibited phrasings appear only inside the deny-list section (positioning.md:216-217), never as claims. Source-backed citations verified against real code: src/git/asof.ts:126 resolveAsOfRef, :212 readRowsAtRef, :361 queryMemoriesAtRef; src/git/autocommit.ts:287 git init, :352 commitNamespaceWithParams, :407 flushNamespaceCommit, :181-183/:325-327 maybeSyncOnCommit; src/cli/http.ts:477-481 route mounts; AGENTS.md:5-16 and :18-25; src/auth/{middleware,roles}.ts plus roles.test.ts/token-lifecycle.test.ts/backend-interface.test.ts exist; src/serialization/{namespaceWriter,audit,auditLedger}.ts exist; s3.enabled defaults false (src/config/index.ts:239,258). Tests run fresh: `npx vitest run` exit_code 0 with 'Test Files 149 passed (149)' and 'Tests 1168 passed (1168)'; targeted `npx vitest run src/git/asof.test.ts` exit_code 0 with 'Tests 17 passed (17)'. Caveat: the spec's named checks docs-positioning.test.mjs and scripts/verify-doc-links.mjs were never created in the repo, so the contract's own automated doc-lint is absent; the repo's actual suite passes and every citation was manually confirmed against source, so the criterion's substance holds."
+              }
+            ],
+            "summary": "README and docs/guide/positioning.md faithfully implement the SUPA-8 positioning contract with verified source citations, and the full vitest suite passes (149 files / 1168 tests, exit 0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-SUPA-8-526\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m8:11AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8711357 bytes (8.71 MB) in 2.04s\u001b[0m\n\u001b[90m8:11AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 README and docs/guide/positioning.md implement the approved positioning contract; tests and source-backed citations pass: README.md:18-56 and docs/guide/positioning.md implement the SUPA-8 contract: the approved one-sentence category statement appears verbatim (README.md:20; positioning.md:3-8; docs/index.md:11) matching docs/specs/SUPA-8-positioning.md; the four-status capability matrix (Available now / Implemented-release-evidence-pending / Implemented on branch / Planned / Non-goal) is at positioning.md:80-95 with README's compact version at :26-56; the long matrix has a single owner (only positioning.md, README compact, and the spec contain 'Available now'; ai-configure.md and http-api.md do not duplicate it); prohibited phrasings appear only inside the deny-list section (positioning.md:216-217), never as claims. Source-backed citations verified against real code: src/git/asof.ts:126 resolveAsOfRef, :212 readRowsAtRef, :361 queryMemoriesAtRef; src/git/autocommit.ts:287 git init, :352 commitNamespaceWithParams, :407 flushNamespaceCommit, :181-183/:325-327 maybeSyncOnCommit; src/cli/http.ts:477-481 route mounts; AGENTS.md:5-16 and :18-25; src/auth/{middleware,roles}.ts plus roles.test.ts/token-lifecycle.test.ts/backend-interface.test.ts exist; src/serialization/{namespaceWriter,audit,auditLedger}.ts exist; s3.enabled defaults false (src/config/index.ts:239,258). Tests run fresh: `npx vitest run` exit_code 0 with 'Test Files 149 passed (149)' and 'Tests 1168 passed (1168)'; targeted `npx vitest run src/git/asof.test.ts` exit_code 0 with 'Tests 17 passed (17)'. Caveat: the spec's named checks docs-positioning.test.mjs and scripts/verify-doc-links.mjs were never created in the repo, so the contract's own automated doc-lint is absent; the repo's actual suite passes and every citation was manually confirmed against source, so the criterion's substance holds.\nREADME and docs/guide/positioning.md faithfully implement the SUPA-8 positioning contract with verified source citations, and the full vitest suite passes (149 files / 1168 tests, exit 0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T13:17:28.188454"
+}

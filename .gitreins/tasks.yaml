@@ -1365,3 +1365,11 @@ tasks:
   status: complete
   created_at: '2026-09-18T12:31:46.265228+00:00'
   completed_at: '2026-09-18T12:39:04.855462+00:00'
+- id: DB-SUPA-8-526
+  title: Apply SUPA-8 positioning contract to public docs
+  criteria:
+  - README and docs/guide/positioning.md implement the approved positioning contract;
+    tests and source-backed citations pass
+  status: complete
+  created_at: '2026-09-18T12:56:56.205313+00:00'
+  completed_at: '2026-09-18T13:11:05.953094+00:00'
