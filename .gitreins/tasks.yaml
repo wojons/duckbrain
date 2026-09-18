@@ -1402,5 +1402,6 @@ tasks:
     the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp
     contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing
     test-push-backoff.sh stays green.
-  status: in_progress
+  status: complete
   created_at: '2026-09-18T17:27:44.570801+00:00'
+  completed_at: '2026-09-18T17:42:50.712110+00:00'
