@@ -784,6 +784,208 @@ Get SSE connection statistics for a namespace.
 
 ---
 
+### Declared Tables (SUPA-3/SUPA-6)
+
+PostgREST-style row access over **declared** tables.
+
+The route layer never auto-introspects the filesystem: only tables the
+namespace itself declares become REST resources. A JSONL file that exists on
+disk without a declaration is not reachable, a request for an undeclared table
+is a plain `404 NOT_FOUND` (never a trigger to go find the file), and the
+declaration is the single source of truth for the exposed columns and their
+types — filter keys, `order` columns, and PATCH bodies are all validated
+against it.
+
+Declarations come from either of two sources:
+
+| Source | Location | Notes |
+|---|---|---|
+| Persistent schema (SUPA-6) | `namespaces/<ns>/schema.json` | Its `keyColumns` supply the primary key; inserts ride the SUPA-2 serializer (validation → ordered write → audit/change record → commit). |
+| Legacy table declaration | `namespaces/<ns>/tables/<table>.table.json` | Historical direct-append path, no `schema.json` serializer involvement. |
+
+Every route below is wrapped in the namespace-grant check exactly like
+`/api/namespaces`: a token whose grants do not cover `<ns>` is rejected with
+`403 Forbidden` before the handler runs.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/ns/:ns/tables` | List declared tables |
+| `GET` | `/api/ns/:ns/tables/:table` | Read rows (filter / order / page) |
+| `POST` | `/api/ns/:ns/tables/:table` | Insert row(s) |
+| `PATCH` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Update rows by primary key |
+| `DELETE` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Delete rows by primary key |
+| `GET` | `/api/ns/:ns/openapi.json` | Generated OpenAPI 3.1 document |
+
+#### `GET /api/ns/:ns/tables` — discovery
+
+Lists the namespace's declarations. Columns, types, and the primary key are
+reported from the declaration itself, so this is the authoritative way to learn
+what a namespace exposes:
+
+```bash
+curl http://localhost:3000/api/ns/my-ns/tables
+```
+
+```json
+{
+  "namespace": "my-ns",
+  "tables": [
+    {
+      "name": "items",
+      "format": "jsonl-object",
+      "columns": [
+        { "name": "id", "type": "bigint" },
+        { "name": "name", "type": "string" },
+        { "name": "qty", "type": "integer" },
+        { "name": "meta", "type": "json" }
+      ],
+      "primary": "id",
+      "glob": "tables/items/current.jsonl"
+    }
+  ]
+}
+```
+
+#### `GET /api/ns/:ns/tables/:table` — filtered row read
+
+Returns a JSON array of rows (declared `json` columns come back as real JSON
+values, not strings).
+
+**Filters** are `<column>=<op>.<value>` query parameters, using PostgREST
+conventions:
+
+| Operator | Meaning |
+|---|---|
+| `eq` | Equal |
+| `ne` | Not equal |
+| `gt` / `gte` | Greater than / greater than or equal |
+| `lt` / `lte` | Less than / less than or equal |
+| `like` | SQL `LIKE` pattern (`%` wildcards) |
+| `in` | Membership in a parenthesized list |
+
+- A value with no operator prefix is `eq`: `?qty=5` is `?qty=eq.5`.
+- `in` takes a comma-separated, parenthesized list:
+  `?name=in.(widget,gadget)`.
+- Several filters AND together: `?qty=gte.10&name=like.wid%25`.
+- An unknown filter column (`?typo=eq.1`) returns
+  `400 VALIDATION_ERROR`, and the error names the declared columns. A
+  querystring key that is neither a declared column nor shaped like
+  `op.value` is ignored, so tracing/cache-busting parameters pass through.
+- An unknown operator (`?qty=between.1`) returns `400 VALIDATION_ERROR`
+  listing the allowed operators.
+
+**Ordering:** `order=<column>.asc` or `order=<column>.desc`, comma-separated
+for multiple keys (`order=qty.desc,name.asc`).
+
+**Paging:** `limit` defaults to **100** and has a hard cap of **1000** —
+a larger value is clamped to 1000, not rejected. `offset` is 0-based.
+
+**Exact count:** send `Prefer: count=exact` (equivalently `?count=exact`) and
+the response carries `X-Total-Count` with the total number of matching rows
+before `limit`/`offset` are applied.
+
+**CSV:** send `Accept: text/csv` to get `text/csv; charset=utf-8`. The header
+row is the declared columns in declaration order; nested JSON values are
+serialized compactly and RFC-4180 quoted.
+
+```bash
+# Filter + order + page + exact count
+curl -i "http://localhost:3000/api/ns/my-ns/tables/items?qty=gte.10&name=like.wid%25&order=qty.desc&limit=50&offset=0" \
+  -H "Prefer: count=exact"
+# → 200, X-Total-Count: 12
+
+# Same query as CSV
+curl "http://localhost:3000/api/ns/my-ns/tables/items?qty=gte.10" \
+  -H "Accept: text/csv"
+```
+
+#### `POST /api/ns/:ns/tables/:table` — insert
+
+Two body forms, both returning `201`:
+
+- `Content-Type: application/json` with a single JSON object, or an array of
+  objects for a batch.
+- `Content-Type: application/x-ndjson` with **one JSON object per line** (the
+  body size limit for this content type is `1mb`).
+
+```json
+{ "inserted": 2 }
+```
+
+An empty body, a non-object/array JSON body, or a malformed/empty NDJSON body
+returns `400 VALIDATION_ERROR`. Rows are coerced against the declared column
+types before writing.
+
+```bash
+# Single object
+curl -X POST http://localhost:3000/api/ns/my-ns/tables/items \
+  -H "Content-Type: application/json" \
+  -d '{"id": 1, "name": "widget", "qty": 5, "meta": {"color": "red"}}'
+
+# NDJSON batch — Content-Type is what selects the NDJSON parser
+curl -X POST http://localhost:3000/api/ns/my-ns/tables/items \
+  -H "Content-Type: application/x-ndjson" \
+  --data-binary '{"id": 2, "name": "gadget", "qty": 12}
+{"id": 3, "name": "widget", "qty": 30}'
+```
+
+#### `PATCH` / `DELETE` — mutation by primary key
+
+Both require an equality filter on the table's declared primary key:
+
+```
+/api/ns/:ns/tables/:table?pk=eq.<value>
+```
+
+- A missing `?pk=` or a `pk` value without the `eq.` prefix returns
+  `400 VALIDATION_ERROR` — there is no bare-column filter form.
+- A table that declares no primary key cannot be mutated this way:
+  `400 VALIDATION_ERROR`.
+- `PATCH` takes a JSON **object** of column values (not an array); an unknown
+  column name in the body returns `400 VALIDATION_ERROR`.
+
+```bash
+# Update every row whose primary key equals 2
+curl -X PATCH "http://localhost:3000/api/ns/my-ns/tables/items?pk=eq.2" \
+  -H "Content-Type: application/json" \
+  -d '{"qty": 15}'
+# → { "updated": 1 }
+
+# Delete that row
+curl -X DELETE "http://localhost:3000/api/ns/my-ns/tables/items?pk=eq.2"
+# → { "deleted": 1 }
+```
+
+> **v1 semantics:** these are table-row mutations over the append-log storage
+> reality — the matching rows are rewritten in the table's JSONL file. There is
+> no query-rewrite engine and no WAL, and no bare-column or range predicate is
+> accepted: the only filter a mutation honours is the primary-key equality
+> above.
+
+#### `GET /api/ns/:ns/openapi.json` — generated OpenAPI 3.1
+
+An OpenAPI 3.1 document generated from the namespace's registry on every
+request (never a hand-written blob), so it always reflects the current
+declarations: one path per declared table, one query parameter per declared
+column with the operator conventions, the `limit` default/maximum, the POST
+content types (`application/json`, `application/x-ndjson`), the required `pk`
+parameter on PATCH/DELETE, and the declared column types as the row schema.
+
+```bash
+curl http://localhost:3000/api/ns/my-ns/openapi.json
+```
+
+**Error summary**
+
+| Status | Code | Cause |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Unknown filter column or operator; bad `limit`; empty/non-object insert body; malformed NDJSON; missing or non-`eq.` `pk`; PATCH on a table with no primary key; unknown column in a PATCH body |
+| `403` | `FORBIDDEN` | The token has no namespace grant for `<ns>` |
+| `404` | `NOT_FOUND` | No such declared table in the namespace |
+| `503` | serializer codes | `schema.json`-backed inserts only: the namespace lock is held (`SERIALIZER_LOCKED` / `SERIALIZER_FENCED`) or the server is shutting down |
+
+---
+
 ### Realtime Change Feed (SUPA-5)
 
 `GET /api/ns/:ns/changes`
