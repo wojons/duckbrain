@@ -1349,3 +1349,19 @@ tasks:
   status: complete
   created_at: '2026-09-18T12:05:29.068001+00:00'
   completed_at: '2026-09-18T12:16:28.407186+00:00'
+- id: DOC-4
+  title: Document duckbrain ssh-test and token --role (zero doc coverage)
+  criteria:
+  - 'AC1 README.md and docs/ both carry the ssh-test invocation ''duckbrain ssh-test
+    --host=<user@server>'' (grep -c >=1 each). AC2 docs/api/http-api.md documents
+    ''token --role'' with the exact four valid roles admin|writer|analyst|uploader
+    matching src/cli/human.ts validRoles. AC3 every documented invocation executes
+    live: ssh-test with host prints the tunnel block, ssh-test without host prints
+    usage and exits 1, token --help lists --role, token --role=bogus exits 1 with
+    ''Unknown role''. AC4 docs/guide/configuration.md no longer claims ''duckbrain
+    token minting is unaffected - it always writes to ~/.duckbrain/auth.json'' (source
+    honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no
+    AGENTS.md count drift.'
+  status: complete
+  created_at: '2026-09-18T12:31:46.265228+00:00'
+  completed_at: '2026-09-18T12:39:04.855462+00:00'

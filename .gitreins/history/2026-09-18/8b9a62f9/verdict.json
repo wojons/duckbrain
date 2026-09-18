@@ -1,0 +1,70 @@
+{
+  "task_id": "DOC-4",
+  "task_title": "Document duckbrain ssh-test and token --role (zero doc coverage)",
+  "task_criteria": [
+    "AC1 README.md and docs/ both carry the ssh-test invocation 'duckbrain ssh-test --host=<user@server>' (grep -c >=1 each). AC2 docs/api/http-api.md documents 'token --role' with the exact four valid roles admin|writer|analyst|uploader matching src/cli/human.ts validRoles. AC3 every documented invocation executes live: ssh-test with host prints the tunnel block, ssh-test without host prints usage and exits 1, token --help lists --role, token --role=bogus exits 1 with 'Unknown role'. AC4 docs/guide/configuration.md no longer claims 'duckbrain token minting is unaffected - it always writes to ~/.duckbrain/auth.json' (source honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no AGENTS.md count drift."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "27983240c3a4ed664aa0e420c4395382ca534f2a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8690211 bytes (8.69 MB) in 1.48s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8690211 bytes (8.69 MB) in 1.48s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  07:39:05\n   Duration  50.04s (transform 2.78s, setup 1.05s, import 40.61s, tests 138.91s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AC1 README.md and docs/ both carry the ssh-test invocation 'duckbrain ssh-test --host=<user@server>' (grep -c >=1 each). AC2 docs/api/http-api.md documents 'token --role' with the exact four valid roles admin|writer|analyst|uploader matching src/cli/human.ts validRoles. AC3 every documented invocation executes live: ssh-test with host prints the tunnel block, ssh-test without host prints usage and exits 1, token --help lists --role, token --role=bogus exits 1 with 'Unknown role'. AC4 docs/guide/configuration.md no longer claims 'duckbrain token minting is unaffected - it always writes to ~/.duckbrain/auth.json' (source honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no AGENTS.md count drift.: AC1: `grep -c 'duckbrain ssh-test --host=<user@server>' README.md` = 1 (README.md:120); docs/guide/deployment.md = 1 (line ~236). AC2: docs/api/http-api.md adds 'Role grants (--role)' section listing exactly `admin`, `writer`, `analyst`, `uploader`, matching src/cli/human.ts:1676 `const validRoles = [\"admin\", \"writer\", \"analyst\", \"uploader\"]`. AC3 (live runs via `node bin/duckbrain.js`): `ssh-test --host=user@server` printed 'SSH Tunnel Test / Host: user@server / ssh user@server \"duckbrain stdio\"' + MCP config, EXIT=0; `ssh-test` (no host) printed 'Usage: duckbrain ssh-test --host=<user@server>', EXIT=1; `token --help` listed '--role=<role>  Role grants \u2014 repeatable (admin, writer, analyst, uploader)', EXIT=0; `token --role=bogus` printed 'Unknown role: bogus. Valid roles: admin, writer, analyst, uploader.', EXIT=1. AC4: docs/guide/configuration.md diff removes the old 'duckbrain token minting is unaffected \u2014 it always writes to ~/.duckbrain/auth.json' text and replaces it with '--auth-file flag > DUCKBRAIN_AUTH_FILE env > the default ~/.duckbrain/auth.json (DOGFOOD-026)'; source honors this at src/cli/human.ts:1700+ (auth path resolution). AC5: `git show --name-only HEAD` = README.md, docs/api/http-api.md, docs/guide/configuration.md, docs/guide/deployment.md only \u2014 no test/spec files; `git diff HEAD~1 HEAD -- AGENTS.md` is empty (no count drift; AGENTS.md still '149 suites, 1168 tests').\nAll five ACs verified: ssh-test and token --role documented in README/docs with correct roles, all four invocations confirmed live with expected output/exit codes, stale auth-store claim removed, and changes are docs-only with no AGENTS.md drift.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AC1 README.md and docs/ both carry the ssh-test invocation 'duckbrain ssh-test --host=<user@server>' (grep -c >=1 each). AC2 docs/api/http-api.md documents 'token --role' with the exact four valid roles admin|writer|analyst|uploader matching src/cli/human.ts validRoles. AC3 every documented invocation executes live: ssh-test with host prints the tunnel block, ssh-test without host prints usage and exits 1, token --help lists --role, token --role=bogus exits 1 with 'Unknown role'. AC4 docs/guide/configuration.md no longer claims 'duckbrain token minting is unaffected - it always writes to ~/.duckbrain/auth.json' (source honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no AGENTS.md count drift.: AC1: `grep -c 'duckbrain ssh-test --host=<user@server>' README.md` = 1 (README.md:120); docs/guide/deployment.md = 1 (line ~236). AC2: docs/api/http-api.md adds 'Role grants (--role)' section listing exactly `admin`, `writer`, `analyst`, `uploader`, matching src/cli/human.ts:1676 `const validRoles = [\"admin\", \"writer\", \"analyst\", \"uploader\"]`. AC3 (live runs via `node bin/duckbrain.js`): `ssh-test --host=user@server` printed 'SSH Tunnel Test / Host: user@server / ssh user@server \"duckbrain stdio\"' + MCP config, EXIT=0; `ssh-test` (no host) printed 'Usage: duckbrain ssh-test --host=<user@server>', EXIT=1; `token --help` listed '--role=<role>  Role grants \u2014 repeatable (admin, writer, analyst, uploader)', EXIT=0; `token --role=bogus` printed 'Unknown role: bogus. Valid roles: admin, writer, analyst, uploader.', EXIT=1. AC4: docs/guide/configuration.md diff removes the old 'duckbrain token minting is unaffected \u2014 it always writes to ~/.duckbrain/auth.json' text and replaces it with '--auth-file flag > DUCKBRAIN_AUTH_FILE env > the default ~/.duckbrain/auth.json (DOGFOOD-026)'; source honors this at src/cli/human.ts:1700+ (auth path resolution). AC5: `git show --name-only HEAD` = README.md, docs/api/http-api.md, docs/guide/configuration.md, docs/guide/deployment.md only \u2014 no test/spec files; `git diff HEAD~1 HEAD -- AGENTS.md` is empty (no count drift; AGENTS.md still '149 suites, 1168 tests').\nAll five ACs verified: ssh-test and token --role documented in README/docs with correct roles, all four invocations confirmed live with expected output/exit codes, stale auth-store claim removed, and changes are docs-only with no AGENTS.md drift.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AC1 README.md and docs/ both carry the ssh-test invocation 'duckbrain ssh-test --host=<user@server>' (grep -c >=1 each). AC2 docs/api/http-api.md documents 'token --role' with the exact four valid roles admin|writer|analyst|uploader matching src/cli/human.ts validRoles. AC3 every documented invocation executes live: ssh-test with host prints the tunnel block, ssh-test without host prints usage and exits 1, token --help lists --role, token --role=bogus exits 1 with 'Unknown role'. AC4 docs/guide/configuration.md no longer claims 'duckbrain token minting is unaffected - it always writes to ~/.duckbrain/auth.json' (source honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no AGENTS.md count drift.",
+                "status": "PASS",
+                "detail": "AC1: `grep -c 'duckbrain ssh-test --host=<user@server>' README.md` = 1 (README.md:120); docs/guide/deployment.md = 1 (line ~236). AC2: docs/api/http-api.md adds 'Role grants (--role)' section listing exactly `admin`, `writer`, `analyst`, `uploader`, matching src/cli/human.ts:1676 `const validRoles = [\"admin\", \"writer\", \"analyst\", \"uploader\"]`. AC3 (live runs via `node bin/duckbrain.js`): `ssh-test --host=user@server` printed 'SSH Tunnel Test / Host: user@server / ssh user@server \"duckbrain stdio\"' + MCP config, EXIT=0; `ssh-test` (no host) printed 'Usage: duckbrain ssh-test --host=<user@server>', EXIT=1; `token --help` listed '--role=<role>  Role grants \u2014 repeatable (admin, writer, analyst, uploader)', EXIT=0; `token --role=bogus` printed 'Unknown role: bogus. Valid roles: admin, writer, analyst, uploader.', EXIT=1. AC4: docs/guide/configuration.md diff removes the old 'duckbrain token minting is unaffected \u2014 it always writes to ~/.duckbrain/auth.json' text and replaces it with '--auth-file flag > DUCKBRAIN_AUTH_FILE env > the default ~/.duckbrain/auth.json (DOGFOOD-026)'; source honors this at src/cli/human.ts:1700+ (auth path resolution). AC5: `git show --name-only HEAD` = README.md, docs/api/http-api.md, docs/guide/configuration.md, docs/guide/deployment.md only \u2014 no test/spec files; `git diff HEAD~1 HEAD -- AGENTS.md` is empty (no count drift; AGENTS.md still '149 suites, 1168 tests')."
+              }
+            ],
+            "summary": "All five ACs verified: ssh-test and token --role documented in README/docs with correct roles, all four invocations confirmed live with expected output/exit codes, stale auth-store claim removed, and changes are docs-only with no AGENTS.md drift."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-4\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8690211 bytes (8.69 MB) in 1.48s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AC1 README.md and docs/ both carry the ssh-test invocation 'duckbrain ssh-test --host=<user@server>' (grep -c >=1 each). AC2 docs/api/http-api.md documents 'token --role' with the exact four valid roles admin|writer|analyst|uploader matching src/cli/human.ts validRoles. AC3 every documented invocation executes live: ssh-test with host prints the tunnel block, ssh-test without host prints usage and exits 1, token --help lists --role, token --role=bogus exits 1 with 'Unknown role'. AC4 docs/guide/configuration.md no longer claims 'duckbrain token minting is unaffected - it always writes to ~/.duckbrain/auth.json' (source honors --auth-file/DUCKBRAIN_AUTH_FILE). AC5 docs-only: no new test files, no AGENTS.md count drift.: AC1: `grep -c 'duckbrain ssh-test --host=<user@server>' README.md` = 1 (README.md:120); docs/guide/deployment.md = 1 (line ~236). AC2: docs/api/http-api.md adds 'Role grants (--role)' section listing exactly `admin`, `writer`, `analyst`, `uploader`, matching src/cli/human.ts:1676 `const validRoles = [\"admin\", \"writer\", \"analyst\", \"uploader\"]`. AC3 (live runs via `node bin/duckbrain.js`): `ssh-test --host=user@server` printed 'SSH Tunnel Test / Host: user@server / ssh user@server \"duckbrain stdio\"' + MCP config, EXIT=0; `ssh-test` (no host) printed 'Usage: duckbrain ssh-test --host=<user@server>', EXIT=1; `token --help` listed '--role=<role>  Role grants \u2014 repeatable (admin, writer, analyst, uploader)', EXIT=0; `token --role=bogus` printed 'Unknown role: bogus. Valid roles: admin, writer, analyst, uploader.', EXIT=1. AC4: docs/guide/configuration.md diff removes the old 'duckbrain token minting is unaffected \u2014 it always writes to ~/.duckbrain/auth.json' text and replaces it with '--auth-file flag > DUCKBRAIN_AUTH_FILE env > the default ~/.duckbrain/auth.json (DOGFOOD-026)'; source honors this at src/cli/human.ts:1700+ (auth path resolution). AC5: `git show --name-only HEAD` = README.md, docs/api/http-api.md, docs/guide/configuration.md, docs/guide/deployment.md only \u2014 no test/spec files; `git diff HEAD~1 HEAD -- AGENTS.md` is empty (no count drift; AGENTS.md still '149 suites, 1168 tests').\nAll five ACs verified: ssh-test and token --role documented in README/docs with correct roles, all four invocations confirmed live with expected output/exit codes, stale auth-store claim removed, and changes are docs-only with no AGENTS.md drift.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T12:40:26.828606"
+}
