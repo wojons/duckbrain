@@ -1319,3 +1319,15 @@ tasks:
   status: complete
   created_at: '2026-09-18T04:53:56.706676+00:00'
   completed_at: '2026-09-18T05:19:10.163466+00:00'
+- id: CLI-TRUNC-001
+  title: CLI remember truncates values at the first '=' inside them
+  criteria:
+  - 'A duckbrain remember whose --content/--embedding-text value contains ''='' stores
+    the full string byte-for-byte (length + tail assertable), and a regression test
+    fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits
+    at the FIRST ''='' only, value tail preserved; (2) live round-trip on a scratch
+    namespace stores a value containing ''='' intact; (3) negative control: pre-fix
+    parser file truncates; (4) full unit suite green + AGENTS.md counts synced.'
+  status: complete
+  created_at: '2026-09-18T09:57:11.963886+00:00'
+  completed_at: '2026-09-18T10:09:49.339073+00:00'
