@@ -22,6 +22,16 @@
 #   DUCKBRAIN_S3_STATE_DIR          (default $HOME/.hermes/state) — markers + lock + ns state
 #   DUCKBRAIN_S3_SCRIPTS_DIR        (default $HOME/.hermes/scripts) — layer scripts
 #   DUCKBRAIN_S3_SKIP_COMPONENTS    (default empty = all run) — comma subset of native,git,weekly
+#
+# S3-GIT-003 forced full pass: the git layer decides per namespace whether an
+# unchanged namespace still needs a re-push (a remote-side wipe is otherwise
+# never repaired). This wrapper adds NO cadence of its own — it runs the layer at
+# most once per 24h and the layer's age rule spreads a full pass over ~a week.
+# The two knobs are plain environment variables and are inherited unchanged by
+# the layer, so an explicit on-demand pass is:
+#   DUCKBRAIN_S3_FORCE_FULL=1 duckbrain-s3-unified.sh
+# (the WEEKLY component below is the tar.xz snapshot upload — not a git push —
+# so it is deliberately not the thing that forces a git re-push)
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 

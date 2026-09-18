@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-push-backoff.sh — hermetic regression harness for the DuckBrain → S3
-# git-history layer (S3-GIT-002).
+# git-history layer (S3-GIT-002 backoff/state, S3-GIT-003 forced full pass).
 #
 # It never touches real S3, the real state dir, the real log, or the real
 # namespaces root: everything runs under $(mktemp -d) through the
@@ -10,6 +10,24 @@
 # Real pushes, no mocks: 3 scratch namespace repos are pushed to file:// bare
 # remotes. Two of them have a remote (they push), the third does not (its push
 # fails for real) — that is the "one rejecting namespace" the hardening is for.
+#
+# Runs:
+#   1  cold start: 2 push, 1 fails for real; backoff started; stamp written
+#   2  healthy namespaces skipped WITHOUT a push; failing one deferred
+#   3  backoff window forced open: only the failing namespace is retried
+#   4  unified wrapper: 24h marker advances, the failure stays loud
+#   5  inside the marker window the git layer must not re-run at all
+#   6  S3-GIT-003 gap: a remote-side wipe is NOT repaired by an ordinary run
+#   7  forced full pass (DUCKBRAIN_S3_FORCE_FULL=1, inherited through the
+#      unified wrapper) re-pushes and repairs the wiped remote; the roll-up
+#      names the forced namespaces and the backoff-deferred one — a partial
+#      forced pass is never a bare green line
+#   8  age-based periodic force (no env knob): only the aged namespace is
+#      re-pushed, the fresh unchanged one is still skipped
+#   9  no re-push regression: an ordinary run right after a forced pass skips
+#   10 DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age-based force
+#   11 a forced pass that fails is not a bare green summary (PARTIAL carries the
+#      forced count, the forced failure is named, the deferred one is named)
 #
 # Usage: bash scripts/s3/test-push-backoff.sh
 #   exit 0 = every assertion PASS, non-zero = at least one FAIL.
@@ -37,6 +55,7 @@ export DUCKBRAIN_S3_URL_TEMPLATE="file://${S}/remotes/\${name}"
 LOG="$DUCKBRAIN_S3_LOG_DIR/duckbrain-s3test.log"
 DAILY_LOG="$DUCKBRAIN_S3_LOG_DIR/duckbrain-s3daily.log"
 STATE_NS="$DUCKBRAIN_S3_STATE_DIR/s3-git-ns/s3test"
+STATE_NS_DAILY="$DUCKBRAIN_S3_STATE_DIR/s3-git-ns/s3daily"
 MARKER="$DUCKBRAIN_S3_STATE_DIR/s3-git-push.last"
 WEEKLY_MARKER="$DUCKBRAIN_S3_STATE_DIR/s3-weekly-archive.last"
 STAMP="$DUCKBRAIN_S3_STATE_DIR/s3-git-pass.last"
@@ -90,6 +109,12 @@ state_val() { # <state-file> <key> [default] — never aborts the harness
 file_or() { # <file> [fallback]
   cat "$1" 2>/dev/null || echo "${2:-missing}"
 }
+wipe_remote() { # <bare-remote-dir> — a REMOTE-side loss: path kept, refs gone
+  rm -rf "$1"
+  git init -q --bare -b master "$1"
+}
+remote_sha() { git -C "$1" rev-parse --verify master 2>/dev/null || true; }
+line_matching() { grep -m1 -- "$2" "$1" 2>/dev/null || true; }
 
 # ---- scratch fixtures ------------------------------------------------------
 mkdir -p "$DUCKBRAIN_S3_NS_ROOT" "$S/remotes"
@@ -199,6 +224,119 @@ assert_eq "run5 exit code is 0 (nothing failed)" 0 "$rc"
 assert_eq "run5 left the 24h marker unchanged" "$marker_before" "$(file_or "$MARKER" missing)"
 assert_eq "run5 did not run the git layer (no new summary line)" "$before" "$(count_lines "$DAILY_LOG")"
 assert_lacks "run5 produced no push summary at all" "$run5" "OK: pushed="
+
+echo "=== RUN 6 — S3-GIT-003 gap: an ordinary run does NOT repair a remote-side wipe ==="
+# A remote-side loss that leaves NO local change: the bare remote is re-created
+# empty (its refs are gone) while the namespace's own refs are untouched, so the
+# recorded refs_hash still matches and the ordinary path skips it.
+wipe_remote "$S/remotes/ns-one"
+assert_eq "run6 precondition: the ns-one remote really is wiped (no master ref)" "" "$(remote_sha "$S/remotes/ns-one")"
+before=$(count_lines "$LOG")
+rc=0
+"$PUSH" current/git s3test > "$S/run6.out" 2>&1 || rc=$?
+w6="$(win_since "$before" "$LOG")"
+assert_eq "run6 exit code is 0 (no push attempted: ns-three is still in backoff)" 0 "$rc"
+assert_has "run6 skipped ns-one as up-to-date although its remote is gone" "$w6" "^.*skip ns-one (up-to-date "
+assert_has "run6 counts: 0 pushed, 3 skipped, 0 failed, 0 forced" "$w6" "^.*OK: pushed=0 skipped=3 failed=0 forced=0"
+assert_eq "run6 the wiped remote is still empty — the gap this task closes" "" "$(remote_sha "$S/remotes/ns-one")"
+
+echo "=== RUN 7 — forced full pass (env knob, inherited through the unified wrapper) ==="
+rm -f "$MARKER"   # let the unified wrapper run the git layer this time
+t7=$(date +%s)
+before=$(count_lines "$DAILY_LOG")
+rc=0
+DUCKBRAIN_S3_SCRIPTS_DIR="$S/scripts" DUCKBRAIN_S3_SKIP_COMPONENTS="native,weekly" DUCKBRAIN_S3_FORCE_FULL=1 \
+  "$UNIFIED" > "$S/run7.out" 2>&1 || rc=$?
+run7="$(cat "$S/run7.out")"
+w7="$(win_since "$before" "$DAILY_LOG")"
+assert_eq "run7 unified exit code is 0 (forced pass: nothing attempted failed)" 0 "$rc"
+assert_ge "run7 the unified wrapper advanced the 24h git marker" "$t7" "$(file_or "$MARKER" x)"
+assert_has "run7 the forced decision is logged with namespace AND reason" "$w7" "force-push ns-one (DUCKBRAIN_S3_FORCE_FULL=1)"
+assert_has "run7 the other healthy namespace was forced too (a full pass, not one repo)" "$w7" "force-push Hermes DAGger (DUCKBRAIN_S3_FORCE_FULL=1)"
+rollup7="$(line_matching "$DAILY_LOG" 'forced-full: 2 namespace(s) re-pushed despite unchanged refs')"
+assert_has "run7 roll-up reports 2 forced with the env attribution" "$rollup7" "(env=2 age=0)"
+assert_has "run7 roll-up names ns-one" "$rollup7" "ns-one"
+assert_has "run7 roll-up names Hermes DAGger" "$rollup7" "Hermes DAGger"
+assert_has "run7 summary counts: 2 pushed, 1 skipped, 0 failed, 2 forced" "$w7" "^.*OK: pushed=2 skipped=1 failed=0 forced=2"
+assert_has "run7 the backoff-deferred namespace makes the forced pass visibly partial" "$w7" "^.*forced-full: PARTIAL — 1 namespace(s) in failure backoff were not re-pushed: ns-three"
+assert_eq "run7 the wiped remote was repaired (branch re-created at the local tip)" \
+  "$(sha_of "$DUCKBRAIN_S3_NS_ROOT/ns-one")" "$(remote_sha "$S/remotes/ns-one")"
+assert_lacks "run7 never attempted the deferred namespace" "$w7" "FAIL push ns-three"
+# stdout visibility: the forced names AND the partial notice, never a bare green line
+forced_line7="$(line_matching "$S/run7.out" 'forced full re-push: 2')"
+assert_has "run7 stdout records the forced count" "$forced_line7" "forced full re-push: 2"
+assert_has "run7 stdout names the forced ns-one" "$forced_line7" "ns-one"
+assert_has "run7 stdout names the forced Hermes DAGger" "$forced_line7" "Hermes DAGger"
+assert_has "run7 stdout says the forced pass was partial (not a bare green summary)" "$run7" \
+  "duckbrain backup NOTICE (current/git) — forced full pass was partial: 1 namespace(s) in failure backoff were not re-pushed: ns-three"
+
+echo "=== RUN 8 — age-based periodic force: only the AGED namespace is re-pushed ==="
+wipe_remote "$S/remotes/ns-one"
+sed -i 's/^last_success=.*/last_success=1/' "$STATE_NS_DAILY/ns-one.state"
+assert_eq "run8 precondition: ns-one's last_success really is aged (7d+)" 1 \
+  "$(state_val "$STATE_NS_DAILY/ns-one.state" last_success)"
+assert_eq "run8 precondition: the ns-one remote is wiped again" "" "$(remote_sha "$S/remotes/ns-one")"
+before=$(count_lines "$DAILY_LOG")
+rc=0
+"$PUSH" current/git s3daily > "$S/run8.out" 2>&1 || rc=$?
+run8="$(cat "$S/run8.out")"
+w8="$(win_since "$before" "$DAILY_LOG")"
+assert_eq "run8 exit code is 0 (the forced re-push succeeded)" 0 "$rc"
+assert_has "run8 the aged namespace is force-pushed with an age reason" "$w8" \
+  "^.*force-push ns-one (age [0-9][0-9]*s >= 604800s since last_success)"
+assert_has "run8 the fresh unchanged namespace is STILL skipped (per-namespace, not blanket)" "$w8" \
+  "^.*skip Hermes DAGger (up-to-date "
+assert_lacks "run8 did not force the fresh namespace" "$w8" "force-push Hermes DAGger"
+assert_has "run8 weekly-confirmation line names the aged namespace" "$w8" \
+  "^.*forced-full-age: periodic full re-push fired for 1 namespace(s) (interval 604800s since last_success): ns-one"
+assert_has "run8 summary counts: 1 pushed, 2 skipped, 0 failed, 1 forced" "$w8" \
+  "^.*OK: pushed=1 skipped=2 failed=0 forced=1"
+assert_eq "run8 the wipe was repaired by the age-based force alone" \
+  "$(sha_of "$DUCKBRAIN_S3_NS_ROOT/ns-one")" "$(remote_sha "$S/remotes/ns-one")"
+assert_has "run8 stdout names the forced namespace" "$run8" "forced full re-push: 1 (ns-one)"
+
+echo "=== RUN 9 — no re-push regression: the run right after a forced pass skips again ==="
+before=$(count_lines "$DAILY_LOG")
+rc=0
+"$PUSH" current/git s3daily > "$S/run9.out" 2>&1 || rc=$?
+run9="$(cat "$S/run9.out")"
+w9="$(win_since "$before" "$DAILY_LOG")"
+assert_eq "run9 exit code is 0" 0 "$rc"
+assert_has "run9 counts: 0 pushed, 3 skipped, 0 failed, 0 forced" "$w9" "^.*OK: pushed=0 skipped=3 failed=0 forced=0"
+assert_has "run9 the just-forced namespace is skipped up-to-date again" "$w9" "^.*skip ns-one (up-to-date "
+assert_lacks "run9 nothing was forced (the forced pass refreshed last_success)" "$w9" "force-push"
+assert_lacks "run9 made no push attempt at all (no 15-minute re-push regression)" "$w9" "FAIL push"
+assert_lacks "run9 stdout has no forced suffix" "$run9" "forced full re-push"
+
+echo "=== RUN 10 — DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age force ==="
+sed -i 's/^last_success=.*/last_success=1/' "$STATE_NS_DAILY/ns-one.state"
+before=$(count_lines "$DAILY_LOG")
+rc=0
+DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 "$PUSH" current/git s3daily > "$S/run10.out" 2>&1 || rc=$?
+w10="$(win_since "$before" "$DAILY_LOG")"
+assert_eq "run10 exit code is 0" 0 "$rc"
+assert_lacks "run10 the aged namespace was NOT force-pushed (0 = disabled)" "$w10" "force-push"
+assert_has "run10 counts: 0 pushed, 3 skipped, 0 failed, 0 forced" "$w10" "^.*OK: pushed=0 skipped=3 failed=0 forced=0"
+
+echo "=== RUN 11 — a forced pass that FAILS is never a bare green summary ==="
+rm -rf "$S/remotes/ns-one"   # remote gone entirely: the forced push fails for real
+before=$(count_lines "$DAILY_LOG")
+rc=0
+DUCKBRAIN_S3_FORCE_FULL=1 "$PUSH" current/git s3daily > "$S/run11.out" 2>&1 || rc=$?
+run11="$(cat "$S/run11.out")"
+w11="$(win_since "$before" "$DAILY_LOG")"
+assert_eq "run11 exit code is 1 (a forced push was attempted and failed)" 1 "$rc"
+assert_has "run11 summary counts: 1 pushed, 1 skipped, 1 failed, 2 forced" "$w11" \
+  "^.*OK: pushed=1 skipped=1 failed=1 forced=2"
+assert_has "run11 the healthy namespace was still forced and pushed" "$w11" "force-push Hermes DAGger (DUCKBRAIN_S3_FORCE_FULL=1)"
+assert_has "run11 PARTIAL line carries the forced count" "$run11" \
+  "duckbrain backup PARTIAL (current/git) — 1 pushed (2 forced), 1 FAILED: ns-one"
+assert_has "run11 the forced failure is called out explicitly" "$run11" \
+  "duckbrain backup FORCED-FULL PARTIAL (current/git) — forced re-push FAILED for: ns-one"
+assert_has "run11 the log records the forced failure" "$w11" "^.*forced-full: FAILED for: ns-one"
+assert_has "run11 the deferred namespace is still named (partial pass)" "$w11" \
+  "^.*forced-full: PARTIAL — 1 namespace(s) in failure backoff were not re-pushed: ns-three"
+assert_eq "run11 the forced failure grew the backoff ladder" 1 "$(state_val "$STATE_NS_DAILY/ns-one.state" fail_count)"
 
 echo "-----"
 echo "harness: $n_ok passed, $n_bad failed"

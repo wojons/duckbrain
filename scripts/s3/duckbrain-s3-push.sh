@@ -23,6 +23,29 @@
 #     "the pass never started";
 #   * the exit code stays honest: 1 only when an ATTEMPTED push failed.
 #
+# S3-GIT-003 (2026-09-18) — the skip above is keyed on LOCAL refs, so a
+# REMOTE-side loss (a ref/object deleted or emptied on S3) survives forever: an
+# unchanged namespace is never re-pushed and the loss stays silent. Two
+# mechanisms restore the accidental self-heal the pre-S3-GIT-002 layer had, and
+# NEITHER makes the 15-minute wrapper re-push everything:
+#   * DUCKBRAIN_S3_FORCE_FULL=1 — explicit on-demand full pass: every namespace
+#     NOT in failure backoff is pushed even when its refs are unchanged
+#     (recovery after a known remote-side loss);
+#   * an age-based periodic full pass — with DUCKBRAIN_S3_FULL_PASS_INTERVAL_S
+#     (default 604800 = 7d; 0 disables) a namespace whose last SUCCESSFUL push
+#     is at least that old is re-pushed even when its refs are unchanged. The
+#     git layer itself runs at most once/24h, so this spreads a full pass over
+#     every namespace roughly weekly — the one thing that can notice a
+#     remote-side wipe with no local change. It is cheap on a healthy namespace
+#     (the helper lists the remote refs and no-ops) and it is deliberately NOT
+#     every 15 minutes.
+#   Both are visible: per namespace `force-push <ns> (<reason>)`, then a
+#   `forced-full:` roll-up (plus a `forced-full-age:` weekly-confirmation line),
+#   and `forced=N` on the summary line. A forced pass that was partial says so —
+#   deferred namespaces are named and forced failures are called out — instead
+#   of printing a bare green line. Failure backoff is never overridden by
+#   either mechanism.
+#
 # Env overrides (each defaults to the production value):
 #   DUCKBRAIN_S3_NS_ROOT       (default $HOME/duckbrain/namespaces)
 #   DUCKBRAIN_S3_STATE_DIR     (default $HOME/.hermes/state)
@@ -30,6 +53,11 @@
 #   DUCKBRAIN_S3_URL_TEMPLATE  (default s3://${BUCKET}/${PREFIX}/${name})
 #     Template tokens: ${BUCKET} ${PREFIX} ${name} (production default) and the
 #     brace forms {bucket} {prefix} {name}. Tests point this at file:// remotes.
+#   DUCKBRAIN_S3_FORCE_FULL    (default 0 = off) — 1/true/yes/on forces the full
+#     pass described in S3-GIT-003 above.
+#   DUCKBRAIN_S3_FULL_PASS_INTERVAL_S (default 604800 = 7d; 0/non-numeric =
+#     disabled) — age since last_success after which an unchanged namespace is
+#     re-pushed anyway (the periodic forced full pass).
 set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"
@@ -54,6 +82,18 @@ REMOTE_KEY="${REMOTE_NAME//[!A-Za-z0-9._-]/_}"
 NS_STATE_DIR="$STATE_DIR/s3-git-ns/$REMOTE_KEY"
 PASS_STAMP="$STATE_DIR/s3-git-pass.last"
 BACKOFF_LADDER=(900 3600 21600 86400)
+# S3-GIT-003 forced full pass (see the header). FORCE_FULL_ACTIVE is a plain
+# 0/1 flag (the raw value is never used in arithmetic); FULL_PASS_INTERVAL is
+# always a number (0 = disabled) so the age comparison cannot fail the pass.
+FORCE_FULL_RAW="${DUCKBRAIN_S3_FORCE_FULL:-0}"
+FORCE_FULL_ACTIVE=0
+case "$FORCE_FULL_RAW" in
+  1|true|TRUE|yes|YES|on|ON) FORCE_FULL_ACTIVE=1 ;;
+esac
+FULL_PASS_INTERVAL="${DUCKBRAIN_S3_FULL_PASS_INTERVAL_S:-604800}"
+case "$FULL_PASS_INTERVAL" in
+  ''|*[!0-9]*) FULL_PASS_INTERVAL=0 ;;
+esac
 LOG="$LOG_DIR/duckbrain-${REMOTE_NAME}.log"
 START=$(date +%s)
 mkdir -p "$LOG_DIR" "$NS_STATE_DIR"
@@ -297,6 +337,10 @@ if [ ! -d "$NS_ROOT" ]; then
 fi
 
 OK=0; SKIPPED=0; FAILED=0; FAILED_NS=""
+# S3-GIT-003 bookkeeping: forced decisions (and why), plus the namespaces the
+# pass could not cover (backoff-deferred) so a partial forced pass is visible.
+FORCED=0; FORCED_ENV=0; FORCED_AGE=0; DEFERRED=0
+FORCED_NS=""; FORCED_ENV_NS=""; FORCED_AGE_NS=""; FORCED_FAILED_NS=""; DEFERRED_NS=""
 for ns in "$NS_ROOT"/*/; do
   if [ ! -d "$ns/.git" ]; then SKIPPED=$((SKIPPED+1)); continue; fi
   name="$(basename "$ns")"
@@ -315,16 +359,47 @@ for ns in "$NS_ROOT"/*/; do
   case "$next_retry" in ''|*[!0-9]*) next_retry=0 ;; esac
   now=$(date +%s)
 
-  # a prior attempt failed and its backoff window is still open → defer
+  # a prior attempt failed and its backoff window is still open → defer.
+  # A forced pass does NOT override this: the ladder is what keeps one
+  # rejecting namespace from consuming the backup budget, and it is unchanged.
   if [ "$fail_count" -gt 0 ] && [ "$next_retry" -gt "$now" ]; then
-    SKIPPED=$((SKIPPED+1))
+    SKIPPED=$((SKIPPED+1)); DEFERRED=$((DEFERRED+1)); DEFERRED_NS="$DEFERRED_NS $name"
     log "defer $name (fail_count=$fail_count next_retry=$next_retry retry_in_s=$((next_retry-now)))"
     continue
   fi
 
-  # last successful push covered exactly these refs and no failure is
-  # outstanding → nothing to do, do not even build the remote URL
-  if [ "$fail_count" -eq 0 ] && [ -n "$last_refs" ] && [ "$last_refs" = "$refs_now" ]; then
+  # ---- S3-GIT-003: forced full pass ----------------------------------------
+  # Decide BEFORE the up-to-date skip. The age rule deliberately applies only
+  # where the ordinary path WOULD skip (no failure outstanding, recorded refs
+  # match the current refs) and only to a namespace with a real last_success,
+  # so the logged reason is honest and a fresh namespace is never "forced".
+  force_reason=""; force_kind=""
+  if [ "$FORCE_FULL_ACTIVE" -eq 1 ]; then
+    force_reason="DUCKBRAIN_S3_FORCE_FULL=$FORCE_FULL_RAW"; force_kind=env
+  elif [ "$FULL_PASS_INTERVAL" -gt 0 ] && [ "$fail_count" -eq 0 ] \
+       && [ -n "$last_refs" ] && [ "$last_refs" = "$refs_now" ]; then
+    last_success="$(state_get "$sfile" last_success 0)"
+    case "$last_success" in ''|*[!0-9]*) last_success=0 ;; esac
+    if [ "$last_success" -gt 0 ] \
+       && [ $((now - last_success)) -ge "$FULL_PASS_INTERVAL" ]; then
+      force_reason="age $((now - last_success))s >= ${FULL_PASS_INTERVAL}s since last_success"
+      force_kind=age
+    fi
+  fi
+  if [ -n "$force_reason" ]; then
+    FORCED=$((FORCED+1)); FORCED_NS="$FORCED_NS $name"
+    if [ "$force_kind" = "env" ]; then
+      FORCED_ENV=$((FORCED_ENV+1)); FORCED_ENV_NS="$FORCED_ENV_NS $name"
+    else
+      FORCED_AGE=$((FORCED_AGE+1)); FORCED_AGE_NS="$FORCED_AGE_NS $name"
+    fi
+    log "force-push $name ($force_reason)"
+  fi
+
+  # last successful push covered exactly these refs, no failure is outstanding
+  # and nothing forced a re-push → nothing to do, do not even build the URL
+  if [ -z "$force_reason" ] && [ "$fail_count" -eq 0 ] \
+     && [ -n "$last_refs" ] && [ "$last_refs" = "$refs_now" ]; then
     SKIPPED=$((SKIPPED+1))
     log "skip $name (up-to-date ${head_sha:0:12})"
     continue
@@ -354,6 +429,8 @@ for ns in "$NS_ROOT"/*/; do
       "last_success=$now" "last_attempt=$now" "fail_count=0" "next_retry=0"
   else
     FAILED=$((FAILED+1)); FAILED_NS="$FAILED_NS $name"; log "FAIL push $name"
+    # a forced re-push that failed must never be rolled up as a clean pass
+    if [ -n "$force_reason" ]; then FORCED_FAILED_NS="$FORCED_FAILED_NS $name"; fi
     reason="$(printf '%s\n%s\n' "$push_all_out" "$push_tags_out" | grep -v '^[[:space:]]*$' | tail -n1 || true)"
     if [ -n "$reason" ]; then log "  reason[$name]: $reason"; fi
     fail_count=$((fail_count+1))
@@ -386,10 +463,42 @@ if [[ "$URL_TEMPLATE" == s3://* ]]; then
 else
   log "note: skipped S3 remote repo count (URL template is not s3://)"
 fi
+# ---- S3-GIT-003: forced-pass bookkeeping -----------------------------------
+# Every forced decision is already logged per namespace; these roll-ups make a
+# forced pass auditable at a glance and give duckbrain-s3daily.log its periodic
+# ("weekly") confirmation line. A forced pass that could not cover everything
+# says so instead of degrading into a bare green summary.
+if [ "$FORCED" -gt 0 ]; then
+  log "forced-full: $FORCED namespace(s) re-pushed despite unchanged refs (env=$FORCED_ENV age=$FORCED_AGE):${FORCED_NS}"
+fi
+if [ "$FORCED_AGE" -gt 0 ]; then
+  log "forced-full-age: periodic full re-push fired for $FORCED_AGE namespace(s) (interval ${FULL_PASS_INTERVAL}s since last_success):${FORCED_AGE_NS}"
+fi
+if [ "$FORCED" -gt 0 ] && [ "$DEFERRED" -gt 0 ]; then
+  log "forced-full: PARTIAL — $DEFERRED namespace(s) in failure backoff were not re-pushed:${DEFERRED_NS}"
+fi
+if [ -n "$FORCED_FAILED_NS" ]; then
+  log "forced-full: FAILED for:${FORCED_FAILED_NS}"
+fi
+
 END=$(date +%s); DUR=$((END-START))
-log "OK: pushed=$OK skipped=$SKIPPED failed=$FAILED remote_repos=$REMOTE_REPOS duration_s=$DUR"
+log "OK: pushed=$OK skipped=$SKIPPED failed=$FAILED forced=$FORCED remote_repos=$REMOTE_REPOS duration_s=$DUR"
 if [ "$FAILED" -gt 0 ]; then
-  echo "duckbrain backup PARTIAL ($SUBPREFIX) — $OK pushed, $FAILED FAILED:$FAILED_NS (log: $LOG)"
+  if [ "$FORCED" -gt 0 ]; then
+    echo "duckbrain backup PARTIAL ($SUBPREFIX) — $OK pushed ($FORCED forced), $FAILED FAILED:$FAILED_NS (log: $LOG)"
+  else
+    echo "duckbrain backup PARTIAL ($SUBPREFIX) — $OK pushed, $FAILED FAILED:$FAILED_NS (log: $LOG)"
+  fi
+  if [ -n "$FORCED_FAILED_NS" ]; then
+    echo "duckbrain backup FORCED-FULL PARTIAL ($SUBPREFIX) — forced re-push FAILED for:$FORCED_FAILED_NS"
+  fi
   exit 1
 fi
-echo "duckbrain backup OK ($SUBPREFIX) — $OK namespaces pushed (full git history), $SKIPPED skipped (up-to-date/deferred), ${DUR}s, $REMOTE_REPOS repos on S3"
+# Green, but a forced pass that skipped namespaces in backoff is NOT a clean
+# full pass: say so (exit code stays honest — nothing attempted actually failed).
+if [ "$FORCED" -gt 0 ] && [ "$DEFERRED" -gt 0 ]; then
+  echo "duckbrain backup NOTICE ($SUBPREFIX) — forced full pass was partial: $DEFERRED namespace(s) in failure backoff were not re-pushed:$DEFERRED_NS"
+fi
+FORCE_SUFFIX=""
+if [ "$FORCED" -gt 0 ]; then FORCE_SUFFIX=", forced full re-push: $FORCED (${FORCED_NS# })"; fi
+echo "duckbrain backup OK ($SUBPREFIX) — $OK namespaces pushed (full git history), $SKIPPED skipped (up-to-date/deferred), ${DUR}s, $REMOTE_REPOS repos on S3${FORCE_SUFFIX}"

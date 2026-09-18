@@ -26,10 +26,60 @@ workflow on the origin host.
 
 | File | Deployed as | Role |
 |------|-------------|------|
-| `duckbrain-s3-push.sh` | cron (daily/weekly) | full git-history push of every namespace repo |
+| `duckbrain-s3-push.sh` | cron (daily/weekly) | full git-history push of every namespace repo (S3-GIT-002 backoff/state, S3-GIT-003 forced full pass) |
 | `duckbrain-s3-unified.sh` | cron (15 min) | merged native-sync + raw-sync pass |
-| `test-push-backoff.sh` | — | hermetic harness (real `file://` pushes, no mocks) |
+| `test-push-backoff.sh` | — | hermetic harness for backoff/state (S3-GIT-002) and the forced full pass (S3-GIT-003): 11 runs, real `file://` pushes, no mocks |
 | `test-duplicate-bundle-repair.sh` | — | hermetic harness for the duplicate-bundle repair (stub `aws` + stub remote helper) |
+
+## Remote-side loss: the periodic forced full pass (S3-GIT-003)
+
+Skipping on unchanged refs is what makes the steady state cheap, but the skip is
+keyed on **local** refs: when a ref or bundle is lost on the S3 side with no
+local change, the namespace is never re-pushed and the loss is silent. Two
+mechanisms in `duckbrain-s3-push.sh` restore the accidental self-heal the
+pre-S3-GIT-002 layer had:
+
+| mechanism | when it fires | notes |
+|---|---|---|
+| `DUCKBRAIN_S3_FORCE_FULL=1` | explicit full pass: every namespace **not** in failure backoff is pushed even when its refs are unchanged | on-demand recovery after a known remote-side loss; inherited by the git layer through the wrapper, so `DUCKBRAIN_S3_FORCE_FULL=1 ~/.hermes/scripts/duckbrain-s3-unified.sh` works as-is |
+| `DUCKBRAIN_S3_FULL_PASS_INTERVAL_S` (default `604800` = 7d, `0`/non-numeric disables) | automatic: a namespace whose last **successful** push is at least that old is re-pushed even when its refs are unchanged | the only mechanism that can notice a wipe with no local change; the git layer itself runs at most once/24h, so the full pass is spread over the namespaces roughly weekly |
+
+The default interval is 7 days because it matches the weekly archive cadence and
+is the shortest cadence that both (a) bounds how long a remote-side wipe can
+survive and (b) keeps re-push volume far below the pre-S3-GIT-002 behaviour of
+pushing all ~140 repos on every 15-minute tick — roughly 1/7 of the fleet per
+day instead of the whole fleet every run. A forced re-push of an unchanged
+*healthy* namespace is cheap (the helper lists the remote refs and no-ops); it is
+the probe that detects the divergent one.
+
+Wiring: the **weekly** layer (`duckbrain-s3-weekly.sh`, deployed but not tracked
+here) is the tar.xz snapshot upload, not a git push, so it is not the place to
+force a git re-push from. The git layer is invoked by `duckbrain-s3-unified.sh`
+(→ `duckbrain-s3-daily.sh` → this script), at most once per 24h; the age rule
+needs no wrapper change because the layer decides per namespace. Both knobs are
+plain environment variables, so the wrapper passes them through unchanged and
+adds no cadence of its own.
+
+Evidence (per-namespace line + roll-ups, in `duckbrain-<remote>.log`, i.e.
+`duckbrain-s3daily.log` for the daily git layer):
+
+```
+2026-09-18T21:01:06Z force-push ns-one (age 1789765164s >= 604800s since last_success)
+2026-09-18T21:01:06Z skip Hermes DAGger (up-to-date e5391b66cd0a)
+2026-09-18T21:01:06Z forced-full: 1 namespace(s) re-pushed despite unchanged refs (env=0 age=1): ns-one
+2026-09-18T21:01:06Z forced-full-age: periodic full re-push fired for 1 namespace(s) (interval 604800s since last_success): ns-one
+2026-09-18T21:01:06Z OK: pushed=1 skipped=2 failed=0 forced=1 remote_repos=0 duration_s=1
+```
+
+Honesty rules: `forced=N` counts *decisions* (the summary line carries it
+alongside `pushed/skipped/failed`); a forced push that fails is reported as
+`FAIL push <ns>` plus `forced-full: FAILED for:` plus a `PARTIAL` stdout line
+carrying the forced count and a `FORCED-FULL PARTIAL` line; and a forced pass
+that could not cover namespaces sitting in failure backoff prints a `NOTICE`
+line naming them instead of a bare green summary (exit code stays honest —
+`1` only when an attempted push failed). A forced pass never overrides the
+backoff ladder: that is what keeps one rejecting namespace from consuming the
+backup budget.
 
 ## Duplicate-bundle ref collisions (self-healed)
 
