@@ -1,0 +1,66 @@
+commit c693f256406193d8fb6e86d688d17bb8fb5ad56b
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 14:44:23 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 14:44:23 2026 -0500
+
+    fix(ci): align pnpm smoke with pinned package manager
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .github/workflows/ci.yml      |  2 +-
+ CONTRIBUTING.md               |  2 +-
+ docs/guide/getting-started.md | 10 ++++++----
+ 3 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 944b2fe..8832a4c 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -28,7 +28,7 @@ jobs:
+ 
+       - name: Install from a clean store and smoke-test the CLI
+         run: |
+-          test "$(pnpm --version)" = "11.13.1"
++          test "$(pnpm --version)" = "12.4.2"
+           test ! -e node_modules
+           FRESH_STORE="${RUNNER_TEMP}/duckbrain-pnpm-store"
+           test ! -e "${FRESH_STORE}"
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 27afe22..91bb2e0 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -8,7 +8,7 @@ Thank you for your interest in contributing to DuckBrain! This document provides
+ 
+ - Node.js 22+
+ - Git
+-- pnpm 11.13.1 (pinned by `package.json`)
++- pnpm 12.4.2 (pinned by `package.json`)
+ - TypeScript 7.x
+ 
+ ### Local Development
+diff --git a/docs/guide/getting-started.md b/docs/guide/getting-started.md
+index 3475e0e..e763dff 100644
+--- a/docs/guide/getting-started.md
++++ b/docs/guide/getting-started.md
+@@ -23,14 +23,16 @@ Before you begin, you'll need:
+   nvm install 22 && nvm use 22
+   ```
+ 
+-- **pnpm** 11.13.1 — the exact version is pinned in `package.json` and is the only pnpm major exercised by the clean-install CI smoke. Activate it via Corepack (bundled with Node 22); fallback: `npm i -g pnpm@11.13.1`:
++- **pnpm** 12.4.2 — the exact version is pinned in `package.json` and is the only pnpm major exercised by the clean-install CI smoke. Activate it via Corepack (bundled with Node 22); for non-root installs use `corepack enable pnpm --install-directory ~/.local/bin` and add that directory to `PATH`; fallback: `npm i -g pnpm@12.4.2`:
+ 
+   ```bash
+-  corepack enable
+-  corepack prepare pnpm@11.13.1 --activate
++  mkdir -p ~/.local/bin
++  corepack enable pnpm --install-directory ~/.local/bin
++  export PATH="$HOME/.local/bin:$PATH"
++  corepack prepare pnpm@12.4.2 --activate
+   ```
+ 
+-  Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.
++  Do not use a different pnpm major to refresh this repository's lockfile.
+ 
+ - **Git** ([Download](https://git-scm.com/))
+ - **An AI agent** that supports MCP (Claude Desktop, Cursor, etc.)

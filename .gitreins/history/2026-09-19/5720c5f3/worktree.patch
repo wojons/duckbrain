@@ -1,0 +1,21 @@
+diff --git a/ops/dogfood-e2e.sh b/ops/dogfood-e2e.sh
+index 37f7ebf..9eba5e3 100755
+--- a/ops/dogfood-e2e.sh
++++ b/ops/dogfood-e2e.sh
+@@ -375,6 +375,16 @@ fi
+ c=$(api GET $PA "$T_ADMIN" "/api/keys?namespace=$NS")
+ [ "$c" = "200" ]; verdict "keys API serves tree" $? "code=$c"
+ 
++# ─── Phase 8: S3-gate era surfaces (PUSH-001 gate, DB-GAP-049 rotation, ────
++#     portability profile-creds, SUPA-5 realtime). Sourced so the sandbox
++#     daemon/vars stay shared; exit codes surface via verdict counters.
++if [ -f "$REPO/ops/dogfood-phase8-s3gate.sh" ]; then
++  # shellcheck disable=SC1091
++  source "$REPO/ops/dogfood-phase8-s3gate.sh"
++else
++  say "(phase 8 file missing — skipping S3-gate era checks)"
++fi
++
+ # ─── Summary ───────────────────────────────────────────────────────────────
+ say ""; say "══ DOGFOOD SUMMARY — $PASS passed, $FAIL failed ══"
+ for r in "${RESULTS[@]}"; do say "  $r"; done

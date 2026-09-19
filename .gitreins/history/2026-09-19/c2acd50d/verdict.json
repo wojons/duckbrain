@@ -1,0 +1,97 @@
+{
+  "task_id": "GAP-033",
+  "task_title": "LOAD-HYGIENE: bound test-suite host load",
+  "task_criteria": [
+    "Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "a120517f69033083ac0c4406df05f01dde02b4d0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:36PM INF scanned ~9196545 bytes (9.20 MB) in 1.93s\n4:36PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193659 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  16:36:35\n   Duration  83.08s (transform 5.23s, setup 5.53s, import 46.75s, tests 257.06s, environment 15ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: VERIFIED FINDINGS for GAP-033 single criterion:\n\nSub-requirement 1: AUDIT for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops.\n- NO audit artifact exists. Searched: commit messages (062fa82, 1c65bcc, d4cbb5a, a120517), .gitreins/tasks.yaml, .coding-hermes/board/events.jsonl (last events 547/548/549 are only task_created/task_updated), docs/, AGENTS.md, CHANGELOG.md. No document enumerates the three patterns or names the worst offender. The only \"audit\" text is the task description itself (injected by task-router-load-audit), not a repo audit.\n- FAIL.\n\nSub-requirement 2: FIX the single worst offender with bounded waves (env knob clamped 2-16) OR a session-scoped shared fixture.\n- Worker commit 062fa82 rewrote src/cli/token-roles.test.ts: 5 `await runTokenCli(...)` subprocess spawns -> 5 in-process `runTokenInProcess(...)` calls (runHumanCLI from ./human) + 1 real-exec parity smoke (spawn at line 254). Verified: old file (d4cbb5a:src/cli/token-roles.test.ts) had 5 runTokenCli call sites; new file has 5 runTokenInProcess + 1 spawn. 5 spawns -> 1.\n- This is the third allowed option in the task detail (\"in-process + one real-exec parity smoke\"), so the fix mechanism is acceptable.\n- NO env knob clamped 2-16 exists (grep for process.env/WAVE/CONCURREN in the test file: only `...process.env` at line 247 for the child env). NO session-scoped shared fixture added.\n- PASS (fix applied, allowed mechanism).\n\nSub-requirement 3: full suite still green.\n- Post-change evidence: HEAD a120517 (2026-09-19 21:35:48Z, after 062fa82 at 21:24:34Z) \"docs: sync AGENTS.md test counts to live suite (155/1212) after wave\"; AGENTS.md:14 \"Vitest (155 suites, 1212 tests)\" and :33 \"pnpm test # 1212 tests, 155 suites\". GAP-033 completed_at 21:36:34Z.\n- Pre-change green runs in .gitreins/history/2026-09-19: 46e9dbd3 (aed50433, 13:04) \"Test Files 153 passed (153) / Tests 1200 passed (1200)\" exit_code 0; 0c2cdd4c (fa218112, 13:55) 153/1200 exit 0; 5acb1e16 (b14c14fc, 13:57) 153/1200 exit 0.\n- No stored verdict.json exists for GAP-033 itself (no .gitreins/history entry with task_id GAP-033).\n- PASS (suite green post-change per recorded 155/1212).\n\nSub-requirement 4: before/after measurement recorded.\n- FAIL. No measurement recorded anywhere. Commit 062fa82 body contains only the design statement \"5 spawns -> 1\" in the test-file docstring; no wall-clock, no spawn count measurement, no peak concurrent children. No numbers in board events, docs, or commit body. Task detail explicitly requires \"prove before/after with a concrete measurement (spawn count, wall clock, or peak concurrent children) recorded in the completion event\" \u2014 the completion event (board events.jsonl) has no such record.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: VERIFIED FINDINGS for GAP-033 single criterion:\n\nSub-requirement 1: AUDIT for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops.\n- NO audit artifact exists. Searched: commit messages (062fa82, 1c65bcc, d4cbb5a, a120517), .gitreins/tasks.yaml, .coding-hermes/board/events.jsonl (last events 547/548/549 are only task_created/task_updated), docs/, AGENTS.md, CHANGELOG.md. No document enumerates the three patterns or names the worst offender. The only \"audit\" text is the task description itself (injected by task-router-load-audit), not a repo audit.\n- FAIL.\n\nSub-requirement 2: FIX the single worst offender with bounded waves (env knob clamped 2-16) OR a session-scoped shared fixture.\n- Worker commit 062fa82 rewrote src/cli/token-roles.test.ts: 5 `await runTokenCli(...)` subprocess spawns -> 5 in-process `runTokenInProcess(...)` calls (runHumanCLI from ./human) + 1 real-exec parity smoke (spawn at line 254). Verified: old file (d4cbb5a:src/cli/token-roles.test.ts) had 5 runTokenCli call sites; new file has 5 runTokenInProcess + 1 spawn. 5 spawns -> 1.\n- This is the third allowed option in the task detail (\"in-process + one real-exec parity smoke\"), so the fix mechanism is acceptable.\n- NO env knob clamped 2-16 exists (grep for process.env/WAVE/CONCURREN in the test file: only `...process.env` at line 247 for the child env). NO session-scoped shared fixture added.\n- PASS (fix applied, allowed mechanism).\n\nSub-requirement 3: full suite still green.\n- Post-change evidence: HEAD a120517 (2026-09-19 21:35:48Z, after 062fa82 at 21:24:34Z) \"docs: sync AGENTS.md test counts to live suite (155/1212) after wave\"; AGENTS.md:14 \"Vitest (155 suites, 1212 tests)\" and :33 \"pnpm test # 1212 tests, 155 suites\". GAP-033 completed_at 21:36:34Z.\n- Pre-change green runs in .gitreins/history/2026-09-19: 46e9dbd3 (aed50433, 13:04) \"Test Files 153 passed (153) / Tests 1200 passed (1200)\" exit_code 0; 0c2cdd4c (fa218112, 13:55) 153/1200 exit 0; 5acb1e16 (b14c14fc, 13:57) 153/1200 exit 0.\n- No stored verdict.json exists for GAP-033 itself (no .gitreins/history entry with task_id GAP-033).\n- PASS (suite green post-change per recorded 155/1212).\n\nSub-requirement 4: before/after measurement recorded.\n- FAIL. No measurement recorded anywhere. Commit 062fa82 body contains only the design statement \"5 spawns -> 1\" in the test-file docstring; no wall-clock, no spawn count measurement, no peak concurrent children. No numbers in board events, docs, or commit body. Task detail explicitly requires \"prove before/after with a concrete measurement (spawn count, wall clock, or peak concurrent children) recorded in the completion event\" \u2014 the completion event (board events.jsonl) has no such record.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded",
+                "status": "FAIL",
+                "detail": "VERIFIED FINDINGS for GAP-033 single criterion:\n\nSub-requirement 1: AUDIT for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops.\n- NO audit artifact exists. Searched: commit messages (062fa82, 1c65bcc, d4cbb5a, a120517), .gitreins/tasks.yaml, .coding-hermes/board/events.jsonl (last events 547/548/549 are only task_created/task_updated), docs/, AGENTS.md, CHANGELOG.md. No document enumerates the three patterns or names the worst offender. The only \"audit\" text is the task description itself (injected by task-router-load-audit), not a repo audit.\n- FAIL.\n\nSub-requirement 2: FIX the single worst offender with bounded waves (env knob clamped 2-16) OR a session-scoped shared fixture.\n- Worker commit 062fa82 rewrote src/cli/token-roles.test.ts: 5 `await runTokenCli(...)` subprocess spawns -> 5 in-process `runTokenInProcess(...)` calls (runHumanCLI from ./human) + 1 real-exec parity smoke (spawn at line 254). Verified: old file (d4cbb5a:src/cli/token-roles.test.ts) had 5 runTokenCli call sites; new file has 5 runTokenInProcess + 1 spawn. 5 spawns -> 1.\n- This is the third allowed option in the task detail (\"in-process + one real-exec parity smoke\"), so the fix mechanism is acceptable.\n- NO env knob clamped 2-16 exists (grep for process.env/WAVE/CONCURREN in the test file: only `...process.env` at line 247 for the child env). NO session-scoped shared fixture added.\n- PASS (fix applied, allowed mechanism).\n\nSub-requirement 3: full suite still green.\n- Post-change evidence: HEAD a120517 (2026-09-19 21:35:48Z, after 062fa82 at 21:24:34Z) \"docs: sync AGENTS.md test counts to live suite (155/1212) after wave\"; AGENTS.md:14 \"Vitest (155 suites, 1212 tests)\" and :33 \"pnpm test # 1212 tests, 155 suites\". GAP-033 completed_at 21:36:34Z.\n- Pre-change green runs in .gitreins/history/2026-09-19: 46e9dbd3 (aed50433, 13:04) \"Test Files 153 passed (153) / Tests 1200 passed (1200)\" exit_code 0; 0c2cdd4c (fa218112, 13:55) 153/1200 exit 0; 5acb1e16 (b14c14fc, 13:57) 153/1200 exit 0.\n- No stored verdict.json exists for GAP-033 itself (no .gitreins/history entry with task_id GAP-033).\n- PASS (suite green post-change per recorded 155/1212).\n\nSub-requirement 4: before/after measurement recorded.\n- FAIL. No measurement recorded anywhere. Commit 062fa82 body contains only the design statement \"5 spawns -> 1\" in the test-file docstring; no wall-clock, no spawn count measurement, no peak concurrent children. No numbers in board events, docs, or commit body. Task detail explicitly requires \"prove before/after with a concrete measurement (spawn count, wall clock, or peak concurrent children) recorded in the completion event\" \u2014 the completion event (board events.jsonl) has no such record.\n"
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-033\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: VERIFIED FINDINGS for GAP-033 single criterion:\n\nSub-requirement 1: AUDIT for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops.\n- NO audit artifact exists. Searched: commit messages (062fa82, 1c65bcc, d4cbb5a, a120517), .gitreins/tasks.yaml, .coding-hermes/board/events.jsonl (last events 547/548/549 are only task_created/task_updated), docs/, AGENTS.md, CHANGELOG.md. No document enumerates the three patterns or names the worst offender. The only \"audit\" text is the task description itself (injected by task-router-load-audit), not a repo audit.\n- FAIL.\n\nSub-requirement 2: FIX the single worst offender with bounded waves (env knob clamped 2-16) OR a session-scoped shared fixture.\n- Worker commit 062fa82 rewrote src/cli/token-roles.test.ts: 5 `await runTokenCli(...)` subprocess spawns -> 5 in-process `runTokenInProcess(...)` calls (runHumanCLI from ./human) + 1 real-exec parity smoke (spawn at line 254). Verified: old file (d4cbb5a:src/cli/token-roles.test.ts) had 5 runTokenCli call sites; new file has 5 runTokenInProcess + 1 spawn. 5 spawns -> 1.\n- This is the third allowed option in the task detail (\"in-process + one real-exec parity smoke\"), so the fix mechanism is acceptable.\n- NO env knob clamped 2-16 exists (grep for process.env/WAVE/CONCURREN in the test file: only `...process.env` at line 247 for the child env). NO session-scoped shared fixture added.\n- PASS (fix applied, allowed mechanism).\n\nSub-requirement 3: full suite still green.\n- Post-change evidence: HEAD a120517 (2026-09-19 21:35:48Z, after 062fa82 at 21:24:34Z) \"docs: sync AGENTS.md test counts to live suite (155/1212) after wave\"; AGENTS.md:14 \"Vitest (155 suites, 1212 tests)\" and :33 \"pnpm test # 1212 tests, 155 suites\". GAP-033 completed_at 21:36:34Z.\n- Pre-change green runs in .gitreins/history/2026-09-19: 46e9dbd3 (aed50433, 13:04) \"Test Files 153 passed (153) / Tests 1200 passed (1200)\" exit_code 0; 0c2cdd4c (fa218112, 13:55) 153/1200 exit 0; 5acb1e16 (b14c14fc, 13:57) 153/1200 exit 0.\n- No stored verdict.json exists for GAP-033 itself (no .gitreins/history entry with task_id GAP-033).\n- PASS (suite green post-change per recorded 155/1212).\n\nSub-requirement 4: before/after measurement recorded.\n- FAIL. No measurement recorded anywhere. Commit 062fa82 body contains only the design statement \"5 spawns -> 1\" in the test-file docstring; no wall-clock, no spawn count measurement, no peak concurrent children. No numbers in board events, docs, or commit body. Task detail explicitly requires \"prove before/after with a concrete measurement (spawn count, wall clock, or peak concurrent children) recorded in the completion event\" \u2014 the completion event (board events.jsonl) has no such record.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T21:41:55.857493",
+  "evidence": {
+    "collected_at": "2026-09-19T21:41:55.877614+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1237,
+        "truncated": false,
+        "source": "git show a120517f6903"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3677,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "GAP-033"
+  }
+}

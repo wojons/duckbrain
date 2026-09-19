@@ -1497,24 +1497,27 @@ tasks:
     (c) per-test expensive builder loops; fix the single worst offender with bounded
     waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still
     green; before/after measurement recorded
-  status: in_progress
+  status: complete
   created_at: '2026-09-19T20:50:34.180124+00:00'
+  completed_at: '2026-09-19T22:01:30.795305+00:00'
 - id: UI-GAP-001
   title: Wire UI header filters + rich query param controls
   criteria:
   - Header domain/author/date filters compose into memoriesApi.list params; controls
     exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in
     packages/ui flips to assert the requests; packages/ui tests + build green
-  status: in_progress
+  status: complete
   created_at: '2026-09-19T20:50:34.518463+00:00'
+  completed_at: '2026-09-19T21:41:56.859679+00:00'
 - id: DB-GAP-053
   title: squashPartition ORDER BY deterministic compaction
   criteria:
   - squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP)
     + stable tiebreaker) or a documented ordering contract; a regression test pins
     compaction row order; full suite green
-  status: in_progress
+  status: complete
   created_at: '2026-09-19T20:50:34.836936+00:00'
+  completed_at: '2026-09-19T21:44:33.251259+00:00'
 - id: DF-0919-05
   title: remember validUntil camelCase silently ignored
   criteria:
@@ -1522,5 +1525,6 @@ tasks:
     \ valid_until/valid_from) \u2014 no silent field drop; regression test proves\
     \ a validUntil in the past excludes the memory from the current view; full suite\
     \ green"
-  status: in_progress
+  status: complete
   created_at: '2026-09-19T20:50:35.156615+00:00'
+  completed_at: '2026-09-19T21:51:32.192763+00:00'
