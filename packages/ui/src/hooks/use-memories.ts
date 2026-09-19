@@ -42,13 +42,33 @@ interface UseMemoriesParams {
   query?: string;
   namespace?: string;
   cursor?: string;
+  /** Only memories created after this ISO-8601 instant. */
+  after?: string;
+  /** Only memories created before this ISO-8601 instant. */
+  before?: string;
+  /** Point-in-time selector — sent as ?as_of=. */
+  asOf?: string;
+  /** RETR-007: search every manifest namespace in one request. */
+  allNamespaces?: boolean;
 }
 
 /**
  * Hook to fetch memories list with caching
  */
 export function useMemories(params: UseMemoriesParams = {}) {
-  const { prefix, limit, offset, domain, author, query, namespace } = params;
+  const {
+    prefix,
+    limit,
+    offset,
+    domain,
+    author,
+    query,
+    namespace,
+    after,
+    before,
+    asOf,
+    allNamespaces,
+  } = params;
 
   return useQuery({
     queryKey: memoriesKeys.list({
@@ -59,6 +79,10 @@ export function useMemories(params: UseMemoriesParams = {}) {
       author,
       query,
       namespace,
+      after,
+      before,
+      asOf,
+      allNamespaces,
     }),
     queryFn: () =>
       memoriesApi.list({
@@ -69,6 +93,10 @@ export function useMemories(params: UseMemoriesParams = {}) {
         author,
         query,
         namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
       }),
     staleTime: 30 * 1000, // 30 seconds
     refetchOnWindowFocus: false,
@@ -81,13 +109,35 @@ export function useMemories(params: UseMemoriesParams = {}) {
 export function useInfiniteMemories(
   params: Omit<UseMemoriesParams, "cursor"> = {},
 ) {
-  const { prefix, limit = 50, domain, author, query, namespace } = params;
+  const {
+    prefix,
+    limit = 50,
+    domain,
+    author,
+    query,
+    namespace,
+    after,
+    before,
+    asOf,
+    allNamespaces,
+  } = params;
 
   return useInfiniteQuery({
     queryKey: [
       ...memoriesKeys.lists(),
       "infinite",
-      { prefix, limit, domain, author, query, namespace },
+      {
+        prefix,
+        limit,
+        domain,
+        author,
+        query,
+        namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
+      },
     ],
     queryFn: async ({ pageParam }) => {
       const result = await memoriesApi.list({
@@ -98,6 +148,10 @@ export function useInfiniteMemories(
         author,
         query,
         namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
       });
       return result;
     },

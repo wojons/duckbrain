@@ -129,6 +129,43 @@ describe("MemoryTable", () => {
     expect(params.get("offset")).toBe("0");
   });
 
+  it("composes the shared header filters into the list request params", async () => {
+    const api = installApiStub(
+      standardRoutes({ memories: makeMemories(1, "/filtered") }),
+    );
+
+    // The header controls write this shared state (UI-GAP-001 wiring);
+    // the table must turn every active filter into wire params.
+    useUIStore.setState({
+      searchQuery: "",
+      filters: {
+        domain: "config",
+        author: "wojonstech@gmail.com",
+        dateRange: "7d",
+        after: "2026-01-01T08:30",
+        before: "",
+        asOf: "HEAD",
+        prefix: "/projects",
+        allNamespaces: true,
+      },
+    });
+
+    renderWithProviders(<MemoryTable namespace="default" />);
+    await screen.findByText("/filtered/000");
+
+    const params = api.requestsFor("/api/memories")[0].params;
+    expect(params.get("domain")).toBe("config");
+    expect(params.get("author")).toBe("wojonstech@gmail.com");
+    // explicit after wins over the dateRange preset
+    expect(params.get("after")).toBe("2026-01-01T08:30");
+    expect(params.get("as_of")).toBe("HEAD");
+    expect(params.get("prefix")).toBe("/projects");
+    expect(params.get("allNamespaces")).toBe("true");
+    // pagination stays intact alongside the filters
+    expect(params.get("limit")).toBe("50");
+    expect(params.get("offset")).toBe("0");
+  });
+
   it("renders the empty state when the API returns no memories", async () => {
     installApiStub(standardRoutes({ memories: [] }));
 
@@ -138,7 +175,9 @@ describe("MemoryTable", () => {
   });
 
   it("renders a retryable error state when the API fails", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     installApiStub([
       (req) =>
         req.path === "/api/memories" && req.method === "GET"
@@ -152,7 +191,9 @@ describe("MemoryTable", () => {
       expect(
         await screen.findByText("Failed to load memories"),
       ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /retry/i }),
+      ).toBeInTheDocument();
       expect(screen.getByText("boom")).toBeInTheDocument();
     } finally {
       consoleError.mockRestore();
