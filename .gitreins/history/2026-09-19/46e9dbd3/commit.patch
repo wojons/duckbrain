@@ -1,0 +1,51 @@
+commit aed5043385e2c406ad49a63226b83df71b0b6194
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 13:04:08 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 13:04:08 2026 -0500
+
+    docs: sync AGENTS.md test counts (INT-CI-10)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml | 7 +++++++
+ AGENTS.md            | 4 ++--
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 7f4147c..3fa1bb2 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1456,3 +1456,10 @@ tasks:
+   status: complete
+   created_at: '2026-09-19T16:31:05.334701+00:00'
+   completed_at: '2026-09-19T17:35:30.749185+00:00'
++- id: INT-CI-10
++  title: Sync AGENTS.md test counts
++  criteria:
++  - AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines
++    and git diff verifies only those count edits
++  status: in_progress
++  created_at: '2026-09-19T18:01:47.000465+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index 74daeb0..e5c906e 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (152 suites, 1188 tests)
++- **Test Framework:** Vitest (153 suites, 1200 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1188 tests, 152 suites
++pnpm test          # 1200 tests, 153 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
