@@ -16,7 +16,7 @@ guards:
 
 evaluator:
   max_iterations: 250
-  max_time: "25m"
+  max_time: "45m"
   # 4M starved DF-0919-01's tier-2 (the judge's clean-install reproduce needs
   # a wide exploration loop on this repo). 10M = the gitreins default.
   max_input_tokens: "10M"
