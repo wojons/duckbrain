@@ -8,7 +8,7 @@
  * The proof is BEHAVIOURAL, mirroring `src/git/autocommit-ops006.test.ts`:
  *
  *  1. the synchronous child-process primitives (`execSync` / `spawnSync`) are
- *     patched to STALL the event loop for 1500ms when product code calls them,
+ *     patched to STALL the event loop for 2500ms when product code calls them,
  *     and counted. While GET /users (and `createNamespaceTool`) run, a 50ms
  *     heartbeat on the SAME loop must keep firing (<250ms gaps) and a
  *     concurrent cheap route must answer (<500ms). Pre-fix both product paths
@@ -35,7 +35,7 @@ import os from "os";
 import path from "path";
 
 /** Stall duration the patched sync primitive burns on its first armed call. */
-const SYNC_STALL_MS = 1500;
+const SYNC_STALL_MS = 2500;
 /**
  * Upper bound a heartbeat gap may reach while a serving path runs. Sits well
  * below SYNC_STALL_MS so the pre-fix (synchronous) signature — a gap of >= the
