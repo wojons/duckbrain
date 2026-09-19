@@ -12,7 +12,7 @@ description: >-
   hardcodes namespace 'default' so it fails for every other namespace — use
   MCP forget). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.5.0
+version: 1.6.0
 category: software-development
 ---
 
@@ -251,18 +251,24 @@ schema, error table, and grammar: see
     them to healthy-mode scores). Cold-boot race: for the first seconds
     `keys_error` can read `Namespace 'undefined' does not exist`, then
     self-clears; harmless but ugly.
-14. **CLI `forget` is broken outside the 'default' namespace (DOGFOOD-0904-01,
-    open as of 09-04):** `duckbrain forget <id> --namespace=<ns>` hardcodes
-    `namespace:"default"` internally (src/cli/human.ts:636) — the flag is
-    never parsed, and usage text doesn't document it. Every non-default
-    namespace errors with `Namespace 'default' not found`. Use the MCP
-    `forget` tool (`{"id":"<uuid>","namespace":"<ns>"}` — verified working)
-    or the REST route until the fix lands.
-15. **Fresh clones of `main` crash on first boot (DOGFOOD-0904-02, open as of
-    09-04):** `Cannot find module 'express'` after a clean `pnpm install` —
-    express is a phantom dep (present only transitively in the lockfile).
-    Dev checkouts with an older node_modules work. If booting a fresh clone,
-    `pnpm add express@5.2.1` unblocks (one-liner fix tracked on the board).
+14. **CLI `forget` outside 'default' namespaces — FIXED (verified live
+    09-19):** the hardcoded `namespace:"default"` was replaced by
+    `flags.namespace || getDefaultNamespace()` in `forgetCommand`
+    (src/cli/human.ts); `duckbrain forget <id> --namespace=<ns>` now
+    tombstones in the right namespace.
+15. **Fresh clone boot (re-verified 09-19, DF-0919-01/02 open):** two breakers
+    now stand between a fresh user and a running daemon. (a) On an empty
+    store, `pnpm install --frozen-lockfile` RC=0 but leaves express (and ~30
+    others) unlinked -> boot dies with `Cannot find module 'express'`;
+    `pnpm add express@5.2.1` relinks and the daemon then boots. (b)
+    `pnpm build` fails: `packages/ui/tsconfig.json:18` still has `baseUrl`,
+    removed in TypeScript 7 (TS5102); the backend runs from src via tsx, so
+    skip the UI build. Also README says pnpm 11+ but corepack installs 12.4.2,
+    and bare `corepack enable pnpm` needs sudo — use
+    `corepack enable pnpm --install-directory ~/.local/bin` (DF-0919-03).
+    The daemon is otherwise fully functional fresh: quickstart passes, but
+    expect `/health` 503 while lmstudio+ollama are healthy because the
+    keyless openai provider counts as unhealthy (DF-0919-04).
 
 ## Testing your changes safely
 

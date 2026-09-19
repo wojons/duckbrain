@@ -335,3 +335,40 @@ Install/verify/scratch-isolation commands live in
 [docs/guide/deployment.md § systemd hardening](../guide/deployment.md).
 `pnpm ops:check` fails the build if a pattern/numeric kill ever re-enters
 package scripts.
+
+## Run 6 — 2026-09-19 dogfood (fresh-install focus + full API re-walk)
+
+This run asked one question the previous runs never did: what happens to a
+user who starts from nothing? The control-host checkout cannot answer that —
+its node_modules is a year of accretion. The ephemeral bunker (las-bunker-03,
+agent 7649b92c, destroyed after) is the honest environment.
+
+Why the two fresh-install breakers were invisible until now:
+
+- DF-0919-01 (express unlinked on fresh store). DOGFOOD-0904-02 fixed the
+  declaration (express moved from phantom to direct dep, lockfile updated) —
+  but pnpm 12.4.2's isolated linker still skipped ~30 root-level symlinks on
+  the fresh store despite the lockfile and .modules.yaml listing express.
+  Dev checkouts never hit this: their node_modules predates the pnpm bump, so
+  pnpm install is a no-op there. Lesson: an install leg must run on a store
+  that never saw the old lockfile. `pnpm add express@5.2.1` repairs it because
+  a real add re-runs the linker, which then links everything correctly — the
+  package itself was never the problem.
+- DF-0919-02 (baseUrl vs TS7). packages/ui/tsconfig.json still carries
+  baseUrl, removed in TypeScript 7. Local builds pass because dev
+  node_modules holds the old TS. Same root pattern: stale dev environments
+  hide fresh-environment breakage. Anything gated only on the dev checkout
+  (pre-commit guards, pnpm tsc --noEmit) cannot see it.
+
+Health-signal design (DF-0919-04): the aggregate /health state counts
+never-configured providers as unhealthy. On a fresh daemon every write and
+recall works, yet HTTP says 503 degraded. Degradation should mean "a
+configured capability is down", not "a provider exists in the enum without a
+key". GAP-030's 503-for-degraded contract is fine; the degraded computation
+is what is off.
+
+What held up: the full usage-skill contract re-verified clean this run —
+scoped tokens (403/401), MCP field names, SSE cursor framing, git batching,
+validity windows (with the camelCase trap, DF-0919-05). CLI forget in
+non-default namespaces now works (DOGFOOD-0904-01 fix confirmed in
+src/cli/human.ts forgetCommand — flag resolves via getDefaultNamespace()).

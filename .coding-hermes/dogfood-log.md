@@ -34,3 +34,48 @@ Real-use field tests of DuckBrain. Each entry: date, verdict, promise, top findi
 - **Time-to-first-success:** ~4 min (scratch daemon → first semantic-scored recall) on the dev checkout; **fresh user on main: BLOCKED at first boot** (finding 1). Fresh-machine timings: node via nvm 11s, pnpm install 32s.
 - **Friction count:** 3 new (→ DOGFOOD-0904-01..03) + 1 infra registration stub.
 - **Foreman:** NOT woken — duckbrain project cooldown is 3600s (< 14400 threshold) and ticked normally 16:23→16:46 today; new tasks will be picked up on its next hourly tick.
+
+---
+
+## Run — 2026-09-19 (tick duckbrain-dogfood-2026-09-19-18-33-51)
+
+**Verdict: PROMISING-BUT-ROUGH.** Promise ("agent gets persistent,
+version-controlled memory over HTTP/MCP/CLI") holds: full workflow verified
+live on an isolated scratch daemon — namespace create, write, exact/prefix/
+tree/semantic recall, scoped-token 401/403, MCP remember/forget, SSE change
+feed (ready -> heartbeat -> cursor change), validity windows, git-batched
+auto-commit. CLI forget in non-default namespaces now WORKS
+(DOGFOOD-0904-01 fix verified in source).
+
+**Focus this run: fresh-machine installability** (ephemeral bunker
+las-bunker-03, agent 7649b92c, clean Debian user, clone of public origin at
+ce936ae). Found 2 install breakers invisible on the dev checkout:
+- DF-0919-01 (P1): pnpm install --frozen-lockfile RC=0 but express (and
+  ~30 pkgs) unlinked on a fresh store -> boot Cannot find module 'express';
+  pnpm add express@5.2.1 repairs. install=60s, boot <5s after workaround.
+- DF-0919-02 (P1): pnpm build fails — packages/ui/tsconfig.json baseUrl
+  removed in TS7 (TS5102). Backend unaffected (tsx runs src).
+- DF-0919-03 (P2): README pnpm version drift + non-root corepack flag.
+- DF-0919-04 (P3): /health 503 with all active providers healthy (keyless
+  openai counts unhealthy).
+- DF-0919-05 (P3): validUntil camelCase silently dropped (snake_case works).
+- DF-0919-06 (P3): outside-default warning fires on explicit ?namespace=.
+
+**Time-to-first-success:** ~10s on the dev checkout (scratch daemon up +
+first write read back); on the fresh bunker, only after the DF-0919-01
+workaround — without it, first success is blocked entirely.
+
+**Friction count:** 6 new (above), 0 pre-existing regressions found in the
+API contracts documented in the usage skill.
+
+**Bunker leg:** PASSED after workaround — clone 60s, quickstart smoke
+(README steps 1-5) 201/201/200 on the fresh daemon, no sudo needed, agent
+destroyed, bunker clean.
+
+**Left behind:** docs/dogfood/2026-09-19-integration.md, diagnostics.md
+run-6 section, skills/duckbrain-usage v1.6.0, DF-0919-01..06 on the board
+(events appended), this entry.
+
+NOTE: first application of this run's artifacts was wiped from the working
+tree by a sibling process while uncommitted (re-applied and committed in the
+same step — see git history for the double landing).
