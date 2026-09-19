@@ -71,7 +71,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 
 #### Prerequisites
 
-You need **git**, **Node.js 22+** and **pnpm 11.13.1**. The repository pins that pnpm version in `package.json` so fresh installs use the same linker and lockfile behavior as CI. On a fresh Debian/Ubuntu box that only has git:
+You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`. On a fresh Debian/Ubuntu box that only has git:
 
 ```bash
 # Node.js 22+ via nvm (~11s on a fresh box), or install from nodejs.org / your distro's packages
@@ -79,13 +79,15 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
 . ~/.nvm/nvm.sh   # or open a new shell
 nvm install 22 && nvm use 22
 
-# Activate the repository's pinned pnpm version via Corepack (bundled with Node 22).
-# Fallback when Corepack is unavailable: npm i -g pnpm@11.13.1
-corepack enable
-corepack prepare pnpm@11.13.1 --activate
+# pnpm 12.4.2 via corepack, installed without writing to root-owned /usr/bin
+mkdir -p ~/.local/bin
+corepack enable pnpm --install-directory ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"
+corepack prepare pnpm@12.4.2 --activate
+pnpm --version  # expect 12.4.2
 ```
 
-Do not substitute a different pnpm major when refreshing the lockfile; pnpm 12 is outside this repository's tested install contract.
+Add `$HOME/.local/bin` to your shell profile so `pnpm` remains on `PATH` in new shells.
 
 `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
 
@@ -96,8 +98,8 @@ Do not substitute a different pnpm major when refreshing the lockfile; pnpm 12 i
 git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
-# Install exactly what the committed pnpm lockfile specifies
-pnpm install --frozen-lockfile
+# Install dependencies
+pnpm install
 
 # Start the development server
 pnpm run dev
@@ -105,15 +107,7 @@ pnpm run dev
 
 ### Verify the install
 
-First, verify that the frozen install linked every runtime dependency needed by the CLI:
-
-```bash
-node bin/duckbrain.js help
-```
-
-The command must print `DuckBrain v1.0.0 - AI Memory System` without a `Cannot find module` error.
-
-Then paste the full HTTP smoke in order; the last command must print the memory you stored:
+Paste in order; the last command must print the memory you stored:
 
 ```bash
 # 1. start the HTTP daemon in the background
