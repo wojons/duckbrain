@@ -13,6 +13,7 @@ import { getNamespaceWriter } from "../serialization/namespaceWriter";
 import path from "path";
 import fs from "fs";
 import { deepConvertBigInts } from "../utils/serialize";
+import { compareChunkNames } from "../storage/jsonl";
 
 /**
  * Parse DuckDB STRUCT format string into a JavaScript object
@@ -147,7 +148,7 @@ export interface MemoryQueryFilters {
 /**
  * Collect the JSONL file paths for the given partitions
  */
-function collectJsonlFiles(partitionPaths: string[]): string[] {
+export function collectJsonlFiles(partitionPaths: string[]): string[] {
   const jsonlFiles: string[] = [];
   for (const partitionPath of partitionPaths) {
     if (!fs.existsSync(partitionPath)) continue;
@@ -155,6 +156,9 @@ function collectJsonlFiles(partitionPaths: string[]): string[] {
     const files = fs
       .readdirSync(partitionPath)
       .filter((f) => f.endsWith(".jsonl"))
+      // Numeric segment order, not readdir order: past segment 9999 the names
+      // are not fixed-width, and DuckDB ingests in the order given.
+      .sort(compareChunkNames)
       .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
     jsonlFiles.push(...files);
   }

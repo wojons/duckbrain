@@ -94,7 +94,7 @@ export function createPartition(partitionPath: string): void {
  * Numeric names sort ascending first; non-numeric names (current.jsonl, legacy
  * names) keep their previous relative position at the end.
  */
-function compareChunkNames(a: string, b: string): number {
+export function compareChunkNames(a: string, b: string): number {
   const numeric = /^\d+\.jsonl$/;
   const na = numeric.test(a) ? parseInt(a, 10) : null;
   const nb = numeric.test(b) ? parseInt(b, 10) : null;

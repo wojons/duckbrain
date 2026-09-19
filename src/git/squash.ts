@@ -16,6 +16,7 @@ import { getManifest, type Manifest } from "../storage/manifest";
 import { getDuckDBConnection } from "../duckdb/connection";
 import { READ_JSON_COLUMNS } from "../duckdb/queries";
 import { execSync } from "child_process";
+import { compareChunkNames } from "../storage/jsonl";
 
 /**
  * Squash operation options
@@ -97,6 +98,7 @@ export async function squashPartition(
     const jsonlFiles = fs
       .readdirSync(partitionPath)
       .filter((f: string) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames)
       .map((f: string) => path.join(partitionPath, f));
 
     if (jsonlFiles.length === 0) {
@@ -108,7 +110,7 @@ export async function squashPartition(
       };
     }
 
-    // Read all records from JSONL files
+    // Read all records from JSONL files (jsonlFiles are absolute paths)
     const allRecords: Array<Record<string, any>> = [];
     for (const jsonlFile of jsonlFiles) {
       const content = fs.readFileSync(jsonlFile, "utf-8");
@@ -300,7 +302,8 @@ export async function compactHistory(options: {
         // Count records first
         const jsonlFiles = fs
           .readdirSync(partitionPath)
-          .filter((f) => f.endsWith(".jsonl"));
+          .filter((f) => f.endsWith(".jsonl"))
+          .sort(compareChunkNames);
 
         let recordCount = 0;
         for (const file of jsonlFiles) {
@@ -371,9 +374,12 @@ export async function removeTombstones(partitionPath: string): Promise<{
     }
 
     // Find all JSONL files
+    // Sorted numerically: past segment 9999 the names are not fixed-width, so
+    // an unsorted listing merges and renames non-deterministically.
     const jsonlFiles = fs
       .readdirSync(partitionPath)
-      .filter((f: string) => f.endsWith(".jsonl"));
+      .filter((f: string) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames);
 
     if (jsonlFiles.length === 0) {
       return {
@@ -387,9 +393,14 @@ export async function removeTombstones(partitionPath: string): Promise<{
     let tombstoneCount = 0;
     const liveRecords: Array<Record<string, any>> = [];
 
-    // Read and filter records
+    // Read and filter records. jsonlFiles are BASENAMES from readdirSync, so
+    // they must be joined — reading them bare resolves against the process CWD
+    // and throws ENOENT (this function was dead on arrival for that reason).
     for (const jsonlFile of jsonlFiles) {
-      const content = fs.readFileSync(jsonlFile, "utf-8");
+      const content = fs.readFileSync(
+        path.join(partitionPath, jsonlFile),
+        "utf-8",
+      );
       const lines = content
         .split("\n")
         .filter((line: string) => line.trim() !== "");
@@ -421,12 +432,19 @@ export async function removeTombstones(partitionPath: string): Promise<{
 
     // Remove old files
     for (const jsonlFile of jsonlFiles) {
-      fs.unlinkSync(jsonlFile);
+      fs.unlinkSync(path.join(partitionPath, jsonlFile));
     }
 
-    // Rename cleaned file
-    const originalBase = path.basename(jsonlFiles[0]).replace(/\.jsonl$/, "");
-    const finalPath = path.join(partitionPath, `${originalBase}-cleaned.jsonl`);
+    // Name the merged output after the LOWEST numeric segment it replaces, so
+    // the partition keeps numeric contiguous naming and repeat runs are
+    // idempotent. The previous "<first>-cleaned.jsonl" name took jsonlFiles[0]
+    // from an UNSORTED listing (arbitrary segment) and appended another
+    // "-cleaned" segment name on every subsequent run.
+    const numericBases = jsonlFiles
+      .map((f) => path.basename(f).replace(/\.jsonl$/, ""))
+      .filter((base) => /^\d+$/.test(base));
+    const targetBase = numericBases.length > 0 ? numericBases[0] : "0001";
+    const finalPath = path.join(partitionPath, `${targetBase}.jsonl`);
     fs.renameSync(newChunkPath, finalPath);
 
     return {
@@ -496,7 +514,9 @@ export async function getCompactionStats(
     let tombstoneCount = 0;
 
     const files = fs.readdirSync(partitionPath);
-    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    const jsonlFiles = files
+      .filter((f) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames);
     const parquetFiles = files.filter((f) => f.endsWith(".parquet"));
 
     if (parquetFiles.length > 0) {
