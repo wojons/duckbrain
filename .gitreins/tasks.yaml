@@ -1418,3 +1418,30 @@ tasks:
   status: complete
   created_at: '2026-09-18T18:03:23.923103+00:00'
   completed_at: '2026-09-18T18:08:30.089237+00:00'
+- id: SEC-001
+  title: Chat-archive ingest secret scrub + history scrub
+  criteria:
+  - Shared scrubber wired into all 3 ingester scripts covering the full key-shape
+    class; planted-shape test passes; chat-archive git history free of the two leaked
+    keys; s3daily remote force-pushed and verified
+  status: complete
+  created_at: '2026-09-19T14:10:25.631716+00:00'
+  completed_at: '2026-09-19T14:23:19.353946+00:00'
+- id: DB-GAP-049
+  title: 'DB-GAP-049: chunk rotation froze past segment 9999 (padStart>4 digits +
+    lexicographic sort) -> one segment holds every write (87,530 lines/84MB against
+    a 1000-line/1MB bound)'
+  criteria:
+  - src/storage/jsonl.ts orders chunk names numerically (compareChunkNames) and getNextChunkName
+    never returns a segment name that already exists; readPartition uses the same
+    numeric ordering
+  - src/storage/jsonl.test.ts adds regression cases for rotation past segment 9999,
+    the collision guard, the legacy 4-digit sequence, non-numeric segments, appending
+    into a new segment at capacity, and numeric read order; the pre-fix revision fails
+    those cases (4 failed / 6 passed)
+  - tsc --noEmit clean, full vitest suite green at 149 files / 1174 tests, AGENTS.md
+    counts read 1174, and the commit touches only AGENTS.md + src/storage/jsonl.ts
+    + src/storage/jsonl.test.ts
+  status: complete
+  created_at: '2026-09-19T14:44:44.264306+00:00'
+  completed_at: '2026-09-19T14:54:05.296439+00:00'
