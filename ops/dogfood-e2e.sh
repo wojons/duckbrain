@@ -72,7 +72,13 @@ start_daemon(){ # start_daemon <port> <datadir> <nsdir> <authfile> [extra env kv
   DAPID+=($!)
 }
 write_auth(){ # write_auth <authfile> <name1:role1> ... — prints "name:key" lines
-  DBGF_NS="$NS" python3 - "$@" <<'PYEOF'
+  # Optional leading --ns <ns>: scope all minted keys to <ns>. Defaults to $NS
+  # (the main dogfood namespace). Callers minting keys for OTHER namespaces
+  # (phase-8 canary) must pass --ns explicitly — an env-prefix override does
+  # not reach python because the function pins DBGF_NS itself.
+  local auth_ns="$NS"
+  if [ "$1" = "--ns" ]; then auth_ns="$2"; shift 2; fi
+  DBGF_NS="$auth_ns" python3 - "$@" <<'PYEOF'
 import sys, json, hashlib, secrets, os
 path = sys.argv[1]
 ns = os.environ.get("DBGF_NS", "dogfood-e2e")

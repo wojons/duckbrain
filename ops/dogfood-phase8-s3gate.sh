@@ -54,7 +54,7 @@ EOF
 # is the main ns only, by Phase-2 design).
 mkdir -p "$ROOT/dataC" "$ROOT/nsC" "$ROOT/authC.json.d"
 CANARY_AUTH="$ROOT/authC.json"
-CMAP=$(write_auth "$CANARY_AUTH" "df-canary:admin")
+CMAP=$(write_auth --ns "$CANARY_NS" "$CANARY_AUTH" "df-canary:admin")
 T_CANARY=$(echo "$CMAP" | awk '$1=="df-canary"{print $2}')
 start_daemon $CANARY_PORT "$ROOT/dataC" "$ROOT/nsC" "$CANARY_AUTH" \
   DUCKBRAIN_CONFIG_PATH="$CANARY_CFG"
@@ -87,8 +87,14 @@ if [ -d "$CR/.git" ]; then
   fi
   sleep 75   # cross the floor
   CPOST "/gate/after-floor" "past floor" >/dev/null
-  sleep 150
-  B2=$(B)
+  # The push evaluates only at the next COMMIT FLUSH (debounced ~5 min on a
+  # quiet daemon), so wait up to ~7 min for the bundle to appear.
+  B2=$B1
+  for i in $(seq 1 42); do
+    sleep 10
+    B2=$(B)
+    [ "$B2" -gt "$B1" ] && break
+  done
   if [ "$B2" -gt "$B1" ]; then
     verdict "PUSH-001 gate: post-floor write pushes next bundle" 0 "bundles $B1 -> $B2"
   else
