@@ -114,6 +114,38 @@ function git(dir: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd: dir, stdio: "pipe" }).toString();
 }
 
+/**
+ * PUSH-001: the autopush hook is config-gated now (default = zero pushes).
+ * These tests exercise the push machinery itself, so they flip the GAP-022
+ * temp config to an enabled autopush block for the duration of the callback
+ * and restore it afterwards.
+ */
+function withAutopushEnabled<T>(fn: () => T | Promise<T>): Promise<T> {
+  const cfgPath =
+    process.env.DUCKBRAIN_CONFIG_PATH ||
+    path.join(process.cwd(), "duckbrain.config.json");
+  const snapshot = fs.existsSync(cfgPath)
+    ? fs.readFileSync(cfgPath, "utf-8")
+    : null;
+  const base = snapshot ? JSON.parse(snapshot) : {};
+  fs.writeFileSync(
+    cfgPath,
+    JSON.stringify({
+      ...base,
+      s3: { enabled: true, pushOnCommit: true, intervalSec: 300 },
+    }),
+  );
+  // Await even fire-and-forget promises so the async commit+push (chained on
+  // asyncChains) runs BEFORE the config is restored — the gate reads config
+  // at push time, not at call time.
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      if (snapshot !== null) fs.writeFileSync(cfgPath, snapshot);
+      else fs.unlinkSync(cfgPath);
+    });
+}
+
 function params(over: Partial<BatchingParams> = {}): BatchingParams {
   return { maxLines: 100, maxSeconds: 30, enabled: true, ...over };
 }
@@ -275,10 +307,13 @@ describe("OPS-006: the serving path never blocks the event loop on git", () => {
 
     // enabled:false → the serving-path async commit+push runs per write, and
     // the returned promise settles only once commit AND push are done.
-    await commitNamespaceWithParams(
-      ns,
-      "chore: ops006 push parity",
-      params({ enabled: false }),
+    // PUSH-001: the push is config-gated, so the s3 block is enabled here.
+    await withAutopushEnabled(() =>
+      commitNamespaceWithParams(
+        ns,
+        "chore: ops006 push parity",
+        params({ enabled: false }),
+      ),
     );
 
     const head = git(ns, "rev-parse", "HEAD").trim();
@@ -307,10 +342,13 @@ describe("OPS-006: the serving path never blocks the event loop on git", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       // Must not reject: the write path never throws on git failure.
-      await commitNamespaceWithParams(
-        ns,
-        "chore: ops006 fail-safe",
-        params({ enabled: false }),
+      // PUSH-001: the push is config-gated, so the s3 block is enabled here.
+      await withAutopushEnabled(() =>
+        commitNamespaceWithParams(
+          ns,
+          "chore: ops006 fail-safe",
+          params({ enabled: false }),
+        ),
       );
       const output = warn.mock.calls
         .map((call) => call.map((arg) => String(arg)).join(" "))
@@ -393,6 +431,9 @@ describe("OPS-006: short-lived CLI processes still commit and push (criterion 4)
         // Keep batching ON with the production window: the CLI cannot wait 30s
         // for the timer, so its exit flush is what has to do the work.
         gitBatching: { enabled: true, maxLines: 100, maxSeconds: 30 },
+        // PUSH-001: the exit-flush push is config-gated; enable it so this
+        // test keeps proving the commit AND pushed-ref parity contract.
+        s3: { enabled: true, pushOnCommit: true, intervalSec: 300 },
       }),
       "utf-8",
     );

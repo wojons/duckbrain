@@ -34,6 +34,7 @@ import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
 import { maybeSyncOnCommit } from "../s3";
+import type { S3Config } from "../s3/config";
 
 export interface BatchingParams {
   maxLines: number;
@@ -49,6 +50,55 @@ const DEFAULT_PARAMS: BatchingParams = {
 
 /** Hard bound for a single `git push` (async and exit-flush paths share it). */
 const PUSH_TIMEOUT_MS = 30_000;
+
+/**
+ * Per-namespace autopush gate state (PUSH-001). Keyed by absolute namespace
+ * path. `inFlight` coalesces concurrent serving-path pushes (single-flight:
+ * a second caller awaits the SAME push instead of spawning a competing
+ * full-history bundle — git-remote-s3 has no server side, so every push
+ * rebuilds a full-history bundle). `lastAttemptAt` is set only when an
+ * attempt actually starts (gate passed), never on skips. `lastPushedHead`
+ * records the HEAD of the last SUCCESSFUL push; unchanged HEADs are skipped
+ * and failures leave it untouched so the next gate-open retries.
+ */
+interface PushGateState {
+  lastAttemptAt: number;
+  lastPushedHead: string | null;
+  inFlight: Promise<void> | null;
+}
+
+const pushGateStates = new Map<string, PushGateState>();
+
+export { pushGateStates };
+
+function pushGateStateFor(namespacePath: string): PushGateState {
+  let state = pushGateStates.get(namespacePath);
+  if (!state) {
+    state = { lastAttemptAt: 0, lastPushedHead: null, inFlight: null };
+    pushGateStates.set(namespacePath, state);
+  }
+  return state;
+}
+
+/**
+ * Evaluate the PUSH-001 autopush gate for a namespace. Pure decision over
+ * config + last-attempt state; every skip is silent (the push is
+ * best-effort — the next commit flush re-opens the gate).
+ */
+export function evaluatePushGate(
+  s3: S3Config | undefined,
+  state: Pick<PushGateState, "lastAttemptAt">,
+  now: number,
+): boolean {
+  // Default deployment: s3 disabled or pushOnCommit unset → the autopush
+  // hook is genuinely inert (the old comment claimed this; now it is true).
+  if (!s3?.enabled || !s3.pushOnCommit) return false;
+  // Per-namespace coalescing floor: intervalSec <= 0 disables the floor.
+  if (s3.intervalSec > 0 && now - state.lastAttemptAt < s3.intervalSec * 1000) {
+    return false;
+  }
+  return true;
+}
 
 /**
  * Hard bound for awaiting in-flight async git work during shutdown. A drain is
@@ -178,12 +228,14 @@ async function asyncCommit(
       await gitAsync(["commit", "-m", message], namespacePath);
     }
 
-    // Native S3 push hook — inert unless s3.enabled && s3.pushOnCommit.
+    // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
+    // default config = zero pushes), interval-coalesced and single-flight.
     // Fire-and-forget: never blocks or fails the write path.
     maybeSyncOnCommit(namespacePath);
-    // AUTOPUSH-001: push the namespace repo to the s3daily remote after every
-    // commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>), now
-    // without holding the event loop for the bundle + pack-objects duration.
+    // AUTOPUSH-001: push the namespace repo to the s3daily remote after each
+    // commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>), gated
+    // by the PUSH-001 config checks, never holding the event loop for the
+    // bundle + pack-objects duration.
     await pushNamespaceAsync(namespacePath);
   } catch (error) {
     // Log but don't fail the write — git is best-effort
@@ -322,13 +374,11 @@ function immediateCommit(namespacePath: string, message: string): void {
         stdio: "pipe",
       });
     }
-    // Native S3 push hook — inert unless s3.enabled && s3.pushOnCommit.
-    // Fire-and-forget: never blocks or fails the write path.
+    // Native S3 sync hook (object store) + gated push hook (PUSH-001: default
+    // config = zero pushes). Synchronous + best-effort so short-lived CLI
+    // processes (remember → commit → exit in <1s) push without waiting for
+    // the 03:47 daily cron. Shares the gate state with the serving path.
     maybeSyncOnCommit(namespacePath);
-    // AUTOPUSH-001: push the namespace repo to the s3daily remote after
-    // every commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>).
-    // Synchronous + best-effort so short-lived CLI processes (remember →
-    // commit → exit in <1s) push without waiting for the 03:47 daily cron.
     pushNamespace(namespacePath);
   } catch (error) {
     // Log but don't fail the tool — git is best-effort
@@ -510,36 +560,65 @@ export function buildPushEnv(s3?: {
  * Never rejects — failures are logged and swallowed.
  */
 async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+  // PUSH-001 gate: honor s3.enabled/pushOnCommit + intervalSec, coalesce via
+  // single-flight, and skip when HEAD already pushed. Silent on every skip.
+  const s3 = getConfig(".").s3;
+  const gateState = pushGateStateFor(namespacePath);
+  if (!evaluatePushGate(s3, gateState, Date.now())) return;
+  if (gateState.inFlight) return gateState.inFlight;
+
+  const attempt = (async () => {
+    try {
+      // Skip-unchanged: only push when HEAD moved since the last success.
+      const head = (
+        await gitAsync(["rev-parse", "HEAD"], namespacePath)
+      ).trim();
+      if (!head) return;
+      if (gateState.lastPushedHead === head) return;
+
+      // Check if remote is configured
+      const remotes = (await gitAsync(["remote"], namespacePath)).trim();
+      const remote = selectPushRemote(remotes);
+      if (!remote) return;
+
+      // Resolve the current branch. Namespace repos have no upstream (only the
+      // s3daily remote), so a bare `git push` would no-op/fail — push
+      // explicitly to remote + branch instead.
+      const branch = (
+        await gitAsync(["rev-parse", "--abbrev-ref", "HEAD"], namespacePath)
+      ).trim();
+      if (!branch || branch === "HEAD") return;
+
+      gateState.lastAttemptAt = Date.now();
+      await gitAsync(
+        ["push", "--set-upstream", remote, branch],
+        namespacePath,
+        {
+          timeoutMs: PUSH_TIMEOUT_MS,
+          // git-remote-s3 needs AWS creds + a compatible endpoint. Endpoint and
+          // region derive from the USER'S s3 config block (provider-agnostic);
+          // credentials come from the caller's AWS env / ~/.aws — a deployment
+          // may pin its profile via s3.profile. Without any AWS env the helper
+          // dies with "invalid credentials" and we log + swallow (non-blocking).
+          env: {
+            ...process.env,
+            ...buildPushEnv(s3),
+          },
+        },
+      );
+      gateState.lastPushedHead = head;
+    } catch (error) {
+      console.warn(
+        `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
+      );
+    }
+  })();
+
+  gateState.inFlight = attempt;
   try {
-    // Check if remote is configured
-    const remotes = (await gitAsync(["remote"], namespacePath)).trim();
-    const remote = selectPushRemote(remotes);
-    if (!remote) return;
-
-    // Resolve the current branch. Namespace repos have no upstream (only the
-    // s3daily remote), so a bare `git push` would no-op/fail — push
-    // explicitly to remote + branch instead.
-    const branch = (
-      await gitAsync(["rev-parse", "--abbrev-ref", "HEAD"], namespacePath)
-    ).trim();
-    if (!branch || branch === "HEAD") return;
-
-    await gitAsync(["push", "--set-upstream", remote, branch], namespacePath, {
-      timeoutMs: PUSH_TIMEOUT_MS,
-      // git-remote-s3 needs AWS creds + a compatible endpoint. Endpoint and
-      // region derive from the USER'S s3 config block (provider-agnostic);
-      // credentials come from the caller's AWS env / ~/.aws — a deployment
-      // may pin its profile via s3.profile. Without any AWS env the helper
-      // dies with "invalid credentials" and we log + swallow (non-blocking).
-      env: {
-        ...process.env,
-        ...buildPushEnv(getConfig(".").s3),
-      },
-    });
-  } catch (error) {
-    console.warn(
-      `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
-    );
+    await attempt;
+  } finally {
+    if (gateState.inFlight === attempt) gateState.inFlight = null;
   }
 }
 
@@ -555,6 +634,23 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
  */
 export function pushNamespace(namespacePath: string): void {
   try {
+    // PUSH-001 gate: same config + interval floor as the serving path. If an
+    // async push for this namespace is already running in this process, let
+    // it carry the work instead of starting a competing bundle.
+    const s3 = getConfig(".").s3;
+    const gateState = pushGateStateFor(namespacePath);
+    if (!evaluatePushGate(s3, gateState, Date.now())) return;
+    if (gateState.inFlight) return;
+
+    // Skip-unchanged: only push when HEAD moved since the last success.
+    const head = execSync("git rev-parse HEAD", {
+      cwd: namespacePath,
+      stdio: "pipe",
+    })
+      .toString()
+      .trim();
+    if (!head || gateState.lastPushedHead === head) return;
+
     // Check if remote is configured
     const remotes = execSync("git remote", {
       cwd: namespacePath,
@@ -576,6 +672,7 @@ export function pushNamespace(namespacePath: string): void {
       .trim();
     if (!branch || branch === "HEAD") return;
 
+    gateState.lastAttemptAt = Date.now();
     execSync(buildPushCommand(remote, branch), {
       cwd: namespacePath,
       stdio: "pipe",
@@ -587,9 +684,10 @@ export function pushNamespace(namespacePath: string): void {
       // dies with "invalid credentials" and we log + swallow (non-blocking).
       env: {
         ...process.env,
-        ...buildPushEnv(getConfig(".").s3),
+        ...buildPushEnv(s3),
       },
     });
+    gateState.lastPushedHead = head;
   } catch (error) {
     console.warn(
       `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,

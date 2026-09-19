@@ -38,11 +38,16 @@ export const S3ConfigSchema = z
      */
     forcePathStyle: z.boolean().default(true),
     /**
-     * Push namespace deltas to S3 after each autocommit batch flush
-     * (piggybacks on the existing gitBatching debounce window → ~30s RPO).
+     * PUSH-001: push namespace deltas to S3 after each autocommit batch
+     * flush. Honored by the git commit-flush autopush (src/git/autocommit.ts)
+     * in addition to the object-store hook; false (default) = zero pushes.
      */
     pushOnCommit: z.boolean().default(false),
-    /** Reserved: periodic sync interval (sec) for a future daemon loop */
+    /**
+     * PUSH-001: per-namespace minimum seconds between autopush attempts
+     * (coalescing floor; <= 0 disables the floor). Honored by the git
+     * commit-flush autopush alongside pushOnCommit.
+     */
     intervalSec: z.number().default(300),
   })
   .default({
