@@ -61,6 +61,17 @@ const RememberInputSchema = z.object({
     .describe(
       "Validity window end (ISO-8601); absent = valid indefinitely. Past value = expired (current view excludes it; historical view shows it)",
     ),
+  /**
+   * DF-0919-05: camelCase aliases for the validity window. The REST API
+   * docs and some fleet callers use the API-spec-adjacent spellings
+   * (validFrom/validUntil); zod previously stripped them SILENTLY, so such
+   * writes got unbounded retention with no error. Both spellings are
+   * accepted; snake_case wins when both are present. These schema fields
+   * are never read directly — always normalize with
+   * normalizeValidityWindow() (below) before use.
+   */
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime().optional(),
   /** Namespace to write to (defaults to the ACTIVE namespace — config
    *  defaultNamespace, which switch_namespace persists and is therefore
    *  sticky across processes; see docs/api/mcp-tools.md) */
@@ -75,6 +86,30 @@ const RememberInputSchema = z.object({
 });
 
 type RememberInput = z.infer<typeof RememberInputSchema>;
+
+/**
+ * DF-0919-05: collapse the camelCase validity aliases onto the snake_case
+ * canonical fields. Both spellings are accepted; when both are present the
+ * snake_case value WINS (the wire format stays snake_case — this only
+ * back-compatibly widens what callers may send).
+ */
+function normalizeValidityWindow(data: {
+  valid_from?: string;
+  valid_until?: string;
+  validFrom?: string;
+  validUntil?: string;
+}): { valid_from?: string; valid_until?: string } {
+  // Per-field precedence: the snake_case value wins when both spellings of
+  // a field are present; the camelCase value fills an otherwise-empty slot.
+  return {
+    ...(data.valid_from !== undefined || data.validFrom !== undefined
+      ? { valid_from: data.valid_from ?? data.validFrom }
+      : {}),
+    ...(data.valid_until !== undefined || data.validUntil !== undefined
+      ? { valid_until: data.valid_until ?? data.validUntil }
+      : {}),
+  };
+}
 
 export interface RememberContext {
   /** Injectable SUPA-4 principal seam; MCP-over-HTTP falls back to ALS. */
@@ -173,12 +208,9 @@ export async function rememberTool(
       action: "add",
       // RETR-011: optional validity window — passthrough from the input;
       // omitted fields keep the legacy always-current behavior.
-      ...(parseResult.data.valid_from !== undefined
-        ? { valid_from: parseResult.data.valid_from }
-        : {}),
-      ...(parseResult.data.valid_until !== undefined
-        ? { valid_until: parseResult.data.valid_until }
-        : {}),
+      // DF-0919-05: camelCase validFrom/validUntil collapse onto these
+      // canonical fields first (snake_case wins on collision).
+      ...normalizeValidityWindow(parseResult.data),
     });
 
     // Validate complete memory

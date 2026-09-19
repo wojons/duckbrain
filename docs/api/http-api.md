@@ -440,7 +440,7 @@ Create a new memory.
 }
 ```
 
-> **Note — validity window (RETR-011):** `valid_from` / `valid_until` are optional ISO-8601 datetimes. Omitted = the memory is valid from the moment of writing, indefinitely. A past `valid_until` (or future `valid_from`) keeps the memory out of the default current recall view; it remains visible with `?historical=true` on `GET /api/memories`.
+> **Note — validity window (RETR-011):** `valid_from` / `valid_until` are optional ISO-8601 datetimes. Omitted = the memory is valid from the moment of writing, indefinitely. A past `valid_until` (or future `valid_from`) keeps the memory out of the default current recall view; it remains visible with `?historical=true` on `GET /api/memories`. The camelCase spellings `validFrom` / `validUntil` are accepted as aliases on this endpoint and mapped onto the canonical snake_case fields (if both spellings are sent, snake_case wins); responses always echo snake_case only.
 
 > **Note — namespace selection:** The target namespace may be passed either as the `?namespace=` query parameter **or** as a `"namespace"` field in the JSON body. When both are present the query parameter wins; the body value is the fallback; when neither is supplied the memory is written to the `default` namespace.
 
