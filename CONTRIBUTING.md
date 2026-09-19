@@ -8,7 +8,7 @@ Thank you for your interest in contributing to DuckBrain! This document provides
 
 - Node.js 22+
 - Git
-- pnpm 11.13.1 (pinned by `package.json`)
+- pnpm 12.4.2 (pinned by `package.json`)
 - TypeScript 7.x
 
 ### Local Development

@@ -28,7 +28,7 @@ jobs:
 
       - name: Install from a clean store and smoke-test the CLI
         run: |
-          test "$(pnpm --version)" = "11.13.1"
+          test "$(pnpm --version)" = "12.4.2"
           test ! -e node_modules
           FRESH_STORE="${RUNNER_TEMP}/duckbrain-pnpm-store"
           test ! -e "${FRESH_STORE}"
