@@ -10,11 +10,12 @@ import { insertMemory, tombstoneMemory, queryMemories } from "./queries";
 import { deepConvertBigInts } from "../utils/serialize";
 import { createMemory } from "../schema/memory";
 import path from "path";
+import os from "os";
 import fs from "fs";
 
 describe("DuckDB Queries", () => {
   let db: any;
-  const testPartition = path.join(process.cwd(), "test-memory");
+  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-"));
 
   beforeEach(async () => {
     db = await initDuckDB(":memory:");

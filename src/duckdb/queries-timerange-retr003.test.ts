@@ -19,6 +19,7 @@ import { initDuckDB, closeDuckDB } from "./connection";
 import { insertMemory, queryMemories, countMemories } from "./queries";
 import type { MemoryType } from "../schema/memory";
 import path from "path";
+import os from "os";
 import fs from "fs";
 
 function fixtureId(label: string): string {
@@ -49,7 +50,7 @@ function memory(
 
 describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
   let db: any;
-  const testPartition = path.join(process.cwd(), "test-memory-timerange");
+  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-timerange-"));
 
   beforeEach(async () => {
     db = await initDuckDB(":memory:");
