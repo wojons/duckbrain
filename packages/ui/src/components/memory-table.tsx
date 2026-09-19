@@ -14,6 +14,7 @@ import { useVirtualizer, VirtualItem } from "@tanstack/react-virtual";
 import { ChevronDown, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { useInfiniteMemories, useForgetMemory } from "../hooks/use-memories";
 import { useUIStore } from "../stores/ui-store";
+import { filtersToQueryParams } from "../lib/filters";
 import { MemoryResponse } from "../../../../src/http/types/api";
 import { SkeletonTable } from "./ui/skeleton";
 import { ErrorCard } from "./ui/error-boundary";
@@ -36,9 +37,12 @@ const columnHelper = createColumnHelper<MemoryResponse>();
 export function MemoryTable({ namespace }: MemoryTableProps) {
   const searchQuery = useUIStore((state) => state.searchQuery);
   const setSearchQuery = useUIStore((state) => state.setSearchQuery);
+  const filters = useUIStore((state) => state.filters);
   const setSelectedMemory = useUIStore((state) => state.setSelectedMemory);
   const setInspectorOpen = useUIStore((state) => state.setInspectorOpen);
   const selectedMemory = useUIStore((state) => state.selectedMemory);
+
+  const listFilters = filtersToQueryParams(filters);
 
   const {
     data,
@@ -52,6 +56,7 @@ export function MemoryTable({ namespace }: MemoryTableProps) {
     namespace,
     query: searchQuery || undefined,
     limit: 50,
+    ...listFilters,
   });
 
   const forgetMutation = useForgetMemory(namespace);

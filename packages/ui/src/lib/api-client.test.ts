@@ -3,11 +3,12 @@
  *
  * These pin the UI's side of DuckBrain's rich REST query surface: the exact
  * query params the app puts on the wire for pagination, prefix/domain/author
- * filters, search and namespace scoping. Zero network — fetch is stubbed.
+ * filters, search, namespace scoping and the temporal / multi-namespace
+ * params. Zero network — fetch is stubbed.
  *
- * Two tests are explicitly marked GAP: they document backend capabilities the
- * UI cannot request yet (they are the to-do list for wiring the newer REST
- * params into the web interface).
+ * Formerly two tests were marked GAP (params the UI could not send); since
+ * UI-GAP-001 every listed param is first-class on memoriesApi.list and the
+ * header controls exercise it (see header.test.tsx, GAP-FIXED test).
  */
 
 import { describe, expect, it } from "vitest";
@@ -33,7 +34,9 @@ describe("memoriesApi.list — REST query params", () => {
 
     await memoriesApi.list({ limit: 50, offset: 100 });
 
-    expect(api.urlFor("/api/memories")).toBe("/api/memories?limit=50&offset=100");
+    expect(api.urlFor("/api/memories")).toBe(
+      "/api/memories?limit=50&offset=100",
+    );
     const req = api.lastFor("/api/memories");
     expect(req?.method).toBe("GET");
     expect(req?.params.get("limit")).toBe("50");
@@ -90,42 +93,66 @@ describe("memoriesApi.list — REST query params", () => {
 
   it("forwards temporal / multi-namespace params verbatim when a caller supplies them", async () => {
     // The backend supports ?after, ?before, ?between, ?as_of, ?historical,
-    // ?contains, ?allNamespaces (src/http/routes/memories.ts). The request
-    // builder appends every key it is given, so the client is already
-    // temporal-ready — what is missing is a UI control that supplies them
-    // (see the GAP test in src/components/layout/header.test.tsx).
+    // ?contains, ?allNamespaces (src/http/routes/memories.ts). Since
+    // UI-GAP-001 these are first-class typed params on memoriesApi.list and
+    // the header controls supply them (see header.test.tsx, GAP-FIXED test).
     const api = installApiStub([memoriesRoute({ items: [] })]);
 
     const temporal = {
       after: "2026-01-01T00:00:00.000Z",
       before: "2026-09-01T00:00:00.000Z",
       between: "2026-01-01,2026-09-01",
-      as_of: "HEAD",
+      asOf: "HEAD",
       historical: true,
       contains: "token",
       allNamespaces: true,
     };
-    await memoriesApi.list(
-      temporal as unknown as Parameters<typeof memoriesApi.list>[0],
-    );
+    await memoriesApi.list(temporal);
 
     const params = api.lastFor("/api/memories")!.params;
-    for (const [key, value] of Object.entries(temporal)) {
-      expect(params.get(key)).toBe(String(value));
-    }
+    expect(params.get("after")).toBe("2026-01-01T00:00:00.000Z");
+    expect(params.get("before")).toBe("2026-09-01T00:00:00.000Z");
+    expect(params.get("between")).toBe("2026-01-01,2026-09-01");
+    expect(params.get("as_of")).toBe("HEAD");
+    expect(params.get("historical")).toBe("true");
+    expect(params.get("contains")).toBe("token");
+    expect(params.get("allNamespaces")).toBe("true");
+
     // ... and they compose with pagination/filter params
     await memoriesApi.list({
       limit: 10,
       offset: 20,
       namespace: "work",
       after: "2026-01-01T00:00:00.000Z",
-    } as unknown as Parameters<typeof memoriesApi.list>[0]);
+    });
 
     const composed = api.lastFor("/api/memories")!.params;
     expect(composed.get("limit")).toBe("10");
     expect(composed.get("offset")).toBe("20");
     expect(composed.get("namespace")).toBe("work");
     expect(composed.get("after")).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("never sends blank rich params when callers omit them", async () => {
+    const api = installApiStub([memoriesRoute({ items: [] })]);
+
+    await memoriesApi.list({ limit: 5 });
+
+    const params = api.lastFor("/api/memories")!.params;
+    for (const key of [
+      "after",
+      "before",
+      "between",
+      "as_of",
+      "historical",
+      "contains",
+      "allNamespaces",
+      "prefix",
+      "domain",
+      "author",
+    ]) {
+      expect(params.has(key)).toBe(false);
+    }
   });
 });
 
@@ -140,7 +167,9 @@ describe("memoriesApi — single-memory endpoints", () => {
 
     await memoriesApi.get("11111111-1111-4111-8111-111111111111", "work");
 
-    const req = api.lastFor("/api/memories/11111111-1111-4111-8111-111111111111");
+    const req = api.lastFor(
+      "/api/memories/11111111-1111-4111-8111-111111111111",
+    );
     expect(req?.params.get("namespace")).toBe("work");
   });
 
@@ -197,9 +226,9 @@ describe("memoriesApi — single-memory endpoints", () => {
     expect(updated?.body).toEqual({ content: "updated" });
 
     await memoriesApi.delete("id-1", "work");
-    expect(api.lastFor("/api/memories/id-1", "DELETE")?.params.get("namespace")).toBe(
-      "work",
-    );
+    expect(
+      api.lastFor("/api/memories/id-1", "DELETE")?.params.get("namespace"),
+    ).toBe("work");
   });
 });
 

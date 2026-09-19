@@ -141,9 +141,29 @@ export const memoriesApi = {
     /** Search term — sent as `q`, the name the backend reads (memories.ts). */
     query?: string;
     namespace?: string;
+    /** Only memories created after this ISO-8601 instant. */
+    after?: string;
+    /** Only memories created before this ISO-8601 instant. */
+    before?: string;
+    /** Two-comma ISO-8601 window "start,end" — not combinable with after/before. */
+    between?: string;
+    /** Point-in-time selector: commit-ish or ISO-8601 instant (?as_of=). */
+    asOf?: string;
+    /** Include historical (superseded) versions. */
+    historical?: boolean;
+    /** Content must contain this token. */
+    contains?: string;
+    /** RETR-007: search every manifest namespace in one request. */
+    allNamespaces?: boolean;
   }): Promise<MemoryListResponse> => {
-    const { query, ...rest } = params || {};
-    const wire = query ? { ...rest, q: query } : rest;
+    const { query, asOf, allNamespaces, historical, ...rest } = params || {};
+    const wire = {
+      ...rest,
+      ...(query ? { q: query } : {}),
+      ...(asOf ? { as_of: asOf } : {}),
+      ...(historical ? { historical: "true" } : {}),
+      ...(allNamespaces ? { allNamespaces: "true" } : {}),
+    };
     return apiFetch<MemoryListResponse>(`/memories${buildQuery(wire)}`);
   },
 

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useUIStore } from "../../stores/ui-store";
+import type { MemoryFilters } from "../../lib/filters";
 
 interface HeaderProps {
   view?: "tree" | "timeline";
@@ -44,20 +45,41 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
   const setSearchQuery = useUIStore((state) => state.setSearchQuery);
   const realtimeEnabled = useUIStore((state) => state.realtimeEnabled);
   const setRealtimeEnabled = useUIStore((state) => state.setRealtimeEnabled);
+  const filters = useUIStore((state) => state.filters);
+  const updateFilters = useUIStore((state) => state.updateFilters);
+  const clearAllFilters = useUIStore((state) => state.clearFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Filter states (stored in component for now, could move to store)
-  const [domainFilter, setDomainFilter] = useState("");
-  const [authorFilter, setAuthorFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const {
+    domain: domainFilter,
+    author: authorFilter,
+    dateRange: dateFilter,
+    after: afterFilter,
+    before: beforeFilter,
+    asOf: asOfFilter,
+    prefix: prefixFilter,
+    allNamespaces,
+  } = filters;
 
-  const hasActiveFilters = domainFilter || authorFilter || dateFilter;
+  const hasActiveFilters =
+    !!domainFilter ||
+    !!authorFilter ||
+    !!dateFilter ||
+    !!afterFilter ||
+    !!beforeFilter ||
+    !!asOfFilter ||
+    !!prefixFilter ||
+    allNamespaces;
 
   const clearFilters = () => {
-    setDomainFilter("");
-    setAuthorFilter("");
-    setDateFilter("");
+    clearAllFilters();
   };
+
+  const setDomainFilter = (domain: string) => updateFilters({ domain });
+  const setAuthorFilter = (author: string) => updateFilters({ author });
+  const setDateFilter = (dateRange: MemoryFilters["dateRange"]) =>
+    updateFilters({ dateRange });
+  const setPrefixFilter = (prefix: string) => updateFilters({ prefix });
 
   return (
     <header
@@ -112,10 +134,15 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
                     color: "var(--color-midnight)",
                   }}
                 >
-                  {
-                    [domainFilter, authorFilter, dateFilter].filter(Boolean)
-                      .length
-                  }
+                  {[
+                    domainFilter,
+                    authorFilter,
+                    dateFilter,
+                    afterFilter,
+                    beforeFilter,
+                    asOfFilter,
+                    prefixFilter,
+                  ].filter(Boolean).length + (allNamespaces ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -226,7 +253,9 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
             <div className="relative">
               <select
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) =>
+                  setDateFilter(e.target.value as MemoryFilters["dateRange"])
+                }
                 className="glass-input pl-3 pr-8 py-1.5 rounded text-sm appearance-none min-w-[140px] min-h-[36px] cursor-pointer"
               >
                 {DATE_RANGES.map((d) => (
@@ -240,6 +269,58 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
                 style={{ color: "var(--color-clinical)" }}
               />
             </div>
+
+            {/* Prefix Filter */}
+            <input
+              type="text"
+              value={prefixFilter}
+              onChange={(e) => setPrefixFilter(e.target.value)}
+              placeholder="Filter by prefix..."
+              aria-label="Filter by prefix"
+              className="glass-input px-3 py-1.5 rounded text-sm min-w-[160px] min-h-[36px]"
+            />
+
+            {/* Temporal: explicit after / before bounds */}
+            <input
+              type="datetime-local"
+              value={afterFilter}
+              onChange={(e) => updateFilters({ after: e.target.value })}
+              aria-label="Created after"
+              className="glass-input px-3 py-1.5 rounded text-sm min-w-[200px] min-h-[36px]"
+            />
+            <input
+              type="datetime-local"
+              value={beforeFilter}
+              onChange={(e) => updateFilters({ before: e.target.value })}
+              aria-label="Created before"
+              className="glass-input px-3 py-1.5 rounded text-sm min-w-[200px] min-h-[36px]"
+            />
+
+            {/* Temporal: point-in-time selector (commit-ish or ISO instant) */}
+            <input
+              type="text"
+              value={asOfFilter}
+              onChange={(e) => updateFilters({ asOf: e.target.value })}
+              placeholder="As of (commit or timestamp)..."
+              aria-label="As of"
+              className="glass-input px-3 py-1.5 rounded text-sm min-w-[180px] min-h-[36px]"
+            />
+
+            {/* All-namespaces toggle */}
+            <label
+              className="flex items-center gap-2 px-2 py-1.5 text-sm min-h-[36px] cursor-pointer select-none"
+              style={{ color: "var(--color-clinical)" }}
+            >
+              <input
+                type="checkbox"
+                checked={allNamespaces}
+                onChange={(e) =>
+                  updateFilters({ allNamespaces: e.target.checked })
+                }
+                className="w-4 h-4 rounded border-gray-400 bg-transparent cursor-pointer"
+              />
+              All namespaces
+            </label>
 
             {/* Clear Filters */}
             {hasActiveFilters && (
@@ -285,6 +366,54 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
                 }}
               >
                 {DATE_RANGES.find((d) => d.value === dateFilter)?.label}
+              </span>
+            )}
+            {prefixFilter && (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                style={{
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
+                }}
+              >
+                Prefix: {prefixFilter}
+              </span>
+            )}
+            {(afterFilter || beforeFilter) && (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                style={{
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
+                }}
+              >
+                {afterFilter && beforeFilter
+                  ? `Between ${afterFilter} and ${beforeFilter}`
+                  : afterFilter
+                    ? `After: ${afterFilter}`
+                    : `Before: ${beforeFilter}`}
+              </span>
+            )}
+            {asOfFilter && (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                style={{
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
+                }}
+              >
+                As of: {asOfFilter}
+              </span>
+            )}
+            {allNamespaces && (
+              <span
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                style={{
+                  backgroundColor: "rgba(0, 212, 255, 0.1)",
+                  color: "var(--color-azure)",
+                }}
+              >
+                All namespaces
               </span>
             )}
           </div>
