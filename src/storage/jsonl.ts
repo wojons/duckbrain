@@ -80,6 +80,31 @@ export function createPartition(partitionPath: string): void {
 }
 
 /**
+ * Numeric chunk ordering for `NNNN.jsonl` segment names.
+ *
+ * `padStart(4, "0")` does NOT pad beyond 9999, so once a partition passes
+ * segment 9999 the names stop being fixed-width and a plain lexicographic
+ * sort ranks "9999.jsonl" ABOVE "10000.jsonl". That single mistake (2026-09-19)
+ * had two effects: reads returned segments out of order, and rotation handed
+ * back an EXISTING name — so one segment absorbed every subsequent write.
+ * A partition bounded at 1000 lines / 1MB was found holding 87,530 lines /
+ * 84MB, i.e. a full 84MB git blob per commit — the same unbounded-growth
+ * failure mode as the older 0NaN.jsonl bug.
+ *
+ * Numeric names sort ascending first; non-numeric names (current.jsonl, legacy
+ * names) keep their previous relative position at the end.
+ */
+function compareChunkNames(a: string, b: string): number {
+  const numeric = /^\d+\.jsonl$/;
+  const na = numeric.test(a) ? parseInt(a, 10) : null;
+  const nb = numeric.test(b) ? parseInt(b, 10) : null;
+  if (na !== null && nb !== null) return na - nb;
+  if (na !== null) return -1;
+  if (nb !== null) return 1;
+  return a.localeCompare(b);
+}
+
+/**
  * Get next available chunk filename in partition
  *
  * @param partitionPath - Partition directory path
@@ -95,19 +120,24 @@ export function getNextChunkName(partitionPath: string): string {
   const existingChunks = fs
     .readdirSync(partitionPath)
     .filter((f) => /^\d+\.jsonl$/.test(f))
-    .sort();
+    .sort(compareChunkNames);
 
   if (existingChunks.length === 0) {
     return "0001.jsonl";
   }
 
-  // Get last chunk number and increment
-  const lastChunk = existingChunks[existingChunks.length - 1];
-  const lastNum = parseInt(lastChunk.replace(".jsonl", ""), 10);
-  const nextNum = lastNum + 1;
+  // Get last chunk number (numeric order, NOT lexicographic) and increment.
+  let nextNum = parseInt(existingChunks[existingChunks.length - 1], 10) + 1;
+  let candidate = `${nextNum.toString().padStart(4, "0")}.jsonl`;
 
-  // Zero-pad to 4 digits
-  return `${nextNum.toString().padStart(4, "0")}.jsonl`;
+  // Never return a name that already exists: returning one re-freezes rotation
+  // (writes append to that segment forever instead of starting a new one).
+  while (fs.existsSync(path.join(partitionPath, candidate))) {
+    nextNum += 1;
+    candidate = `${nextNum.toString().padStart(4, "0")}.jsonl`;
+  }
+
+  return candidate;
 }
 
 /**
@@ -386,7 +416,10 @@ export function readPartition(
   const chunks = fs
     .readdirSync(partitionPath)
     .filter((f) => f.endsWith(".jsonl"))
-    .sort();
+    // Numeric order, not lexicographic: past segment 9999 the names are no
+    // longer fixed-width, so a plain .sort() reads 10000.jsonl BEFORE
+    // 9999.jsonl and returns records out of append order.
+    .sort(compareChunkNames);
 
   const allRecords: MemoryType[] = [];
 

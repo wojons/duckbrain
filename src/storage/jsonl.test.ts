@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { appendToJsonl } from "./jsonl";
+import { appendToJsonl, getNextChunkName, readPartition } from "./jsonl";
 import type { MemoryType } from "../schema/memory";
 
 /**
@@ -113,5 +113,84 @@ describe("DB-GAP-035: write-path validation", () => {
     );
     errSpy.mockRestore();
     expect(fs.existsSync(filePath)).toBe(false);
+  });
+});
+
+/**
+ * Regression: rotation froze at segment 9999 (2026-09-19).
+ *
+ * `padStart(4, "0")` stops padding once a number exceeds 4 digits, so the
+ * segment names past 9999 are not fixed-width ("10000.jsonl"). A plain
+ * lexicographic `.sort()` then ranks "9999.jsonl" as the newest segment, and
+ * getNextChunkName() returned "10000.jsonl" — a name that already existed —
+ * on every call. Rotation stopped advancing, one segment absorbed every write
+ * forever, and the partition bounded at 1000 lines / 1MB was found holding
+ * 87,530 lines / 84MB. Each auto-commit then stored a full 84MB blob, which
+ * bloated the namespace git repo to 3.2GB and made every S3 bundle push
+ * re-compress that history (measured 470 CPU-seconds per push).
+ */
+describe("chunk rotation past segment 9999", () => {
+  const seed = (names: string[]): void => {
+    for (const n of names) fs.writeFileSync(path.join(tmpDir, n), "", "utf8");
+  };
+
+  it("continues to 10001.jsonl when 9999.jsonl and 10000.jsonl exist", () => {
+    seed(["9999.jsonl", "10000.jsonl"]);
+    expect(getNextChunkName(tmpDir)).toBe("10001.jsonl");
+  });
+
+  it("skips existing names instead of re-returning one (collision guard)", () => {
+    seed(["9999.jsonl", "10000.jsonl", "10001.jsonl", "10002.jsonl"]);
+    expect(getNextChunkName(tmpDir)).toBe("10003.jsonl");
+  });
+
+  it("keeps the legacy numeric sequence below 10000", () => {
+    seed(["0001.jsonl", "0002.jsonl"]);
+    expect(getNextChunkName(tmpDir)).toBe("0003.jsonl");
+  });
+
+  it("ignores non-numeric segments when choosing the next chunk", () => {
+    seed(["0007.jsonl", "current.jsonl"]);
+    expect(getNextChunkName(tmpDir)).toBe("0008.jsonl");
+  });
+
+  it("appends to a NEW segment when a five-digit-named segment is at capacity", () => {
+    // 1000 lines is MAX_LINES_PER_CHUNK, so 9999.jsonl is full.
+    const full = path.join(tmpDir, "9999.jsonl");
+    fs.writeFileSync(full, "x\n".repeat(1000), "utf8");
+    seed(["10000.jsonl"]);
+
+    const written = appendToJsonl(full, makeRecord(1));
+
+    expect(written).toBe(1);
+    // The record must land in a fresh segment — not in 10000.jsonl.
+    expect(fs.readFileSync(path.join(tmpDir, "10001.jsonl"), "utf8")).toContain(
+      "/test/rotation/1",
+    );
+    expect(fs.readFileSync(path.join(tmpDir, "10000.jsonl"), "utf8")).toBe("");
+  });
+
+  it("reads segments in numeric order, not lexicographic order", () => {
+    const a = makeRecord(1);
+    const b = makeRecord(2);
+    fs.writeFileSync(
+      path.join(tmpDir, "9999.jsonl"),
+      `${JSON.stringify(a)}\n`,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "10000.jsonl"),
+      `${JSON.stringify(b)}\n`,
+      "utf8",
+    );
+
+    const records = readPartition(tmpDir);
+
+    // Before the fix this returned 10000.jsonl's record first ("10000.jsonl"
+    // sorts below "9999.jsonl" lexicographically), i.e. out of append order.
+    expect(records.map((r) => r.key)).toEqual([
+      "/test/rotation/1",
+      "/test/rotation/2",
+    ]);
   });
 });
