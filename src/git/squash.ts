@@ -177,10 +177,22 @@ export async function squashPartition(
       );
     });
 
-    // Filter out tombstones and write to Parquet
+    // Filter out tombstones and write to Parquet.
+    // DB-GAP-053: the compacted artifact must be deterministic. Without an
+    // ORDER BY the row order inside the Parquet is whatever the read_json
+    // scan produced (file list order, potentially parallel,
+    // version-dependent). Order by the PARSED timestamp — the same doctrine
+    // as the RETR-005 read path (DEFAULT_ORDER_BY in src/duckdb/queries.ts):
+    // a text ORDER BY on the timestamp column misorders the mixed corpus
+    // formats ('.749Z' vs '.676525+00:00', RETR-003). NULLS LAST pins
+    // unparseable/missing timestamps at the bottom deterministically (the
+    // COPY must not crash on them), and `id ASC` is the stable tiebreaker
+    // for equal parsed instants — ids are unique per record, so the
+    // (parsed timestamp, id) tuple is a total order and repeated squashes
+    // of identical input produce byte-identical artifacts.
     await new Promise<void>((resolve, reject) => {
       db.run(
-        `COPY (SELECT * FROM records WHERE action NOT IN ('tombstone', 'forget')) TO '${parquetPath.replace(/\\/g, "/")}' (FORMAT PARQUET, COMPRESSION 'ZSTD', COMPRESSION_LEVEL ${compressionLevel})`,
+        `COPY (SELECT * FROM records WHERE action NOT IN ('tombstone', 'forget') ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC) TO '${parquetPath.replace(/\\/g, "/")}' (FORMAT PARQUET, COMPRESSION 'ZSTD', COMPRESSION_LEVEL ${compressionLevel})`,
         (err: any) => {
           if (err) reject(err);
           else resolve();
