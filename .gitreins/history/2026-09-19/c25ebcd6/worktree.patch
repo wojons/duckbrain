@@ -1,0 +1,153 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 7d48857..8988f4f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1418,3 +1418,29 @@ tasks:
+   status: complete
+   created_at: '2026-09-18T18:03:23.923103+00:00'
+   completed_at: '2026-09-18T18:08:30.089237+00:00'
++- id: SEC-001
++  title: Chat-archive ingest secret scrub + history scrub
++  criteria:
++  - Shared scrubber wired into all 3 ingester scripts covering the full key-shape
++    class; planted-shape test passes; chat-archive git history free of the two leaked
++    keys; s3daily remote force-pushed and verified
++  status: complete
++  created_at: '2026-09-19T14:10:25.631716+00:00'
++  completed_at: '2026-09-19T14:23:19.353946+00:00'
++- id: DB-GAP-049
++  title: 'DB-GAP-049: chunk rotation froze past segment 9999 (padStart>4 digits +
++    lexicographic sort) -> one segment holds every write (87,530 lines/84MB against
++    a 1000-line/1MB bound)'
++  criteria:
++  - src/storage/jsonl.ts orders chunk names numerically (compareChunkNames) and getNextChunkName
++    never returns a segment name that already exists; readPartition uses the same
++    numeric ordering
++  - src/storage/jsonl.test.ts adds regression cases for rotation past segment 9999,
++    the collision guard, the legacy 4-digit sequence, non-numeric segments, appending
++    into a new segment at capacity, and numeric read order; the pre-fix revision fails
++    those cases (4 failed / 6 passed)
++  - tsc --noEmit clean, full vitest suite green at 149 files / 1174 tests, AGENTS.md
++    counts read 1174, and the commit touches only AGENTS.md + src/storage/jsonl.ts
++    + src/storage/jsonl.test.ts
++  status: in_progress
++  created_at: '2026-09-19T14:44:44.264306+00:00'
+diff --git a/src/duckdb/queries.ts b/src/duckdb/queries.ts
+index 8b5c841..7051d11 100644
+--- a/src/duckdb/queries.ts
++++ b/src/duckdb/queries.ts
+@@ -13,6 +13,7 @@ import { getNamespaceWriter } from "../serialization/namespaceWriter";
+ import path from "path";
+ import fs from "fs";
+ import { deepConvertBigInts } from "../utils/serialize";
++import { compareChunkNames } from "../storage/jsonl";
+ 
+ /**
+  * Parse DuckDB STRUCT format string into a JavaScript object
+@@ -147,7 +148,7 @@ export interface MemoryQueryFilters {
+ /**
+  * Collect the JSONL file paths for the given partitions
+  */
+-function collectJsonlFiles(partitionPaths: string[]): string[] {
++export function collectJsonlFiles(partitionPaths: string[]): string[] {
+   const jsonlFiles: string[] = [];
+   for (const partitionPath of partitionPaths) {
+     if (!fs.existsSync(partitionPath)) continue;
+@@ -155,6 +156,9 @@ function collectJsonlFiles(partitionPaths: string[]): string[] {
+     const files = fs
+       .readdirSync(partitionPath)
+       .filter((f) => f.endsWith(".jsonl"))
++      // Numeric segment order, not readdir order: past segment 9999 the names
++      // are not fixed-width, and DuckDB ingests in the order given.
++      .sort(compareChunkNames)
+       .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
+     jsonlFiles.push(...files);
+   }
+diff --git a/src/git/squash.ts b/src/git/squash.ts
+index f79678a..1d661ea 100644
+--- a/src/git/squash.ts
++++ b/src/git/squash.ts
+@@ -16,6 +16,7 @@ import { getManifest, type Manifest } from "../storage/manifest";
+ import { getDuckDBConnection } from "../duckdb/connection";
+ import { READ_JSON_COLUMNS } from "../duckdb/queries";
+ import { execSync } from "child_process";
++import { compareChunkNames } from "../storage/jsonl";
+ 
+ /**
+  * Squash operation options
+@@ -97,6 +98,7 @@ export async function squashPartition(
+     const jsonlFiles = fs
+       .readdirSync(partitionPath)
+       .filter((f: string) => f.endsWith(".jsonl"))
++      .sort(compareChunkNames)
+       .map((f: string) => path.join(partitionPath, f));
+ 
+     if (jsonlFiles.length === 0) {
+@@ -300,7 +302,8 @@ export async function compactHistory(options: {
+         // Count records first
+         const jsonlFiles = fs
+           .readdirSync(partitionPath)
+-          .filter((f) => f.endsWith(".jsonl"));
++          .filter((f) => f.endsWith(".jsonl"))
++          .sort(compareChunkNames);
+ 
+         let recordCount = 0;
+         for (const file of jsonlFiles) {
+@@ -371,9 +374,12 @@ export async function removeTombstones(partitionPath: string): Promise<{
+     }
+ 
+     // Find all JSONL files
++    // Sorted numerically: past segment 9999 the names are not fixed-width, so
++    // an unsorted listing merges and renames non-deterministically.
+     const jsonlFiles = fs
+       .readdirSync(partitionPath)
+-      .filter((f: string) => f.endsWith(".jsonl"));
++      .filter((f: string) => f.endsWith(".jsonl"))
++      .sort(compareChunkNames);
+ 
+     if (jsonlFiles.length === 0) {
+       return {
+@@ -424,9 +430,16 @@ export async function removeTombstones(partitionPath: string): Promise<{
+       fs.unlinkSync(jsonlFile);
+     }
+ 
+-    // Rename cleaned file
+-    const originalBase = path.basename(jsonlFiles[0]).replace(/\.jsonl$/, "");
+-    const finalPath = path.join(partitionPath, `${originalBase}-cleaned.jsonl`);
++    // Name the merged output after the LOWEST numeric segment it replaces, so
++    // the partition keeps numeric contiguous naming and repeat runs are
++    // idempotent. The previous "<first>-cleaned.jsonl" name took jsonlFiles[0]
++    // from an UNSORTED listing (arbitrary segment) and appended another
++    // "-cleaned" segment name on every subsequent run.
++    const numericBases = jsonlFiles
++      .map((f) => path.basename(f).replace(/\.jsonl$/, ""))
++      .filter((base) => /^\d+$/.test(base));
++    const targetBase = numericBases.length > 0 ? numericBases[0] : "0001";
++    const finalPath = path.join(partitionPath, `${targetBase}.jsonl`);
+     fs.renameSync(newChunkPath, finalPath);
+ 
+     return {
+@@ -496,7 +509,9 @@ export async function getCompactionStats(
+     let tombstoneCount = 0;
+ 
+     const files = fs.readdirSync(partitionPath);
+-    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
++    const jsonlFiles = files
++      .filter((f) => f.endsWith(".jsonl"))
++      .sort(compareChunkNames);
+     const parquetFiles = files.filter((f) => f.endsWith(".parquet"));
+ 
+     if (parquetFiles.length > 0) {
+diff --git a/src/storage/jsonl.ts b/src/storage/jsonl.ts
+index f7c18ee..4c80b93 100644
+--- a/src/storage/jsonl.ts
++++ b/src/storage/jsonl.ts
+@@ -94,7 +94,7 @@ export function createPartition(partitionPath: string): void {
+  * Numeric names sort ascending first; non-numeric names (current.jsonl, legacy
+  * names) keep their previous relative position at the end.
+  */
+-function compareChunkNames(a: string, b: string): number {
++export function compareChunkNames(a: string, b: string): number {
+   const numeric = /^\d+\.jsonl$/;
+   const na = numeric.test(a) ? parseInt(a, 10) : null;
+   const nb = numeric.test(b) ? parseInt(b, 10) : null;
