@@ -1,0 +1,54 @@
+# GAP-033 — Test-suite load-hygiene audit (tick duckbrain-2026-09-19-20-45-38)
+
+Fleet directive (task-router TR-077/TR-078 evidence, 2026-09-19): 1-2 projects must
+not eat the whole box's CPU. This is the in-repo audit artifact for GAP-033.
+
+## Audit scope and method
+
+All 75 test files matching the child_process import family (`spawn|execFile|exec`)
+across `src/` + `tests/` were censused, then every cluster was read per-file.
+Patterns audited, per the board row:
+
+- (a) tests spawning >8 concurrent subprocesses
+- (b) a subprocess per assertion where the process boundary is not the subject under test
+- (c) loops re-running an expensive builder per test when one shared build would
+  cover read-only assertions
+
+## Audit results
+
+| Pattern | File(s) | Verdict |
+|---|---|---|
+| (a) >8 concurrent spawns | none | No test spawns unbounded children; max measured concurrency is 2 (`src/cli/http.test.ts` pidfile race — the race IS the subject). Largest `Promise.all` batches are HTTP posts, not spawns. |
+| (b) subprocess per assertion | **src/cli/token-roles.test.ts** (WORST); also src/s3/cli.test.ts (4 spawns), src/cli/remember-eq-value-clitrunc001.test.ts (3), src/cli/token-auth-file-dogfood026.test.ts (4), src/cli/cli-security.test.ts (0 real) | token-roles: 5 tsx-weighted CLI spawns (~2s boot each) asserting flag-parse + auth-store semantics — no process-boundary behavior under test. The others keep spawns or assert real exit codes/argparse-level signals; `src/cli/unix-socket-flag.test.ts` pins top-level main() interceptor behavior and was left intact. |
+| (c) expensive builder per test | src/search/hooks, src/search/retr001 | Real FTS rebuilds per test, but deliberately bounded by file-scoped `vi.setConfig` budgets (TEST-001 doctrine, commit bf7ae0f). The rebuild IS the subject (cache-rebuild semantics). Left intact by design. |
+
+## The offender and the fix
+
+`src/cli/token-roles.test.ts` — gratuitous subprocess spawns, highest count in the
+pattern-(b) cluster, with a proven in-process alternative already in-repo
+(`runHumanCLI` + console capture, per `src/cli/recall-asof-retr004.test.ts`).
+
+Fix (commit 062fa82): 5 CLI-contract tests converted to in-process
+`runHumanCLI("token", ...)` (exit contract captured via `process.exitCode`, the
+same mechanism the runtime uses; unknown-role fatal path asserts `exitCode=1`),
+plus ONE real-exec parity smoke keeping the bin→tsx→runHumanCLI wiring pinned.
+No skips, no time-boxes, no global config-budget changes.
+
+## Before/after measurement (concrete, per the row's AC-3)
+
+| Metric | Before | After |
+|---|---|---|
+| Real subprocess spawns per suite run | 5 | 1 (the parity smoke) |
+| Test wall time (per-test verbose timings) | 11.1 s | 1.52 s |
+| Focused file incl. transform/setup | 14.5 s | 4.0 s |
+
+Spawn-count reduction 5 → 1 = 80% fewer interpreter boots on every full-suite run
+(~153 files/run, CI included). Full suite after the change: 155 files / 1212 tests
+green (gate battery 2026-09-19: unit 155/1212, tsc clean, prettier clean,
+integration 44/44).
+
+## Explicit non-goals (board row constraints)
+
+No skip-gates, no time-boxing, no caching-to-pass, no vitest.config.ts global
+budget changes (file-scoped budgets only), no fleet/scheduler concurrency policy
+changes. Patterns (a) and (c) were audited and found absent/bounded-by-design.
