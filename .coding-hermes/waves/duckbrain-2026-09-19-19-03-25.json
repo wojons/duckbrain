@@ -1,0 +1,10 @@
+{
+  "scheduler_tick": "duckbrain-2026-09-19-19-03-25",
+  "project": "duckbrain",
+  "base": "b14c14f",
+  "workers": [
+    {"task_id":"DF-0919-01","worktree":"/home/kara/worktrees/duckbrain-DF-0919-01","branch":"wt/DF-0919-01"},
+    {"task_id":"DF-0919-02","worktree":"/home/kara/worktrees/duckbrain-DF-0919-02","branch":"wt/DF-0919-02"},
+    {"task_id":"DF-0919-03","worktree":"/home/kara/worktrees/duckbrain-DF-0919-03","branch":"wt/DF-0919-03"}
+  ]
+}
