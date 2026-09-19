@@ -19,59 +19,89 @@
  *  4. No --role keeps the historical default ["admin"] (back-compat).
  *  5. Repeated identical roles are deduped.
  *
- * Hermeticity: spawned CLI runs use --auth-file pointing at a scratch store
- * plus DUCKBRAIN_DATA_DIR / DUCKBRAIN_NAMESPACES_PATH in temp dirs
- * (token-auth-file-dogfood026.test.ts pattern); nothing here ever touches
- * the real ~/.duckbrain/auth.json.
+ * GAP-033 load hygiene: every contract above is flag-parsing + auth-store
+ * semantics that never depend on the process boundary, but the original
+ * tests each spawned the real CLI (node bin/duckbrain.js → tsx, ~2s boot
+ * per spawn) — 5 tsx-weighted subprocess spawns per suite run for behavior
+ * that is fully observable in-process. The four contract tests now drive
+ * `runHumanCLI("token", …)` directly with console capture (same pattern as
+ * src/cli/recall-asof-retr004.test.ts), and ONE real-exec parity smoke
+ * keeps the bin→tsx→runHumanCLI wiring pinned end-to-end: 5 spawns → 1.
+ *
+ * Hermeticity: in-process runs and the parity smoke both pass
+ * --auth-file pointing at a scratch store per test; the test process's
+ * namespaces/config roots are already redirected by src/test-setup.ts, and
+ * the parity child gets explicit DUCKBRAIN_DATA_DIR /
+ * DUCKBRAIN_NAMESPACES_PATH scratch env (token-auth-file-dogfood026
+ * pattern). Nothing here ever touches the real ~/.duckbrain/auth.json.
  */
 
-import { describe, it, expect } from "vitest";
-import { spawn, ChildProcess } from "child_process";
+import { describe, it, expect, vi } from "vitest";
+import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { runHumanCLI } from "./human";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 
 /* ---------------------------------------------------------------- helpers */
 
-function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const nsPath = path.join(dataDir, "namespaces");
-  fs.mkdirSync(path.join(nsPath, "default"), { recursive: true });
-  return { dataDir, nsPath };
+/** Scratch auth store in a fresh temp dir; returns its path. */
+function scratchAuthStore(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const scratch = path.join(dir, "scratch-auth.json");
+  fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+  return scratch;
 }
 
-function runTokenCli(
+/**
+ * Console capture — runHumanCLI reports through console.log/error (the
+ * recall-asof-retr004.test.ts pattern).
+ */
+function capture(): { logs: string[]; errors: string[]; restore: () => void } {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  const logSpy = vi
+    .spyOn(console, "log")
+    .mockImplementation((...a: any[]) => logs.push(a.map(String).join(" ")));
+  const errSpy = vi
+    .spyOn(console, "error")
+    .mockImplementation((...a: any[]) => errors.push(a.map(String).join(" ")));
+  return {
+    logs,
+    errors,
+    restore: () => {
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    },
+  };
+}
+
+/**
+ * Mint in-process and observe the exit contract. tokenCommand reports
+ * failure via `process.exitCode = 1` (the real process then exits with that
+ * code at the end of main), so the exit code is read off process.exitCode
+ * around the call and restored before returning.
+ */
+async function runTokenInProcess(
   args: string[],
-  extraEnv: Record<string, string> = {},
-): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const { dataDir, nsPath } = prepareDataDir("duckbrain-token-roles-");
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      DUCKBRAIN_DATA_DIR: dataDir,
-      DUCKBRAIN_NAMESPACES_PATH: nsPath,
-      NO_COLOR: "1",
-      ...extraEnv,
+): Promise<{ exitCode: number | undefined; stdout: string; stderr: string }> {
+  const { logs, errors, restore } = capture();
+  const prevExitCode = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    await runHumanCLI("token", args);
+    return {
+      exitCode: process.exitCode,
+      stdout: logs.join("\n"),
+      stderr: errors.join("\n"),
     };
-    delete env.DUCKBRAIN_AUTH_FILE;
-    const child: ChildProcess = spawn(
-      process.execPath,
-      [BIN_PATH, "token", ...args],
-      { env, stdio: "pipe" },
-    );
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (d) => (stdout += d.toString()));
-    child.stderr?.on("data", (d) => (stderr += d.toString()));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      fs.rmSync(dataDir, { recursive: true, force: true });
-      resolve({ code, stdout, stderr });
-    });
-  });
+  } finally {
+    restore();
+    process.exitCode = prevExitCode;
+  }
 }
 
 /** Extract the minted 64-hex token from CLI stdout. */
@@ -106,34 +136,29 @@ function expectScratchRoles(
 
 describe("TOKEN-ROLES-001 token command --role scoping", () => {
   it("repeatable equals form --role=writer --role=analyst stores scoped roles without admin", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-eq-"));
-    const scratch = path.join(dir, "scratch-auth.json");
-    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const scratch = scratchAuthStore("token-roles-eq-");
 
-    const { code, stdout, stderr } = await runTokenCli([
+    const { exitCode, stdout, stderr } = await runTokenInProcess([
       "--name=token-roles-eq",
       `--auth-file=${scratch}`,
       "--role=writer",
       "--role=analyst",
     ]);
 
-    // The bootstrap emits a benign "[duckbrain] Cleared stale DuckDB
+    // Real-exec runs also emit a benign "[duckbrain] Cleared stale DuckDB
     // connections" line on stderr; assert absence of the error signatures.
     expect(stderr).not.toContain("unknown role");
-    expect(code).toBe(0);
+    expect(exitCode ?? 0).toBe(0);
     const token = mintedToken(stdout);
     // Granted roles are echoed in the output alongside the token.
     expect(stdout).toContain("Roles: writer, analyst");
     expectScratchRoles(scratch, token, "token-roles-eq", ["writer", "analyst"]);
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("space form --role analyst stores [analyst]", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-sp-"));
-    const scratch = path.join(dir, "scratch-auth.json");
-    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const scratch = scratchAuthStore("token-roles-sp-");
 
-    const { code, stdout, stderr } = await runTokenCli([
+    const { exitCode, stdout, stderr } = await runTokenInProcess([
       "--name=token-roles-sp",
       "--auth-file",
       scratch,
@@ -142,25 +167,22 @@ describe("TOKEN-ROLES-001 token command --role scoping", () => {
     ]);
 
     expect(stderr).not.toContain("unknown role");
-    expect(code).toBe(0);
+    expect(exitCode ?? 0).toBe(0);
     const token = mintedToken(stdout);
     expect(stdout).toContain("Roles: analyst");
     expectScratchRoles(scratch, token, "token-roles-sp", ["analyst"]);
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("unknown role --role=superadmin exits nonzero and writes no store entry", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-bad-"));
-    const scratch = path.join(dir, "scratch-auth.json");
-    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const scratch = scratchAuthStore("token-roles-bad-");
 
-    const { code, stdout, stderr } = await runTokenCli([
+    const { exitCode, stdout, stderr } = await runTokenInProcess([
       "--name=token-roles-bad",
       `--auth-file=${scratch}`,
       "--role=superadmin",
     ]);
 
-    expect(code).not.toBe(0);
+    expect(exitCode).toBe(1);
     expect(stderr).toContain("superadmin");
     expect(stderr).toContain("Unknown role");
     expect(stderr).toContain("Valid roles: admin, writer, analyst, uploader");
@@ -169,33 +191,27 @@ describe("TOKEN-ROLES-001 token command --role scoping", () => {
     expect(stdout).not.toContain("Roles:");
     const parsed = JSON.parse(fs.readFileSync(scratch, "utf-8"));
     expect(parsed.apiKeys).toEqual([]);
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("no --role keeps the back-compat default [admin]", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-dflt-"));
-    const scratch = path.join(dir, "scratch-auth.json");
-    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const scratch = scratchAuthStore("token-roles-dflt-");
 
-    const { code, stdout, stderr } = await runTokenCli([
+    const { exitCode, stdout, stderr } = await runTokenInProcess([
       "--name=token-roles-dflt",
       `--auth-file=${scratch}`,
     ]);
 
     expect(stderr).not.toContain("unknown role");
-    expect(code).toBe(0);
+    expect(exitCode ?? 0).toBe(0);
     const token = mintedToken(stdout);
     expect(stdout).toContain("Roles: admin");
     expectScratchRoles(scratch, token, "token-roles-dflt", ["admin"]);
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("repeated identical roles are deduped", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-dup-"));
-    const scratch = path.join(dir, "scratch-auth.json");
-    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const scratch = scratchAuthStore("token-roles-dup-");
 
-    const { code, stdout, stderr } = await runTokenCli([
+    const { exitCode, stdout, stderr } = await runTokenInProcess([
       "--name=token-roles-dup",
       `--auth-file=${scratch}`,
       "--role=writer",
@@ -204,10 +220,66 @@ describe("TOKEN-ROLES-001 token command --role scoping", () => {
     ]);
 
     expect(stderr).not.toContain("unknown role");
-    expect(code).toBe(0);
+    expect(exitCode ?? 0).toBe(0);
     const token = mintedToken(stdout);
     expect(stdout).toContain("Roles: writer");
     expectScratchRoles(scratch, token, "token-roles-dup", ["writer"]);
-    fs.rmSync(dir, { recursive: true, force: true });
   });
+});
+
+describe("TOKEN-ROLES-001 real-exec parity smoke (GAP-033)", () => {
+  /**
+   * The single remaining subprocess spawn: proves the bin → tsx →
+   * runHumanCLI entry still mints the scoped token for real — the wiring
+   * the in-process tests above no longer exercise.
+   */
+  it("real bin exec (node → tsx) mints the scoped token end-to-end", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "token-roles-exec-"));
+    const scratch = path.join(dir, "scratch-auth.json");
+    fs.writeFileSync(scratch, JSON.stringify({ apiKeys: [] }));
+    const dataDir = path.join(dir, "data");
+    const nsPath = path.join(dataDir, "namespaces");
+    fs.mkdirSync(nsPath, { recursive: true });
+
+    // Explicit scratch env for the child; never inherit an ambient
+    // DUCKBRAIN_AUTH_FILE override (original runTokenCli behavior).
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      DUCKBRAIN_DATA_DIR: dataDir,
+      DUCKBRAIN_NAMESPACES_PATH: nsPath,
+      NO_COLOR: "1",
+    };
+    delete env.DUCKBRAIN_AUTH_FILE;
+
+    const child = spawn(
+      process.execPath,
+      [
+        BIN_PATH,
+        "token",
+        "--name=token-roles-exec",
+        `--auth-file=${scratch}`,
+        "--role=analyst",
+      ],
+      { env, stdio: "pipe" },
+    );
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (d) => (stdout += d.toString()));
+    child.stderr?.on("data", (d) => (stderr += d.toString()));
+
+    const code: number | null = await new Promise((resolve, reject) => {
+      child.on("error", reject);
+      child.on("close", (closeCode) => resolve(closeCode));
+    });
+
+    try {
+      expect(code).toBe(0);
+      const token = mintedToken(stdout);
+      expect(stdout).toContain("Roles: analyst");
+      expectScratchRoles(scratch, token, "token-roles-exec", ["analyst"]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30000);
 });
