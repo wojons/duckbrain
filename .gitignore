@@ -68,3 +68,4 @@ dagger.db-wal
 # instance config (deployment-specific — never commit; see duckbrain.config.example.json)
 duckbrain.config.json
 .scc/
+stray-archives/
