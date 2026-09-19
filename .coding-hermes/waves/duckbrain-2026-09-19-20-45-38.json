@@ -1,0 +1,14 @@
+{
+  "tick_id": "duckbrain-2026-09-19-20-45-38",
+  "project": "duckbrain",
+  "repo": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "base_sha": "d4cbb5a",
+  "created_at": "2026-09-19T20:52:00Z",
+  "workers": [
+    {"task_id": "GAP-033", "worktree": "/home/kara/worktrees/duckbrain-GAP-033", "branch": "wt/GAP-033", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-GAP-033.md"},
+    {"task_id": "UI-GAP-001", "worktree": "/home/kara/worktrees/duckbrain-UI-GAP-001", "branch": "wt/UI-GAP-001", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-UI-GAP-001.md"},
+    {"task_id": "DB-GAP-053", "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-053", "branch": "wt/DB-GAP-053", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-DB-GAP-053.md"},
+    {"task_id": "DF-0919-05", "worktree": "/home/kara/worktrees/duckbrain-DF-0919-05", "branch": "wt/DF-0919-05", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-DF-0919-05.md"}
+  ]
+}
