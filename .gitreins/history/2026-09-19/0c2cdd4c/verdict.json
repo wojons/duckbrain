@@ -1,0 +1,89 @@
+{
+  "task_id": "OPS-005",
+  "task_title": "Enforce Node 22 requirement and align CI matrix",
+  "task_criteria": [
+    "Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "fa21811258f75b8470ef1a598520fcd16b801bf4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:55PM INF scanned ~9119011 bytes (9.12 MB) in 1.53s\n1:55PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 192373 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  153 passed (153)\n      Tests  1200 passed (1200)\n   Start at  13:55:54\n   Duration  53.45s (transform 2.32s, setup 950ms, import 39.06s, tests 153.72s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: Three of four sub-requirements unmet. (1) Install-time failure: package.json:58-60 declares engines.node \">=22\" but there is NO .npmrc (test -f .npmrc => NO), no engine-strict=true anywhere (grep engine-strict => empty), no preinstall/postinstall script (grep preinstall package.json => empty), and no .nvmrc \u2014 npm's default engine-strict=false means Node<22 only warns, not fails clearly. (2) CI matrix: .github/workflows/ci.yml:15 still lists `node-version: [20.x, 22.x]` so unsupported Node 20 is still tested; .github/workflows/release.yml:20 also pins node-version \"20.x\". (3) Tests: grep of tests/ for engines/process.versions.node/node-version/>=22 returns nothing \u2014 no test verifies the contract (suite runs via `npx vitest run`, test_command from .gitreins/config.yaml, but no test asserts the Node requirement). (4) Docs only partially satisfied: docs/guide/getting-started.md:18 and README.md:82 mention Node 22+. The task diff only added the .gitreins/tasks.yaml row (plus an unrelated skills/duckbrain-usage/SKILL.md edit); git log shows no OPS-005 implementation commit, and prior verdict commit b067847 already recorded OPS-005 FAIL for the same reasons.\nThe task made no code/CI/test changes \u2014 Node 20 remains in the CI matrix, there is no install-time hard failure for Node<22 (no .npmrc/engine-strict/preinstall), and no test verifies the contract, so the criterion fails.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: Three of four sub-requirements unmet. (1) Install-time failure: package.json:58-60 declares engines.node \">=22\" but there is NO .npmrc (test -f .npmrc => NO), no engine-strict=true anywhere (grep engine-strict => empty), no preinstall/postinstall script (grep preinstall package.json => empty), and no .nvmrc \u2014 npm's default engine-strict=false means Node<22 only warns, not fails clearly. (2) CI matrix: .github/workflows/ci.yml:15 still lists `node-version: [20.x, 22.x]` so unsupported Node 20 is still tested; .github/workflows/release.yml:20 also pins node-version \"20.x\". (3) Tests: grep of tests/ for engines/process.versions.node/node-version/>=22 returns nothing \u2014 no test verifies the contract (suite runs via `npx vitest run`, test_command from .gitreins/config.yaml, but no test asserts the Node requirement). (4) Docs only partially satisfied: docs/guide/getting-started.md:18 and README.md:82 mention Node 22+. The task diff only added the .gitreins/tasks.yaml row (plus an unrelated skills/duckbrain-usage/SKILL.md edit); git log shows no OPS-005 implementation commit, and prior verdict commit b067847 already recorded OPS-005 FAIL for the same reasons.\nThe task made no code/CI/test changes \u2014 Node 20 remains in the CI matrix, there is no install-time hard failure for Node<22 (no .npmrc/engine-strict/preinstall), and no test verifies the contract, so the criterion fails.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.",
+                "status": "FAIL",
+                "detail": "Three of four sub-requirements unmet. (1) Install-time failure: package.json:58-60 declares engines.node \">=22\" but there is NO .npmrc (test -f .npmrc => NO), no engine-strict=true anywhere (grep engine-strict => empty), no preinstall/postinstall script (grep preinstall package.json => empty), and no .nvmrc \u2014 npm's default engine-strict=false means Node<22 only warns, not fails clearly. (2) CI matrix: .github/workflows/ci.yml:15 still lists `node-version: [20.x, 22.x]` so unsupported Node 20 is still tested; .github/workflows/release.yml:20 also pins node-version \"20.x\". (3) Tests: grep of tests/ for engines/process.versions.node/node-version/>=22 returns nothing \u2014 no test verifies the contract (suite runs via `npx vitest run`, test_command from .gitreins/config.yaml, but no test asserts the Node requirement). (4) Docs only partially satisfied: docs/guide/getting-started.md:18 and README.md:82 mention Node 22+. The task diff only added the .gitreins/tasks.yaml row (plus an unrelated skills/duckbrain-usage/SKILL.md edit); git log shows no OPS-005 implementation commit, and prior verdict commit b067847 already recorded OPS-005 FAIL for the same reasons."
+              }
+            ],
+            "summary": "The task made no code/CI/test changes \u2014 Node 20 remains in the CI matrix, there is no install-time hard failure for Node<22 (no .npmrc/engine-strict/preinstall), and no test verifies the contract, so the criterion fails."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-005\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: Three of four sub-requirements unmet. (1) Install-time failure: package.json:58-60 declares engines.node \">=22\" but there is NO .npmrc (test -f .npmrc => NO), no engine-strict=true anywhere (grep engine-strict => empty), no preinstall/postinstall script (grep preinstall package.json => empty), and no .nvmrc \u2014 npm's default engine-strict=false means Node<22 only warns, not fails clearly. (2) CI matrix: .github/workflows/ci.yml:15 still lists `node-version: [20.x, 22.x]` so unsupported Node 20 is still tested; .github/workflows/release.yml:20 also pins node-version \"20.x\". (3) Tests: grep of tests/ for engines/process.versions.node/node-version/>=22 returns nothing \u2014 no test verifies the contract (suite runs via `npx vitest run`, test_command from .gitreins/config.yaml, but no test asserts the Node requirement). (4) Docs only partially satisfied: docs/guide/getting-started.md:18 and README.md:82 mention Node 22+. The task diff only added the .gitreins/tasks.yaml row (plus an unrelated skills/duckbrain-usage/SKILL.md edit); git log shows no OPS-005 implementation commit, and prior verdict commit b067847 already recorded OPS-005 FAIL for the same reasons.\nThe task made no code/CI/test changes \u2014 Node 20 remains in the CI matrix, there is no install-time hard failure for Node<22 (no .npmrc/engine-strict/preinstall), and no test verifies the contract, so the criterion fails.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T18:58:25.035173",
+  "evidence": {
+    "collected_at": "2026-09-19T18:58:25.092903+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 10886,
+        "truncated": false,
+        "source": "git show fa21811258f7"
+      }
+    ],
+    "task_id": "OPS-005"
+  }
+}
