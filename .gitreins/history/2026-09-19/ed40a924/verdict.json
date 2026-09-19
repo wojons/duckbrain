@@ -1,0 +1,99 @@
+{
+  "task_id": "DF-0919-02",
+  "task_title": "Fix TypeScript 7 UI build incompatibility",
+  "task_criteria": [
+    "A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl configuration without breaking UI path resolution, and verify install plus build."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "fd23b3c2bd9b9aa8eefa8e57af0b9ad3a3e110d1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n6:01PM INF scanned ~8110911 bytes (8.11 MB) in 1.22s\n6:01PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193722 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  18:01:22\n   Duration  137.92s (transform 4.82s, setup 4.57s, import 38.60s, tests 490.65s, environment 13ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl configuration without breaking UI path resolution, and verify install plus build.: baseUrl removed from packages/ui/tsconfig.json (grep -c baseUrl = 0; commit 40aa4ba/f7b1dfe 'fix(ui): drop removed baseUrl option from tsconfig for TS 7' deleted `\"baseUrl\": \".\"`). Root cause confirmed: re-adding baseUrl under TS 7.0.2 yields `tsconfig.json(27,5): error TS5102: Option 'baseUrl' has been removed`. Fresh clone of /home/kara/duckbrain @ fd23b3c: `pnpm install` -> INSTALL_EXIT=0 ('typescript 7.0.2', 'Done in 4.4s using pnpm v12.4.2'); `pnpm build` -> FRESH_BUILD_EXIT=0 ('$ tsc && vite build', '\u2713 1601 modules transformed', '\u2713 built in 2.93s'). Path resolution intact: `@/*`->`./src/*` still in tsconfig paths; test import `@/lib/api-client` resolved the module under TS 7.0.2 (only TS2305 'no exported member', i.e. module found); vite.config.ts:13-15 still has resolve.alias '@'->./src. Root `pnpm build` ROOT_EXIT=0; UI `pnpm build` REAL_EXIT=0; UI tests 38 passed (6 files).\nFresh-clone pnpm install + build both pass with TypeScript 7.0.2 after removing the obsolete baseUrl, and UI path resolution (@/* alias) remains functional.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl configuration without breaking UI path resolution, and verify install plus build.: baseUrl removed from packages/ui/tsconfig.json (grep -c baseUrl = 0; commit 40aa4ba/f7b1dfe 'fix(ui): drop removed baseUrl option from tsconfig for TS 7' deleted `\"baseUrl\": \".\"`). Root cause confirmed: re-adding baseUrl under TS 7.0.2 yields `tsconfig.json(27,5): error TS5102: Option 'baseUrl' has been removed`. Fresh clone of /home/kara/duckbrain @ fd23b3c: `pnpm install` -> INSTALL_EXIT=0 ('typescript 7.0.2', 'Done in 4.4s using pnpm v12.4.2'); `pnpm build` -> FRESH_BUILD_EXIT=0 ('$ tsc && vite build', '\u2713 1601 modules transformed', '\u2713 built in 2.93s'). Path resolution intact: `@/*`->`./src/*` still in tsconfig paths; test import `@/lib/api-client` resolved the module under TS 7.0.2 (only TS2305 'no exported member', i.e. module found); vite.config.ts:13-15 still has resolve.alias '@'->./src. Root `pnpm build` ROOT_EXIT=0; UI `pnpm build` REAL_EXIT=0; UI tests 38 passed (6 files).\nFresh-clone pnpm install + build both pass with TypeScript 7.0.2 after removing the obsolete baseUrl, and UI path resolution (@/* alias) remains functional.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl configuration without breaking UI path resolution, and verify install plus build.",
+                "status": "PASS",
+                "detail": "baseUrl removed from packages/ui/tsconfig.json (grep -c baseUrl = 0; commit 40aa4ba/f7b1dfe 'fix(ui): drop removed baseUrl option from tsconfig for TS 7' deleted `\"baseUrl\": \".\"`). Root cause confirmed: re-adding baseUrl under TS 7.0.2 yields `tsconfig.json(27,5): error TS5102: Option 'baseUrl' has been removed`. Fresh clone of /home/kara/duckbrain @ fd23b3c: `pnpm install` -> INSTALL_EXIT=0 ('typescript 7.0.2', 'Done in 4.4s using pnpm v12.4.2'); `pnpm build` -> FRESH_BUILD_EXIT=0 ('$ tsc && vite build', '\u2713 1601 modules transformed', '\u2713 built in 2.93s'). Path resolution intact: `@/*`->`./src/*` still in tsconfig paths; test import `@/lib/api-client` resolved the module under TS 7.0.2 (only TS2305 'no exported member', i.e. module found); vite.config.ts:13-15 still has resolve.alias '@'->./src. Root `pnpm build` ROOT_EXIT=0; UI `pnpm build` REAL_EXIT=0; UI tests 38 passed (6 files)."
+              }
+            ],
+            "summary": "Fresh-clone pnpm install + build both pass with TypeScript 7.0.2 after removing the obsolete baseUrl, and UI path resolution (@/* alias) remains functional."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-02\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl configuration without breaking UI path resolution, and verify install plus build.: baseUrl removed from packages/ui/tsconfig.json (grep -c baseUrl = 0; commit 40aa4ba/f7b1dfe 'fix(ui): drop removed baseUrl option from tsconfig for TS 7' deleted `\"baseUrl\": \".\"`). Root cause confirmed: re-adding baseUrl under TS 7.0.2 yields `tsconfig.json(27,5): error TS5102: Option 'baseUrl' has been removed`. Fresh clone of /home/kara/duckbrain @ fd23b3c: `pnpm install` -> INSTALL_EXIT=0 ('typescript 7.0.2', 'Done in 4.4s using pnpm v12.4.2'); `pnpm build` -> FRESH_BUILD_EXIT=0 ('$ tsc && vite build', '\u2713 1601 modules transformed', '\u2713 built in 2.93s'). Path resolution intact: `@/*`->`./src/*` still in tsconfig paths; test import `@/lib/api-client` resolved the module under TS 7.0.2 (only TS2305 'no exported member', i.e. module found); vite.config.ts:13-15 still has resolve.alias '@'->./src. Root `pnpm build` ROOT_EXIT=0; UI `pnpm build` REAL_EXIT=0; UI tests 38 passed (6 files).\nFresh-clone pnpm install + build both pass with TypeScript 7.0.2 after removing the obsolete baseUrl, and UI path resolution (@/* alias) remains functional.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T23:06:24.825134",
+  "evidence": {
+    "collected_at": "2026-09-19T23:06:24.840449+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4632,
+        "truncated": false,
+        "source": "git show fd23b3c2bd9b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 482,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-02"
+  }
+}

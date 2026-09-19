@@ -1,0 +1,13 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index c7d97af..13305b0 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1499,7 +1499,7 @@ tasks:
+     green; before/after measurement recorded
+   status: complete
+   created_at: '2026-09-19T20:50:34.180124+00:00'
+-  completed_at: '2026-09-19T22:01:30.795305+00:00'
++  completed_at: '2026-09-19T22:35:31.269292+00:00'
+ - id: UI-GAP-001
+   title: Wire UI header filters + rich query param controls
+   criteria:

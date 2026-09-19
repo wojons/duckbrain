@@ -1,0 +1,102 @@
+commit fd23b3c2bd9b9aa8eefa8e57af0b9ad3a3e110d1
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 17:46:45 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 17:46:45 2026 -0500
+
+    test: per-process scratch dirs for duckdb query fixtures (cross-process race)
+    
+    The four RETR/query test files created fixed dirs under process.cwd()
+    (test-memory, -attr, -recency, -timerange) and wiped them in beforeEach/
+    afterEach. Any two concurrent vitest PROCESSES (two gitreins judges, or a
+    judge plus a dev run) raced on the same dirs: one process's cleanup deleted
+    the partition another was mid-query, producing IO 'No files found' errors
+    and cascading order-assertion failures. This is what failed DF-0919-02/03
+    tier1 and looked like a 'flaky heartbeat' — the OPS-007 stall widening
+    (2eb0bbd) helps its own timing margin, but the root cause was fixture
+    collisions, now isolated via fs.mkdtemp per process in os.tmpdir.
+    
+    Verified: 4 files pass solo (35/35), pass as two CONCURRENT vitest
+    processes, and the full suite is green (155/1212).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/duckdb/queries-attr-retr006.test.ts      | 3 ++-
+ src/duckdb/queries-recency-retr005.test.ts   | 2 +-
+ src/duckdb/queries-timerange-retr003.test.ts | 3 ++-
+ src/duckdb/queries.test.ts                   | 3 ++-
+ 4 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/duckdb/queries-attr-retr006.test.ts b/src/duckdb/queries-attr-retr006.test.ts
+index 79142b1..d78aff9 100644
+--- a/src/duckdb/queries-attr-retr006.test.ts
++++ b/src/duckdb/queries-attr-retr006.test.ts
+@@ -19,6 +19,7 @@ import { initDuckDB, closeDuckDB } from "./connection";
+ import { insertMemory, queryMemories, countMemories } from "./queries";
+ import type { MemoryType } from "../schema/memory";
+ import path from "path";
++import os from "os";
+ import fs from "fs";
+ 
+ function fixtureId(label: string): string {
+@@ -55,7 +56,7 @@ function memory(
+ 
+ describe("RETR-006: attribute filters — queryMemories/countMemories", () => {
+   let db: any;
+-  const testPartition = path.join(process.cwd(), "test-memory-attr");
++  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-attr-"));
+ 
+   beforeEach(async () => {
+     db = await initDuckDB(":memory:");
+diff --git a/src/duckdb/queries-recency-retr005.test.ts b/src/duckdb/queries-recency-retr005.test.ts
+index 3062895..4305ae0 100644
+--- a/src/duckdb/queries-recency-retr005.test.ts
++++ b/src/duckdb/queries-recency-retr005.test.ts
+@@ -53,7 +53,7 @@ function memory(
+ 
+ describe("RETR-005: recency-aware listing — queryMemories", () => {
+   let db: any;
+-  const testPartition = path.join(process.cwd(), "test-memory-recency");
++  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-recency-"));
+ 
+   beforeAll(async () => {
+     db = await initDuckDB(":memory:");
+diff --git a/src/duckdb/queries-timerange-retr003.test.ts b/src/duckdb/queries-timerange-retr003.test.ts
+index 1987cbd..df82891 100644
+--- a/src/duckdb/queries-timerange-retr003.test.ts
++++ b/src/duckdb/queries-timerange-retr003.test.ts
+@@ -19,6 +19,7 @@ import { initDuckDB, closeDuckDB } from "./connection";
+ import { insertMemory, queryMemories, countMemories } from "./queries";
+ import type { MemoryType } from "../schema/memory";
+ import path from "path";
++import os from "os";
+ import fs from "fs";
+ 
+ function fixtureId(label: string): string {
+@@ -49,7 +50,7 @@ function memory(
+ 
+ describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
+   let db: any;
+-  const testPartition = path.join(process.cwd(), "test-memory-timerange");
++  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-timerange-"));
+ 
+   beforeEach(async () => {
+     db = await initDuckDB(":memory:");
+diff --git a/src/duckdb/queries.test.ts b/src/duckdb/queries.test.ts
+index b4f87db..7a8a025 100644
+--- a/src/duckdb/queries.test.ts
++++ b/src/duckdb/queries.test.ts
+@@ -10,11 +10,12 @@ import { insertMemory, tombstoneMemory, queryMemories } from "./queries";
+ import { deepConvertBigInts } from "../utils/serialize";
+ import { createMemory } from "../schema/memory";
+ import path from "path";
++import os from "os";
+ import fs from "fs";
+ 
+ describe("DuckDB Queries", () => {
+   let db: any;
+-  const testPartition = path.join(process.cwd(), "test-memory");
++  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-"));
+ 
+   beforeEach(async () => {
+     db = await initDuckDB(":memory:");

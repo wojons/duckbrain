@@ -1,0 +1,83 @@
+{
+  "task_id": "GAP-033",
+  "task_title": "LOAD-HYGIENE: bound test-suite host load",
+  "task_criteria": [
+    "Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "2eb0bbdad15b1e9f3ebe5f0f1847fb6dda932cd1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:01PM INF scanned ~9150155 bytes (9.15 MB) in 2.72s\n5:01PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193695 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  17:01:32\n   Duration  136.34s (transform 8.18s, setup 7.82s, import 50.29s, tests 463.49s, environment 15ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nCap exceeded: Time cap (25m) exceeded (25m7s elapsed). Increase max_time or simplify criteria.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nCap exceeded: Time cap (25m) exceeded (25m7s elapsed). Increase max_time or simplify criteria.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Cap exceeded: Time cap (25m) exceeded (25m7s elapsed). Increase max_time or simplify criteria."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-033\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n\nCap exceeded: Time cap (25m) exceeded (25m7s elapsed). Increase max_time or simplify criteria.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T22:28:56.608323",
+  "evidence": {
+    "collected_at": "2026-09-19T22:28:56.631836+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2815,
+        "truncated": false,
+        "source": "git show 2eb0bbdad15b"
+      }
+    ],
+    "task_id": "GAP-033"
+  }
+}
