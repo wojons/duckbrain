@@ -1456,3 +1456,10 @@ tasks:
   status: complete
   created_at: '2026-09-19T16:31:05.334701+00:00'
   completed_at: '2026-09-19T17:35:30.749185+00:00'
+- id: INT-CI-10
+  title: Sync AGENTS.md test counts
+  criteria:
+  - AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines
+    and git diff verifies only those count edits
+  status: in_progress
+  created_at: '2026-09-19T18:01:47.000465+00:00'
