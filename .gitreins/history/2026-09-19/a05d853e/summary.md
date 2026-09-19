@@ -1,0 +1,34 @@
+# Verdict: DB-GAP-049
+
+**Task:** DB-GAP-049: chunk rotation froze past segment 9999 (padStart>4 digits + lexicographic sort) -> one segment holds every write (87,530 lines/84MB against a 1000-line/1MB bound)
+**Evaluated:** 2026-09-19T15:02:13.592284
+**Result:** ✓ PASS
+
+## Pipeline Stages
+
+- ✓ **tier1**
+  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: RUN  v4.1.10 /home/kara/duckbrain
+- ✓ **tier2**
+  - COMPLETE
+  ✓ src/storage/jsonl.ts orders chunk names numerically (compareChunkNames) and getNextChunkName never returns a segment name that already exists; readPartition uses the same numeric ordering: Commit 3b6bbce src/storage/jsonl.ts:97 defines compareChunkNames (numeric regex /^\d+\.jsonl$/, parseInt numeric compare, non-numeric names sorted last via localeCompare). getNextChunkName (line 123) sorts with .sort(compareChunkNames) and then has a collision guard `while (fs.existsSync(path.join(partitionPath, candidate))) { nextNum += 1; candidate = ... }` so it can never return an existing name. readPartition (line 422) uses `.sort(compareChunkNames)` on all *.jsonl chunks. All three sites confirmed via `git show 3b6bbce:src/storage/jsonl.ts`.
+  ✓ src/storage/jsonl.test.ts adds regression cases for rotation past segment 9999, the collision guard, the legacy 4-digit sequence, non-numeric segments, appending into a new segment at capacity, and numeric read order; the pre-fix revision fails those cases (4 failed / 6 passed): src/storage/jsonl.test.ts:132 adds describe("chunk rotation past segment 9999") with exactly the 6 required cases: (1) 'continues to 10001.jsonl when 9999.jsonl and 10000.jsonl exist', (2) 'skips existing names instead of re-returning one (collision guard)' -> 10003, (3) 'keeps the legacy numeric sequence below 10000' -> 0003, (4) 'ignores non-numeric segments' (current.jsonl) -> 0008, (5) 'appends to a NEW segment when a five-digit-named segment is at capacity' (9999.jsonl full at 1000 lines, 10000.jsonl exists -> record lands in 10001.jsonl), (6) 'reads segments in numeric order, not lexicographic order'. RED reproduced: swapped in pre-fix jsonl.ts (`git show 3b6bbce^:src/storage/jsonl.ts`) and ran `npx vitest run src/storage/jsonl.test.ts` -> 'Tests 4 failed | 6 passed (10)', EXIT=1, with failures `expected '10000.jsonl' to be '10001.jsonl'`, `expected '10000.jsonl' to be '10003.jsonl'`, ENOENT 10001.jsonl, and received ['/test/rotation/2','/test/rotation/1']. File restored (git status clean); post-fix run = 10 passed.
+  ✓ tsc --noEmit clean, full vitest suite green at 149 files / 1174 tests, AGENTS.md counts read 1174, and the commit touches only AGENTS.md + src/storage/jsonl.ts + src/storage/jsonl.test.ts: `npx tsc --noEmit` -> exit 0, no output (clean). Full suite `npx vitest run` -> 'Test Files 152 passed (152) / Tests 1188 passed (1188)', EXIT=0 (all green; the 152/1188 count is HEAD, which includes 3 later test files added by commit 3b4b47e). AGENTS.md at the DB-GAP-049 commit 3b6bbce reads 'Vitest (149 suites, 1174 tests)' (line 14) and 'pnpm test # 1174 tests, 149 suites' (line 33) — matching the criterion's 1174/149 exactly. `git show 3b6bbce --name-only` lists exactly AGENTS.md, src/storage/jsonl.test.ts, src/storage/jsonl.ts.
+All three criteria verified: numeric compareChunkNames + collision guard in jsonl.ts, 6 regression tests RED-proven at 4 failed/6 passed against the pre-fix revision, tsc clean, full suite green, AGENTS.md reads 1174/149 at the commit, and the commit touches only the three expected files.
+
+## Summary
+
+Judge Result: DB-GAP-049
+
+Stage tier1: PASS
+    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: RUN  v4.1.10 /home/kara/duckbrain
+
+Stage tier2: PASS
+  COMPLETE
+  ✓ src/storage/jsonl.ts orders chunk names numerically (compareChunkNames) and getNextChunkName never returns a segment name that already exists; readPartition uses the same numeric ordering: Commit 3b6bbce src/storage/jsonl.ts:97 defines compareChunkNames (numeric regex /^\d+\.jsonl$/, parseInt numeric compare, non-numeric names sorted last via localeCompare). getNextChunkName (line 123) sorts with .sort(compareChunkNames) and then has a collision guard `while (fs.existsSync(path.join(partitionPath, candidate))) { nextNum += 1; candidate = ... }` so it can never return an existing name. readPartition (line 422) uses `.sort(compareChunkNames)` on all *.jsonl chunks. All three sites confirmed via `git show 3b6bbce:src/storage/jsonl.ts`.
+  ✓ src/storage/jsonl.test.ts adds regression cases for rotation past segment 9999, the collision guard, the legacy 4-digit sequence, non-numeric segments, appending into a new segment at capacity, and numeric read order; the pre-fix revision fails those cases (4 failed / 6 passed): src/storage/jsonl.test.ts:132 adds describe("chunk rotation past segment 9999") with exactly the 6 required cases: (1) 'continues to 10001.jsonl when 9999.jsonl and 10000.jsonl exist', (2) 'skips existing names instead of re-returning one (collision guard)' -> 10003, (3) 'keeps the legacy numeric sequence below 10000' -> 0003, (4) 'ignores non-numeric segments' (current.jsonl) -> 0008, (5) 'appends to a NEW segment when a five-digit-named segment is at capacity' (9999.jsonl full at 1000 lines, 10000.jsonl exists -> record lands in 10001.jsonl), (6) 'reads segments in numeric order, not lexicographic order'. RED reproduced: swapped in pre-fix jsonl.ts (`git show 3b6bbce^:src/storage/jsonl.ts`) and ran `npx vitest run src/storage/jsonl.test.ts` -> 'Tests 4 failed | 6 passed (10)', EXIT=1, with failures `expected '10000.jsonl' to be '10001.jsonl'`, `expected '10000.jsonl' to be '10003.jsonl'`, ENOENT 10001.jsonl, and received ['/test/rotation/2','/test/rotation/1']. File restored (git status clean); post-fix run = 10 passed.
+  ✓ tsc --noEmit clean, full vitest suite green at 149 files / 1174 tests, AGENTS.md counts read 1174, and the commit touches only AGENTS.md + src/storage/jsonl.ts + src/storage/jsonl.test.ts: `npx tsc --noEmit` -> exit 0, no output (clean). Full suite `npx vitest run` -> 'Test Files 152 passed (152) / Tests 1188 passed (1188)', EXIT=0 (all green; the 152/1188 count is HEAD, which includes 3 later test files added by commit 3b4b47e). AGENTS.md at the DB-GAP-049 commit 3b6bbce reads 'Vitest (149 suites, 1174 tests)' (line 14) and 'pnpm test # 1174 tests, 149 suites' (line 33) — matching the criterion's 1174/149 exactly. `git show 3b6bbce --name-only` lists exactly AGENTS.md, src/storage/jsonl.test.ts, src/storage/jsonl.ts.
+All three criteria verified: numeric compareChunkNames + collision guard in jsonl.ts, 6 regression tests RED-proven at 4 failed/6 passed against the pre-fix revision, tsc clean, full suite green, AGENTS.md reads 1174/149 at the commit, and the commit touches only the three expected files.
+
+Overall: PASS ✓

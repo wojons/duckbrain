@@ -1445,3 +1445,13 @@ tasks:
   status: complete
   created_at: '2026-09-19T14:44:44.264306+00:00'
   completed_at: '2026-09-19T14:56:25.601349+00:00'
+- id: PUSH-001
+  title: 'Gate in-daemon S3 autopush: honor pushOnCommit+intervalSec, single-flight,
+    skip-unchanged'
+  criteria:
+  - 'Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false)
+    produces zero pushes; pushOnCommit=true yields at most one concurrent push per
+    namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful
+    push; tsc+full unit suite+prettier green'
+  status: in_progress
+  created_at: '2026-09-19T16:31:05.334701+00:00'
