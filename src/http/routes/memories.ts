@@ -220,6 +220,28 @@ function transformMemory(memory: any): MemoryResponse {
 }
 
 /**
+ * DF-0919-05: collapse the request's validity window onto its canonical
+ * snake_case fields. Both spellings are accepted; when both are present the
+ * snake_case value WINS. The snake_case pair is what reaches rememberTool
+ * and what the 201 response echoes — the wire format stays snake_case.
+ */
+function normalizeValidityWindow(
+  body: CreateMemoryRequest,
+  camel: { validFrom?: string; validUntil?: string },
+): { valid_from?: string; valid_until?: string } {
+  // Per-field precedence: the snake_case value wins when both spellings of
+  // a field are present; the camelCase value fills an otherwise-empty slot.
+  return {
+    ...(body.valid_from !== undefined || camel.validFrom !== undefined
+      ? { valid_from: body.valid_from ?? camel.validFrom }
+      : {}),
+    ...(body.valid_until !== undefined || camel.validUntil !== undefined
+      ? { valid_until: body.valid_until ?? camel.validUntil }
+      : {}),
+  };
+}
+
+/**
  * GET /api/memories
  * Query memories with filters
  */
@@ -494,6 +516,12 @@ router.post(
   "/",
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as CreateMemoryRequest;
+    // DF-0919-05: camelCase validity aliases (API-spec-adjacent spellings
+    // some callers send). Mapped below; snake_case wins on collision.
+    const camel = {
+      validFrom: (body as { validFrom?: string }).validFrom,
+      validUntil: (body as { validUntil?: string }).validUntil,
+    };
 
     // Validate required fields
     if (!body.key || !body.domain || !body.content) {
@@ -529,12 +557,10 @@ router.post(
         embedding_text: body.content,
         // RETR-011: optional validity window — passthrough; omitted fields
         // keep the legacy always-current behavior.
-        ...(body.valid_from !== undefined
-          ? { valid_from: body.valid_from }
-          : {}),
-        ...(body.valid_until !== undefined
-          ? { valid_until: body.valid_until }
-          : {}),
+        // DF-0919-05: camelCase validFrom/validUntil are accepted and mapped
+        // onto the canonical snake_case fields (snake_case wins on collision) —
+        // zod previously stripped them silently on this path too.
+        ...normalizeValidityWindow(body, camel),
         namespace: writtenNamespace,
         ...(principal ? { author: principalAuthorEmail(principal) } : {}),
       },
@@ -546,6 +572,10 @@ router.post(
     }
 
     // Return the created memory
+    // RETR-011: echo the validity window exactly as stored — snake_case in,
+    // snake_case out. DF-0919-05: a camelCase-sourced value is echoed under
+    // its canonical snake_case name too (same memory row).
+    const validity = normalizeValidityWindow(body, camel);
     const memory: MemoryResponse = {
       id: result.id!,
       key: result.key!,
@@ -556,12 +586,7 @@ router.post(
       // when the tool reports it — the response-time stamp stays only as a
       // backwards-compatible fallback.
       timestamp: result.timestamp ?? new Date().toISOString(),
-      // RETR-011: echo the validity window exactly as stored (the tool
-      // normalized nothing here — the values pass through verbatim).
-      ...(body.valid_from !== undefined ? { valid_from: body.valid_from } : {}),
-      ...(body.valid_until !== undefined
-        ? { valid_until: body.valid_until }
-        : {}),
+      ...validity,
       author: result.author!,
       isTombstone: false,
       action: "add",
