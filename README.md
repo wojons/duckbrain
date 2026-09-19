@@ -71,7 +71,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 
 #### Prerequisites
 
-You need **git**, **Node.js 22+** and **pnpm 11+**. On a fresh Debian/Ubuntu box that only has git:
+You need **git**, **Node.js 22+** and **pnpm 11.13.1**. The repository pins that pnpm version in `package.json` so fresh installs use the same linker and lockfile behavior as CI. On a fresh Debian/Ubuntu box that only has git:
 
 ```bash
 # Node.js 22+ via nvm (~11s on a fresh box), or install from nodejs.org / your distro's packages
@@ -79,11 +79,13 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
 . ~/.nvm/nvm.sh   # or open a new shell
 nvm install 22 && nvm use 22
 
-# pnpm 11+ via corepack (bundled with Node 22) — fallback: npm i -g pnpm
-corepack enable && corepack prepare pnpm@11 --activate
+# Activate the repository's pinned pnpm version via Corepack (bundled with Node 22).
+# Fallback when Corepack is unavailable: npm i -g pnpm@11.13.1
+corepack enable
+corepack prepare pnpm@11.13.1 --activate
 ```
 
-pnpm 12 also works but rewrites `pnpm-lock.yaml` on first install — don't commit that churn.
+Do not substitute a different pnpm major when refreshing the lockfile; pnpm 12 is outside this repository's tested install contract.
 
 `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
 
@@ -94,8 +96,8 @@ pnpm 12 also works but rewrites `pnpm-lock.yaml` on first install — don't comm
 git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
-# Install dependencies
-pnpm install
+# Install exactly what the committed pnpm lockfile specifies
+pnpm install --frozen-lockfile
 
 # Start the development server
 pnpm run dev
@@ -103,7 +105,15 @@ pnpm run dev
 
 ### Verify the install
 
-Paste in order; the last command must print the memory you stored:
+First, verify that the frozen install linked every runtime dependency needed by the CLI:
+
+```bash
+node bin/duckbrain.js help
+```
+
+The command must print `DuckBrain v1.0.0 - AI Memory System` without a `Cannot find module` error.
+
+Then paste the full HTTP smoke in order; the last command must print the memory you stored:
 
 ```bash
 # 1. start the HTTP daemon in the background

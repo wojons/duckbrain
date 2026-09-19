@@ -6,7 +6,7 @@ This example demonstrates how to use DuckBrain as an MCP server with a client.
 
 1. Install DuckBrain:
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
 2. Configure your MCP client (e.g., Claude Desktop) to use DuckBrain:

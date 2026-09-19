@@ -1,6 +1,7 @@
 {
   "name": "duckbrain",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.13.1",
   "description": "AI Memory System - MCP server with persistent, version-controlled memory",
   "main": "index.js",
   "bin": {

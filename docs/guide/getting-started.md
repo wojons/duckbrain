@@ -23,13 +23,14 @@ Before you begin, you'll need:
   nvm install 22 && nvm use 22
   ```
 
-- **pnpm** 11+ — activate it via corepack (bundled with Node 22); fallback: `npm i -g pnpm`:
+- **pnpm** 11.13.1 — the exact version is pinned in `package.json` and is the only pnpm major exercised by the clean-install CI smoke. Activate it via Corepack (bundled with Node 22); fallback: `npm i -g pnpm@11.13.1`:
 
   ```bash
-  corepack enable && corepack prepare pnpm@11 --activate
+  corepack enable
+  corepack prepare pnpm@11.13.1 --activate
   ```
 
-  pnpm 12 also works but rewrites `pnpm-lock.yaml` on first install — don't commit that churn.
+  Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.
 
 - **Git** ([Download](https://git-scm.com/))
 - **An AI agent** that supports MCP (Claude Desktop, Cursor, etc.)
@@ -45,15 +46,15 @@ Before you begin, you'll need:
 git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
-# Install dependencies
-pnpm install
+# Install exactly what the committed pnpm lockfile specifies
+pnpm install --frozen-lockfile
 ```
 
 ### Step 2: Verify Installation
 
 ```bash
-# Test the CLI
-pnpm start help
+# Test the CLI and its runtime dependency links
+node bin/duckbrain.js help
 ```
 
 You should see the DuckBrain help output with available commands.

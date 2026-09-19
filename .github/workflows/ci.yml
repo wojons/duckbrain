@@ -10,23 +10,41 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      # No version input: pnpm/action-setup reads the exact packageManager pin.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: "npm"
+          node-version: "22.x"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install from a clean store and smoke-test the CLI
+        run: |
+          test "$(pnpm --version)" = "11.13.1"
+          test ! -e node_modules
+          FRESH_STORE="${RUNNER_TEMP}/duckbrain-pnpm-store"
+          test ! -e "${FRESH_STORE}"
+          pnpm install --frozen-lockfile --store-dir "${FRESH_STORE}"
+          for dependency in express duckdb simple-git tsx zod; do
+            test -L "node_modules/${dependency}" || {
+              echo "Root dependency was not linked: ${dependency}"
+              exit 1
+            }
+          done
+          test -L packages/ui/node_modules/react || {
+            echo "Workspace dependency was not linked: packages/ui/node_modules/react"
+            exit 1
+          }
+          node bin/duckbrain.js help | tee /tmp/duckbrain-help.out
+          grep -q "DuckBrain v1.0.0 - AI Memory System" /tmp/duckbrain-help.out
 
       - name: Cache DuckDB extensions
         uses: actions/cache@v4
@@ -40,16 +58,15 @@ jobs:
         run: node -e "const {Database}=require('duckdb'); const db=new Database(':memory:'); db.exec('INSTALL fts'); db.exec('LOAD fts'); db.close();"
 
       - name: Run lint
-        run: npm run lint --if-present
+        run: pnpm run --if-present lint
 
       - name: Run type check
-        run: npm run typecheck --if-present
+        run: pnpm tsc --noEmit
 
       - name: Run tests
-        run: npm run test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
+        run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
 
       - name: Assert AGENTS.md test counts match live suite
-        if: matrix.node-version == '22.x'   # package.json engines: node >=22 — assert once, not per matrix cell
         run: |
           STRIP='sed -r "s/\x1B\[[0-9;]*[mK]//g"'
           SUITES=$(eval "$STRIP /tmp/vitest.out" | grep -oP 'Test Files\s+.*\(\K\d+(?=\))' | tail -1)
@@ -70,7 +87,7 @@ jobs:
           git diff --exit-code duckbrain.config.example.json
 
       - name: Run integration tests
-        run: npm run test:integration
+        run: pnpm test:integration
         env:
           CI: true
 

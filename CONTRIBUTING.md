@@ -8,7 +8,7 @@ Thank you for your interest in contributing to DuckBrain! This document provides
 
 - Node.js 22+
 - Git
-- pnpm 11+
+- pnpm 11.13.1 (pinned by `package.json`)
 - TypeScript 7.x
 
 ### Local Development
@@ -18,8 +18,8 @@ Thank you for your interest in contributing to DuckBrain! This document provides
 git clone https://github.com/wojons/duckbrain.git
 cd duckbrain
 
-# Install dependencies
-pnpm install
+# Install exactly from the committed lockfile
+pnpm install --frozen-lockfile
 
 # Run tests
 pnpm test
