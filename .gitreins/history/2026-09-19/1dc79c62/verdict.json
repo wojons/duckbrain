@@ -1,0 +1,91 @@
+{
+  "task_id": "DF-0919-01",
+  "task_title": "Fix fresh install missing root package links",
+  "task_criteria": [
+    "A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "89836526920ffddca7edd0b5b59d3f094cdd3563",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n2:30PM INF scanned ~9119741 bytes (9.12 MB) in 2.55s\n2:30PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 192610 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  153 passed (153)\n      Tests  1200 passed (1200)\n   Start at  14:30:31\n   Duration  137.55s (transform 7.91s, setup 5.97s, import 122.15s, tests 366.87s, environment 29ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nCap exceeded: Input token budget (4.0M) exceeded (4.0M used). Increase max_input_tokens or reduce message context.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nCap exceeded: Input token budget (4.0M) exceeded (4.0M used). Increase max_input_tokens or reduce message context.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Cap exceeded: Input token budget (4.0M) exceeded (4.0M used). Increase max_input_tokens or reduce message context."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-01\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n\nCap exceeded: Input token budget (4.0M) exceeded (4.0M used). Increase max_input_tokens or reduce message context.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T19:35:40.497819",
+  "evidence": {
+    "collected_at": "2026-09-19T19:35:40.583296+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 8507,
+        "truncated": false,
+        "source": "git show 89836526920f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1478,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-01"
+  }
+}

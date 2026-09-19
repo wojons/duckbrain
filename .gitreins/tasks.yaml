@@ -1464,3 +1464,29 @@ tasks:
   status: complete
   created_at: '2026-09-19T18:01:47.000465+00:00'
   completed_at: '2026-09-19T18:04:39.467623+00:00'
+- id: DF-0919-01
+  title: Fix fresh install missing root package links
+  criteria:
+  - A clean frozen install must make the daemon boot successfully; reproduce on an
+    empty install state, implement a durable fix, and add or update CI coverage; tests
+    and build pass.
+  status: complete
+  created_at: '2026-09-19T19:05:27.175580+00:00'
+  completed_at: '2026-09-19T19:30:30.232878+00:00'
+- id: DF-0919-02
+  title: Fix TypeScript 7 UI build incompatibility
+  criteria:
+  - A fresh clone's pnpm build must pass with TypeScript 7; remove the obsolete baseUrl
+    configuration without breaking UI path resolution, and verify install plus build.
+  status: complete
+  created_at: '2026-09-19T19:06:30.875029+00:00'
+  completed_at: '2026-09-19T19:30:35.626441+00:00'
+- id: DF-0919-03
+  title: Align README prerequisites with supported pnpm
+  criteria:
+  - README must state the verified pnpm major and provide a non-root corepack enable
+    command that works on a fresh user; documentation remains accurate and the relevant
+    checks pass.
+  status: complete
+  created_at: '2026-09-19T19:06:54.041132+00:00'
+  completed_at: '2026-09-19T19:30:40.894815+00:00'

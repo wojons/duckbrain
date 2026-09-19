@@ -1,0 +1,97 @@
+{
+  "task_id": "OPS-005",
+  "task_title": "Enforce Node 22 requirement and align CI matrix",
+  "task_criteria": [
+    "Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "b14c14fc564b49d1370960932dda2d96e55bca57",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:57PM INF scanned ~9079792 bytes (9.08 MB) in 1.79s\n1:57PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 192399 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  153 passed (153)\n      Tests  1200 passed (1200)\n   Start at  13:57:19\n   Duration  79.33s (transform 4.97s, setup 2.37s, import 76.55s, tests 202.23s, environment 25ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: FAIL: OPS-005 criterion \"Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.\"\n\n(1) Install-time failure: package.json:58-60 has engines.node \">=22\" BUT no .npmrc (test -f .npmrc => NO), no engine-strict (npm config get engine-strict => false), no preinstall/postinstall script (grep preinstall package.json => empty), no .nvmrc. npm default engine-strict=false => Node<22 only WARNS (EBADENGINE warning), does not fail clearly. FAIL.\n\n(2) CI matrix: .github/workflows/ci.yml:15 still `node-version: [20.x, 22.x]` \u2014 unsupported Node 20 STILL tested. .github/workflows/release.yml:20 also pins node-version \"20.x\". FAIL.\n\n(3) Tests: grep -rln \"engines\" tests/ => empty; no test asserts the Node>=22 contract. FAIL.\n\n(4) Docs: docs/guide/getting-started.md:18 says \"Node.js 22+ (required by package.json engines: >=22)\"; README.md:82 mentions Node 22. Docs partially satisfied but criterion requires all parts.\n\nGit log: no OPS-005 implementation commit; only verdict commits bdfd11e and b067847 both recording FAIL. Working tree diff only touches .coding-hermes/board files (unrelated).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: FAIL: OPS-005 criterion \"Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.\"\n\n(1) Install-time failure: package.json:58-60 has engines.node \">=22\" BUT no .npmrc (test -f .npmrc => NO), no engine-strict (npm config get engine-strict => false), no preinstall/postinstall script (grep preinstall package.json => empty), no .nvmrc. npm default engine-strict=false => Node<22 only WARNS (EBADENGINE warning), does not fail clearly. FAIL.\n\n(2) CI matrix: .github/workflows/ci.yml:15 still `node-version: [20.x, 22.x]` \u2014 unsupported Node 20 STILL tested. .github/workflows/release.yml:20 also pins node-version \"20.x\". FAIL.\n\n(3) Tests: grep -rln \"engines\" tests/ => empty; no test asserts the Node>=22 contract. FAIL.\n\n(4) Docs: docs/guide/getting-started.md:18 says \"Node.js 22+ (required by package.json engines: >=22)\"; README.md:82 mentions Node 22. Docs partially satisfied but criterion requires all parts.\n\nGit log: no OPS-005 implementation commit; only verdict commits bdfd11e and b067847 both recording FAIL. Working tree diff only touches .coding-hermes/board files (unrelated).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.",
+                "status": "FAIL",
+                "detail": "FAIL: OPS-005 criterion \"Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.\"\n\n(1) Install-time failure: package.json:58-60 has engines.node \">=22\" BUT no .npmrc (test -f .npmrc => NO), no engine-strict (npm config get engine-strict => false), no preinstall/postinstall script (grep preinstall package.json => empty), no .nvmrc. npm default engine-strict=false => Node<22 only WARNS (EBADENGINE warning), does not fail clearly. FAIL.\n\n(2) CI matrix: .github/workflows/ci.yml:15 still `node-version: [20.x, 22.x]` \u2014 unsupported Node 20 STILL tested. .github/workflows/release.yml:20 also pins node-version \"20.x\". FAIL.\n\n(3) Tests: grep -rln \"engines\" tests/ => empty; no test asserts the Node>=22 contract. FAIL.\n\n(4) Docs: docs/guide/getting-started.md:18 says \"Node.js 22+ (required by package.json engines: >=22)\"; README.md:82 mentions Node 22. Docs partially satisfied but criterion requires all parts.\n\nGit log: no OPS-005 implementation commit; only verdict commits bdfd11e and b067847 both recording FAIL. Working tree diff only touches .coding-hermes/board files (unrelated)."
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-005\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.: FAIL: OPS-005 criterion \"Node below 22 fails clearly at install time; CI matrix no longer tests unsupported Node 20; tests and docs verify the contract.\"\n\n(1) Install-time failure: package.json:58-60 has engines.node \">=22\" BUT no .npmrc (test -f .npmrc => NO), no engine-strict (npm config get engine-strict => false), no preinstall/postinstall script (grep preinstall package.json => empty), no .nvmrc. npm default engine-strict=false => Node<22 only WARNS (EBADENGINE warning), does not fail clearly. FAIL.\n\n(2) CI matrix: .github/workflows/ci.yml:15 still `node-version: [20.x, 22.x]` \u2014 unsupported Node 20 STILL tested. .github/workflows/release.yml:20 also pins node-version \"20.x\". FAIL.\n\n(3) Tests: grep -rln \"engines\" tests/ => empty; no test asserts the Node>=22 contract. FAIL.\n\n(4) Docs: docs/guide/getting-started.md:18 says \"Node.js 22+ (required by package.json engines: >=22)\"; README.md:82 mentions Node 22. Docs partially satisfied but criterion requires all parts.\n\nGit log: no OPS-005 implementation commit; only verdict commits bdfd11e and b067847 both recording FAIL. Working tree diff only touches .coding-hermes/board files (unrelated).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T19:23:48.159748",
+  "evidence": {
+    "collected_at": "2026-09-19T19:23:48.320293+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 28872,
+        "truncated": false,
+        "source": "git show b14c14fc564b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 13488,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "OPS-005"
+  }
+}
