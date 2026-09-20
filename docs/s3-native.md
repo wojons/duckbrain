@@ -118,11 +118,16 @@ The auto-push covers ONLY namespace repos under the daemon's own
 Namespace writes that land outside that tree — the sandbox/scratch namespaces
 dogfood E2E and tests create under temp dirs — never auto-push their git
 history: the hook is invoked with the write's namespace path, and a path
-outside the configured root simply isn't part of the daemon's walk. The cron
-push script (`scripts/s3/duckbrain-s3-push.sh`) is the general mechanism: it
-pushes EVERY namespace repo including sandbox ones. Filed as board row
-S3-SCOPE-001; ops/dogfood-e2e.sh Phase 6 documents the workaround (drive the
-same git-remote-s3 push directly on the sandbox repo).
+outside the configured root simply isn't part of the daemon's walk.
+The push cron (`scripts/s3/duckbrain-s3-push.sh`) is also production-root
+scoped: it walks `$HOME/duckbrain/namespaces` (`DUCKBRAIN_S3_NS_ROOT`
+overrides) by default, so scratch/sandbox namespaces stay ephemeral and are
+never auto-pushed — intentionally, per the DB-GAP-043 scratch-isolation
+doctrine. For a non-standard deployment the script accepts
+`--ns-root <dir>` to walk a different root; with no flag the default is
+unchanged. Filed as board row S3-SCOPE-001; ops/dogfood-e2e.sh Phase 6
+documents the workaround (drive the same git-remote-s3 push directly on the
+sandbox repo).
 
 ### Effective endpoint — which layer wins (DOGFOOD-030, DOC-3)
 
