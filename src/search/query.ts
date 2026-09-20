@@ -148,7 +148,22 @@ function closeAsync(db: Database): Promise<void> {
 }
 
 const ROW_COLUMNS =
-  "id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, raw_text, search_text";
+  "id, key, domain, timestamp, author, action, embedding_text, attributes, raw_text, search_text";
+
+/**
+ * RETR-011/GAP-054: the two validity columns only exist on sidecars rebuilt
+ * after RETR-011. ROW_COLUMNS deliberately omits them; this fragment adds
+ * them (coalesced to NULL) only when the sidecar actually has the columns,
+ * so the SELECT itself never references a missing column. The WHERE-clause
+ * guard below is not enough on its own — DuckDB binds the projection before
+ * evaluating predicates, so a stale sidecar used to fail the whole query
+ * with "Referenced column valid_from not found".
+ */
+function validityProjection(hasValidity: boolean): string {
+  return hasValidity
+    ? ", valid_from, valid_until"
+    : ", NULL AS valid_from, NULL AS valid_until";
+}
 
 function toIndexRow(row: any): IndexRow {
   return {
@@ -235,13 +250,17 @@ async function collectKeywordCandidates(
   // on a stale sidecar the columns are missing and the clause would make
   // every keyword search error, so it is skipped (the keyword leg degrades
   // to unfiltered validity until `duckbrain search-index rebuild`).
-  const validityConditions = (await sidecarHasValidityColumns(db))
+  const hasValidity = await sidecarHasValidityColumns(db);
+  const validityConditions = hasValidity
     ? buildValidityConditions(opts.historical, opts.now)
     : [];
   const validityClause =
     validityConditions.length > 0
       ? ` AND ${validityConditions.join(" AND ")}`
       : "";
+  // GAP-054: the projection must match the WHERE guard — see
+  // validityProjection above. Without this, a stale sidecar fails to bind.
+  const cols = ROW_COLUMNS + validityProjection(hasValidity);
   try {
     if (ftsTokens.length > 0) {
       // Digit-map + collapse separator runs so the query never produces
@@ -252,7 +271,7 @@ async function collectKeywordCandidates(
       );
       const literal = escapeSqlLiteral(mapped.trim());
       const ftsSql = (conjunctive: number) =>
-        `SELECT ${ROW_COLUMNS}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0${timeClause}${attrClause}${validityClause} ORDER BY score DESC LIMIT ${maxCandidates}`;
+        `SELECT ${cols}, fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) AS score FROM memories WHERE fts_main_memories.match_bm25(id, '${literal}', conjunctive := ${conjunctive}) > 0${timeClause}${attrClause}${validityClause} ORDER BY score DESC LIMIT ${maxCandidates}`;
       let rows = await allAsync(db, ftsSql(1));
       if (rows.length === 0) {
         // AND found nothing — relax to OR (any token) and let rank.ts
@@ -269,7 +288,7 @@ async function collectKeywordCandidates(
       // Raw-text prefix pass (digit-exact, stemmer-free). Candidates get
       // no BM25 score — tier + recency order them.
       const pattern = `${escapeLikePattern(prefix)}%`;
-      const sql = `SELECT ${ROW_COLUMNS}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\'${timeClause}${attrClause}${validityClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
+      const sql = `SELECT ${cols}, 0 AS score FROM memories WHERE raw_text LIKE '${escapeSqlLiteral(pattern)}' ESCAPE '\\'${timeClause}${attrClause}${validityClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
       const rows = await allAsync(db, sql);
       for (const r of rows) {
         const row = toIndexRow(r);
