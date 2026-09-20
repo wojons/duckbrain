@@ -1,0 +1,150 @@
+commit 297667a28923a124fb313483032f8b460bc659b1
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 20 10:16:53 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 20 10:16:53 2026 -0500
+
+    docs(s3): document effective-endpoint precedence for env overrides (DOC-3)
+    
+    DOGFOOD-030 (6f6ce66) made `s3 status`/`s3 sync`/`s3 query` resolve the
+    endpoint env-first via resolveEffectiveEndpoint, but the docs still named only
+    the config key, so env-configured MinIO/Hetzner deployments read the wrong
+    endpoint.
+    
+    Documented both resolved chains and the asymmetry between them:
+    - Path A (in-process): AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> s3.endpoint
+      -> AWS default
+    - Path B (push child, git-remote-s3/botocore via buildPushEnv): config
+      s3.endpoint is injected as AWS_ENDPOINT_URL and spread after process.env, so
+      it REPLACES the operator's own AWS_ENDPOINT_URL; only AWS_ENDPOINT_URL_S3
+      passes through both paths.
+    
+    Measured live 2026-09-20 against botocore 1.42.59 with the shipped config
+    value, plus a credentials-free reproducer. README synopsis corrected to match;
+    buildPushEnv paragraph corrected (endpoint no longer described as deriving from
+    config alone).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml |  9 +++++++
+ README.md            |  2 +-
+ docs/s3-native.md    | 69 +++++++++++++++++++++++++++++++++++++++++++++++++---
+ 3 files changed, 75 insertions(+), 5 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 808d060..715fbf9 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1714,3 +1714,12 @@ tasks:
+   status: complete
+   created_at: '2026-09-20T13:43:11.320986+00:00'
+   completed_at: '2026-09-20T14:00:11.774572+00:00'
++- id: DOC-3
++  title: 'DOC s3-native: document AWS_ENDPOINT_URL[_S3] env overrides for s3 endpoint
++    resolution'
++  criteria:
++  - docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3
++    -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts
++    resolveEffectiveEndpoint; behavior live-verified with env combos
++  status: in_progress
++  created_at: '2026-09-20T15:09:30.878156+00:00'
+diff --git a/README.md b/README.md
+index 3aa6bcd..8a746b5 100644
+--- a/README.md
++++ b/README.md
+@@ -196,7 +196,7 @@ DuckBrain can back memory onto any S3-compatible object store (Hetzner Object St
+ }
+ ```
+ 
+-Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Then:
++Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). The endpoint resolves **env-first** for `s3 status`/`s3 sync`/`s3 query` — `AWS_ENDPOINT_URL_S3`, then `AWS_ENDPOINT_URL`, then `s3.endpoint` — while the push-on-commit child keeps `s3.endpoint` and only lets `AWS_ENDPOINT_URL_S3` through (`AWS_ENDPOINT_URL` is replaced by the config value); use `AWS_ENDPOINT_URL_S3` when you need one env var to move both. Then:
+ 
+ ```bash
+ duckbrain s3 status          # verify bucket listing works
+diff --git a/docs/s3-native.md b/docs/s3-native.md
+index 36c24f5..59563f4 100644
+--- a/docs/s3-native.md
++++ b/docs/s3-native.md
+@@ -94,10 +94,14 @@ remote), so a bare `git push` would no-op/fail — the daemon resolves the
+ current branch and pushes `git push --set-upstream s3daily <branch>` so later
+ bare pushes resolve too.
+ 
+-**Credentials/endpoint (`buildPushEnv`):** endpoint and region derive from the
+-user's s3 config block (provider-agnostic — `AWS_ENDPOINT_URL`,
+-`AWS_DEFAULT_REGION`); credentials come from the caller's AWS env / `~/.aws`
+-(`AWS_PROFILE` only forced when `s3.profile` is pinned). Without AWS env the
++**Credentials/endpoint (`buildPushEnv`):** the helper injects `s3.endpoint` as
++`AWS_ENDPOINT_URL` and `s3.region` as `AWS_DEFAULT_REGION` (provider-agnostic);
++credentials come from the caller's AWS env / `~/.aws`
++(`AWS_PROFILE` only forced when `s3.profile` is pinned). Because the injected map
++is spread after `process.env`, a config endpoint **replaces** the operator's own
++`AWS_ENDPOINT_URL` — export `AWS_ENDPOINT_URL_S3` instead when you need to
++override the push endpoint from the shell (the two resolved chains, Path A vs
++Path B, are tabulated under *Effective endpoint* above). Without AWS env the
+ helper dies with "invalid credentials" and the daemon logs + swallows — never
+ blocks the write.
+ 
+@@ -120,6 +124,63 @@ pushes EVERY namespace repo including sandbox ones. Filed as board row
+ S3-SCOPE-001; ops/dogfood-e2e.sh Phase 6 documents the workaround (drive the
+ same git-remote-s3 push directly on the sandbox repo).
+ 
++### Effective endpoint — which layer wins (DOGFOOD-030, DOC-3)
++
++Two independent code paths resolve the S3 endpoint, and they do **not** share the
++same precedence. `duckbrain s3 status`, `s3 sync` and `s3 query` all resolve
++**in-process**, while the autopush shells out to `git push` (git-remote-s3 →
++botocore) with an environment built by `buildPushEnv`. Documenting only the config
++key is what makes an env-configured MinIO/Hetzner deployment read the wrong
++endpoint.
++
++**Path A — in-process client and the `s3 status` display**
++(`resolveEffectiveEndpoint`, `src/s3/config.ts:80`):
++
++| # | Layer | Wins when |
++|---|---|---|
++| 1 | `AWS_ENDPOINT_URL_S3` | the service-specific env var is set |
++| 2 | `AWS_ENDPOINT_URL` | the generic env var is set (and `_S3` is not) |
++| 3 | config `s3.endpoint` | neither env var is set |
++| 4 | AWS SDK default | nothing above is set — `s3 status` prints `(AWS default)` |
++
++**Path B — the push child** (git-remote-s3 → botocore, env from `buildPushEnv`,
++`src/git/autocommit.ts:588`):
++
++| # | Layer | Wins when |
++|---|---|---|
++| 1 | `AWS_ENDPOINT_URL_S3` | the operator exported it — `buildPushEnv` never sets this variable, so it passes straight through |
++| 2 | `AWS_ENDPOINT_URL` ← config `s3.endpoint` | `s3.endpoint` is set: the helper injects it, and because the map is spread *after* `process.env` it also **replaces** the operator's own `AWS_ENDPOINT_URL` |
++| 3 | `~/.aws/config` `[<profile>] endpoint_url` | config `s3.endpoint` is absent (the profile is `s3.profile`, injected as `AWS_PROFILE`) |
++| 4 | AWS default | nothing above is set |
++
++The asymmetry, stated plainly: an operator who exports `AWS_ENDPOINT_URL` sees a
++`status` endpoint sourced from that env var, but the **push child** keeps using
++`s3.endpoint`. To redirect the push endpoint from the shell without editing
++config, export `AWS_ENDPOINT_URL_S3` — it is the one layer that survives both
++paths. (Changing the *display* and the *push* together means setting
++`AWS_ENDPOINT_URL_S3`, or leaving both env vars unset and editing `s3.endpoint`.)
++
++Measured live (2026-09-20) against `botocore 1.42.59` — the library git-remote-s3
++calls — with the shipped config value
++`s3.endpoint = https://hel1.your-objectstorage.com`:
++
++| Env in the shell | `s3 status` shows (Path A) | push child uses (Path B) |
++|---|---|---|
++| nothing set | `hel1.your-objectstorage.com` (config) | `hel1.your-objectstorage.com` |
++| `AWS_ENDPOINT_URL=generic` | `generic` | `hel1...` — operator var masked by config |
++| `AWS_ENDPOINT_URL_S3=svc` | `svc` | `svc` — passes through |
++| both env vars set | `svc` | `svc` |
++
++Reproducer (no credentials needed — the `endpoint:` line prints before the
++per-namespace bucket listings, so the unreachable probe host only produces
++`list failed` warnings after the line you are checking):
++
++```bash
++cd /path/to/duckbrain
++AWS_ENDPOINT_URL=https://probe.example.com npx tsx bin/duckbrain.ts s3 status | grep endpoint
++AWS_ENDPOINT_URL_S3=https://svc.example.com npx tsx bin/duckbrain.ts s3 status | grep endpoint
++```
++
+ ### Live verification (2026-09-20, read-only)
+ 
+ - `git -C ~/duckbrain/namespaces/coding-hermes remote` → `s3daily` (the

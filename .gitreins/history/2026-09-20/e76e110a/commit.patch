@@ -1,0 +1,16 @@
+commit a02bd3857d06ca3d419d9a52a51c9be1938267b1
+Merge: 6616e11 8d13fe4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 20 11:51:15 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 20 11:51:15 2026 -0500
+
+    merge: OPS-005 — enforce node>=22 at install time (engineStrict + node:22 images)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ .npmrc              | 1 +
+ Dockerfile          | 6 +++---
+ Dockerfile.dev      | 4 ++--
+ pnpm-workspace.yaml | 2 ++
+ 4 files changed, 8 insertions(+), 5 deletions(-)

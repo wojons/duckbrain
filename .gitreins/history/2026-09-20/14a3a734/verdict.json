@@ -1,0 +1,99 @@
+{
+  "task_id": "DOC-3",
+  "task_title": "DOC s3-native: document AWS_ENDPOINT_URL[_S3] env overrides for s3 endpoint resolution",
+  "task_criteria": [
+    "docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts resolveEffectiveEndpoint; behavior live-verified with env combos"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "297667a28923a124fb313483032f8b460bc659b1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:16AM INF scanned ~9331155 bytes (9.33 MB) in 1.37s\n10:16AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 200929 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  160 passed (160)\n      Tests  1275 passed (1275)\n   Start at  10:16:57\n   Duration  54.04s (tests 79%, import 19%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  160 workers spawned \u00b7 ~96ms startup each (spawn + environment, per file)\n             at least ~3.76s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts resolveEffectiveEndpoint; behavior live-verified with env combos: docs/s3-native.md:127-172 'Effective endpoint \u2014 which layer wins (DOGFOOD-030, DOC-3)' documents the full chain. Path A table (lines 141-144) lists all 4 layers: 1 AWS_ENDPOINT_URL_S3, 2 AWS_ENDPOINT_URL, 3 config s3.endpoint, 4 AWS SDK default ('s3 status prints (AWS default)'). This exactly matches src/s3/config.ts:80-86 resolveEffectiveEndpoint (s3Url -> url -> cfg.endpoint -> undefined) and src/s3/cli.ts:55 (`resolveEffectiveEndpoint(s3) ?? \"(AWS default)\"`). Path B table (lines 151-154) documents the push-child chain via buildPushEnv (src/git/autocommit.ts:588, injects AWS_ENDPOINT_URL from s3.endpoint, spread after process.env at lines 650/687/777 so it replaces the operator var; AWS_ENDPOINT_URL_S3 never set so it passes through). Live-verified all 4 env combos via `npx tsx bin/duckbrain.ts s3 status`: nothing set -> endpoint: https://hel1.your-objectstorage.com (config, matches duckbrain.config.json:164); AWS_ENDPOINT_URL=https://probe.example.com -> https://probe.example.com; AWS_ENDPOINT_URL_S3=https://svc.example.com -> https://svc.example.com; both set -> https://svc.example.com (S3-specific wins) \u2014 all matching the docs table at lines 168-172. Tests: `npx vitest run src/s3/cli-endpoint-dogfood030.test.ts` -> Test Files 1 passed, Tests 6 passed; `npx vitest run src/s3/` -> 4 files, 28 tests passed; `npx vitest run src/git/autocommit` -> 5 files, 31 tests passed.\ndocs/s3-native.md accurately documents the full effective-endpoint precedence chain matching src/s3/config.ts resolveEffectiveEndpoint, with all four env combos live-verified and the endpoint test suite passing 6/6.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts resolveEffectiveEndpoint; behavior live-verified with env combos: docs/s3-native.md:127-172 'Effective endpoint \u2014 which layer wins (DOGFOOD-030, DOC-3)' documents the full chain. Path A table (lines 141-144) lists all 4 layers: 1 AWS_ENDPOINT_URL_S3, 2 AWS_ENDPOINT_URL, 3 config s3.endpoint, 4 AWS SDK default ('s3 status prints (AWS default)'). This exactly matches src/s3/config.ts:80-86 resolveEffectiveEndpoint (s3Url -> url -> cfg.endpoint -> undefined) and src/s3/cli.ts:55 (`resolveEffectiveEndpoint(s3) ?? \"(AWS default)\"`). Path B table (lines 151-154) documents the push-child chain via buildPushEnv (src/git/autocommit.ts:588, injects AWS_ENDPOINT_URL from s3.endpoint, spread after process.env at lines 650/687/777 so it replaces the operator var; AWS_ENDPOINT_URL_S3 never set so it passes through). Live-verified all 4 env combos via `npx tsx bin/duckbrain.ts s3 status`: nothing set -> endpoint: https://hel1.your-objectstorage.com (config, matches duckbrain.config.json:164); AWS_ENDPOINT_URL=https://probe.example.com -> https://probe.example.com; AWS_ENDPOINT_URL_S3=https://svc.example.com -> https://svc.example.com; both set -> https://svc.example.com (S3-specific wins) \u2014 all matching the docs table at lines 168-172. Tests: `npx vitest run src/s3/cli-endpoint-dogfood030.test.ts` -> Test Files 1 passed, Tests 6 passed; `npx vitest run src/s3/` -> 4 files, 28 tests passed; `npx vitest run src/git/autocommit` -> 5 files, 31 tests passed.\ndocs/s3-native.md accurately documents the full effective-endpoint precedence chain matching src/s3/config.ts resolveEffectiveEndpoint, with all four env combos live-verified and the endpoint test suite passing 6/6.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts resolveEffectiveEndpoint; behavior live-verified with env combos",
+                "status": "PASS",
+                "detail": "docs/s3-native.md:127-172 'Effective endpoint \u2014 which layer wins (DOGFOOD-030, DOC-3)' documents the full chain. Path A table (lines 141-144) lists all 4 layers: 1 AWS_ENDPOINT_URL_S3, 2 AWS_ENDPOINT_URL, 3 config s3.endpoint, 4 AWS SDK default ('s3 status prints (AWS default)'). This exactly matches src/s3/config.ts:80-86 resolveEffectiveEndpoint (s3Url -> url -> cfg.endpoint -> undefined) and src/s3/cli.ts:55 (`resolveEffectiveEndpoint(s3) ?? \"(AWS default)\"`). Path B table (lines 151-154) documents the push-child chain via buildPushEnv (src/git/autocommit.ts:588, injects AWS_ENDPOINT_URL from s3.endpoint, spread after process.env at lines 650/687/777 so it replaces the operator var; AWS_ENDPOINT_URL_S3 never set so it passes through). Live-verified all 4 env combos via `npx tsx bin/duckbrain.ts s3 status`: nothing set -> endpoint: https://hel1.your-objectstorage.com (config, matches duckbrain.config.json:164); AWS_ENDPOINT_URL=https://probe.example.com -> https://probe.example.com; AWS_ENDPOINT_URL_S3=https://svc.example.com -> https://svc.example.com; both set -> https://svc.example.com (S3-specific wins) \u2014 all matching the docs table at lines 168-172. Tests: `npx vitest run src/s3/cli-endpoint-dogfood030.test.ts` -> Test Files 1 passed, Tests 6 passed; `npx vitest run src/s3/` -> 4 files, 28 tests passed; `npx vitest run src/git/autocommit` -> 5 files, 31 tests passed."
+              }
+            ],
+            "summary": "docs/s3-native.md accurately documents the full effective-endpoint precedence chain matching src/s3/config.ts resolveEffectiveEndpoint, with all four env combos live-verified and the endpoint test suite passing 6/6."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-3\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3 -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts resolveEffectiveEndpoint; behavior live-verified with env combos: docs/s3-native.md:127-172 'Effective endpoint \u2014 which layer wins (DOGFOOD-030, DOC-3)' documents the full chain. Path A table (lines 141-144) lists all 4 layers: 1 AWS_ENDPOINT_URL_S3, 2 AWS_ENDPOINT_URL, 3 config s3.endpoint, 4 AWS SDK default ('s3 status prints (AWS default)'). This exactly matches src/s3/config.ts:80-86 resolveEffectiveEndpoint (s3Url -> url -> cfg.endpoint -> undefined) and src/s3/cli.ts:55 (`resolveEffectiveEndpoint(s3) ?? \"(AWS default)\"`). Path B table (lines 151-154) documents the push-child chain via buildPushEnv (src/git/autocommit.ts:588, injects AWS_ENDPOINT_URL from s3.endpoint, spread after process.env at lines 650/687/777 so it replaces the operator var; AWS_ENDPOINT_URL_S3 never set so it passes through). Live-verified all 4 env combos via `npx tsx bin/duckbrain.ts s3 status`: nothing set -> endpoint: https://hel1.your-objectstorage.com (config, matches duckbrain.config.json:164); AWS_ENDPOINT_URL=https://probe.example.com -> https://probe.example.com; AWS_ENDPOINT_URL_S3=https://svc.example.com -> https://svc.example.com; both set -> https://svc.example.com (S3-specific wins) \u2014 all matching the docs table at lines 168-172. Tests: `npx vitest run src/s3/cli-endpoint-dogfood030.test.ts` -> Test Files 1 passed, Tests 6 passed; `npx vitest run src/s3/` -> 4 files, 28 tests passed; `npx vitest run src/git/autocommit` -> 5 files, 31 tests passed.\ndocs/s3-native.md accurately documents the full effective-endpoint precedence chain matching src/s3/config.ts resolveEffectiveEndpoint, with all four env combos live-verified and the endpoint test suite passing 6/6.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T15:19:42.064520",
+  "evidence": {
+    "collected_at": "2026-09-20T15:19:42.097482+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 8189,
+        "truncated": false,
+        "source": "git show 297667a28923"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 573,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-3"
+  }
+}

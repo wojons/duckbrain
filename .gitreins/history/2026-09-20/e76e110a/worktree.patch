@@ -1,0 +1,37 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 208fa3b..b7b93ee 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1724,15 +1724,6 @@ tasks:
+   status: complete
+   created_at: '2026-09-20T15:09:30.878156+00:00'
+   completed_at: '2026-09-20T15:16:56.725420+00:00'
+-- id: OPS-005
+-  title: Node <22 install-time enforcement via engine-strict
+-  criteria:
+-  - Repo-root .npmrc with engine-strict=true makes pnpm refuse install on node <22
+-    with an error naming the required engine; CI matrix cells all satisfy engines
+-    >=22 (verified, no ci.yml change needed); docker node base >=22 verified; full
+-    suite + tsc + prettier green
+-  status: in_progress
+-  created_at: '2026-09-20T16:15:50.631821+00:00'
+ - id: S3-SCOPE-001
+   title: Document + flag the S3 push root-scoping boundary
+   criteria:
+@@ -1740,5 +1731,15 @@ tasks:
+     by design; push cron walks the prod root only; scratch ns ephemeral per DB-GAP-043);
+     scripts/s3/duckbrain-s3-push.sh accepts an optional --ns-root override; bash -n
+     clean; full gate green
+-  status: in_progress
++  status: complete
+   created_at: '2026-09-20T16:15:51.654490+00:00'
++  completed_at: '2026-09-20T16:55:33.240510+00:00'
++- id: OPS-005
++  title: Node <22 install-time enforcement (corrected mechanism)
++  criteria:
++  - 'pnpm-workspace.yaml sets engineStrict: true so a node <22 install FAILS with
++    ERR_PNPM_UNSUPPORTED_ENGINE (A/B verified in a scratch dir); repo-root .npmrc
++    engine-strict=true covers the npm/npm ci path; Dockerfile + Dockerfile.dev build
++    on node >=22; full gate green (tsc, prettier --check src/, unit 160/1275)'
++  status: in_progress
++  created_at: '2026-09-20T16:32:11.251382+00:00'
