@@ -34,7 +34,13 @@ import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
 import { maybeSyncOnCommit } from "../s3";
+import { buildClient } from "../s3/client";
 import type { S3Config } from "../s3/config";
+import {
+  isDuplicateRefPushError,
+  parseS3RemoteUrl,
+  repairAndRetryPushOnDuplicate,
+} from "./s3-repair";
 
 export interface BatchingParams {
   maxLines: number;
@@ -568,23 +574,26 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
   if (gateState.inFlight) return gateState.inFlight;
 
   const attempt = (async () => {
+    // Hoisted so the catch can run the OPS-012 self-heal with the same
+    // remote/branch/tip the failed push used.
+    let head = "";
+    let remote = "";
+    let branch = "";
     try {
       // Skip-unchanged: only push when HEAD moved since the last success.
-      const head = (
-        await gitAsync(["rev-parse", "HEAD"], namespacePath)
-      ).trim();
+      head = (await gitAsync(["rev-parse", "HEAD"], namespacePath)).trim();
       if (!head) return;
       if (gateState.lastPushedHead === head) return;
 
       // Check if remote is configured
       const remotes = (await gitAsync(["remote"], namespacePath)).trim();
-      const remote = selectPushRemote(remotes);
+      remote = selectPushRemote(remotes) ?? "";
       if (!remote) return;
 
       // Resolve the current branch. Namespace repos have no upstream (only the
       // s3daily remote), so a bare `git push` would no-op/fail — push
       // explicitly to remote + branch instead.
-      const branch = (
+      branch = (
         await gitAsync(["rev-parse", "--abbrev-ref", "HEAD"], namespacePath)
       ).trim();
       if (!branch || branch === "HEAD") return;
@@ -608,9 +617,54 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
       );
       gateState.lastPushedHead = head;
     } catch (error) {
-      console.warn(
-        `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
-      );
+      const message = (error as Error).message;
+      let recovered = false;
+      // OPS-012: the in-daemon autopush is the layer that RACES duplicate
+      // bundles on a git-remote-s3 remote, so it is the layer that HEALS —
+      // on the duplicate-ref signature over an s3:// remote, quarantine the
+      // stale bundles (repairDuplicateRefBundles) and retry the push exactly
+      // once. Best-effort and bounded: any repair failure logs and falls
+      // through to the standard warning below. Happy path: zero added S3
+      // calls, zero behavior change.
+      if (s3 && remote && branch && isDuplicateRefPushError(message)) {
+        try {
+          const remoteUrl = (
+            await gitAsync(["remote", "get-url", remote], namespacePath)
+          ).trim();
+          const parsed = parseS3RemoteUrl(remoteUrl);
+          if (parsed) {
+            recovered = await repairAndRetryPushOnDuplicate({
+              client: buildClient(s3),
+              bucket: parsed.bucket,
+              keyPrefix: parsed.keyPrefix,
+              branch,
+              localTip: head,
+              namespace: namespacePath,
+              push: () =>
+                gitAsync(
+                  ["push", "--set-upstream", remote, branch],
+                  namespacePath,
+                  {
+                    timeoutMs: PUSH_TIMEOUT_MS,
+                    env: {
+                      ...process.env,
+                      ...buildPushEnv(s3),
+                    },
+                  },
+                ),
+              log: (line) => console.warn(`[Git] ${line}`),
+            });
+            if (recovered) gateState.lastPushedHead = head;
+          }
+        } catch (healError) {
+          console.warn(
+            `[Git] Duplicate-bundle self-heal failed for ${namespacePath}: ${(healError as Error).message}`,
+          );
+        }
+      }
+      if (!recovered) {
+        console.warn(`[Git] Push warning for ${namespacePath}: ${message}`);
+      }
     }
   })();
 
@@ -689,6 +743,9 @@ export function pushNamespace(namespacePath: string): void {
     });
     gateState.lastPushedHead = head;
   } catch (error) {
+    // OPS-012: no duplicate-bundle repair on this sync exit-flush path — the
+    // async S3 SDK repair cannot run here; the serving path
+    // (pushNamespaceAsync) self-heals instead.
     console.warn(
       `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
     );
