@@ -10,10 +10,13 @@
  *  1. the synchronous child-process primitives (`execSync` / `spawnSync`) are
  *     patched to STALL the event loop for 2500ms when product code calls them,
  *     and counted. While GET /users (and `createNamespaceTool`) run, a 50ms
- *     heartbeat on the SAME loop must keep firing (<250ms gaps) and a
- *     concurrent cheap route must answer (<500ms). Pre-fix both product paths
- *     call `execSync`, so the loop is held for the whole stall and every one of
- *     those assertions fails.
+ *     heartbeat on the SAME loop must keep firing and a concurrent cheap route
+ *     must answer — both bounds are LOAD-AWARE (`loadAwareBudgetMs`: a small
+ *     multiple of the idle control max gap measured in this same process, with
+ *     a fixed floor), so a loaded host cannot fail a correct run. Pre-fix both
+ *     product paths call `execSync`, so the loop is held for the whole stall:
+ *     the served gap jumps to ~SYNC_STALL_MS — an order of magnitude over the
+ *     idle floor — and the `syncCalls` tripwire trips.
  *  2. the recorded async `execFile` calls must all carry a finite `timeout`
  *     (bounded child execution) — no unbounded spawn.
  *  3. ordinary behaviour is unchanged: git authors are deduplicated + sorted,
@@ -36,17 +39,28 @@ import path from "path";
 
 /** Stall duration the patched sync primitive burns on its first armed call. */
 const SYNC_STALL_MS = 2500;
-/**
- * Upper bound a heartbeat gap may reach while a serving path runs. Sits well
- * below SYNC_STALL_MS so the pre-fix (synchronous) signature — a gap of >= the
- * whole stall — is unmistakable, while staying robust on a loaded host where a
- * 50ms tick can slip.
- */
-const HEARTBEAT_BUDGET_MS = 1000;
 /** Heartbeat sampling cadence. */
 const HEARTBEAT_INTERVAL_MS = 50;
-/** Upper bound for the concurrent cheap route while git runs (< SYNC_STALL_MS). */
-const CONCURRENT_ROUTE_BUDGET_MS = 1000;
+/**
+ * Fixed floor for the load-aware heartbeat budget. On an idle host the control
+ * max gap is ~HEARTBEAT_INTERVAL_MS, so the floor is the solo-mode teeth: it
+ * sits ~8x below SYNC_STALL_MS, which keeps the pre-fix (synchronous) signature
+ * — a gap of >= the whole stall — unmistakable when nothing else runs.
+ */
+const HEARTBEAT_BUDGET_FLOOR_MS = 300;
+/** Floor for the concurrent cheap route, derived from the same control max. */
+const CONCURRENT_ROUTE_BUDGET_FLOOR_MS = 300;
+/**
+ * Load tolerance: how many times the idle control max gap a served-path
+ * observation may reach. Host load preempts the loop for far longer than the
+ * 50ms cadence — the incident this guards against measured served gaps of
+ * 1042–2210ms while the product code was correct — and load variance is
+ * bursty run-to-run, so the budget is derived from a control measured in THIS
+ * process instead of hard-coded.
+ */
+const CONTROL_GAP_MULTIPLIER = 4;
+/** Idle control sampling window, taken before AND after each served window. */
+const CONTROL_SAMPLE_MS = 500;
 
 /** Tripwire recorder (hoisted so the `vi.mock` factory below can reach it). */
 const rec = vi.hoisted(() => ({
@@ -124,6 +138,59 @@ function git(dir: string, ...args: string[]): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Gaps between consecutive heartbeat/sampler timestamps (ms). */
+function gapsMs(timestampsMs: number[]): number[] {
+  const gaps: number[] = [];
+  for (let i = 1; i < timestampsMs.length; i += 1) {
+    gaps.push(timestampsMs[i] - timestampsMs[i - 1]);
+  }
+  return gaps;
+}
+
+/** Longest gap observed between two consecutive ticks in `timestampMs`. */
+function maxGapMs(timestampsMs: number[]): number {
+  const gaps = gapsMs(timestampsMs);
+  return gaps.length === 0 ? 0 : Math.max(...gaps);
+}
+
+/**
+ * Sample the heartbeat cadence while NO product work runs, to measure how badly
+ * host load preempts this process's own loop.
+ *
+ * With 3+ concurrent vitest suites on a 16-core host a setTimeout(50) call can
+ * be queued for a second or more — the load-sensitive half of the OPS-007
+ * assertions. Nothing about that is product behaviour, so the under-load budget
+ * is derived from this control (a small multiple, never below the floor)
+ * instead of a hard-coded constant. The control runs in the SAME process, with
+ * the same mock registry, but never arms the sync tripwire (`rec.armed` stays
+ * false), so it cannot itself trigger the pre-fix stall.
+ */
+async function measureIdleControlMaxGapMs(): Promise<number> {
+  const timestamps: number[] = [Date.now()];
+  const control = setInterval(() => {
+    timestamps.push(Date.now());
+  }, HEARTBEAT_INTERVAL_MS);
+  try {
+    await delay(CONTROL_SAMPLE_MS);
+  } finally {
+    clearInterval(control);
+  }
+  return maxGapMs(timestamps);
+}
+
+/**
+ * Budget a served-path observation may reach on this host, derived from the
+ * idle control: `max(CONTROL_GAP_MULTIPLIER x controlMax, floor)`.
+ *
+ * Monotonic in host load, and bounded well below SYNC_STALL_MS on any host
+ * where the control itself can be sampled at all (a 50ms tick that slipped past
+ * ~2.5s would already time out the suite), so a pre-fix synchronous stall still
+ * fails loudly rather than being absorbed by the tolerance.
+ */
+function loadAwareBudgetMs(controlMaxGapMs: number, floorMs: number): number {
+  return Math.max(CONTROL_GAP_MULTIPLIER * controlMaxGapMs, floorMs);
 }
 
 /** Minimal HTTP round trip against the test server, returning elapsed ms. */
@@ -252,13 +319,19 @@ afterAll(async () => {
 
 describe("OPS-007: GET /users never blocks the event loop on git", () => {
   it("serves a concurrent route + heartbeat while the author scan runs", async () => {
+    // Warm-up: the FIRST request to this route pays one-time engine start-up
+    // (config load, DuckDB singleton init) that blocks the loop for ~500ms on
+    // an idle host. That cost is NOT the git path this test pins, and it is
+    // identical pre- and post-fix, so the timed window starts warm — otherwise
+    // the budget would have to be loose enough to swallow it, losing teeth on
+    // the signal that matters. Disarmed: the warm-up cannot trigger the stall.
+    await get("/users");
+    await get("/health");
+
     const syncBefore = rec.syncCalls;
-    const gaps: number[] = [];
-    let last = Date.now();
+    const timestamps: number[] = [Date.now()];
     const heartbeat = setInterval(() => {
-      const now = Date.now();
-      gaps.push(now - last);
-      last = now;
+      timestamps.push(Date.now());
     }, HEARTBEAT_INTERVAL_MS);
 
     let health: { status: number; elapsedMs: number };
@@ -279,12 +352,44 @@ describe("OPS-007: GET /users never blocks the event loop on git", () => {
       rec.armed = false;
     }
 
+    // SERVED observation only. The last gap is how much the closed loop
+    // overlapped the `clearInterval` — timestamp bookkeeping, not loop health —
+    // so it is dropped (we deliberately over-sample, hence `gaps.length > 3`).
+    const servedGaps = gapsMs(timestamps.slice(0, -1));
+    // The budget is NOT hard-coded: it derives from an idle control measured in
+    // THIS process, taken after the served window (so the tripwire is disarmed
+    // and no request work is in flight — `users` was awaited above, and `get()`
+    // uses GET only, never HEAD).
+    const controlMaxGapMs = await measureIdleControlMaxGapMs();
+    const heartbeatBudgetMs = loadAwareBudgetMs(
+      controlMaxGapMs,
+      HEARTBEAT_BUDGET_FLOOR_MS,
+    );
+    const concurrentRouteBudgetMs = loadAwareBudgetMs(
+      controlMaxGapMs,
+      CONCURRENT_ROUTE_BUDGET_FLOOR_MS,
+    );
+
+    // TEMP-INSTRUMENTATION (removed before finishing):
+    console.error(
+      `OPS011 users-route: servedGaps=[${servedGaps.join(",")}] servedMax=${Math.max(
+        ...servedGaps,
+      )}ms controlMax=${controlMaxGapMs}ms heartbeatBudget=${heartbeatBudgetMs}ms concurrentBudget=${concurrentRouteBudgetMs}ms healthElapsed=${health!.elapsedMs}ms`,
+    );
+
     // Non-blocking: the concurrent cheap route answered while git ran…
     expect(health!.status).toBe(200);
-    expect(health!.elapsedMs).toBeLessThan(CONCURRENT_ROUTE_BUDGET_MS);
+    expect(health!.elapsedMs).toBeLessThan(concurrentRouteBudgetMs);
     // …and the loop kept ticking throughout the scan.
-    expect(gaps.length).toBeGreaterThan(3);
-    expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);
+    expect(servedGaps.length).toBeGreaterThan(3);
+    expect(
+      Math.max(...servedGaps),
+      `max served heartbeat gap vs load-aware budget (control max ${controlMaxGapMs}ms)`,
+    ).toBeLessThan(heartbeatBudgetMs);
+    // Teeth check: the derived budget can never swallow the pre-fix signature.
+    // A synchronous stall holds the loop for the WHOLE SYNC_STALL_MS, so the
+    // budget must stay below it on any host that is not itself unusable.
+    expect(heartbeatBudgetMs).toBeLessThan(SYNC_STALL_MS);
     // No synchronous spawn was reachable from the route.
     expect(rec.syncCalls - syncBefore).toBe(0);
 
@@ -327,12 +432,9 @@ describe("OPS-007: createNamespaceTool never blocks the event loop on git init",
     const name = "ops007-nonblock";
     const syncBefore = rec.syncCalls;
     const initBefore = rec.execFileCalls.length;
-    const gaps: number[] = [];
-    let last = Date.now();
+    const timestamps: number[] = [Date.now()];
     const heartbeat = setInterval(() => {
-      const now = Date.now();
-      gaps.push(now - last);
-      last = now;
+      timestamps.push(Date.now());
     }, HEARTBEAT_INTERVAL_MS);
 
     let created: { success: boolean; path?: string; error?: string };
@@ -345,9 +447,28 @@ describe("OPS-007: createNamespaceTool never blocks the event loop on git init",
       rec.armed = false;
     }
 
+    // Served window only (see the /users test for the over-sampling note).
+    const servedGaps = gapsMs(timestamps.slice(0, -1));
+    const controlMaxGapMs = await measureIdleControlMaxGapMs();
+    const heartbeatBudgetMs = loadAwareBudgetMs(
+      controlMaxGapMs,
+      HEARTBEAT_BUDGET_FLOOR_MS,
+    );
+
+    // TEMP-INSTRUMENTATION (removed before finishing):
+    console.error(
+      `OPS011 namespace-init: servedGaps=[${servedGaps.join(",")}] servedMax=${Math.max(
+        ...servedGaps,
+      )}ms controlMax=${controlMaxGapMs}ms heartbeatBudget=${heartbeatBudgetMs}ms`,
+    );
+
     expect(created!.success).toBe(true);
     expect(rec.syncCalls - syncBefore).toBe(0);
-    expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);
+    expect(
+      Math.max(...servedGaps),
+      `max served heartbeat gap vs load-aware budget (control max ${controlMaxGapMs}ms)`,
+    ).toBeLessThan(heartbeatBudgetMs);
+    expect(heartbeatBudgetMs).toBeLessThan(SYNC_STALL_MS);
 
     // …and the init genuinely happened (the assertion is not vacuous).
     const nsPath = created!.path!;
