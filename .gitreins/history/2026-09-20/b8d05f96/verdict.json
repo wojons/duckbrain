@@ -1,0 +1,99 @@
+{
+  "task_id": "DEPS-001",
+  "task_title": "Dependency refresh: 9 npm packages",
+  "task_criteria": [
+    "package.json + pnpm-lock.yaml + package-lock.json are synced to the refreshed versions (@aws-sdk/client-s3 3.1136.0, @modelcontextprotocol/sdk 1.30.0, vitest 5.0.1, @vitest/coverage-v8 5.0.1, concurrently 10.0.5, tsx 4.23.13, uuid 14.0.2, @types/node 26.6.2) with no unfrozen drift; 'pnpm install --frozen-lockfile' exits 0; 'npx tsc --noEmit' exits 0; full unit suite green at 157 files / 1247 tests; and 'docker build -t duckbrain .' exits 0 (the CI docker job's build path, runnable on this host)"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "7f14ad328931c368b18c994a7bc579bf833d8153",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:09AM INF scanned ~8207728 bytes (8.21 MB) in 1.27s\n4:09AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 197978 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  157 passed (157)\n      Tests  1247 passed (1247)\n   Start at  04:09:32\n   Duration  55.85s (tests 76%, import 22%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  157 workers spawned \u00b7 ~114ms startup each (spawn + environment, per file)\n             at least ~4.35s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 package.json + pnpm-lock.yaml + package-lock.json are synced to the refreshed versions (@aws-sdk/client-s3 3.1136.0, @modelcontextprotocol/sdk 1.30.0, vitest 5.0.1, @vitest/coverage-v8 5.0.1, concurrently 10.0.5, tsx 4.23.13, uuid 14.0.2, @types/node 26.6.2) with no unfrozen drift; 'pnpm install --frozen-lockfile' exits 0; 'npx tsc --noEmit' exits 0; full unit suite green at 157 files / 1247 tests; and 'docker build -t duckbrain .' exits 0 (the CI docker job's build path, runnable on this host): All sub-claims verified in /home/kara/duckbrain. (a) package.json declares all 8 refreshed ranges exactly (^3.1136.0, ^1.30.0, ^5.0.1, ^5.0.1, ^10.0.5, ^4.23.13, ^14.0.2, ^26.6.2). (b) pnpm-lock.yaml importers '.' block (lines 169-217) resolves 3.1136.0 / 1.30.0 / 4.23.13 / 14.0.2 / 26.6.2 / 5.0.1 / 10.0.5 / 5.0.1. (c) package-lock.json root deps match and node_modules entries are client-s3 3.1136.0, mcp 1.30.0, vitest 5.0.1, coverage-v8 5.0.1, concurrently 10.0.5, uuid 14.0.2, @types/node 26.6.2, tsx 4.23.14 (satisfies ^4.23.13). (d) No unfrozen drift: `pnpm install --frozen-lockfile` EXIT=0 with 'Lockfile is up to date, resolution step is skipped / Done in 19ms using pnpm v12.4.2'; git status for the three files is clean (committed in bc0bfdb + e6075ca). (e) `npx tsc --noEmit` EXIT=0, no output. (f) `npx vitest run` output: 'Test Files  157 passed (157)' / 'Tests  1247 passed (1247)' / Duration 67.44s; 157 src/**/*.test.ts files confirmed by find; zero 'failed' lines. (g) `docker build -t duckbrain .` EXIT=0 (buildx, image sha256:c7781fcea551, 855MB); the Dockerfile builder stage runs `npm ci` from package*.json, independently reproduced in /tmp/npmci-probe with the repo's package.json+package-lock.json \u2192 EXIT=0, 'added 329 packages', installed versions confirmed identical to the refreshed set. Image timestamp 02:21:20 postdates the lockfile regen at 02:19:51, so the cached npm ci layer reflects the current lockfile.\nAll DEPS-001 requirements verified: all three manifests synced to the 8 refreshed versions with no drift, pnpm --frozen-lockfile and tsc --noEmit exit 0, vitest reports 157 files / 1247 tests passing, and docker build -t duckbrain . exits 0.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 package.json + pnpm-lock.yaml + package-lock.json are synced to the refreshed versions (@aws-sdk/client-s3 3.1136.0, @modelcontextprotocol/sdk 1.30.0, vitest 5.0.1, @vitest/coverage-v8 5.0.1, concurrently 10.0.5, tsx 4.23.13, uuid 14.0.2, @types/node 26.6.2) with no unfrozen drift; 'pnpm install --frozen-lockfile' exits 0; 'npx tsc --noEmit' exits 0; full unit suite green at 157 files / 1247 tests; and 'docker build -t duckbrain .' exits 0 (the CI docker job's build path, runnable on this host): All sub-claims verified in /home/kara/duckbrain. (a) package.json declares all 8 refreshed ranges exactly (^3.1136.0, ^1.30.0, ^5.0.1, ^5.0.1, ^10.0.5, ^4.23.13, ^14.0.2, ^26.6.2). (b) pnpm-lock.yaml importers '.' block (lines 169-217) resolves 3.1136.0 / 1.30.0 / 4.23.13 / 14.0.2 / 26.6.2 / 5.0.1 / 10.0.5 / 5.0.1. (c) package-lock.json root deps match and node_modules entries are client-s3 3.1136.0, mcp 1.30.0, vitest 5.0.1, coverage-v8 5.0.1, concurrently 10.0.5, uuid 14.0.2, @types/node 26.6.2, tsx 4.23.14 (satisfies ^4.23.13). (d) No unfrozen drift: `pnpm install --frozen-lockfile` EXIT=0 with 'Lockfile is up to date, resolution step is skipped / Done in 19ms using pnpm v12.4.2'; git status for the three files is clean (committed in bc0bfdb + e6075ca). (e) `npx tsc --noEmit` EXIT=0, no output. (f) `npx vitest run` output: 'Test Files  157 passed (157)' / 'Tests  1247 passed (1247)' / Duration 67.44s; 157 src/**/*.test.ts files confirmed by find; zero 'failed' lines. (g) `docker build -t duckbrain .` EXIT=0 (buildx, image sha256:c7781fcea551, 855MB); the Dockerfile builder stage runs `npm ci` from package*.json, independently reproduced in /tmp/npmci-probe with the repo's package.json+package-lock.json \u2192 EXIT=0, 'added 329 packages', installed versions confirmed identical to the refreshed set. Image timestamp 02:21:20 postdates the lockfile regen at 02:19:51, so the cached npm ci layer reflects the current lockfile.\nAll DEPS-001 requirements verified: all three manifests synced to the 8 refreshed versions with no drift, pnpm --frozen-lockfile and tsc --noEmit exit 0, vitest reports 157 files / 1247 tests passing, and docker build -t duckbrain . exits 0.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "package.json + pnpm-lock.yaml + package-lock.json are synced to the refreshed versions (@aws-sdk/client-s3 3.1136.0, @modelcontextprotocol/sdk 1.30.0, vitest 5.0.1, @vitest/coverage-v8 5.0.1, concurrently 10.0.5, tsx 4.23.13, uuid 14.0.2, @types/node 26.6.2) with no unfrozen drift; 'pnpm install --frozen-lockfile' exits 0; 'npx tsc --noEmit' exits 0; full unit suite green at 157 files / 1247 tests; and 'docker build -t duckbrain .' exits 0 (the CI docker job's build path, runnable on this host)",
+                "status": "PASS",
+                "detail": "All sub-claims verified in /home/kara/duckbrain. (a) package.json declares all 8 refreshed ranges exactly (^3.1136.0, ^1.30.0, ^5.0.1, ^5.0.1, ^10.0.5, ^4.23.13, ^14.0.2, ^26.6.2). (b) pnpm-lock.yaml importers '.' block (lines 169-217) resolves 3.1136.0 / 1.30.0 / 4.23.13 / 14.0.2 / 26.6.2 / 5.0.1 / 10.0.5 / 5.0.1. (c) package-lock.json root deps match and node_modules entries are client-s3 3.1136.0, mcp 1.30.0, vitest 5.0.1, coverage-v8 5.0.1, concurrently 10.0.5, uuid 14.0.2, @types/node 26.6.2, tsx 4.23.14 (satisfies ^4.23.13). (d) No unfrozen drift: `pnpm install --frozen-lockfile` EXIT=0 with 'Lockfile is up to date, resolution step is skipped / Done in 19ms using pnpm v12.4.2'; git status for the three files is clean (committed in bc0bfdb + e6075ca). (e) `npx tsc --noEmit` EXIT=0, no output. (f) `npx vitest run` output: 'Test Files  157 passed (157)' / 'Tests  1247 passed (1247)' / Duration 67.44s; 157 src/**/*.test.ts files confirmed by find; zero 'failed' lines. (g) `docker build -t duckbrain .` EXIT=0 (buildx, image sha256:c7781fcea551, 855MB); the Dockerfile builder stage runs `npm ci` from package*.json, independently reproduced in /tmp/npmci-probe with the repo's package.json+package-lock.json \u2192 EXIT=0, 'added 329 packages', installed versions confirmed identical to the refreshed set. Image timestamp 02:21:20 postdates the lockfile regen at 02:19:51, so the cached npm ci layer reflects the current lockfile."
+              }
+            ],
+            "summary": "All DEPS-001 requirements verified: all three manifests synced to the 8 refreshed versions with no drift, pnpm --frozen-lockfile and tsc --noEmit exit 0, vitest reports 157 files / 1247 tests passing, and docker build -t duckbrain . exits 0."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DEPS-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 package.json + pnpm-lock.yaml + package-lock.json are synced to the refreshed versions (@aws-sdk/client-s3 3.1136.0, @modelcontextprotocol/sdk 1.30.0, vitest 5.0.1, @vitest/coverage-v8 5.0.1, concurrently 10.0.5, tsx 4.23.13, uuid 14.0.2, @types/node 26.6.2) with no unfrozen drift; 'pnpm install --frozen-lockfile' exits 0; 'npx tsc --noEmit' exits 0; full unit suite green at 157 files / 1247 tests; and 'docker build -t duckbrain .' exits 0 (the CI docker job's build path, runnable on this host): All sub-claims verified in /home/kara/duckbrain. (a) package.json declares all 8 refreshed ranges exactly (^3.1136.0, ^1.30.0, ^5.0.1, ^5.0.1, ^10.0.5, ^4.23.13, ^14.0.2, ^26.6.2). (b) pnpm-lock.yaml importers '.' block (lines 169-217) resolves 3.1136.0 / 1.30.0 / 4.23.13 / 14.0.2 / 26.6.2 / 5.0.1 / 10.0.5 / 5.0.1. (c) package-lock.json root deps match and node_modules entries are client-s3 3.1136.0, mcp 1.30.0, vitest 5.0.1, coverage-v8 5.0.1, concurrently 10.0.5, uuid 14.0.2, @types/node 26.6.2, tsx 4.23.14 (satisfies ^4.23.13). (d) No unfrozen drift: `pnpm install --frozen-lockfile` EXIT=0 with 'Lockfile is up to date, resolution step is skipped / Done in 19ms using pnpm v12.4.2'; git status for the three files is clean (committed in bc0bfdb + e6075ca). (e) `npx tsc --noEmit` EXIT=0, no output. (f) `npx vitest run` output: 'Test Files  157 passed (157)' / 'Tests  1247 passed (1247)' / Duration 67.44s; 157 src/**/*.test.ts files confirmed by find; zero 'failed' lines. (g) `docker build -t duckbrain .` EXIT=0 (buildx, image sha256:c7781fcea551, 855MB); the Dockerfile builder stage runs `npm ci` from package*.json, independently reproduced in /tmp/npmci-probe with the repo's package.json+package-lock.json \u2192 EXIT=0, 'added 329 packages', installed versions confirmed identical to the refreshed set. Image timestamp 02:21:20 postdates the lockfile regen at 02:19:51, so the cached npm ci layer reflects the current lockfile.\nAll DEPS-001 requirements verified: all three manifests synced to the 8 refreshed versions with no drift, pnpm --frozen-lockfile and tsc --noEmit exit 0, vitest reports 157 files / 1247 tests passing, and docker build -t duckbrain . exits 0.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T09:24:31.491790",
+  "evidence": {
+    "collected_at": "2026-09-20T09:24:31.519003+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 13454,
+        "truncated": false,
+        "source": "git show 7f14ad328931"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 590,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DEPS-001"
+  }
+}
