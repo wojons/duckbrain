@@ -1,0 +1,93 @@
+{
+  "task_id": "CLI-WAIT-001",
+  "task_title": "Wire remember --wait: flush + await namespace commit",
+  "task_criteria": [
+    "Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH redirected to a scratch root: (1) WITH --wait the command exits 0, stdout reports the commit landed, and stdout does NOT contain the buffered phrasing 'will be committed in batch'; (2) WITH --wait, after exit the scratch namespace has a .git dir, git log has at least one commit, git status --porcelain is EMPTY, and the remembered key is grep-findable in the namespace JSONL files; (3) WITHOUT --wait the legacy buffered message 'will be committed in batch' still prints and the end state is identical (exit-flush commit present); (4) RED control: reverting ONLY src/cli/human.ts to HEAD (git show HEAD:src/cli/human.ts > src/cli/human.ts) makes criterion (1) fail \u2014 the old buffered phrasing reappears \u2014 then restoring the fixed file makes it pass again; (5) npx tsc --noEmit clean and the full unit suite green with the new suite counted in AGENTS.md (both count lines synced)."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "534eb7846835351e9ad77a33706f239315583a2c",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:15AM INF scanned ~9274657 bytes (9.27 MB) in 2.18s\n5:15AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 198771 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  158 passed (158)\n      Tests  1250 passed (1250)\n   Start at  05:15:11\n   Duration  74.47s (tests 77%, import 20%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  158 workers spawned \u00b7 ~139ms startup each (spawn + environment, per file)\n             at least ~5.35s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting ',' delimiter: line 3 column 3521 (char 3576)) All five criteria verified with live command evidence.\n\n{\"verdict\":\"COMPLETE\",\"items\":[{\"criterion\":\"Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH redirected to a scratch root: (1",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting ',' delimiter: line 3 column 3521 (char 3576)) All five criteria verified with live command evidence.\n\n{\"verdict\":\"COMPLETE\",\"items\":[{\"criterion\":\"Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH redirected to a scratch root: (1",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [],
+            "summary": "(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting ',' delimiter: line 3 column 3521 (char 3576)) All five criteria verified with live command evidence.\n\n{\"verdict\":\"COMPLETE\",\"items\":[{\"criterion\":\"Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH redirected to a scratch root: (1"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: CLI-WAIT-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting ',' delimiter: line 3 column 3521 (char 3576)) All five criteria verified with live command evidence.\n\n{\"verdict\":\"COMPLETE\",\"items\":[{\"criterion\":\"Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH redirected to a scratch root: (1\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T10:22:40.752150",
+  "evidence": {
+    "collected_at": "2026-09-20T10:22:40.770335+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 16931,
+        "truncated": false,
+        "source": "git show 534eb7846835"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 509,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "CLI-WAIT-001"
+  }
+}
