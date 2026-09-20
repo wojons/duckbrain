@@ -370,13 +370,6 @@ describe("OPS-007: GET /users never blocks the event loop on git", () => {
       CONCURRENT_ROUTE_BUDGET_FLOOR_MS,
     );
 
-    // TEMP-INSTRUMENTATION (removed before finishing):
-    console.error(
-      `OPS011 users-route: servedGaps=[${servedGaps.join(",")}] servedMax=${Math.max(
-        ...servedGaps,
-      )}ms controlMax=${controlMaxGapMs}ms heartbeatBudget=${heartbeatBudgetMs}ms concurrentBudget=${concurrentRouteBudgetMs}ms healthElapsed=${health!.elapsedMs}ms`,
-    );
-
     // Non-blocking: the concurrent cheap route answered while git ran…
     expect(health!.status).toBe(200);
     expect(health!.elapsedMs).toBeLessThan(concurrentRouteBudgetMs);
@@ -453,13 +446,6 @@ describe("OPS-007: createNamespaceTool never blocks the event loop on git init",
     const heartbeatBudgetMs = loadAwareBudgetMs(
       controlMaxGapMs,
       HEARTBEAT_BUDGET_FLOOR_MS,
-    );
-
-    // TEMP-INSTRUMENTATION (removed before finishing):
-    console.error(
-      `OPS011 namespace-init: servedGaps=[${servedGaps.join(",")}] servedMax=${Math.max(
-        ...servedGaps,
-      )}ms controlMax=${controlMaxGapMs}ms heartbeatBudget=${heartbeatBudgetMs}ms`,
     );
 
     expect(created!.success).toBe(true);
