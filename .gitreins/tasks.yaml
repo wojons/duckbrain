@@ -1587,3 +1587,16 @@ tasks:
   status: complete
   created_at: '2026-09-20T02:14:43.440407+00:00'
   completed_at: '2026-09-20T02:42:08.967308+00:00'
+- id: OPS-013
+  title: 'OPS-007 regression suite: make heartbeat budget load-aware'
+  criteria:
+  - 'The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under
+    concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous
+    spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls
+    delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route
+    assertions become load-aware (same-process baseline comparison or derived budget,
+    not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier
+    clean.'
+  status: complete
+  created_at: '2026-09-20T03:11:24.528807+00:00'
+  completed_at: '2026-09-20T04:50:38.714506+00:00'
