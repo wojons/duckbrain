@@ -1,0 +1,15 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index b387701..148a1ed 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1542,8 +1542,9 @@ tasks:
+     no-credentials unchanged failure, and loud unresolvable-profile failure. Full
+     npx vitest run green (155 files / 1226 tests) and npx tsc --noEmit clean on the
+     merged tree.'
+-  status: in_progress
++  status: complete
+   created_at: '2026-09-20T02:14:41.994381+00:00'
++  completed_at: '2026-09-20T02:32:36.326814+00:00'
+ - id: DF-0919-04
+   title: /health aggregate ignores unconfigured providers
+   criteria:

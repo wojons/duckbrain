@@ -1542,8 +1542,9 @@ tasks:
     no-credentials unchanged failure, and loud unresolvable-profile failure. Full
     npx vitest run green (155 files / 1226 tests) and npx tsc --noEmit clean on the
     merged tree.'
-  status: in_progress
+  status: complete
   created_at: '2026-09-20T02:14:41.994381+00:00'
+  completed_at: '2026-09-20T02:35:41.891424+00:00'
 - id: DF-0919-04
   title: /health aggregate ignores unconfigured providers
   criteria:
@@ -1556,8 +1557,9 @@ tasks:
     aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP
     500 still degrading, and providers[] still listing the keyless provider. Full
     npx vitest run green and tsc clean on the merged tree.'
-  status: in_progress
+  status: complete
   created_at: '2026-09-20T02:14:42.456469+00:00'
+  completed_at: '2026-09-20T02:38:09.880211+00:00'
 - id: DF-0919-06
   title: remember warns only when namespace omitted
   criteria:
@@ -1570,8 +1572,9 @@ tasks:
     \ warning), omitted with non-default sticky (warning present with the DOGFOOD-017\
     \ text), and explicit default (no warning). Full npx vitest run green and tsc\
     \ clean on the merged tree."
-  status: in_progress
+  status: complete
   created_at: '2026-09-20T02:14:42.937450+00:00'
+  completed_at: '2026-09-20T02:39:48.250169+00:00'
 - id: DOC-1
   title: document duckbrain consolidate CLI
   criteria:

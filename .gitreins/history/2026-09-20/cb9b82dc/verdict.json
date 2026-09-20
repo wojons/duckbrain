@@ -1,0 +1,91 @@
+{
+  "task_id": "DOC-1",
+  "task_title": "document duckbrain consolidate CLI",
+  "task_criteria": [
+    "skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "73c298d426a948eb91b7246a8808d8a1033a1c2b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:15PM INF scanned ~9176497 bytes (9.18 MB) in 8.09s\n9:15PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 194748 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\nstderr | src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\n[duckbrain] Removed 3 orphaned scratch db file(s) from /tmp\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 3007ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 2187ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 1813 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 154 passed (155)\n      Tests  1 failed | 1225 passed (1226)\n   Start at  21:14:58\n   Duration  178.32s (transform 18.99s, setup 6.23s, import 159.99s, tests 474.40s, environment 47ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.: SKILL.md:128-165 documents purpose, --date (default yesterday UTC; invalid day exits 1), --write-digest, --digest-content=FILE, --help/-h, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, and the implicit-write-mode caveat (\u26a0 line 155). Flags match live `node bin/duckbrain.js consolidate --help` output exactly (verified by execution). Dry-run transcript at SKILL.md:157-165 matches source format (src/cli/consolidate.ts:387,435) and live run. README.md:163-170 'Daily consolidation digest' section documents the command in its CLI surface. `git show --name-only 78212b2` = README.md + skills/duckbrain-usage/SKILL.md only \u2014 no src/ changes, no new test files. Tests: `npx vitest run src/cli/consolidate.test.ts` -> 14 passed (exit 0).\nDocumentation-only change fully documents the duckbrain consolidate CLI with flags matching live --help, a real dry-run transcript, and a README CLI-surface mention.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.: SKILL.md:128-165 documents purpose, --date (default yesterday UTC; invalid day exits 1), --write-digest, --digest-content=FILE, --help/-h, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, and the implicit-write-mode caveat (\u26a0 line 155). Flags match live `node bin/duckbrain.js consolidate --help` output exactly (verified by execution). Dry-run transcript at SKILL.md:157-165 matches source format (src/cli/consolidate.ts:387,435) and live run. README.md:163-170 'Daily consolidation digest' section documents the command in its CLI surface. `git show --name-only 78212b2` = README.md + skills/duckbrain-usage/SKILL.md only \u2014 no src/ changes, no new test files. Tests: `npx vitest run src/cli/consolidate.test.ts` -> 14 passed (exit 0).\nDocumentation-only change fully documents the duckbrain consolidate CLI with flags matching live --help, a real dry-run transcript, and a README CLI-surface mention.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.",
+                "status": "PASS",
+                "detail": "SKILL.md:128-165 documents purpose, --date (default yesterday UTC; invalid day exits 1), --write-digest, --digest-content=FILE, --help/-h, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, and the implicit-write-mode caveat (\u26a0 line 155). Flags match live `node bin/duckbrain.js consolidate --help` output exactly (verified by execution). Dry-run transcript at SKILL.md:157-165 matches source format (src/cli/consolidate.ts:387,435) and live run. README.md:163-170 'Daily consolidation digest' section documents the command in its CLI surface. `git show --name-only 78212b2` = README.md + skills/duckbrain-usage/SKILL.md only \u2014 no src/ changes, no new test files. Tests: `npx vitest run src/cli/consolidate.test.ts` -> 14 passed (exit 0)."
+              }
+            ],
+            "summary": "Documentation-only change fully documents the duckbrain consolidate CLI with flags matching live --help, a real dry-run transcript, and a README CLI-surface mention."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-1\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.: SKILL.md:128-165 documents purpose, --date (default yesterday UTC; invalid day exits 1), --write-digest, --digest-content=FILE, --help/-h, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, and the implicit-write-mode caveat (\u26a0 line 155). Flags match live `node bin/duckbrain.js consolidate --help` output exactly (verified by execution). Dry-run transcript at SKILL.md:157-165 matches source format (src/cli/consolidate.ts:387,435) and live run. README.md:163-170 'Daily consolidation digest' section documents the command in its CLI surface. `git show --name-only 78212b2` = README.md + skills/duckbrain-usage/SKILL.md only \u2014 no src/ changes, no new test files. Tests: `npx vitest run src/cli/consolidate.test.ts` -> 14 passed (exit 0).\nDocumentation-only change fully documents the duckbrain consolidate CLI with flags matching live --help, a real dry-run transcript, and a README CLI-surface mention.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T02:18:51.530028",
+  "evidence": {
+    "collected_at": "2026-09-20T02:18:51.832052+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4468,
+        "truncated": false,
+        "source": "git show 73c298d426a9"
+      }
+    ],
+    "task_id": "DOC-1"
+  }
+}

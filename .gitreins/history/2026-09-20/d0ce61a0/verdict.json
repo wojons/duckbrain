@@ -1,0 +1,91 @@
+{
+  "task_id": "DF-0919-04",
+  "task_title": "/health aggregate ignores unconfigured providers",
+  "task_criteria": [
+    "src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding providers: a provider with no credentials configured (keyless openai, note 'missing API key') does NOT drag the /health aggregate to degraded/unhealthy, while still appearing in providers[] with healthy:false and its note. A provider that IS configured and fails (timeout / HTTP error / capability gate) still degrades the aggregate. New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP 500 still degrading, and providers[] still listing the keyless provider. Full npx vitest run green and tsc clean on the merged tree."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "73c298d426a948eb91b7246a8808d8a1033a1c2b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:14PM INF scanned ~9176497 bytes (9.18 MB) in 8.49s\n9:14PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 194748 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 3432ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 2549ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 2210 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 154 passed (155)\n      Tests  1 failed | 1225 passed (1226)\n   Start at  21:14:56\n   Duration  181.57s (transform 20.10s, setup 6.43s, import 169.00s, tests 481.67s, environment 41ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding providers: a provider with no credentials configured (keyless openai, note 'missing API key') does NOT drag the /health aggregate to degraded/unhealthy, while still appearing in providers[] with healthy:false and its note. A provider that IS configured and fails (timeout / HTTP error / capability gate) still degrades the aggregate. New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP 500 still degrading, and providers[] still listing the keyless provider. Full npx vitest run green and tsc clean on the merged tree.: src/embedding/health.ts:159-165 adds providerConfigured() (openai configured iff cfg.apiKey !== \"\"; lmstudio/ollama always true). classifyUnhealthy (line ~178) returns 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)' only for unconfigured openai. Aggregate is healthy = winner !== \"\" (line ~322); winner is set only by a real embed probe on a provider that passed its cheap gate, and openai's isHealthy returns Boolean(cfg.apiKey) (providers.ts:409), so keyless openai never wins and cannot degrade the aggregate. The keyless provider is still pushed into providers[] with healthy:false + its note (line ~289). A configured openai that fails its embed probe leaves winner===\"\" -> healthy:false. /health consumes embedding.healthy for degraded/503 (src/cli/http.ts:312,324). Tests: src/embedding/health-dogfood020.test.ts:372 (keyless openai + healthy lmstudio -> healthy true), :389 (keyless openai alone -> healthy false), :405 (configured openai HTTP 500 -> healthy false, note /embed HTTP 500/), :430 (providers[] lists keyless openai with note 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)'). Command evidence: `npx vitest run src/embedding/health-dogfood020.test.ts -t \"DF-0919-04\"` -> 'Tests 5 passed | 39 skipped (44)'; full `npx vitest run` -> 'Test Files 155 passed (155), Tests 1226 passed (1226)', EXIT=0; `npx tsc --noEmit` -> exit 0, no output; LSP diagnostics empty.\nhealth.ts now excludes unconfigured (keyless) providers from the /health aggregate while still listing them, configured failures still degrade, and the new DF-0919-04 tests plus full vitest run and tsc are all green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding providers: a provider with no credentials configured (keyless openai, note 'missing API key') does NOT drag the /health aggregate to degraded/unhealthy, while still appearing in providers[] with healthy:false and its note. A provider that IS configured and fails (timeout / HTTP error / capability gate) still degrades the aggregate. New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP 500 still degrading, and providers[] still listing the keyless provider. Full npx vitest run green and tsc clean on the merged tree.: src/embedding/health.ts:159-165 adds providerConfigured() (openai configured iff cfg.apiKey !== \"\"; lmstudio/ollama always true). classifyUnhealthy (line ~178) returns 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)' only for unconfigured openai. Aggregate is healthy = winner !== \"\" (line ~322); winner is set only by a real embed probe on a provider that passed its cheap gate, and openai's isHealthy returns Boolean(cfg.apiKey) (providers.ts:409), so keyless openai never wins and cannot degrade the aggregate. The keyless provider is still pushed into providers[] with healthy:false + its note (line ~289). A configured openai that fails its embed probe leaves winner===\"\" -> healthy:false. /health consumes embedding.healthy for degraded/503 (src/cli/http.ts:312,324). Tests: src/embedding/health-dogfood020.test.ts:372 (keyless openai + healthy lmstudio -> healthy true), :389 (keyless openai alone -> healthy false), :405 (configured openai HTTP 500 -> healthy false, note /embed HTTP 500/), :430 (providers[] lists keyless openai with note 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)'). Command evidence: `npx vitest run src/embedding/health-dogfood020.test.ts -t \"DF-0919-04\"` -> 'Tests 5 passed | 39 skipped (44)'; full `npx vitest run` -> 'Test Files 155 passed (155), Tests 1226 passed (1226)', EXIT=0; `npx tsc --noEmit` -> exit 0, no output; LSP diagnostics empty.\nhealth.ts now excludes unconfigured (keyless) providers from the /health aggregate while still listing them, configured failures still degrade, and the new DF-0919-04 tests plus full vitest run and tsc are all green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding providers: a provider with no credentials configured (keyless openai, note 'missing API key') does NOT drag the /health aggregate to degraded/unhealthy, while still appearing in providers[] with healthy:false and its note. A provider that IS configured and fails (timeout / HTTP error / capability gate) still degrades the aggregate. New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP 500 still degrading, and providers[] still listing the keyless provider. Full npx vitest run green and tsc clean on the merged tree.",
+                "status": "PASS",
+                "detail": "src/embedding/health.ts:159-165 adds providerConfigured() (openai configured iff cfg.apiKey !== \"\"; lmstudio/ollama always true). classifyUnhealthy (line ~178) returns 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)' only for unconfigured openai. Aggregate is healthy = winner !== \"\" (line ~322); winner is set only by a real embed probe on a provider that passed its cheap gate, and openai's isHealthy returns Boolean(cfg.apiKey) (providers.ts:409), so keyless openai never wins and cannot degrade the aggregate. The keyless provider is still pushed into providers[] with healthy:false + its note (line ~289). A configured openai that fails its embed probe leaves winner===\"\" -> healthy:false. /health consumes embedding.healthy for degraded/503 (src/cli/http.ts:312,324). Tests: src/embedding/health-dogfood020.test.ts:372 (keyless openai + healthy lmstudio -> healthy true), :389 (keyless openai alone -> healthy false), :405 (configured openai HTTP 500 -> healthy false, note /embed HTTP 500/), :430 (providers[] lists keyless openai with note 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)'). Command evidence: `npx vitest run src/embedding/health-dogfood020.test.ts -t \"DF-0919-04\"` -> 'Tests 5 passed | 39 skipped (44)'; full `npx vitest run` -> 'Test Files 155 passed (155), Tests 1226 passed (1226)', EXIT=0; `npx tsc --noEmit` -> exit 0, no output; LSP diagnostics empty."
+              }
+            ],
+            "summary": "health.ts now excludes unconfigured (keyless) providers from the /health aggregate while still listing them, configured failures still degrade, and the new DF-0919-04 tests plus full vitest run and tsc are all green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-04\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding providers: a provider with no credentials configured (keyless openai, note 'missing API key') does NOT drag the /health aggregate to degraded/unhealthy, while still appearing in providers[] with healthy:false and its note. A provider that IS configured and fails (timeout / HTTP error / capability gate) still degrades the aggregate. New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP 500 still degrading, and providers[] still listing the keyless provider. Full npx vitest run green and tsc clean on the merged tree.: src/embedding/health.ts:159-165 adds providerConfigured() (openai configured iff cfg.apiKey !== \"\"; lmstudio/ollama always true). classifyUnhealthy (line ~178) returns 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)' only for unconfigured openai. Aggregate is healthy = winner !== \"\" (line ~322); winner is set only by a real embed probe on a provider that passed its cheap gate, and openai's isHealthy returns Boolean(cfg.apiKey) (providers.ts:409), so keyless openai never wins and cannot degrade the aggregate. The keyless provider is still pushed into providers[] with healthy:false + its note (line ~289). A configured openai that fails its embed probe leaves winner===\"\" -> healthy:false. /health consumes embedding.healthy for degraded/503 (src/cli/http.ts:312,324). Tests: src/embedding/health-dogfood020.test.ts:372 (keyless openai + healthy lmstudio -> healthy true), :389 (keyless openai alone -> healthy false), :405 (configured openai HTTP 500 -> healthy false, note /embed HTTP 500/), :430 (providers[] lists keyless openai with note 'missing API key (DUCKBRAIN_EMBEDDING_API_KEY)'). Command evidence: `npx vitest run src/embedding/health-dogfood020.test.ts -t \"DF-0919-04\"` -> 'Tests 5 passed | 39 skipped (44)'; full `npx vitest run` -> 'Test Files 155 passed (155), Tests 1226 passed (1226)', EXIT=0; `npx tsc --noEmit` -> exit 0, no output; LSP diagnostics empty.\nhealth.ts now excludes unconfigured (keyless) providers from the /health aggregate while still listing them, configured failures still degrade, and the new DF-0919-04 tests plus full vitest run and tsc are all green.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T02:31:05.734238",
+  "evidence": {
+    "collected_at": "2026-09-20T02:31:05.756613+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4468,
+        "truncated": false,
+        "source": "git show 73c298d426a9"
+      }
+    ],
+    "task_id": "DF-0919-04"
+  }
+}
