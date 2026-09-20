@@ -9,7 +9,10 @@
  *   - env AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or
  *   - env AWS_PROFILE pointing at ~/.aws/credentials, or
  *   - the default profile in ~/.aws/credentials.
- * The DuckDB httpfs query path (src/s3/query.ts) reads the same env vars.
+ * The DuckDB httpfs query path (src/s3/query.ts) honors the same sources:
+ * direct AWS_* env keys win, else a named profile (env AWS_PROFILE or the
+ * `s3.profile` value below) is resolved through this same SDK chain and
+ * injected into the httpfs session for the query (DB-GAP-048).
  */
 
 import { z } from "zod";
