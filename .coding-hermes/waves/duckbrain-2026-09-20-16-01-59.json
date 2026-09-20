@@ -1,0 +1,40 @@
+{
+  "wave_id": "duckbrain-2026-09-20-16-01-59",
+  "tick": "duckbrain-2026-09-20-16-01-59",
+  "created": "2026-09-20T16:25:00-05:00",
+  "base": "origin/feat/native-s3",
+  "base_sha": "297667a",
+  "budget_ceiling": 12,
+  "pre_wave": {
+    "orphan_recovery": {
+      "task_id": "DOC-3",
+      "action": "pushed already-committed 297667a (docs judged PASS, tick died pre-push/closeout); closeout after wave merge",
+      "commit": "297667a"
+    }
+  },
+  "workers": [
+    {
+      "task_id": "OPS-005",
+      "worktree": "/home/kara/worktrees/duckbrain-OPS-005",
+      "branch": "wt/OPS-005",
+      "base_sha": "297667a",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-OPS-005/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/OPS-005, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "none — 1 new dotfile; CI already 22.x-only (premise half-stale, corrected in brief)",
+      "merge_order": 1
+    },
+    {
+      "task_id": "S3-SCOPE-001",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-SCOPE-001",
+      "branch": "wt/S3-SCOPE-001",
+      "base_sha": "297667a",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-S3-SCOPE-001/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/S3-SCOPE-001, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "none — docs + one bash flag; disjoint from OPS-005",
+      "merge_order": 2
+    }
+  ],
+  "merge_protocol": "serial merge into feat/native-s3 in merge_order; full gate per merge (tsc --noEmit, prettier --check src/, full unit suite, integration 44/44); rebase if base moved; push once after merges; DOC-3 closeout + wave closeout + audit appended after push; single closeout commit",
+  "board_sync": "tasks.jsonl last-occurrence row updates (DOC-3, OPS-005, S3-SCOPE-001) via append_board_task_completed.py + notes normalizer; events.jsonl appends only; commit board files with co-author trailer after push",
+  "battery": "not due from this tick's vantage (no full-battery event since ~#569-era window; merged-tree work gate per merge instead)"
+}
