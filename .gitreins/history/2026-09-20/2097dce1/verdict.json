@@ -1,0 +1,73 @@
+{
+  "task_id": "DF-0919-06",
+  "task_title": "remember warns only when namespace omitted",
+  "task_criteria": [
+    "src/mcp/tools/remember.ts emits response.warning ONLY when the caller omitted the namespace argument and the resolved (sticky active) namespace is not 'default'. An explicit namespace argument \u2014 including one equal to the active namespace, and including 'default' \u2014 never produces the warning. The warning text is unchanged for the genuine sticky-surprise case. Tests in src/mcp/tools/remember-recall-namespace-dogfood017.test.ts cover explicit non-default (no warning), explicit equal to sticky active (no warning), omitted with non-default sticky (warning present with the DOGFOOD-017 text), and explicit default (no warning). Full npx vitest run green and tsc clean on the merged tree."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bce929b0420cf223724caaa6990b7a75bc5456cb",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:39PM INF scanned ~9176497 bytes (9.18 MB) in 5.91s\n9:39PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 194882 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 2261ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 1547ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 1185 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 154 passed (155)\n      Tests  1 failed | 1225 passed (1226)\n   Start at  21:39:51\n   Duration  136.03s (transform 11.68s, setup 5.82s, import 134.26s, tests 344.99s, environment 30ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DF-0919-06\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T02:42:08.142670",
+  "evidence": {
+    "collected_at": "2026-09-20T02:42:08.222310+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 181483,
+        "truncated": false,
+        "source": "git show bce929b0420c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 561,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-06"
+  }
+}

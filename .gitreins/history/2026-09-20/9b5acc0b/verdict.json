@@ -1,0 +1,73 @@
+{
+  "task_id": "DOC-1",
+  "task_title": "document duckbrain consolidate CLI",
+  "task_criteria": [
+    "skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bce929b0420cf223724caaa6990b7a75bc5456cb",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:41PM INF scanned ~9188777 bytes (9.19 MB) in 5.54s\n9:41PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 194900 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1226 passed (1226)\n   Start at  21:41:42\n   Duration  134.41s (transform 11.90s, setup 4.24s, import 132.45s, tests 339.99s, environment 38ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DOC-1\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T02:43:57.298798",
+  "evidence": {
+    "collected_at": "2026-09-20T02:43:57.382278+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 181483,
+        "truncated": false,
+        "source": "git show bce929b0420c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 561,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-1"
+  }
+}

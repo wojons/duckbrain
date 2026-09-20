@@ -1,0 +1,73 @@
+{
+  "task_id": "DOC-1",
+  "task_title": "document duckbrain consolidate CLI",
+  "task_criteria": [
+    "skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose, --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL env, the implicit-write-mode caveat) with flags matching the live consolidate --help output, including a real executed dry-run transcript. README.md mentions the command in its CLI surface. The diff is documentation only: README.md and skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bce929b0420cf223724caaa6990b7a75bc5456cb",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:42PM INF scanned ~9188777 bytes (9.19 MB) in 5.4s\n9:42PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 194900 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 2386ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 1793ms\n \u276f src/embedding/hooks.test.ts (8 tests | 1 failed) 798ms\n     \u00d7 re-firing the hook is idempotent \u2014 same root, appended log, clean status 216ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/embedding/hooks.test.ts > embedding hook cwd parity (EMB-001) > re-firing the hook is idempotent \u2014 same root, appended log, clean status\nAssertionError: expected '' to be '/tmp/embed-hooks-ez32Mh/duckbrain-root' // Object.is equality\n\n- Expected\n+ Received\n\n- /tmp/embed-hooks-ez32Mh/duckbrain-root\n\n \u276f src/embedding/hooks.test.ts:210:19\n    208|     waitFor(() => fs.existsSync(marker));\n    209|     const first = fs.readFileSync(marker, \"utf8\").trim();\n    210|     expect(first).toBe(duckRoot);\n       |                   ^\n    211|\n    212|     fireHook(hookPath, nsPath, marker);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 1465 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  2 failed | 153 passed (155)\n      Tests  2 failed | 1224 passed (1226)\n   Start at  21:42:11\n   Duration  133.68s (transform 8.80s, setup 4.59s, import 123.01s, tests 350.70s, environment 34ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DOC-1\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T02:44:25.646949",
+  "evidence": {
+    "collected_at": "2026-09-20T02:44:25.740275+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 181483,
+        "truncated": false,
+        "source": "git show bce929b0420c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 561,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-1"
+  }
+}

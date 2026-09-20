@@ -1584,5 +1584,6 @@ tasks:
     --help output, including a real executed dry-run transcript. README.md mentions
     the command in its CLI surface. The diff is documentation only: README.md and
     skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.'
-  status: in_progress
+  status: complete
   created_at: '2026-09-20T02:14:43.440407+00:00'
+  completed_at: '2026-09-20T02:42:08.967308+00:00'
