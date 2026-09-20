@@ -132,8 +132,9 @@ interface RememberOutput {
   /** Namespace actually written — resolved from the arg or the active
    *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
   namespace?: string;
-  /** Present when the write landed outside the 'default' namespace
-   *  (DOGFOOD-017) */
+  /** Present when the write landed outside the 'default' namespace because
+   *  the caller OMITTED the arg and the sticky active namespace was used
+   *  (DOGFOOD-017); an explicit namespace argument never warns (DF-0919-06) */
   warning?: string;
   /** SUPA-1: machine-readable failure code (e.g. DURABILITY_UNSUPPORTED,
    *  DURABILITY_DIRECT_FRAME_ERROR) so HTTP routes can surface it verbatim */
@@ -273,6 +274,15 @@ export async function rememberTool(
     // written, and warn when it is not the 'default' namespace (the active
     // namespace is sticky across processes, so an omitted arg can silently
     // land somewhere the user did not intend).
+    //
+    // DF-0919-06: the warning is for the STICKY-SURPRISE case ONLY — the
+    // caller omitted the arg and the write landed in the process-persisted
+    // active namespace. An EXPLICIT namespace argument never warns, however
+    // non-default it is: the caller named the target, so the message is pure
+    // noise and trains callers to ignore a real guardrail (live probe: a write
+    // with `?namespace=df-ns-0919` still warned). Note the gate is on the
+    // ARGUMENT, not on `resolvedNamespace !== active` — an explicit arg that
+    // names the currently-active namespace is still an explicit choice.
     const response: RememberOutput = {
       success: true,
       id: memory.id,
@@ -284,7 +294,7 @@ export async function rememberTool(
       author: memory.author,
       namespace: resolvedNamespace,
     };
-    if (resolvedNamespace !== "default") {
+    if (!namespace && resolvedNamespace !== "default") {
       response.warning = `Memory written to namespace '${resolvedNamespace}', not 'default'. The active namespace is sticky across processes — pass namespace explicitly to control where writes land.`;
     }
     return response;

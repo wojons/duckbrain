@@ -89,9 +89,11 @@ AI: "Remember that we're using PostgreSQL for the database"
 > the `namespace` arg is omitted, the write goes to `config.defaultNamespace`
 > — which `switch_namespace` persists into `duckbrain.config.json`, so it
 > affects ALL later processes, not just the current session. The response
-> always echoes the namespace actually written, and carries a `warning` when
-> it is not the `'default'` namespace. Pass `namespace` explicitly if the
-> destination matters.
+> always echoes the namespace actually written. When the arg is omitted and the
+> write lands somewhere other than the `'default'` namespace, the response
+> carries a `warning` (DF-0919-06: an explicit `namespace` argument never
+> warns — you named the destination, so there is nothing surprising about it).
+> Pass `namespace` explicitly if the destination matters.
 
 ---
 
