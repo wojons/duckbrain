@@ -1680,3 +1680,19 @@ tasks:
   status: complete
   created_at: '2026-09-20T10:03:36.988683+00:00'
   completed_at: '2026-09-20T10:15:09.800059+00:00'
+- id: DB-GAP-051
+  title: Segment consolidation + oversize-segment split for JSONL partitions
+  criteria:
+  - src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing
+    compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition
+    yields fewer files with byte-identical record order and every output within the
+    1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments
+    with exact record-count preservation; the operation is idempotent (second run
+    writes nothing) and never overwrites an existing segment name; dry-run writes
+    nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run
+    and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check
+    src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match
+    the live unit run; live-proof numbers on a COPIED real partition are reported
+    and namespaces/ in the working tree is unchanged.
+  status: in_progress
+  created_at: '2026-09-20T10:52:32.713304+00:00'

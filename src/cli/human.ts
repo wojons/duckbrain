@@ -26,6 +26,7 @@ import { parseTimeRange } from "../utils/timerange";
 import { buildKeyTree, renderKeyTreeText } from "../utils/keyTree";
 import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
+import { executeSegmentConsolidation } from "../storage/segment-consolidation";
 import {
   getConfig,
   setConfig,
@@ -1497,6 +1498,116 @@ async function remoteCommand(args: string[]): Promise<void> {
 }
 
 /**
+ * `duckbrain squash --segments` — segment-level JSONL repair (DB-GAP-051).
+ *
+ * Repairs ONE explicit partition in place, keeping it JSONL:
+ *   - merges near-empty numeric segments up to the 1000-line / 1MB rotation
+ *     bound (the live `scheduler/event/2026-09/` partition holds 16k one-line
+ *     segments),
+ *   - splits segments past that bound (the same partition's 84MB
+ *     `10000.jsonl`).
+ *
+ * `--partition` is required and never inferred: the default of "all
+ * partitions" would make a repair pass over the whole store a keystroke away,
+ * and this command deletes and rewrites files.
+ *
+ * @param flags - Parsed CLI flags (`partition`, `dry-run`, `namespace`)
+ */
+async function squashSegments(flags: Record<string, string>): Promise<void> {
+  const partitionArg = flags.partition;
+  if (!partitionArg) {
+    console.error(
+      "✗ --segments requires an explicit --partition=<domain/YYYY-MM>.",
+    );
+    console.error(
+      "Usage: duckbrain squash --segments --partition=<domain/YYYY-MM> [--dry-run] [--namespace=<name>]",
+    );
+    console.error(
+      "There is no 'all partitions' mode for segment repair: merging/splitting rewrites and deletes files, so the target is always named explicitly.",
+    );
+    process.exit(1);
+  }
+
+  const namespacePath = resolveNamespacePath(flags.namespace);
+  const partitionPath = path.isAbsolute(partitionArg)
+    ? partitionArg
+    : path.join(namespacePath, partitionArg);
+
+  if (
+    !fs.existsSync(partitionPath) ||
+    !fs.statSync(partitionPath).isDirectory()
+  ) {
+    console.error(`✗ Partition not found: ${partitionPath}`);
+    process.exit(1);
+  }
+
+  const dryRun = flags["dry-run"] === "true";
+
+  try {
+    const result = executeSegmentConsolidation(partitionPath, { dryRun });
+    const { plan, stats } = result;
+
+    console.log(
+      `${dryRun ? "Segment repair preview" : "Segment repair"} — ${partitionPath}`,
+    );
+    console.log(
+      `  segments: ${stats.segmentsBefore} → ${stats.segmentsAfter}` +
+        ` (${plan.merges.length} merge group(s), ${plan.splits.length} split(s))`,
+    );
+    console.log(
+      `  records:  ${stats.recordsBefore} → ${stats.recordsAfter} (unchanged)`,
+    );
+    console.log(
+      `  bytes:    ${stats.bytesBefore} → ${stats.bytesAfter} (record bytes unchanged)`,
+    );
+
+    for (const merge of plan.merges) {
+      console.log(
+        `  merge  ${merge.inputs.join(" + ")} → ${merge.output}` +
+          ` (${merge.lines} lines, ${merge.bytes} bytes)`,
+      );
+    }
+    for (const split of plan.splits) {
+      console.log(
+        `  split  ${split.input} (${split.inputLines} lines, ${split.inputBytes} bytes) → ` +
+          split.chunks.map((c) => `${c.name} (${c.lines} lines)`).join(", "),
+      );
+    }
+    for (const blocked of plan.unplaceable) {
+      console.log(`  skip   ${blocked.input}: ${blocked.reason}`);
+    }
+    if (plan.merges.length === 0 && plan.splits.length === 0) {
+      console.log("  nothing to do — partition is already within bounds");
+    }
+
+    if (dryRun) {
+      console.log("");
+      console.log(
+        `Dry run: no files written, no files deleted (${plan.writtenFiles.length} file(s) would be written, ${plan.removedFiles.length} deleted).`,
+      );
+      return;
+    }
+
+    console.log("");
+    console.log(
+      `✓ Wrote ${result.written.length} file(s), removed ${result.removed.length} superseded file(s).`,
+    );
+    if (result.removed.length > 0) {
+      console.log(`  removed: ${result.removed.join(", ")}`);
+    }
+    console.log(
+      "  Re-run to confirm idempotence (a second pass should report nothing to do).",
+    );
+  } catch (error) {
+    console.error(
+      "✗ Segment repair failed:",
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+}
+
+/**
  * Squash command
  */
 async function squashCommand(args: string[]): Promise<void> {
@@ -1513,6 +1624,15 @@ async function squashCommand(args: string[]): Promise<void> {
     console.log(
       "  --aggressive      More aggressive compaction (lower thresholds)",
     );
+    console.log(
+      "  --segments        Segment repair (DB-GAP-051): merge near-empty",
+    );
+    console.log(
+      "                    JSONL segments and split oversize ones, keeping the",
+    );
+    console.log(
+      "                    partition readable as JSONL. REQUIRES --partition.",
+    );
     console.log("  --help, -h        Show this help message");
     console.log("");
     console.log(
@@ -1521,10 +1641,26 @@ async function squashCommand(args: string[]): Promise<void> {
     console.log(
       "and removing tombstoned records. Also squashes git history for compacted partitions.",
     );
+    console.log("");
+    console.log(
+      "With --segments, no Parquet is written: numeric segments of one",
+    );
+    console.log(
+      "partition are merged/split to the 1000-line / 1MB rotation bound, with",
+    );
+    console.log(
+      "record order and record counts preserved. Example: duckbrain squash --segments --partition=person/2026-08 --dry-run",
+    );
     return;
   }
 
   const { flags } = parseArgs(args);
+
+  // ---- segment repair mode (DB-GAP-051) ---------------------------------
+  if (flags.segments) {
+    await squashSegments(flags);
+    return;
+  }
 
   const input: any = {
     dryRun: flags["dry-run"] || false,
@@ -1873,6 +2009,11 @@ function showHelp(): void {
     --dry-run          Preview without modifying files
     --aggressive       Include git history squashing
     --stats            Show compaction statistics
+    --segments         Segment repair only (DB-GAP-051): merge near-empty
+                       JSONL segments and split oversize ones in place,
+                       keeping the partition readable as JSONL. Requires
+                       --partition; writes no Parquet. Combine with --dry-run
+                       to preview.
 
   Examples:
     duckbrain stdio
@@ -1893,6 +2034,7 @@ function showHelp(): void {
     duckbrain squash --stats
     duckbrain squash --dry-run
     duckbrain squash --partition=person/2025-01 --aggressive
+    duckbrain squash --segments --partition=event/2026-09 --dry-run
   `.trim(),
   );
 }
