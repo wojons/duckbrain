@@ -196,7 +196,7 @@ DuckBrain can back memory onto any S3-compatible object store (Hetzner Object St
 }
 ```
 
-Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Then:
+Credentials are never stored in config (it's git-tracked) — export them in the daemon/CLI environment: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). The endpoint resolves **env-first** for `s3 status`/`s3 sync`/`s3 query` — `AWS_ENDPOINT_URL_S3`, then `AWS_ENDPOINT_URL`, then `s3.endpoint` — while the push-on-commit child keeps `s3.endpoint` and only lets `AWS_ENDPOINT_URL_S3` through (`AWS_ENDPOINT_URL` is replaced by the config value); use `AWS_ENDPOINT_URL_S3` when you need one env var to move both. Then:
 
 ```bash
 duckbrain s3 status          # verify bucket listing works

@@ -1714,3 +1714,12 @@ tasks:
   status: complete
   created_at: '2026-09-20T13:43:11.320986+00:00'
   completed_at: '2026-09-20T14:00:11.774572+00:00'
+- id: DOC-3
+  title: 'DOC s3-native: document AWS_ENDPOINT_URL[_S3] env overrides for s3 endpoint
+    resolution'
+  criteria:
+  - docs/s3-native.md documents the full effective-endpoint precedence chain (AWS_ENDPOINT_URL_S3
+    -> AWS_ENDPOINT_URL -> config s3.endpoint -> AWS default) matching src/s3/config.ts
+    resolveEffectiveEndpoint; behavior live-verified with env combos
+  status: in_progress
+  created_at: '2026-09-20T15:09:30.878156+00:00'

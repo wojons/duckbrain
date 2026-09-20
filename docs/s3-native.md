@@ -94,10 +94,14 @@ remote), so a bare `git push` would no-op/fail — the daemon resolves the
 current branch and pushes `git push --set-upstream s3daily <branch>` so later
 bare pushes resolve too.
 
-**Credentials/endpoint (`buildPushEnv`):** endpoint and region derive from the
-user's s3 config block (provider-agnostic — `AWS_ENDPOINT_URL`,
-`AWS_DEFAULT_REGION`); credentials come from the caller's AWS env / `~/.aws`
-(`AWS_PROFILE` only forced when `s3.profile` is pinned). Without AWS env the
+**Credentials/endpoint (`buildPushEnv`):** the helper injects `s3.endpoint` as
+`AWS_ENDPOINT_URL` and `s3.region` as `AWS_DEFAULT_REGION` (provider-agnostic);
+credentials come from the caller's AWS env / `~/.aws`
+(`AWS_PROFILE` only forced when `s3.profile` is pinned). Because the injected map
+is spread after `process.env`, a config endpoint **replaces** the operator's own
+`AWS_ENDPOINT_URL` — export `AWS_ENDPOINT_URL_S3` instead when you need to
+override the push endpoint from the shell (the two resolved chains, Path A vs
+Path B, are tabulated under *Effective endpoint* above). Without AWS env the
 helper dies with "invalid credentials" and the daemon logs + swallows — never
 blocks the write.
 
@@ -119,6 +123,63 @@ push script (`scripts/s3/duckbrain-s3-push.sh`) is the general mechanism: it
 pushes EVERY namespace repo including sandbox ones. Filed as board row
 S3-SCOPE-001; ops/dogfood-e2e.sh Phase 6 documents the workaround (drive the
 same git-remote-s3 push directly on the sandbox repo).
+
+### Effective endpoint — which layer wins (DOGFOOD-030, DOC-3)
+
+Two independent code paths resolve the S3 endpoint, and they do **not** share the
+same precedence. `duckbrain s3 status`, `s3 sync` and `s3 query` all resolve
+**in-process**, while the autopush shells out to `git push` (git-remote-s3 →
+botocore) with an environment built by `buildPushEnv`. Documenting only the config
+key is what makes an env-configured MinIO/Hetzner deployment read the wrong
+endpoint.
+
+**Path A — in-process client and the `s3 status` display**
+(`resolveEffectiveEndpoint`, `src/s3/config.ts:80`):
+
+| # | Layer | Wins when |
+|---|---|---|
+| 1 | `AWS_ENDPOINT_URL_S3` | the service-specific env var is set |
+| 2 | `AWS_ENDPOINT_URL` | the generic env var is set (and `_S3` is not) |
+| 3 | config `s3.endpoint` | neither env var is set |
+| 4 | AWS SDK default | nothing above is set — `s3 status` prints `(AWS default)` |
+
+**Path B — the push child** (git-remote-s3 → botocore, env from `buildPushEnv`,
+`src/git/autocommit.ts:588`):
+
+| # | Layer | Wins when |
+|---|---|---|
+| 1 | `AWS_ENDPOINT_URL_S3` | the operator exported it — `buildPushEnv` never sets this variable, so it passes straight through |
+| 2 | `AWS_ENDPOINT_URL` ← config `s3.endpoint` | `s3.endpoint` is set: the helper injects it, and because the map is spread *after* `process.env` it also **replaces** the operator's own `AWS_ENDPOINT_URL` |
+| 3 | `~/.aws/config` `[<profile>] endpoint_url` | config `s3.endpoint` is absent (the profile is `s3.profile`, injected as `AWS_PROFILE`) |
+| 4 | AWS default | nothing above is set |
+
+The asymmetry, stated plainly: an operator who exports `AWS_ENDPOINT_URL` sees a
+`status` endpoint sourced from that env var, but the **push child** keeps using
+`s3.endpoint`. To redirect the push endpoint from the shell without editing
+config, export `AWS_ENDPOINT_URL_S3` — it is the one layer that survives both
+paths. (Changing the *display* and the *push* together means setting
+`AWS_ENDPOINT_URL_S3`, or leaving both env vars unset and editing `s3.endpoint`.)
+
+Measured live (2026-09-20) against `botocore 1.42.59` — the library git-remote-s3
+calls — with the shipped config value
+`s3.endpoint = https://hel1.your-objectstorage.com`:
+
+| Env in the shell | `s3 status` shows (Path A) | push child uses (Path B) |
+|---|---|---|
+| nothing set | `hel1.your-objectstorage.com` (config) | `hel1.your-objectstorage.com` |
+| `AWS_ENDPOINT_URL=generic` | `generic` | `hel1...` — operator var masked by config |
+| `AWS_ENDPOINT_URL_S3=svc` | `svc` | `svc` — passes through |
+| both env vars set | `svc` | `svc` |
+
+Reproducer (no credentials needed — the `endpoint:` line prints before the
+per-namespace bucket listings, so the unreachable probe host only produces
+`list failed` warnings after the line you are checking):
+
+```bash
+cd /path/to/duckbrain
+AWS_ENDPOINT_URL=https://probe.example.com npx tsx bin/duckbrain.ts s3 status | grep endpoint
+AWS_ENDPOINT_URL_S3=https://svc.example.com npx tsx bin/duckbrain.ts s3 status | grep endpoint
+```
 
 ### Live verification (2026-09-20, read-only)
 
