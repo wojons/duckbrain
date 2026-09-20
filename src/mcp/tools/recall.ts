@@ -366,6 +366,10 @@ async function runSemanticLeg(opts: {
         // the default 50 would exceed the 30s budget on a cold cache.
         // 10 keeps a cold-cache ?q= inside the timeout with real ranked
         // results; warm caches rank the full candidate pool instantly.
+        // OPS-008: misses now embed through a bounded pool (4 in flight),
+        // so the cap costs ceil(10/4) × RTT instead of the 10 × RTT serial
+        // sum this reasoning originally priced — it still bounds provider
+        // load and cold-cache latency, just no longer the per-embed sum.
         // DOGFOOD-011: forward the relevance-floor override when set.
         {
           maxOnTheFlyEmbeds: 10,
