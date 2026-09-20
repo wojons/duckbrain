@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   duckdb: true
   esbuild: true
+
+engineStrict: true
