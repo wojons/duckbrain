@@ -52,8 +52,18 @@ function writeNamespace(): void {
   fs.writeFileSync(
     path.join(partition, "current.jsonl"),
     [
-      mem("s1", "/stale/one", "stale sidecar durability probe", "2026-08-01T00:00:00.000Z"),
-      mem("s2", "/stale/two", "another stale sidecar row", "2026-08-02T00:00:00.000Z"),
+      mem(
+        "s1",
+        "/stale/one",
+        "stale sidecar durability probe",
+        "2026-08-01T00:00:00.000Z",
+      ),
+      mem(
+        "s2",
+        "/stale/two",
+        "another stale sidecar row",
+        "2026-08-02T00:00:00.000Z",
+      ),
     ].join("\n") + "\n",
     "utf8",
   );
@@ -112,7 +122,9 @@ describe("GAP-054: pre-RETR-011 sidecar (missing validity columns)", () => {
   it("the sidecar really is missing the validity columns (fixture sanity)", async () => {
     const dbPath = indexDbPath(NS);
     const cols: string[] = await new Promise((resolve, reject) => {
-      const db = new duckdb.Database(dbPath, { access_mode: "READ_ONLY" } as any);
+      const db = new duckdb.Database(dbPath, {
+        access_mode: "READ_ONLY",
+      } as any);
       db.all("PRAGMA table_info(memories)", (e: any, rows: any[]) =>
         e ? reject(e) : resolve(rows.map((r: any) => String(r.name))),
       );
