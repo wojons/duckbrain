@@ -6,9 +6,68 @@
   "base_sha": "9fbbd60",
   "created_at": "2026-09-20T01:25:00Z",
   "workers": [
-    {"task_id": "DB-GAP-048", "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-048", "branch": "wt/DB-GAP-048", "base_sha": "9fbbd60", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-DB-GAP-048.md"},
-    {"task_id": "DF-0919-04", "worktree": "/home/kara/worktrees/duckbrain-DF-0919-04", "branch": "wt/DF-0919-04", "base_sha": "9fbbd60", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-DF-0919-04.md"},
-    {"task_id": "DF-0919-06", "worktree": "/home/kara/worktrees/duckbrain-DF-0919-06", "branch": "wt/DF-0919-06", "base_sha": "9fbbd60", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-DF-0919-06.md"},
-    {"task_id": "DOC-1", "worktree": "/home/kara/worktrees/duckbrain-DOC-1", "branch": "wt/DOC-1", "base_sha": "9fbbd60", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-DOC-1.md"}
-  ]
+    {
+      "task_id": "DB-GAP-048",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-048",
+      "branch": "wt/DB-GAP-048",
+      "base_sha": "9fbbd60",
+      "model": "k3",
+      "provider": "kimi-for-coding",
+      "brief": "/tmp/db-wave-DB-GAP-048.md",
+      "commit": "95ee0a5",
+      "merge": "no-ff b133fbc-chain",
+      "judge": "tier2 criterion PASS (c0c7215d); tier1 red on the shared OPS-007 load-sensitive heartbeat-budget test (passes solo 4/4)",
+      "worktree_removed": true,
+      "branch_deleted": true
+    },
+    {
+      "task_id": "DF-0919-04",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0919-04",
+      "branch": "wt/DF-0919-04",
+      "base_sha": "9fbbd60",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm-default",
+      "brief": "/tmp/db-wave-DF-0919-04.md",
+      "commit": "6256c91",
+      "merge": "no-ff",
+      "judge": "tier2 criterion PASS (d0ce61a0, judge re-ran full suite green 155/1226); tier1 same OPS-007 flake",
+      "worktree_removed": true,
+      "branch_deleted": true
+    },
+    {
+      "task_id": "DF-0919-06",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0919-06",
+      "branch": "wt/DF-0919-06",
+      "base_sha": "9fbbd60",
+      "model": "k3",
+      "provider": "kimi-for-coding",
+      "brief": "/tmp/db-wave-DF-0919-06.md",
+      "commit": "c379aa8",
+      "merge": "no-ff",
+      "judge": "tier2 criterion PASS (b364725c); tier1 same OPS-007 flake",
+      "worktree_removed": true,
+      "branch_deleted": true
+    },
+    {
+      "task_id": "DOC-1",
+      "worktree": "/home/kara/worktrees/duckbrain-DOC-1",
+      "branch": "wt/DOC-1",
+      "base_sha": "9fbbd60",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm-default",
+      "brief": "/tmp/db-wave-DOC-1.md",
+      "commit": "78212b2",
+      "merge": "no-ff 61edc1b",
+      "judge": "tier2 criterion PASS (cb9b82dc); tier1 same OPS-007 flake",
+      "worktree_removed": true,
+      "branch_deleted": true
+    }
+  ],
+  "finished_at": "2026-09-20T02:50:00Z",
+  "gate": "merged-tree gate: unit 155 files / 1226 tests exit 0; tsc exit 0; prettier src/ clean; INT 44/44; AGENTS.md synced 1212->1226",
+  "merge_base": "9fbbd60",
+  "followups": {
+    "OPS-011": "filed: OPS-007 heartbeat budget (1000ms) is host-load sensitive — reds under concurrent full-suite load (1042/1813/2063/2210ms measured) while passing solo and in the serial merged-tree gate",
+    "note": "All four tier-1 legs failed on the SAME unrelated test; not a wave defect, no re-dispatch (the rework loop would have reproduced the same contention failure)."
+  }
 }
