@@ -1,0 +1,48 @@
+{
+  "wave_id": "duckbrain-2026-09-20-06-58-04",
+  "tick": "duckbrain-2026-09-20-06-58-04",
+  "created": "2026-09-20T07:03:00-05:00",
+  "base": "origin/feat/native-s3",
+  "base_sha": "08a6c79",
+  "budget_ceiling": 12,
+  "workers": [
+    {
+      "task_id": "TEST-002",
+      "worktree": "/home/kara/worktrees/duckbrain-TEST-002",
+      "branch": "wt/TEST-002",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-TEST-002/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/TEST-002, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "AGENTS.md count fence violated pre-existing — CI assert red on this branch, fixed at merge",
+      "merge_order": 1
+    },
+    {
+      "task_id": "OPS-010",
+      "worktree": "/home/kara/worktrees/duckbrain-OPS-010",
+      "branch": "wt/OPS-010",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-OPS-010/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/OPS-010, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "AGENTS.md count fence violated pre-existing — CI assert red on this branch, fixed at merge",
+      "merge_order": 2
+    },
+    {
+      "task_id": "DEPS-001",
+      "worktree": "/home/kara/worktrees/duckbrain-DEPS-001",
+      "branch": "wt/DEPS-001",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-DEPS-001/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/DEPS-001, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "AGENTS.md count fence violated pre-existing — CI assert red on this branch, fixed at merge",
+      "merge_order": 3
+    },
+    {
+      "task_id": "DOC-2",
+      "worktree": "/home/kara/worktrees/duckbrain-DOC-2",
+      "branch": "wt/DOC-2",
+      "dispatch": "hermes chat -q 'Read /home/kara/worktrees/duckbrain-DOC-2/BRIEF.md and follow it exactly. First action: verify pwd is that worktree, branch wt/DOC-2, and git status clean.' -m kimi-k3 --provider kimi-for-coding -s coding-hermes-worker --ignore-rules -Q",
+      "brief": "BRIEF.md",
+      "risk": "AGENTS.md count fence violated pre-existing — CI assert red on this branch, fixed at merge. Merge order 4 (docs inherit DEPS-001 lockfile churn)",
+      "merge_order": 4
+    }
+  ],
+  "merge_protocol": "serial merge into feat/native-s3: wt/TEST-002 first, then reap worktrees, then wt/OPS-010 (rebase or merge), chunks 2-3, then wt/DEPS-001, then wt/DOC-2 (may rebase over lockfile churn); full gate (tsc + prettier --check src/ + full unit + integration 44/44) after each merge; AGENTS.md count lines synced at merge time; single push at merge-completion, closeout run is the CI verdict",
+  "board_sync": "on merge: tasks.jsonl surgical edits via parser (never whole-file rewrite), status complete, commit_hash set to the landing merge HEAD, commit the work first, then the board closeout; events.jsonl literal-append-only, never rewrite existing lines; mirror the notified field set from sibling completed rows"
+}

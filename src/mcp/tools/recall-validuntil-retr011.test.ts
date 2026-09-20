@@ -20,7 +20,7 @@
  * returns the seeded expired row, and only the RETR-011 filter removes it.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { recallTool } from "./recall";
