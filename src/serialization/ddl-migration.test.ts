@@ -7,7 +7,7 @@
  * schema file, BOTH immutable generations and the migration journal.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -21,6 +21,10 @@ import {
 } from "../schema/table-registry";
 import { buildSelectPlan, executeSelectPlan } from "../duckdb/table-store";
 import type { AuthPrincipal } from "../auth/middleware";
+
+// TEST-002: file-scoped test budget only — the pre-switch crash test exceeds
+// the 15s default under full-suite host load.
+vi.setConfig({ testTimeout: 60_000 });
 
 const NS = "supa6-migration";
 const ADMIN: AuthPrincipal = {

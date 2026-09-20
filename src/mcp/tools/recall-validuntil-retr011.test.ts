@@ -28,6 +28,10 @@ import { rememberTool } from "./remember";
 import { rebuildNamespaceIndex } from "../../search/index";
 
 const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
+
+// TEST-002: file-scoped hook budget only — the `rebuildNamespaceIndex` FTS
+// rebuild beforeAll exceeds the 10s default under full-suite host load.
+vi.setConfig({ hookTimeout: 60_000 });
 const NS = path.join(NS_ROOT, "recall-retr011");
 const PARTITION = path.join(NS, "concept", "2026-08");
 const JSONL = path.join(PARTITION, "current.jsonl");
