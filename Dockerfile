@@ -1,5 +1,5 @@
 # Build stage — install dependencies (Debian for DuckDB glibc native binding)
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -11,12 +11,12 @@ RUN npm ci
 COPY . .
 
 # Production stage — Debian slim for DuckDB native binding (requires glibc)
-FROM node:20-slim
+FROM node:22-slim
 
 # Install git (needed for version control features)
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
-# The node:20-slim base already has a 'node' user with UID 1000
+# The node:22-slim base already has a 'node' user with UID 1000
 # We reuse it for running the app as non-root
 
 WORKDIR /app
