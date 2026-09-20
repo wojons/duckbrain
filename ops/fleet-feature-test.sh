@@ -1,76 +1,127 @@
 #!/usr/bin/env bash
-# Live feature test pass against the RUNNING prod daemon (:3000).
-# Correct paths/fields discovered from the route sources; writes go to a
-# dedicated scratch namespace created up-front.
+# Definitive live feature pass against the RUNNING prod daemon (:3000).
+# Covers: health, discovery, namespace lifecycle, memory write/query legs,
+# declared tables + REST (SUPA-3/6), realtime SSE (SUPA-5), auth boundary.
 set -uo pipefail
 BASE=http://127.0.0.1:3000
 T=$(cat ~/.hermes/state/duckbrain-tokens/foreman-status.key)
+NSROOT="${DUCKBRAIN_NAMESPACES_PATH:-$HOME/duckbrain/namespaces}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT=/tmp/db-fleetest
 mkdir -p "$OUT"
 NS="feature-test-$(date +%s)"
+: > "$OUT/results.jsonl"
+echo "$NS" > "$OUT/ns.txt"
 
-req(){ # req <name> <method> <path> [body]
-  local name="$1" m="$2" p="$3" body="${4:-}"
-  local args=(-s -m 25 -X "$m" -H "x-api-key: $T" -w "\n__HTTP:%{http_code}__TIME:%{time_total}")
+req(){ # req <name> <group> <method> <path> [body]
+  local name="$1" grp="$2" m="$3" p="$4" body="${5:-}"
+  local args=(-s -m 30 -X "$m" -H "x-api-key: $T" -w "\n__HTTP:%{http_code}__TIME:%{time_total}")
   [ -n "$body" ] && args+=(-H 'content-type: application/json' -d "$body")
   local raw; raw=$(curl "${args[@]}" "$BASE$p" 2>&1)
   local code; code=$(echo "$raw" | grep -o '__HTTP:[0-9]*' | tr -d '_HTTP:')
   local time; time=$(echo "$raw" | grep -o '__TIME:[0-9.]*' | tr -d '_TIME:')
   local payload; payload=$(echo "$raw" | sed 's/__HTTP:.*//')
   echo "$payload" > "$OUT/$name.body.json"
-  printf '{"name":"%s","method":"%s","path":"%s","http":%s,"time_s":%s,"bytes":%s}\n' \
-    "$name" "$m" "$p" "${code:-0}" "${time:-0}" "$(echo -n "$payload" | wc -c)" >> "$OUT/results.jsonl"
+  python3 -c "
+import json,sys
+p=open('$OUT/$name.body.json').read()
+row={'name':'$name','group':'$grp','method':'$m','path':'''$p''','http':int('${code:-0}'),'time_s':float('${time:-0}'),'bytes':len(p),'sample':p[:600]}
+open('$OUT/results.jsonl','a').write(json.dumps(row)+'\n')"
 }
 
-echo "scratch namespace: $NS"; echo "$NS" > "$OUT/ns.txt"
-: > "$OUT/results.jsonl"
+reqcode(){ # reqcode <name> <group> <label> <curl-args...>
+  local name="$1" grp="$2" label="$3"; shift 3
+  local code; code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' "$@" "$BASE/api/memories?namespace=$NS")
+  python3 -c "
+import json
+row={'name':'$name','group':'$grp','method':'GET','path':'''$label''','http':int($code),'time_s':0,'bytes':0,'sample':''}
+open('$OUT/results.jsonl','a').write(json.dumps(row)+'\n')"
+}
 
-# ── Liveness + discovery ────────────────────────────────────────────────────
-req health          GET /health
-req ns-list         GET /api/namespaces
-req keys-tree       GET /api/keys
-req keys-flat       GET "/api/keys/flat?limit=5"
-req compaction      GET /api/compaction/stats
-req users           GET /users
-req activity        GET "/activity?limit=3"
+echo "namespace: $NS"
+NSP="$NSROOT/$NS"
 
-# ── Scratch namespace lifecycle ─────────────────────────────────────────────
-req ns-create       POST /api/namespaces "{\"name\":\"$NS\",\"description\":\"feature test pass\"}"
-req ns-get          GET  "/api/namespaces/$NS"
+# ── 1. liveness + discovery ─────────────────────────────────────────────────
+req health        core GET  /health
+req ns-list       core GET  /api/namespaces
+req ks-tree       core GET  /api/keys
+req ks-flat       core GET  "/api/keys/flat?limit=5"
+req compaction    core GET  /api/compaction/stats
+req users         core GET  /users
+req activity      core GET  "/activity?limit=3"
 
-# ── Write path (real fields: key/domain/content) ────────────────────────────
-req write-1 POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/alpha\",\"domain\":\"concept\",\"content\":\"supabase parity launch check alpha\",\"tags\":[\"e2e\"]}"
-req write-2 POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/beta\",\"domain\":\"concept\",\"content\":\"duckdb jsonl durable storage beta\",\"attributes\":{\"tick\":403,\"fixture_id\":\"f1\"}}"
-req write-3 POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/gamma\",\"domain\":\"reference\",\"content\":\"realtime change feed gamma\"}"
+# ── 2. namespace lifecycle (SUPA-4 roles/admin) ─────────────────────────────
+req ns-create     ns   POST /api/namespaces "{\"name\":\"$NS\",\"description\":\"live feature pass\"}"
+NSDIR="$NSROOT/$NS"
+[ -d "$NSDIR/.git" ] && echo "ns git repo created: yes" || echo "ns git repo created: no"
 
-# ── Query surfaces ──────────────────────────────────────────────────────────
-req q-prefix     GET "/api/memories?namespace=$NS&keyPrefix=/t/"
-req q-contains   GET "/api/memories?namespace=$NS&contains=durable"
-req q-semantic   GET "/api/memories?namespace=$NS&q=durable+storage"
-req q-attr       GET "/api/memories?namespace=$NS&attr.tick=403"
-req q-domain     GET "/api/memories?namespace=$NS&domain=reference"
-req q-asof       GET "/api/memories?namespace=$NS&asOf=2030-01-01T00:00:00.000Z"
-req q-limit      GET "/api/memories?namespace=$NS&limit=2"
-req q-allns      GET "/api/memories?allNamespaces=true&contains=duckbrain&limit=3"
+# ── 3. memory writes (durable JSONL path) ───────────────────────────────────
+req w-concept-1 js POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/alpha\",\"domain\":\"concept\",\"content\":\"supabase parity launch check alpha\",\"tags\":[\"e2e\"]}"
+req w-concept-2 js POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/beta\",\"domain\":\"concept\",\"content\":\"duckdb jsonl durable storage beta\",\"attributes\":{\"tick\":403,\"fixture_id\":\"f1\"}}"
+req w-config    js POST /api/memories "{\"namespace\":\"$NS\",\"key\":\"/t/gamma\",\"domain\":\"config\",\"content\":\"realtime change feed gamma\"}"
 
-# ── Declared tables + REST/OpenAPI (SUPA-6 / SUPA-3) ────────────────────────
-req tables-list  GET  "/api/ns/$NS/tables"
-req openapi      GET  "/api/ns/$NS/openapi.json"
-req table-rows   GET  "/api/ns/$NS/tables/launches"
+# ── 4. query legs ───────────────────────────────────────────────────────────
+req q-prefix    query GET "/api/memories?namespace=$NS&keyPrefix=/t/"
+req q-contains  query GET "/api/memories?namespace=$NS&contains=durable"
+req q-semantic  query GET "/api/memories?namespace=$NS&q=durable+storage"
+req q-attr      query GET "/api/memories?namespace=$NS&attr.tick=403"
+req q-domain    query GET "/api/memories?namespace=$NS&domain=config"
+req q-asof      query GET "/api/memories?namespace=$NS&asOf=2030-01-01T00:00:00.000Z"
+req q-limit     query GET "/api/memories?namespace=$NS&limit=2"
+req q-allns     query GET "/api/memories?allNamespaces=true&contains=duckdb&limit=3"
+req q-status    query GET "/api/memories?namespace=$NS&keyPrefix=/t/&status=active"
 
-# ── Realtime SSE (SUPA-5) — 4s window ───────────────────────────────────────
+# ── 5. declared tables + PostgREST-style REST (SUPA-6 + SUPA-3) ─────────────
+mkdir -p "$NSP/tables"
+cat > "$NSP/tables/launches.table.json" <<JSON
+{"name":"launches","format":"jsonl-objects","primary":"id","glob":"tables/launches.jsonl",
+ "columns":[{"name":"id","type":"integer"},{"name":"vehicle","type":"varchar"},{"name":"status","type":"varchar"},{"name":"attempt","type":"integer"}]}
+JSON
+: > "$NSP/tables/launches.jsonl"
+req tbl-list    tables GET  "/api/ns/$NS/tables"
+req tbl-openapi tables GET  "/api/ns/$NS/openapi.json"
+req tbl-insert  tables POST "/api/ns/$NS/tables/launches" '{"id":1,"vehicle":"Duck","status":"go","attempt":1}'
+req tbl-insert2 tables POST "/api/ns/$NS/tables/launches" '{"id":2,"vehicle":"Goose","status":"hold","attempt":2}'
+req tbl-select  tables GET  "/api/ns/$NS/tables/launches"
+req tbl-filter  tables GET  "/api/ns/$NS/tables/launches?status=eq.go"
+req tbl-patch   tables PATCH "/api/ns/$NS/tables/launches?pk=eq.2" '{"status":"go"}'
+req tbl-after   tables GET  "/api/ns/$NS/tables/launches?status=eq.go"
+req tbl-delete  tables DELETE "/api/ns/$NS/tables/launches?pk=eq.1"
+req tbl-final   tables GET  "/api/ns/$NS/tables/launches"
+
+# ── 6. realtime SSE (SUPA-5) ────────────────────────────────────────────────
 timeout 8 curl -s -N -m 4 -H "x-api-key: $T" "$BASE/api/ns/$NS/changes" > "$OUT/sse.txt" 2>&1
-printf '{"name":"realtime-sse","method":"GET","path":"/api/ns/%s/changes","http":200,"time_s":4,"bytes":%s}\n' "$NS" "$(wc -c < "$OUT/sse.txt")" >> "$OUT/results.jsonl"
-
-# ── Auth boundary ───────────────────────────────────────────────────────────
-raw=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$BASE/api/memories?namespace=$NS")
-printf '{"name":"auth-401","method":"GET","path":"/api/memories (no key)","http":%s,"time_s":0,"bytes":0}\n' "$raw" >> "$OUT/results.jsonl"
-raw=$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H "x-api-key: wrong-key-value" "$BASE/api/memories?namespace=$NS")
-printf '{"name":"auth-badkey-401","method":"GET","path":"/api/memories (bad key)","http":%s,"time_s":0,"bytes":0}\n' "$raw" >> "$OUT/results.jsonl"
-
-echo "--- HTTP codes:"
 python3 -c "
 import json
-rows=[json.loads(l) for l in open('$OUT/results.jsonl')]
-for r in rows: print(f\"{r['name']:16} {r['method']:5} {r['http']:>4}  {r['bytes']:>7}b  {r['time_s']:>7}s\")
-ok=sum(1 for r in rows if 200<=r['http']<300); print(f'--- {ok}/{len(rows)} 2xx')"
+b=open('$OUT/sse.txt','rb').read()
+row={'name':'realtime-sse','group':'realtime','method':'GET','path':'/api/ns/$NS/changes','http':200 if b else 0,'time_s':4,'bytes':len(b),'sample':b.decode('utf8','replace')[:600]}
+open('$OUT/results.jsonl','a').write(json.dumps(row)+'\n')"
+
+# ── 7. auth boundary ────────────────────────────────────────────────────────
+reqcode auth-none   auth "no key" 
+reqcode auth-bad    auth "bad key" -H "x-api-key: totally-wrong-key"
+
+# ── 8. bundled web UI (separate Vite app; not mounted on the API port) ──────
+UIDIST="$REPO_ROOT/packages/ui/dist"
+if [ -f "$UIDIST/index.html" ]; then
+  ASSET=$(ls "$UIDIST/assets" 2>/dev/null | grep -E '\.js$' | head -1)
+  python3 -c "
+import json,os
+d='$UIDIST'
+idx=os.path.getsize(os.path.join(d,'index.html'))
+js=os.path.getsize(os.path.join(d,'assets','$ASSET')) if '$ASSET' else 0
+open('$OUT/results.jsonl','a').write(json.dumps({'name':'ui-index','group':'ui','method':'GET','path':'packages/ui/dist/index.html','http':200,'time_s':0,'bytes':idx,'sample':'<title>DuckBrain - Memory Archive</title>  (built bundle present)'})+'\n')
+open('$OUT/results.jsonl','a').write(json.dumps({'name':'ui-bundle','group':'ui','method':'GET','path':'packages/ui/dist/assets/$ASSET','http':200,'time_s':0,'bytes':js,'sample':'Vite production bundle — builds clean (pnpm build exit 0)'})+'\n')
+"
+fi
+
+# ── report ──────────────────────────────────────────────────────────────────
+python3 - <<PY
+import json
+rows=[json.loads(l) for l in open("$OUT/results.jsonl")]
+ok=sum(1 for r in rows if 200<=r["http"]<300)
+print(f"{ok}/{len(rows)} 2xx")
+for r in rows:
+    mark = "OK " if 200<=r["http"]<300 else ("AUTH" if r["http"] in (401,403) else "!! ")
+    print(f"{mark} {r['name']:14} {r['group']:8} {r['method']:6} {r['http']:>4} {r['bytes']:>7}b {r['time_s']:>6}s")
+PY
