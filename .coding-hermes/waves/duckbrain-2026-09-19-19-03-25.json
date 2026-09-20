@@ -2,9 +2,16 @@
   "scheduler_tick": "duckbrain-2026-09-19-19-03-25",
   "project": "duckbrain",
   "base": "b14c14f",
+  "finished_at": "2026-09-19T19:56:00-05:00",
+  "recovered_at": "2026-09-19T19:56:00-05:00",
+  "recovered_by_tick": "duckbrain-2026-09-19-23-46-11",
   "workers": [
-    {"task_id":"DF-0919-01","worktree":"/home/kara/worktrees/duckbrain-DF-0919-01","branch":"wt/DF-0919-01"},
-    {"task_id":"DF-0919-02","worktree":"/home/kara/worktrees/duckbrain-DF-0919-02","branch":"wt/DF-0919-02"},
-    {"task_id":"DF-0919-03","worktree":"/home/kara/worktrees/duckbrain-DF-0919-03","branch":"wt/DF-0919-03"}
+    {"task_id":"DF-0919-01","worktree":"/home/kara/worktrees/duckbrain-DF-0919-01","branch":"wt/DF-0919-01","commit":"40e1721","merged_equivalent":"e9a839c","worktree_removed":true,"branch_deleted":true,"judge":"PASS a415df98"},
+    {"task_id":"DF-0919-02","worktree":"/home/kara/worktrees/duckbrain-DF-0919-02","branch":"wt/DF-0919-02","commit":"f7b1dfe","merged_equivalent":"40aa4ba","worktree_removed":true,"branch_deleted":true,"judge":"PASS ed40a924"},
+    {"task_id":"DF-0919-03","worktree":"/home/kara/worktrees/duckbrain-DF-0919-03","branch":"wt/DF-0919-03","commit":"dac9ea1","merged_equivalent":"8983652","worktree_removed":true,"branch_deleted":true,"judge":"PASS 73923df6"}
+  ],
+  "notes": [
+    "This manifest was left open (no finished_at) by its own tick; closed here during wave recovery.",
+    "Each branch tip was re-applied on main as a distinct closeout commit (e9a839c/40aa4ba/8983652, all ancestors of HEAD bf4d095); the diffs branch-vs-HEAD are context re-application over the newer main, not missing work. Board rows are complete with those hashes."
   ]
 }

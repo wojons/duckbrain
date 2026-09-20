@@ -5,10 +5,20 @@
   "branch": "feat/native-s3",
   "base_sha": "d4cbb5a",
   "created_at": "2026-09-19T20:52:00Z",
+  "finished_at": "2026-09-19T19:56:00-05:00",
+  "recovered_at": "2026-09-19T19:56:00-05:00",
+  "recovered_by_tick": "duckbrain-2026-09-19-23-46-11",
+  "gate": "merged-tree gate 155 files / 1212 tests exit 0; tsc exit 0; prettier clean (3 pre-existing drift files fixed foreman-direct); INT 44/44",
   "workers": [
-    {"task_id": "GAP-033", "worktree": "/home/kara/worktrees/duckbrain-GAP-033", "branch": "wt/GAP-033", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-GAP-033.md"},
-    {"task_id": "UI-GAP-001", "worktree": "/home/kara/worktrees/duckbrain-UI-GAP-001", "branch": "wt/UI-GAP-001", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-UI-GAP-001.md"},
-    {"task_id": "DB-GAP-053", "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-053", "branch": "wt/DB-GAP-053", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-DB-GAP-053.md"},
-    {"task_id": "DF-0919-05", "worktree": "/home/kara/worktrees/duckbrain-DF-0919-05", "branch": "wt/DF-0919-05", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-DF-0919-05.md"}
+    {"task_id": "GAP-033", "worktree": "/home/kara/worktrees/duckbrain-GAP-033", "branch": "wt/GAP-033", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-GAP-033.md", "commit": "062fa82", "merge": "no-ff 1c65bcc", "worktree_removed": true, "branch_deleted": true, "judge": "tier1 PASS; tier2 PASS 78dc9a77 (re-judge; first verdict 6a2f7049 FAIL was criterion-vs-audit-evidence placement, then c2acd50d evidence-placement fix, 3c01a3ac time-cap starvation)"},
+    {"task_id": "UI-GAP-001", "worktree": "/home/kara/worktrees/duckbrain-UI-GAP-001", "branch": "wt/UI-GAP-001", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-UI-GAP-001.md", "commit": "495ee44", "merge": "no-ff e701d7a", "worktree_removed": true, "branch_deleted": true, "judge": "PASS c378060b"},
+    {"task_id": "DB-GAP-053", "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-053", "branch": "wt/DB-GAP-053", "base_sha": "d4cbb5a", "model": "k3", "provider": "kimi-for-coding", "brief": "/tmp/db-wave-DB-GAP-053.md", "commit": "0bf0608", "merge": "no-ff d84311d", "worktree_removed": true, "branch_deleted": true, "judge": "PASS 2f853f16"},
+    {"task_id": "DF-0919-05", "worktree": "/home/kara/worktrees/duckbrain-DF-0919-05", "branch": "wt/DF-0919-05", "base_sha": "d4cbb5a", "model": "glm-5.3-flash", "provider": "zai-glm-default", "brief": "/tmp/db-wave-DF-0919-05.md", "commit": "a297895", "merge": "no-ff b45e1e1", "worktree_removed": true, "branch_deleted": true, "judge": "PASS 736cac98"}
+  ],
+  "recovery_notes": [
+    "All four worker commits are ancestors of HEAD bf4d095 (merged no-ff in dispatch order by the previous tick's closeout, commits 1c65bcc/e701d7a/d84311d/b45e1e1).",
+    "All four worktrees and wt/* branches were already reaped; no unmerged branch evidence remained, so no fixup workers were dispatched.",
+    "GAP-033 tier2 re-judge completed after the prior tick ended: PASS in .gitreins/history/2026-09-20/78dc9a77 (tier1 PASS + tier2 COMPLETE). tasks.yaml status=complete.",
+    "Sibling wave duckbrain-2026-09-19-19-03-25 (DF-0919-01/02/03) is merged equivalently: 40e1721->e9a839c, f7b1dfe->40aa4ba, dac9ea1->8983652 all ancestors of HEAD; its three worktrees/branches outlived the merge and were reaped in this recovery (applied content already on HEAD; only the worker-side board/wave metadata differed)."
   ]
 }
