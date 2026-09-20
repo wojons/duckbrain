@@ -21,6 +21,12 @@
  *  (f) a remember WITHOUT namespace after switch_namespace echoes the
  *      switched namespace and warns — the exact DOGFOOD-017 failure mode
  *
+ * DF-0919-06 narrows (d): the warning is only for the STICKY-SURPRISE case
+ * (the arg was omitted and the resolved namespace came from the sticky active
+ * namespace). An explicit `namespace` argument never warns, however
+ * non-default it is — warning there trains callers to ignore the guardrail.
+ * See the trailing DF-0919-06 describe block.
+ *
  * The config FILE is redirected to a temp path by src/test-setup.ts
  * (DUCKBRAIN_CONFIG_PATH, GAP-022) and namespace storage to a temp root
  * (DUCKBRAIN_NAMESPACES_PATH, BUG-037) — the tracked duckbrain.config.json
@@ -116,7 +122,11 @@ describe("DOGFOOD-017: remember echoes the namespace actually written", () => {
     expect(result.namespace).toBe(nsName);
   });
 
-  it("(d) warns when the write lands in a non-default namespace", async () => {
+  // DF-0919-06: this case used to assert the OPPOSITE (an explicit non-default
+  // arg warned). That contract is the defect: the caller named the namespace,
+  // so the warning is pure noise. The genuine sticky-surprise case — which is
+  // what DOGFOOD-017 was guarding — is (f) below and DF-0919-06 (b).
+  it("(d) does NOT warn when the caller named the non-default namespace explicitly", async () => {
     const nsName = "dogfood017-warn";
     await createScratchNamespace(nsName);
 
@@ -124,15 +134,13 @@ describe("DOGFOOD-017: remember echoes the namespace actually written", () => {
       key: "/scratch/dogfood017-d",
       domain: "raw_note",
       attributes: {},
-      embedding_text: "DOGFOOD-017 (d): non-default write warns",
+      embedding_text: "DOGFOOD-017 (d): explicit non-default write",
       namespace: nsName,
     });
 
     expect(result.success).toBe(true);
     expect(result.namespace).toBe(nsName);
-    expect(result.warning).toBeDefined();
-    expect(result.warning).toContain(nsName);
-    expect(result.warning).toContain("not 'default'");
+    expect(result.warning).toBeUndefined();
   });
 
   it("(f) after switch_namespace, an omitted-arg remember echoes the switched namespace + warns — the DOGFOOD-017 failure mode", async () => {
@@ -261,5 +269,89 @@ describe("DOGFOOD-017: switch_namespace persists to the config FILE", () => {
 
     const onDisk = liveConfig();
     expect(onDisk.defaultNamespace).toBe(nsName);
+  });
+});
+
+/**
+ * DF-0919-06: the "written outside default namespace" warning is a guardrail
+ * against the STICKY-SURPRISE case only — the arg was omitted and the write
+ * landed in the process-persisted active namespace. Firing it when the caller
+ * EXPLICITLY named the namespace (live probe: a write with
+ * `?namespace=df-ns-0919` still warned) turns a real guardrail into noise that
+ * trains callers to ignore it.
+ */
+describe("DF-0919-06: remember warns only when the namespace was OMITTED", () => {
+  it("(a) an explicit non-default namespace produces NO warning", async () => {
+    const nsName = "df0919-explicit";
+    await createScratchNamespace(nsName);
+
+    const result = await rememberTool({
+      key: "/scratch/df0919-a",
+      domain: "raw_note",
+      attributes: {},
+      embedding_text: "DF-0919-06 (a): explicit non-default namespace",
+      namespace: nsName,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.namespace).toBe(nsName);
+    expect(result.warning).toBeUndefined();
+  });
+
+  it("(a2) an explicit namespace equal to the STICKY active namespace also produces NO warning", async () => {
+    // Distinguishes "arg was provided" from "resolved == active": an
+    // implementation gating on `resolvedNamespace !== config.defaultNamespace`
+    // would warn here even though the caller named the namespace.
+    const nsName = "df0919-explicit-sticky";
+    await createScratchNamespace(nsName);
+    const switched = await switchNamespaceTool({ name: nsName });
+    expect(switched.success).toBe(true);
+
+    const result = await rememberTool({
+      key: "/scratch/df0919-a2",
+      domain: "raw_note",
+      attributes: {},
+      embedding_text: "DF-0919-06 (a2): explicit arg == sticky active",
+      namespace: nsName,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.namespace).toBe(nsName);
+    expect(result.warning).toBeUndefined();
+  });
+
+  it("(b) an OMITTED namespace with a non-default sticky active namespace DOES warn", async () => {
+    const nsName = "df0919-sticky";
+    await createScratchNamespace(nsName);
+    const switched = await switchNamespaceTool({ name: nsName });
+    expect(switched.success).toBe(true);
+
+    const result = await rememberTool({
+      key: "/scratch/df0919-b",
+      domain: "raw_note",
+      attributes: {},
+      embedding_text: "DF-0919-06 (b): omitted arg, sticky non-default",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.namespace).toBe(nsName);
+    // Text deliberately unchanged from DOGFOOD-017 — only the trigger narrowed.
+    expect(result.warning).toBe(
+      `Memory written to namespace '${nsName}', not 'default'. The active namespace is sticky across processes — pass namespace explicitly to control where writes land.`,
+    );
+  });
+
+  it("(c) an explicit namespace='default' produces NO warning", async () => {
+    const result = await rememberTool({
+      key: "/scratch/df0919-c",
+      domain: "raw_note",
+      attributes: {},
+      embedding_text: "DF-0919-06 (c): explicit default namespace",
+      namespace: "default",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.namespace).toBe("default");
+    expect(result.warning).toBeUndefined();
   });
 });
