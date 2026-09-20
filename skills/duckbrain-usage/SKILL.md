@@ -29,7 +29,7 @@ REST API, CLI, Web UI**.
 |---|---|---|
 | HTTP daemon | `node bin/duckbrain.js http --port 3000 --auth=apikey` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported; auth REQUIRED on hardened deployments — every request sends `-H 'X-API-Key: <token>'` (401 without it); mint tokens with `duckbrain token --namespace=<ns>` |
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
-| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3 |
+| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
 | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
@@ -124,6 +124,45 @@ The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
   as of a git ref or ISO date.
 - **`duckbrain recall --attr=<name>=<value>`** (repeatable) — filter rows by
   attribute, e.g. `--attr=domain=config --attr=tick=403`.
+
+## Daily consolidation (`duckbrain consolidate`, CONSOLIDATE-001)
+
+Cross-namespace daily pass — verified against `consolidate --help` and a
+live dry run:
+
+- **`duckbrain consolidate [--date=YYYY-MM-DD]`** — scans the target UTC
+  day's JSONL deltas across every namespace under `namespaces/` (only the
+  target month's partition is read per namespace), dedupes repeated content
+  (content-hash of `embedding_text`), and prints per-namespace
+  `rows | unique | duplicates` stats plus capped `HH:MM author: text`
+  previews, then a digest block. `--date` defaults to **yesterday UTC**;
+  an invalid day (`2026-02-30`) exits 1 with a usage line.
+- **`--write-digest`** — POST the digest to the DuckBrain HTTP API as a
+  memory in namespace `duckbrain` (key
+  `/project/duckbrain/digest/<date>`, domain `config`). Requires
+  `DUCKBRAIN_API_KEY` — and is ALSO triggered implicitly whenever
+  `DUCKBRAIN_API_KEY` is set in the environment. Without it the command is
+  read-only: the digest prints under a `# digest (dry-run — …)` line and
+  nothing is written.
+- **`--digest-content=FILE`** — use FILE's text as the digest content
+  instead of the auto-built digest (the cron agent's summarized version).
+- **`--help, -h`** — full usage. Environment: `DUCKBRAIN_API_KEY`
+  (X-API-Key for the digest write), `DUCKBRAIN_API_URL` (default
+  `http://127.0.0.1:3000`).
+
+⚠ Running with `DUCKBRAIN_API_KEY` exported flips the command into write
+mode even without `--write-digest` — unset it when you want a dry run.
+
+Real dry run in this repo (empty store — 0 namespaces with deltas):
+
+```bash
+$ env -u DUCKBRAIN_API_KEY node bin/duckbrain.js consolidate
+# duckbrain consolidate 2026-09-19 (UTC): 0 namespace(s) with deltas, 0 delta rows (0 unique, 0 duplicates)
+# digest (dry-run — set DUCKBRAIN_API_KEY or pass --write-digest to post):
+# duckbrain consolidate digest 2026-09-19 (UTC)
+namespaces scanned: 0
+total delta rows: 0 (0 unique, 0 duplicates)
+```
 
 ## Realtime change feed (SUPA-5)
 

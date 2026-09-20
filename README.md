@@ -160,6 +160,15 @@ cd packages/ui
 pnpm run dev
 ```
 
+### Daily consolidation digest
+
+`duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block. Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
+
+```bash
+duckbrain consolidate --date=2026-09-19     # read-only: digest to stdout
+duckbrain consolidate --write-digest        # requires DUCKBRAIN_API_KEY
+```
+
 ### Remote Access over SSH
 
 DuckBrain can be reached through an SSH tunnel. Run the dry pre-flight `duckbrain ssh-test --host=<user@server>` first — it opens no connection and prints the exact remote command plus a ready-to-paste Claude Desktop MCP entry; `ssh-connect` then creates the local socket-backed tunnel:
