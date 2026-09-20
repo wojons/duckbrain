@@ -1711,5 +1711,6 @@ tasks:
     stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live
     re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially
     lower wall time than the 28-40s baseline, documented in the tick event.'
-  status: in_progress
+  status: complete
   created_at: '2026-09-20T13:43:11.320986+00:00'
+  completed_at: '2026-09-20T14:00:11.774572+00:00'

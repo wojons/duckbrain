@@ -1,0 +1,99 @@
+{
+  "task_id": "OPS-008",
+  "task_title": "OPS-008 semantic recall latency: bound on-the-fly embedding concurrency so a cache-miss ?q= stays inside the 30s budget",
+  "task_criteria": [
+    "Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "2a1ef70851a9e6dc92857e88c2766f4384bf0f05",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:30AM INF scanned ~9327528 bytes (9.33 MB) in 1.77s\n9:30AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 200601 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  160 passed (160)\n      Tests  1275 passed (1275)\n   Start at  09:30:46\n   Duration  57.01s (tests 79%, import 18%, transform 2%, setup 1%)\n\n    Isolate  160 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~3.87s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1: src/embedding/search.ts (commit d544776) splits the scan into Pass1 cache-resolve (collects misses, deduped by contentHash, cap counts unique misses) and Pass2 bounded worker pool: `const embedConcurrency = Math.max(1, opts.embedConcurrency ?? DEFAULT_EMBED_CONCURRENCY)` (default 4), shared `nextIdx`, `worker()` while-loop, `await Promise.all(Array.from({ length: embedConcurrency }, worker))`. This is the exact rebuild.ts shape (rebuild.ts:101 `Math.max(1, opts.concurrency ?? 4)`, :124 worker, :156 Promise.all). No serial await remains in the scan loop. AC2: test 'warm cache: scores and order are unchanged by the pooling refactor' asserts 0 provider calls, order a/b/c, scores 1 / sqrt(1/2) / 0; minScore floor logic preserved verbatim (`if (score >= minScore)`, inclusive); 'cachedOnly performs zero provider calls' passes. AC3: src/embedding/search-concurrency.test.ts (10 tests) \u2014 'embeds cache misses concurrently: max in-flight > 1 and <= concurrency' (K=8,C=4: maxInFlight>1 && <=4), 'honors embedConcurrency exactly', 'isolates a failing embed: siblings still rank, the failure is not cached' (failOn text-2 -> c0,c1,c3,c4 ranked, all 5 attempted, text-0 cached), 'pooled wall time tracks ceil(misses/concurrency) x RTT' (K=8,C=4,LAT=100 -> elapsed < 500ms budget vs 800ms serial floor). AC4: `npx vitest run` -> 'Test Files 160 passed (160)', 'Tests 1275 passed (1275)'; `npx tsc --noEmit` exit 0; `npx prettier --check src/embedding/search.ts src/embedding/search-concurrency.test.ts src/mcp/tools/recall.ts` -> 'All matched files use Prettier code style!' exit 0. AC5: .coding-hermes/board/events.jsonl event 581 (task_id OPS-008, tick 579) documents the post-fix live re-measure of authed GET /api/memories?namespace=duckbrain&q=... on the daemon running d544776: 0.567-1.586s across 4 runs plus fresh-query probes, worst 3.78s vs the 28-40s baseline band, 'the 30s-budget 500s are gone'.\nAll five acceptance criteria are met: search.ts now embeds cache misses through a bounded worker pool mirroring rebuild.ts, warm-cache behaviour is unchanged, the 10-test regression suite proves concurrency>1 and failure isolation, the full suite (160 files/1275 tests) + tsc + prettier are clean, and the AC5 live re-measure (0.57-3.78s vs 28-40s baseline) is documented in tick event 581.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1: src/embedding/search.ts (commit d544776) splits the scan into Pass1 cache-resolve (collects misses, deduped by contentHash, cap counts unique misses) and Pass2 bounded worker pool: `const embedConcurrency = Math.max(1, opts.embedConcurrency ?? DEFAULT_EMBED_CONCURRENCY)` (default 4), shared `nextIdx`, `worker()` while-loop, `await Promise.all(Array.from({ length: embedConcurrency }, worker))`. This is the exact rebuild.ts shape (rebuild.ts:101 `Math.max(1, opts.concurrency ?? 4)`, :124 worker, :156 Promise.all). No serial await remains in the scan loop. AC2: test 'warm cache: scores and order are unchanged by the pooling refactor' asserts 0 provider calls, order a/b/c, scores 1 / sqrt(1/2) / 0; minScore floor logic preserved verbatim (`if (score >= minScore)`, inclusive); 'cachedOnly performs zero provider calls' passes. AC3: src/embedding/search-concurrency.test.ts (10 tests) \u2014 'embeds cache misses concurrently: max in-flight > 1 and <= concurrency' (K=8,C=4: maxInFlight>1 && <=4), 'honors embedConcurrency exactly', 'isolates a failing embed: siblings still rank, the failure is not cached' (failOn text-2 -> c0,c1,c3,c4 ranked, all 5 attempted, text-0 cached), 'pooled wall time tracks ceil(misses/concurrency) x RTT' (K=8,C=4,LAT=100 -> elapsed < 500ms budget vs 800ms serial floor). AC4: `npx vitest run` -> 'Test Files 160 passed (160)', 'Tests 1275 passed (1275)'; `npx tsc --noEmit` exit 0; `npx prettier --check src/embedding/search.ts src/embedding/search-concurrency.test.ts src/mcp/tools/recall.ts` -> 'All matched files use Prettier code style!' exit 0. AC5: .coding-hermes/board/events.jsonl event 581 (task_id OPS-008, tick 579) documents the post-fix live re-measure of authed GET /api/memories?namespace=duckbrain&q=... on the daemon running d544776: 0.567-1.586s across 4 runs plus fresh-query probes, worst 3.78s vs the 28-40s baseline band, 'the 30s-budget 500s are gone'.\nAll five acceptance criteria are met: search.ts now embeds cache misses through a bounded worker pool mirroring rebuild.ts, warm-cache behaviour is unchanged, the 10-test regression suite proves concurrency>1 and failure isolation, the full suite (160 files/1275 tests) + tsc + prettier are clean, and the AC5 live re-measure (0.57-3.78s vs 28-40s baseline) is documented in tick event 581.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.",
+                "status": "PASS",
+                "detail": "AC1: src/embedding/search.ts (commit d544776) splits the scan into Pass1 cache-resolve (collects misses, deduped by contentHash, cap counts unique misses) and Pass2 bounded worker pool: `const embedConcurrency = Math.max(1, opts.embedConcurrency ?? DEFAULT_EMBED_CONCURRENCY)` (default 4), shared `nextIdx`, `worker()` while-loop, `await Promise.all(Array.from({ length: embedConcurrency }, worker))`. This is the exact rebuild.ts shape (rebuild.ts:101 `Math.max(1, opts.concurrency ?? 4)`, :124 worker, :156 Promise.all). No serial await remains in the scan loop. AC2: test 'warm cache: scores and order are unchanged by the pooling refactor' asserts 0 provider calls, order a/b/c, scores 1 / sqrt(1/2) / 0; minScore floor logic preserved verbatim (`if (score >= minScore)`, inclusive); 'cachedOnly performs zero provider calls' passes. AC3: src/embedding/search-concurrency.test.ts (10 tests) \u2014 'embeds cache misses concurrently: max in-flight > 1 and <= concurrency' (K=8,C=4: maxInFlight>1 && <=4), 'honors embedConcurrency exactly', 'isolates a failing embed: siblings still rank, the failure is not cached' (failOn text-2 -> c0,c1,c3,c4 ranked, all 5 attempted, text-0 cached), 'pooled wall time tracks ceil(misses/concurrency) x RTT' (K=8,C=4,LAT=100 -> elapsed < 500ms budget vs 800ms serial floor). AC4: `npx vitest run` -> 'Test Files 160 passed (160)', 'Tests 1275 passed (1275)'; `npx tsc --noEmit` exit 0; `npx prettier --check src/embedding/search.ts src/embedding/search-concurrency.test.ts src/mcp/tools/recall.ts` -> 'All matched files use Prettier code style!' exit 0. AC5: .coding-hermes/board/events.jsonl event 581 (task_id OPS-008, tick 579) documents the post-fix live re-measure of authed GET /api/memories?namespace=duckbrain&q=... on the daemon running d544776: 0.567-1.586s across 4 runs plus fresh-query probes, worst 3.78s vs the 28-40s baseline band, 'the 30s-budget 500s are gone'."
+              }
+            ],
+            "summary": "All five acceptance criteria are met: search.ts now embeds cache misses through a bounded worker pool mirroring rebuild.ts, warm-cache behaviour is unchanged, the 10-test regression suite proves concurrency>1 and failure isolation, the full suite (160 files/1275 tests) + tsc + prettier are clean, and the AC5 live re-measure (0.57-3.78s vs 28-40s baseline) is documented in tick event 581."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-008\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1: src/embedding/search.ts (commit d544776) splits the scan into Pass1 cache-resolve (collects misses, deduped by contentHash, cap counts unique misses) and Pass2 bounded worker pool: `const embedConcurrency = Math.max(1, opts.embedConcurrency ?? DEFAULT_EMBED_CONCURRENCY)` (default 4), shared `nextIdx`, `worker()` while-loop, `await Promise.all(Array.from({ length: embedConcurrency }, worker))`. This is the exact rebuild.ts shape (rebuild.ts:101 `Math.max(1, opts.concurrency ?? 4)`, :124 worker, :156 Promise.all). No serial await remains in the scan loop. AC2: test 'warm cache: scores and order are unchanged by the pooling refactor' asserts 0 provider calls, order a/b/c, scores 1 / sqrt(1/2) / 0; minScore floor logic preserved verbatim (`if (score >= minScore)`, inclusive); 'cachedOnly performs zero provider calls' passes. AC3: src/embedding/search-concurrency.test.ts (10 tests) \u2014 'embeds cache misses concurrently: max in-flight > 1 and <= concurrency' (K=8,C=4: maxInFlight>1 && <=4), 'honors embedConcurrency exactly', 'isolates a failing embed: siblings still rank, the failure is not cached' (failOn text-2 -> c0,c1,c3,c4 ranked, all 5 attempted, text-0 cached), 'pooled wall time tracks ceil(misses/concurrency) x RTT' (K=8,C=4,LAT=100 -> elapsed < 500ms budget vs 800ms serial floor). AC4: `npx vitest run` -> 'Test Files 160 passed (160)', 'Tests 1275 passed (1275)'; `npx tsc --noEmit` exit 0; `npx prettier --check src/embedding/search.ts src/embedding/search-concurrency.test.ts src/mcp/tools/recall.ts` -> 'All matched files use Prettier code style!' exit 0. AC5: .coding-hermes/board/events.jsonl event 581 (task_id OPS-008, tick 579) documents the post-fix live re-measure of authed GET /api/memories?namespace=duckbrain&q=... on the daemon running d544776: 0.567-1.586s across 4 runs plus fresh-query probes, worst 3.78s vs the 28-40s baseline band, 'the 30s-budget 500s are gone'.\nAll five acceptance criteria are met: search.ts now embeds cache misses through a bounded worker pool mirroring rebuild.ts, warm-cache behaviour is unchanged, the 10-test regression suite proves concurrency>1 and failure isolation, the full suite (160 files/1275 tests) + tsc + prettier are clean, and the AC5 live re-measure (0.57-3.78s vs 28-40s baseline) is documented in tick event 581.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T14:41:01.904861",
+  "evidence": {
+    "collected_at": "2026-09-20T14:41:01.917475+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 47942,
+        "truncated": false,
+        "source": "git show 2a1ef70851a9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 567,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "OPS-008"
+  }
+}
