@@ -200,6 +200,10 @@ describe("CLI-WAIT-001: remember --wait commits before exit", () => {
   }, 60_000);
 
   it("writes nothing into the repo's real namespaces/ root", async () => {
+    // Fresh clones / CI runners have no namespaces/ dir at all (gitignored,
+    // created lazily by the daemon) — nothing to leak into, so the check is
+    // vacuously satisfied there. This box HAS the dir (live daemon).
+    if (!fs.existsSync(REPO_NAMESPACES_DIR)) return;
     const leaked = fs
       .readdirSync(REPO_NAMESPACES_DIR, { withFileTypes: true })
       .filter((e) => e.isDirectory() && e.name.startsWith("cliwait001"))
