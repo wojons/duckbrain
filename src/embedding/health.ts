@@ -146,6 +146,23 @@ function normBase(base: string | undefined, fallback: string): string {
 }
 
 /**
+ * DF-0919-04: is this provider CONFIGURED (an active candidate for the
+ * aggregate)? A provider with no credentials configured is not an active
+ * provider — it must not drag /health's aggregate to degraded.
+ *
+ *   - openai: configured iff an apiKey is present in the resolved config
+ *     (env DUCKBRAIN_EMBEDDING_API_KEY / config file / explicit param);
+ *   - lmstudio / ollama: local providers — always configured.
+ */
+function providerConfigured(
+  id: string,
+  cfg: Required<EmbeddingConfig>,
+): boolean {
+  if (id === "openai") return cfg.apiKey !== "";
+  return true;
+}
+
+/**
  * When isHealthy() returned false (without throwing), classify the failure so
  * the note says WHY: missing key, unreachable, HTTP error, or a capability
  * gate. One extra cheap fetch per unhealthy provider, only on cold checks
@@ -155,7 +172,11 @@ async function classifyUnhealthy(
   id: string,
   cfg: Required<EmbeddingConfig>,
 ): Promise<string> {
-  if (id === "openai") {
+  // DF-0919-04: the missing-key note is only honest for an UNCONFIGURED
+  // provider. A configured openai that fails its gate must never be told
+  // "missing API key" — classify it like any other provider instead of
+  // trusting the gate's current implementation to have caught that case.
+  if (id === "openai" && !providerConfigured(id, cfg)) {
     return "missing API key (DUCKBRAIN_EMBEDDING_API_KEY)";
   }
   const url =
@@ -298,6 +319,16 @@ export async function probeEmbeddingHealth(
     }
   }
 
+  // DF-0919-04: the aggregate is computed over CONFIGURED (active) providers
+  // only. `winner` is set exclusively by a real embed probe on a provider
+  // that passed its cheap gate — and a gate can only pass for a CONFIGURED
+  // provider (providers.ts isHealthy: openai requires an apiKey; lmstudio /
+  // ollama are local and always configured). A keyless provider therefore
+  // appears in providers[] with healthy:false + its note (operator
+  // visibility) but can never decide `healthy`: it is not an active provider
+  // and must not drag /health to degraded. A CONFIGURED provider that fails
+  // (timeout, HTTP error, capability gate) still keeps the aggregate
+  // unhealthy — the DOGFOOD-020 false-green protection is unchanged.
   return {
     provider: winner,
     model: resolved.model,
