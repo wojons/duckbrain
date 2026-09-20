@@ -469,6 +469,42 @@ export function flushNamespaceCommit(namespacePath: string): void {
 }
 
 /**
+ * CLI-WAIT-001: flush THIS namespace's debounce window, then resolve when its
+ * async commit+push chain has settled.
+ *
+ * `remember --wait` promises the caller that the git commit has landed by the
+ * time the process exits. The debounced branch of commitNamespaceWithParams
+ * returns an already-resolved promise (the window is opened, nothing runs
+ * yet), so a plain `await commitNamespace(...)` proves nothing — and the
+ * process 'exit' flush (flushAllCommits) runs AFTER 'await' points, too late
+ * to observe. This is the CLI-legal primitive: synchronous
+ * flushNamespaceCommit forces the window NOW (exit-path-only helper, zero
+ * serving-path use), then the seen-loop resolves once the namespace's
+ * in-flight chain finishes — the same settle-detection drainAsyncCommits
+ * uses, scoped to one namespace and with NO time budget (the caller is a
+ * CLI exit, and git work is already bounded by execFile timeouts in
+ * asyncCommit).
+ */
+export async function waitForNamespaceCommit(
+  namespacePath: string,
+): Promise<void> {
+  flushNamespaceCommit(namespacePath);
+  // Settle detection, drainAsyncCommits-style but scoped to one namespace:
+  // await the CURRENT chain; after it settles, re-check — a chain we have
+  // already awaited (or an empty map) ends the loop, so a concurrent writer
+  // that scheduled one follow-up commit during the wait is covered and the
+  // loop still terminates. NO time budget: the caller is a CLI exit path and
+  // git work is already bounded by execFile timeouts in asyncCommit.
+  const seen: Promise<void>[] = [];
+  for (;;) {
+    const current = asyncChains.get(namespacePath);
+    if (!current || seen.includes(current)) return;
+    seen.push(current);
+    await Promise.allSettled([current]);
+  }
+}
+
+/**
  * Flush every pending debounce window (e.g. on graceful shutdown).
  *
  * OPS-006: synchronous by design — see flushNamespaceCommit. The shutdown path

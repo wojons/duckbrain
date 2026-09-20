@@ -43,6 +43,7 @@ import {
 import { createTunnel, listTunnels } from "../ssh/tunnel";
 import { resolveAuthStorePath } from "./http";
 import { hashApiKey } from "../auth/storeSchema";
+import { waitForNamespaceCommit } from "../git/autocommit";
 import { execSync } from "child_process";
 import http from "http";
 import fs from "fs";
@@ -277,9 +278,37 @@ async function rememberCommand(args: string[]): Promise<void> {
     });
 
     if (result.success) {
-      console.log(
-        `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
-      );
+      // CLI-WAIT-001: --wait previously advertised a guarantee it did not
+      // provide — the flag was parsed and silently ignored, and the row
+      // always reported "will be committed in batch" (the commit landing
+      // only via the process-exit flush, invisible to the caller). With
+      // --wait we flush the namespace's debounce window NOW and resolve
+      // when its async commit(+push) chain has settled, so the caller can
+      // immediately git-verify. Without the flag the legacy buffered
+      // behavior is byte-identical.
+      if (flags.wait) {
+        try {
+          await waitForNamespaceCommit(resolveNamespacePath(namespace));
+          console.log(
+            `✓ Remembered ${key} (ID: ${result.id}) - committed to git (namespace: ${namespace})`,
+          );
+        } catch (error) {
+          // Waiting must never turn a successful write into a failure —
+          // the row is already durable. Report and keep exit 0.
+          console.warn(
+            `[Git] Auto-commit warning for ${namespace}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+          console.log(
+            `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
+          );
+        }
+      } else {
+        console.log(
+          `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
+        );
+      }
     } else {
       console.error("✗ Failed to remember:", result.error);
       process.exit(1);
