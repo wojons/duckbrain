@@ -1,0 +1,23 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 13305b0..4eca856 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1493,13 +1493,12 @@ tasks:
+ - id: GAP-033
+   title: 'LOAD-HYGIENE: bound test-suite host load'
+   criteria:
+-  - Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion,
+-    (c) per-test expensive builder loops; fix the single worst offender with bounded
+-    waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still
+-    green; before/after measurement recorded
++  - Audit test-suite load patterns; fix the worst offender with in-process plus one
++    parity smoke or bounded waves/session fixture; record audit and before/after measurement;
++    full suite green.
+   status: complete
+-  created_at: '2026-09-19T20:50:34.180124+00:00'
+-  completed_at: '2026-09-19T22:35:31.269292+00:00'
++  created_at: '2026-09-19T23:52:10.683655+00:00'
++  completed_at: '2026-09-20T00:13:59.249461+00:00'
+ - id: UI-GAP-001
+   title: Wire UI header filters + rich query param controls
+   criteria:

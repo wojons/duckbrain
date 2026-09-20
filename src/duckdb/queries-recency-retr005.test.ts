@@ -53,7 +53,9 @@ function memory(
 
 describe("RETR-005: recency-aware listing — queryMemories", () => {
   let db: any;
-  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-recency-"));
+  const testPartition = fs.mkdtempSync(
+    path.join(os.tmpdir(), "test-memory-recency-"),
+  );
 
   beforeAll(async () => {
     db = await initDuckDB(":memory:");

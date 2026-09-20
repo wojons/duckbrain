@@ -50,7 +50,9 @@ function memory(
 
 describe("RETR-003: time-scoped recall — queryMemories/countMemories", () => {
   let db: any;
-  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-timerange-"));
+  const testPartition = fs.mkdtempSync(
+    path.join(os.tmpdir(), "test-memory-timerange-"),
+  );
 
   beforeEach(async () => {
     db = await initDuckDB(":memory:");

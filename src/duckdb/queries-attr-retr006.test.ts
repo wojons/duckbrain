@@ -56,7 +56,9 @@ function memory(
 
 describe("RETR-006: attribute filters — queryMemories/countMemories", () => {
   let db: any;
-  const testPartition = fs.mkdtempSync(path.join(os.tmpdir(), "test-memory-attr-"));
+  const testPartition = fs.mkdtempSync(
+    path.join(os.tmpdir(), "test-memory-attr-"),
+  );
 
   beforeEach(async () => {
     db = await initDuckDB(":memory:");
