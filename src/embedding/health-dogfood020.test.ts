@@ -17,6 +17,10 @@
  *  - explicit provider config probes ONLY that provider
  *  - 30s in-process TTL cache: no second probe within TTL; re-probe after
  *    expiry
+ *  - DF-0919-04: an UNCONFIGURED (keyless) provider is not an active
+ *    provider — it still appears in providers[] with healthy:false and its
+ *    note, but it never drags the aggregate to degraded; a CONFIGURED
+ *    provider that fails (timeout/error class) still does
  *
  * Hermetic: fetch is stubbed globally; the config FILE is redirected to a
  * fresh temp dir by src/test-setup.ts (DUCKBRAIN_CONFIG_PATH) and env is
@@ -330,6 +334,120 @@ describe("probeEmbeddingHealth (DOGFOOD-020)", () => {
     const result = await probeEmbeddingHealth({ provider: "openai" });
 
     // openai's gate is config-only: no key → classified note, zero fetches.
+    expect(result.healthy).toBe(false);
+    expect(result.providers).toEqual([
+      {
+        id: "openai",
+        healthy: false,
+        note: "missing API key (DUCKBRAIN_EMBEDDING_API_KEY)",
+      },
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * DF-0919-04: an UNCONFIGURED provider (no API key in env/config, for the
+ * key-requiring providers) is not an ACTIVE provider — it must never drag the
+ * aggregate to degraded. The aggregate (`healthy`, and therefore /health's
+ * degraded/503 status via src/cli/http.ts) is computed over CONFIGURED
+ * providers only; the keyless provider still appears in providers[] with
+ * healthy:false and its note so operators keep full visibility.
+ *
+ * "Configured" here (from src/embedding/providers.ts):
+ *   - openai: an apiKey is present in the resolved config (env
+ *     DUCKBRAIN_EMBEDDING_API_KEY / config file / explicit param);
+ *   - lmstudio / ollama: local providers — always configured.
+ */
+describe("DF-0919-04: keyless providers never degrade the aggregate", () => {
+  beforeEach(() => {
+    // Hermeticity: the "env overrides the config FILE provider" test earlier
+    // in this file writes embedding.provider/model into the shared
+    // (DUCKBRAIN_CONFIG_PATH-redirected) config file and it persists for the
+    // rest of the run. Pin the env layer (which beats the file in
+    // resolveHealthConfig) so this block always probes the full auto set.
+    process.env.DUCKBRAIN_EMBEDDING_PROVIDER = "auto";
+  });
+
+  it("keyless openai + healthy lmstudio → aggregate healthy (not degraded)", async () => {
+    const fetchMock = healthyFetch(); // lmstudio answers /models + /embeddings
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await probeEmbeddingHealth();
+
+    // lmstudio passed a real embed probe — the aggregate is healthy even
+    // though keyless openai reports "missing API key".
+    expect(result.healthy).toBe(true);
+    expect(result.provider).toBe("lmstudio");
+    expect(result.providers.map((p) => p.id)).toEqual([
+      "lmstudio",
+      "ollama",
+      "openai",
+    ]);
+  });
+
+  it("keyless openai alone (everything local down) stays UNHEALTHY — not active, not degraded-by-proxy", async () => {
+    // No local provider answers; openai has no key. Aggregate must stay
+    // unhealthy (no embed probe succeeded anywhere) — the fix never fakes a
+    // green, it only stops unconfigured providers from being counted as
+    // active failures.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    );
+
+    const result = await probeEmbeddingHealth();
+
+    expect(result.healthy).toBe(false);
+    expect(result.provider).toBe("");
+  });
+
+  it("a CONFIGURED openai (key set) failing its embed probe still degrades the aggregate", async () => {
+    // lmstudio down; openai HAS a key (configured → active) and its embed
+    // probe fails with a genuine error class — the aggregate must degrade.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("localhost:1234")) throw new TypeError("fetch failed");
+        // openai's gate is config-only (key present → cheap pass); the embed
+        // probe then hits the embeddings route and fails hard.
+        if (url.includes("api.openai.com/v1/embeddings"))
+          return httpResponse({ status: 500, text: "upstream exploded" });
+        return httpResponse({ status: 404 });
+      }),
+    );
+    process.env.DUCKBRAIN_EMBEDDING_API_KEY = "sk-test-key-0919";
+
+    const result = await probeEmbeddingHealth();
+
+    expect(result.healthy).toBe(false);
+    expect(result.provider).toBe("");
+    const openai = result.providers.find((p) => p.id === "openai");
+    expect(openai?.healthy).toBe(false);
+    expect(openai?.note).toMatch(/embed HTTP 500/);
+  });
+
+  it("providers[] still lists the keyless provider with healthy:false and its note (operator visibility)", async () => {
+    vi.stubGlobal("fetch", healthyFetch());
+
+    const result = await probeEmbeddingHealth();
+
+    const openai = result.providers.find((p) => p.id === "openai");
+    expect(openai).toEqual({
+      id: "openai",
+      healthy: false,
+      note: "missing API key (DUCKBRAIN_EMBEDDING_API_KEY)",
+    });
+    // And the aggregate ignores it: healthy despite openai's false.
+    expect(result.healthy).toBe(true);
+  });
+
+  it("keyless openai alone with an EXPLICIT provider pin stays unhealthy (hard requirement)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await probeEmbeddingHealth({ provider: "openai" });
+
     expect(result.healthy).toBe(false);
     expect(result.providers).toEqual([
       {
