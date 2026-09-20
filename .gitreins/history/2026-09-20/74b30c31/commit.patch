@@ -1,0 +1,49 @@
+commit 8e3d1f2d710297fda70cf9f76852919786287afa
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 20 00:51:04 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 20 00:51:04 2026 -0500
+
+    chore(format): prettier --write search-gap054-stale-sidecar.test.ts — pre-existing drift from an earlier tick, flagged by the OPS-012 gate (#505 class)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/search/search-gap054-stale-sidecar.test.ts | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/src/search/search-gap054-stale-sidecar.test.ts b/src/search/search-gap054-stale-sidecar.test.ts
+index c89594a..c0a492b 100644
+--- a/src/search/search-gap054-stale-sidecar.test.ts
++++ b/src/search/search-gap054-stale-sidecar.test.ts
+@@ -52,8 +52,18 @@ function writeNamespace(): void {
+   fs.writeFileSync(
+     path.join(partition, "current.jsonl"),
+     [
+-      mem("s1", "/stale/one", "stale sidecar durability probe", "2026-08-01T00:00:00.000Z"),
+-      mem("s2", "/stale/two", "another stale sidecar row", "2026-08-02T00:00:00.000Z"),
++      mem(
++        "s1",
++        "/stale/one",
++        "stale sidecar durability probe",
++        "2026-08-01T00:00:00.000Z",
++      ),
++      mem(
++        "s2",
++        "/stale/two",
++        "another stale sidecar row",
++        "2026-08-02T00:00:00.000Z",
++      ),
+     ].join("\n") + "\n",
+     "utf8",
+   );
+@@ -112,7 +122,9 @@ describe("GAP-054: pre-RETR-011 sidecar (missing validity columns)", () => {
+   it("the sidecar really is missing the validity columns (fixture sanity)", async () => {
+     const dbPath = indexDbPath(NS);
+     const cols: string[] = await new Promise((resolve, reject) => {
+-      const db = new duckdb.Database(dbPath, { access_mode: "READ_ONLY" } as any);
++      const db = new duckdb.Database(dbPath, {
++        access_mode: "READ_ONLY",
++      } as any);
+       db.all("PRAGMA table_info(memories)", (e: any, rows: any[]) =>
+         e ? reject(e) : resolve(rows.map((r: any) => String(r.name))),
+       );

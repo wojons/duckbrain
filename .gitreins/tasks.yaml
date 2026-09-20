@@ -1600,3 +1600,22 @@ tasks:
   status: complete
   created_at: '2026-09-20T03:11:24.528807+00:00'
   completed_at: '2026-09-20T04:50:38.714506+00:00'
+- id: OPS-012
+  title: In-daemon duplicate-bundle self-heal for s3 autopush (S3-GIT-004 repair moved
+    into the layer that races)
+  criteria:
+  - src/git/s3-repair.ts faithfully ports repair_duplicate_bundles from scripts/s3/duckbrain-s3-push.sh
+    (parse s3:// remote URL to bucket+prefix, list <prefix>/refs/heads/<branch>/ *.bundle
+    objects excluding LOCK#/PROTECTED#/.zip//LOCKS//.lock, keeper=local-tip-sha else
+    newest LastModified, skip stale sha absent from local repo via git cat-file -e,
+    quarantine server-side copy to quarantine/git/<ns>/<branch>/<sha>.bundle with
+    HeadObject size verify BEFORE delete, re-list assert, never throws) AND pushNamespaceAsync
+    in src/git/autocommit.ts runs that repair + retries the push exactly once when
+    the push fails with the duplicate-ref signature (matches more than one) on an
+    s3:// remote, happy path unchanged AND hermetic tests (stubbed S3 client + scratch
+    git repos, no network/daemon) cover keeper selection, stale-skip, size-mismatch
+    no-delete, non-s3 no-op, and signature mismatch no-repair AND npx tsc --noEmit
+    clean AND npx prettier --check src/ clean
+  status: complete
+  created_at: '2026-09-20T05:30:34.922767+00:00'
+  completed_at: '2026-09-20T05:51:21.332596+00:00'
