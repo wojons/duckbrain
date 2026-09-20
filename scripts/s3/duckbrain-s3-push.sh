@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Core DuckBrain → Hetzner S3 git push (awslabs/git-remote-s3)
-# Usage: duckbrain-s3-push.sh <subprefix> <remote-name>
-#   daily:  duckbrain-s3-push.sh current/git   s3daily   → s3://duckbrain/current/git/<ns>
-#   weekly: duckbrain-s3-push.sh archives/git  s3weekly  → s3://duckbrain/archives/git/<ns>
+# Usage: duckbrain-s3-push.sh [--ns-root <dir>] <subprefix> <remote-name>
+#   daily:   duckbrain-s3-push.sh current/git   s3daily   → s3://duckbrain/current/git/<ns>
+#   weekly:  duckbrain-s3-push.sh archives/git  s3weekly  → s3://duckbrain/archives/git/<ns>
+#   scratch: duckbrain-s3-push.sh --ns-root /path/to/namespaces current/git s3daily
+# --ns-root <dir> (S3-SCOPE-001, optional) walks <dir> instead of the production
+#   namespaces root — for a non-standard deployment that owns a different root.
+#   Default behaviour is unchanged: with no flag the production default below is
+#   what gets walked, and the flag is the only way a non-standard root is used
+#   (it takes precedence over DUCKBRAIN_S3_NS_ROOT).
 # Pushes EVERY namespace repo (full git history) as an S3 git remote.
 # Storage: each ref = <prefix>/<ref>/<sha>.bundle; unchanged repos = no-op
 # ("Everything up-to-date" — helper not invoked). Restore anywhere:
@@ -47,7 +53,8 @@
 #   either mechanism.
 #
 # Env overrides (each defaults to the production value):
-#   DUCKBRAIN_S3_NS_ROOT       (default $HOME/duckbrain/namespaces)
+#   DUCKBRAIN_S3_NS_ROOT       (default $HOME/duckbrain/namespaces; the
+#     --ns-root flag overrides it)
 #   DUCKBRAIN_S3_STATE_DIR     (default $HOME/.hermes/state)
 #   DUCKBRAIN_S3_LOG_DIR       (default $HOME/.hermes/backups)
 #   DUCKBRAIN_S3_URL_TEMPLATE  (default s3://${BUCKET}/${PREFIX}/${name})
@@ -65,12 +72,45 @@ export AWS_PROFILE="duckbrain"
 export AWS_ENDPOINT_URL="https://hel1.your-objectstorage.com"
 export AWS_DEFAULT_REGION="us-east-1"
 BUCKET="duckbrain"
-SUBPREFIX="${1:?usage: duckbrain-s3-push.sh <subprefix> <remote-name>}"
-REMOTE_NAME="${2:?usage: duckbrain-s3-push.sh <subprefix> <remote-name>}"
+# S3-SCOPE-001: optional --ns-root <dir> selects a non-standard namespaces root.
+# Parsed BEFORE the positional args and rejected loudly (rather than ignored) on a
+# malformed use, so a typo can never silently push the production root.
+NS_ROOT_OVERRIDE=""; NS_ROOT_SET=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --ns-root)
+      if [ "$#" -lt 2 ]; then
+        echo "FAIL: --ns-root requires a directory argument" >&2
+        exit 2
+      fi
+      NS_ROOT_OVERRIDE="$2"; NS_ROOT_SET=1; shift 2
+      ;;
+    --ns-root=*)
+      NS_ROOT_OVERRIDE="${1#--ns-root=}"; NS_ROOT_SET=1; shift
+      ;;
+    --)
+      shift; break
+      ;;
+    -*)
+      echo "FAIL: unknown option: $1" >&2
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+if [ "$NS_ROOT_SET" = "1" ] && [ -z "$NS_ROOT_OVERRIDE" ]; then
+  # An empty value would make the walked root "/" below — refuse instead.
+  echo "FAIL: --ns-root requires a non-empty directory argument" >&2
+  exit 2
+fi
+SUBPREFIX="${1:?usage: duckbrain-s3-push.sh [--ns-root <dir>] <subprefix> <remote-name>}"
+REMOTE_NAME="${2:?usage: duckbrain-s3-push.sh [--ns-root <dir>] <subprefix> <remote-name>}"
 PREFIX="${SUBPREFIX}"
 
 # ---- configurable roots (defaults == production values) --------------------
-NS_ROOT="${DUCKBRAIN_S3_NS_ROOT:-$HOME/duckbrain/namespaces}"
+NS_ROOT="${NS_ROOT_OVERRIDE:-${DUCKBRAIN_S3_NS_ROOT:-$HOME/duckbrain/namespaces}}"
 STATE_DIR="${DUCKBRAIN_S3_STATE_DIR:-$HOME/.hermes/state}"
 LOG_DIR="${DUCKBRAIN_S3_LOG_DIR:-$HOME/.hermes/backups}"
 TPL_DEFAULT='s3://${BUCKET}/${PREFIX}/${name}'
