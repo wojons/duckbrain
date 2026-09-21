@@ -6,6 +6,8 @@ dist/
 
 # Runtime data
 .duckbrain/
+# GAP-059 watchdog recovery counter — per-host runtime state, never tracked.
+.watchdog/
 # Root-anchored: the runtime namespace storage dir (./namespaces/). Source
 # code under src/namespaces/ (DB-GAP-032 shared deletion core) IS tracked.
 /namespaces/

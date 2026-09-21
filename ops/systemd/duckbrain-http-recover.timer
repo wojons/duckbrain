@@ -1,0 +1,14 @@
+[Unit]
+Description=Fire the duckbrain-http dark-port recovery pass every minute (GAP-059)
+
+[Timer]
+# Fire at :30 each minute — deliberately offset from the health watchdog's
+# :00 so the confirm probe reads FRESH darkness (a :00-only schedule would let
+# the recovery pass race its own confirming probe).
+OnCalendar=*-*-* *:*:30
+Persistent=true
+# Jitter so fleets of instances do not recover in lockstep.
+RandomizedDelaySec=5
+
+[Install]
+WantedBy=timers.target

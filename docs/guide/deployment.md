@@ -120,10 +120,13 @@ mkdir -p ~/.config/systemd/user
 cp ops/systemd/duckbrain-http.service \
    ops/systemd/duckbrain-http-health.service \
    ops/systemd/duckbrain-http-health.timer \
+   ops/systemd/duckbrain-http-recover.service \
+   ops/systemd/duckbrain-http-recover.timer \
    ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now duckbrain-http.service
 systemctl --user enable --now duckbrain-http-health.timer
+systemctl --user enable --now duckbrain-http-recover.timer
 ```
 
 What each asset guarantees:
@@ -151,6 +154,62 @@ systemctl --user list-timers duckbrain-http-health.timer
 systemctl --user start duckbrain-http-health.service && echo "port alive (200/503)"
 journalctl --user -u duckbrain-http-health.service -n 5
 ```
+
+- `duckbrain-http-recover.service` + `.timer` — **recovery teeth for the
+  watchdog (GAP-059)**. The health unit above can only *detect* a dark port;
+  on 2026-09-19 a maintenance stop of `duckbrain-http.service` left `:3000`
+  dark for ~18 minutes (`11:11:51` → manual `start` at `11:29:43`) while the
+  watchdog reported it correctly and did nothing about it. This pass fires at
+  `:30` each minute (offset from the watchdog's `:00` so the confirming probe
+  reads fresh darkness) and runs `scripts/watchdog-recover.js`
+  (`src/cli/watchdog-recover.ts`): on **DARK** it increments a consecutive-dark
+  counter, and at `--confirm-probes` it runs `systemctl --user start
+  duckbrain-http.service`, records the attempt, then re-probes `/health` once.
+  Aliveness clears the counter; **HUNG is never touched** (a stuck handler is
+  not a dead daemon — OPS-002), so `Restart=always` + this pass can between
+  them cover every dark case while never restart-looping a serving daemon.
+  Net guarantee: a maintenance stop of the daemon self-recovers within ~2-3
+  minutes (next dark probe + confirm + start), no operator action.
+
+  **Anti-storm cooldown:** after an attempt, further restarts are suppressed
+  for `--cooldown-s` (shipped default `600`s), so a unit that keeps failing is
+  not restarted once a minute forever. Counter state lives outside git in
+  `%h/duckbrain/.watchdog/duckbrain-http.dark-count`; `--json` prints the
+  decision (`counted` / `suppressed` / `restarted` / `restart-failed`).
+
+  **Maintenance contract:** intentional long downtime (planned upgrade,
+  migration, debugging a boot failure) must stop the recovery timer **first**,
+  or the pass will faithfully start the daemon back up:
+
+```bash
+# Verify the recovery wiring without touching the daemon:
+systemctl --user list-timers duckbrain-http-recover.timer
+node scripts/watchdog-recover.js --json   # one pass, prints the decision
+```
+
+```bash
+# Planned-downtime contract (stop the timer, restart it afterwards):
+systemctl --user stop duckbrain-http-recover.timer
+systemctl --user stop duckbrain-http.service      # dark on purpose, stays dark
+# … maintain, then:
+systemctl --user start duckbrain-http.service
+systemctl --user start duckbrain-http-recover.timer
+
+# Live acceptance drill (GAP-059) — port must come back on its own:
+systemctl --user stop duckbrain-http.service
+for i in $(seq 1 48); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/health)
+  [ "$code" = "200" ] || [ "$code" = "503" ] && { echo "recovered in ~$((i*5))s: $code"; break; }
+  sleep 5
+done
+journalctl --user -u duckbrain-http-recover.service -n 10 --no-pager   # the start action
+systemctl --user is-active duckbrain-http.service                      # active
+```
+
+Best run with a generous probe timeout: a freshly started daemon answers
+`/health` a few seconds in, so the recovery pass legitimately reports
+"started, follow-up probe still dark" (exit 1) and the *next* pass clears the
+counter once the port is up — that is success, not failure.
 
 ```bash
 # Graceful-SIGTERM restart verification (OPS-001 acceptance probe):

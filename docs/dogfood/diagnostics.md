@@ -336,6 +336,45 @@ Install/verify/scratch-isolation commands live in
 `pnpm ops:check` fails the build if a pattern/numeric kill ever re-enters
 package scripts.
 
+## 19. The watchdog could see the dark port but could not fix it (GAP-059, 09-19)
+
+The OPS-001 watchdog pair is a correct *detector* and a useless *actuator*: a
+static `Type=oneshot` has no restart ability of its own. On 2026-09-19 at
+`11:11:51` a maintenance stop of `duckbrain-http.service` left `:3000` dark;
+the health watchdog fired on schedule, classified it DARK, exited 1 — and
+`:3000` stayed dark until an operator ran `systemctl --user start` by hand at
+`11:29:43`. **~18 minutes** of downtime, during which every scheduler sync
+call spooled. Nothing was misconfigured: `Restart=always` on the daemon covers
+crashes *and* graceful stops, so the only dark state left was exactly the
+intentional stop the watchdog saw and no unit was allowed to act on. A
+detector with no teeth turns a 3-second stop into an 18-minute outage.
+
+The fix keeps detection and actuation as separate units, so a failed recovery
+can never damage the detector:
+
+- **`duckbrain-http-recover.service` + `.timer`** (GAP-059) — a second
+  unprivileged pass, `*:*:30` (offset from the watchdog's `:00` so the
+  confirming probe reads fresh darkness), running
+  `scripts/watchdog-recover.js` (`src/cli/watchdog-recover.ts`, deps-injectable
+  like `scoped-stop.ts`). DARK increments a consecutive-dark counter in
+  `%h/duckbrain/.watchdog/duckbrain-http.dark-count`; at `--confirm-probes` it
+  issues `systemctl --user start duckbrain-http.service`, timestamps the
+  attempt, and re-probes `/health` once. ALIVE clears the counter.
+- **HUNG is explicit non-action** — a stuck handler means the daemon may still
+  be serving `/api/*` and MCP traffic, so the counter is left byte-identical
+  and no restart is issued (the OPS-002 split exists for exactly this).
+- **Cooldown, not a retry storm** — a recorded attempt suppresses further
+  restarts for `--cooldown-s` (600s), so a genuinely broken unit is started at
+  most once per 10 minutes instead of once per minute. Intentional long
+  downtime therefore stops the timer first (maintenance contract in the
+  deployment guide).
+
+Verified live with a stop-drill: the daemon was stopped on purpose, nothing
+was started by hand, and the port answered again on its own (the recover unit's
+`systemctl --user start` action is in its journal). Design, install,
+maintenance contract and the drill command live in
+[docs/guide/deployment.md § hardened lifecycle assets](../guide/deployment.md).
+
 ## Run 6 — 2026-09-19 dogfood (fresh-install focus + full API re-walk)
 
 This run asked one question the previous runs never did: what happens to a
