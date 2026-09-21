@@ -1744,3 +1744,27 @@ tasks:
   status: complete
   created_at: '2026-09-20T16:32:11.251382+00:00'
   completed_at: '2026-09-20T16:56:30.928763+00:00'
+- id: GAP-059
+  title: 'DuckBrain watchdog has no recovery teeth: auto-restart on N consecutive
+    DARK probes'
+  criteria:
+  - 'A maintenance stop of duckbrain-http results in automatic recovery within <=5
+    min with no manual action: a confirm-probe + consecutive-dark counter + cooldown
+    recovery unit performs systemctl --user start duckbrain-http.service; HUNG probes
+    never trigger recovery; recovery path is unit-tested, documented in docs/guide/deployment.md,
+    and proven by a live stop-drill.'
+  status: complete
+  created_at: '2026-09-21T05:53:42.609112+00:00'
+  completed_at: '2026-09-21T06:32:07.279231+00:00'
+- id: REG-GONE-001
+  title: DELETE /api/namespaces leaves no record of a namespace whose directory is
+    gone (registry delete and directory removal are independent)
+  criteria:
+  - GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished
+    from healthy rows; DELETE of a namespace whose directory is already gone removes
+    the registry row or refuses with a clear error (never silent); a regression test
+    creates a namespace, removes its directory out-of-band, and proves both contract
+    points
+  status: complete
+  created_at: '2026-09-21T08:10:06.278899+00:00'
+  completed_at: '2026-09-21T08:36:18.119290+00:00'
