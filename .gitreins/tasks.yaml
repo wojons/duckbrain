@@ -1768,3 +1768,14 @@ tasks:
   status: complete
   created_at: '2026-09-21T08:10:06.278899+00:00'
   completed_at: '2026-09-21T08:36:18.119290+00:00'
+- id: EMB-001-FLAKE
+  title: Fix EMB-001 embedding-hook marker create-write race (CI red on f2f3b91)
+  criteria:
+  - src/embedding/hooks.test.ts polls marker CONTENT not existence; the idempotence
+    test cannot read an empty marker under CI load; RED control (old waiter + injected
+    create-write window) fails with the exact CI message and GREEN control (new waiter
+    + same window) passes 8/8; full gate tsc exit 0 + prettier clean + 162 files /
+    1300 tests passed
+  status: complete
+  created_at: '2026-09-21T09:21:17.830027+00:00'
+  completed_at: '2026-09-21T09:21:20.866117+00:00'
