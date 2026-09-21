@@ -135,6 +135,20 @@ function waitFor(fn: () => boolean, timeoutMs = 5000): void {
   throw new Error("timed out waiting for backgrounded hook rebuild");
 }
 
+/** Wait for the stub marker to hold CONTENT, not mere existence: POSIX
+ * redirection (`echo > file`) creates the file EMPTY before the write
+ * lands, so an existsSync waiter can read '' (CI flake — red run on
+ * f2f3b91, tick 582; reproduced + fixed via this helper). */
+function waitForMarkerContent(marker: string, timeoutMs = 5000): void {
+  waitFor(() => {
+    try {
+      return fs.readFileSync(marker, "utf8").trim().length > 0;
+    } catch {
+      return false;
+    }
+  }, timeoutMs);
+}
+
 /**
  * Canonical DuckBrain layout: <duckRoot>/bin/duckbrain.js (stub) +
  * <duckRoot>/namespaces/ns-repo (real git repo, .embeddings/ gitignored).
@@ -205,7 +219,7 @@ describe("embedding hook cwd parity (EMB-001)", () => {
     installEmbeddingHooks(nsPath, "ns-repo");
 
     fireHook(hookPath, nsPath, marker);
-    waitFor(() => fs.existsSync(marker));
+    waitForMarkerContent(marker);
     const first = fs.readFileSync(marker, "utf8").trim();
     expect(first).toBe(duckRoot);
 
