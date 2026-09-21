@@ -6,6 +6,8 @@
  */
 
 import { Router, Request, Response } from "express";
+import fs from "fs";
+import path from "path";
 import {
   listNamespacesTool,
   createNamespaceTool,
@@ -19,15 +21,39 @@ import { requireNamespaceGrant } from "../../auth/middleware";
 const router: Router = Router();
 
 /**
+ * REG-GONE-001: determine which namespace rows have NO directory on disk
+ * (registry row survived an out-of-band `rm -rf`). Existence is checked via
+ * fs.existsSync on each row's resolved absolute path — no root-anchor logic
+ * needed; mappings may legitimately point anywhere on disk.
+ */
+function namesWithMissingDirectories(
+  namespaces: { name: string; path: string }[],
+): Set<string> {
+  const missing = new Set<string>();
+  for (const ns of namespaces) {
+    if (!fs.existsSync(path.resolve(ns.path))) {
+      missing.add(ns.name);
+    }
+  }
+  return missing;
+}
+
+/**
  * Transform MCP namespace to API response
  */
-function transformNamespace(ns: any): NamespaceResponse {
+function transformNamespace(
+  ns: any,
+  missingDirs?: Set<string>,
+): NamespaceResponse {
   return {
     name: ns.name,
     path: ns.path,
     isDefault: ns.isDefault,
     memoryCount: undefined, // Would require expensive query
     lastModified: undefined,
+    // REG-GONE-001: flag only rows whose directory is absent on disk;
+    // healthy rows omit the field entirely.
+    ...(missingDirs?.has(ns.name) ? { directoryMissing: true } : {}),
   };
 }
 
@@ -44,7 +70,10 @@ router.get(
       throw new ApiError(result.error || "Failed to list namespaces", 500);
     }
 
-    const namespaces = result.namespaces.map(transformNamespace);
+    const missingDirs = namesWithMissingDirectories(result.namespaces);
+    const namespaces = result.namespaces.map((ns) =>
+      transformNamespace(ns, missingDirs),
+    );
 
     const response: NamespaceListResponse = {
       namespaces,

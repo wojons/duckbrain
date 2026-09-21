@@ -91,6 +91,12 @@ export interface NamespaceResponse {
   memoryCount?: number;
   /** Last modified timestamp */
   lastModified?: string;
+  /**
+   * REG-GONE-001: present ONLY on rows whose namespace directory is missing
+   * on disk (registry row survives an out-of-band `rm -rf`). Healthy rows
+   * omit the flag entirely.
+   */
+  directoryMissing?: boolean;
 }
 
 /**

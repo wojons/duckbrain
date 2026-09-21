@@ -631,6 +631,10 @@ List all namespaces.
 }
 ```
 
+A row whose namespace directory is missing on disk (registry row survived an
+out-of-band `rm -rf`) carries `"directoryMissing": true`; healthy rows omit
+the field entirely (REG-GONE-001).
+
 **Example:**
 
 ```bash
