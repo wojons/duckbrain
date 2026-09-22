@@ -52,6 +52,7 @@ import {
   loadNamespaceSchema,
   resolveNamespacesRoot,
 } from "./schemaRegistry.js";
+import { invalidateTableRegistry } from "../schema/table-registry.js";
 import {
   formatSchemaDocument,
   sameCanonicalTable,
@@ -712,6 +713,9 @@ export async function recoverNamespaceDdl(
     const outcomes = recoverLocked(ns, nsDir, options);
     if (outcomes.length > 0) {
       invalidateNamespaceSchema(ns);
+      // Keep the declared-table registry (legacy .table.json cache) coherent
+      // with the recovered schema.json in the same process.
+      invalidateTableRegistry(ns);
       loadNamespaceSchema(ns, {
         namespacesPath: options.namespacesPath,
         force: true,
@@ -1299,6 +1303,10 @@ async function runOperation(
     // new declaration (a new file identity also invalidates it; this makes the
     // in-process transition immediate and explicit).
     invalidateNamespaceSchema(ns);
+    // The declared-table registry caches separately: drop it too so
+    // /api/ns/:ns/tables and the insert validation see the new table/column
+    // without a daemon restart.
+    invalidateTableRegistry(ns);
     loadNamespaceSchema(ns, {
       namespacesPath: options.namespacesPath,
       force: true,

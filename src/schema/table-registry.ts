@@ -281,11 +281,63 @@ function readNamespaceDeclarations(ns: string): TableDeclaration[] {
 }
 
 /**
- * In-process registry cache: ns → declarations (or `null` for namespaces
- * scanned-and-found-empty). A scan failure is NOT cached — the next request
- * retries, so a transient fs error or a since-fixed declaration heals itself.
+ * In-process registry cache: ns → declarations plus a staleness snapshot of
+ * the namespace's tables dir (filename → mtimeMs/size), or `null` for
+ * namespaces scanned-and-found-empty. A scan failure is NOT cached — the next
+ * request retries, so a transient fs error or a since-fixed declaration heals
+ * itself. The snapshot lets legacyDeclarations() re-read when an OUT-OF-BAND
+ * writer (an external process, e.g. a foreman rewriting the declaration set)
+ * adds/removes/rewrites a declaration file without any in-process invalidation.
  */
-const registryCache = new Map<string, TableDeclaration[] | null>();
+interface RegistryCacheEntry {
+  declarations: TableDeclaration[];
+  snapshot: Map<string, { mtimeMs: number; size: number }>;
+}
+
+const registryCache = new Map<string, RegistryCacheEntry | null>();
+
+/**
+ * Snapshot the namespace's tables dir (filename → mtimeMs/size) for
+ * staleness detection. Returns `null` when the dir cannot be listed —
+ * the caller treats that as a failed scan and caches nothing.
+ */
+function tablesDirSnapshot(
+  ns: string,
+): Map<string, { mtimeMs: number; size: number }> | null {
+  const tablesDir = path.join(namespaceDir(ns), "tables");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(tablesDir);
+  } catch {
+    return null;
+  }
+  const snapshot = new Map<string, { mtimeMs: number; size: number }>();
+  for (const entry of entries) {
+    if (!entry.endsWith(".table.json")) continue;
+    try {
+      const stat = fs.statSync(path.join(tablesDir, entry));
+      snapshot.set(entry, { mtimeMs: stat.mtimeMs, size: stat.size });
+    } catch {
+      // A file that vanished between readdir and stat simply contributes
+      // no snapshot entry; the listing itself decides its fate.
+    }
+  }
+  return snapshot;
+}
+
+/** True when two snapshots differ (files added/removed/renamed or rewritten). */
+function snapshotsDiffer(
+  left: Map<string, { mtimeMs: number; size: number }>,
+  right: Map<string, { mtimeMs: number; size: number }>,
+): boolean {
+  if (left.size !== right.size) return true;
+  for (const [file, stat] of left) {
+    const other = right.get(file);
+    if (!other) return true;
+    if (other.mtimeMs !== stat.mtimeMs || other.size !== stat.size) return true;
+  }
+  return false;
+}
 
 /**
  * DB-SUPA-6: adapt a persistent `schema.json` declaration to the SUPA-3
@@ -319,13 +371,39 @@ export function tableDeclarationFromSchema(
 }
 
 /**
- * Legacy `tables/<table>.table.json` declarations for a namespace (cached).
- * `listDeclaredTables` walks the persistent `schema.json` separately.
+ * Legacy `tables/<table>.table.json` declarations for a namespace (cached
+ * behind an mtime/size staleness check). The cached snapshot is compared
+ * against the CURRENT listing of the tables dir on every read, so an
+ * out-of-band rewrite (external writer, no in-process invalidation) is
+ * picked up on the next request. `listDeclaredTables` walks the persistent
+ * `schema.json` separately.
+ *
+ * A scan failure (unreadable dir) is never cached: the cache entry is dropped
+ * and the next request retries from scratch.
  */
 function legacyDeclarations(ns: string): TableDeclaration[] {
-  if (registryCache.has(ns)) return registryCache.get(ns) ?? [];
+  const freshSnapshot = tablesDirSnapshot(ns);
+  if (freshSnapshot === null) {
+    // The listing itself failed: drop any cached entry and retry the read —
+    // a failure must never be cached.
+    registryCache.delete(ns);
+    return readNamespaceDeclarations(ns);
+  }
+  const cached = registryCache.get(ns);
+  if (cached) {
+    // A directory-less empty cache means "dir absent at fill time"; re-read
+    // only when the dir now exists but no snapshot was stored (or differs).
+    if (
+      cached.snapshot.size > 0 ||
+      fs.existsSync(path.join(namespaceDir(ns), "tables"))
+    ) {
+      if (!snapshotsDiffer(cached.snapshot, freshSnapshot)) {
+        return cached.declarations;
+      }
+    }
+  }
   const declarations = readNamespaceDeclarations(ns);
-  registryCache.set(ns, declarations);
+  registryCache.set(ns, { declarations, snapshot: freshSnapshot });
   return declarations;
 }
 
