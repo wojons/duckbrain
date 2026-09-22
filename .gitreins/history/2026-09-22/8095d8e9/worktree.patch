@@ -1,0 +1,19 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 4b48248..dc3d552 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1793,3 +1793,14 @@ tasks:
+   status: complete
+   created_at: '2026-09-21T23:47:54.414895+00:00'
+   completed_at: '2026-09-22T00:14:12.357771+00:00'
++- id: DEPS-002
++  title: 'Dependency refresh: @aws-sdk/client-s3 3.1136.0->3.1137.0 + tsx 4.23.13->4.23.15
++    (patch bumps)'
++  criteria:
++  - pnpm-lock.yaml contains @aws-sdk/client-s3 3.1137.x and tsx 4.23.15; pnpm install
++    --frozen-lockfile exit 0; pnpm build exit 0; pnpm tsc --noEmit exit 0; full vitest
++    suite green with at least 163 test files; pnpm ls resolves both direct deps at
++    target versions
++  status: complete
++  created_at: '2026-09-22T01:48:22.924016+00:00'
++  completed_at: '2026-09-22T02:24:22.509392+00:00'
