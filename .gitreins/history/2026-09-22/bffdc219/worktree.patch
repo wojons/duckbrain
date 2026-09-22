@@ -1,0 +1,16 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index dc3d552..6d78bc4 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1804,3 +1804,11 @@ tasks:
+   status: complete
+   created_at: '2026-09-22T01:48:22.924016+00:00'
+   completed_at: '2026-09-22T02:24:22.509392+00:00'
++- id: INT-CI-011
++  title: Fix GAP-012 AGENTS.md test-count drift (162/1300 -> 163/1304)
++  criteria:
++  - AGENTS.md states Vitest (163 suites, 1304 tests) and '# 1304 tests, 163 suites';
++    both CI GAP-012 grep asserts pass
++  status: complete
++  created_at: '2026-09-22T22:25:20.948628+00:00'
++  completed_at: '2026-09-22T22:29:31.670561+00:00'
