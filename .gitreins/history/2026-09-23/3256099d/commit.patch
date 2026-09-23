@@ -1,0 +1,873 @@
+commit e981f9cbc59654852f86362870b968cae7724441
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Sep 23 02:52:34 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Sep 23 02:52:34 2026 -0500
+
+    fix(namespaces): extend in-flight-push guard to REST and MCP deletion paths (DF-0923-01)
+    
+    deleteNamespace() - the shared core behind DELETE /api/namespaces/:name and
+    MCP delete_namespace - now refuses while an S3 push is in flight, inheriting
+    the guard the CLI (deleteNamespaceFromDisk) always had. Live-proven gap:
+    with a valid sync lock held, CLI delete-disk errored "Push in flight" while
+    REST DELETE returned 200 and the dir was gone (dogfood 2026-09-23).
+    
+    - extract hasInFlightPush into leaf module src/namespaces/inflight-push.ts
+      (delete.ts cannot import from lifecycle.ts - lifecycle imports delete);
+      lifecycle.ts re-exports for existing importers, zero CLI behavior change
+    - guard in the core after path-safety, before rmSync/manifest unlink,
+      reusing the GAP-062 config-resolved namespaces root
+    - REST route maps "Push in flight" refusals to 409 CONFLICT
+    - new suite delete-inflight-df0923-01.test.ts (5 tests): BLOCKED (dir +
+      mapping intact), stale-lock proceeds, dead-pid proceeds, REST 409,
+      guards sanity; RED-verified 2/5 failing pre-fix (foreman control run)
+    - AGENTS.md count sync: 165/1325 -> 166/1330
+    
+    Gates: vitest 1330/1330 (166 files), tsc --noEmit clean, prettier --check src/ clean.
+    Also carries gitreins record for gap062 (completed 2026-09-22T22:29Z, uncommitted).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/history/2026-09-23/85177f9d/commit.patch |  39 +++
+ .gitreins/history/2026-09-23/85177f9d/summary.md   |  30 ++
+ .gitreins/history/2026-09-23/85177f9d/verdict.json | 103 +++++++
+ .../history/2026-09-23/85177f9d/worktree.patch     |  21 ++
+ .gitreins/tasks.yaml                               |  26 ++
+ AGENTS.md                                          |   4 +-
+ src/http/routes/namespaces.ts                      |   6 +
+ src/namespaces/delete-inflight-df0923-01.test.ts   | 301 +++++++++++++++++++++
+ src/namespaces/delete.ts                           |  20 ++
+ src/namespaces/inflight-push.ts                    |  86 ++++++
+ src/namespaces/lifecycle.ts                        |  71 +----
+ 11 files changed, 639 insertions(+), 68 deletions(-)
+
+diff --git a/.gitreins/history/2026-09-23/85177f9d/commit.patch b/.gitreins/history/2026-09-23/85177f9d/commit.patch
+new file mode 100644
+index 0000000..a731cd7
+--- /dev/null
++++ b/.gitreins/history/2026-09-23/85177f9d/commit.patch
+@@ -0,0 +1,39 @@
++commit 61d8ed33c321f3a2056ae07f20dec7c16666426c
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Tue Sep 22 22:37:46 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Tue Sep 22 22:37:46 2026 -0500
++
++    fix(docs): sync AGENTS.md test counts to live suite (165/1325)
++    
++    Follow-up to be129bc (GAP-062): the new gap062-namespace-root.test.ts suite brings
++    the tree to 165 suites / 1325 tests; the CI GAP-012 count-assert greps AGENTS.md
++    for the live numbers.
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ AGENTS.md | 4 ++--
++ 1 file changed, 2 insertions(+), 2 deletions(-)
++
++diff --git a/AGENTS.md b/AGENTS.md
++index 94cf2df..be39659 100644
++--- a/AGENTS.md
+++++ b/AGENTS.md
++@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
++ - **Language:** TypeScript 7.x (strict mode)
++ - **Runtime:** Node.js 22+
++ - **Database:** DuckDB (via node-duckdb)
++-- **Test Framework:** Vitest (163 suites, 1304 tests)
+++- **Test Framework:** Vitest (165 suites, 1325 tests)
++ - **Build:** Vite (frontend), tsc (backend)
++ - **Package Manager:** pnpm 11+
++ 
++@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
++ ```bash
++ pnpm install
++ pnpm build
++-pnpm test          # 1304 tests, 163 suites
+++pnpm test          # 1325 tests, 165 suites
++ pnpm tsc --noEmit  # TypeScript check
++ ```
++ 
+diff --git a/.gitreins/history/2026-09-23/85177f9d/summary.md b/.gitreins/history/2026-09-23/85177f9d/summary.md
+new file mode 100644
+index 0000000..5e3b070
+--- /dev/null
++++ b/.gitreins/history/2026-09-23/85177f9d/summary.md
+@@ -0,0 +1,30 @@
++# Verdict: gap062
++
++**Task:** Pin namespace-write output root to config root, never caller cwd (h3 SDKTS-H3TS-GAP-062)
++**Evaluated:** 2026-09-23T03:46:26.403988
++**Result:** ✓ PASS
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
++- ✓ **tier2**
++  - COMPLETE
++  ✓ A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd — precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old "Bare 'duckbrain' (PATH) keeps the cwd" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]
++GAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.
++
++## Summary
++
++Judge Result: gap062
++
++Stage tier1: PASS
++    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
++
++Stage tier2: PASS
++  COMPLETE
++  ✓ A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd — precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old "Bare 'duckbrain' (PATH) keeps the cwd" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]
++GAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.
++
++Overall: PASS ✓
+diff --git a/.gitreins/history/2026-09-23/85177f9d/verdict.json b/.gitreins/history/2026-09-23/85177f9d/verdict.json
+new file mode 100644
+index 0000000..0d78fe0
+--- /dev/null
++++ b/.gitreins/history/2026-09-23/85177f9d/verdict.json
+@@ -0,0 +1,103 @@
++{
++  "task_id": "gap062",
++  "task_title": "Pin namespace-write output root to config root, never caller cwd (h3 SDKTS-H3TS-GAP-062)",
++  "task_criteria": [
++    "A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green"
++  ],
++  "passed": true,
++  "worktree": "/home/kara/duckbrain",
++  "branch": "feat/native-s3",
++  "commit": "61d8ed33c321f3a2056ae07f20dec7c16666426c",
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:40PM INF scanned ~9190324 bytes (9.19 MB) in 1.25s\n10:40PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 226153 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260923T033452.520015Z.log",
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  165 passed (165)\n      Tests  1325 passed (1325)\n   Start at  22:40:50\n   Duration  42.09s (tests 77%, import 20%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  165 workers spawned \u00b7 ~80ms startup each (spawn + environment, per file)\n             at least ~3.23s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260923T033452.520015Z.log"
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": true,
++      "any_failed": false,
++      "summary": "COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": true,
++          "output": "COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.",
++          "error": "",
++          "data": {
++            "verdict": "COMPLETE",
++            "items": [
++              {
++                "criterion": "A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green",
++                "status": "PASS",
++                "detail": "Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]",
++                "resolution_probability": 0.23,
++                "cited_path": "src/embedding/hooks.ts"
++              }
++            ],
++            "summary": "GAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green."
++          }
++        }
++      ]
++    }
++  },
++  "summary": "Judge Result: gap062\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.\n\nOverall: PASS \u2713",
++  "evaluated_at": "2026-09-23T03:46:26.403988",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-09-23T03:46:26.421740+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 1434,
++        "truncated": false,
++        "source": "git show 61d8ed33c321"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 1079,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "gap062"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-09-23/85177f9d/worktree.patch b/.gitreins/history/2026-09-23/85177f9d/worktree.patch
+new file mode 100644
+index 0000000..c5d36ed
+--- /dev/null
++++ b/.gitreins/history/2026-09-23/85177f9d/worktree.patch
+@@ -0,0 +1,21 @@
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 6d78bc4..d173fa5 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -1812,3 +1812,16 @@ tasks:
++   status: complete
++   created_at: '2026-09-22T22:25:20.948628+00:00'
++   completed_at: '2026-09-22T22:29:31.670561+00:00'
+++- id: gap062
+++  title: Pin namespace-write output root to config root, never caller cwd (h3 SDKTS-H3TS-GAP-062)
+++  criteria:
+++  - A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain
+++    binary either resolves its output root from the config file directory (writes
+++    to canonical namespaces/) or exits non-zero with a clear error - it must NOT create
+++    <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts
+++    comment documenting cwd-relative resolution is updated or removed; pnpm build
+++    and tsc --noEmit pass and vitest suites over src/storage and src/embedding are
+++    green
+++  status: complete
+++  created_at: '2026-09-23T03:18:34.285601+00:00'
+++  completed_at: '2026-09-23T03:40:49.569858+00:00'
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 6d78bc4..2165457 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1812,3 +1812,29 @@ tasks:
+   status: complete
+   created_at: '2026-09-22T22:25:20.948628+00:00'
+   completed_at: '2026-09-22T22:29:31.670561+00:00'
++- id: gap062
++  title: Pin namespace-write output root to config root, never caller cwd (h3 SDKTS-H3TS-GAP-062)
++  criteria:
++  - A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain
++    binary either resolves its output root from the config file directory (writes
++    to canonical namespaces/) or exits non-zero with a clear error - it must NOT create
++    <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts
++    comment documenting cwd-relative resolution is updated or removed; pnpm build
++    and tsc --noEmit pass and vitest suites over src/storage and src/embedding are
++    green
++  status: complete
++  created_at: '2026-09-23T03:18:34.285601+00:00'
++  completed_at: '2026-09-23T03:40:49.569858+00:00'
++- id: df0923-01
++  title: Add in-flight-push guard to shared namespace deletion core (REST/MCP parity
++    with CLI)
++  criteria:
++  - With a live sync lock (<namespacesPath>/.s3state/.lock {pid:<live pid>, ts:now})
++    present, deleteNamespace() in src/namespaces/delete.ts - the shared core behind
++    REST DELETE /api/namespaces/:name and MCP delete_namespace - returns success:false
++    with a Push-in-flight error, leaves the namespace dir and config mapping intact;
++    a stale or dead-pid lock does NOT block deletion; a vitest regression test covers
++    blocked and proceeds paths; npx vitest run, npx tsc --noEmit and npx prettier
++    --check src/ all green; AGENTS.md suite counts match the live run
++  status: in_progress
++  created_at: '2026-09-23T07:13:22.549036+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index be39659..2b056cb 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (165 suites, 1325 tests)
++- **Test Framework:** Vitest (166 suites, 1330 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1325 tests, 165 suites
++pnpm test          # 1330 tests, 166 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/src/http/routes/namespaces.ts b/src/http/routes/namespaces.ts
+index 6bae0ba..8ddd7d3 100644
+--- a/src/http/routes/namespaces.ts
++++ b/src/http/routes/namespaces.ts
+@@ -227,6 +227,12 @@ router.delete(
+       ) {
+         throw new ApiError(error, 400, "VALIDATION_ERROR");
+       }
++      // DF-0923-01: a push-in-flight refusal is a transient state conflict,
++      // not a validation error — surface it as 409 CONFLICT so clients can
++      // distinguish "retry after the push completes" from "fix your request".
++      if (error.startsWith("Push in flight")) {
++        throw new ApiError(error, 409, "CONFLICT");
++      }
+       throw new ApiError(error, 500);
+     }
+ 
+diff --git a/src/namespaces/delete-inflight-df0923-01.test.ts b/src/namespaces/delete-inflight-df0923-01.test.ts
+new file mode 100644
+index 0000000..80ccb2f
+--- /dev/null
++++ b/src/namespaces/delete-inflight-df0923-01.test.ts
+@@ -0,0 +1,301 @@
++/**
++ * DF-0923-01 Regression Tests: in-flight-push guard in the shared deletion core.
++ *
++ * Bug (dogfood 2026-09-23): the in-flight-push guard was CLI-only.
++ * deleteNamespaceFromDisk (src/namespaces/lifecycle.ts) refused while a push
++ * was in flight, but the shared core deleteNamespace
++ * (src/namespaces/delete.ts) — called by BOTH the REST route
++ * DELETE /api/namespaces/:name and the MCP deleteNamespaceTool — had NO such
++ * check. A mid-push delete through REST/MCP could half-land a namespace on
++ * S3 (the ghost-manifest state REVIEW-DUCKBRAIN-001 fought: 88 ghost
++ * manifests).
++ *
++ * Regressions guarded:
++ *  - a live lock ({pid: <alive>, ts: fresh}) at <nsRoot>/.s3state/.lock
++ *    BLOCKS deleteNamespace: success:false, "Push in flight" in error, the
++ *    namespace dir and the config mapping survive untouched.
++ *  - a stale lock (ts older than the 10-minute window) does NOT block.
++ *  - a dead-pid lock does NOT block.
++ *  - the REST route surfaces the refusal as HTTP 409 CONFLICT and the
++ *    namespace survives.
++ *  - the existing guards are unaffected: confirm:true still required, the
++ *    default namespace still refused.
++ *
++ * Isolation: the suite runs under the test-suite temp root
++ * (src/test-setup.ts: DUCKBRAIN_NAMESPACES_PATH + DUCKBRAIN_CONFIG_PATH), so
++ * no live namespace or the tracked duckbrain.config.json is ever touched.
++ * The config snapshot/restore below guards the TEMP config file, never the
++ * repo config; env vars are snapshotted/restored so nothing leaks to sibling
++ * files in the same worker process.
++ */
++import {
++  describe,
++  it,
++  expect,
++  beforeEach,
++  afterEach,
++  beforeAll,
++  afterAll,
++} from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { spawnSync } from "child_process";
++import { createServer, Server } from "http";
++import { createHttpServer } from "../cli/http";
++import { getConfig, updateConfig } from "../config/index";
++import { isPidAlive } from "../utils/pidfile";
++import { deleteNamespace } from "./delete";
++
++// Lazy (NOT module-level consts): beforeAll redirects the env to this file's
++// scratch dirs, and module-level consts would capture the worker-level
++// test-setup values before that redirect lands.
++const CONFIG_PATH = () =>
++  process.env.DUCKBRAIN_CONFIG_PATH ||
++  path.join(process.cwd(), "duckbrain.config.json");
++const NS_ROOT = () => process.env.DUCKBRAIN_NAMESPACES_PATH!;
++
++/** Where the native sync's cross-process lock lives (src/s3/manifest). */
++function lockPath(): string {
++  return path.join(NS_ROOT(), ".s3state", ".lock");
++}
++
++function writeLock(pid: number, ts: number): void {
++  fs.mkdirSync(path.dirname(lockPath()), { recursive: true });
++  fs.writeFileSync(lockPath(), JSON.stringify({ pid, ts }), "utf-8");
++}
++
++function removeLock(): void {
++  try {
++    fs.unlinkSync(lockPath());
++  } catch {
++    // already gone
++  }
++}
++
++/**
++ * A pid that is guaranteed NOT alive: spawn a child that exits immediately,
++ * then re-use its pid. Retried in the (unlikely) event the kernel recycled
++ * the pid before we probe it.
++ */
++function findDeadPid(): number {
++  for (let i = 0; i < 5; i++) {
++    const r = spawnSync(process.execPath, ["-e", ""], { timeout: 10_000 });
++    if (typeof r.pid === "number" && r.status === 0 && !isPidAlive(r.pid)) {
++      return r.pid;
++    }
++  }
++  throw new Error("could not obtain a dead pid for the lock fixture");
++}
++
++/** Register a mapping + seed a namespace dir under the redirected root. */
++function seedNamespace(name: string): string {
++  const dirPath = path.join(NS_ROOT(), name);
++  fs.mkdirSync(dirPath, { recursive: true });
++  fs.writeFileSync(path.join(dirPath, "current.jsonl"), '{"k":"v"}\n');
++  fs.mkdirSync(path.join(dirPath, ".git", "refs"), { recursive: true });
++  fs.writeFileSync(
++    path.join(dirPath, ".git", "HEAD"),
++    "ref: refs/heads/main\n",
++  );
++  const cfg = getConfig(".");
++  updateConfig(".", {
++    namespaceMappings: {
++      ...(cfg.namespaceMappings ?? {}),
++      [name]: dirPath,
++    },
++  });
++  return dirPath;
++}
++
++// --- REST harness (mirrors namespaces-delete-dbgap032.test.ts) ---
++
++let server: Server;
++let port: number;
++
++interface HttpResponse {
++  status: number;
++  body: any;
++}
++
++function httpRequest(
++  method: string,
++  pathName: string,
++  body?: Record<string, unknown>,
++): Promise<HttpResponse> {
++  return new Promise((resolve, reject) => {
++    const http = require("http");
++    const payload = body ? JSON.stringify(body) : undefined;
++    const options: any = {
++      hostname: "127.0.0.1",
++      port,
++      path: pathName,
++      method,
++      headers: {
++        Host: "localhost",
++        "Content-Type": "application/json",
++        // Node's http client treats DELETE as bodyless (Express 5's
++        // express.json() then leaves req.body undefined) — set the framing
++        // explicitly, same as the dbgap032 suite.
++        ...(payload !== undefined
++          ? { "Content-Length": Buffer.byteLength(payload) }
++          : {}),
++      },
++    };
++    const req = http.request(options, (res: any) => {
++      let data = "";
++      res.on("data", (chunk: Buffer) => {
++        data += chunk.toString();
++      });
++      res.on("end", () => {
++        try {
++          resolve({ status: res.statusCode, body: JSON.parse(data) });
++        } catch {
++          resolve({ status: res.statusCode, body: data });
++        }
++      });
++    });
++    req.on("error", reject);
++    if (payload !== undefined) {
++      req.write(payload);
++    }
++    req.end();
++  });
++}
++
++// --- env + config isolation ---
++
++const ENV_KEYS = ["DUCKBRAIN_NAMESPACES_PATH", "DUCKBRAIN_CONFIG_PATH"];
++let envSnapshot: Record<string, string | undefined> = {};
++let configSnapshot: string;
++let scratchTmp: string | undefined;
++
++beforeAll(async () => {
++  envSnapshot = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
++  scratchTmp = fs.mkdtempSync(path.join(os.tmpdir(), "df0923-01-"));
++  // Point the suite at a fresh scratch root for this file only.
++  process.env.DUCKBRAIN_NAMESPACES_PATH = scratchTmp;
++  process.env.DUCKBRAIN_CONFIG_PATH = path.join(
++    fs.mkdtempSync(path.join(os.tmpdir(), "df0923-01-cfg-")),
++    "duckbrain.config.json",
++  );
++
++  const app = createHttpServer();
++  server = createServer(app);
++  await new Promise<void>((resolve) => {
++    server.listen(0, "127.0.0.1", () => {
++      const addr = server.address();
++      if (addr && typeof addr !== "string") port = addr.port;
++      resolve();
++    });
++  });
++});
++
++afterAll(() => {
++  server.close();
++  removeLock();
++  // Restore the worker-process env so sibling files are unaffected.
++  for (const k of ENV_KEYS) {
++    if (envSnapshot[k] === undefined) delete process.env[k];
++    else process.env[k] = envSnapshot[k];
++  }
++});
++
++beforeEach(() => {
++  configSnapshot = fs.existsSync(CONFIG_PATH())
++    ? fs.readFileSync(CONFIG_PATH(), "utf-8")
++    : "";
++});
++
++afterEach(() => {
++  // Restore the (temp) config file so a test never leaks mappings.
++  if (configSnapshot) {
++    fs.writeFileSync(CONFIG_PATH(), configSnapshot, "utf-8");
++  } else if (fs.existsSync(CONFIG_PATH())) {
++    fs.unlinkSync(CONFIG_PATH());
++  }
++  removeLock();
++});
++
++describe("DF-0923-01: in-flight-push guard in the shared deletion core", () => {
++  it("BLOCKED: a live, fresh lock refuses deletion and leaves everything intact", () => {
++    const name = "df0923-01-blocked";
++    const dirPath = seedNamespace(name);
++    writeLock(process.pid, Date.now()); // process.pid is alive; ts is fresh
++
++    const result = deleteNamespace(name, true);
++
++    expect(result.success).toBe(false);
++    expect(result.error).toContain("Push in flight");
++    expect(result.error).toContain(name);
++    // Nothing was removed: dir + contents + mapping all survive.
++    expect(fs.existsSync(dirPath)).toBe(true);
++    expect(fs.existsSync(path.join(dirPath, "current.jsonl"))).toBe(true);
++    expect(getConfig(".").namespaceMappings?.[name]).toBeDefined();
++  });
++
++  it("STALE LOCK PROCEEDS: a lock older than the 10-minute window does not block", () => {
++    const name = "df0923-01-stale";
++    const dirPath = seedNamespace(name);
++    writeLock(process.pid, Date.now() - 11 * 60 * 1000);
++
++    const result = deleteNamespace(name, true);
++
++    expect(result.success).toBe(true);
++    expect(fs.existsSync(dirPath)).toBe(false);
++    expect(getConfig(".").namespaceMappings?.[name]).toBeUndefined();
++  });
++
++  it("DEAD-PID LOCK PROCEEDS: a lock held by a nonexistent pid does not block", () => {
++    const name = "df0923-01-deadpid";
++    const dirPath = seedNamespace(name);
++    writeLock(findDeadPid(), Date.now());
++
++    const result = deleteNamespace(name, true);
++
++    expect(result.success).toBe(true);
++    expect(fs.existsSync(dirPath)).toBe(false);
++    expect(getConfig(".").namespaceMappings?.[name]).toBeUndefined();
++  });
++
++  it("REST 409: DELETE /api/namespaces/:name surfaces the refusal as 409 CONFLICT", async () => {
++    const name = "df0923-01-rest409";
++    const created = await httpRequest("POST", "/api/namespaces", {
++      name,
++      setDefault: false,
++    });
++    expect(created.status).toBe(201);
++    const dirPath = path.join(NS_ROOT(), name);
++    expect(fs.existsSync(dirPath)).toBe(true);
++    writeLock(process.pid, Date.now());
++
++    const { status, body } = await httpRequest(
++      "DELETE",
++      `/api/namespaces/${name}`,
++      { confirm: true },
++    );
++
++    expect(status).toBe(409);
++    expect(body.error).toContain("Push in flight");
++    // The namespace survives: dir + mapping.
++    expect(fs.existsSync(dirPath)).toBe(true);
++    const live = JSON.parse(fs.readFileSync(CONFIG_PATH(), "utf-8"));
++    expect(live.namespaceMappings[name]).toBeDefined();
++  });
++
++  it("existing guards unaffected: confirm still required, default namespace still refused", () => {
++    const name = "df0923-01-guards";
++    seedNamespace(name);
++
++    const noConfirm = deleteNamespace(name, false);
++    expect(noConfirm.success).toBe(false);
++    expect(noConfirm.error).toContain("Confirmation required");
++    expect(fs.existsSync(path.join(NS_ROOT(), name))).toBe(true);
++
++    // The default namespace is refused regardless of lock state (no lock
++    // written here — the confirm/default guards must hold on their own).
++    removeLock();
++    const def = deleteNamespace("default", true);
++    expect(def.success).toBe(false);
++  });
++});
+diff --git a/src/namespaces/delete.ts b/src/namespaces/delete.ts
+index c890389..a8b15b8 100644
+--- a/src/namespaces/delete.ts
++++ b/src/namespaces/delete.ts
+@@ -20,6 +20,10 @@
+  *    cleans up the stale mapping.
+  *  - no half-remove: if rmSync throws, the config mapping is left intact and
+  *    success:false is returned.
++ *  - in-flight-push guard (DF-0923-01): refuses while an S3 push is in
++ *    flight (hasInFlightPush, ./inflight-push) — the same guard
++ *    deleteNamespaceFromDisk (lifecycle.ts) always had, now inherited by
++ *    REST and MCP through this shared core.
+  */
+ 
+ import fs from "fs";
+@@ -29,6 +33,7 @@ import {
+   resolveNamespacesPath,
+   updateConfig,
+ } from "../config/index";
++import { hasInFlightPush } from "./inflight-push";
+ 
+ /**
+  * Result of a namespace deletion attempt
+@@ -117,6 +122,21 @@ export function deleteNamespace(
+       };
+     }
+ 
++    // In-flight-push guard (DF-0923-01): refuse while a push is in flight —
++    // deleting mid-push half-lands the namespace on S3 and recreates the
++    // ghost-manifest state REVIEW-DUCKBRAIN-001 fought. Lives in the SHARED
++    // core so REST and MCP inherit the guard the CLI already had
++    // (deleteNamespaceFromDisk, lifecycle.ts). Reuses the same config-resolved
++    // namespaces root the path-safety guard computed (GAP-062: config root,
++    // never caller cwd) — the root hasInFlightPush joins stateDir() onto.
++    const inflight = hasInFlightPush(namespacesRoot, name);
++    if (inflight.inFlight) {
++      return {
++        success: false,
++        error: `Push in flight for '${name}' (${inflight.detail}). Retry after it completes.`,
++      };
++    }
++
+     // Only remove if the directory actually exists — idempotent: deleting an
+     // already-gone namespace (mapping present but dir missing) still succeeds
+     // and cleans up the stale mapping.
+diff --git a/src/namespaces/inflight-push.ts b/src/namespaces/inflight-push.ts
+new file mode 100644
+index 0000000..82e30da
+--- /dev/null
++++ b/src/namespaces/inflight-push.ts
+@@ -0,0 +1,86 @@
++/**
++ * In-flight S3 push detection (DF-0923-01).
++ *
++ * Extracted from src/namespaces/lifecycle.ts so BOTH deletion paths can
++ * share it without an import cycle: lifecycle.ts delegates the physical
++ * removal to the shared core deleteNamespace (src/namespaces/delete.ts),
++ * and DF-0923-01 added the guard to that core — delete.ts must be able to
++ * import this module while lifecycle.ts also imports it (the same shape as
++ * stateDir / pruneSyncManifest in src/s3/manifest, which moved there for
++ * exactly this reason). This module imports only leaves (config, s3/manifest,
++ * utils/pidfile) and is imported by nobody's dependencies — no cycle.
++ */
++
++import fs from "fs";
++import path from "path";
++import { getConfig } from "../config/index";
++import { isPidAlive } from "../utils/pidfile";
++import { stateDir } from "../s3/manifest";
++
++/**
++ * Is a push for this namespace in flight right now?
++ *
++ * Two writers can be moving this namespace's bytes:
++ *  - the native delta sync (cross-process lock at <nsRoot>/.s3state/.lock —
++ *    global to all namespaces, so a held lock means SOME sync is running);
++ *  - the shell git layer's git-remote-s3 helper (argv names the namespace's
++ *    s3:// URL).
++ * When detection is impossible (no /proc, pgrep missing) we fail CLOSED:
++ * a delete during an unknown push is worse than a deferred one.
++ */
++export function hasInFlightPush(
++  namespacesPath: string,
++  ns: string,
++): { inFlight: boolean; detail: string } {
++  const lockPath = path.join(stateDir(namespacesPath), ".lock");
++  try {
++    const raw = fs.readFileSync(lockPath, "utf-8");
++    const data = JSON.parse(raw) as { pid: number; ts: number };
++    if (
++      Number.isInteger(data.pid) &&
++      data.pid > 0 &&
++      isPidAlive(data.pid) &&
++      Date.now() - data.ts < 10 * 60 * 1000
++    ) {
++      return {
++        inFlight: true,
++        detail: `native sync lock held by pid ${data.pid} (since ${new Date(data.ts).toISOString()})`,
++      };
++    }
++  } catch {
++    // no lock / unreadable → not in flight via this path
++  }
++
++  try {
++    const cfg = getConfig(".");
++    if (cfg.s3?.enabled) {
++      const url = `s3://${cfg.s3.bucket}/`;
++      if (fs.existsSync("/proc/self/cmdline")) {
++        const pidDir = "/proc";
++        for (const p of fs.readdirSync(pidDir)) {
++          if (!/^\d+$/.test(p)) continue;
++          try {
++            const argv = fs
++              .readFileSync(path.join(pidDir, p, "cmdline"), "utf-8")
++              .split("\0");
++            const isHelper = argv.some((a) => a.includes("git-remote-s3"));
++            // helper argv carries the full URL including the namespace segment
++            const touchesNs = argv.some((a) => a.includes(url + ns));
++            if (isHelper && touchesNs) {
++              return {
++                inFlight: true,
++                detail: `git-remote-s3 helper pid ${p} is pushing this namespace`,
++              };
++            }
++          } catch {
++            // process vanished between readdir and read — ignore
++          }
++        }
++      }
++    }
++  } catch {
++    // config unreadable — the lock check above already ran
++  }
++
++  return { inFlight: false, detail: "" };
++}
+diff --git a/src/namespaces/lifecycle.ts b/src/namespaces/lifecycle.ts
+index 5c2c054..93428da 100644
+--- a/src/namespaces/lifecycle.ts
++++ b/src/namespaces/lifecycle.ts
+@@ -31,12 +31,12 @@ import {
+   resolveNamespacesPath,
+   updateConfig,
+ } from "../config/index";
+-import { isPidAlive } from "../utils/pidfile";
+ import type { S3Config } from "../s3/config";
+ import { resolveEffectiveEndpoint } from "../s3/config";
+ import { buildClient, listRemoteObjects, deleteObject } from "../s3/client";
+ import { stateDir, loadManifest, pruneSyncManifest } from "../s3/manifest";
+ import { namespacePath } from "../s3/sync";
++import { hasInFlightPush } from "./inflight-push";
+ 
+ /** Where the who/why audit trail lives (JSONL, one line per operation). */
+ export function lifecycleLogPath(namespacesPath: string): string {
+@@ -63,72 +63,11 @@ export function logLifecycle(
+ }
+ 
+ /**
+- * Is a push for this namespace in flight right now?
+- *
+- * Two writers can be moving this namespace's bytes:
+- *  - the native delta sync (cross-process lock at <nsRoot>/.s3state/.lock —
+- *    global to all namespaces, so a held lock means SOME sync is running);
+- *  - the shell git layer's git-remote-s3 helper (argv names the namespace's
+- *    s3:// URL).
+- * When detection is impossible (no /proc, pgrep missing) we fail CLOSED:
+- * a delete during an unknown push is worse than a deferred one.
++ * In-flight push detection moved to ./inflight-push (DF-0923-01) so the
++ * shared deletion core can share it without an import cycle; re-exported
++ * here for existing lifecycle importers.
+  */
+-export function hasInFlightPush(
+-  namespacesPath: string,
+-  ns: string,
+-): { inFlight: boolean; detail: string } {
+-  const lockPath = path.join(stateDir(namespacesPath), ".lock");
+-  try {
+-    const raw = fs.readFileSync(lockPath, "utf-8");
+-    const data = JSON.parse(raw) as { pid: number; ts: number };
+-    if (
+-      Number.isInteger(data.pid) &&
+-      data.pid > 0 &&
+-      isPidAlive(data.pid) &&
+-      Date.now() - data.ts < 10 * 60 * 1000
+-    ) {
+-      return {
+-        inFlight: true,
+-        detail: `native sync lock held by pid ${data.pid} (since ${new Date(data.ts).toISOString()})`,
+-      };
+-    }
+-  } catch {
+-    // no lock / unreadable → not in flight via this path
+-  }
+-
+-  try {
+-    const cfg = getConfig(".");
+-    if (cfg.s3?.enabled) {
+-      const url = `s3://${cfg.s3.bucket}/`;
+-      if (fs.existsSync("/proc/self/cmdline")) {
+-        const pidDir = "/proc";
+-        for (const p of fs.readdirSync(pidDir)) {
+-          if (!/^\d+$/.test(p)) continue;
+-          try {
+-            const argv = fs
+-              .readFileSync(path.join(pidDir, p, "cmdline"), "utf-8")
+-              .split("\0");
+-            const isHelper = argv.some((a) => a.includes("git-remote-s3"));
+-            // helper argv carries the full URL including the namespace segment
+-            const touchesNs = argv.some((a) => a.includes(url + ns));
+-            if (isHelper && touchesNs) {
+-              return {
+-                inFlight: true,
+-                detail: `git-remote-s3 helper pid ${p} is pushing this namespace`,
+-              };
+-            }
+-          } catch {
+-            // process vanished between readdir and read — ignore
+-          }
+-        }
+-      }
+-    }
+-  } catch {
+-    // config unreadable — the lock check above already ran
+-  }
+-
+-  return { inFlight: false, detail: "" };
+-}
++export { hasInFlightPush } from "./inflight-push";
+ 
+ /** Prune re-exported for lifecycle callers; implementation in s3/manifest. */
+ 
