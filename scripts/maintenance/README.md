@@ -41,16 +41,16 @@ push has to compress thousands of unpacked blobs every time.
 
 ## Thresholds (env-overridable)
 
-| env var | default | fires when |
-|---|---|---|
-| `REPACK_LOOSE_COUNT` | `500` | loose object count exceeds this |
-| `REPACK_LOOSE_MB` | `50` | loose-object total bytes exceeds this |
-| `REPACK_PACKS` | `3` | pack-file count exceeds this |
-| `REPACK_MAX_OBJECT_MB` | `20` | largest single loose object exceeds this |
-| `REPACK_TIMEOUT` | `1800` | per-repo wall-clock guard (seconds) |
-| `REPACK_LOG` | `~/.hermes/state/duckbrain-ns-repack.log` | where the log goes |
-| `REPACK_LAST_JSON` | `~/.hermes/state/duckbrain-ns-repack-last.json` | last-run JSON |
-| `REPACK_LOCK` | `~/.hermes/state/duckbrain-ns-repack.lock` | single-flight lock |
+| env var                | default                                         | fires when                               |
+| ---------------------- | ----------------------------------------------- | ---------------------------------------- |
+| `REPACK_LOOSE_COUNT`   | `500`                                           | loose object count exceeds this          |
+| `REPACK_LOOSE_MB`      | `50`                                            | loose-object total bytes exceeds this    |
+| `REPACK_PACKS`         | `3`                                             | pack-file count exceeds this             |
+| `REPACK_MAX_OBJECT_MB` | `20`                                            | largest single loose object exceeds this |
+| `REPACK_TIMEOUT`       | `1800`                                          | per-repo wall-clock guard (seconds)      |
+| `REPACK_LOG`           | `~/.hermes/state/duckbrain-ns-repack.log`       | where the log goes                       |
+| `REPACK_LAST_JSON`     | `~/.hermes/state/duckbrain-ns-repack-last.json` | last-run JSON                            |
+| `REPACK_LOCK`          | `~/.hermes/state/duckbrain-ns-repack.lock`      | single-flight lock                       |
 
 ## Live-daemon interaction
 
@@ -61,7 +61,7 @@ push has to compress thousands of unpacked blobs every time.
   the duckbrain daemon, which is handled by the busy-check below.
 - **Busy-check (pause-equivalent window):** there is no stop-the-writer pause.
   Instead each repo is checked for git work in flight (`pgrep -f
-  "namespaces/$ns"`) before touching it; a namespace with a push/commit/gc
+"namespaces/$ns"`) before touching it; a namespace with a push/commit/gc
   mid-repack is skipped entirely for that sweep ("BUSY" log line, re-tried next
   weekly tick). `git repack -adf` fails cleanly (non-zero rc → "left as-is for
   next sweep") if it races a writer; no corruption path, only a skipped repo.
@@ -94,3 +94,102 @@ hundreds of MB of loose bytes on top of the count (fleet-quality 262MB,
 coding-hermes 123MB). This is exactly the profile that never trips auto-gc and
 that the weekly sweep is for. Run `DRY_RUN=1` first whenever touching the
 thresholds, and read the `-last.json` for before/after deltas.
+
+---
+
+# duckbrain-ns-litter-reap.sh — orphaned test-namespace reaper
+
+## What this is
+
+Per-run test namespaces (`auger-pytest-*`, `auger-smoke-*`, `feature-test-*`,
+`drift-verify-*`, `scratch-repack-*`) accumulate on disk because namespace
+deletion and registry deletion are independent (DOGFOOD-004, REG-GONE-001):
+`DELETE /api/namespaces/<n>` unregisters the mapping and leaves the directory.
+They carry no owner and no value, but they inflate namespace counts and every
+sweep that walks the store.
+
+## Safety model
+
+Reaping is destructive, so the tool is built around refusal. **Every gate is a
+hard skip, not a warning**, and the default is a dry run:
+
+| gate | rule                                               | why                                                                                                                                                                                                                                   |
+| ---- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | **Allowlist only**                                 | A directory must match a known test prefix. Nothing else is ever a candidate, whatever else is on disk.                                                                                                                               |
+| 2    | dirty worktree → skip                              | Uncommitted files mean something was mid-write.                                                                                                                                                                                       |
+| 3    | has a remote + unpushed commits → skip             | That content is not backed up anywhere. A repo with **no** remote is local-only scratch, so its commits do not count against it — otherwise no litter would ever be reapable.                                                         |
+| 4    | modified within `--min-age` (default 1800s) → skip | A test suite may be running right now; reaping its namespace mid-run would corrupt the test. Measured on **data** files only — a namespace's `.git` internals are rewritten by every gc/commit and would otherwise always look fresh. |
+| 5    | `--apply` required                                 | Removal never happens by default.                                                                                                                                                                                                     |
+
+`--allow-uncommitted-scaffold` adds one narrow, separately-opted-in case: a
+directory with **zero commits and no remote** is abandoned scaffolding (a test
+created it and died before its first commit). There is no history to lose, and
+gate 4 still protects anything being created right now. A dirty repo _with_
+history is still refused.
+
+## Usage
+
+```bash
+scripts/maintenance/duckbrain-ns-litter-reap.sh                       # dry run
+scripts/maintenance/duckbrain-ns-litter-reap.sh --apply               # remove clean litter
+scripts/maintenance/duckbrain-ns-litter-reap.sh --allow-uncommitted-scaffold --apply
+scripts/maintenance/duckbrain-ns-litter-reap.sh --json                # machine-readable
+```
+
+Env: `DUCKBRAIN_NAMESPACES_PATH` (store root), `DUCKBRAIN_LITTER_MIN_AGE`.
+Exit codes: 0 ok, 2 usage, 3 root missing.
+
+## Measured 2026-09-23 (first live run)
+
+232 namespace dirs → **164**; 68 litter dirs removed across two passes (59 clean
+
+- 9 abandoned scaffolds), 76 MB. 7 remain deliberately: they carry committed
+  data or modified tracked files and want a human decision. All real namespaces
+  verified present afterwards.
+
+---
+
+# duckbrain-purge-empty-rows.mjs — empty-payload sweeper
+
+## What this is
+
+A broken client writes memory rows whose `embedding_text` is literally `"{}"`
+or `""`. Measured 2026-09-23: **60,925 such rows in `scheduler` (33.7% of it)**,
+authored `true@duckbrain.local`, concentrated on `/fleet/*` config keys. They
+carry no information, and because every one of them hashes the same per key they
+also dominate duplicate counts (91.3% of that namespace's repeated rows). Filed
+as **DB-GAP-056 (P1)**.
+
+**This tool does not fix the writer.** Until the writer is fixed, purged rows
+come back. Run it after the writer fix, or accept that it is a sweeper.
+
+## Safety model
+
+- `_audit/` is **never** touched — audit-ledger rows are a different record type
+  that merely lives inside the namespace tree.
+- Only rows with an **explicitly empty** `embedding_text` are candidates. A row
+  with no `embedding_text` field is never a candidate.
+- Files are treated as **bytes**: read, split on `\n`, filter, rejoin. No JSON
+  re-serialization, so key order, whitespace and numeric formatting cannot drift.
+- Every file is copied to a backup directory before it is rewritten.
+- After writing, the file is re-read and the kept lines are compared
+  line-by-line; a mismatch is reported as an error and exits non-zero.
+- Default is a dry run; writing requires `--apply`.
+
+## Usage
+
+```bash
+node scripts/maintenance/duckbrain-purge-empty-rows.mjs                  # dry run, whole store
+node scripts/maintenance/duckbrain-purge-empty-rows.mjs --namespace scheduler
+node scripts/maintenance/duckbrain-purge-empty-rows.mjs --apply --backup-dir /some/where
+```
+
+Env: `DUCKBRAIN_NAMESPACES_PATH`. Exit codes: 0 ok, 1 verification errors,
+2 usage, 3 root missing.
+
+## Verification
+
+Sandbox-tested before any live use: empty rows removed; a row with no
+`embedding_text` kept; unicode/escaped-quote content preserved byte-for-byte; a
+namespace with no empty rows left untouched (checksum match); `_audit/` left
+untouched (checksum match); second run idempotent (0 empty rows found).
