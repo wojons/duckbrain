@@ -227,6 +227,12 @@ router.delete(
       ) {
         throw new ApiError(error, 400, "VALIDATION_ERROR");
       }
+      // DF-0923-01: a push-in-flight refusal is a transient state conflict,
+      // not a validation error — surface it as 409 CONFLICT so clients can
+      // distinguish "retry after the push completes" from "fix your request".
+      if (error.startsWith("Push in flight")) {
+        throw new ApiError(error, 409, "CONFLICT");
+      }
       throw new ApiError(error, 500);
     }
 

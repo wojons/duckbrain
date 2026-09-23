@@ -20,6 +20,10 @@
  *    cleans up the stale mapping.
  *  - no half-remove: if rmSync throws, the config mapping is left intact and
  *    success:false is returned.
+ *  - in-flight-push guard (DF-0923-01): refuses while an S3 push is in
+ *    flight (hasInFlightPush, ./inflight-push) — the same guard
+ *    deleteNamespaceFromDisk (lifecycle.ts) always had, now inherited by
+ *    REST and MCP through this shared core.
  */
 
 import fs from "fs";
@@ -29,6 +33,7 @@ import {
   resolveNamespacesPath,
   updateConfig,
 } from "../config/index";
+import { hasInFlightPush } from "./inflight-push";
 
 /**
  * Result of a namespace deletion attempt
@@ -114,6 +119,21 @@ export function deleteNamespace(
       return {
         success: false,
         error: "Refusing to delete path outside namespaces root: " + dirPath,
+      };
+    }
+
+    // In-flight-push guard (DF-0923-01): refuse while a push is in flight —
+    // deleting mid-push half-lands the namespace on S3 and recreates the
+    // ghost-manifest state REVIEW-DUCKBRAIN-001 fought. Lives in the SHARED
+    // core so REST and MCP inherit the guard the CLI already had
+    // (deleteNamespaceFromDisk, lifecycle.ts). Reuses the same config-resolved
+    // namespaces root the path-safety guard computed (GAP-062: config root,
+    // never caller cwd) — the root hasInFlightPush joins stateDir() onto.
+    const inflight = hasInFlightPush(namespacesRoot, name);
+    if (inflight.inFlight) {
+      return {
+        success: false,
+        error: `Push in flight for '${name}' (${inflight.detail}). Retry after it completes.`,
       };
     }
 

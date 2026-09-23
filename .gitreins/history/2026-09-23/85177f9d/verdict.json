@@ -1,0 +1,103 @@
+{
+  "task_id": "gap062",
+  "task_title": "Pin namespace-write output root to config root, never caller cwd (h3 SDKTS-H3TS-GAP-062)",
+  "task_criteria": [
+    "A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "61d8ed33c321f3a2056ae07f20dec7c16666426c",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:40PM INF scanned ~9190324 bytes (9.19 MB) in 1.25s\n10:40PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 226153 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260923T033452.520015Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  165 passed (165)\n      Tests  1325 passed (1325)\n   Start at  22:40:50\n   Duration  42.09s (tests 77%, import 20%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  165 workers spawned \u00b7 ~80ms startup each (spawn + environment, per file)\n             at least ~3.23s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260923T033452.520015Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green",
+                "status": "PASS",
+                "detail": "Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]",
+                "resolution_probability": 0.23,
+                "cited_path": "src/embedding/hooks.ts"
+              }
+            ],
+            "summary": "GAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: gap062\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A namespace write invoked from an unrelated cwd with a PATH-resolved duckbrain binary either resolves its output root from the config file directory (writes to canonical namespaces/) or exits non-zero with a clear error - it must NOT create <cwd>/namespaces; a vitest regression test covers the foreign-cwd case; the src/embedding/hooks.ts comment documenting cwd-relative resolution is updated or removed; pnpm build and tsc --noEmit pass and vitest suites over src/storage and src/embedding are green: Root resolution pinned to config root: resolveDuckbrainRoot() (src/config/index.ts:466-513) never derives a path from cwd \u2014 precedence DUCKBRAIN_CONFIG_PATH dir > DUCKBRAIN_HOME_ROOT > module walk > entry walk > cwd walk > install root, else throws a clear actionable error; resolveNamespacesPath() (src/config/index.ts:529-535) resolves config.namespacesPath against that root and returns an absolute path. Write path wired: src/mcp/tools/shared.ts resolveNamespacePath -> path.join(resolveNamespacesPath(), ns), consumed by remember.ts:230, forget.ts:112, http/routes/memories.ts:335, cli/human.ts, cli/query.ts, cli/search-index.ts, cli/embeddings.ts, storage/jsonl.ts. Regression tests: src/config/gap062-namespace-root.test.ts (9 tests incl. foreign-cwd resolution + clear-error throw) and src/storage/jsonl.test.ts GAP-062 describe (in-process foreign-cwd write via resolveNamespacePath + a PATH-resolved `duckbrain` shim symlink spawned from an unrelated cwd asserting the row lands under <config-root>/namespaces/gap062-ns and that <foreignCwd>/namespaces does NOT exist). hooks.ts comment updated: src/embedding/hooks.ts:47 and src/search/hooks.ts:52 now state resolution is cwd-independent (GAP-062); the old \"Bare 'duckbrain' (PATH) keeps the cwd\" text is removed. Commands run fresh: `npx tsc --noEmit` exit 0; `pnpm build` exit 0 (vite built in 1.72s); `npx vitest run src/storage src/embedding src/config/gap062-namespace-root.test.ts` -> 'Test Files 13 passed (13), Tests 185 passed (185)', exit 0; verbose run of the two GAP-062 files -> 'Test Files 2 passed (2), Tests 21 passed (21)', exit 0, including 'a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces'. [resolution 0.23; src/embedding/hooks.ts]\nGAP-062 is fully implemented and verified: namespace writes resolve from the config-file root (never the caller cwd), a PATH-resolved CLI foreign-cwd regression test passes, the hooks.ts cwd-relative comment is updated, and tsc/build/vitest are all green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-23T03:46:26.403988",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-23T03:46:26.421740+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1434,
+        "truncated": false,
+        "source": "git show 61d8ed33c321"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1079,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "gap062"
+  }
+}

@@ -31,12 +31,12 @@ import {
   resolveNamespacesPath,
   updateConfig,
 } from "../config/index";
-import { isPidAlive } from "../utils/pidfile";
 import type { S3Config } from "../s3/config";
 import { resolveEffectiveEndpoint } from "../s3/config";
 import { buildClient, listRemoteObjects, deleteObject } from "../s3/client";
 import { stateDir, loadManifest, pruneSyncManifest } from "../s3/manifest";
 import { namespacePath } from "../s3/sync";
+import { hasInFlightPush } from "./inflight-push";
 
 /** Where the who/why audit trail lives (JSONL, one line per operation). */
 export function lifecycleLogPath(namespacesPath: string): string {
@@ -63,72 +63,11 @@ export function logLifecycle(
 }
 
 /**
- * Is a push for this namespace in flight right now?
- *
- * Two writers can be moving this namespace's bytes:
- *  - the native delta sync (cross-process lock at <nsRoot>/.s3state/.lock —
- *    global to all namespaces, so a held lock means SOME sync is running);
- *  - the shell git layer's git-remote-s3 helper (argv names the namespace's
- *    s3:// URL).
- * When detection is impossible (no /proc, pgrep missing) we fail CLOSED:
- * a delete during an unknown push is worse than a deferred one.
+ * In-flight push detection moved to ./inflight-push (DF-0923-01) so the
+ * shared deletion core can share it without an import cycle; re-exported
+ * here for existing lifecycle importers.
  */
-export function hasInFlightPush(
-  namespacesPath: string,
-  ns: string,
-): { inFlight: boolean; detail: string } {
-  const lockPath = path.join(stateDir(namespacesPath), ".lock");
-  try {
-    const raw = fs.readFileSync(lockPath, "utf-8");
-    const data = JSON.parse(raw) as { pid: number; ts: number };
-    if (
-      Number.isInteger(data.pid) &&
-      data.pid > 0 &&
-      isPidAlive(data.pid) &&
-      Date.now() - data.ts < 10 * 60 * 1000
-    ) {
-      return {
-        inFlight: true,
-        detail: `native sync lock held by pid ${data.pid} (since ${new Date(data.ts).toISOString()})`,
-      };
-    }
-  } catch {
-    // no lock / unreadable → not in flight via this path
-  }
-
-  try {
-    const cfg = getConfig(".");
-    if (cfg.s3?.enabled) {
-      const url = `s3://${cfg.s3.bucket}/`;
-      if (fs.existsSync("/proc/self/cmdline")) {
-        const pidDir = "/proc";
-        for (const p of fs.readdirSync(pidDir)) {
-          if (!/^\d+$/.test(p)) continue;
-          try {
-            const argv = fs
-              .readFileSync(path.join(pidDir, p, "cmdline"), "utf-8")
-              .split("\0");
-            const isHelper = argv.some((a) => a.includes("git-remote-s3"));
-            // helper argv carries the full URL including the namespace segment
-            const touchesNs = argv.some((a) => a.includes(url + ns));
-            if (isHelper && touchesNs) {
-              return {
-                inFlight: true,
-                detail: `git-remote-s3 helper pid ${p} is pushing this namespace`,
-              };
-            }
-          } catch {
-            // process vanished between readdir and read — ignore
-          }
-        }
-      }
-    }
-  } catch {
-    // config unreadable — the lock check above already ran
-  }
-
-  return { inFlight: false, detail: "" };
-}
+export { hasInFlightPush } from "./inflight-push";
 
 /** Prune re-exported for lifecycle callers; implementation in s3/manifest. */
 
