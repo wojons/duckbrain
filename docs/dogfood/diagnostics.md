@@ -411,3 +411,68 @@ scoped tokens (403/401), MCP field names, SSE cursor framing, git batching,
 validity windows (with the camelCase trap, DF-0919-05). CLI forget in
 non-default namespaces now works (DOGFOOD-0904-01 fix confirmed in
 src/cli/human.ts forgetCommand — flag resolves via getDefaultNamespace()).
+
+## Run 7 — 2026-09-23 dogfood (namespace deletion lifecycle focus)
+
+The surface (commit e3a9852, 2026-09-22): DuckBrain now has TWO deletion
+operations instead of one boolean-flagged one. `delete-from-disk` removes the
+local dir + config mapping + the per-ns S3 sync manifest and STOPS scheduled
+pushes, but the S3 objects stay retrievable (that was Bane's requirement:
+"namespaces removed from disk should turn off but keep the S3 version").
+`clear-from-s3` is the reverse: remote-only destruction with an explicit
+--yes + --dry-run + who/why. A ghost sweep (`s3 ghosts [--sweep]`) prunes
+manifests/mappings whose namespace dir is already gone — the 88-ghost
+ENOENT-retry class of 09-21/22. The root cause was that the sync manifest
+lives OUTSIDE the namespace dir (<namespaces>/.s3state/<ns>.json), so every
+previous delete left dead namespaces on the 15-minute push cadence forever.
+
+How to think about it: disk-deletion is the SAFE operation (S3 = backup that
+survives), S3-clear is the destructive one (guarded by dry-run + explicit
+--yes + audit). If you delete from disk and want the data back, pull /
+git-clone the S3 prefix. Both log to <namespaces>/.s3state/lifecycle.log —
+one JSONL line per op, who/why attached.
+
+What the run proved: the CLI path is genuinely good — usage errors exit 1,
+the in-flight-push lock guard refuses with an exact reason, the audit line
+lands, the daemon behind it stays coherent (deleted ns → 404, no ghosting at
+HEAD). The ghost sweep detected and pruned seeded ghost state correctly.
+
+What bit (rows DF-0923-01..05):
+
+- DF-0923-01 (P1) — the guard is CLI-only. The shared core deleteNamespace
+  (src/namespaces/delete.ts) that REST DELETE /api/namespaces/:name and MCP
+  delete_namespace both call never checks hasInFlightPush. Live-proven: same
+  lock that blocks the CLI does NOT block REST (200, dir gone). Half-landed
+  S3 pushes — the exact ghost-generating scenario — are reachable through the
+  surfaces agents actually use. Lesson: when a safety property is added, the
+  wiring must be audited per SURFACE (CLI/REST/MCP), not per function; the
+  function was extracted to be shared, but the new property was bolted onto
+  one caller.
+- DF-0923-02 (P2) — REST/MCP deletion writes no lifecycle.log line. Audit
+  coverage follows the same caller-shaped hole. An agent deleting memory
+  through MCP leaves no who/why anywhere.
+- DF-0923-03 (P2) — zero docs for the whole feature; and plain
+  `namespace delete` silently changed semantic (disk-only now; old scripts
+  expected purge semantics). Semantic changes need a release note and a
+  README ops section, not just --help.
+- DF-0923-04 (P2) — compose path broken fresh (probe 000, chaos-shutdown
+  rc=1). The compose stack is the documented "production" path and fails its
+  own restart lifecycle on a clean machine.
+- DF-0923-05 (P3) — no npm artifact; the upgrade cell can never pass.
+  Distribution decision, not a bug.
+
+Probe lessons (would have produced two false findings):
+
+- The in-flight lock's ts must be current epoch MILLISECONDS. `date +%s%3N`
+  on this box prints nanoseconds; a garbage ts parses as stale-future and the
+  guard silently ignores it — first probe falsely read "guard broken".
+  Read the ts format the code actually expects before trusting a guard
+  probe. Conversely: a lock that LOOKS stale is ignored by design (10-min
+  window), which is the correct behavior for a crashed pusher.
+- The battery's ui-probe FAIL is a harness misfit, not a product defect:
+  duckbrain's root `npm run dev` IS the backend (logged "HTTP server ready");
+  the cell probes :3111 expecting a frontend dev server. packages/ui has its
+  own build path (vite, works — 2.19s build locally). Read what the harness
+  detected vs what the repo's actual UI story is before filing.
+- EXIT codes: report the COMMAND's rc, not the pipeline's (PIPESTATUS[0]
+  rule again — first exit-code sweep read head's rc).

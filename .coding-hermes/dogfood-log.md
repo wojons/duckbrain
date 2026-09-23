@@ -79,3 +79,45 @@ run-6 section, skills/duckbrain-usage v1.6.0, DF-0919-01..06 on the board
 NOTE: first application of this run's artifacts was wiped from the working
 tree by a sibling process while uncommitted (re-applied and committed in the
 same step — see git history for the double landing).
+
+---
+
+## Run 8 — 2026-09-23 (tick duckbrain-dogfood-2026-09-23-06-20-14)
+
+**Verdict: PROMISING-BUT-ROUGH.** Focus surface: the namespace deletion
+lifecycle (e3a9852, 2026-09-22) — delete-disk vs clear-s3 vs ghost sweep —
+untouched by runs 1-7. Promise holds on the CLI: guards (force, active-ns,
+in-flight-push lock) all fire with exact reasons, who/why audit line lands,
+ghost sweep detects+prunes seeded ghost state, daemon behind a CLI delete
+stays coherent (deleted ns → 404, no ghosting at HEAD). Isolated scratch
+daemon (:3923, env isolation trio), prod untouched.
+
+Top findings:
+1. **DF-0923-01 (P1)** — the in-flight-push guard is CLI-only: REST DELETE
+   /api/namespaces/:name and MCP delete_namespace call the shared core
+   WITHOUT the guard. Live-proven: same live lock that blocks the CLI does
+   NOT block REST (200, dir gone). Half-landed-push/ghost scenarios are
+   reachable through the agent-facing surfaces.
+2. **DF-0923-02 (P2)** — REST/MCP deletion writes NO lifecycle.log audit
+   line (only the CLI path logs who/why).
+3. **DF-0923-03 (P2)** — zero docs for the feature; plain `namespace delete`
+   silently changed semantics (disk-only now).
+Also: DF-0923-04 (P2) compose path broken fresh (probe 000, chaos-shutdown
+rc=1); DF-0923-05 (P3) no npm artifact (upgrade E404).
+
+Time-to-first-success: ~30s (daemon boot ~4s + create + write + read-back).
+Fresh-machine install: **17.6s** pnpm frozen install on a clean bunker user —
+DF-0919-01 (express missing) FIXED at HEAD.
+
+Perf (Step 2b): REST namespace DELETE 10.6 ms ± 2.5 ms warm (hyperfine n=10);
+CLI delete-disk 1.20s cold (Node+DuckDB startup dominates); nothing a user
+would feel — no PERF row filed.
+
+Bunker leg: battery PASSED fresh-install (17.6s) on bunker-las-02 agent
+a5e78c5a (destroyed); docker-deploy/chaos-shutdown FAILED (DF-0923-04);
+ui-probe FAIL = harness misfit (npm run dev here is the backend), not filed
+as a product defect; upgrade FAIL = DF-0923-05.
+
+Left behind: docs/dogfood/2026-09-23-integration.md, diagnostics.md run-7
+section, skills/duckbrain-usage deletion-lifecycle section, DF-0923-01..05 on
+the board (tasks 199→204, events 1176→1181, census-verified), this entry.

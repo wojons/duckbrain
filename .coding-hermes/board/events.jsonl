@@ -1174,3 +1174,8 @@
 {"id":611,"timestamp":"2026-09-23 00:57:09.839754","event_type":"task_created","task_id":"ROLLOUT-DUCKBRAIN-001","actor":"foreman","detail":"{\"id\":\"ROLLOUT-DUCKBRAIN-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":612,"timestamp":"2026-09-23 00:57:51.67135","event_type":"task_completed","task_id":"REVIEW-DUCKBRAIN-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":613,"timestamp":"2026-09-23 00:57:51.69174","event_type":"task_completed","task_id":"REVIEW-DUCKBRAIN-002","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"event_type": "task_created", "task_id": "DF-0923-01", "actor": "dogfood", "detail": "{\"id\": \"DF-0923-01\", \"status\": \"pending\", \"priority\": \"P1\"}", "id": 614, "timestamp": "2026-09-23 01:50:17"}
+{"event_type": "task_created", "task_id": "DF-0923-02", "actor": "dogfood", "detail": "{\"id\": \"DF-0923-02\", \"status\": \"pending\", \"priority\": \"P2\"}", "id": 615, "timestamp": "2026-09-23 01:50:17"}
+{"event_type": "task_created", "task_id": "DF-0923-03", "actor": "dogfood", "detail": "{\"id\": \"DF-0923-03\", \"status\": \"pending\", \"priority\": \"P2\"}", "id": 616, "timestamp": "2026-09-23 01:50:17"}
+{"event_type": "task_created", "task_id": "DF-0923-04", "actor": "dogfood", "detail": "{\"id\": \"DF-0923-04\", \"status\": \"pending\", \"priority\": \"P2\"}", "id": 617, "timestamp": "2026-09-23 01:50:17"}
+{"event_type": "task_created", "task_id": "DF-0923-05", "actor": "dogfood", "detail": "{\"id\": \"DF-0923-05\", \"status\": \"pending\", \"priority\": \"P3\"}", "id": 618, "timestamp": "2026-09-23 01:50:17"}
