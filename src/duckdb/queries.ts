@@ -8,7 +8,7 @@
 import type { Database } from "./connection";
 import type { MemoryType } from "../schema/memory";
 import type { AuthPrincipal } from "../auth/middleware";
-import { getConfig } from "../config";
+import { resolveNamespacesPath } from "../config";
 import { getNamespaceWriter } from "../serialization/namespaceWriter";
 import path from "path";
 import fs from "fs";
@@ -641,7 +641,8 @@ interface SerializationTarget {
 function resolveSerializationTarget(
   partitionPath: string,
 ): SerializationTarget {
-  const configuredRoot = path.resolve(getConfig(".").namespacesPath);
+  // GAP-062: classify against the config-derived root, never the caller's cwd.
+  const configuredRoot = resolveNamespacesPath();
   const resolvedPartition = path.resolve(partitionPath);
   const relative = path.relative(configuredRoot, resolvedPartition);
   const parts = relative.split(path.sep).filter(Boolean);

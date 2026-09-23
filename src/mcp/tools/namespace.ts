@@ -9,7 +9,12 @@
  */
 
 import { z } from "zod";
-import { getConfig, updateConfig, registerNamespace } from "../../config/index";
+import {
+  getConfig,
+  registerNamespace,
+  resolveNamespacesPath,
+  updateConfig,
+} from "../../config/index";
 import { runGitAsync } from "../../git/exec";
 import fs from "fs";
 import path from "path";
@@ -116,8 +121,11 @@ export async function createNamespaceTool(
     // Validate input
     CreateNamespaceInputSchema.parse(input);
 
-    const config = getConfig(".");
-    const nsPath = path.join(config.namespacesPath, input.name);
+    // GAP-062: the namespace root comes from the config file's own directory,
+    // never the caller's cwd — a create from an unrelated checkout must not
+    // mkdir `<cwd>/namespaces/<name>`.
+    const nsRoot = resolveNamespacesPath();
+    const nsPath = path.join(nsRoot, input.name);
 
     // Check if namespace already exists
     if (fs.existsSync(nsPath)) {
@@ -166,11 +174,13 @@ export async function createNamespaceTool(
       );
     }
 
-    // Update config
-    registerNamespace(".", input.name, nsPath);
+    // Update the config file that owns this root — never `<cwd>/duckbrain.config.json`
+    // (GAP-062: a leaked config file in an unrelated checkout must not receive
+    // this namespace's mapping).
+    registerNamespace(nsRoot, input.name, nsPath);
 
     if (input.setDefault) {
-      updateConfig(".", { defaultNamespace: input.name });
+      updateConfig(nsRoot, { defaultNamespace: input.name });
     }
 
     return {
@@ -212,7 +222,9 @@ export async function listNamespacesTool(
     if (!namespaceList.some((n) => n.name === "default")) {
       namespaceList.unshift({
         name: "default",
-        path: path.join(config.namespacesPath || "./namespaces", "default"),
+        // GAP-062: report the absolute, root-derived path (the same one the
+        // create/write paths use), not a cwd-relative string.
+        path: path.join(resolveNamespacesPath(), "default"),
         isDefault: currentNamespace === "default",
       });
     }

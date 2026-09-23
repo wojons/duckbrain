@@ -15,7 +15,7 @@ import http from "http";
 import os from "os";
 import path from "path";
 import type { Express, NextFunction, Request, Response } from "express";
-import { getConfig } from "../../config";
+import { resolveNamespacesPath } from "../../config";
 import { invalidateRealtimeTableCache } from "../routes/realtime";
 import { createMemory, type MemoryType } from "../../schema/memory";
 import {
@@ -61,7 +61,8 @@ export interface RealtimeFixture {
 
 /** The config-derived namespaces root the route's table registry reads. */
 export function configNamespacesPath(): string {
-  return path.resolve(getConfig(".").namespacesPath);
+  // GAP-062: fixtures live under the config-derived root, never the cwd.
+  return path.resolve(resolveNamespacesPath());
 }
 
 export function gitIn(repoDir: string, args: string[]): string {

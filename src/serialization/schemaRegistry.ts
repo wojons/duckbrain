@@ -21,7 +21,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
-import { getConfig } from "../config/index.js";
+import { resolveNamespacesPath } from "../config/index.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
 import {
   tableSchemaRegistry,
@@ -81,7 +81,9 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 
 export function resolveNamespacesRoot(override?: string): string {
-  return path.resolve(override ?? getConfig(".").namespacesPath);
+  // GAP-062: with no explicit override, resolve against the duckbrain root
+  // (the directory owning duckbrain.config.json), never the caller's cwd.
+  return path.resolve(override ?? resolveNamespacesPath());
 }
 
 function cacheKey(root: string, ns: string): string {

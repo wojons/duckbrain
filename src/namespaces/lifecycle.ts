@@ -26,7 +26,11 @@
 import fs from "fs";
 import path from "path";
 import { deleteNamespace } from "./delete";
-import { getConfig, updateConfig } from "../config/index";
+import {
+  getConfig,
+  resolveNamespacesPath,
+  updateConfig,
+} from "../config/index";
 import { isPidAlive } from "../utils/pidfile";
 import type { S3Config } from "../s3/config";
 import { resolveEffectiveEndpoint } from "../s3/config";
@@ -178,9 +182,9 @@ export function deleteNamespaceFromDisk(
   }
 
   const config = getConfig(".");
-  const nsRoot = path.resolve(
-    opts.namespacesPath ?? config.namespacesPath ?? "./namespaces",
-  );
+  // GAP-062: the sync/lifecycle root comes from the config file's own
+  // directory, never the caller's cwd.
+  const nsRoot = path.resolve(opts.namespacesPath ?? resolveNamespacesPath());
 
   // Refuse while a push is in flight — deleting mid-push half-lands the
   // namespace on S3 and recreates the ghost state this module exists to fix.
@@ -276,9 +280,9 @@ export async function planS3Clear(
   const prefix = `${s3.prefix}/${ns}/`;
   const remote = await listRemoteObjects(client, s3.bucket, prefix);
 
-  const nsRoot = path.resolve(
-    opts?.namespacesPath ?? getConfig(".").namespacesPath ?? "./namespaces",
-  );
+  // GAP-062: root from the config file's own directory (same rule as the
+  // write paths), never the caller's cwd.
+  const nsRoot = path.resolve(opts?.namespacesPath ?? resolveNamespacesPath());
   const manifests: string[] = [];
   for (const layer of ["current/git", "archives/git"]) {
     manifests.push(`s3://${s3.bucket}/${layer}/${ns} (git bundle layer)`);
@@ -371,9 +375,8 @@ export async function clearNamespaceFromS3(
     }
   }
 
-  const nsRoot = path.resolve(
-    opts.namespacesPath ?? getConfig(".").namespacesPath ?? "./namespaces",
-  );
+  // GAP-062: root from the config file's own directory, never the caller's cwd.
+  const nsRoot = path.resolve(opts.namespacesPath ?? resolveNamespacesPath());
   // A cleared namespace must not be re-pushed by stale local state either.
   const manifestPruned = pruneSyncManifest(nsRoot, ns);
 

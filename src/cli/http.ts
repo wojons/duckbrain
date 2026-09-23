@@ -31,7 +31,7 @@ import { FileAuthStore } from "../auth/storeSchema.js";
 import { authorizeTableAccess } from "../auth/roles.js";
 import { createDenialAuditor } from "../serialization/audit.js";
 import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
-import { getConfig } from "../config/index.js";
+import { resolveNamespacesPath } from "../config/index.js";
 import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
 import {
   errorHandler,
@@ -387,8 +387,10 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 
   // 3. Authentication — production loads a validated, hot-reloadable store.
   // Inline authConfig remains the hermetic embed/test seam.
+  // GAP-062: server-side root = the config file's own directory, never cwd
+  // (the server must serve the same namespaces regardless of where it started).
   const namespacesPath = path.resolve(
-    options.namespacesPath ?? getConfig(".").namespacesPath,
+    options.namespacesPath ?? resolveNamespacesPath(),
   );
   const authConfig: AuthConfig = {
     ...(options.authConfig ?? { type: options.authType ?? "none" }),

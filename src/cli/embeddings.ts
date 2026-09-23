@@ -33,7 +33,11 @@ import {
   installEmbeddingHooks,
   embeddingHooksInstalled,
 } from "../embedding/hooks.js";
-import { getConfig } from "../config/index.js";
+import {
+  getConfig,
+  resolveDuckbrainRoot,
+  resolveNamespacesPath,
+} from "../config/index.js";
 
 interface EmbeddingsArgs {
   action: string;
@@ -71,12 +75,17 @@ function resolveNamespacePath(name: string | undefined): {
   name: string;
   nsPath: string;
 } {
-  const config = getConfig();
+  // GAP-062: the instance config lives at the duckbrain root, and the
+  // namespaces path is relative to THAT config file — a bare `duckbrain
+  // embeddings rebuild` invoked from an unrelated cwd used to look for
+  // `<cwd>/namespaces/<ns>` and fail with "Namespace not found".
+  const config = getConfig(resolveDuckbrainRoot());
   const ns = name ?? config.defaultNamespace ?? "default";
   const mapped = config.namespaceMappings?.[ns];
-  let nsPath = mapped ?? path.join(process.cwd(), "namespaces", ns);
+  const root = resolveNamespacesPath();
+  let nsPath = mapped ?? path.join(root, ns);
   if (!path.isAbsolute(nsPath)) {
-    nsPath = path.resolve(process.cwd(), nsPath);
+    nsPath = path.resolve(root, nsPath);
   }
   if (!fs.existsSync(nsPath)) {
     throw new Error(`Namespace '${ns}' not found at ${nsPath}`);

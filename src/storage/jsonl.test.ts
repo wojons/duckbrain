@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { spawn } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { appendToJsonl, getNextChunkName, readPartition } from "./jsonl";
+import { resolveNamespacePath } from "../mcp/tools/shared";
 import type { MemoryType } from "../schema/memory";
+
+// GAP-062 spawns the real CLI in a subprocess; tsx startup + a git-committing
+// write needs more than the default 15s budget (same convention as
+// src/cli/remember-wait-cliwait001.test.ts).
+vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 /**
  * Regression test for the 0NaN.jsonl chunk-rotation bug (2026-08-06):
@@ -192,5 +199,185 @@ describe("chunk rotation past segment 9999", () => {
       "/test/rotation/1",
       "/test/rotation/2",
     ]);
+  });
+});
+
+/**
+ * GAP-062 regression: a namespace WRITE must resolve its output root from the
+ * duckbrain root (the directory owning duckbrain.config.json), never from the
+ * caller's cwd.
+ *
+ * Incident (2026-09-19/20): a `duckbrain` CLI write invoked from an unrelated
+ * product checkout (get-h3/sdk-typescript) created `./namespaces/qa` inside
+ * that checkout, because `namespacesPath` ("./namespaces") was resolved with
+ * `path.resolve(getConfig(".").namespacesPath)` — i.e. relative to whatever
+ * cwd the PATH-resolved binary inherited.
+ *
+ * Hermeticity: the child/in-process writes are redirected with
+ * DUCKBRAIN_CONFIG_PATH pointed at a scratch config file inside a scratch
+ * root, so nothing here touches the repo's live `namespaces/`.
+ */
+describe("GAP-062: namespace writes resolve from the config root, never the caller cwd", () => {
+  const CONFIG_FILENAME = "duckbrain.config.json";
+
+  /** <scratch>/db-root/{duckbrain.config.json, namespaces/} + a foreign cwd. */
+  function scratchLayout(): {
+    root: string;
+    foreignCwd: string;
+    configPath: string;
+  } {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-gap062-root-"),
+    );
+    fs.writeFileSync(
+      path.join(root, CONFIG_FILENAME),
+      JSON.stringify({ namespacesPath: "./namespaces" }, null, 2) + "\n",
+      "utf-8",
+    );
+    const foreignCwd = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-gap062-foreign-"),
+    );
+    return { root, foreignCwd, configPath: path.join(root, CONFIG_FILENAME) };
+  }
+
+  /** Env that pins the scratch root and nothing else about namespace storage. */
+  function childEnv(
+    configPath: string,
+    extra: Record<string, string> = {},
+  ): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      DUCKBRAIN_CONFIG_PATH: configPath,
+      ...extra,
+    };
+    // The suite-wide BUG-037 redirect would otherwise win over the config root.
+    delete env.DUCKBRAIN_NAMESPACES_PATH;
+    return env;
+  }
+
+  /** Recursively look for a JSONL row containing `needle` under `dir`. */
+  function jsonlUnder(dir: string, needle: string): string | null {
+    if (!fs.existsSync(dir)) return null;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const hit = jsonlUnder(p, needle);
+        if (hit) return hit;
+      } else if (entry.name.endsWith(".jsonl")) {
+        if (fs.readFileSync(p, "utf-8").includes(needle)) return p;
+      }
+    }
+    return null;
+  }
+
+  it("writes under the config root when the process cwd is an unrelated directory", () => {
+    const { root, foreignCwd, configPath } = scratchLayout();
+    const prevConfigPath = process.env.DUCKBRAIN_CONFIG_PATH;
+    const prevNsPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const prevCwd = process.cwd();
+    try {
+      process.env.DUCKBRAIN_CONFIG_PATH = configPath;
+      delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      process.chdir(foreignCwd);
+
+      // The write path every MCP tool / CLI remember uses to find its root.
+      const nsPath = resolveNamespacePath("gap062-ns");
+      expect(nsPath).toBe(path.join(root, "namespaces", "gap062-ns"));
+
+      // A real append through the storage layer (not just the resolver).
+      const partition = path.join(nsPath, "event", "2026-09");
+      fs.mkdirSync(partition, { recursive: true });
+      const file = path.join(partition, "current.jsonl");
+      expect(appendToJsonl(file, makeRecord(1))).toBe(1);
+
+      expect(
+        jsonlUnder(path.join(root, "namespaces"), "/test/rotation/1"),
+      ).not.toBeNull();
+      // The regression: no namespace tree next to the caller.
+      expect(fs.existsSync(path.join(foreignCwd, "namespaces"))).toBe(false);
+    } finally {
+      process.chdir(prevCwd);
+      if (prevConfigPath === undefined) {
+        delete process.env.DUCKBRAIN_CONFIG_PATH;
+      } else {
+        process.env.DUCKBRAIN_CONFIG_PATH = prevConfigPath;
+      }
+      if (prevNsPath === undefined) {
+        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      } else {
+        process.env.DUCKBRAIN_NAMESPACES_PATH = prevNsPath;
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(foreignCwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a PATH-resolved CLI invoked from a foreign cwd writes under the config root, never <cwd>/namespaces", async () => {
+    const { root, foreignCwd, configPath } = scratchLayout();
+    const repoRoot = process.cwd();
+    const repoBin = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
+    const key = "/gap062/foreign-cwd-probe";
+
+    // PATH resolution, faithfully: a bin directory holding an executable named
+    // `duckbrain` (exactly what npm/pnpm link creates) that points at the
+    // package entry — the incident's invocation shape.
+    const shimBinDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-gap062-bin-"),
+    );
+    fs.symlinkSync(repoBin, path.join(shimBinDir, "duckbrain"));
+
+    const res = await new Promise<{
+      code: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      const child = spawn(
+        "duckbrain",
+        [
+          "remember",
+          key,
+          "--domain=raw_note",
+          "--content=GAP-062 foreign cwd probe",
+          "--namespace=gap062-ns",
+        ],
+        {
+          cwd: foreignCwd,
+          env: childEnv(configPath, {
+            PATH: `${shimBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+          }),
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => (stdout += String(d)));
+      child.stderr.on("data", (d) => (stderr += String(d)));
+      const timer = setTimeout(() => child.kill("SIGKILL"), 45_000);
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        resolve({ code, stdout, stderr });
+      });
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        resolve({ code: null, stdout, stderr: `${stderr}${String(err)}` });
+      });
+    });
+
+    try {
+      expect(res.stderr + res.stdout).not.toContain("ENOENT");
+      expect(res.code).toBe(0);
+      // The row landed under the config root...
+      expect(
+        jsonlUnder(path.join(root, "namespaces", "gap062-ns"), key),
+      ).not.toBeNull();
+      // ...and nothing was created next to the caller, nor in the live store.
+      expect(fs.existsSync(path.join(foreignCwd, "namespaces"))).toBe(false);
+      expect(
+        fs.existsSync(path.join(repoRoot, "namespaces", "gap062-ns")),
+      ).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(foreignCwd, { recursive: true, force: true });
+      fs.rmSync(shimBinDir, { recursive: true, force: true });
+    }
   });
 });

@@ -21,7 +21,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { getConfig } from "../config/index";
+import { resolveNamespacesPath } from "../config/index";
 import { listNamespaces } from "../search/index";
 
 /** Default DuckBrain HTTP API base (overridable via DUCKBRAIN_API_URL). */
@@ -376,7 +376,8 @@ export async function consolidateCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const root = getConfig(".").namespacesPath;
+  // GAP-062: the delta scan runs against the config root, not the cwd.
+  const root = resolveNamespacesPath();
   const deltas = collectNamespaceDeltas(root, dateStr);
 
   const totalRows = deltas.reduce((n, d) => n + d.rows.length, 0);

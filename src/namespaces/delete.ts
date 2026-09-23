@@ -24,7 +24,11 @@
 
 import fs from "fs";
 import path from "path";
-import { getConfig, updateConfig } from "../config/index";
+import {
+  getConfig,
+  resolveNamespacesPath,
+  updateConfig,
+} from "../config/index";
 
 /**
  * Result of a namespace deletion attempt
@@ -97,7 +101,10 @@ export function deleteNamespace(
     // Path-safety guard: the resolved path MUST live inside the namespaces
     // root. This blocks `../` traversal and any mapping pointing outside the
     // root — the deletion MUST NEVER remove an arbitrary filesystem path.
-    const namespacesRoot = path.resolve(config.namespacesPath);
+    // GAP-062: the guard root is the config file's own directory, not the
+    // caller's cwd — a cwd-relative root would either reject every legitimate
+    // mapping or widen the guard.
+    const namespacesRoot = resolveNamespacesPath();
     const dirPath = path.resolve(recordedPath);
     const rel = path.relative(namespacesRoot, dirPath);
     const isInside =

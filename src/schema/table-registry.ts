@@ -31,7 +31,7 @@
 
 import fs from "fs";
 import path from "path";
-import { getConfig } from "../config/index.js";
+import { resolveNamespacesPath } from "../config/index.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
 import {
   duckColumnTypeForDeclared,
@@ -238,7 +238,9 @@ function validateTableDeclaration(
 
 /** Absolute path of a namespace directory (honors DUCKBRAIN_NAMESPACES_PATH). */
 export function namespaceDir(ns: string): string {
-  return path.resolve(getConfig(".").namespacesPath, ns);
+  // GAP-062: absolute against the duckbrain root (the config file's own
+  // directory), never the caller's cwd.
+  return path.resolve(resolveNamespacesPath(), ns);
 }
 
 /** Absolute path of a table's data file(s) resolved from its declared glob. */

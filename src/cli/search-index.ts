@@ -15,7 +15,7 @@
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { getConfig } from "../config/index";
+import { resolveNamespacesPath } from "../config/index";
 import {
   ensureSearchGitignored,
   indexStatus,
@@ -119,7 +119,9 @@ async function cmdRebuild(opts: SearchIndexArgs): Promise<void> {
   }
 
   // No --namespace: rebuild every namespace under the namespaces root.
-  const root = getConfig(".").namespacesPath;
+  // GAP-062: with no --namespace, scan the root derived from the config file's
+  // own directory — never the caller's cwd.
+  const root = resolveNamespacesPath();
   const namespaces = listNamespaces(root);
   if (namespaces.length === 0) {
     console.error(`No namespaces found under ${root} — nothing to rebuild.`);

@@ -23,7 +23,7 @@ import fs from "fs";
 import path from "path";
 import type { AuthPrincipal } from "../../auth/middleware";
 import { authorizeTableAccess } from "../../auth/roles";
-import { getConfig } from "../../config";
+import { getConfig, resolveNamespacesPath } from "../../config";
 import {
   commitExists,
   commitTimeIso,
@@ -161,8 +161,10 @@ export class RealtimeHub {
 
   constructor(options: RealtimeHubOptions = {}) {
     const config = getConfig(".");
+    // GAP-062: watch the root the writes use (the config file's own
+    // directory), never a cwd-relative one.
     this.namespacesPath = path.resolve(
-      options.namespacesPath ?? config.namespacesPath,
+      options.namespacesPath ?? resolveNamespacesPath(),
     );
     this.pollIntervalMs =
       options.pollIntervalMs ?? config.realtime.pollIntervalMs;

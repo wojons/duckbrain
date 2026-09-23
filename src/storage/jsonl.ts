@@ -12,7 +12,7 @@ import fs from "fs";
 import path from "path";
 import { MemorySchema, type MemoryType } from "../schema/memory";
 import { safeJsonStringify } from "../utils/serialize";
-import { getConfig, resolveDurabilityMode } from "../config";
+import { resolveDurabilityMode, resolveNamespacesPath } from "../config";
 import { DurabilityError } from "./durability-errors";
 
 /**
@@ -263,7 +263,11 @@ export function ensureJsonlDir(dir: string): string[] {
 export function namespaceForJsonlPath(filePath: string): string | undefined {
   let nsRoot: string;
   try {
-    nsRoot = path.resolve(getConfig(".").namespacesPath || "./namespaces");
+    // GAP-062: classify against the SAME root the writes resolve to (the
+    // config file's own directory), never a cwd-relative one — otherwise a
+    // file written under the canonical root fails to match while a stray
+    // `<cwd>/namespaces` tree would.
+    nsRoot = resolveNamespacesPath();
   } catch {
     return undefined;
   }

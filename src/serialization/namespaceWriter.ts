@@ -1,7 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { Mutex } from "async-mutex";
-import { getConfig } from "../config";
+import {
+  getConfig,
+  resolveDuckbrainRoot,
+  resolveNamespacesPath,
+} from "../config";
 import { commitNamespace } from "../git/autocommit";
 import { addPartition } from "../storage/manifest";
 import {
@@ -372,10 +376,11 @@ export class NamespaceWriter implements AuditSink {
   private isFenced = false;
 
   constructor(ns: string, options: NamespaceWriterOptions = {}) {
-    const config = getConfig(".");
     this.ns = ns;
+    // GAP-062: the write root is the config file's own directory, never cwd.
+    const config = getConfig(resolveDuckbrainRoot());
     this.namespacesPath = path.resolve(
-      options.namespacesPath ?? config.namespacesPath,
+      options.namespacesPath ?? resolveNamespacesPath(),
     );
     this.namespacePath = path.join(this.namespacesPath, ns);
     this.registry = options.registry ?? tableSchemaRegistry;
@@ -1012,8 +1017,8 @@ export function getNamespaceWriter(
   ns: string,
   options: NamespaceWriterOptions = {},
 ): NamespaceWriter {
-  const config = getConfig(".");
-  const root = path.resolve(options.namespacesPath ?? config.namespacesPath);
+  // GAP-062: write root = the config file's own directory, never cwd.
+  const root = path.resolve(options.namespacesPath ?? resolveNamespacesPath());
   const key = `${root}\u0000${ns}`;
   let writer = writers.get(key);
   if (!writer) {

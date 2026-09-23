@@ -9,7 +9,7 @@ import { Router, Request, Response } from "express";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
 import { deepConvertBigInts } from "../../utils/serialize";
-import { getConfig } from "../../config/index";
+import { resolveNamespacesPath } from "../../config/index";
 import path from "path";
 import fs from "fs";
 
@@ -111,14 +111,17 @@ const READ_JSON_COLUMNS =
 /**
  * Collect all JSONL file paths across all namespaces.
  *
- * Resolved via getConfig() so the route honors the same env-only overrides
- * as the rest of the codebase (DUCKBRAIN_CONFIG_PATH GAP-022,
- * DUCKBRAIN_NAMESPACES_PATH BUG-037) — the test suite redirects namespace
- * storage to a per-worker temp dir, and this route must follow it instead of
- * scanning the live ./namespaces tree.
+ * Resolved via resolveNamespacesPath() so the route honors the same env-only
+ * overrides as the rest of the codebase (DUCKBRAIN_CONFIG_PATH GAP-022,
+ * DUCKBRAIN_NAMESPACES_PATH BUG-037) and the same root the write paths use
+ * (GAP-062: the directory owning duckbrain.config.json, never the caller's
+ * cwd) — the test suite redirects namespace storage to a per-worker temp dir,
+ * and this route must follow it instead of scanning the live ./namespaces tree.
  */
 function collectAllJsonlFiles(): string[] {
-  const nsPath = getConfig(".").namespacesPath;
+  // GAP-062: scan the root the writes use (the config file's own directory),
+  // never a cwd-relative one.
+  const nsPath = resolveNamespacesPath();
   if (!fs.existsSync(nsPath)) return [];
 
   const files: string[] = [];

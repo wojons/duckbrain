@@ -270,7 +270,7 @@ export type DuckBrainConfig = z.infer<typeof DuckBrainConfigSchema>;
 /**
  * Default configuration file name
  */
-const CONFIG_FILENAME = "duckbrain.config.json";
+export const CONFIG_FILENAME = "duckbrain.config.json";
 
 /**
  * Get config file path
@@ -376,6 +376,162 @@ export function assertDurabilityBlockValid(raw: unknown): void {
  */
 export function getConfig(configDir: string = "."): DuckBrainConfig {
   return applyEnvOverrides(readFileConfig(configDir));
+}
+
+/**
+ * GAP-062: maximum number of directory levels walked upward when searching
+ * for the duckbrain root. Same bound as `resolveProjectRoot`'s walk in
+ * src/mcp/tools/server.ts.
+ */
+const ROOT_WALK_MAX_LEVELS = 8;
+
+/**
+ * Inputs for root resolution. Every signal is injectable so the walk can be
+ * tested without touching process global state.
+ */
+export interface DuckbrainRootInputs {
+  /** Environment (defaults to `process.env`) */
+  env?: NodeJS.ProcessEnv;
+  /** Directory of the running module (defaults to this file's directory) */
+  moduleDir?: string;
+  /** Entry script the process was started with (defaults to `process.argv[1]`) */
+  entryPath?: string | null;
+  /** Caller working directory (defaults to `process.cwd()`) */
+  cwd?: string;
+}
+
+/** First ancestor of `startDir` (inclusive) that holds a duckbrain config file. */
+function findConfigRootUpward(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let level = 0; level <= ROOT_WALK_MAX_LEVELS; level++) {
+    if (fs.existsSync(path.join(dir, CONFIG_FILENAME))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached the filesystem root
+    dir = parent;
+  }
+  return null;
+}
+
+/** First ancestor of `startDir` (inclusive) that is the duckbrain package. */
+function findPackageRootUpward(startDir: string): string | null {
+  let dir = path.resolve(startDir);
+  for (let level = 0; level <= ROOT_WALK_MAX_LEVELS; level++) {
+    try {
+      const pkgPath = path.join(dir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+          name?: unknown;
+        };
+        if (pkg?.name === "duckbrain") return dir;
+      }
+    } catch {
+      // Unreadable or malformed package.json — keep walking.
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * GAP-062: resolve the duckbrain ROOT — the directory that owns
+ * `duckbrain.config.json`.
+ *
+ * The namespace storage root is defined RELATIVE to that directory, so
+ * resolving it against the caller's cwd is wrong: a CLI invoked from an
+ * unrelated product checkout (get-h3/sdk-typescript, 2026-09-19/20) created
+ * `<checkout>/namespaces/qa` instead of `<duckbrain-root>/namespaces/qa`.
+ * Resolution therefore never consults the cwd for path arithmetic — it finds
+ * the config file that OWNS this duckbrain, or the install root as a last
+ * resort.
+ *
+ * Precedence:
+ *   1. `DUCKBRAIN_CONFIG_PATH` — an explicitly redirected config FILE owns its
+ *      own directory (GAP-022; the test suite redirects it per worker).
+ *   2. `DUCKBRAIN_HOME_ROOT` — explicit install-root override (the knob
+ *      `resolveProjectRoot` in src/mcp/tools/server.ts already honors).
+ *   3. Bounded walk up from the module's own directory.
+ *   4. Bounded walk up from the invoked entry script (`process.argv[1]`).
+ *   5. Bounded walk up from the cwd — a project that carries its own
+ *      `duckbrain.config.json` legitimately owns its namespaces.
+ *   6. No config file anywhere (fresh clone: the instance config is untracked
+ *      by design) — the INSTALL root, never the cwd.
+ *
+ * Throws when no root can be determined at all: a loud failure beats silently
+ * creating `<cwd>/namespaces` somewhere unrelated.
+ */
+export function resolveDuckbrainRoot(inputs: DuckbrainRootInputs = {}): string {
+  const env = inputs.env ?? process.env;
+  const moduleDir = inputs.moduleDir ?? __dirname;
+  const entryPath =
+    inputs.entryPath === undefined ? process.argv[1] : inputs.entryPath;
+  const cwd = inputs.cwd ?? process.cwd();
+
+  // 1. An explicitly redirected config file owns its own directory.
+  const configPathOverride = env.DUCKBRAIN_CONFIG_PATH;
+  if (configPathOverride) {
+    return path.dirname(path.resolve(configPathOverride));
+  }
+
+  // 2. An explicit install-root override.
+  const homeRootOverride = env.DUCKBRAIN_HOME_ROOT;
+  if (homeRootOverride) {
+    return path.resolve(homeRootOverride);
+  }
+
+  // 3-5. Walk up from the module, then the invoked entry, then the cwd.
+  const candidates = [moduleDir];
+  if (entryPath) {
+    candidates.push(path.dirname(path.resolve(entryPath)));
+  }
+  candidates.push(cwd);
+
+  const searched: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const start = path.resolve(candidate);
+    if (seen.has(start)) continue;
+    seen.add(start);
+    searched.push(start);
+    const found = findConfigRootUpward(start);
+    if (found) return found;
+  }
+
+  // 6. No config file anywhere: fall back to the install root, never the cwd.
+  const packageRoot = findPackageRootUpward(moduleDir);
+  if (packageRoot) return packageRoot;
+
+  throw new Error(
+    `Cannot determine the duckbrain root: no ${CONFIG_FILENAME} was found ` +
+      `walking up from ${searched.join(", ")}, and no duckbrain package root ` +
+      `could be derived from ${path.resolve(moduleDir)}. Set DUCKBRAIN_HOME_ROOT ` +
+      `to the directory holding ${CONFIG_FILENAME} (or run ` +
+      `'duckbrain config init' there) and retry.`,
+  );
+}
+
+/**
+ * GAP-062: absolute path of the namespace storage root.
+ *
+ * `config.namespacesPath` (default `"./namespaces"`) is relative to the config
+ * file that declares it, so it is resolved against the duckbrain root — the
+ * same rule src/s3/cli.ts already applies for the S3 commands. Callers must
+ * NOT pass a cwd-derived directory ("." resolves to the duckbrain root, not
+ * the process cwd); an explicit absolute/other directory is honored verbatim
+ * for tests and embedders.
+ *
+ * DUCKBRAIN_NAMESPACES_PATH (BUG-037) still wins when set: an absolute value
+ * resolves to itself, which is how the test suite isolates namespace storage.
+ */
+export function resolveNamespacesPath(configDir?: string): string {
+  const root =
+    configDir === undefined || configDir === "."
+      ? resolveDuckbrainRoot()
+      : configDir;
+  return path.resolve(root, getConfig(root).namespacesPath);
 }
 
 /**

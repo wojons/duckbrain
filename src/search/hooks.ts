@@ -48,11 +48,12 @@ if [ -n "$DUCKBRAIN_SKIP_SEARCH_REBUILD" ]; then
   exit 0
 fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-# Git fires hooks with cwd = the namespace repo root, but duckbrain.config.json
-# and the relative namespacesPath live at the duckbrain root (parent of
-# namespaces/). When the bin resolved to an absolute path (canonical layout,
-# <root>/bin/duckbrain.js), step up to the duckbrain root so namespace
-# resolution is cwd-independent. Bare 'duckbrain' (PATH) keeps the cwd.
+# Git fires hooks with cwd = the namespace repo root. Namespace resolution is
+# cwd-independent (GAP-062: the CLI resolves the duckbrain root — the
+# directory owning duckbrain.config.json — from its own install location, so a
+# PATH-resolved bare 'duckbrain' no longer writes relative to whatever cwd it
+# inherits). The step-up below is therefore no longer required for
+# correctness; it is kept so this hook's own cwd matches the duckbrain root.
 case "${duckbrainBin}" in
   /*)
     DUCKBRAIN_ROOT="$(dirname "$(dirname "${duckbrainBin}")")"

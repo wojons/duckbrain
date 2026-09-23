@@ -19,7 +19,7 @@ import {
   MAX_KEYWORD_CANDIDATES,
   type KeywordHit,
 } from "../../search/query";
-import { getConfig } from "../../config/index";
+import { resolveNamespacesPath } from "../../config/index";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 
 const SearchInputSchema = z.object({
@@ -107,7 +107,8 @@ export async function searchTool(input: unknown): Promise<SearchOutput> {
   try {
     const result = validated.allNamespaces
       ? await keywordSearchAllNamespaces(
-          getConfig(".").namespacesPath || "./namespaces",
+          // GAP-062: scan the root the writes use, never the caller's cwd.
+          resolveNamespacesPath(),
           validated.query,
           {
             limit: validated.limit,

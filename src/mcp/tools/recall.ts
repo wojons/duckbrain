@@ -21,7 +21,7 @@ import {
   type KeywordHit,
   type KeywordSearchResult,
 } from "../../search/query";
-import { getConfig } from "../../config/index";
+import { resolveNamespacesPath } from "../../config/index";
 import { rankFused, FUSION_TOP_K } from "../../search/fusion";
 import {
   parseTimeRange,
@@ -584,7 +584,8 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
       );
       const keywordResult = validated.allNamespaces
         ? await keywordSearchAllNamespaces(
-            getConfig(".").namespacesPath || "./namespaces",
+            // GAP-062: scan the root the writes use, never the caller's cwd.
+            resolveNamespacesPath(),
             validated.contains,
             {
               limit: keywordLimit,
