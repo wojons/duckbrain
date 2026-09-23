@@ -109,7 +109,10 @@ const READ_JSON_COLUMNS =
   "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
 
 /**
- * Collect all JSONL file paths across all namespaces.
+ * Namespace directories under the resolved root that carry a manifest.
+ *
+ * Used as a cheap gate: `read_json` over a glob that matches nothing raises,
+ * and an absent/empty root must stay a clean empty feed (DOGFOOD-018).
  *
  * Resolved via resolveNamespacesPath() so the route honors the same env-only
  * overrides as the rest of the codebase (DUCKBRAIN_CONFIG_PATH GAP-022,
@@ -118,45 +121,54 @@ const READ_JSON_COLUMNS =
  * cwd) — the test suite redirects namespace storage to a per-worker temp dir,
  * and this route must follow it instead of scanning the live ./namespaces tree.
  */
-function collectAllJsonlFiles(): string[] {
+function collectNamespaceDirs(): string[] {
   // GAP-062: scan the root the writes use (the config file's own directory),
   // never a cwd-relative one.
   const nsPath = resolveNamespacesPath();
   if (!fs.existsSync(nsPath)) return [];
 
-  const files: string[] = [];
-  const nsDirs = fs.readdirSync(nsPath);
-
-  for (const nsName of nsDirs) {
+  const names: string[] = [];
+  for (const nsName of fs.readdirSync(nsPath)) {
     const nsDir = path.join(nsPath, nsName);
-    if (!fs.statSync(nsDir).isDirectory()) continue;
-
-    const manifestPath = path.join(nsDir, "manifest.json");
-    if (!fs.existsSync(manifestPath)) continue;
-
     try {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      const partitionPaths: string[] = manifest.partitions || [];
-
-      for (const pp of partitionPaths) {
-        const absPp = path.join(nsDir, pp);
-        if (!fs.existsSync(absPp)) continue;
-        try {
-          const chunkFiles = fs
-            .readdirSync(absPp)
-            .filter((f: string) => f.endsWith(".jsonl"))
-            .map((f: string) => path.join(absPp, f).replace(/\\/g, "/"));
-          files.push(...chunkFiles);
-        } catch {
-          /* skip */
-        }
-      }
+      if (!fs.statSync(nsDir).isDirectory()) continue;
     } catch {
-      /* skip */
+      continue;
     }
+    if (!fs.existsSync(path.join(nsDir, "manifest.json"))) continue;
+    names.push(nsName);
   }
+  return names;
+}
 
-  return files;
+/**
+ * One glob covering every namespace's JSONL segments.
+ *
+ * Replaces the previous `read_json([...122,000 quoted paths...])` form: on the
+ * live store that single statement grew to ~8.9 MB of SQL, and it made
+ * per-row namespace attribution impossible (the old code labelled EVERY row
+ * with the namespace of `allFiles[0]`). A glob plus `filename=true` keeps the
+ * statement tiny AND yields the source file per row, so each row can be
+ * attributed to its real namespace.
+ */
+function namespaceRootGlob(): string {
+  const nsPath = resolveNamespacesPath()
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+  return `${nsPath}/*/*/*/*.jsonl`;
+}
+
+/**
+ * Namespace that owns a file, derived relative to the resolved root.
+ *
+ * Must be root-relative rather than "the path segment after /namespaces/" —
+ * under an overridden root (DUCKBRAIN_NAMESPACES_PATH, as the test suite and
+ * any isolated deployment use) there is no `namespaces` segment to key off.
+ */
+function namespaceFromFile(filePath: string, root: string): string {
+  const rel = path.relative(root, filePath).replace(/\\/g, "/");
+  const first = rel.split("/")[0];
+  return first && first !== "" && first !== "." ? first : "default";
 }
 
 /**
@@ -175,16 +187,17 @@ async function queryRecentActivity(limit: number): Promise<
     namespace: string;
   }>
 > {
-  const allFiles = collectAllJsonlFiles();
-  if (allFiles.length === 0) return [];
+  const nsDirs = collectNamespaceDirs();
+  if (nsDirs.length === 0) return [];
 
   const db = getCrossNsConnection();
+  const root = resolveNamespacesPath();
+  const glob = namespaceRootGlob().replace(/'/g, "''");
 
   return new Promise((resolve) => {
-    const fileList = allFiles.map((f: string) => `'${f}'`).join(", ");
     const sql = `
-      SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
-      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      SELECT id, key, domain, timestamp, author, action, embedding_text, attributes, filename
+      FROM read_json(['${glob}'], filename=true, format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       WHERE action != 'tombstone'
       ORDER BY timestamp DESC
       LIMIT ${Math.min(limit, 200)}
@@ -197,66 +210,33 @@ async function queryRecentActivity(limit: number): Promise<
           return;
         }
 
-        const activities = (result as any[]).map((row: any) =>
-          deepConvertBigInts({
-            id: row.id,
-            key: row.key,
-            domain: row.domain,
-            timestamp: row.timestamp,
-            author: row.author,
-            action: row.action,
-            content: row.embedding_text || "",
-            attributes:
-              typeof row.attributes === "string"
-                ? parseDuckDBStruct(row.attributes)
-                : row.attributes || {},
-            namespace: extractNamespaceFromPath(allFiles[0]) || "default",
-          }),
+        resolve(
+          (result as any[]).map((row: any) =>
+            deepConvertBigInts({
+              id: row.id,
+              key: row.key,
+              domain: row.domain,
+              timestamp: row.timestamp,
+              author: row.author,
+              action: row.action,
+              content: row.embedding_text || "",
+              attributes:
+                typeof row.attributes === "string"
+                  ? parseDuckDBStruct(row.attributes)
+                  : row.attributes || {},
+              // Per-row, from the file the row was read out of. The previous
+              // implementation labelled every row with allFiles[0]'s namespace.
+              namespace: row.filename
+                ? namespaceFromFile(row.filename, root)
+                : "default",
+            }),
+          ),
         );
-
-        // Enrich with namespace info
-        const enriched = enrichWithNamespace(activities, allFiles);
-        resolve(enriched);
       });
     } catch {
       resolve([]);
     }
   });
-}
-
-/**
- * Extract namespace name from a file path.
- * Paths are like ./namespaces/<nsName>/<partition>/<chunk>.jsonl
- */
-function extractNamespaceFromPath(filePath: string): string | null {
-  const parts = filePath.replace(/\\/g, "/").split("/");
-  const nsIdx = parts.indexOf("namespaces");
-  if (nsIdx !== -1 && nsIdx + 1 < parts.length) {
-    return parts[nsIdx + 1];
-  }
-  return null;
-}
-
-/**
- * Enrich activities with namespace information.
- * Maps each file to its namespace name so results include namespace context.
- */
-function enrichWithNamespace(activities: any[], allFiles: string[]): any[] {
-  // Build a map from file path prefix to namespace name
-  const fileNsMap = new Map<string, string>();
-  for (const f of allFiles) {
-    const ns = extractNamespaceFromPath(f);
-    if (ns) fileNsMap.set(f, ns);
-  }
-
-  // This would require tracking which file each row came from,
-  // which isn't possible from the DuckDB result alone.
-  // Instead, extract namespace from the first file path pattern.
-  // Most namespaces follow the same structure.
-  return activities.map((a) => ({
-    ...a,
-    namespace: fileNsMap.values().next().value || "default",
-  }));
 }
 
 /**
