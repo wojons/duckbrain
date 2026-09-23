@@ -27,13 +27,13 @@ import { buildKeyTree, renderKeyTreeText } from "../utils/keyTree";
 import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import { executeSegmentConsolidation } from "../storage/segment-consolidation";
-import {
-  getConfig,
-  setConfig,
-  updateConfig,
-  registerNamespace,
-} from "../config/index";
+import { getConfig, setConfig, registerNamespace } from "../config/index";
 import { s3Command } from "../s3/cli";
+import {
+  deleteNamespaceFromDisk,
+  clearNamespaceFromS3,
+  planS3Clear,
+} from "../namespaces/lifecycle";
 import { queryCommand } from "./query";
 import { consolidateCommand } from "./consolidate";
 import {
@@ -844,7 +844,13 @@ async function namespacesCommand(args: string[]): Promise<void> {
 
   if (!subcommand) {
     console.error(
-      "Usage: duckbrain namespace <create|list|delete|use|set-remote>",
+      "Usage: duckbrain namespace <create|list|delete-disk|clear-s3|use|set-remote>",
+    );
+    console.error(
+      "  delete-disk: remove LOCAL copy + stop pushes (S3 version kept retrievable)",
+    );
+    console.error(
+      "  clear-s3:    DESTROY the remote S3 objects (disk untouched; dry-run default)",
     );
     process.exit(1);
   }
@@ -932,54 +938,141 @@ async function namespacesCommand(args: string[]): Promise<void> {
       );
       process.exit(1);
     }
-  } else if (cmd === "delete") {
+  } else if (cmd === "delete-disk" || (cmd === "delete" && !flags.purge)) {
+    // ITEM 66 (REVIEW-DUCKBRAIN-001/002): 'delete' now means DISK-ONLY —
+    // local dir + mapping + S3 sync manifest, S3 objects preserved. The old
+    // `delete <name> --force [--purge]` boolean conflation is retired:
+    // deleting from disk and destroying the remote copy are DIFFERENT
+    // operations with different gates. Remote destruction lives under
+    // 'clear-s3' (explicit) and 'duckbrain s3 clear' with its own dry-run.
     const name = positional[1];
     const force = flags.force !== undefined;
-    const purge = flags.purge !== undefined;
+    const requestedBy =
+      (flags["requested-by"] as string) ||
+      `cli:${process.env.USER ?? "unknown"}`;
+    const reason = (flags.reason as string) || "";
 
     if (!name) {
       console.error(
-        "Usage: duckbrain namespace delete <name> --force [--purge]",
+        "Usage: duckbrain namespace delete-disk <name> --force [--requested-by=<who>] [--reason=<why>]",
       );
-      process.exit(1);
-    }
-
-    if (!force) {
-      console.error("Error: --force flag required to delete namespace");
       console.error(
-        "This is a destructive operation. Use --purge to also delete the directory.",
+        "  Deletes the LOCAL namespace (dir + mapping + sync manifest). S3 objects are kept.",
+      );
+      console.error(
+        "  To also destroy the S3 copy, run 'duckbrain namespace clear-s3 <name>' separately.",
+      );
+      process.exit(1);
+    }
+    if (!force) {
+      console.error(
+        "Error: --force flag required to delete namespace from disk",
+      );
+      console.error(
+        "This removes the local directory permanently (S3 backup is kept).",
       );
       process.exit(1);
     }
 
-    try {
-      const config = getConfig();
-      const nsPath = config.namespaceMappings?.[name];
+    const result = deleteNamespaceFromDisk(name, {
+      confirm: true,
+      requestedBy,
+      reason: reason || "namespace delete-disk (human CLI)",
+    });
+    if (!result.success) {
+      console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(
+      `✓ Deleted namespace '${name}' from disk${result.path ? ` (${result.path})` : " (already absent)"}`,
+    );
+    console.log(
+      `  S3 sync manifest pruned: ${result.manifestPruned ? "yes" : "none existed"} — scheduled pushes stopped`,
+    );
+    if (result.s3Preserved) {
+      console.log(
+        `  S3 objects PRESERVED: s3://${result.s3Preserved.bucket}/${result.s3Preserved.prefix} (retrievable via pull / git clone)`,
+      );
+    }
+  } else if (cmd === "delete" && flags.purge !== undefined) {
+    // Legacy-compatible alias for delete-disk (kept so existing scripts do
+    // not silently change meaning; identical code path, identical gates).
+    const name = positional[1];
+    if (!name || flags.force === undefined) {
+      console.error(
+        "Usage: duckbrain namespace delete <name> --force --purge  (same as delete-disk; S3 objects are KEPT)",
+      );
+      process.exit(1);
+    }
+    const result = deleteNamespaceFromDisk(name, {
+      confirm: true,
+      requestedBy:
+        (flags["requested-by"] as string) ||
+        `cli:${process.env.USER ?? "unknown"}`,
+      reason: (flags.reason as string) || "namespace delete --force --purge",
+    });
+    if (!result.success) {
+      console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(
+      `✓ Deleted namespace '${name}' from disk (S3 objects preserved)`,
+    );
+  } else if (cmd === "clear-s3") {
+    // The remote-destruction path: dry-run by default, --yes + who/why to
+    // execute. Refuses to touch local disk; separate confirmation from delete.
+    const name = positional[1];
+    const dryRun = flags["dry-run"] !== undefined || flags.yes === undefined;
+    const requestedBy = (flags["requested-by"] as string) || "";
+    const reason = (flags.reason as string) || "";
 
-      if (!nsPath) {
-        console.error(`Error: Namespace '${name}' not found`);
+    if (!name) {
+      console.error(
+        "Usage: duckbrain namespace clear-s3 <name> --dry-run | --yes --requested-by=<who> --reason=<why>",
+      );
+      process.exit(1);
+    }
+
+    const config = getConfig();
+    if (!config.s3?.enabled) {
+      console.error(
+        "Error: s3 is not enabled in duckbrain.config.json — nothing to clear.",
+      );
+      process.exit(1);
+    }
+
+    if (dryRun) {
+      const plan = await planS3Clear(config.s3, name);
+      console.log(`DRY-RUN — clearing ${name} from S3 would destroy:`);
+      console.log(`  bucket: ${plan.bucket}  prefix: ${plan.prefix}`);
+      console.log(
+        `  objects: ${plan.objectCount} (${plan.totalBytes} bytes)${plan.truncated ? " (truncated at 5000)" : ""}`,
+      );
+      console.log(
+        `  local dir still exists: ${plan.localStillExists} (clear NEVER touches disk)`,
+      );
+      for (const o of plan.objects.slice(0, 10)) {
+        console.log(`    ${o.key} (${o.size}B)`);
+      }
+      if (plan.objectCount > 10)
+        console.log(`    ... and ${plan.objectCount - 10} more`);
+      console.log(
+        "Re-run with --yes --requested-by=<who> --reason=<why> to destroy them.",
+      );
+    } else {
+      const result = await clearNamespaceFromS3(config.s3, name, {
+        confirm: true,
+        requestedBy,
+        reason: reason || "namespace clear-s3 (human CLI)",
+      });
+      if (!result.success && result.error) {
+        console.error(`Error: ${result.error}`);
         process.exit(1);
       }
-
-      // Remove from config
-      if (config.namespaceMappings && name in config.namespaceMappings) {
-        const { [name]: _, ...rest } = config.namespaceMappings;
-        updateConfig(".", { namespaceMappings: rest });
-      }
-
-      // Optionally delete directory
-      if (purge && fs.existsSync(nsPath)) {
-        fs.rmSync(nsPath, { recursive: true, force: true });
-        console.log(`✓ Deleted namespace '${name}' and removed directory`);
-      } else {
-        console.log(`✓ Deleted namespace '${name}' (directory preserved)`);
-      }
-    } catch (error) {
-      console.error(
-        "Error deleting namespace:",
-        error instanceof Error ? error.message : error,
+      console.log(
+        `[S3] cleared namespace '${name}': deleted=${result.deleted} failed=${result.failed}`,
       );
-      process.exit(1);
+      if (result.failed > 0) process.exit(1);
     }
   } else if (cmd === "use") {
     const name = positional[1];

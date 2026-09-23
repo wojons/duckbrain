@@ -134,6 +134,31 @@ export function deleteNamespace(
   const { [name]: _, ...rest } = config.namespaceMappings || {};
   updateConfig(".", { namespaceMappings: rest });
 
+  // Prune the per-namespace S3 sync manifest: it lives OUTSIDE the namespace
+  // dir (<namespacesPath>/.s3state/<ns>.json), so the rmSync above never
+  // touches it. Leaving it behind kept dead namespaces on the 15-minute push
+  // cadence forever (REVIEW-DUCKBRAIN-001: 88 ghost manifests, 98 ENOENT
+  // retries on 2026-09-21/22). Removing the local copy must also stop the
+  // scheduled push — the S3 objects themselves stay untouched (Bane: disk
+  // removal "turns off" pushes but KEEPS the S3 version retrievable).
+  // Kept inline (no import from src/s3) to avoid a module-load cycle.
+  // Env-first resolution mirrors applyEnvOverrides (BUG-037): the test suite
+  // redirects namespace storage via DUCKBRAIN_NAMESPACES_PATH, and the
+  // manifest dir must follow the SAME root the sync engine actually walks.
+  try {
+    const manifestFile = path.join(
+      path.resolve(
+        process.env.DUCKBRAIN_NAMESPACES_PATH || config.namespacesPath,
+      ),
+      ".s3state",
+      `${name}.json`,
+    );
+    if (fs.existsSync(manifestFile)) fs.unlinkSync(manifestFile);
+  } catch {
+    // never fail a disk delete that already succeeded; a stale manifest is
+    // swept by findGhostSyncState / `duckbrain s3 ghosts`
+  }
+
   return {
     success: true,
     path: recordedPath ? path.resolve(recordedPath) : undefined,

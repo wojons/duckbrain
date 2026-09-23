@@ -229,8 +229,19 @@ export async function pushNamespace(
   let uploaded = 0;
 
   for (const file of deltas.toUpload) {
+    let body: Buffer;
     try {
-      const body = fs.readFileSync(path.join(nsDir, file.relPath));
+      body = fs.readFileSync(path.join(nsDir, file.relPath));
+    } catch {
+      // File vanished between the walk and the read — the namespace was
+      // deleted (or the file removed) mid-push. Skip it SILENTLY: the next
+      // pass must not retry it forever, and the ENOENT storm this once
+      // produced (98 log lines over auger-pytest ghosts, 2026-09-21/22) is
+      // noise, not signal. The manifest is refreshed from the CURRENT walk
+      // below, so the vanished file also drops out of future deltas.
+      continue;
+    }
+    try {
       const ext = path.extname(file.relPath).toLowerCase();
       await putObject(
         client,

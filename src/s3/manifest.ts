@@ -67,3 +67,23 @@ export function makeManifest(
     files,
   };
 }
+
+/**
+ * Remove a namespace's sync manifest (i.e. stop all scheduled pushes for it).
+ *
+ * Lives here, not in namespaces/lifecycle, so the shared deletion core
+ * (src/namespaces/delete.ts) can import it without an import cycle. Returns
+ * true when a manifest file existed and was removed.
+ */
+export function pruneSyncManifest(namespacesPath: string, ns: string): boolean {
+  const file = manifestFilePath(namespacesPath, ns);
+  try {
+    if (fs.existsSync(file)) {
+      fs.unlinkSync(file);
+      return true;
+    }
+  } catch {
+    // best-effort; callers surface removal through their own audit trail
+  }
+  return false;
+}
