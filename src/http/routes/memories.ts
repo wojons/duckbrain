@@ -15,7 +15,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../middleware/errorHandler";
-import { DomainEnum } from "../../schema/memory";
+import { DomainEnum, writeContentViolation } from "../../schema/memory";
 import { normalizeAttributes } from "../../utils/serialize";
 import {
   MemoryResponse,
@@ -413,18 +413,29 @@ router.get(
 
     const offset = params.offset || 0;
 
+    // Defensive slice: a stubbed/ranked path that ignores limit still
+    // yields at most one page.
+    const page = filteredMemories.slice(0, params.limit!);
+    // GAP-024: true COUNT(*) of all rows matching the active filters,
+    // unlimited by limit/offset. Falls back to the fetched-page length for
+    // callers that stub recallTool without a total.
+    const total = result.total ?? filteredMemories.length;
+
     const response: MemoryListResponse = {
-      // Defensive slice: a stubbed/ranked path that ignores limit still
-      // yields at most one page.
-      items: filteredMemories.slice(0, params.limit!),
-      // GAP-024: true COUNT(*) of all rows matching the active filters,
-      // unlimited by limit/offset. Falls back to the fetched-page length for
-      // callers that stub recallTool without a total.
-      total: result.total ?? filteredMemories.length,
+      items: page,
+      total,
       offset,
       limit: params.limit!,
       hasMore,
       nextOffset: hasMore ? offset + params.limit! : null,
+      // API-CONTRACT-001: additive aliases. `count` and `memories` were simply
+      // absent, so a client reading either spelling got `undefined`/0 and
+      // reported "no memories" while the server had returned a full page — a
+      // silent-empty instead of a loud error. Both are now always present and
+      // always agree with the canonical `total`/`items`; nothing about the
+      // existing fields changes shape or meaning.
+      count: total,
+      memories: page,
     };
 
     res.json(response);
@@ -523,13 +534,36 @@ router.post(
       validUntil: (body as { validUntil?: string }).validUntil,
     };
 
-    // Validate required fields
-    if (!body.key || !body.domain || !body.content) {
+    // Validate required fields.
+    // DB-GAP-058: "missing" and "blank" are now distinct concerns. This
+    // truthiness test used to be the ONLY body gate here, so `""` was caught
+    // while `"   "`, `"\t\n  "` and the placeholder `"null"` sailed straight
+    // through — and those rows were stored and replicated to S3. A missing
+    // field keeps its original message (callers match on that string); a
+    // present-but-unusable body is called out explicitly instead. The blank/
+    // placeholder decision itself lives in ONE shared policy
+    // (`writeContentViolation`) so this route, the MCP tool and the CLI
+    // cannot drift apart about what may be stored.
+    const contentAbsent =
+      body.content === undefined ||
+      body.content === null ||
+      body.content === "";
+    if (!body.key || !body.domain || contentAbsent) {
       throw new ApiError(
         "Missing required fields: key, domain, content",
         400,
         "VALIDATION_ERROR",
       );
+    }
+    if (typeof body.content !== "string") {
+      throw new ApiError("content must be a string", 400, "VALIDATION_ERROR");
+    }
+    const contentViolation = writeContentViolation({
+      action: "add",
+      embedding_text: body.content,
+    });
+    if (contentViolation) {
+      throw new ApiError(contentViolation, 400, "VALIDATION_ERROR");
     }
 
     // Validate domain is a valid value (BUG-029)
@@ -619,6 +653,24 @@ router.put(
 
     if (!body.content && !body.attributes) {
       throw new ApiError("No update data provided", 400, "VALIDATION_ERROR");
+    }
+
+    // DB-GAP-058: content, WHEN SUPPLIED, must be real content. An empty
+    // string is deliberately left alone here — on this route it is not a
+    // body, it is "keep the existing body" (see the `newContent` fallback
+    // below), so rejecting it would break attribute-only updates. A
+    // whitespace-only or placeholder string, by contrast, is an explicit
+    // attempt to overwrite a real memory with junk, and is refused.
+    if (typeof body.content === "string" && body.content.length > 0) {
+      const putViolation = writeContentViolation({
+        action: "add",
+        embedding_text: body.content,
+      });
+      if (putViolation) {
+        throw new ApiError(putViolation, 400, "VALIDATION_ERROR");
+      }
+    } else if (body.content !== undefined && typeof body.content !== "string") {
+      throw new ApiError("content must be a string", 400, "VALIDATION_ERROR");
     }
 
     // Step 1: Find existing memory by ID directly in DuckDB

@@ -2013,7 +2013,66 @@ async function tokenCommand(args: string[]): Promise<void> {
 
   // Add new token — namespaces carries the grants when scoped; roles carries
   // the SUPA-4 role grants (default ["admin"] for back-compat).
-  const tokenName = flags.name || `token-${Date.now()}`;
+  // TOKEN-NAME-001: --name accepts BOTH spellings, exactly like --namespace,
+  // --role and --auth-file above. This is not cosmetic. parseArgs turns a
+  // bare `--name` into the literal string "true", and a token's name IS the
+  // author identity stamped on every row that token writes — so `--name
+  // gateprobe` (a space, the ordinary CLI convention) silently minted a
+  // credential called "true" and attributed all of its writes to
+  // "true@duckbrain.local". Five of the six tokens in the live E2E agent's
+  // store had been created this way: enough to lose provenance across a
+  // whole namespace, and to make the audit trail unable to answer "who
+  // wrote this".
+  let nameFlag: string | undefined;
+  let sawNameWithValue = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--name") {
+      const value = args[i + 1];
+      if (value !== undefined && !value.startsWith("-")) {
+        nameFlag = value;
+        sawNameWithValue = true;
+      }
+      break;
+    }
+    if (arg.startsWith("--name=")) {
+      nameFlag = arg.slice("--name=".length);
+      sawNameWithValue = true;
+      break;
+    }
+  }
+
+  // A --name/-name given without a value is a caller error, not a request
+  // for a token called "true". Fail loudly: silently minting a mislabelled
+  // credential is how the defect stayed invisible for so long.
+  const bareNameFlag =
+    (args.includes("--name") || flags.name !== undefined) && !sawNameWithValue;
+  if (bareNameFlag) {
+    console.error(
+      "--name requires a value: use --name=<name> or --name <name> (TOKEN-NAME-001).",
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  // A token named with a bare reserved literal is indistinguishable in the
+  // store from the defect above and destroys row provenance, so refuse it
+  // rather than persist an ambiguous identity.
+  const RESERVED_TOKEN_NAMES = new Set(["true", "false", "null", "undefined"]);
+  if (
+    nameFlag !== undefined &&
+    RESERVED_TOKEN_NAMES.has(nameFlag.trim().toLowerCase())
+  ) {
+    console.error(
+      `Refusing to name a token ${JSON.stringify(nameFlag)}: a bare reserved ` +
+        "literal is not an identity — it is the value a missing --name used " +
+        "to fall back to (TOKEN-NAME-001). Pass a real name.",
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  const tokenName = nameFlag || flags.name || `token-${Date.now()}`;
   if (!authConfig.apiKeys) {
     authConfig.apiKeys = [];
   }

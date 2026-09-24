@@ -10,6 +10,7 @@ import {
   DomainEnum,
   safeValidateMemory,
   createMemory,
+  writeContentViolation,
 } from "../../schema/memory";
 import { getPartitionPath } from "../../storage/jsonl";
 import { getAuthorEmail } from "../../git/attribution";
@@ -181,6 +182,25 @@ export async function rememberTool(
 
     const { key, domain, attributes, embedding_text, namespace, author } =
       parseResult.data;
+
+    // DB-GAP-058: the write-content policy, enforced at the ONE choke point
+    // every write caller shares — the HTTP POST/PUT routes, the CLI
+    // `remember` command and the MCP `remember` tool all funnel through this
+    // function, so the rule cannot be applied to one entry point and missed
+    // on another. Rejecting here (before an id/timestamp is minted and
+    // before anything is enqueued) is what stops a blank or placeholder body
+    // from ever reaching the storage-of-record.
+    const contentViolation = writeContentViolation({
+      action: "add",
+      embedding_text,
+    });
+    if (contentViolation) {
+      return {
+        success: false,
+        code: "BLANK_CONTENT",
+        error: contentViolation,
+      };
+    }
 
     // DOGFOOD-010: canonicalize attributes before persisting (JSON
     // round-trip — strips non-JSON values so the JSONL row is exactly what

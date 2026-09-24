@@ -230,6 +230,19 @@ export interface SseEvent {
 export interface MemoryListResponse extends PaginatedResponse<MemoryResponse> {
   /** Key path prefixes with counts (for tree view) */
   prefixes?: Record<string, number>;
+  /**
+   * API-CONTRACT-001: additive alias for `total`, always present and always
+   * equal to it. `count` is the spelling most clients reach for first; it was
+   * simply absent, so such a client silently read `undefined`/0 and reported
+   * "no memories" while the server had returned a full page — a silent-empty
+   * rather than a loud error. Both spellings now resolve to the same value.
+   */
+  count: number;
+  /**
+   * API-CONTRACT-001: additive alias for `items`, always present and always
+   * the same array as `items` (same reference — not a second page).
+   */
+  memories: MemoryResponse[];
 }
 
 /**
