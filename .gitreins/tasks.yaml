@@ -1839,3 +1839,14 @@ tasks:
   status: complete
   created_at: '2026-09-23T07:13:22.549036+00:00'
   completed_at: '2026-09-23T07:52:54.042819+00:00'
+- id: CI-005
+  title: 'CI red recurrence: AGENTS.md test-count assertion fails on every run - derive
+    counts via sync script instead of hand-typed literals'
+  criteria:
+  - 'CI step ''Assert AGENTS.md test counts match live suite'' passes: counts in AGENTS.md
+    equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh)
+    used by both the sync and the CI check mode; script is idempotent and fails loudly
+    on unparseable output'
+  status: complete
+  created_at: '2026-09-24T12:26:27.236778+00:00'
+  completed_at: '2026-09-24T12:39:32.307616+00:00'

@@ -16,7 +16,10 @@ guards:
 
 evaluator:
   max_iterations: 250
-  max_time: "45m"
+  # 45m starved CI-005's tier-2 on 2026-09-24: tier1 PASS + INCOMPLETE "Time cap
+  # (45m) exceeded" after the judge queued ~40m behind 12 concurrent fleet
+  # workers. 60m rung: cap now covers queue wait, not just evaluation.
+  max_time: "60m"
   # 4M starved DF-0919-01's tier-2 (the judge's clean-install reproduce needs
   # a wide exploration loop on this repo). 10M = the gitreins default.
   max_input_tokens: "10M"
