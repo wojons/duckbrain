@@ -60,7 +60,8 @@ class MockObserver {
 const globalAny = globalThis as unknown as Record<string, unknown>;
 if (!globalAny.EventSource) globalAny.EventSource = MockEventSource;
 if (!globalAny.ResizeObserver) globalAny.ResizeObserver = MockObserver;
-if (!globalAny.IntersectionObserver) globalAny.IntersectionObserver = MockObserver;
+if (!globalAny.IntersectionObserver)
+  globalAny.IntersectionObserver = MockObserver;
 
 if (typeof window !== "undefined") {
   if (!window.matchMedia) {

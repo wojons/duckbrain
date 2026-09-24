@@ -57,10 +57,7 @@ export interface ApiStub {
   namespacesFor(path: string, method?: string): (string | null)[];
 }
 
-function record(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): RecordedRequest {
+function record(input: RequestInfo | URL, init?: RequestInit): RecordedRequest {
   const raw =
     typeof input === "string"
       ? input
@@ -89,23 +86,25 @@ function record(
 export function installApiStub(routes: StubRoute[] = []): ApiStub {
   const requests: RecordedRequest[] = [];
 
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const req = record(input, init);
-    requests.push(req);
-    for (const route of routes) {
-      const result = route(req);
-      if (!result) continue;
-      const status = result.status ?? 200;
-      if (status === 204) return new Response(null, { status });
-      return new Response(JSON.stringify(result.body ?? null), {
-        status,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    throw new Error(
-      `Unstubbed request in UI test: ${req.method} ${req.url} — add a route to installApiStub()`,
-    );
-  });
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const req = record(input, init);
+      requests.push(req);
+      for (const route of routes) {
+        const result = route(req);
+        if (!result) continue;
+        const status = result.status ?? 200;
+        if (status === 204) return new Response(null, { status });
+        return new Response(JSON.stringify(result.body ?? null), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(
+        `Unstubbed request in UI test: ${req.method} ${req.url} — add a route to installApiStub()`,
+      );
+    },
+  );
 
   vi.stubGlobal("fetch", fetchMock);
 
@@ -140,7 +139,9 @@ export function memoriesRoute(state: { items: MemoryResponse[] }): StubRoute {
     const limit = req.params.has("limit")
       ? Number(req.params.get("limit"))
       : 50;
-    const offset = req.params.has("offset") ? Number(req.params.get("offset")) : 0;
+    const offset = req.params.has("offset")
+      ? Number(req.params.get("offset"))
+      : 0;
     const page = state.items.slice(offset, offset + limit);
     const nextOffset =
       offset + limit < state.items.length ? offset + limit : null;
@@ -171,7 +172,8 @@ export function namespacesRoute(
   currentNamespace = "default",
 ): StubRoute {
   return (req) => {
-    if (req.path !== "/api/namespaces" || req.method !== "GET") return undefined;
+    if (req.path !== "/api/namespaces" || req.method !== "GET")
+      return undefined;
     return {
       body: {
         namespaces: names.map((name) => toNamespace(name, currentNamespace)),
@@ -198,7 +200,8 @@ export function switchNamespaceRoute(): StubRoute {
 /** POST /api/namespaces — create. */
 export function createNamespaceRoute(): StubRoute {
   return (req) => {
-    if (req.path !== "/api/namespaces" || req.method !== "POST") return undefined;
+    if (req.path !== "/api/namespaces" || req.method !== "POST")
+      return undefined;
     const name =
       typeof req.body === "object" && req.body !== null
         ? String((req.body as { name?: unknown }).name ?? "")
@@ -222,7 +225,10 @@ export function standardRoutes(
   return [
     memoriesRoute({ items: options.memories ?? [] }),
     keysRoute(options.tree ?? []),
-    namespacesRoute(options.namespaces ?? ["default"], options.currentNamespace),
+    namespacesRoute(
+      options.namespaces ?? ["default"],
+      options.currentNamespace,
+    ),
     switchNamespaceRoute(),
     createNamespaceRoute(),
   ];

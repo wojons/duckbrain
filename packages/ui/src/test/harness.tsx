@@ -28,7 +28,10 @@ export function createTestQueryClient(): QueryClient {
   });
 }
 
-export interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
+export interface RenderWithProvidersOptions extends Omit<
+  RenderOptions,
+  "wrapper"
+> {
   /** Initial route for the MemoryRouter (useUrlState reads search params) */
   route?: string;
   queryClient?: QueryClient;

@@ -10,7 +10,11 @@ import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sidebar } from "./sidebar";
-import { installApiStub, makeKeyTree, standardRoutes } from "../../test/api-stub";
+import {
+  installApiStub,
+  makeKeyTree,
+  standardRoutes,
+} from "../../test/api-stub";
 import { renderWithProviders } from "../../test/harness";
 import { useUIStore } from "../../stores/ui-store";
 
