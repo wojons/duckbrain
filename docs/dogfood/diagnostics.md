@@ -536,3 +536,65 @@ already good in August; it's the release pipeline that is broken.
   rows side-by-side with current (latest-per-key is the by-key GET's job, and
   tombstoned rows drop out there); as-of is per-ref, not per-key-latest —
   read them as different questions.
+## Run 9 — 2026-09-24 dogfood (web-UI focus — the surface runs 1–8 never drove)
+
+The angle law (skill: change the ANGLE, not the depth) is what found this:
+runs 1–8 proved the CLI/REST/MCP/as-of surfaces; the Web UI had been touched
+once (08-16, "boots"). This run drove the built UI against a scratch daemon
+and the UI's own production bundle.
+
+### How the pieces fit (the "why" of what a user sees)
+
+- `packages/ui` is a Vite React app whose ONLY backend connection is the dev
+  proxy (`vite.config.ts` → `http://localhost:3000`, retargetable with
+  `DUCKBRAIN_API_PORT`) — and, in production builds, nothing at all: the
+  daemon serves no static files, so the built UI must be served by something
+  else and pointed at the daemon, but every `apiFetch` call is RELATIVE
+  (`API_BASE = "/api"`), which only works when the UI is behind the dev
+  proxy. That is a structural one-host assumption nobody documented.
+- The auth contract is one-directional: the daemon can require keys, the UI
+  can never send one. No token input, no storage, no header. A hardened
+  deployment (the README's own recommended mode) renders a permanently
+  empty dashboard and says nothing.
+- The namespace contract is split-brain by design accident: the on-disk
+  namespaces root is the real source of truth for writes (write path joins
+  root/name), but GET /api/namespaces and /switch read config
+  namespaceMappings only. The UI then hardcodes "default" — the one name
+  that typically has no mapping and often no directory — and every panel
+  404s forever. The server even reports `directoryMissing: true` for the
+  phantom default and the UI ignores the whole field.
+
+### Errors hit this run, and the right way around each
+
+- `--auth-file` must be a PARSED auth-store JSON (`{apiKeys:[{keyHash,name}]}`),
+  not a plaintext secret list; DB-GAP-043 makes a missing/unparseable explicit
+  file FATAL (good — that hardening worked exactly as designed). Mint the
+  token with `duckbrain token --name=X` + `DUCKBRAIN_AUTH_FILE` env so the
+  store is created in the right shape.
+- `DUCKBRAIN_NAMESPACES_PATH` is a DIRECTORY (the namespaces root), not a
+  registry file. Pointing it at a JSON file yields `ENOTDIR: not a directory,
+  mkdir '.../namespaces.json/dogfood-ui'` — a confusing error because the
+  config path variable in the same docs is a file. The deployment doc
+  (docs/guide/deployment.md:253) has this right; nothing else does.
+- Headless `--dump-dom` against `vite dev` hangs/returns an empty shell —
+  vite dev's HMR websocket keeps virtual time from settling. For headless
+  probes, use the PRODUCTION build (`pnpm --filter @duckbrain/ui build` +
+  `npx vite preview`); it renders deterministically in ~10s.
+- `duckbrain http --help` does not print help — it STARTS A SERVER against
+  the resolved (production) config and overwrites /tmp/duckbrain-http-3000.pid
+  (the prod daemon reclaimed its pidfile on the next health write, no harm
+  done here, but a second prod-shaped daemon on :3000 would have failed to
+  bind after the real one died — a real ops trap). The right way: read
+  src/cli/http.ts or the usage skill, never `--help` on subcommands.
+- The one-run near-miss: `bunker-qa.sh` defaulted to `bunker-las-02`, whose
+  bunkerd has been crash-looping 2000+ restarts (refuses non-loopback
+  plaintext listeners). Pass `--server bunker-las-03` AND `BUNKER_QA_SERVER`
+  env (the script ignores the CLI flag when set after the default line).
+
+### The right way to verify the UI (next run should start here)
+
+1. Build it: `pnpm --filter @duckbrain/ui build` (4.2s, 481KB).
+2. Serve it: `npx vite preview --port 8996` from packages/ui (no proxy in
+   preview mode — /api calls 401/404 relative; that mismatch is DF-0924-08).
+3. Point Lighthouse at the preview URL and READ THE NETWORK TABLE, not the
+   score: the 404/401 pattern per panel names the broken contract instantly.

@@ -12,9 +12,10 @@ description: >-
   hardcodes namespace 'default' so it fails for every other namespace — use
   MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
   ABSENT from the stale origin/main, whose server silently answers ?as_of=
-  with current-state). Load this
+  with current-state; Web UI is DOA on hardened deployments — hardcodes ns
+  'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.7.0
+version: 1.8.0
 category: software-development
 ---
 
@@ -376,6 +377,24 @@ schema, error table, and grammar: see
     The daemon is otherwise fully functional fresh: quickstart passes, but
     expect `/health` 503 while lmstudio+ollama are healthy because the
     keyless openai provider counts as unhealthy (DF-0919-04).
+16. **The Web UI cannot complete a real task as shipped (verified 09-24,
+    DF-0924-05..08):** it hardcodes namespace `default` (ui-store.js:23),
+    sends no credentials at all (api-client.js has no auth header and there
+    is no token input), and every panel 404s/401s forever behind permanent
+    "Loading..." skeletons. Do not demo the UI against an auth=apikey
+    daemon or a non-default namespace — it will look broken because it is.
+    The API underneath those panels works (verified same-run over REST).
+17. **`--auth-file` does NOT enable auth by itself (DF-0924-07):** a daemon
+    started with `--auth-file=<store>` but WITHOUT `--auth=apikey` accepts
+    no-key and wrong-key requests with 200/201. The flag only relocates the
+    store; enforcement requires `--auth=apikey`. Always pass both on scratch
+    daemons that handle anything sensitive.
+18. **GET /api/namespaces and /switch see only config namespaceMappings
+    (DF-0924-06):** a namespace that exists on disk (created by direct
+    writes) is invisible to the list and returns 404 from switch — while
+    writes to the same name succeed. On a fresh install the list shows a
+    phantom `default` with `directoryMissing:true`. Trust the write path's
+    answer over the list.
 
 ## Testing your changes safely
 

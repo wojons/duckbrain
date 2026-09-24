@@ -165,3 +165,52 @@ worked example), diagnostics.md Run 8, skills/duckbrain-usage v1.7.0 (as-of
 section: three surfaces, semantics, availability warning), DF-0924-01..04 on
 the board (surgical commit b435e38; sibling CI-005 event row preserved
 byte-exact, uncommitted, as found), this entry.
+
+## Run 9 — 2026-09-24 (tick duckbrain-dogfood-2026-09-24-11-15-46) — Verdict: PROMISING-BUT-ROUGH (web-UI angle; every data panel dead)
+
+**Angle:** the Web UI (packages/ui) — untouched by runs 1–8 (skill
+angle-pitfall law: change the surface, not the depth). Scratch deployment per
+OPS-001 (config/namespaces/auth-file trio, :3795); UI driven both via vite dev
+(:8995) and the production build + vite preview (:8996).
+
+**Promise tested:** "Beautiful Web UI — Glassmorphism theme, real-time
+updates" (README) driven as a real user: open dashboard, read memory counts,
+browse timeline, create/switch namespace.
+
+**What a user gets:** the shell renders (prod build LCP 3.0s, TBT 0ms, 204KB,
+3 Lighthouse runs) but every data panel is a permanent "Loading..." skeleton.
+Measured cause: (1) UI hardcodes namespace 'default' (ui-store.js:23) which
+doesn't exist on a normal install → 12+ 404s per load; (2) UI sends zero
+credentials and has no token entry → everything 401 on --auth=apikey (21
+HTTP>=400 calls in Lighthouse's network table, incl. 429 retry storms).
+
+**Findings (board):** DF-0924-05 P0 UI DOA (no auth, hardcoded ns, skeleton
+forever); DF-0924-06 P1 namespace list/switch vs on-disk dirs split-brain +
+phantom 'default' directoryMissing; DF-0924-07 P1 --auth-file without
+--auth=apikey serves everything unauthenticated (no key → 201); DF-0924-08 P2
+README "Web UI Only" path incomplete, daemon serves 404 on /; DF-0924-09 P3
+/health leaks "Namespace 'undefined' does not exist".
+
+**What held up:** REST write/read lifecycle, SSE connected, mapped-namespace
+create/switch, scoped-token auth on the prod-style daemon, git auto-commit,
+`pnpm build` fixed (DF-0919-02 verified closed: 4.2s, 481KB). Engine sound;
+defects are all in the UI→API contract layer.
+
+**Time-to-first-success:** shell 3.0s; first real task (see one memory in the
+UI) NOT ACHIEVABLE as shipped — that is the finding.
+
+**Install leg (bunker-qa.sh, las-bunker-03 agent 0e8dfe86, destroyed):**
+fresh-install ENV-BLOCKED (no pnpm on the bare agent — harness, not repo);
+upgrade FAIL (npm package duckbrain@1.0.0 is a 404 — version claim vs npm
+reality, DF-0924-10 filed); docker-deploy FAIL (compose build error, needs
+foreman); ui-probe FAIL (concurrently not found — dev-deps pruning on fresh
+clone); chaos-shutdown OK. Evidence: /tmp/bunker-qa-evidence-20260924T114556Z-8329.jsonl.
+
+**Perf:** headline UI load LCP 3.0s warm (prod build) — the shell is fast
+enough; the defect is functional, not speed. Dev server cold was unmeasurable
+headless (empty dump; module fetches individually <25ms). Nothing slow enough
+that a user would notice → no PERF row (PERF-001 already covers list_keys).
+
+**Left behind:** docs/dogfood/2026-09-24-webui-integration.md, diagnostics.md
+Run 9, skills/duckbrain-usage v1.8.0 (pitfalls 16-18), DF-0924-05..10 on the
+board (surgical append, 229 rows / 0 bad), this entry.
