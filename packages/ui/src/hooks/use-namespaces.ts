@@ -4,7 +4,7 @@
  * TanStack Query hooks for namespace operations.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { namespacesApi, ApiAuthError } from "../lib/api-client";
 import { useUIStore } from "../stores/ui-store";
@@ -28,7 +28,7 @@ export function useNamespaces() {
 }
 
 /**
- * Boot-time namespace adoption.
+ * Boot-time namespace adoption and its render gate.
  *
  * The UI used to hardcode currentNamespace: "default", which does not exist
  * on normal installs — every panel then 404s and stays on its loading
@@ -42,12 +42,38 @@ export function useNamespaces() {
  * the store so the UI can show the token entry point. The namespaces LIST is
  * allowed unauthenticated by the server, so this hook also works there.
  */
-export function useNamespaceBoot(): void {
+/**
+ * Boot status derived from the boot-time namespace adoption.
+ *
+ * - "loading"     — the boot namespaces fetch is still in flight; pages must
+ *                   not mount (they would read the pre-adoption namespace).
+ * - "ready"       — the server-reported namespace has been adopted into the
+ *                   store; pages may mount.
+ * - "auth-error"  — the boot fetch failed with 401; pages stay mounted so the
+ *                   auth banner + token entry are the visible surface and
+ *                   saving a token can refetch the boot.
+ * - "error"       — the boot fetch failed some other way; pages mount in
+ *                   degraded mode against the store's namespace (offline
+ *                   behavior).
+ *
+ * ORDERING CONTRACT (this is the whole point of the hook): "ready" is not
+ * derived from query success — it is set in the SAME effect that writes
+ * currentNamespace into the store. React runs child effects before parent
+ * effects within a commit, so any gate keyed on query success alone would
+ * mount the route pages in the same commit's child-effect phase and they
+ * would still fetch the un-adopted namespace. Keying on the adoption effect
+ * closes that window: when the gate first reports "ready", the store already
+ * holds the server value.
+ */
+export type NamespaceBootStatus = "loading" | "ready" | "auth-error" | "error";
+
+export function useNamespaceBootStatus(): NamespaceBootStatus {
   const setCurrentNamespace = useUIStore((state) => state.setCurrentNamespace);
   const setNamespaceBootError = useUIStore(
     (state) => state.setNamespaceBootError,
   );
-  const { data, error } = useQuery({
+  const [status, setStatus] = useState<NamespaceBootStatus>("loading");
+  const { data, error, isPending } = useQuery({
     queryKey: namespaceKeys.current(),
     queryFn: () => namespacesApi.list(),
     staleTime: 5 * 60 * 1000,
@@ -57,14 +83,37 @@ export function useNamespaceBoot(): void {
 
   useEffect(() => {
     if (data) {
+      // Adoption FIRST, then the flip: on the commit that reports "ready"
+      // the store already holds the server value.
       setNamespaceBootError(false);
       setCurrentNamespace(data.currentNamespace);
+      setStatus("ready");
     }
   }, [data, setCurrentNamespace, setNamespaceBootError]);
 
   useEffect(() => {
-    setNamespaceBootError(error instanceof ApiAuthError);
+    if (error) {
+      const authError = error instanceof ApiAuthError;
+      setNamespaceBootError(authError);
+      setStatus(authError ? "auth-error" : "error");
+    }
   }, [error, setNamespaceBootError]);
+
+  // A boot that was in flight is "loading" even after a refetch trigger;
+  // while isPending there is nothing adopted yet, so keep the gate closed.
+  if (isPending && status === "loading") return "loading";
+  return status;
+}
+
+/**
+ * Mount the boot-time namespace adoption without the gate.
+ *
+ * Kept for the banner tests' wiring and any caller that only needs the
+ * side effects (adoption + auth flag) and not the gating status. This is a
+ * thin wrapper: the same adoption effect runs inside useNamespaceBootStatus.
+ */
+export function useNamespaceBoot(): void {
+  useNamespaceBootStatus();
 }
 
 /**

@@ -12,17 +12,28 @@ import { describe, expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiAuthBanner, ApiTokenControl } from "./api-token-banner";
-import { useNamespaceBoot } from "../../hooks/use-namespaces";
+import { useNamespaceBootStatus } from "../../hooks/use-namespaces";
 import { installApiStub, namespacesRoute } from "../../test/api-stub";
 import { renderWithProviders } from "../../test/harness";
+import { useUIStore } from "../../stores/ui-store";
 
 /**
  * The real app mounts useNamespaceBoot above the banner (AppShell); mirror
  * that wiring so the banner's store flag is driven by live query results.
+ * With the rework, the routes are gated on the same boot status, so this
+ * probe also renders the gated body (the page surface) once the boot fetch
+ * resolves — auth-error keeps the routes mounted so the token entry + retry
+ * flow works; loading keeps them unmounted.
  */
 function BootAndBanner() {
-  useNamespaceBoot();
-  return <ApiAuthBanner />;
+  const status = useNamespaceBootStatus();
+  const booted = status !== "loading";
+  return (
+    <>
+      <ApiAuthBanner />
+      {booted && <div data-testid="route-content">route content</div>}
+    </>
+  );
 }
 
 describe("ApiTokenControl", () => {
@@ -88,6 +99,9 @@ describe("ApiAuthBanner", () => {
 
     // first boot call is rejected -> banner with the plain-text message
     expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
+    // auth-error keeps the routes mounted so the banner + token entry are the
+    // visible surface and saving a token can refetch the boot
+    expect(screen.getByTestId("route-content")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("DuckBrain API token"), "good-token");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
@@ -101,6 +115,9 @@ describe("ApiAuthBanner", () => {
       "good-token",
     );
     expect(calls).toBe(2);
+    // the retried boot resolved: routes remain (now with the adopted namespace)
+    expect(screen.getByTestId("route-content")).toBeInTheDocument();
+    expect(useUIStore.getState().namespaceBootError).toBe(false);
   });
 
   it("does not appear for non-auth failures (500s are not a token problem)", async () => {
@@ -114,6 +131,11 @@ describe("ApiAuthBanner", () => {
 
     await waitFor(() => {
       expect(screen.queryByText(/not authorized/i)).not.toBeInTheDocument();
+    });
+    // non-auth failure falls back to rendering the routes (degraded mode);
+    // wait for the boot status to leave "loading" before asserting
+    await waitFor(() => {
+      expect(screen.getByTestId("route-content")).toBeInTheDocument();
     });
   });
 });
