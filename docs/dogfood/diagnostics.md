@@ -476,3 +476,63 @@ Probe lessons (would have produced two false findings):
   detected vs what the repo's actual UI story is before filing.
 - EXIT codes: report the COMMAND's rc, not the pipeline's (PIPESTATUS[0]
   rule again — first exit-code sweep read head's rc).
+
+## Run 8 — 2026-09-24 dogfood (as-of time-travel focus — the flagship never tested)
+
+Angle: runs 1–7 covered CLI/REST/MCP lifecycle, install, deletion — none ever
+exercised as-of recall, the README's "Available now" flagship. This run is the
+first proof it works as advertised, and the first proof of what a fresh user
+actually gets.
+
+**How it was tested.** Scratch daemon `:3793` (config + namespaces + embeddings
+cache under `/tmp/dogfood-duckbrain-0924/`, git batching tightened to
+maxSeconds=3 so auto-commits land fast). Battery: HTTP `?as_of=` over
+{first-commit sha, HEAD sha, tag, branch, same-day date, pre-history date,
+unknown ref, commitless namespace, ghost namespace, instant-between-commits,
+as_of+q, as_of+historical}; CLI `recall --as-of` (space + equals forms, short
+SHA); MCP `recall.asOf` over MCP-over-HTTP (initialize handshake needs
+`Accept: application/json, text/event-stream` — the -32000 "Not Acceptable"
+error tells you, but nothing documents it); forget→tombstone→as-of-recovery;
+`git status` on the namespace worktree after every query (no-checkout claim);
+`git show <ref>:raw_note/...` (storage inspectability); curl timings n=20.
+
+**What the battery proved.** On current HEAD the feature is genuinely done:
+all ref forms resolve, second-level instant precision, correct 400s at the
+edges, tombstoned rows recoverable at pre-forget refs, zero worktree mutation,
+30.4ms warm vs 6.1ms current (as-of tax real but invisible). The only dev-side
+defect: `as_of+q=` returns 500 where 400 is honest (DF-0924-04); the retr004
+test cements the wrong status.
+
+**What the bunker leg proved (the run's real finding).** Fresh clone of the
+published origin = ce936ae (Aug 07, 679 commits behind local HEAD; local work
+lives on feat/native-s3). Consequences measured end-to-end: (1) the documented
+quickstart dies at boot — `Cannot find module 'express'` (DF-0919-01's fix
+never reached the branch users clone; express absent from package.json
+dependencies on main, `--frozen-lockfile` resolves only the peer edge);
+(2) `src/git/asof.ts` does not exist there, and the stale server answers
+`?as_of=2026-09-01` (before any commit) with **200 + current-state rows** —
+the flagship parameter is accepted and silently lies (DF-0924-02, P0);
+(3) the stale pidfile is a hardcoded `/tmp/duckbrain-http.pid`: EACCES on a
+shared host, and ENOENT crash when DUCKBRAIN_DATA_DIR names a non-existent
+dir — both already fixed at HEAD (per-port pidfile + cleanupStalePidFile +
+stale removal). After `pnpm add express@5.2.1` + precreating the data dir, the
+README quickstart passed 4/4 on the stale main — the engine underneath was
+already good in August; it's the release pipeline that is broken.
+
+**Right way / lessons.**
+- Verify "works" claims against the artifact a user can actually obtain: clone
+  the published default branch, not the local checkout. Every green test in
+  the repo coexisted with a fresh-install boot failure and a missing flagship.
+- A silent-success parameter (200 with wrong data) is worse than a 404/501:
+  callers cannot detect the version gap. Feature-detect by probing the error
+  path (as_of before first commit must 400) before trusting as-of answers.
+- Evidence hygiene on shared bunker hosts: `/tmp` files from other agents
+  alias your logs (a stale "Done in 38.2s" from a previous agent masqueraded
+  as my install result) — write scratch under $HOME; `pkill -f` inside a
+  remote one-liner self-kills the ssh (its own command line matches).
+- MCP handshake: the streamable transport requires the dual Accept header;
+  probe it once, record it in the usage skill.
+- append-only storage means the current view legitimately returns superseded
+  rows side-by-side with current (latest-per-key is the by-key GET's job, and
+  tombstoned rows drop out there); as-of is per-ref, not per-key-latest —
+  read them as different questions.

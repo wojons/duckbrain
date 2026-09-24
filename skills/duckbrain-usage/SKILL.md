@@ -10,9 +10,11 @@ description: >-
   still instance-blind, HTTP omitted-?namespace= means the literal 'default'
   namespace while the CLI defaults to config defaultNamespace, CLI `forget`
   hardcodes namespace 'default' so it fails for every other namespace — use
-  MCP forget). Load this
+  MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
+  ABSENT from the stale origin/main, whose server silently answers ?as_of=
+  with current-state). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.6.0
+version: 1.7.0
 category: software-development
 ---
 
@@ -121,9 +123,46 @@ The CLI beyond remember/recall — verified against `--help` on 2026-08-26:
   `valid_from`/`valid_until` on writes: a memory written with a validity
   window is hidden from the current view before `valid_from` or after
   `valid_until`; `--historical` shows it. `--as-of=<ref>` reads the namespace
-  as of a git ref or ISO date.
+  as of a git ref or ISO date (see the as-of section below — verified
+  end-to-end 2026-09-24).
 - **`duckbrain recall --attr=<name>=<value>`** (repeatable) — filter rows by
   attribute, e.g. `--attr=domain=config --attr=tick=403`.
+
+### As-of time travel (verified end-to-end 2026-09-24, all three surfaces)
+
+Read the namespace state **at a git ref or instant** — ref forms: full/short
+commit SHA, branch, tag, or ISO-8601 date/datetime (date-only = that day's
+end-of-day UTC bound; datetime = second-level precision). Works on HTTP
+(`?as_of=`), CLI (`recall --as-of=<ref>`; space form `--as-of <ref>` also
+parses), and MCP (`recall` argument `asOf` — implemented and verified, but
+un-raw-documented in docs/api/mcp-tools.md as of this date; DF-0924-03).
+
+```bash
+# HTTP — tag, short SHA, date all resolve
+curl "http://127.0.0.1:3000/api/memories?namespace=<ns>&as_of=v1-point"
+curl "http://127.0.0.1:3000/api/memories?namespace=<ns>&as_of=2026-09-24T10:04:41Z"
+# CLI
+node bin/duckbrain.js recall --namespace=<ns> --as-of=v1-point
+# MCP-over-HTTP (works today)
+tools/call recall {"namespace":"<ns>","asOf":"v1-point"}
+```
+
+Verified semantics (dogfood 2026-09-24, scratch daemon): commit/tag/branch/
+date/instant all resolve correctly; instant precision is genuine (a probe
+between two commits 20s apart returned exactly the pre-commit-2 state);
+`as_of` before the first commit → clean 400 `No commit found at or before`;
+unknown ref → clean 400; worktree untouched (true no-checkout); the
+**forget-then-time-travel recovery** works: DELETE a memory, then
+`as_of=<pre-forget commit>` returns the deleted row. `as_of` combined with
+`q=`/`contains=` is rejected — currently with a 500 (DF-0924-04), treat any
+5xx there as client error and fix your query. Cost: ~30ms warm as-of vs ~6ms
+current on a small namespace — no reason to avoid it.
+
+⚠️ **Availability warning (DF-0924-02):** as-of exists only on current HEAD —
+origin/main is months stale and its server answers `?as_of=` with **200 +
+current-state** (silently wrong) instead of an error. Verify your daemon has
+`src/git/asof.ts` (or that `as_of=<date-before-first-commit>` returns 400)
+before trusting any as-of answer.
 
 ## Namespace deletion lifecycle (shipped 2026-09-22, e3a9852 — verified live 2026-09-23)
 

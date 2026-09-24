@@ -121,3 +121,47 @@ as a product defect; upgrade FAIL = DF-0923-05.
 Left behind: docs/dogfood/2026-09-23-integration.md, diagnostics.md run-7
 section, skills/duckbrain-usage deletion-lifecycle section, DF-0923-01..05 on
 the board (tasks 199→204, events 1176→1181, census-verified), this entry.
+
+## Run — 2026-09-24 (tick duckbrain-qa, as-of time-travel angle)
+
+**Verdict: PROMISING-BUT-ROUGH.** Promise under test: "Read-only as-of recall
+at a date, commit, branch, or tag — no checkout — Available now" (README
+flagship; never exercised by runs 1–6). On current HEAD the promise HOLDS
+end-to-end: HTTP/CLI/MCP as-of all resolve commit/tag/branch/date/instant
+refs with correct edge 400s, second-level instant precision, tombstone
+recovery via pre-forget refs, true no-checkout, 30.4ms warm as-of vs 6.1ms
+current (no PERF row). What breaks the verdict is delivery: **origin/main is
+679 commits stale (Aug 07)** — fresh users get a clone that cannot boot
+(DF-0919-01's express fix never shipped, re-proven: `Cannot find module
+'express'`), lacks as-of entirely, and its server **silently answers
+`?as_of=` with 200 + current-state** instead of an error. Local work sits on
+feat/native-s3 (up to date at HEAD d3de5a6); main is not.
+
+**Top findings (board DF-0924-01..04, tasks 218→222, events 626–629,
+census-verified, commit b435e38):**
+1. DF-0924-02 (P0): origin/main stale 679 commits; as-of absent from what
+   users clone; stale server returns 200+wrong data for `?as_of=` — README
+   promises a feature the default branch does not have.
+2. DF-0924-01 (P1): fresh clone of origin/main cannot boot (express missing;
+   same defect as DF-0919-01, unfixed on the published branch).
+3. DF-0924-03 (P2): MCP `recall.asOf` implemented + verified working but
+   documented nowhere (mcp-tools.md: 0 mentions). Plus DF-0924-04 (P3):
+   `as_of+q=` returns 500 not 400.
+
+**Time-to-first-success:** ~2 min on the dev checkout (scratch daemon →
+namespace → write → as-of read-back at a tag). Fresh user on the published
+main: BLOCKED at boot; after two undocumented workarounds (pnpm add
+express@5.2.1 + DUCKBRAIN_DATA_DIR precreated), quickstart 4/4 in ~90s — but
+the as-of flagship still silently missing there.
+
+**Bunker leg:** las-bunker-03 agent 413229ca (spawn→clone 10s→install 28s
+RC=0→boot blocked→workarounds→quickstart PASS→as-of probe recorded→DESTROYED,
+key removed). install_seconds=28 (post-express-fix boot 1s). Workaround
+steps are the docs finding: README's own quickstart cannot pass on its own
+published branch.
+
+**Left behind:** docs/dogfood/2026-09-24-integration.md (full battery table +
+worked example), diagnostics.md Run 8, skills/duckbrain-usage v1.7.0 (as-of
+section: three surfaces, semantics, availability warning), DF-0924-01..04 on
+the board (surgical commit b435e38; sibling CI-005 event row preserved
+byte-exact, uncommitted, as found), this entry.
