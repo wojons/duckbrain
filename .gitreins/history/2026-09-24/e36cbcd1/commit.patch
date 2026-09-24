@@ -1,0 +1,323 @@
+commit 3be42d0397bfa84e734578d40d0476649173f9dc
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Sep 24 15:51:48 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Sep 24 15:51:48 2026 -0500
+
+    chore(format): prettier packages/ui — 5 files left unformatted by pre-gating UI commits
+    
+    packages/ui/src was never prettier-gated before tick 586 (the work-tick gate
+    now runs prettier over src/ + packages/ui/src); these 5 files carried drift
+    from the earlier UI commits. Test-only/style files; UI suite still 57/57.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ packages/ui/src/components/layout/sidebar.test.tsx |  6 ++-
+ packages/ui/src/styles/globals.css                 | 60 ++++++++++++----------
+ packages/ui/src/test/api-stub.ts                   | 56 +++++++++++---------
+ packages/ui/src/test/harness.tsx                   |  5 +-
+ packages/ui/src/test/setup.ts                      |  3 +-
+ 5 files changed, 74 insertions(+), 56 deletions(-)
+
+diff --git a/packages/ui/src/components/layout/sidebar.test.tsx b/packages/ui/src/components/layout/sidebar.test.tsx
+index 3c89843..59d1d04 100644
+--- a/packages/ui/src/components/layout/sidebar.test.tsx
++++ b/packages/ui/src/components/layout/sidebar.test.tsx
+@@ -10,7 +10,11 @@ import { describe, expect, it } from "vitest";
+ import { screen, waitFor, within } from "@testing-library/react";
+ import userEvent from "@testing-library/user-event";
+ import { Sidebar } from "./sidebar";
+-import { installApiStub, makeKeyTree, standardRoutes } from "../../test/api-stub";
++import {
++  installApiStub,
++  makeKeyTree,
++  standardRoutes,
++} from "../../test/api-stub";
+ import { renderWithProviders } from "../../test/harness";
+ import { useUIStore } from "../../stores/ui-store";
+ 
+diff --git a/packages/ui/src/styles/globals.css b/packages/ui/src/styles/globals.css
+index 44d3841..f60bc6d 100644
+--- a/packages/ui/src/styles/globals.css
++++ b/packages/ui/src/styles/globals.css
+@@ -1,34 +1,34 @@
+ @import "tailwindcss";
+ 
+ /* Google Fonts */
+-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
++@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+ 
+ /* Custom Theme Configuration */
+ @theme {
+   /* Colors - Architectural Cybernetics Theme */
+-  --color-midnight: #0B101E;
++  --color-midnight: #0b101e;
+   --color-glass: rgba(255, 255, 255, 0.03);
+   --color-glass-hover: rgba(255, 255, 255, 0.06);
+   --color-glass-border: rgba(255, 255, 255, 0.08);
+   --color-glass-border-subtle: rgba(255, 255, 255, 0.04);
+-  
+-  --color-azure: #00D4FF;
++
++  --color-azure: #00d4ff;
+   --color-azure-dim: rgba(0, 212, 255, 0.7);
+   --color-azure-glow: rgba(0, 212, 255, 0.3);
+-  
+-  --color-amber: #FFB020;
++
++  --color-amber: #ffb020;
+   --color-amber-dim: rgba(255, 176, 32, 0.7);
+   --color-amber-glow: rgba(255, 176, 32, 0.3);
+-  
+-  --color-pristine: #F8FAFC;
+-  --color-clinical: #94A3B8;
+-  --color-success: #00FF66;
++
++  --color-pristine: #f8fafc;
++  --color-clinical: #94a3b8;
++  --color-success: #00ff66;
+   --color-success-glow: rgba(0, 255, 102, 0.6);
+-  --color-error: #FF4444;
+-  
++  --color-error: #ff4444;
++
+   /* Font Families */
+-  --font-sans: 'Inter', system-ui, sans-serif;
+-  --font-mono: 'JetBrains Mono', monospace;
++  --font-sans: "Inter", system-ui, sans-serif;
++  --font-mono: "JetBrains Mono", monospace;
+ }
+ 
+ /* Base Styles */
+@@ -59,13 +59,13 @@ body {
+       rgba(255, 255, 255, 0.01) 100%
+     );
+   }
+-  
++
+   .glass-panel-hover:hover {
+     background-color: var(--color-glass-hover);
+     border-color: rgba(255, 255, 255, 0.12);
+     transition: all 200ms ease-out;
+   }
+-  
++
+   .glass-button {
+     background-color: var(--color-glass);
+     border: 1px solid var(--color-glass-border);
+@@ -73,12 +73,12 @@ body {
+     color: var(--color-pristine);
+     transition: all 150ms ease-out;
+   }
+-  
++
+   .glass-button:hover {
+     background-color: var(--color-glass-hover);
+     border-color: rgba(255, 255, 255, 0.12);
+   }
+-  
++
+   .glass-input {
+     background-color: rgba(0, 0, 0, 0.2);
+     border: 1px solid var(--color-glass-border);
+@@ -87,41 +87,41 @@ body {
+     padding: 0.5rem 0.75rem;
+     transition: border-color 150ms ease-out;
+   }
+-  
++
+   .glass-input:focus {
+     outline: none;
+     border-color: var(--color-azure);
+     box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+   }
+-  
++
+   /* Status Indicators */
+   .status-dot-active {
+     background-color: var(--color-success);
+     box-shadow: 0 0 8px var(--color-success-glow);
+   }
+-  
++
+   .status-dot-idle {
+     background-color: var(--color-clinical);
+   }
+-  
++
+   .status-dot-busy {
+     background-color: var(--color-amber);
+     box-shadow: 0 0 8px var(--color-amber-glow);
+   }
+-  
++
+   /* Neon Glow Effects */
+   .neon-azure {
+     box-shadow: 0 0 12px var(--color-azure-glow);
+   }
+-  
++
+   .neon-amber {
+     box-shadow: 0 0 12px var(--color-amber-glow);
+   }
+-  
++
+   .inner-azure {
+     box-shadow: inset 0 0 12px rgba(0, 212, 255, 0.05);
+   }
+-  
++
+   /* Typography */
+   .font-mono {
+     font-family: var(--font-mono);
+@@ -131,12 +131,16 @@ body {
+ /* Utility Layer */
+ @layer utilities {
+   .text-gradient-azure {
+-    background: linear-gradient(135deg, var(--color-azure) 0%, var(--color-pristine) 100%);
++    background: linear-gradient(
++      135deg,
++      var(--color-azure) 0%,
++      var(--color-pristine) 100%
++    );
+     -webkit-background-clip: text;
+     -webkit-text-fill-color: transparent;
+     background-clip: text;
+   }
+-  
++
+   .border-glass-subtle {
+     border-color: var(--color-glass-border-subtle);
+   }
+diff --git a/packages/ui/src/test/api-stub.ts b/packages/ui/src/test/api-stub.ts
+index b135c24..f695e97 100644
+--- a/packages/ui/src/test/api-stub.ts
++++ b/packages/ui/src/test/api-stub.ts
+@@ -57,10 +57,7 @@ export interface ApiStub {
+   namespacesFor(path: string, method?: string): (string | null)[];
+ }
+ 
+-function record(
+-  input: RequestInfo | URL,
+-  init?: RequestInit,
+-): RecordedRequest {
++function record(input: RequestInfo | URL, init?: RequestInit): RecordedRequest {
+   const raw =
+     typeof input === "string"
+       ? input
+@@ -89,23 +86,25 @@ function record(
+ export function installApiStub(routes: StubRoute[] = []): ApiStub {
+   const requests: RecordedRequest[] = [];
+ 
+-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+-    const req = record(input, init);
+-    requests.push(req);
+-    for (const route of routes) {
+-      const result = route(req);
+-      if (!result) continue;
+-      const status = result.status ?? 200;
+-      if (status === 204) return new Response(null, { status });
+-      return new Response(JSON.stringify(result.body ?? null), {
+-        status,
+-        headers: { "Content-Type": "application/json" },
+-      });
+-    }
+-    throw new Error(
+-      `Unstubbed request in UI test: ${req.method} ${req.url} — add a route to installApiStub()`,
+-    );
+-  });
++  const fetchMock = vi.fn(
++    async (input: RequestInfo | URL, init?: RequestInit) => {
++      const req = record(input, init);
++      requests.push(req);
++      for (const route of routes) {
++        const result = route(req);
++        if (!result) continue;
++        const status = result.status ?? 200;
++        if (status === 204) return new Response(null, { status });
++        return new Response(JSON.stringify(result.body ?? null), {
++          status,
++          headers: { "Content-Type": "application/json" },
++        });
++      }
++      throw new Error(
++        `Unstubbed request in UI test: ${req.method} ${req.url} — add a route to installApiStub()`,
++      );
++    },
++  );
+ 
+   vi.stubGlobal("fetch", fetchMock);
+ 
+@@ -140,7 +139,9 @@ export function memoriesRoute(state: { items: MemoryResponse[] }): StubRoute {
+     const limit = req.params.has("limit")
+       ? Number(req.params.get("limit"))
+       : 50;
+-    const offset = req.params.has("offset") ? Number(req.params.get("offset")) : 0;
++    const offset = req.params.has("offset")
++      ? Number(req.params.get("offset"))
++      : 0;
+     const page = state.items.slice(offset, offset + limit);
+     const nextOffset =
+       offset + limit < state.items.length ? offset + limit : null;
+@@ -171,7 +172,8 @@ export function namespacesRoute(
+   currentNamespace = "default",
+ ): StubRoute {
+   return (req) => {
+-    if (req.path !== "/api/namespaces" || req.method !== "GET") return undefined;
++    if (req.path !== "/api/namespaces" || req.method !== "GET")
++      return undefined;
+     return {
+       body: {
+         namespaces: names.map((name) => toNamespace(name, currentNamespace)),
+@@ -198,7 +200,8 @@ export function switchNamespaceRoute(): StubRoute {
+ /** POST /api/namespaces — create. */
+ export function createNamespaceRoute(): StubRoute {
+   return (req) => {
+-    if (req.path !== "/api/namespaces" || req.method !== "POST") return undefined;
++    if (req.path !== "/api/namespaces" || req.method !== "POST")
++      return undefined;
+     const name =
+       typeof req.body === "object" && req.body !== null
+         ? String((req.body as { name?: unknown }).name ?? "")
+@@ -222,7 +225,10 @@ export function standardRoutes(
+   return [
+     memoriesRoute({ items: options.memories ?? [] }),
+     keysRoute(options.tree ?? []),
+-    namespacesRoute(options.namespaces ?? ["default"], options.currentNamespace),
++    namespacesRoute(
++      options.namespaces ?? ["default"],
++      options.currentNamespace,
++    ),
+     switchNamespaceRoute(),
+     createNamespaceRoute(),
+   ];
+diff --git a/packages/ui/src/test/harness.tsx b/packages/ui/src/test/harness.tsx
+index a0feffa..9a8ee12 100644
+--- a/packages/ui/src/test/harness.tsx
++++ b/packages/ui/src/test/harness.tsx
+@@ -28,7 +28,10 @@ export function createTestQueryClient(): QueryClient {
+   });
+ }
+ 
+-export interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
++export interface RenderWithProvidersOptions extends Omit<
++  RenderOptions,
++  "wrapper"
++> {
+   /** Initial route for the MemoryRouter (useUrlState reads search params) */
+   route?: string;
+   queryClient?: QueryClient;
+diff --git a/packages/ui/src/test/setup.ts b/packages/ui/src/test/setup.ts
+index d543502..93d1644 100644
+--- a/packages/ui/src/test/setup.ts
++++ b/packages/ui/src/test/setup.ts
+@@ -60,7 +60,8 @@ class MockObserver {
+ const globalAny = globalThis as unknown as Record<string, unknown>;
+ if (!globalAny.EventSource) globalAny.EventSource = MockEventSource;
+ if (!globalAny.ResizeObserver) globalAny.ResizeObserver = MockObserver;
+-if (!globalAny.IntersectionObserver) globalAny.IntersectionObserver = MockObserver;
++if (!globalAny.IntersectionObserver)
++  globalAny.IntersectionObserver = MockObserver;
+ 
+ if (typeof window !== "undefined") {
+   if (!window.matchMedia) {

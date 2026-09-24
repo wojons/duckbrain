@@ -1,0 +1,971 @@
+commit b8ebcb008fd9c9387b9301cb44b5ca26eb578779
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Sep 24 13:16:17 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Sep 24 13:16:17 2026 -0500
+
+    fix(df-0924-05): UI dead on hardened auth deployments — token entry, boot namespace adoption, retry storm kill
+    
+    Three measured root causes, all fixed in packages/ui (sources only; .js
+    artifacts are gitignored):
+    
+    1. Zero credentials: apiFetch never sent X-API-Key and the UI had no token
+       entry anywhere. Now: getApiToken/setApiToken/clearApiToken persist to
+       localStorage key duckbrain-api-token; apiFetch attaches X-API-Key on
+       every request when set (omitted when unset); ApiAuthError (401-class)
+       vs ApiError (status attached) split; ApiTokenControl in the header
+       (masked input, Save/Clear, "Token set" indicator) and ApiAuthBanner
+       ("Not authorized - enter your DuckBrain API token") rendered when the
+       boot fetch 401s.
+    
+    2. Hardcoded namespace: ui-store seeded currentNamespace='default' and
+       nothing ever read the server value. Now: useNamespaceBoot() fetches
+       GET /api/namespaces once on mount and adopts the server-reported
+       currentNamespace (server wins over the hardcoded fallback and any
+       persisted value; 'default' remains only as the fetch-failure fallback).
+       Live-verified: UI booted on an --auth=apikey scratch daemon and adopted
+       the server's currentNamespace.
+    
+    3. Retry storm: both QueryClients used TanStack's default retry(3) on
+       everything. Now shouldRetryQuery(): auth errors never retried, other
+       errors at most once. Live-verified: 401 boot produced 2 namespaces
+       calls (no amplification), no 429s.
+    
+    Live E2E on a real --auth=apikey daemon (:3795) via vite dev server:
+    no-token boot showed the banner + token input (not skeletons), saving the
+    token through the UI cleared the banner, panels rendered real data
+    (Active Memories 2, timeline rows authored df0924-05@duckbrain.local),
+    zero errors, zero 429s.
+    
+    Gates: packages/ui build OK, 9 files / 54 tests (38 existing + 16 new);
+    root suite 167 files / 1332 tests; tsc --noEmit clean; prettier clean on
+    all touched files (5 pre-existing ui drift files untouched, documented).
+    
+    Judge: DF-0924-05 (this commit).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                               |  13 ++
+ packages/ui/src/App.tsx                            |  32 ++-
+ packages/ui/src/components/layout/header.tsx       |   4 +
+ .../ui/src/components/ui/api-token-banner.test.tsx | 119 +++++++++++
+ packages/ui/src/components/ui/api-token-banner.tsx | 230 +++++++++++++++++++++
+ packages/ui/src/hooks/use-namespaces.test.tsx      |  69 +++++++
+ packages/ui/src/hooks/use-namespaces.ts            |  43 +++-
+ packages/ui/src/lib/api-auth.test.ts               | 118 +++++++++++
+ packages/ui/src/lib/api-client.ts                  |  83 +++++++-
+ packages/ui/src/main.tsx                           |   4 +
+ packages/ui/src/stores/ui-store.ts                 |  12 ++
+ packages/ui/src/test/api-stub.ts                   |   3 +
+ 12 files changed, 723 insertions(+), 7 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index a99772b..e0ecaae 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1850,3 +1850,16 @@ tasks:
+   status: complete
+   created_at: '2026-09-24T12:26:27.236778+00:00'
+   completed_at: '2026-09-24T12:39:32.307616+00:00'
++- id: DF-0924-05
++  title: 'P0 UI dead on hardened auth deployments: hardcoded namespace, zero credentials,
++    429 storm'
++  criteria:
++  - 'On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace
++    (no queries against hardcoded ''default''); (2) all API calls attach X-API-Key
++    from a user-entered token persisted in localStorage, with a visible token entry
++    point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui
++    pnpm build + pnpm test green including new regression tests; (5) root npx vitest
++    run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite
++    counts change'
++  status: in_progress
++  created_at: '2026-09-24T17:06:36.668372+00:00'
+diff --git a/packages/ui/src/App.tsx b/packages/ui/src/App.tsx
+index 5776ffb..020400f 100644
+--- a/packages/ui/src/App.tsx
++++ b/packages/ui/src/App.tsx
+@@ -1,5 +1,8 @@
+ import { BrowserRouter, Routes, Route, Navigate } from "react-router";
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
++import { shouldRetryQuery } from "./lib/api-client";
++import { useNamespaceBoot } from "./hooks/use-namespaces";
++import { ApiAuthBanner } from "./components/ui/api-token-banner";
+ import TreePage from "./routes/Tree";
+ import TimelinePage from "./routes/Timeline";
+ import { OfflineBanner } from "./components/ui/offline-banner";
+@@ -9,10 +12,33 @@ const queryClient = new QueryClient({
+     queries: {
+       staleTime: 30 * 1000, // 30 seconds
+       refetchOnWindowFocus: false,
++      // Auth errors (401) must never be retried — repeating them cannot
++      // succeed and trips the rate limiter. Everything else retries once.
++      retry: shouldRetryQuery,
+     },
+   },
+ });
+ 
++/**
++ * App Shell
++ *
++ * Mounts the boot-time namespace adoption (server-reported currentNamespace
++ * wins over the hardcoded default / persisted value) and the auth banner.
++ */
++function AppShell() {
++  useNamespaceBoot();
++  return (
++    <>
++      <ApiAuthBanner />
++      <Routes>
++        <Route path="/" element={<Navigate to="/timeline" replace />} />
++        <Route path="/tree" element={<TreePage />} />
++        <Route path="/timeline" element={<TimelinePage />} />
++      </Routes>
++    </>
++  );
++}
++
+ /**
+  * App Component
+  *
+@@ -27,11 +53,7 @@ function App() {
+     <QueryClientProvider client={queryClient}>
+       <BrowserRouter>
+         <OfflineBanner />
+-        <Routes>
+-          <Route path="/" element={<Navigate to="/timeline" replace />} />
+-          <Route path="/tree" element={<TreePage />} />
+-          <Route path="/timeline" element={<TimelinePage />} />
+-        </Routes>
++        <AppShell />
+       </BrowserRouter>
+     </QueryClientProvider>
+   );
+diff --git a/packages/ui/src/components/layout/header.tsx b/packages/ui/src/components/layout/header.tsx
+index 15a207d..dc950d8 100644
+--- a/packages/ui/src/components/layout/header.tsx
++++ b/packages/ui/src/components/layout/header.tsx
+@@ -11,6 +11,7 @@ import {
+ } from "lucide-react";
+ import { useState } from "react";
+ import { useUIStore } from "../../stores/ui-store";
++import { ApiTokenControl } from "../ui/api-token-banner";
+ import type { MemoryFilters } from "../../lib/filters";
+ 
+ interface HeaderProps {
+@@ -108,6 +109,9 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
+ 
+           {/* Controls */}
+           <div className="flex items-center gap-2">
++            {/* API Token Entry (hardened --auth=apikey deployments) */}
++            <ApiTokenControl />
++
+             {/* Filter Toggle */}
+             <button
+               onClick={() => setFiltersOpen(!filtersOpen)}
+diff --git a/packages/ui/src/components/ui/api-token-banner.test.tsx b/packages/ui/src/components/ui/api-token-banner.test.tsx
+new file mode 100644
+index 0000000..95b238a
+--- /dev/null
++++ b/packages/ui/src/components/ui/api-token-banner.test.tsx
+@@ -0,0 +1,119 @@
++/**
++ * API token entry tests — the UI side of hardened (--auth=apikey) deployments.
++ *
++ * Pins: the header control persists a pasted token to localStorage and
++ * refreshes the app's queries; the banner appears only while the boot-time
++ * namespaces fetch fails with 401, and disappears once a working token is
++ * saved (the refetched boot query clears the flag); non-auth failures do not
++ * summon the token banner.
++ */
++
++import { describe, expect, it } from "vitest";
++import { screen, waitFor } from "@testing-library/react";
++import userEvent from "@testing-library/user-event";
++import { ApiAuthBanner, ApiTokenControl } from "./api-token-banner";
++import { useNamespaceBoot } from "../../hooks/use-namespaces";
++import { installApiStub, namespacesRoute } from "../../test/api-stub";
++import { renderWithProviders } from "../../test/harness";
++
++/**
++ * The real app mounts useNamespaceBoot above the banner (AppShell); mirror
++ * that wiring so the banner's store flag is driven by live query results.
++ */
++function BootAndBanner() {
++  useNamespaceBoot();
++  return <ApiAuthBanner />;
++}
++
++describe("ApiTokenControl", () => {
++  it("saves a pasted token to localStorage and shows it as set", async () => {
++    const user = userEvent.setup();
++    renderWithProviders(<ApiTokenControl />);
++
++    await user.click(screen.getByRole("button", { name: /api token/i }));
++    await user.type(
++      screen.getByLabelText("DuckBrain API token"),
++      "secret-token-123",
++    );
++    await user.click(screen.getByRole("button", { name: /^save$/i }));
++
++    expect(window.localStorage.getItem("duckbrain-api-token")).toBe(
++      "secret-token-123",
++    );
++    expect(screen.getByText(/token set/i)).toBeInTheDocument();
++  });
++
++  it("clears the stored token", async () => {
++    window.localStorage.setItem("duckbrain-api-token", "secret-token-123");
++    const user = userEvent.setup();
++    renderWithProviders(<ApiTokenControl />);
++
++    await user.click(screen.getByRole("button", { name: /api token/i }));
++    await user.click(screen.getByRole("button", { name: /^clear$/i }));
++
++    expect(window.localStorage.getItem("duckbrain-api-token")).toBeNull();
++    expect(screen.getByText(/no token set/i)).toBeInTheDocument();
++  });
++});
++
++describe("ApiAuthBanner", () => {
++  it("is hidden while the API answers normally", async () => {
++    installApiStub([namespacesRoute(["default"], "default")]);
++    renderWithProviders(<BootAndBanner />);
++
++    await waitFor(() => {
++      expect(screen.queryByText(/not authorized/i)).not.toBeInTheDocument();
++    });
++    // boot adoption ran as a side effect
++    await waitFor(() => {
++      expect(screen.queryByText(/not authorized/i)).not.toBeInTheDocument();
++    });
++  });
++
++  it("appears on a boot 401 and disappears once a working token is saved", async () => {
++    const user = userEvent.setup();
++    let calls = 0;
++    installApiStub([
++      (req) => {
++        if (req.path !== "/api/namespaces") return undefined;
++        calls += 1;
++        if (calls === 1) {
++          return { status: 401, body: { error: "Unauthorized" } };
++        }
++        return namespacesRoute(["work"], "work")(req);
++      },
++    ]);
++
++    renderWithProviders(<BootAndBanner />);
++
++    // first boot call is rejected -> banner with the plain-text message
++    expect(await screen.findByText(/not authorized/i)).toBeInTheDocument();
++
++    await user.type(screen.getByLabelText("DuckBrain API token"), "good-token");
++    await user.click(screen.getByRole("button", { name: /^save$/i }));
++
++    // saving invalidates: exactly one refetch (no retries) with the token,
++    // the boot query succeeds, the flag clears, the banner disappears
++    await waitFor(() => {
++      expect(screen.queryByText(/not authorized/i)).not.toBeInTheDocument();
++    });
++    expect(window.localStorage.getItem("duckbrain-api-token")).toBe(
++      "good-token",
++    );
++    expect(calls).toBe(2);
++  });
++
++  it("does not appear for non-auth failures (500s are not a token problem)", async () => {
++    installApiStub([
++      (req) =>
++        req.path === "/api/namespaces"
++          ? { status: 500, body: { error: "boom" } }
++          : undefined,
++    ]);
++    renderWithProviders(<BootAndBanner />);
++
++    await waitFor(() => {
++      expect(screen.queryByText(/not authorized/i)).not.toBeInTheDocument();
++    });
++  });
++});
+diff --git a/packages/ui/src/components/ui/api-token-banner.tsx b/packages/ui/src/components/ui/api-token-banner.tsx
+new file mode 100644
+index 0000000..a164b59
+--- /dev/null
++++ b/packages/ui/src/components/ui/api-token-banner.tsx
+@@ -0,0 +1,230 @@
++/**
++ * API Token Entry + Auth Banner
++ *
++ * Hardened deployments start the server with `--auth=apikey`; from then on
++ * every API call needs the user's DuckBrain API key. This component pair is
++ * the UI's side of that contract:
++ *
++ * - ApiTokenControl — a small header button ("API token") opening a popover
++ *   where the user pastes their token. Saved to localStorage via
++ *   setApiToken() and shown masked once set.
++ * - ApiAuthBanner — a fixed banner shown while API calls are failing with
++ *   401 (store flag set by the boot hook / any auth error reaching the
++ *   query layer), pointing the user at the token entry.
++ */
++
++import { useEffect, useRef, useState } from "react";
++import { useQueryClient } from "@tanstack/react-query";
++import { KeyRound, X } from "lucide-react";
++import { clearApiToken, getApiToken, setApiToken } from "../../lib/api-client";
++import { useUIStore } from "../../stores/ui-store";
++
++/**
++ * Header token control: button + popover with the token input.
++ *
++ * Plain text, no jargon: paste your token, save, done. The token is shown
++ * masked once set; clearing it removes it from localStorage.
++ */
++export function ApiTokenControl() {
++  const queryClient = useQueryClient();
++  const [open, setOpen] = useState(false);
++  const [draft, setDraft] = useState("");
++  const [stored, setStored] = useState<string | null>(() => getApiToken());
++  const inputRef = useRef<HTMLInputElement>(null);
++
++  useEffect(() => {
++    if (open) inputRef.current?.focus();
++  }, [open]);
++
++  const save = () => {
++    if (!draft.trim()) return;
++    setApiToken(draft);
++    setStored(getApiToken());
++    setDraft("");
++    // The saved token changes every request's auth: refetch everything once.
++    void queryClient.invalidateQueries();
++  };
++
++  const clear = () => {
++    clearApiToken();
++    setStored(null);
++    setDraft("");
++    // Removing the token changes every request's auth: refetch once.
++    void queryClient.invalidateQueries();
++  };
++
++  return (
++    <div className="relative">
++      <button
++        onClick={() => setOpen(!open)}
++        aria-expanded={open}
++        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
++          stored ? "status-dot-active" : ""
++        }`}
++        style={{
++          backgroundColor: stored
++            ? "rgba(0, 255, 102, 0.1)"
++            : "var(--color-glass)",
++          color: stored ? "var(--color-success)" : "var(--color-clinical)",
++          border: `1px solid ${stored ? "rgba(0, 255, 102, 0.3)" : "var(--color-glass-border)"}`,
++        }}
++        title="Enter your DuckBrain API token"
++      >
++        <KeyRound className="w-3.5 h-3.5" />
++        <span className="hidden sm:inline">API token</span>
++      </button>
++
++      {open && (
++        <div
++          className="absolute right-0 mt-2 w-72 glass-panel rounded-lg p-3 z-50 animate-in slide-in-from-top-2"
++          style={{ borderColor: "var(--color-glass-border)" }}
++        >
++          <div className="flex items-center justify-between mb-2">
++            <span
++              className="text-sm"
++              style={{ color: "var(--color-clinical)" }}
++            >
++              {stored ? "Token set" : "No token set"}
++            </span>
++            <button
++              onClick={() => setOpen(false)}
++              aria-label="Close token entry"
++              className="p-1 hover:bg-white/10 rounded"
++            >
++              <X
++                className="w-3.5 h-3.5"
++                style={{ color: "var(--color-clinical)" }}
++              />
++            </button>
++          </div>
++
++          <label
++            htmlFor="duckbrain-api-token-input"
++            className="block text-xs mb-1"
++            style={{ color: "var(--color-clinical)" }}
++          >
++            DuckBrain API token
++          </label>
++          <input
++            id="duckbrain-api-token-input"
++            ref={inputRef}
++            type="password"
++            value={draft}
++            onChange={(e) => setDraft(e.target.value)}
++            placeholder="Paste your token..."
++            className="w-full glass-input px-2 py-1.5 rounded text-sm"
++          />
++
++          <div className="flex items-center justify-end gap-2 mt-2">
++            {stored && (
++              <button
++                onClick={clear}
++                className="px-2 py-1 text-sm rounded hover:bg-white/10 transition-colors"
++                style={{ color: "var(--color-clinical)" }}
++              >
++                Clear
++              </button>
++            )}
++            <button
++              onClick={save}
++              className="px-3 py-1 text-sm rounded glass-button"
++              style={{ color: "var(--color-azure)" }}
++            >
++              Save
++            </button>
++          </div>
++
++          {stored && (
++            <p
++              className="mt-2 text-xs break-all"
++              style={{ color: "var(--color-clinical)", opacity: 0.7 }}
++            >
++              Saved:{" "}
++              {stored.slice(0, 3) + "•".repeat(Math.max(stored.length - 3, 0))}
++            </p>
++          )}
++        </div>
++      )}
++    </div>
++  );
++}
++
++/**
++ * Fixed banner shown while the API is rejecting requests with 401 and no
++ * working token is saved. Saving a token refreshes the queries; when one
++ * succeeds the boot hook clears the flag and the banner disappears.
++ */
++export function ApiAuthBanner() {
++  const queryClient = useQueryClient();
++  const namespaceBootError = useUIStore((state) => state.namespaceBootError);
++  const [draft, setDraft] = useState("");
++
++  if (!namespaceBootError) return null;
++
++  const saveFromBanner = async (token: string) => {
++    setApiToken(token);
++    setDraft("");
++    // Saved token changes every request's auth; refetch everything once.
++    // When the boot query then succeeds it clears namespaceBootError and
++    // this banner disappears.
++    await queryClient.invalidateQueries();
++  };
++
++  return (
++    <div
++      className="fixed top-0 left-0 right-0 z-[200] px-4 py-3"
++      style={{
++        backgroundColor: "rgba(251, 191, 36, 0.1)",
++        borderBottom: "1px solid rgba(251, 191, 36, 0.3)",
++        backdropFilter: "blur(8px)",
++      }}
++    >
++      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
++        <div className="flex items-center gap-3">
++          <div
++            className="w-8 h-8 rounded-full flex items-center justify-center"
++            style={{ backgroundColor: "rgba(251, 191, 36, 0.2)" }}
++          >
++            <KeyRound
++              className="w-4 h-4"
++              style={{ color: "var(--color-amber)" }}
++            />
++          </div>
++          <div>
++            <p
++              className="text-sm font-medium"
++              style={{ color: "var(--color-amber)" }}
++            >
++              Not authorized — enter your DuckBrain API token
++            </p>
++            <p
++              className="text-xs"
++              style={{ color: "var(--color-clinical)", opacity: 0.8 }}
++            >
++              This server requires an API token. Paste it below or use the API
++              token button.
++            </p>
++          </div>
++        </div>
++
++        <div className="flex items-center gap-2">
++          <input
++            type="password"
++            placeholder="Paste your token..."
++            aria-label="DuckBrain API token"
++            className="glass-input px-3 py-1.5 rounded text-sm min-w-[220px]"
++            value={draft}
++            onChange={(e) => setDraft(e.target.value)}
++          />
++          <button
++            onClick={() => draft.trim() && saveFromBanner(draft)}
++            className="px-3 py-1.5 rounded text-sm glass-button"
++            style={{ color: "var(--color-amber)" }}
++          >
++            Save
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/packages/ui/src/hooks/use-namespaces.test.tsx b/packages/ui/src/hooks/use-namespaces.test.tsx
+new file mode 100644
+index 0000000..5cc5ae2
+--- /dev/null
++++ b/packages/ui/src/hooks/use-namespaces.test.tsx
+@@ -0,0 +1,69 @@
++/**
++ * Namespace boot-adoption tests.
++ *
++ * The store used to hardcode currentNamespace: "default", which does not
++ * exist on normal installs (every panel then 404s against a namespace that
++ * was never created). These tests pin the boot contract: on app boot the
++ * server-reported currentNamespace from GET /api/namespaces is adopted into
++ * the Zustand store; the hardcoded value survives only as the fallback when
++ * the fetch fails; and a persisted (localStorage) namespace never masks the
++ * server value on boot.
++ */
++
++import { describe, expect, it } from "vitest";
++import { screen, waitFor } from "@testing-library/react";
++import { useNamespaceBoot, useCurrentNamespace } from "./use-namespaces";
++import { installApiStub, namespacesRoute } from "../test/api-stub";
++import { renderWithProviders } from "../test/harness";
++import { useUIStore } from "../stores/ui-store";
++
++/** Mounts the boot hook and renders the store's namespace for assertions. */
++function BootProbe() {
++  useNamespaceBoot();
++  const current = useCurrentNamespace();
++  return <div data-testid="current-namespace">{current}</div>;
++}
++
++describe("namespace boot adoption", () => {
++  it("adopts the server-reported currentNamespace on boot", async () => {
++    installApiStub([namespacesRoute(["default", "work"], "work")]);
++
++    renderWithProviders(<BootProbe />);
++
++    await waitFor(() => {
++      expect(screen.getByTestId("current-namespace")).toHaveTextContent("work");
++    });
++    expect(useUIStore.getState().currentNamespace).toBe("work");
++  });
++
++  it("keeps the hardcoded fallback only when the namespaces fetch fails", async () => {
++    installApiStub([
++      (req) =>
++        req.path === "/api/namespaces"
++          ? { status: 500, body: { error: "boom" } }
++          : undefined,
++    ]);
++
++    renderWithProviders(<BootProbe />);
++
++    await waitFor(() => {
++      expect(useUIStore.getState().currentNamespace).toBe("default");
++    });
++    expect(screen.getByTestId("current-namespace")).toHaveTextContent(
++      "default",
++    );
++  });
++
++  it("server value wins over a persisted namespace on boot", async () => {
++    // simulate what zustand persist restored from localStorage before boot
++    useUIStore.setState({ currentNamespace: "stale-persisted" });
++    installApiStub([namespacesRoute(["default", "work"], "work")]);
++
++    renderWithProviders(<BootProbe />);
++
++    await waitFor(() => {
++      expect(screen.getByTestId("current-namespace")).toHaveTextContent("work");
++    });
++    expect(useUIStore.getState().currentNamespace).toBe("work");
++  });
++});
+diff --git a/packages/ui/src/hooks/use-namespaces.ts b/packages/ui/src/hooks/use-namespaces.ts
+index 583bc70..97b8bae 100644
+--- a/packages/ui/src/hooks/use-namespaces.ts
++++ b/packages/ui/src/hooks/use-namespaces.ts
+@@ -4,8 +4,9 @@
+  * TanStack Query hooks for namespace operations.
+  */
+ 
++import { useEffect } from "react";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+-import { namespacesApi } from "../lib/api-client";
++import { namespacesApi, ApiAuthError } from "../lib/api-client";
+ import { useUIStore } from "../stores/ui-store";
+ 
+ // Query keys
+@@ -26,6 +27,46 @@ export function useNamespaces() {
+   });
+ }
+ 
++/**
++ * Boot-time namespace adoption.
++ *
++ * The UI used to hardcode currentNamespace: "default", which does not exist
++ * on normal installs — every panel then 404s and stays on its loading
++ * skeleton. On boot this fetches GET /api/namespaces once and adopts the
++ * server-reported `currentNamespace` into the store. The hardcoded "default"
++ * initial value survives ONLY as the fallback when the fetch fails, and a
++ * namespace persisted to localStorage never masks the server value on boot:
++ * the server wins.
++ *
++ * A 401 (hardened --auth=apikey deployment without a token) is recorded in
++ * the store so the UI can show the token entry point. The namespaces LIST is
++ * allowed unauthenticated by the server, so this hook also works there.
++ */
++export function useNamespaceBoot(): void {
++  const setCurrentNamespace = useUIStore((state) => state.setCurrentNamespace);
++  const setNamespaceBootError = useUIStore(
++    (state) => state.setNamespaceBootError,
++  );
++  const { data, error } = useQuery({
++    queryKey: namespaceKeys.current(),
++    queryFn: () => namespacesApi.list(),
++    staleTime: 5 * 60 * 1000,
++    refetchOnWindowFocus: false,
++    retry: false,
++  });
++
++  useEffect(() => {
++    if (data) {
++      setNamespaceBootError(false);
++      setCurrentNamespace(data.currentNamespace);
++    }
++  }, [data, setCurrentNamespace, setNamespaceBootError]);
++
++  useEffect(() => {
++    setNamespaceBootError(error instanceof ApiAuthError);
++  }, [error, setNamespaceBootError]);
++}
++
+ /**
+  * Hook to get current namespace from Zustand store
+  */
+diff --git a/packages/ui/src/lib/api-auth.test.ts b/packages/ui/src/lib/api-auth.test.ts
+new file mode 100644
+index 0000000..b6344f5
+--- /dev/null
++++ b/packages/ui/src/lib/api-auth.test.ts
+@@ -0,0 +1,118 @@
++/**
++ * Auth contract tests for the API client.
++ *
++ * Pins the hardened-deployment contract (auth=apikey): a user-entered
++ * DuckBrain API token is stored in localStorage and attached as X-API-Key on
++ * every request; a 401 response surfaces as a DISTINCT ApiAuthError so the
++ * UI can react without retry storms; and the shared query retry predicate
++ * never retries auth errors and retries everything else at most once.
++ *
++ * Zero network — fetch is stubbed via installApiStub().
++ */
++
++import { describe, expect, it } from "vitest";
++import {
++  ApiAuthError,
++  ApiError,
++  clearApiToken,
++  getApiToken,
++  namespacesApi,
++  setApiToken,
++  shouldRetryQuery,
++} from "./api-client";
++import { installApiStub, namespacesRoute } from "../test/api-stub";
++
++describe("api token storage", () => {
++  it("persists the token to localStorage under duckbrain-api-token", () => {
++    clearApiToken();
++    expect(getApiToken()).toBeNull();
++
++    setApiToken("secret-token-123");
++
++    expect(window.localStorage.getItem("duckbrain-api-token")).toBe(
++      "secret-token-123",
++    );
++    expect(getApiToken()).toBe("secret-token-123");
++  });
++
++  it("clears the token from localStorage", () => {
++    setApiToken("secret-token-123");
++
++    clearApiToken();
++
++    expect(getApiToken()).toBeNull();
++    expect(window.localStorage.getItem("duckbrain-api-token")).toBeNull();
++  });
++});
++
++describe("apiFetch credentials", () => {
++  it("attaches X-API-Key on every request when a token is set", async () => {
++    setApiToken("secret-token-123");
++    const api = installApiStub([namespacesRoute(["default"])]);
++
++    await namespacesApi.list();
++
++    expect(api.lastFor("/api/namespaces")?.headers.get("X-API-Key")).toBe(
++      "secret-token-123",
++    );
++    clearApiToken();
++  });
++
++  it("sends no X-API-Key header when no token is set", async () => {
++    clearApiToken();
++    const api = installApiStub([namespacesRoute(["default"])]);
++
++    await namespacesApi.list();
++
++    expect(api.lastFor("/api/namespaces")?.headers.has("X-API-Key")).toBe(
++      false,
++    );
++  });
++});
++
++describe("401 handling", () => {
++  it("maps a 401 response to the distinct ApiAuthError with the status attached", async () => {
++    installApiStub([
++      (req) =>
++        req.path === "/api/namespaces"
++          ? { status: 401, body: { error: "Unauthorized" } }
++          : undefined,
++    ]);
++
++    const error = await namespacesApi.list().catch((caught) => caught);
++
++    expect(error).toBeInstanceOf(ApiAuthError);
++    expect(error).toBeInstanceOf(ApiError);
++    expect((error as ApiAuthError).status).toBe(401);
++  });
++
++  it("does not map other error statuses to ApiAuthError", async () => {
++    installApiStub([
++      (req) =>
++        req.path === "/api/namespaces"
++          ? { status: 500, body: { error: "boom" } }
++          : undefined,
++    ]);
++
++    const error = await namespacesApi.list().catch((caught) => caught);
++
++    expect(error).toBeInstanceOf(ApiError);
++    expect(error).not.toBeInstanceOf(ApiAuthError);
++    expect((error as ApiError).status).toBe(500);
++  });
++});
++
++describe("shouldRetryQuery (shared QueryClient retry predicate)", () => {
++  it("retries other errors at most once", () => {
++    expect(shouldRetryQuery(0, new Error("boom"))).toBe(true);
++    expect(shouldRetryQuery(1, new Error("boom"))).toBe(false);
++    expect(shouldRetryQuery(5, new Error("boom"))).toBe(false);
++  });
++
++  it("never retries auth errors", () => {
++    const authError = new ApiAuthError(401);
++    expect(shouldRetryQuery(0, authError)).toBe(false);
++    expect(shouldRetryQuery(1, authError)).toBe(false);
++    expect(shouldRetryQuery(9, authError)).toBe(false);
++  });
++});
+diff --git a/packages/ui/src/lib/api-client.ts b/packages/ui/src/lib/api-client.ts
+index 2077f74..0250927 100644
+--- a/packages/ui/src/lib/api-client.ts
++++ b/packages/ui/src/lib/api-client.ts
+@@ -24,6 +24,74 @@ import { logApiRequest, logApiResponse, debugLog } from "./api-health";
+ 
+ const API_BASE = "/api";
+ 
++/**
++ * localStorage key holding the user's DuckBrain API token. Single source of
++ * truth for hardened (--auth=apikey) deployments: the UI has no session
++ * concept, so every request must carry the key the user pasted in.
++ */
++const API_TOKEN_STORAGE_KEY = "duckbrain-api-token";
++
++/** The stored API token, or null when the user has not entered one. */
++export function getApiToken(): string | null {
++  try {
++    return window.localStorage.getItem(API_TOKEN_STORAGE_KEY);
++  } catch {
++    // localStorage can throw in exotic embeds/private modes; treat as unset.
++    return null;
++  }
++}
++
++/** Persist the API token (trimmed). */
++export function setApiToken(token: string): void {
++  window.localStorage.setItem(API_TOKEN_STORAGE_KEY, token.trim());
++}
++
++/** Remove the stored API token. */
++export function clearApiToken(): void {
++  window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
++}
++
++/**
++ * Base class for API failures with the HTTP status attached.
++ */
++export class ApiError extends Error {
++  readonly status: number;
++
++  constructor(status: number, message: string) {
++    super(message);
++    this.name = "ApiError";
++    this.status = status;
++  }
++}
++
++/**
++ * Distinct 401-class failure: the request reached the server but was not
++ * authorized. Retry logic must never retry these (see shouldRetryQuery) and
++ * the UI surfaces the token entry point instead.
++ */
++export class ApiAuthError extends ApiError {
++  constructor(
++    status = 401,
++    message = "Not authorized — enter your DuckBrain API token",
++  ) {
++    super(status, message);
++    this.name = "ApiAuthError";
++  }
++}
++
++/**
++ * Shared TanStack Query retry predicate: at most one retry for transient
++ * failures, and never a retry for auth errors — a 401 cannot succeed by
++ * being repeated, and repeating it trips the rate limiter (429 storm).
++ */
++export function shouldRetryQuery(
++  failureCount: number,
++  error: unknown,
++): boolean {
++  if (error instanceof ApiAuthError) return false;
++  return failureCount < 1;
++}
++
+ // Validation flag - can be disabled in production for performance
+ const ENABLE_VALIDATION = import.meta.env?.VITE_VALIDATE_API !== "false";
+ 
+@@ -40,10 +108,15 @@ async function apiFetch<T>(
+   // Log request in dev mode
+   logApiRequest(options?.method || "GET", endpoint, options?.body);
+ 
++  // Attach the user's API token (hardened --auth=apikey deployments). The
++  // header is sent on EVERY request and omitted entirely when no token is
++  // set. Callers may still override headers via options.
++  const token = getApiToken();
+   const response = await fetch(url, {
+     ...options,
+     headers: {
+       "Content-Type": "application/json",
++      ...(token ? { "X-API-Key": token } : {}),
+       ...options?.headers,
+     },
+   });
+@@ -56,7 +129,15 @@ async function apiFetch<T>(
+       "ERROR",
+       `${endpoint} failed: ${error.error || `HTTP ${response.status}`}`,
+     );
+-    throw new Error(error.error || `HTTP ${response.status}`);
++    if (response.status === 401) {
++      // Distinct auth failure so the UI can prompt for a token and the
++      // query retry predicate can refuse to retry.
++      throw new ApiAuthError(response.status, error.error || undefined);
++    }
++    throw new ApiError(
++      response.status,
++      error.error || `HTTP ${response.status}`,
++    );
+   }
+ 
+   // Handle 204 No Content
+diff --git a/packages/ui/src/main.tsx b/packages/ui/src/main.tsx
+index 89e22d4..8c89f54 100644
+--- a/packages/ui/src/main.tsx
++++ b/packages/ui/src/main.tsx
+@@ -1,6 +1,7 @@
+ import React from "react";
+ import ReactDOM from "react-dom/client";
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
++import { shouldRetryQuery } from "./lib/api-client";
+ import "./styles/globals.css";
+ import App from "./App";
+ 
+@@ -9,6 +10,9 @@ const queryClient = new QueryClient({
+     queries: {
+       staleTime: 30 * 1000, // 30 seconds
+       refetchOnWindowFocus: false,
++      // Auth errors (401) must never be retried — repeating them cannot
++      // succeed and trips the rate limiter. Everything else retries once.
++      retry: shouldRetryQuery,
+     },
+   },
+ });
+diff --git a/packages/ui/src/stores/ui-store.ts b/packages/ui/src/stores/ui-store.ts
+index c7fef54..c9361ac 100644
+--- a/packages/ui/src/stores/ui-store.ts
++++ b/packages/ui/src/stores/ui-store.ts
+@@ -28,6 +28,14 @@ interface UIState {
+   currentNamespace: string;
+   setCurrentNamespace: (namespace: string) => void;
+ 
++  /**
++   * True when the boot-time adoption of the server-reported namespace failed
++   * with an auth error (401) — the signal the UI uses to show the API-token
++   * banner. Deliberately NOT persisted; it is re-derived on every boot.
++   */
++  namespaceBootError: boolean;
++  setNamespaceBootError: (error: boolean) => void;
++
+   // View state
+   searchQuery: string;
+   setSearchQuery: (query: string) => void;
+@@ -66,6 +74,10 @@ export const useUIStore = create<UIState>()(
+       currentNamespace: "default",
+       setCurrentNamespace: (namespace) => set({ currentNamespace: namespace }),
+ 
++      // Boot auth state (not persisted)
++      namespaceBootError: false,
++      setNamespaceBootError: (error) => set({ namespaceBootError: error }),
++
+       // Search
+       searchQuery: "",
+       setSearchQuery: (query) => set({ searchQuery: query }),
+diff --git a/packages/ui/src/test/api-stub.ts b/packages/ui/src/test/api-stub.ts
+index f6bd4e0..b135c24 100644
+--- a/packages/ui/src/test/api-stub.ts
++++ b/packages/ui/src/test/api-stub.ts
+@@ -31,6 +31,8 @@ export interface RecordedRequest {
+   method: string;
+   /** Parsed JSON body when one was sent */
+   body: unknown;
++  /** Request headers as sent by the client (e.g. X-API-Key assertions) */
++  headers: Headers;
+ }
+ 
+ export interface StubResult {
+@@ -80,6 +82,7 @@ function record(
+     params: parsed.searchParams,
+     method: (init?.method ?? "GET").toUpperCase(),
+     body,
++    headers: new Headers(init?.headers),
+   };
+ }
+ 

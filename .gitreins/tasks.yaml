@@ -1779,7 +1779,8 @@ tasks:
     window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row
     in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable
     by grep); the tier1 suite on this host passes 162 files / 1300 tests
-  status: in_progress
+  status: complete
+  completed_at: '2026-09-24T22:00:00.000000+00:00'
   created_at: '2026-09-21T10:20:51.023785+00:00'
 - id: REG-GONE-002
   title: "Declared-table registry is served from an in-process cache with no invalidation\
@@ -1861,5 +1862,6 @@ tasks:
     pnpm build + pnpm test green including new regression tests; (5) root npx vitest
     run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite
     counts change'
-  status: in_progress
+  status: complete
   created_at: '2026-09-24T17:06:36.668372+00:00'
+  completed_at: '2026-09-24T20:54:18.539207+00:00'

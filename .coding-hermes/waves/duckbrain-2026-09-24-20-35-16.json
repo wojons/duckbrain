@@ -1,0 +1,40 @@
+{
+  "scheduler_tick": "duckbrain-2026-09-24-20-35-16",
+  "project": "duckbrain",
+  "base": "b8ebcb0^",
+  "kind": "wave-debt-recovery",
+  "recovered_from_tick": "unknown (predecessor context lost mid-closeout; last evidence b8ebcb0 2026-09-24 13:16 local)",
+  "workers": [
+    {
+      "task_id": "DF-0924-05",
+      "worktree": "in-tree (~/duckbrain, no worktree — serial recovery)",
+      "branch": "feat/native-s3",
+      "commits": ["b8ebcb0", "24ddd24"],
+      "rework": "24ddd24 gates UI routes on namespace boot status (useNamespaceBootStatus) — closes judge e7ffc300's single FAIL on criterion (1)",
+      "judge": "tier1 (full suite) PASS 3x on this tree; tier2: e7ffc300 INCOMPLETE (criterion 1 FAIL -> fixed by rework), e36cbcd1 INCOMPLETE (60m time cap starved under 3 concurrent fleet judges), async re-judge job-868c636e in flight (90m rung) — verdict follow-up commit when it lands",
+      "merged": "n/a (in-tree commits)"
+    },
+    {
+      "task_id": "DB-GAP-058+TOKEN-NAME-001+API-CONTRACT-001",
+      "worktree": "~/duckbrain-wt-fixes",
+      "branch": "fix/release-blockers-2026-09-24",
+      "commit": "db705c8",
+      "merged": "87d1339",
+      "judge": "no gitreins lifecycle was run for these rows; evidence = CI runs on db705c8 (conclusion success) + RED-proof documented in the commit message",
+      "board_rows": "already marked complete by commit 9608260 (which itself sat unmerged — the claim was true only on the worktree)"
+    },
+    {
+      "task_id": "DB-GAP-054+055+056-tooling",
+      "worktree": "~/duckbrain-wt-cleanup",
+      "branch": "cleanup/bigns-2026-09-23",
+      "commit": "1d01874",
+      "merged": "d208fef",
+      "judge": "n/a (tooling for still-pending rows; both scripts gate-first: dry-run default, explicit --apply)"
+    }
+  ],
+  "notes": [
+    "Recovery, not a fresh wave: one worker-less serial merge chain (UI rework commit, then two worktree merges, format fix, full gate, judge, closeout).",
+    "Also recovered: CI-005 tasks.yaml status flipped in_progress -> complete (verdict 5daed86f COMPLETE already existed).",
+    "Full gate on the merged tree: vitest 169/169 suites 1359/1359 tests, tsc clean, prettier clean (5 packages/ui files formatted foreman-direct), integration 44/44."
+  ]
+}

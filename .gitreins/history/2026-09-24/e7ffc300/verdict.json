@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0924-05",
+  "task_title": "P0 UI dead on hardened auth deployments: hardcoded namespace, zero credentials, 429 storm",
+  "task_criteria": [
+    "On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "b8ebcb008fd9c9387b9301cb44b5ca26eb578779",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:16PM INF scanned ~12495867 bytes (12.50 MB) in 2.01s\n1:16PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 250124 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  167 passed (167)\n      Tests  1332 passed (1332)\n   Start at  13:16:25\n   Duration  49.79s (tests 78%, import 19%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  167 workers spawned \u00b7 ~91ms startup each (spawn + environment, per file)\n             at least ~3.71s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: Sub-requirement (1) FAILS. App.tsx:29-42 AppShell calls useNamespaceBoot() but renders <Routes> unconditionally, so TimelinePage/TreePage mount on the first render and fire queries with the store's initial currentNamespace ('default', ui-store.ts:74) before GET /api/namespaces resolves. Empirical probe mounting the real AppShell wiring (useNamespaceBoot + ApiAuthBanner + a page calling useVitals(useCurrentNamespace())) recorded: ['/api/memories?namespace=default&limit=1','/api/memories?namespace=default&limit=100','/api/keys?namespace=default','/api/namespaces','/api/memories?namespace=work&limit=1',...] \u2014 i.e. 3 queries against hardcoded 'default' are dispatched before the server value arrives. With a persisted stale namespace the same probe fired 3 queries against 'stale-persisted' first. useNamespaceBoot (use-namespaces.ts:50-66) only adopts data.currentNamespace in a useEffect after the fetch resolves; it does not gate the first render. Sub-requirements (2),(3),(4),(5) PASS: (2) api-client.ts getApiToken/setApiToken/clearApiToken persist to localStorage key 'duckbrain-api-token', apiFetch attaches X-API-Key on every request when set, ApiTokenControl is rendered in header.tsx:112 and ApiAuthBanner provides a second visible entry point; api-auth.test.ts passes. (3) probe on a 401 boot recorded exactly 4 requests (one per query, zero retries); shouldRetryQuery returns false for ApiAuthError, useNamespaceBoot sets retry:false, and both QueryClients (App.tsx:17, main.tsx:15) use shouldRetryQuery. (4) `cd packages/ui && pnpm test` -> 'Test Files 9 passed (9) / Tests 54 passed (54)' exit 0; `pnpm build` -> 'tsc && vite build ... built in 1.72s' exit 0. (5) root `npx vitest run` -> 'Test Files 167 passed (167) / Tests 1332 passed (1332)' exit 0; `npx tsc --noEmit` exit 0; AGENTS.md:14 'Vitest (167 suites, 1332 tests)' and AGENTS.md:33 '1332 tests, 167 suites' match live counts.\nCriteria 2-5 are green with real command output, but criterion 1 fails: the UI still dispatches queries against the hardcoded 'default' namespace on boot because AppShell renders the routes before the server-reported currentNamespace is adopted.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: Sub-requirement (1) FAILS. App.tsx:29-42 AppShell calls useNamespaceBoot() but renders <Routes> unconditionally, so TimelinePage/TreePage mount on the first render and fire queries with the store's initial currentNamespace ('default', ui-store.ts:74) before GET /api/namespaces resolves. Empirical probe mounting the real AppShell wiring (useNamespaceBoot + ApiAuthBanner + a page calling useVitals(useCurrentNamespace())) recorded: ['/api/memories?namespace=default&limit=1','/api/memories?namespace=default&limit=100','/api/keys?namespace=default','/api/namespaces','/api/memories?namespace=work&limit=1',...] \u2014 i.e. 3 queries against hardcoded 'default' are dispatched before the server value arrives. With a persisted stale namespace the same probe fired 3 queries against 'stale-persisted' first. useNamespaceBoot (use-namespaces.ts:50-66) only adopts data.currentNamespace in a useEffect after the fetch resolves; it does not gate the first render. Sub-requirements (2),(3),(4),(5) PASS: (2) api-client.ts getApiToken/setApiToken/clearApiToken persist to localStorage key 'duckbrain-api-token', apiFetch attaches X-API-Key on every request when set, ApiTokenControl is rendered in header.tsx:112 and ApiAuthBanner provides a second visible entry point; api-auth.test.ts passes. (3) probe on a 401 boot recorded exactly 4 requests (one per query, zero retries); shouldRetryQuery returns false for ApiAuthError, useNamespaceBoot sets retry:false, and both QueryClients (App.tsx:17, main.tsx:15) use shouldRetryQuery. (4) `cd packages/ui && pnpm test` -> 'Test Files 9 passed (9) / Tests 54 passed (54)' exit 0; `pnpm build` -> 'tsc && vite build ... built in 1.72s' exit 0. (5) root `npx vitest run` -> 'Test Files 167 passed (167) / Tests 1332 passed (1332)' exit 0; `npx tsc --noEmit` exit 0; AGENTS.md:14 'Vitest (167 suites, 1332 tests)' and AGENTS.md:33 '1332 tests, 167 suites' match live counts.\nCriteria 2-5 are green with real command output, but criterion 1 fails: the UI still dispatches queries against the hardcoded 'default' namespace on boot because AppShell renders the routes before the server-reported currentNamespace is adopted.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change",
+                "status": "FAIL",
+                "detail": "Sub-requirement (1) FAILS. App.tsx:29-42 AppShell calls useNamespaceBoot() but renders <Routes> unconditionally, so TimelinePage/TreePage mount on the first render and fire queries with the store's initial currentNamespace ('default', ui-store.ts:74) before GET /api/namespaces resolves. Empirical probe mounting the real AppShell wiring (useNamespaceBoot + ApiAuthBanner + a page calling useVitals(useCurrentNamespace())) recorded: ['/api/memories?namespace=default&limit=1','/api/memories?namespace=default&limit=100','/api/keys?namespace=default','/api/namespaces','/api/memories?namespace=work&limit=1',...] \u2014 i.e. 3 queries against hardcoded 'default' are dispatched before the server value arrives. With a persisted stale namespace the same probe fired 3 queries against 'stale-persisted' first. useNamespaceBoot (use-namespaces.ts:50-66) only adopts data.currentNamespace in a useEffect after the fetch resolves; it does not gate the first render. Sub-requirements (2),(3),(4),(5) PASS: (2) api-client.ts getApiToken/setApiToken/clearApiToken persist to localStorage key 'duckbrain-api-token', apiFetch attaches X-API-Key on every request when set, ApiTokenControl is rendered in header.tsx:112 and ApiAuthBanner provides a second visible entry point; api-auth.test.ts passes. (3) probe on a 401 boot recorded exactly 4 requests (one per query, zero retries); shouldRetryQuery returns false for ApiAuthError, useNamespaceBoot sets retry:false, and both QueryClients (App.tsx:17, main.tsx:15) use shouldRetryQuery. (4) `cd packages/ui && pnpm test` -> 'Test Files 9 passed (9) / Tests 54 passed (54)' exit 0; `pnpm build` -> 'tsc && vite build ... built in 1.72s' exit 0. (5) root `npx vitest run` -> 'Test Files 167 passed (167) / Tests 1332 passed (1332)' exit 0; `npx tsc --noEmit` exit 0; AGENTS.md:14 'Vitest (167 suites, 1332 tests)' and AGENTS.md:33 '1332 tests, 167 suites' match live counts.",
+                "resolution_probability": 0.17,
+                "cited_path": "AGENTS.md"
+              }
+            ],
+            "summary": "Criteria 2-5 are green with real command output, but criterion 1 fails: the UI still dispatches queries against the hardcoded 'default' namespace on boot because AppShell renders the routes before the server-reported currentNamespace is adopted."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-05\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: Sub-requirement (1) FAILS. App.tsx:29-42 AppShell calls useNamespaceBoot() but renders <Routes> unconditionally, so TimelinePage/TreePage mount on the first render and fire queries with the store's initial currentNamespace ('default', ui-store.ts:74) before GET /api/namespaces resolves. Empirical probe mounting the real AppShell wiring (useNamespaceBoot + ApiAuthBanner + a page calling useVitals(useCurrentNamespace())) recorded: ['/api/memories?namespace=default&limit=1','/api/memories?namespace=default&limit=100','/api/keys?namespace=default','/api/namespaces','/api/memories?namespace=work&limit=1',...] \u2014 i.e. 3 queries against hardcoded 'default' are dispatched before the server value arrives. With a persisted stale namespace the same probe fired 3 queries against 'stale-persisted' first. useNamespaceBoot (use-namespaces.ts:50-66) only adopts data.currentNamespace in a useEffect after the fetch resolves; it does not gate the first render. Sub-requirements (2),(3),(4),(5) PASS: (2) api-client.ts getApiToken/setApiToken/clearApiToken persist to localStorage key 'duckbrain-api-token', apiFetch attaches X-API-Key on every request when set, ApiTokenControl is rendered in header.tsx:112 and ApiAuthBanner provides a second visible entry point; api-auth.test.ts passes. (3) probe on a 401 boot recorded exactly 4 requests (one per query, zero retries); shouldRetryQuery returns false for ApiAuthError, useNamespaceBoot sets retry:false, and both QueryClients (App.tsx:17, main.tsx:15) use shouldRetryQuery. (4) `cd packages/ui && pnpm test` -> 'Test Files 9 passed (9) / Tests 54 passed (54)' exit 0; `pnpm build` -> 'tsc && vite build ... built in 1.72s' exit 0. (5) root `npx vitest run` -> 'Test Files 167 passed (167) / Tests 1332 passed (1332)' exit 0; `npx tsc --noEmit` exit 0; AGENTS.md:14 'Vitest (167 suites, 1332 tests)' and AGENTS.md:33 '1332 tests, 167 suites' match live counts.\nCriteria 2-5 are green with real command output, but criterion 1 fails: the UI still dispatches queries against the hardcoded 'default' namespace on boot because AppShell renders the routes before the server-reported currentNamespace is adopted.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-24T18:20:07.435631",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-24T18:20:07.460816+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 35508,
+        "truncated": false,
+        "source": "git show b8ebcb008fd9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 508,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-05"
+  }
+}
