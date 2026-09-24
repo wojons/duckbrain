@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useUIStore } from "../../stores/ui-store";
+import { ApiTokenControl } from "../ui/api-token-banner";
 import type { MemoryFilters } from "../../lib/filters";
 
 interface HeaderProps {
@@ -108,6 +109,9 @@ export function Header({ view = "timeline", onViewChange }: HeaderProps) {
 
           {/* Controls */}
           <div className="flex items-center gap-2">
+            {/* API Token Entry (hardened --auth=apikey deployments) */}
+            <ApiTokenControl />
+
             {/* Filter Toggle */}
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}

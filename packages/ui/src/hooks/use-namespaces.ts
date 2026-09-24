@@ -4,8 +4,9 @@
  * TanStack Query hooks for namespace operations.
  */
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { namespacesApi } from "../lib/api-client";
+import { namespacesApi, ApiAuthError } from "../lib/api-client";
 import { useUIStore } from "../stores/ui-store";
 
 // Query keys
@@ -24,6 +25,46 @@ export function useNamespaces() {
     queryFn: () => namespacesApi.list(),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+}
+
+/**
+ * Boot-time namespace adoption.
+ *
+ * The UI used to hardcode currentNamespace: "default", which does not exist
+ * on normal installs — every panel then 404s and stays on its loading
+ * skeleton. On boot this fetches GET /api/namespaces once and adopts the
+ * server-reported `currentNamespace` into the store. The hardcoded "default"
+ * initial value survives ONLY as the fallback when the fetch fails, and a
+ * namespace persisted to localStorage never masks the server value on boot:
+ * the server wins.
+ *
+ * A 401 (hardened --auth=apikey deployment without a token) is recorded in
+ * the store so the UI can show the token entry point. The namespaces LIST is
+ * allowed unauthenticated by the server, so this hook also works there.
+ */
+export function useNamespaceBoot(): void {
+  const setCurrentNamespace = useUIStore((state) => state.setCurrentNamespace);
+  const setNamespaceBootError = useUIStore(
+    (state) => state.setNamespaceBootError,
+  );
+  const { data, error } = useQuery({
+    queryKey: namespaceKeys.current(),
+    queryFn: () => namespacesApi.list(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (data) {
+      setNamespaceBootError(false);
+      setCurrentNamespace(data.currentNamespace);
+    }
+  }, [data, setCurrentNamespace, setNamespaceBootError]);
+
+  useEffect(() => {
+    setNamespaceBootError(error instanceof ApiAuthError);
+  }, [error, setNamespaceBootError]);
 }
 
 /**

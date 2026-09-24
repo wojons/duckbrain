@@ -24,6 +24,74 @@ import { logApiRequest, logApiResponse, debugLog } from "./api-health";
 
 const API_BASE = "/api";
 
+/**
+ * localStorage key holding the user's DuckBrain API token. Single source of
+ * truth for hardened (--auth=apikey) deployments: the UI has no session
+ * concept, so every request must carry the key the user pasted in.
+ */
+const API_TOKEN_STORAGE_KEY = "duckbrain-api-token";
+
+/** The stored API token, or null when the user has not entered one. */
+export function getApiToken(): string | null {
+  try {
+    return window.localStorage.getItem(API_TOKEN_STORAGE_KEY);
+  } catch {
+    // localStorage can throw in exotic embeds/private modes; treat as unset.
+    return null;
+  }
+}
+
+/** Persist the API token (trimmed). */
+export function setApiToken(token: string): void {
+  window.localStorage.setItem(API_TOKEN_STORAGE_KEY, token.trim());
+}
+
+/** Remove the stored API token. */
+export function clearApiToken(): void {
+  window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+}
+
+/**
+ * Base class for API failures with the HTTP status attached.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * Distinct 401-class failure: the request reached the server but was not
+ * authorized. Retry logic must never retry these (see shouldRetryQuery) and
+ * the UI surfaces the token entry point instead.
+ */
+export class ApiAuthError extends ApiError {
+  constructor(
+    status = 401,
+    message = "Not authorized — enter your DuckBrain API token",
+  ) {
+    super(status, message);
+    this.name = "ApiAuthError";
+  }
+}
+
+/**
+ * Shared TanStack Query retry predicate: at most one retry for transient
+ * failures, and never a retry for auth errors — a 401 cannot succeed by
+ * being repeated, and repeating it trips the rate limiter (429 storm).
+ */
+export function shouldRetryQuery(
+  failureCount: number,
+  error: unknown,
+): boolean {
+  if (error instanceof ApiAuthError) return false;
+  return failureCount < 1;
+}
+
 // Validation flag - can be disabled in production for performance
 const ENABLE_VALIDATION = import.meta.env?.VITE_VALIDATE_API !== "false";
 
@@ -40,10 +108,15 @@ async function apiFetch<T>(
   // Log request in dev mode
   logApiRequest(options?.method || "GET", endpoint, options?.body);
 
+  // Attach the user's API token (hardened --auth=apikey deployments). The
+  // header is sent on EVERY request and omitted entirely when no token is
+  // set. Callers may still override headers via options.
+  const token = getApiToken();
   const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { "X-API-Key": token } : {}),
       ...options?.headers,
     },
   });
@@ -56,7 +129,15 @@ async function apiFetch<T>(
       "ERROR",
       `${endpoint} failed: ${error.error || `HTTP ${response.status}`}`,
     );
-    throw new Error(error.error || `HTTP ${response.status}`);
+    if (response.status === 401) {
+      // Distinct auth failure so the UI can prompt for a token and the
+      // query retry predicate can refuse to retry.
+      throw new ApiAuthError(response.status, error.error || undefined);
+    }
+    throw new ApiError(
+      response.status,
+      error.error || `HTTP ${response.status}`,
+    );
   }
 
   // Handle 204 No Content

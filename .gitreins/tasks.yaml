@@ -1850,3 +1850,16 @@ tasks:
   status: complete
   created_at: '2026-09-24T12:26:27.236778+00:00'
   completed_at: '2026-09-24T12:39:32.307616+00:00'
+- id: DF-0924-05
+  title: 'P0 UI dead on hardened auth deployments: hardcoded namespace, zero credentials,
+    429 storm'
+  criteria:
+  - 'On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace
+    (no queries against hardcoded ''default''); (2) all API calls attach X-API-Key
+    from a user-entered token persisted in localStorage, with a visible token entry
+    point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui
+    pnpm build + pnpm test green including new regression tests; (5) root npx vitest
+    run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite
+    counts change'
+  status: in_progress
+  created_at: '2026-09-24T17:06:36.668372+00:00'

@@ -28,6 +28,14 @@ interface UIState {
   currentNamespace: string;
   setCurrentNamespace: (namespace: string) => void;
 
+  /**
+   * True when the boot-time adoption of the server-reported namespace failed
+   * with an auth error (401) — the signal the UI uses to show the API-token
+   * banner. Deliberately NOT persisted; it is re-derived on every boot.
+   */
+  namespaceBootError: boolean;
+  setNamespaceBootError: (error: boolean) => void;
+
   // View state
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -65,6 +73,10 @@ export const useUIStore = create<UIState>()(
       // Current namespace
       currentNamespace: "default",
       setCurrentNamespace: (namespace) => set({ currentNamespace: namespace }),
+
+      // Boot auth state (not persisted)
+      namespaceBootError: false,
+      setNamespaceBootError: (error) => set({ namespaceBootError: error }),
 
       // Search
       searchQuery: "",

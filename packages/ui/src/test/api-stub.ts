@@ -31,6 +31,8 @@ export interface RecordedRequest {
   method: string;
   /** Parsed JSON body when one was sent */
   body: unknown;
+  /** Request headers as sent by the client (e.g. X-API-Key assertions) */
+  headers: Headers;
 }
 
 export interface StubResult {
@@ -80,6 +82,7 @@ function record(
     params: parsed.searchParams,
     method: (init?.method ?? "GET").toUpperCase(),
     body,
+    headers: new Headers(init?.headers),
   };
 }
 
