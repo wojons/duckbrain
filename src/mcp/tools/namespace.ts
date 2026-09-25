@@ -12,6 +12,7 @@ import { z } from "zod";
 import {
   getConfig,
   registerNamespace,
+  resolveDuckbrainRoot,
   resolveNamespacesPath,
   updateConfig,
 } from "../../config/index";
@@ -127,6 +128,17 @@ export async function createNamespaceTool(
     const nsRoot = resolveNamespacesPath();
     const nsPath = path.join(nsRoot, input.name);
 
+    // DB-GAP-057: the REGISTRY seam is the duckbrain ROOT — the directory
+    // owning `duckbrain.config.json`, the same file every read path
+    // (getConfig(".") → resolveDuckbrainRoot()) consults — never the
+    // namespaces root. be129bc (GAP-062) passed `nsRoot` here, which
+    // registerNamespace treats as a CONFIG DIRECTORY: HTTP + MCP creates
+    // materialized a stray `<nsRoot>/duckbrain.config.json` and the mapping
+    // never reached the root config, so GET /api/namespaces (which reads the
+    // root) never saw the namespace. GAP-062's DIRECTORY placement above is
+    // untouched — only the registry write target changes.
+    const cfgRoot = resolveDuckbrainRoot();
+
     // Check if namespace already exists
     if (fs.existsSync(nsPath)) {
       return {
@@ -174,13 +186,14 @@ export async function createNamespaceTool(
       );
     }
 
-    // Update the config file that owns this root — never `<cwd>/duckbrain.config.json`
-    // (GAP-062: a leaked config file in an unrelated checkout must not receive
-    // this namespace's mapping).
-    registerNamespace(nsRoot, input.name, nsPath);
+    // Register against the ROOT config (DB-GAP-057 — see the seam comment
+    // above; never the namespaces root, never `<cwd>/duckbrain.config.json`).
+    registerNamespace(cfgRoot, input.name, nsPath);
 
     if (input.setDefault) {
-      updateConfig(nsRoot, { defaultNamespace: input.name });
+      // DB-GAP-057: same seam as the register write — the default-namespace
+      // marker belongs in the config file the switch/list paths read.
+      updateConfig(cfgRoot, { defaultNamespace: input.name });
     }
 
     return {

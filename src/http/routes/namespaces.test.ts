@@ -15,6 +15,14 @@ vi.mock("../../mcp/tools/namespace", () => ({
   switchNamespaceTool: vi.fn(),
 }));
 
+// DB-GAP-057: the GET route also runs an on-disk census of the namespaces
+// root and unions it under the registry rows. These tests pin the REGISTRY
+// half of the response (mocked tool), so the census is stubbed empty — the
+// census/union/drift behavior has its own suite in namespaces-dbgap057.test.ts.
+vi.mock("./namespace-census", () => ({
+  censusOnDiskNamespaces: vi.fn(() => new Map<string, string>()),
+}));
+
 import {
   listNamespacesTool,
   createNamespaceTool,

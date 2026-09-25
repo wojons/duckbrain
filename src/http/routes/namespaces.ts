@@ -14,6 +14,8 @@ import {
   switchNamespaceTool,
 } from "../../mcp/tools/namespace";
 import { deleteNamespace } from "../../namespaces/delete";
+import { resolveNamespacesPath } from "../../config/index";
+import { censusOnDiskNamespaces } from "./namespace-census";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { NamespaceListResponse, NamespaceResponse } from "../types/api";
 import { requireNamespaceGrant } from "../../auth/middleware";
@@ -70,14 +72,49 @@ router.get(
       throw new ApiError(result.error || "Failed to list namespaces", 500);
     }
 
+    // DB-GAP-057: the registry (config mappings) is not the whole truth —
+    // directories on disk can exist with NO mapping (the be129bc split-brain
+    // produced exactly that for every HTTP/MCP create: dir under the
+    // namespaces root, mapping in a stray config file). Take a one-shot
+    // read-only census of the namespaces root and union it under the
+    // registry rows. Read-only by contract: this route never mutates the
+    // config — reconciliation of drifted prod state is an ops action.
+    const nsRoot = resolveNamespacesPath();
+    const onDisk = censusOnDiskNamespaces(nsRoot);
+
     const missingDirs = namesWithMissingDirectories(result.namespaces);
     const namespaces = result.namespaces.map((ns) =>
       transformNamespace(ns, missingDirs),
     );
 
+    // Union: every on-disk namespace absent from the registry becomes an
+    // onDiskOnly row (config rows keep their REG-GONE-001 directoryMissing
+    // flag when their directory is gone). isDefault mirrors the registry
+    // row rule (name === currentNamespace).
+    const listedNames = new Set(result.namespaces.map((ns) => ns.name));
+    let onDiskOnlyCount = 0;
+    for (const [name, nsPath] of onDisk) {
+      if (listedNames.has(name)) continue;
+      onDiskOnlyCount++;
+      namespaces.push({
+        name,
+        path: nsPath,
+        isDefault: name === result.currentNamespace,
+        onDiskOnly: true,
+      });
+    }
+
+    // Drift counts, both directions — omitted entirely when clean
+    // (healthy-rows-omit-fields REG-GONE-001 style).
+    const drift: { onDiskOnly: number; directoryMissing: number } | undefined =
+      onDiskOnlyCount > 0 || missingDirs.size > 0
+        ? { onDiskOnly: onDiskOnlyCount, directoryMissing: missingDirs.size }
+        : undefined;
+
     const response: NamespaceListResponse = {
       namespaces,
       currentNamespace: result.currentNamespace || "default",
+      ...(drift ? { drift } : {}),
     };
 
     res.json(response);

@@ -97,6 +97,13 @@ export interface NamespaceResponse {
    * omit the flag entirely.
    */
   directoryMissing?: boolean;
+  /**
+   * DB-GAP-057: present ONLY on union rows that exist as directories under
+   * the namespaces root but have NO mapping in the config registry (the
+   * be129bc split-brain produced exactly this shape). Rows backed by a
+   * registry mapping omit the flag entirely.
+   */
+  onDiskOnly?: boolean;
 }
 
 /**
@@ -263,6 +270,17 @@ export interface NamespaceListResponse {
   namespaces: NamespaceResponse[];
   /** Currently active namespace */
   currentNamespace: string;
+  /**
+   * DB-GAP-057: registry-vs-disk drift census, present ONLY when the two
+   * sources disagree in either direction (a directory with no mapping, or a
+   * mapping whose directory is gone). Omitted when clean.
+   */
+  drift?: {
+    /** Directories under the namespaces root with no config mapping. */
+    onDiskOnly: number;
+    /** Config mappings whose namespace directory is missing on disk. */
+    directoryMissing: number;
+  };
 }
 
 /**
