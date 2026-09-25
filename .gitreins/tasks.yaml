@@ -1780,8 +1780,8 @@ tasks:
     in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable
     by grep); the tier1 suite on this host passes 162 files / 1300 tests
   status: complete
-  completed_at: '2026-09-24T22:00:00.000000+00:00'
   created_at: '2026-09-21T10:20:51.023785+00:00'
+  completed_at: '2026-09-24T22:00:00.000000+00:00'
 - id: REG-GONE-002
   title: "Declared-table registry is served from an in-process cache with no invalidation\
     \ path \u2014 declaration edits (new tables/columns) are invisible to the HTTP\
@@ -1865,3 +1865,14 @@ tasks:
   status: complete
   created_at: '2026-09-24T17:06:36.668372+00:00'
   completed_at: '2026-09-24T20:54:18.539207+00:00'
+- id: DF-0924-07
+  title: auth-file without --auth=apikey serves everything unauthenticated
+  criteria:
+  - 'A scratch daemon started with only --auth-file (or DUCKBRAIN_AUTH_FILE) and NO
+    --auth flag must reject keyless API calls with 401: GET /api/memories without
+    X-API-Key returns 401, with a valid key from the store returns 200; boot prints
+    a loud banner that the auth file auto-enabled apikey auth; default (no flag/env)
+    behavior unchanged; new regression test file green; full vitest unit suite green;
+    tsc clean; AGENTS.md suite/test counts synced to live'
+  status: in_progress
+  created_at: '2026-09-25T04:32:15.414891+00:00'

@@ -410,6 +410,19 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       );
     }
     if (fs.existsSync(authFilePath)) {
+      // DF-0924-07: an explicit auth store (flag or env) implies apikey
+      // enforcement. Loading a store and then mounting the none backend is
+      // how the daemon ended up serving /api/* unauthenticated (keyless GET
+      // 200 / POST 201) while the operator believed the store was active.
+      // An operator-set type (e.g. --auth=basic) still wins; only the
+      // implicit default is upgraded. The prod default path (explicit=false)
+      // is deliberately NOT auto-enabled — default behavior stays unchanged.
+      if (explicit && authConfig.type === "none") {
+        authConfig.type = "apikey";
+        console.error(
+          `[auth] --auth-file provided: auto-enabling apikey authentication (store: ${authFilePath})`,
+        );
+      }
       try {
         authConfig.store = new FileAuthStore(authFilePath);
       } catch (error) {

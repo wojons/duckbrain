@@ -26,6 +26,11 @@ import { readFromJsonl } from "./jsonl";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 const TEST_TIMEOUT = 90_000;
+// DF-0924-07: an explicit --auth-file now implies apikey enforcement, so the
+// daemon spawned for these durability tests requires a real key even though
+// the store exists only to keep the daemon hermetic (never touches prod
+// ~/.duckbrain/auth.json).
+const SCRATCH_KEY = "sk-df092407-kill9-scratch-key";
 
 interface Fixture {
   dataDir: string;
@@ -72,7 +77,10 @@ async function makeFixture(): Promise<Fixture> {
   const authFilePath = path.join(dataDir, "auth.json");
   fs.writeFileSync(
     authFilePath,
-    JSON.stringify({ users: [], apiKeys: [] }),
+    JSON.stringify({
+      users: [],
+      apiKeys: [{ key: SCRATCH_KEY, name: "kill9-scratch" }],
+    }),
     "utf-8",
   );
 
@@ -212,6 +220,8 @@ function postMemory(
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(payload),
+          // DF-0924-07: the daemon now enforces apikey (explicit auth-file).
+          "X-API-Key": SCRATCH_KEY,
         },
       },
       (res) => {
