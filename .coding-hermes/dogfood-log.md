@@ -266,3 +266,18 @@ DF-0919-01/02 closed). Recorded explicitly, not a silent pass.
 diagnostics.md Run 10 section, skills/duckbrain-usage v1.9.0 (SSE section +
 pitfalls 19-20), DF-0925-01..06 on the board (surgical append 230→236 rows,
 0 bad lines), this entry.
+2026-09-25 | run 10 continuation (tick nudge1) | OK — resumed after gateway drain_timeout drop; verified continuation rather than re-run
+
+state.db confirmed both dogfood commits (b6d5139 run-10 report, e921c97 fix, 791e2fc judge bookkeeping)
+were completed and DB-GAP-057 judged PASS (verdict ac0b02ec) before the drop. No re-run performed.
+
+Continuation work:
+- Pushed 2 unpushed commits (b6d5139..791e2fc) to origin/feat/native-s3; remote parity verified 0 ahead.
+- CI health: run 36130524065 = FAILURE (src/cli/auth-file-enforcement-df092407.test.ts, "authType basic +
+  authFile keeps type basic (no auto-flip)"; 1 file failed / 169 passed; docker job skipped). Failed at
+  11:40Z before DB-GAP-057 commits — not created by this tick. Filed INT-CI-012 (board 236→237 rows,
+  surgical append verified, trailing newline checked).
+- dogfood-log entry recorded; no board/status changes to run-10 findings (unchanged: DF-0925-01..06 pending).
+
+Verdict for the tick: OK — prior work recovered and pushed, CI failure surfaced with a board row,
+no duplicated dogfood run.
