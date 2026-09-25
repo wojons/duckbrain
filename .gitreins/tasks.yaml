@@ -1888,3 +1888,13 @@ tasks:
   status: complete
   created_at: '2026-09-25T11:20:03.765672+00:00'
   completed_at: '2026-09-25T12:28:06.495903+00:00'
+- id: DB-GAP-057-CLOSEOUT
+  title: 'Close DB-GAP-057 board debt: worker work+judge landed in HEAD, board row
+    still pending'
+  criteria:
+  - Board row DB-GAP-057 reads complete with commit_hash=e921c97 and guard_result
+    naming verdict ac0b02ec; a DB-GAP-057-completed-589 event exists in events.jsonl;
+    the closeout commit is pushed with 0 unpushed; the completed row round-trips json.loads
+  status: complete
+  created_at: '2026-09-25T21:48:15.670859+00:00'
+  completed_at: '2026-09-25T21:52:03.455708+00:00'
