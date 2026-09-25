@@ -11,7 +11,7 @@
       "branch": "feat/native-s3",
       "commits": ["b8ebcb0", "24ddd24"],
       "rework": "24ddd24 gates UI routes on namespace boot status (useNamespaceBootStatus) — closes judge e7ffc300's single FAIL on criterion (1)",
-      "judge": "tier1 (full suite) PASS 3x on this tree; tier2: e7ffc300 INCOMPLETE (criterion 1 FAIL -> fixed by rework), e36cbcd1 INCOMPLETE (60m time cap starved under 3 concurrent fleet judges), async re-judge job-868c636e in flight (90m rung) — verdict follow-up commit when it lands",
+      "judge": "FINAL PASS — verdict 2e47cd8f COMPLETE via async re-judge job-868c636e (90m rung; earlier e7ffc300/e36cbcd1 INCOMPLETE on 45m/60m caps under fleet judge contention, e7ffc300 carried the criterion-1 FAIL the rework closed); tier1 suite PASS on every run",
       "merged": "n/a (in-tree commits)"
     },
     {

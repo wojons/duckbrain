@@ -1874,5 +1874,6 @@ tasks:
     a loud banner that the auth file auto-enabled apikey auth; default (no flag/env)
     behavior unchanged; new regression test file green; full vitest unit suite green;
     tsc clean; AGENTS.md suite/test counts synced to live'
-  status: in_progress
+  status: complete
+  completed_at: '2026-09-25T07:05:00+00:00'
   created_at: '2026-09-25T04:32:15.414891+00:00'
