@@ -598,3 +598,53 @@ and the UI's own production bundle.
    preview mode — /api calls 401/404 relative; that mismatch is DF-0924-08).
 3. Point Lighthouse at the preview URL and READ THE NETWORK TABLE, not the
    score: the 404/401 pattern per panel names the broken contract instantly.
+
+## Run 10 — 2026-09-25 dogfood (SSE change-feed focus — the realtime surface, never driven)
+
+### How the change feed actually works (the one-page version)
+
+- The audit ledger `_audit/current.jsonl` per namespace is the changelog. The
+  serializer (`NamespaceWriter.flushOnce`) appends data lines + accepted audit
+  lines under the namespace write lock (`src/serialization/lock.ts`), then
+  *schedules* a debounced git commit (30s / 100 lines) and wakes the feed.
+- The feed (`src/http/realtime/hub.ts` + `replay.ts`) never trusts timers:
+  it publishes a change only when a successful reachable `HEAD` proves the
+  commit exists. Ordinals are DERIVED per commit by diffing the `_audit` tree
+  parent→child (contiguous 1..N), so restarts and multiple flushes in one
+  commit cannot corrupt ordering. There is no counter to reset — that is the
+  whole trick.
+- Cursors are `dbch1.<base64url({v,ns,commit,ordinal})>`, unsigned by design.
+  Debuggable by hand; validation proves the commit is reachable and the
+  ordinal names exactly one audit record; a pruned commit gives 410 with
+  resync guidance.
+- Subscription authorization re-checks the table grant before every live
+  enqueue — but see DF-0925-05: revocation is only observed on the next event.
+- Live filtering (tables/ops) applies in the delivery loop; REPLAY-side
+  filtering is missing (DF-0925-01) — treat reconnected streams as unfiltered
+  until that row closes.
+
+### Errors hit this run and the right way around them
+
+- `--auth-file` that does not exist is FATAL for `token` too, not just `http`:
+  mint the store FIRST with `token --auth-file=<path>` (which creates it), or
+  write `{"apiKeys":[]}` yourself. Never copy the production store into a
+  scratch file in a path the daemon may re-read.
+- A malformed scratch auth.json mid-run makes the daemon log "auth store
+  reload failed; retaining last good snapshot" and every new key 401s with NO
+  error on the request path — check the daemon log, not the HTTP response.
+- The commit debounce (gitBatching.maxSeconds=30) IS the event latency: a
+  write acks in ~20ms but the subscriber sees it up to 30s later. That is
+  SUPA-5's committed-only trade, documented — don't file it as a bug.
+- Replay vs live filtering differ (DF-0925-01). Proven by subscribing
+  `ops=insert` live (1 insert, 0 deletes) then reconnecting with a cursor
+  (242 events: 241 inserts + 1 delete). Test both sides of any filter.
+- To audit data/audit commit parity: for each commit, diff `_audit` line count
+  vs data-line count parent→child; any mismatch is a split-commit (DF-0925-02).
+
+### Numbers worth keeping
+
+- subscribe→ready: 68 ms ± 4 ms warm (n=10)
+- POST write: 18 ms ± 7.6 ms (n=20)
+- write ack → subscriber event: 9.2 s measured (bounded by the 30s debounce)
+- 500-write burst through 100 rpm limiter: 103×201 + 97×429; ledger exactly
+  equals acked writes; feed replay later delivered 100% of them, contiguous.

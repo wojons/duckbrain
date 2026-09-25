@@ -15,7 +15,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.8.0
+version: 1.9.0
 category: software-development
 ---
 
@@ -266,11 +266,48 @@ curl -N "http://127.0.0.1:3000/api/ns/my-project/changes?cursor=dbch1.<stored>" 
 
 Guarantees: committed-only, ordered within the namespace subscription,
 **at-least-once** — dedupe by `cursor` (or `position.commit`+`ordinal`) and
-apply rows idempotently; no exactly-once promise. A subscriber that stops
-reading is overflow-disconnected alone (`duckbrain.overflow.v1` + last
+apply rows idempotently by declared key; no exactly-once promise. A subscriber
+that stops reading is overflow-disconnected alone (`duckbrain.overflow.v1` + last
 cursor); a revoked grant ends the stream (`duckbrain.revoked.v1`). Full wire
 schema, error table, and grammar: see
 [Realtime Change Feed (SUPA-5)](../../docs/api/http-api.md#realtime-change-feed-supa-5).
+
+### Live-verified feed semantics (dogfood run 10, 2026-09-25)
+
+Verified end-to-end on a scratch daemon (isolation trio, :3799): committed-only
+delivery (10 writes → 0 events → 10 events when the 30s debounce commit
+lands); cursor resume strictly-after (reconnect with ordinal-1 cursor →
+exactly ordinal 2); Last-Event-ID ≡ ?cursor; **daemon restart does not break
+resume** (cursor replayed correctly after kill+relaunch — no secret state);
+ordinals contiguous 1..N per commit across 7 commits / 241 events; malformed
+cursor → 400 INVALID_CURSOR, impossible ordinal → 400, commit gone →
+**410 CHANGE_CURSOR_GONE** with resync guidance, cursor cross-namespace → 400,
+unknown tables/ops token → 400 INVALID_SUBSCRIPTION, no key → 401, ungranted
+namespace → 403; deletes arrive as op=delete with a full tombstone row image
+and `key:{id}` — never `row:null`; cursor = `dbch1.<base64url({v,ns,commit,ordinal})>`,
+unsigned and hand-decodable.
+
+⚠️ **Two defects found that run — read before building on the feed:**
+
+19. **Replay ignores the `ops=` filter (DF-0925-01, P1).** Live `?ops=insert`
+    filtered correctly (1 insert delivered, 0 deletes) while an insert+delete
+    committed in one window. The SAME subscription reconnected with a cursor
+    replayed all 242 events (241 inserts + the delete). Until fixed: a
+    reconnected stream is effectively UNFILTERED — resubscribe without a
+    cursor and resnapshot via `GET /api/memories`, or filter client-side.
+20. **Data/audit split-commit (DF-0925-02, P1).** Under write bursts a row's
+    data line can land in commit N while its audit (change) record lands in
+    commit N+1 (+30s): the write is acked 201 and committed, but subscribers
+    see no event for it for up to 30s, and commit N permanently holds a data
+    row with no accepted audit record at that ref. Root cause: `asyncCommit`
+    (src/git/autocommit.ts:194) is not fenced by the namespace writer lock.
+    Consumers must tolerate a ≤30s committed-but-unpublished window and dedupe
+    by `key.id` (an event may arrive long after the row became readable).
+
+Also: the write→event latency is the `gitBatching.maxSeconds` debounce
+(default 30s), BY DESIGN (committed-only trade) — don't file it as a bug.
+`token --auth-file` refuses to CREATE a store (DF-0925-06): bootstrap with
+`echo '{"apiKeys":[]}' > <path>` before the first mint.
 
 ## Pitfalls that WILL bite you (verified live 2026-08-16/17 against source + scratch daemon)
 

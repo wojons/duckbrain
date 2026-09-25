@@ -214,3 +214,55 @@ that a user would notice → no PERF row (PERF-001 already covers list_keys).
 **Left behind:** docs/dogfood/2026-09-24-webui-integration.md, diagnostics.md
 Run 9, skills/duckbrain-usage v1.8.0 (pitfalls 16-18), DF-0924-05..10 on the
 board (surgical append, 229 rows / 0 bad), this entry.
+
+## Run 10 — 2026-09-25 (tick duckbrain-dogfood-2026-09-25-10-28-50) — Verdict: SHIPPABLE-ON-THIS-SURFACE (SSE change feed works to spec; two P1s on replay filtering and commit atomicity)
+
+**Angle:** the SUPA-5 realtime change feed — runs 1–9 never drove it past the
+opening frame. Full subscriber lifecycle: live events, tables/ops filters,
+cursor + Last-Event-ID resume, daemon-restart resume, revoke, overflow,
+500-write burst through the rate limiter.
+
+**Promise tested:** "subscribe to committed changes per namespace; changes
+appear only after the namespace git commit; persist the last `id:` and resume
+strictly after it; malformed/gone cursors fail loudly (400/410)."
+
+**What held up (live-verified):** committed-only delivery (10 writes → 0
+events → 10 events at the debounce commit); restart-safe unsigned cursors
+(decoded {v,ns,commit,ordinal}; daemon killed + restarted, replay correct);
+contiguous per-commit ordinals 1..N across 7 commits / 241 events; loud errors
+(400 INVALID_CURSOR ×3 variants, 410 CHANGE_CURSOR_GONE + resync guidance,
+403 ungranted ns, 400 INVALID_SUBSCRIPTION grammar); tombstone deletes carry
+full row image, never row:null; live ops= filter correct; rate limiter vs
+ledger consistency exact under bursts (429 rejects, ledger = acked 201s).
+
+**Top findings (board DF-0925-01..06):**
+1. **DF-0925-01 (P1)** — replay ignores the ops= filter: reconnecting an
+   `?ops=delete` subscription with a cursor replayed 241 inserts + 1 delete.
+   Live filtering is correct; replay applies none.
+2. **DF-0925-02 (P1)** — data/audit split-commit: write acked 201 has its data
+   row in commit 4fa4042 but its audit record in 34ae769 (+30s) — committed
+   write invisible to subscribers up to 30s; root cause asyncCommit
+   (src/git/autocommit.ts:194) unfenced by the namespace writer lock.
+3. **DF-0925-03 (P2)** — SUPA-5 spec + positioning matrix still say
+   "Planned/pending implementation" while the feature ships and works.
+
+Also DF-0925-04 (P2 as_of/asOf doc gaps), DF-0925-05 (P2 revoked-key
+subscriber persists until next event on idle namespaces), DF-0925-06 (P3
+token --auth-file cannot bootstrap a fresh store, breaking the skill's own
+recipe).
+
+**Time-to-first-success:** ~4 min (isolation trio + first change event);
+2 min of that was the stale-auth-store error (itself DF-0925-06).
+
+**Perf (Step 2b):** subscribe→ready 68 ms ± 4 ms warm (n=10); POST 201
+18 ms ± 7.6 ms (n=20); write-ack→event 9.2 s = the documented 30s commit
+debounce (by design, not a defect). No PERF row.
+
+**Install leg:** SKIPPED-install-bunker — not re-proven this tick; runs 6/8
+already verified fresh-install on las-bunker (17.6s pnpm frozen install,
+DF-0919-01/02 closed). Recorded explicitly, not a silent pass.
+
+**Left behind:** docs/dogfood/2026-09-25-sse-feed-integration.md,
+diagnostics.md Run 10 section, skills/duckbrain-usage v1.9.0 (SSE section +
+pitfalls 19-20), DF-0925-01..06 on the board (surgical append 230→236 rows,
+0 bad lines), this entry.
