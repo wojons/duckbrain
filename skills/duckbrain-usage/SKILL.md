@@ -15,7 +15,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.9.0
+version: 1.10.0
 category: software-development
 ---
 
@@ -309,6 +309,39 @@ Also: the write→event latency is the `gitBatching.maxSeconds` debounce
 `token --auth-file` refuses to CREATE a store (DF-0925-06): bootstrap with
 `echo '{"apiKeys":[]}' > <path>` before the first mint.
 
+## S3 storage tier (verified end-to-end 2026-09-25, run 11)
+
+Two independent paths — know which one you mean:
+
+1. **Manifest/JSONL sync** (`s3.enabled` + `pushOnCommit: true` in config →
+   restart daemon): every namespace commit auto-PUTs JSONL partitions +
+   `manifest.json` + `_audit/current.jsonl` to `s3://<bucket>/<prefix>/<ns>/`
+   within ~30s (debounce) + `intervalSec`. Delta-only, byte-exact. This is
+   what `s3 query` reads.
+2. **Git-mirror autopush** (AUTOPUSH-001): pushes the namespace GIT repo to
+   the `s3daily` remote per commit. Requires `git remote add s3daily
+   s3://duckbrain/current/git/<ns>` — NO command/docs create this for a new
+   namespace (DF-0925-08); without the remote it silently does nothing.
+
+```bash
+# query the bucket WITHOUT restoring (httpfs; Hetzner needs forcePathStyle)
+duckbrain s3 query "SELECT key, domain FROM read_json_auto('s3://<bucket>/<prefix>/<ns>/concept/2026-09/current.jsonl')"
+# 3.6–3.9s wall including node+DuckDB boot. Works on Hetzner/R2/MinIO/AWS.
+
+# second host: SHARED MEMORY (data-only — NOT full DR, see pitfall 21)
+duckbrain namespace create <ns>      # REQUIRED before first pull
+duckbrain s3 sync <ns> pull          # downloaded=6 files
+# writes on the second host need pushOnCommit:true (config) or manual:
+duckbrain s3 sync <ns> push          # uploaded=2 skipped=4 style output
+# a RUNNING daemon on either host serves pulled rows with NO restart.
+```
+
+Safety: `duckbrain s3 clear <ns> --dry-run | --yes --requested-by=<who>
+--reason=<why>` destroys ONLY the namespace's remote objects; `s3 ghosts`
+lists sync state outliving its namespace dir (read-only without --sweep).
+Credentials stay in AWS env/profile, never config. `AWS_ENDPOINT_URL_S3` is
+the one env var that overrides the endpoint on BOTH sync and push paths.
+
 ## Pitfalls that WILL bite you (verified live 2026-08-16/17 against source + scratch daemon)
 
 1. **MCP `remember` content field is `embedding_text`, NOT `content`**
@@ -432,6 +465,19 @@ Also: the write→event latency is the `gitBatching.maxSeconds` debounce
     writes to the same name succeed. On a fresh install the list shows a
     phantom `default` with `directoryMissing:true`. Trust the write path's
     answer over the list.
+21. **S3 pull is NOT a DR restore (DF-0925-07, P1).** On a fresh machine
+    `s3 sync <ns> pull` errors "Namespace not found" and
+    `s3 sync all pull` exits 0 with "0 namespaces, 0 files transferred" —
+    silent no-op, not a restore. Pull enumerates LOCAL namespaces only; you
+    must `duckbrain namespace create <ns>` first (undocumented), and even
+    then the namespace git history does NOT come back (data-only restore).
+    Treat any pull reporting 0 restored against a non-empty prefix as a
+    failure. Verified against a real Hetzner bucket 2026-09-25.
+22. **The `s3daily` git-mirror remote is never wired for new namespaces
+    (DF-0925-08).** Autopush's git-half needs
+    `git remote add s3daily s3://duckbrain/current/git/<ns>` per namespace;
+    nothing in README/docs/skill says so, so git history never reaches S3
+    and the JSONL manifest tier is the only thing actually syncing.
 
 ## Testing your changes safely
 

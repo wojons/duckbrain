@@ -648,3 +648,57 @@ and the UI's own production bundle.
 - write ack → subscriber event: 9.2 s measured (bounded by the 30s debounce)
 - 500-write burst through 100 rpm limiter: 103×201 + 97×429; ledger exactly
   equals acked writes; feed replay later delivered 100% of them, contiguous.
+
+## Run 11 — 2026-09-25 dogfood (S3 native tier — the flagship never pushed)
+
+Why this run exists: runs 1–10 exercised MCP/REST/CLI/auth/deletion/as-of/
+web-UI/SSE but never pushed a byte to the bucket. The S3 tier is the
+README's most distinctive claim (SQL over the archive, ~30s RPO, multi-host
+memory) and its only previous live evidence was `s3 status` with the tier
+off.
+
+How the tier actually works, learned by using it (two independent paths —
+this distinction explains most of the S3 surprise-bugs ever filed):
+
+1. **Manifest/JSONL sync** (`src/s3/sync.ts`, `duckbrain s3 sync`,
+   `s3.enabled`+`pushOnCommit` autopush): the daemon walks namespace files,
+   diffs against `.s3state/<ns>.json`, PUTs changed JSONL partitions +
+   `manifest.json` + `_audit/current.jsonl`. Excludes `.git/`. This is what
+   "SQL over S3" reads — the remote copy is query-shaped, not a git mirror.
+2. **Git-mirror autopush** (AUTOPUSH-001, `selectPushRemote`): shells out to
+   `git push s3daily <branch>` per commit flush. Requires a per-namespace
+   `s3daily` remote — which NOTHING creates or documents for new namespaces
+   (DF-0925-08). Empty remotes = this path silently does nothing.
+
+The paths do not share endpoint precedence (s3-native.md's Path A/B tables —
+`AWS_ENDPOINT_URL_S3` is the one env var that wins on both; we left both
+unset and used config `s3.endpoint`, which kept them consistent).
+
+What worked end-to-end on a real bucket (scratch prefix): autopush of all
+partitions after the 30s debounce; byte-exact delta push; SQL over S3 via
+httpfs (row-level projections, 3.6–3.9 s); restore → daemon → 9/9 read-back;
+write-after-restore; two-host round trip where a RUNNING daemon on host A
+served host B's writes after `s3 sync pull` with no restart; `s3 clear`
+dry-run/real with requested-by+reason audit; `s3 ghosts` listing.
+
+What failed and why it matters: the DR promise ("pull on another machine =
+DR") breaks at fresh-machine bootstrap. Pull resolves namespaces from the
+LOCAL config only, `sync all pull` claims success with 0 restored, and the
+pulled namespace has no git history (data-only). Filed DF-0925-07 (P1).
+The fix shape is bootstrap-then-pull (materialize namespaces found under
+the remote prefix) — the manifest already lists everything pull needs.
+
+Fresh-machine leg (dedi-2 agent 8be0cc13, destroyed; las-03 down, las-02
+bunkerd crash-looping): README quickstart green verbatim on bare Ubuntu 24.04
+(node 7s/pnpm 10s/install RC 0/health 503-expected/full write-read happy
+path). `s3 status` with no config = clean "disabled", exit 0. Docs drift:
+git identity NOT required (stale README claim, corroborates
+GIT-IDENTITY-001). Infra lesson: bunkerd destroy ABORTS (home retained,
+user kept) when the pre-delete home archive exceeds its own kill window —
+a >1 GB node_modules home suffices; shrink the home, then destroy.
+Also on this HEAD: `DUCKBRAIN_AUTH_FILE=<fresh> token` CREATES the store
+(contradicts pending DF-0925-06 — verify before re-filing).
+
+Numbers: POST write 0.19 s mean warm (n=10, embedding included); s3 query
+3.6 s cold / 3.9 s warm (≈2 s is node+DuckDB boot); pull 4.6 s (6 objects);
+push 1.6 s delta. Nothing user-visible slow enough for a PERF row.
