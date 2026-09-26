@@ -5,6 +5,7 @@ import path from "path";
 import { forgetTool } from "./forget";
 import { rememberTool } from "./remember";
 import { resetSerializerStateForTests } from "../../serialization/namespaceWriter";
+import { drainAsyncCommits } from "../../git/autocommit";
 
 describe("SUPA-2 memory write-path wiring", () => {
   let root: string;
@@ -17,8 +18,12 @@ describe("SUPA-2 memory write-path wiring", () => {
     resetSerializerStateForTests();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     resetSerializerStateForTests();
+    // The tools above schedule REAL async git commits (this suite does not
+    // override scheduleCommit). A commit landing inside rmSync's unlink
+    // walk races it: ENOTEMPTY on the in-flight .git. Drain before removing.
+    await drainAsyncCommits();
     if (oldRoot === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
     else process.env.DUCKBRAIN_NAMESPACES_PATH = oldRoot;
     fs.rmSync(root, { recursive: true, force: true });

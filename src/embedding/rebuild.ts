@@ -55,7 +55,13 @@ export function collectEmbeddingTexts(namespacePath: string): string[] {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        if (ent.name === ".embeddings" || ent.name === ".git") continue;
+        if (
+          ent.name === ".embeddings" ||
+          ent.name === ".git" ||
+          ent.name === ".search" ||
+          ent.name === ".keys"
+        )
+          continue;
         walk(full);
       } else if (ent.name.endsWith(".jsonl")) {
         try {
