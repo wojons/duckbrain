@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0926-01",
+  "task_title": "Fix examples on-ramp and HTTP bind failure handling",
+  "task_criteria": [
+    "Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "accf1cbc88787b9d6b0eca78cd86bed6a776c9d3",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:00AM INF scanned ~9509310 bytes (9.51 MB) in 1.7s\n8:00AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 286488 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  178 passed (178)\n      Tests  1412 passed (1412)\n   Start at  08:00:12\n   Duration  93.89s (tests 75%, import 22%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  178 workers spawned \u00b7 ~185ms startup each (spawn + environment, per file)\n             at least ~8.06s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) examples/http-api/README.md still documents `pnpm start -- http --port=3000`; bin/duckbrain.ts:223 routes on args[0] with no `--` stripping \u2014 `node bin/duckbrain.js -- http --port=3999` prints 'Unknown command: --'. (b) examples/http-api/client.js:115 still uses `import.meta` in a CJS repo (package.json \"type\":\"commonjs\") \u2014 `node examples/http-api/client.js` => SyntaxError: Cannot use 'import.meta' outside a module; payloads still use key 'examples/http/test' (no leading /) and object content. (c) Live repro: live server pid 4031251 on :3997, second `node bin/duckbrain.js http --port 3997` printed '[duckbrain] HTTP server started at http://127.0.0.1:3997', exited 0, and overwrote the live pidfile (4031251 -> 4033562) \u2014 banner printed, exit 0, live pidfile mutated. (d) src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but EADDRINUSE is swallowed (error handler only rejects after the success banner already printed and process exits 0), so the pidfile is written despite bind failure. Targeted tests `npx vitest run src/cli/http.test.ts src/cli/http-socket.test.ts src/utils/pidfile.test.ts` => 'Test Files 3 passed (3), Tests 18 passed (18)', but none of these cover the four ACs (no EADDRINUSE/banner/live-pidfile test).\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) examples/http-api/README.md still documents `pnpm start -- http --port=3000`; bin/duckbrain.ts:223 routes on args[0] with no `--` stripping \u2014 `node bin/duckbrain.js -- http --port=3999` prints 'Unknown command: --'. (b) examples/http-api/client.js:115 still uses `import.meta` in a CJS repo (package.json \"type\":\"commonjs\") \u2014 `node examples/http-api/client.js` => SyntaxError: Cannot use 'import.meta' outside a module; payloads still use key 'examples/http/test' (no leading /) and object content. (c) Live repro: live server pid 4031251 on :3997, second `node bin/duckbrain.js http --port 3997` printed '[duckbrain] HTTP server started at http://127.0.0.1:3997', exited 0, and overwrote the live pidfile (4031251 -> 4033562) \u2014 banner printed, exit 0, live pidfile mutated. (d) src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but EADDRINUSE is swallowed (error handler only rejects after the success banner already printed and process exits 0), so the pidfile is written despite bind failure. Targeted tests `npx vitest run src/cli/http.test.ts src/cli/http-socket.test.ts src/utils/pidfile.test.ts` => 'Test Files 3 passed (3), Tests 18 passed (18)', but none of these cover the four ACs (no EADDRINUSE/banner/live-pidfile test).\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.",
+                "status": "FAIL",
+                "detail": "No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) examples/http-api/README.md still documents `pnpm start -- http --port=3000`; bin/duckbrain.ts:223 routes on args[0] with no `--` stripping \u2014 `node bin/duckbrain.js -- http --port=3999` prints 'Unknown command: --'. (b) examples/http-api/client.js:115 still uses `import.meta` in a CJS repo (package.json \"type\":\"commonjs\") \u2014 `node examples/http-api/client.js` => SyntaxError: Cannot use 'import.meta' outside a module; payloads still use key 'examples/http/test' (no leading /) and object content. (c) Live repro: live server pid 4031251 on :3997, second `node bin/duckbrain.js http --port 3997` printed '[duckbrain] HTTP server started at http://127.0.0.1:3997', exited 0, and overwrote the live pidfile (4031251 -> 4033562) \u2014 banner printed, exit 0, live pidfile mutated. (d) src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but EADDRINUSE is swallowed (error handler only rejects after the success banner already printed and process exits 0), so the pidfile is written despite bind failure. Targeted tests `npx vitest run src/cli/http.test.ts src/cli/http-socket.test.ts src/utils/pidfile.test.ts` => 'Test Files 3 passed (3), Tests 18 passed (18)', but none of these cover the four ACs (no EADDRINUSE/banner/live-pidfile test).",
+                "resolution_probability": 0.0
+              }
+            ],
+            "summary": "The task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-01\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) examples/http-api/README.md still documents `pnpm start -- http --port=3000`; bin/duckbrain.ts:223 routes on args[0] with no `--` stripping \u2014 `node bin/duckbrain.js -- http --port=3999` prints 'Unknown command: --'. (b) examples/http-api/client.js:115 still uses `import.meta` in a CJS repo (package.json \"type\":\"commonjs\") \u2014 `node examples/http-api/client.js` => SyntaxError: Cannot use 'import.meta' outside a module; payloads still use key 'examples/http/test' (no leading /) and object content. (c) Live repro: live server pid 4031251 on :3997, second `node bin/duckbrain.js http --port 3997` printed '[duckbrain] HTTP server started at http://127.0.0.1:3997', exited 0, and overwrote the live pidfile (4031251 -> 4033562) \u2014 banner printed, exit 0, live pidfile mutated. (d) src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but EADDRINUSE is swallowed (error handler only rejects after the success banner already printed and process exits 0), so the pidfile is written despite bind failure. Targeted tests `npx vitest run src/cli/http.test.ts src/cli/http-socket.test.ts src/utils/pidfile.test.ts` => 'Test Files 3 passed (3), Tests 18 passed (18)', but none of these cover the four ACs (no EADDRINUSE/banner/live-pidfile test).\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-26T13:08:49.208149",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-26T13:08:49.251807+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 421,
+        "truncated": false,
+        "source": "git show accf1cbc8878"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 755,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-01"
+  }
+}
