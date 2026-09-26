@@ -26,7 +26,22 @@
  * must still commit AND push before it exits, and a process 'exit' handler
  * cannot await (DOGFOOD-005 + AUTOPUSH-001 contracts). A namespace that dies
  * mid-async-push loses git history only — the JSONL is already on disk and the
- * next write sweeps it up.
+ * next write sweeps it up (git add -A stages everything).
+ *
+ * DF-0925-02 — the stage→commit sequence (init → identity → `git add -A` →
+ * diff --cached → commit) runs under the NAMESPACE WRITE LOCK, the same
+ * `.duckbrain-write/<ns>.lock` file the SUPA-2 serializer flush holds while it
+ * appends a write's data row and its `_audit/` change record. The stage is a
+ * subprocess that snapshots the worktree over its whole runtime; without the
+ * fence, a flush could land its data rows after the snapshot read them and its
+ * audit rows before-or-during it, splitting the SUPA-5 pair across two
+ * commits (observed live: 4fa4042 data-only, audit 30s later in 34ae769, a
+ * committed-but-feed-invisible window). Under the lock, a commit either
+ * includes a flush's whole data+audit burst or none of it. The push (and the
+ * S3 sync hook) stays OUTSIDE the lock — a 30s bundle+network push must never
+ * extend the window a flush or DDL waits on the namespace. The exit-flush
+ * path takes the lock one-shot without waiting (an 'exit' handler must always
+ * return): a busy lock skips the commit and the next write's sweep covers it.
  */
 
 import { execFile, execSync } from "child_process";
@@ -41,6 +56,73 @@ import {
   parseS3RemoteUrl,
   repairAndRetryPushOnDuplicate,
 } from "./s3-repair";
+import { Mutex } from "async-mutex";
+import {
+  acquireNamespaceWriteLock,
+  releaseNamespaceWriteLock,
+  tokenStillCurrent,
+} from "../serialization/lock";
+
+/**
+ * DF-0925-02 — the in-process half of the commit fence.
+ *
+ * The file lock (`.duckbrain-write/<ns>.lock`) fences commits against
+ * OTHER processes; this gate fences them against the SAME process. The
+ * serializer flush (namespaceWriter.flushOnce) runs inside
+ * `runOutsideCommitGate`, the commit path inside `withCommitGate`, and the
+ * gate is async — a commit chain that starts while a flush runs waits for
+ * it, and a flush that starts while a commit runs waits for THAT, so no
+ * polling and no fail-fast failure: the flush that scheduled the commit
+ * always gets a clean ordering instead of racing it to the file lock.
+ *
+ * Both halves wrap the file lock; neither replaces it (cross-process
+ * exclusion and the fencing-token discipline stay file-lock owned).
+ */
+const commitGates = new Map<string, Mutex>();
+
+function commitGateFor(namespacePath: string): Mutex {
+  const key = path.resolve(namespacePath);
+  let gate = commitGates.get(key);
+  if (!gate) {
+    gate = new Mutex();
+    commitGates.set(key, gate);
+  }
+  return gate;
+}
+
+export async function withCommitGate<T>(
+  namespacePath: string,
+  take: () => Promise<T>,
+): Promise<T> {
+  return commitGateFor(namespacePath).runExclusive(take);
+}
+
+export async function runOutsideCommitGate<T>(
+  namespacePath: string,
+  take: () => Promise<T>,
+): Promise<T> {
+  const gate = commitGateFor(namespacePath);
+  if (!gate.isLocked()) return take();
+  await gate.waitForUnlock();
+  return take();
+}
+
+/** One-shot, no-wait variant for the synchronous exit-flush path. */
+function withNamespaceCommitLockSync<T>(
+  namespacePath: string,
+  take: () => T,
+): T {
+  const { root, ns } = namespaceLockIdentity(namespacePath);
+  const lock = acquireNamespaceWriteLock(root, ns, "commit");
+  if (!lock) {
+    throw new Error(`commit lock busy: namespace '${ns}'`);
+  }
+  try {
+    return take();
+  } finally {
+    releaseNamespaceWriteLock(lock);
+  }
+}
 
 export interface BatchingParams {
   maxLines: number;
@@ -152,6 +234,69 @@ function batchingParams(): BatchingParams {
 }
 
 /**
+ * DF-0925-02 — the namespace commit path fences on the SAME file lock the
+ * SUPA-2 serializer flush holds (`.duckbrain-write/<ns>.lock`, acquired at
+ * namespaceWriter.flushOnce). Without this, a flush can append its data rows
+ * and its `_audit/` change records while `git add -A` is enumerating the
+ * worktree: the staged snapshot straddles the append burst and the commit can
+ * contain data rows whose accepted audit record is still unstaged (observed
+ * live as 4fa4042 data / 34ae769 audit, 30s apart) — a SUPA-5 violation.
+ * Fencing the stage→commit sequence means a commit either sees a flush's
+ * whole data+audit burst or none of it, so the pair stays in one commit.
+ *
+ * The lock identity is derived from the namespace directory itself (parent +
+ * basename), which is exactly the path the writer derives from
+ * namespacesPath + ns — a commit for a given namespace dir can never fence on
+ * a different lock file than the flush writing that dir.
+ */
+function namespaceLockIdentity(namespacePath: string): {
+  root: string;
+  ns: string;
+} {
+  return {
+    root: path.dirname(path.resolve(namespacePath)),
+    ns: path.basename(path.resolve(namespacePath)),
+  };
+}
+
+/** Wait between lock-acquire attempts on the serving path. */
+const COMMIT_LOCK_RETRY_MS = 25;
+/** Bounded serving-path lock wait: the flush holding the lock is milliseconds-fast. */
+const COMMIT_LOCK_TIMEOUT_MS = 2_000;
+
+async function withNamespaceCommitLock<T>(
+  namespacePath: string,
+  take: () => Promise<T>,
+): Promise<T> {
+  const { root, ns } = namespaceLockIdentity(namespacePath);
+  const deadline = Date.now() + COMMIT_LOCK_TIMEOUT_MS;
+  for (;;) {
+    // owner:"commit" tags the payload so lock files are attributable in
+    // diagnostics; same-process flush/commit ordering is the gate's job.
+    const lock = acquireNamespaceWriteLock(root, ns, "commit");
+    if (lock) {
+      try {
+        // tokenStillCurrent right before the writes fences an owner that was
+        // preempted while we held the token (stale takeover), mirroring the
+        // writer's assertCurrent discipline.
+        if (!tokenStillCurrent(root, ns, lock.token)) {
+          throw new Error(
+            `SERIALIZER_FENCED: commit lock for '${ns}' was preempted`,
+          );
+        }
+        return await take();
+      } finally {
+        releaseNamespaceWriteLock(lock);
+      }
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`commit lock busy: namespace '${ns}'`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, COMMIT_LOCK_RETRY_MS));
+  }
+}
+
+/**
  * Run a git subcommand WITHOUT blocking the event loop (OPS-006).
  *
  * `execFile` (never a shell) so commit messages, branch names and remote names
@@ -190,49 +335,61 @@ function gitAsync(
  * Same steps, same order, same best-effort swallowing, but every git call is
  * asynchronous so the event loop keeps running while git (and git-remote-s3)
  * works. Never rejects.
+ *
+ * DF-0925-02: the stage→commit sequence runs under the namespace write lock
+ * (`withNamespaceCommitLock`) so a concurrent serializer flush cannot append
+ * data rows + audit records between the `git add -A` snapshot and the commit
+ * — that split is what left commit 4fa4042 with data rows whose audit records
+ * only landed in the next commit 30s later (SUPA-5 violation). The push stays
+ * OUTSIDE the lock: a 30s bundle+network push must never extend the window a
+ * flush (or DDL) waits on the namespace.
  */
 async function asyncCommit(
   namespacePath: string,
   message: string,
 ): Promise<void> {
   try {
-    // Init git repo if it doesn't exist
-    const gitDir = path.join(namespacePath, ".git");
-    if (!fs.existsSync(gitDir)) {
-      await gitAsync(["init"], namespacePath);
-    }
+    await withCommitGate(namespacePath, () =>
+      withNamespaceCommitLock(namespacePath, async () => {
+        // Init git repo if it doesn't exist
+        const gitDir = path.join(namespacePath, ".git");
+        if (!fs.existsSync(gitDir)) {
+          await gitAsync(["init"], namespacePath);
+        }
 
-    // Ensure git user identity is set (newly inited repos + pre-existing ones)
-    try {
-      await gitAsync(["config", "user.email"], namespacePath);
-    } catch {
-      await gitAsync(
-        ["config", "user.email", "duckbrain@localhost.localdomain"],
-        namespacePath,
-      );
-    }
-    try {
-      await gitAsync(["config", "user.name"], namespacePath);
-    } catch {
-      await gitAsync(["config", "user.name", "DuckBrain"], namespacePath);
-    }
+        // Ensure git user identity is set (newly inited repos + pre-existing ones)
+        try {
+          await gitAsync(["config", "user.email"], namespacePath);
+        } catch {
+          await gitAsync(
+            ["config", "user.email", "duckbrain@localhost.localdomain"],
+            namespacePath,
+          );
+        }
+        try {
+          await gitAsync(["config", "user.name"], namespacePath);
+        } catch {
+          await gitAsync(["config", "user.name", "DuckBrain"], namespacePath);
+        }
 
-    // Stage all changes
-    await gitAsync(["add", "-A"], namespacePath);
+        // Stage all changes
+        await gitAsync(["add", "-A"], namespacePath);
 
-    // Check if there are staged changes — git diff --cached --quiet exits 1 if
-    // there are.
-    let staged = false;
-    try {
-      await gitAsync(["diff", "--cached", "--quiet"], namespacePath);
-      // Exit code 0 = no staged changes, nothing to commit
-    } catch {
-      // Exit code 1 = there ARE staged changes
-      staged = true;
-    }
-    if (staged) {
-      await gitAsync(["commit", "-m", message], namespacePath);
-    }
+        // Check if there are staged changes — git diff --cached --quiet exits 1 if
+        // there are.
+        let staged = false;
+        try {
+          await gitAsync(["diff", "--cached", "--quiet"], namespacePath);
+          // Exit code 0 = no staged changes, nothing to commit
+        } catch {
+          // Exit code 1 = there ARE staged changes
+          staged = true;
+        }
+        if (staged) {
+          await gitAsync(["commit", "-m", message], namespacePath);
+        }
+      }),
+    );
 
     // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
     // default config = zero pushes), interval-coalesced and single-flight.
@@ -244,7 +401,11 @@ async function asyncCommit(
     // bundle + pack-objects duration.
     await pushNamespaceAsync(namespacePath);
   } catch (error) {
-    // Log but don't fail the write — git is best-effort
+    // Log but don't fail the write — git is best-effort. DF-0925-02: a busy
+    // lock (a flush or DDL owns the namespace) defers this commit; the JSONL
+    // record is already durable and the next scheduled commit's `git add -A`
+    // sweeps the remainder, so warning-and-skipping keeps the guarantee
+    // without serializing the serving path behind a stuck owner.
     console.warn(
       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
     );
@@ -336,54 +497,66 @@ export async function drainAsyncCommits(
  * serving write path — use `scheduleAsyncCommit`.
  *
  * Best-effort: failures are logged and swallowed (history only).
+ *
+ * DF-0925-02: the stage→commit sequence fences on the namespace write lock
+ * (one-shot, no waiting — an exit handler must always return; the async
+ * serving path owns the bounded-wait variant). A busy lock skips this commit;
+ * the next write's `git add -A` sweeps whatever a skipped flush left.
  */
 function immediateCommit(namespacePath: string, message: string): void {
   try {
-    // Init git repo if it doesn't exist
-    const gitDir = path.join(namespacePath, ".git");
-    if (!fs.existsSync(gitDir)) {
-      execSync("git init", { cwd: namespacePath, stdio: "pipe" });
-    }
+    withNamespaceCommitLockSync(namespacePath, () => {
+      // Init git repo if it doesn't exist
+      const gitDir = path.join(namespacePath, ".git");
+      if (!fs.existsSync(gitDir)) {
+        execSync("git init", { cwd: namespacePath, stdio: "pipe" });
+      }
 
-    // Ensure git user identity is set (newly inited repos + pre-existing ones)
-    try {
-      execSync("git config user.email", { cwd: namespacePath, stdio: "pipe" });
-    } catch {
-      execSync('git config user.email "duckbrain@localhost.localdomain"', {
-        cwd: namespacePath,
-        stdio: "pipe",
-      });
-    }
-    try {
-      execSync("git config user.name", { cwd: namespacePath, stdio: "pipe" });
-    } catch {
-      execSync('git config user.name "DuckBrain"', {
-        cwd: namespacePath,
-        stdio: "pipe",
-      });
-    }
+      // Ensure git user identity is set (newly inited repos + pre-existing ones)
+      try {
+        execSync("git config user.email", {
+          cwd: namespacePath,
+          stdio: "pipe",
+        });
+      } catch {
+        execSync('git config user.email "duckbrain@localhost.localdomain"', {
+          cwd: namespacePath,
+          stdio: "pipe",
+        });
+      }
+      try {
+        execSync("git config user.name", { cwd: namespacePath, stdio: "pipe" });
+      } catch {
+        execSync('git config user.name "DuckBrain"', {
+          cwd: namespacePath,
+          stdio: "pipe",
+        });
+      }
 
-    // Stage all changes
-    execSync("git add -A", { cwd: namespacePath, stdio: "pipe" });
+      // Stage all changes
+      execSync("git add -A", { cwd: namespacePath, stdio: "pipe" });
 
-    // Check if there are staged changes — git diff --cached --quiet exits 1 if there are
-    try {
-      execSync("git diff --cached --quiet", {
-        cwd: namespacePath,
-        stdio: "pipe",
-      });
-      // Exit code 0 = no staged changes, nothing to commit
-    } catch {
-      // Exit code 1 = there ARE staged changes
-      execSync(`git commit -m "${message}"`, {
-        cwd: namespacePath,
-        stdio: "pipe",
-      });
-    }
+      // Check if there are staged changes — git diff --cached --quiet exits 1 if there are
+      try {
+        execSync("git diff --cached --quiet", {
+          cwd: namespacePath,
+          stdio: "pipe",
+        });
+        // Exit code 0 = no staged changes, nothing to commit
+      } catch {
+        // Exit code 1 = there ARE staged changes
+        execSync(`git commit -m "${message}"`, {
+          cwd: namespacePath,
+          stdio: "pipe",
+        });
+      }
+    });
     // Native S3 sync hook (object store) + gated push hook (PUSH-001: default
     // config = zero pushes). Synchronous + best-effort so short-lived CLI
     // processes (remember → commit → exit in <1s) push without waiting for
     // the 03:47 daily cron. Shares the gate state with the serving path.
+    // Outside the lock (DF-0925-02): the push is history transport, not part
+    // of the data+audit pairing guarantee.
     maybeSyncOnCommit(namespacePath);
     pushNamespace(namespacePath);
   } catch (error) {
