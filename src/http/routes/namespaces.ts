@@ -56,6 +56,11 @@ function transformNamespace(
     // REG-GONE-001: flag only rows whose directory is absent on disk;
     // healthy rows omit the field entirely.
     ...(missingDirs?.has(ns.name) ? { directoryMissing: true } : {}),
+    // DF-0924-06: listNamespacesTool now shares the DB-GAP-057 census, so a
+    // row that exists only as a directory arrives PRE-FLAGGED here —
+    // preserve it (it would otherwise be silently dropped and re-added
+    // below, losing isDefault fidelity).
+    ...(ns.onDiskOnly ? { onDiskOnly: true } : {}),
   };
 }
 
@@ -91,8 +96,17 @@ router.get(
     // onDiskOnly row (config rows keep their REG-GONE-001 directoryMissing
     // flag when their directory is gone). isDefault mirrors the registry
     // row rule (name === currentNamespace).
+    //
+    // DF-0924-06: the tool itself now runs the census, so most onDiskOnly
+    // rows arrive pre-flagged (preserved by transformNamespace) — this
+    // second census union remains as the safety net for mocked-tool suites
+    // and callers that hand us mapping-only rows. Drift counts count BOTH
+    // sources (tool-flagged + route-unioned) exactly once per name.
     const listedNames = new Set(result.namespaces.map((ns) => ns.name));
-    let onDiskOnlyCount = 0;
+    const onDiskOnlyNames = new Set(
+      result.namespaces.filter((ns: any) => ns.onDiskOnly).map((ns) => ns.name),
+    );
+    let onDiskOnlyCount = onDiskOnlyNames.size;
     for (const [name, nsPath] of onDisk) {
       if (listedNames.has(name)) continue;
       onDiskOnlyCount++;

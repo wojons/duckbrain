@@ -20,6 +20,7 @@ import { runGitAsync } from "../../git/exec";
 import fs from "fs";
 import path from "path";
 import { deleteNamespace } from "../../namespaces/delete";
+import { censusOnDiskNamespaces } from "../../namespaces/census";
 
 /**
  * Create namespace tool input schema
@@ -62,6 +63,12 @@ interface ListNamespacesOutput {
     name: string;
     path: string;
     isDefault: boolean;
+    /**
+     * DF-0924-06: true when the namespace exists ONLY as a directory under
+     * the namespaces root (no config mapping) — surfaced so callers can see
+     * registry/disk drift instead of silently losing the row.
+     */
+    onDiskOnly?: boolean;
   }>;
   currentNamespace?: string;
   error?: string;
@@ -225,21 +232,60 @@ export async function listNamespacesTool(
     const namespaces = config.namespaceMappings || {};
     const currentNamespace = config.defaultNamespace;
 
-    const namespaceList = Object.entries(namespaces).map(([name, nsPath]) => ({
+    // DF-0924-06: explicitly typed — census-union rows below push the
+    // optional onDiskOnly flag, which the inferred map-element type lacks.
+    const namespaceList: ListNamespacesOutput["namespaces"] = Object.entries(
+      namespaces,
+    ).map(([name, nsPath]) => ({
       name,
       path: nsPath,
       isDefault: name === currentNamespace,
     }));
 
-    // Ensure default namespace is always listed
-    if (!namespaceList.some((n) => n.name === "default")) {
-      namespaceList.unshift({
-        name: "default",
-        // GAP-062: report the absolute, root-derived path (the same one the
-        // create/write paths use), not a cwd-relative string.
-        path: path.join(resolveNamespacesPath(), "default"),
-        isDefault: currentNamespace === "default",
+    // DF-0924-06: the registry is not the whole truth — directories can
+    // exist under the namespaces root with NO mapping (the be129bc
+    // split-brain shape). Share THE SAME census the HTTP GET route unions
+    // (src/namespaces/census.ts) so every surface agrees about what
+    // exists. Union: census rows absent from the registry become onDiskOnly
+    // rows; census failure yields an empty census and the registry half is
+    // still served (a listing must not 500 because a storage dir vanished).
+    //
+    // The synthetic-default unshift below stays: the registry still lists
+    // the (implicit) default namespace — but ONLY when it exists as a
+    // directory under the namespaces root. A phantom `default` row for a
+    // namespace that was never created (no mapping, no directory) told
+    // callers a namespace existed that did not; the old unshift could not
+    // even be silenced by creating+registering other namespaces.
+    const listedNames = new Set(namespaceList.map((ns) => ns.name));
+    const onDisk = censusOnDiskNamespaces(resolveNamespacesPath());
+    for (const [name, nsPath] of onDisk) {
+      if (listedNames.has(name)) continue;
+      listedNames.add(name);
+      namespaceList.push({
+        name,
+        path: nsPath,
+        isDefault: name === currentNamespace,
+        onDiskOnly: true,
       });
+    }
+
+    // Ensure default namespace is always listed — but never as a phantom:
+    // the default namespace must EXIST on disk (directory under the
+    // namespaces root) or be registered. GAP-062: report the absolute,
+    // root-derived path (the same one the create/write paths use), not a
+    // cwd-relative string.
+    if (!listedNames.has("default") && !onDisk.has("default")) {
+      if (fs.existsSync(path.join(resolveNamespacesPath(), "default"))) {
+        // Unreadable-census edge: the directory exists but the census
+        // yielded an empty map — fall back to a direct existence check so
+        // a real default directory is still represented.
+        namespaceList.unshift({
+          name: "default",
+          path: path.join(resolveNamespacesPath(), "default"),
+          isDefault: currentNamespace === "default",
+          onDiskOnly: true,
+        });
+      }
     }
 
     return {
@@ -272,12 +318,31 @@ export async function switchNamespaceTool(
     const config = getConfig(".");
     const previous = config.defaultNamespace;
 
-    // Validate namespace exists
+    // DF-0924-06: validate against REALITY, not the mapping table alone —
+    // the same directory-aware census the list surfaces use. Three cases:
+    //   1. Registered mapping          → switch (registering is redundant;
+    //                                    the mapping already agrees).
+    //   2. Directory present, no map   → REGISTER the mapping, then switch.
+    //                                    This is the write path's own
+    //                                    reconciliation rule (create =
+    //                                    mkdir + registerNamespace), so
+    //                                    listing and switching can never
+    //                                    disagree about what exists — the
+    //                                    split-brain shape (be129bc) made
+    //                                    these namespaces visible-but-
+    //                                    unswitchable.
+    //   3. Exists nowhere              → accurate failure naming the
+    //                                    namespace.
     if (!config.namespaceMappings?.[input.name]) {
-      return {
-        success: false,
-        error: `Namespace '${input.name}' not found. Use list_namespaces to see available namespaces.`,
-      };
+      const nsRoot = resolveNamespacesPath();
+      const onDiskPath = censusOnDiskNamespaces(nsRoot).get(input.name);
+      if (!onDiskPath) {
+        return {
+          success: false,
+          error: `Namespace '${input.name}' not found. Use list_namespaces to see available namespaces.`,
+        };
+      }
+      registerNamespace(".", input.name, onDiskPath);
     }
 
     // Update default namespace
