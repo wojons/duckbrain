@@ -244,6 +244,12 @@ export class RealtimeHub {
       const replayThrough =
         feed.subscribers.size > 0 ? feed.lastDeliveredCommit : head;
 
+      // Replay applies the SAME allow-list predicate as live enqueue
+      // (`changeMatchesSubscriber`): a resuming consumer with an `ops=`/
+      // `tables=` subset must never receive committed history the live
+      // subscription would exclude. Filtering here also keeps the
+      // `maxReplayEvents` bound meaningful — it counts what the subscriber
+      // will actually receive, not everything the feed derived.
       const replayFrames: string[] = [];
       if (boundary !== null) {
         if (replayThrough === null) {
@@ -260,6 +266,10 @@ export class RealtimeHub {
             "cursor position is not reachable from the current committed history",
           );
         }
+        const replayAllow = {
+          tables: [...request.tables],
+          ops: [...request.ops],
+        };
         const anchor = deriveCommitChanges(repoDir, boundary.commit, {
           ns: request.ns,
           namespacePath: repoDir,
@@ -272,6 +282,7 @@ export class RealtimeHub {
         }
         for (const change of anchor) {
           if (change.ordinal > boundary.ordinal) {
+            if (!this.changeMatchesSubscriber(replayAllow, change)) continue;
             replayFrames.push(changeFrame(this.eventFor(request.ns, change)));
           }
         }
@@ -284,6 +295,7 @@ export class RealtimeHub {
             ns: request.ns,
             namespacePath: repoDir,
           })) {
+            if (!this.changeMatchesSubscriber(replayAllow, change)) continue;
             replayFrames.push(changeFrame(this.eventFor(request.ns, change)));
           }
         }
@@ -633,6 +645,23 @@ export class RealtimeHub {
     }
   }
 
+  /**
+   * The one allow-list predicate for what a subscriber may see, shared by the
+   * live fan-out and the cursor replay: a change leaves the feed only when it
+   * is inside BOTH the subscriber's resolved table and op allow-lists. The
+   * replay path must apply it too — a resuming `ops=delete` consumer must
+   * never receive the historical inserts the live filter would exclude.
+   */
+  private changeMatchesSubscriber(
+    allow: { tables: string[]; ops: ChangeOperation[] },
+    change: DerivedChange,
+  ): boolean {
+    return (
+      allow.tables.includes(change.record.table) &&
+      allow.ops.includes(change.record.op)
+    );
+  }
+
   private deliver(feed: FeedState, changes: DerivedChange[]): void {
     for (const change of changes) {
       if (feed.subscribers.size === 0) return;
@@ -645,8 +674,7 @@ export class RealtimeHub {
       };
       for (const subscriber of [...feed.subscribers]) {
         if (subscriber.closed) continue;
-        if (!subscriber.tables.includes(change.record.table)) continue;
-        if (!subscriber.ops.includes(change.record.op)) continue;
+        if (!this.changeMatchesSubscriber(subscriber, change)) continue;
         const decision = authorizeTableAccess(
           subscriber.principal,
           feed.ns,

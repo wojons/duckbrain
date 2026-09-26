@@ -702,3 +702,64 @@ Also on this HEAD: `DUCKBRAIN_AUTH_FILE=<fresh> token` CREATES the store
 Numbers: POST write 0.19 s mean warm (n=10, embedding included); s3 query
 3.6 s cold / 3.9 s warm (≈2 s is node+DuckDB boot); pull 4.6 s (6 objects);
 push 1.6 s delta. Nothing user-visible slow enough for a PERF row.
+
+---
+
+## Run 12 (2026-09-26) — the examples/ on-ramp + concurrency contract
+
+**How this surface works.** The `examples/` tree is the front door for
+integrators: `http-api` (a small JS client class + curl walkthrough),
+`mcp-client` (Claude-Desktop-style stdio config), `custom-storage` (a config
+tuning example). The HTTP CLI (`bin/duckbrain.ts`) parses only
+`--port/--bind-all/--auth/--auth-file/--rate-limit/--unix-socket*`; there is no
+`--config` flag — configuration comes from `DUCKBRAIN_CONFIG_PATH` (or the
+default `duckbrain.config.json` in the config dir) plus `DUCKBRAIN_NAMESPACES_PATH`.
+Port defaults to 3000 — which on this box is the production daemon. The write
+schema is validated in layers, each returning crisp 400s — except key-path
+validation, which 500s (filed). The FTS index (`?contains=`) is built per
+namespace from the JSONL partitions; rebuild is `duckbrain search-index rebuild`
+(works via CLI; the daemon's `/cli` route whitelists commands and correctly
+refuses `search-index`). Semantic `?q=` falls back to keyword ranking when no
+embedding provider answers — that graceful path is why `?q=hello` returned 200
+with results on a providerless scratch daemon.
+
+**Why the pidfile incident matters.** `startHttpMode` derives the pidfile name
+from the requested port (`/tmp/duckbrain-http-<port>.pid`) and treats a pidfile
+belonging to another running process as "stale": it logs `Removed stale
+pidfile`, overwrites it, and — because port 3000 was occupied by prod — exits
+on EADDRINUSE with exit 0. Run it as root-equivalent user on the same box as
+prod and you have deleted the production pidfile before dying. Evidence:
+scratch boot log + pidfile content flip (prod pid → scratch pid → restored).
+Right way: refuse to remove a pidfile whose pid is alive and is not ours, and
+exit nonzero on bind failure.
+
+**Errors hit this run, and their fixes (the right way per finding):**
+
+- `Unknown command: --` from `pnpm start -- http …` — pnpm's `--` separator is
+  forwarded verbatim to the CLI. Right way: `node bin/duckbrain.js http …`, or
+  fix package.json to strip the separator (filed, DF-0926-01).
+- `Cannot use 'import.meta' outside a module` — example is ESM in a CJS repo.
+  Right way: run the copy as `.mjs` (dogfood did); durable fix is the example's
+  own extension or `"type": "module"` scoping (same row).
+- 400 `Missing required fields: key, domain, content` → 400 `content must be a
+  string` → 400 domain-enum → 500 key-path — the example teaches 4 wrong
+  fields in a row. Right-way payload:
+  `{"key":"/x/y","domain":"concept","content":"…","attributes":{},"embedding_text":"…"}`.
+- MCP zod -32602 chains — remember needs `domain`+`attributes`+`embedding_text`;
+  `switch_namespace` takes `{name}`. The errors are excellent; the example is
+  stale against the schema.
+- FTS misses (`contains=Hello` → 0 on verbatim-stored content) survived a
+  rebuild with rowCount 2 — deterministic per-term, not stale-index; needs the
+  index writer fixed (DF-0926-03), not more rebuilds.
+- nvm first-attempt CDN failure on the fresh box — retried, succeeded; README
+  hint would save a fresh user the same retry.
+
+**Bunker destroy defect (infra, not this repo).** On dedi-2, `bunker destroy`
+now reports `deadline_exceeded` while the daemon log shows the full destroy
+sequence running — archive verified, prune done, registry unregistered, "agent
+destroyed" — but `userdel` is `context canceled` mid-flight by the CLI's
+deadline. Result: a "destroyed" agent that is still ssh-able with a live home.
+Run-11's "shrink the home" workaround does not fix this one (still failed at
+240 MB). Manual `userdel -r` over root ssh completed the cleanup. The fix
+belongs in bunker (wait on userdel / retry / make the deadline ≥ the archive
+verify), and the CLI should treat deadline as UNKNOWN, not failure-to-cleanup.

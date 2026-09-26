@@ -31,6 +31,7 @@ import {
   appendAuditLedger,
   type AuditLedgerLimits,
 } from "./auditLedger";
+import { invalidateKeysCache } from "../keys/keyListCache";
 import {
   declaredSchemaVersion,
   keyMaterialFor,
@@ -42,6 +43,7 @@ import {
   tokenStillCurrent,
   type NamespaceWriteLock,
 } from "./lock";
+import { runOutsideCommitGate } from "../git/autocommit";
 import { tableSchemaRegistry, type TableSchemaRegistry } from "./registry";
 import type {
   AuthorizationDecision,
@@ -785,7 +787,22 @@ export class NamespaceWriter implements AuditSink {
     }, FLUSH_FAN_IN_MS);
   }
 
+  /**
+   * DF-0925-02 — the flush runs OUTSIDE the same-process commit gate: an
+   * in-flight commit chain (scheduled by an earlier flush) completes its
+   * stage→commit under the file lock first, then this flush takes the lock
+   * with its whole data+audit batch. Waiting on the gate instead of racing
+   * the commit to the fail-fast file lock is what keeps a burst from failing
+   * SERIALIZER_LOCKED once commits are fenced (autocommit `withCommitGate`).
+   * Cross-process exclusion stays with the file lock itself.
+   */
   private async flushOnce(): Promise<void> {
+    return runOutsideCommitGate(this.namespacePath, () =>
+      this.flushOnceLocked(),
+    );
+  }
+
+  private async flushOnceLocked(): Promise<void> {
     if (this.scheduled) {
       clearTimeout(this.scheduled);
       this.scheduled = null;
@@ -959,6 +976,11 @@ export class NamespaceWriter implements AuditSink {
       );
       for (const partition of partitions)
         addPartition(this.namespacePath, partition);
+      // PERF-001: accepted data writes change the key list (remember adds,
+      // forget tombstones) — drop the key-list cache entry so the next
+      // list_keys read rebuilds. Best-effort (never throws); the read path's
+      // fingerprint signal is the safety net.
+      if (dataEntries.length > 0) invalidateKeysCache(this.namespacePath);
       if (dataEntries.length > 0 || auditLines.length > 0) {
         this.scheduleCommit(this.namespacePath);
         // DB-SUPA-5: wake the change feed. The feed still publishes only what

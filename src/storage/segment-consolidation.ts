@@ -64,6 +64,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { compareChunkNames, getNextChunkName } from "./jsonl";
+import {
+  invalidateKeysCache,
+  namespacePathForPartition,
+} from "../keys/keyListCache";
 
 /**
  * Maximum records per segment. Mirrors `MAX_LINES_PER_CHUNK` in `./jsonl`
@@ -758,6 +762,11 @@ export function executeSegmentConsolidation(
     );
   }
   assertOrderPreserved(partitionPath, orderBefore);
+
+  // PERF-001: consolidation renames/splits/merges segment files — invalidate
+  // the key-list cache so the next list_keys read rebuilds (best-effort).
+  const perfNsPath = namespacePathForPartition(partitionPath);
+  if (perfNsPath) invalidateKeysCache(perfNsPath);
 
   const stats = {
     ...plan.stats,

@@ -387,7 +387,8 @@ export function collectNamespaceJsonl(namespacePath: string): string[] {
         if (
           ent.name === ".git" ||
           ent.name === ".embeddings" ||
-          ent.name === ".search"
+          ent.name === ".search" ||
+          ent.name === ".keys"
         ) {
           continue;
         }

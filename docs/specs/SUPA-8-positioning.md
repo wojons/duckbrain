@@ -21,7 +21,7 @@ Target audiences are:
 
 1. Agent-platform engineers who need durable, inspectable memory with MCP and HTTP access.
 2. Teams that value namespace-local git history, branch/ref investigation, and offline-readable JSONL over a hosted opaque database service.
-3. Developers evaluating an embedded/agent-first data layer who need to distinguish DuckBrain's current memory product and implemented-on-branch role/auth controls (pending public release evidence) from planned generic REST, realtime, and declared-DDL work.
+3. Developers evaluating an embedded/agent-first data layer who need to distinguish DuckBrain's current memory product and implemented-on-branch role/auth controls (pending public release evidence) from planned generic REST and declared-DDL work.
 
 Approved one-sentence category statement, for README lead and docs overview:
 
@@ -42,7 +42,7 @@ The phrase may appear only with its qualifier in the same paragraph or adjacent 
 | per-namespace serialized writes and audit rows | Implemented by SUPA-2; evidence must be checked before public promotion | `src/serialization/namespaceWriter.ts:670-850`; public claims require current tests and release proof |
 | declared schema and generic table REST | Planned by SUPA-3/SUPA-6 | Use future tense only: “planned declared-schema generic REST” |
 | role grants, auth backends, and token lifecycle | Implemented on branch by DB-SUPA-4; pending public release evidence | `src/auth/middleware.ts`; `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, and `src/auth/backend-interface.test.ts`; say “implemented-on-branch role/auth controls awaiting release evidence,” never “available now” from board status alone |
-| committed resumable change feed | Planned by SUPA-5 | Use future tense only: “planned committed SSE change feed” |
+| committed resumable change feed | Shipped (2026-09-25): route `src/http/routes/realtime.ts` merged on `main`, `src/http/realtime/` implementation, named tests `src/http/routes/realtime-*.test.ts` green; known issues DF-0925-01/02 tracked | Say “shipped committed resumable SSE change feed”; known-issue caveats per the SUPA-5 spec’s Known Issues section |
 | hosted tenant management, billing, global control plane | Explicit non-goal | Do not imply it exists |
 | full PostgREST grammar, Supabase Realtime protocol, full Supabase SDK parity | Explicit non-goal | Do not imply compatibility |
 
@@ -130,7 +130,7 @@ Sources:
 ## Dependencies
 
 - **Current repository proof.** `AGENTS.md`, `src/git/autocommit.ts`, `src/git/asof.ts`, `src/cli/http.ts`, and `src/serialization/namespaceWriter.ts` provide the source-backed current-state claims. Documentation implementation must re-check line references on its target commit.
-- **SUPA implementation dependencies.** SUPA-3 supplies planned generic resource REST, DB-SUPA-4 supplies implemented-on-branch role/auth semantics with source and named Vitest evidence in `src/auth/middleware.ts`, `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, and `src/auth/backend-interface.test.ts`, SUPA-5 supplies planned committed change feed, and SUPA-6 supplies planned declared DDL. A complete board row and source/test presence establish the implemented-on-branch classification, but neither is public-release evidence for an “available now” claim.
+- **SUPA implementation dependencies.** SUPA-3 supplies planned generic resource REST, DB-SUPA-4 supplies implemented-on-branch role/auth semantics with source and named Vitest evidence in `src/auth/middleware.ts`, `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, and `src/auth/backend-interface.test.ts`, SUPA-5 supplies the shipped committed change feed (`src/http/routes/realtime.ts`, `src/http/realtime/`, named tests green 2026-09-25), and SUPA-6 supplies planned declared DDL. A complete board row and source/test presence establish the implemented-on-branch classification, but neither is public-release evidence for an “available now” claim.
 - **Documentation implementation dependencies.** A planned docs check (`scripts/docs-positioning.test.mjs` or repository-equivalent) must own the prohibited-claim deny-list, matrix owner rule, reference labels, and URL link validation. It must be run in CI with outbound links allowed or in a scheduled evidence job whose committed result is CI-consumed.
 - **Authoritative source handling.** Sources [1]-[6] above are the initial approved list. They are primary official sources where stated; [1] and [4] are explicitly precedent, while [2] is an analogy bounded by its PostgreSQL-only reality. Their inclusion creates no runtime dependency.
 

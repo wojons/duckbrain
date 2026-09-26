@@ -19,6 +19,14 @@ export interface NamespaceWriteLock {
   namespacesPath: string;
 }
 
+/**
+ * Optional subsystem tag inside the lock payload. Written by the commit path
+ * (`owner: "commit"`) so lock payloads are attributable in diagnostics; the
+ * same-process flush/commit ordering itself is enforced by the in-process
+ * commit gate below, not by this field.
+ */
+export type NamespaceLockOwner = "commit";
+
 export function namespaceWriteLockPath(
   namespacesPath: string,
   ns: string,
@@ -28,6 +36,32 @@ export function namespaceWriteLockPath(
     ".duckbrain-write",
     `${ns}.lock`,
   );
+}
+
+export interface NamespaceWriteLockPayload {
+  pid: number;
+  ts: number;
+  nonce: string;
+  owner?: NamespaceLockOwner;
+}
+
+/**
+ * Read and validate the CURRENT lock payload for a namespace (null when no
+ * lock file exists or its content is corrupt). Used by a waiter to decide
+ * whether the live holder is one it can cooperate with.
+ */
+export function readNamespaceWriteLockPayload(
+  namespacesPath: string,
+  ns: string,
+): NamespaceWriteLockPayload | null {
+  try {
+    const parsed = JSON.parse(
+      fs.readFileSync(namespaceWriteLockPath(namespacesPath, ns), "utf-8"),
+    ) as unknown;
+    return validPayload(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function validPayload(value: unknown): value is LockPayload {
@@ -66,6 +100,7 @@ function shouldBreak(lockPath: string): boolean {
 export function acquireNamespaceWriteLock(
   namespacesPath: string,
   ns: string,
+  owner?: NamespaceLockOwner,
 ): NamespaceWriteLock | null {
   const lockPath = namespaceWriteLockPath(namespacesPath, ns);
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
@@ -77,7 +112,12 @@ export function acquireNamespaceWriteLock(
       try {
         fs.writeSync(
           fd,
-          JSON.stringify({ pid: process.pid, ts: Date.now(), nonce: token }),
+          JSON.stringify({
+            pid: process.pid,
+            ts: Date.now(),
+            nonce: token,
+            ...(owner ? { owner } : {}),
+          }),
         );
       } finally {
         fs.closeSync(fd);

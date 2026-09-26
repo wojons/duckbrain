@@ -1,0 +1,351 @@
+commit 42cea0a1280c8d4937d95285b1f8c72feacaa62d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Fri Sep 25 17:22:28 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Fri Sep 25 17:22:28 2026 -0500
+
+    dogfood: duckbrain run 11 SHIPPABLE-ON-THIS-SURFACE — S3 tier pushed/queried/shared live; DR pull broken on fresh machines (DF-0925-07/08)
+    
+    Integration report (docs/dogfood/2026-09-25-s3-native-tier.md), diagnostics
+    Run 11, skills/duckbrain-usage v1.10.0 (S3 section + pitfalls 21-22),
+    dogfood-log entry. Fresh-machine leg on dedi-2 bunker agent 8be0cc13
+    (destroyed): README quickstart green. Scratch prefix cleared; prod untouched.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .coding-hermes/dogfood-log.md             |  52 ++++++++++++
+ docs/dogfood/2026-09-25-s3-native-tier.md | 129 ++++++++++++++++++++++++++++++
+ docs/dogfood/diagnostics.md               |  54 +++++++++++++
+ skills/duckbrain-usage/SKILL.md           |  48 ++++++++++-
+ 4 files changed, 282 insertions(+), 1 deletion(-)
+
+diff --git a/.coding-hermes/dogfood-log.md b/.coding-hermes/dogfood-log.md
+index 0420343..51c087d 100644
+--- a/.coding-hermes/dogfood-log.md
++++ b/.coding-hermes/dogfood-log.md
+@@ -281,3 +281,55 @@ Continuation work:
+ 
+ Verdict for the tick: OK — prior work recovered and pushed, CI failure surfaced with a board row,
+ no duplicated dogfood run.
++## Run 11 — 2026-09-25 (tick duckbrain-dogfood-2026-09-25-21-34-39) — Verdict: SHIPPABLE-ON-THIS-SURFACE (S3 push/query/share all real; fresh-machine DR restore broken)
++
++- **Angle:** the Native S3 storage tier — the README flagship (SQL over the
++  archive, ~30s RPO autopush, multi-host memory). Runs 1–10 only ever probed
++  `s3 status` with the tier off; this run pushed, restored, queried, and
++  shared memory over the real Hetzner bucket, on an isolated scratch prefix
++  (`duckbrain-dogfood-s3`), with scratch config/auth/namespaces roots.
++- **Promise tested:** "enable s3.enabled → autopush on commit → SQL over S3
++  without restoring → pull on another machine = DR + shared memory."
++- **What held up (live-verified):** manifest autopush after the 30s debounce
++  (6 objects incl. manifest + _audit); delta push byte-exact; `s3 query`
++  via httpfs (row-level SELECTs, 3.6–3.9 s incl. DuckDB boot); restore →
++  daemon → 9/9 read-back; write-after-restore 201; two-host round trip —
++  host B's 11 writes pushed, pulled onto host A, served by A's RUNNING
++  daemon with no restart; `s3 clear` dry-run/real (6/6, audit flags); `s3
++  ghosts` read-only. Fresh-machine leg on ephemeral dedi-2 agent 8be0cc13
++  (destroyed): README quickstart green verbatim on bare Ubuntu 24.04
++  (node 7 s / clone 4 s / pnpm install 10 s / full smoke incl. stored-content
++  read-back); `s3 status` with no creds/config = clean "disabled", exit 0.
++- **Top findings:**
++  1. **DF-0925-07 (P1)** — fresh-machine DR restore is broken: `s3 sync <ns>
++     pull` on an empty root → "Namespace not found"; `sync all pull` → exit
++     0 "0 namespaces, 0 files transferred" (silent no-op); undocumented
++     `namespace create` unlocks the pull but git history never returns
++     (data-only).
++  2. **DF-0925-08 (P2)** — no documented path wires the per-namespace
++     `s3daily` remote (git-mirror autopush silently never fires for new
++     namespaces); README's "global git identity required" is stale (fresh
++     box passed with none, synthetic author stamped); `s3 status` can't see
++     API-created namespaces (registry split-brain on the S3 surface).
++  3. **Noted, not filed** — on this HEAD `DUCKBRAIN_AUTH_FILE=<fresh path>
++     token` CREATED the store, contradicting pending DF-0925-06 (possibly
++     fixed or invocation-dependent; verify before re-filing).
++- **Time-to-first-success:** ~6 min from config enable to first autopush
++  landed on the bucket (2 min of it my own token-grep mistake — the mint
++  output prints the full token once above a truncated example line).
++- **Perf (Step 2b):** POST write 0.19 s mean warm (n=10, embedding incl.);
++  s3 query 3.6 s cold / 3.9 s warm (≈2 s process boot); pull 4.6 s; delta
++  push 1.6 s. Nothing user-visible slow enough for a PERF row.
++- **Install leg:** DONE, not skipped — las-bunker-03 unreachable (ssh
++  timeout) and las-02 bunkerd crash-looping (exit 1 auto-restart), so the
++  ephemeral agent ran on dedi-2 (bunkerd active, registered for this run).
++  Install 21 s total to a bootable daemon; smoke passed. Infra note: bunkerd
++  destroy ABORTS with home retained when the pre-delete home archive
++  exceeds its own kill window (>1 GB node_modules home suffices) — shrink
++  then destroy; TTL unaffected.
++- **Left behind:** docs/dogfood/2026-09-25-s3-native-tier.md (integration
++  report + paste-ready recipe), diagnostics.md Run 11, skills/duckbrain-usage
++  v1.10.0 (S3 section + pitfalls 21–22), DF-0925-07/08 on the board
++  (surgical append 240→242 rows, numstat 2/0 verified, commit 29cbd6f),
++  this entry. Scratch prefix cleared via the product's own `s3 clear`
++  (6/6 deleted, bucket prefix empty); prod auth/namespaces untouched.
+diff --git a/docs/dogfood/2026-09-25-s3-native-tier.md b/docs/dogfood/2026-09-25-s3-native-tier.md
+new file mode 100644
+index 0000000..099b7ce
+--- /dev/null
++++ b/docs/dogfood/2026-09-25-s3-native-tier.md
+@@ -0,0 +1,129 @@
++# DuckBrain Integration — Native S3 Storage Tier, 2026-09-25
++
++Run 11 of the dogfood series. Angle: the S3 flagship — every prior run probed
++`s3 status` while the tier was disabled or absent; nobody had ever pushed,
++restored, queried over the bucket, or shared memory between two hosts.
++
++## Verdict: SHIPPABLE-ON-THIS-SURFACE for push/query/share; the DR promise fails at fresh-machine restore
++
++What a user gets today, verified live against a real Hetzner bucket
++(`duckbrain`, scratch prefix `duckbrain-dogfood-s3`, never prod data):
++
++- **Autopush (manifest/JSONL tier)**: enable `s3.enabled` + `pushOnCommit`,
++  write memories, and namespace JSONL partitions + `manifest.json` +
++  `_audit/current.jsonl` land on S3 automatically after the 30s commit
++  debounce. No cron, no manual push. Delta pushes are byte-exact: after
++  writes 7–9, remote partitions grew to identical sizes (836/562/551/587 B)
++  with local copies.
++- **SQL over S3**: `duckbrain s3 query "SELECT … FROM read_json_auto('s3://…')"`
++  returns real rows straight from the bucket, 3.6–3.9 s wall including DuckDB
++  boot (~1 s user time; the rest is process start + httpfs GETs). No restore
++  step. This is the killer feature and it just works on Hetzner.
++- **Two-host shared memory, full round trip**: host A writes 9 → autopush →
++  host B restores (create + pull) → B writes 11 more → push (uploaded=2,
++  skipped=4) → A pulls (downloaded=2) → **A's already-running daemon served
++  B's memories with no restart**. Shared memory over S3 is real.
++- **Restore serves traffic**: booted a second daemon on the restored root;
++  9/9 memories read back by id, prefix, and content; write-after-restore 201.
++- **Safety commands**: `s3 clear --dry-run` lists exactly the 6 prefix
++  objects without touching them; real `clear --yes --requested-by=… --reason=…`
++  deleted 6/6 and left the bucket prefix empty. `s3 ghosts` lists state that
++  outlives its namespace dir (read-only).
++
++Where the promise breaks — **fresh-machine DR restore** (DF-0925-07, P1):
++
++```
++$ duckbrain s3 sync dfs3-journal pull        # on an EMPTY namespaces root
++Error: Namespace not found: dfs3-journal
++$ duckbrain s3 sync all pull                 # same empty root
++[S3] pull complete: 0 namespaces, 0 files transferred   # exit 0 — silent!
++$ duckbrain namespace create dfs3-journal    # the undocumented unlock
++$ duckbrain s3 sync dfs3-journal pull        # now works (6 files, 4.6 s)
++```
++
++…and even then the namespace git repo is empty (`master` has no commits):
++git history never travels through the pull path. Data survives; the
++"version-controlled" half of multi-host memory does not.
++
++## The working recipe (paste-ready, verified 2026-09-25)
++
++```bash
++# 0. one-time env: git-remote-s3 + awscli in a venv (see docs/guide/getting-started.md),
++#    credentials via AWS_PROFILE — never in config.
++
++# 1. enable the tier in duckbrain.config.json
++#    "s3": { "enabled": true, "pushOnCommit": true, "intervalSec": 60,
++#            "endpoint": "https://hel1.your-objectstorage.com",
++#            "bucket": "duckbrain", "prefix": "<your-prefix>", "forcePathStyle": true }
++#    → restart the daemon so autocommit picks up pushOnCommit.
++
++# 2. write normally (REST/MCP/CLI). Commits + pushes happen on their own.
++duckbrain s3 status                 # per-ns local/remote counts + lastSync
++
++# 3. query the bucket without restoring (httpfs; s3_url_style=path + forcePathStyle for Hetzner)
++duckbrain s3 query "SELECT key, domain FROM read_json_auto('s3://<bucket>/<prefix>/<ns>/concept/2026-09/current.jsonl')"
++
++# 4. second host — data-only shared memory (NOT a full DR restore yet, see DF-0925-07)
++duckbrain namespace create <ns>     # REQUIRED before first pull
++duckbrain s3 sync <ns> pull
++# ...boot a daemon on this root; writes need `s3 sync <ns> push` unless pushOnCommit is on
++```
++
++Isolation (scratch-on-real-bucket) that worked: dedicated `prefix`
++(`duckbrain-dogfood-s3`) + `DUCKBRAIN_NAMESPACES_PATH`/`DUCKBRAIN_CONFIG_PATH`
++to /tmp + `DUCKBRAIN_AUTH_FILE` scratch store + `AWS_PROFILE=duckbrain` only
++in the scratch shells. Proven afterwards: prod auth md5 unchanged, 254 prod
++namespaces untouched, scratch `s3 clear` emptied only its own prefix.
++
++## Errors hit and what they taught
++
++| Symptom | Cause | Lesson |
++|---|---|---|
++| 401 on every request with a "correct" token | mint output prints the full token once ABOVE a truncated `X-API-Key: be2bd2…0b2` example line | grep the `Generated API token:` line, not the example. A "token" CLI that doesn't re-print is fine; the example is the trap. |
++| Auth store not seen by running daemon after second mint | auth store is read at boot (hot-reload only fires on change events per DF-0925-05) | mint all scratch tokens BEFORE starting the daemon. |
++| `400 Invalid domain 'decision'` | domain enum is person\|event\|concept\|message\|config\|raw_note | the error message itself lists the values — good error design. |
++| `s3 sync all pull` restoring nothing, exit 0 | pull enumerates LOCAL namespaces only | treat any DR restore with "0 namespaces" as a failure until proven otherwise. |
++| Remote prefix had objects after first writes with no push run | `s3.enabled`+`pushOnCommit` autopushes JSONL/manifest from the daemon itself | autopush ≠ the git-mirror autopush (AUTOPUSH-001); the latter needs an `s3daily` remote per namespace (DF-0925-08). |
++
++## Fresh-machine leg (ephemeral bunker, dedi-2 agent 8be0cc13, destroyed)
++
++las-bunker-03 (the skill's default host) was down (ssh timeout) and las-02's
++bunkerd was crash-looping (exit 1, auto-restart) — dedi-2 registered instead.
++Bare Ubuntu 24.04 user, no node/pnpm, no git identity, no AWS creds:
++
++- README quickstart verbatim: nvm node 22 → 7 s; corepack pnpm 12.4.2;
++  clone from the README's public origin → 4 s; `pnpm install` → 10 s RC=0;
++  health 503-degraded (expected), namespace create + write + read-back all
++  green, stored content returned verbatim.
++- Fresh-user S3 surface with no creds/config: `s3 status` → "S3 config:
++  disabled", exit 0, no stack trace. Inert-by-default holds.
++- Docs drift found on the fresh box: README says a global git identity is
++  required; the daemon wrote fine without one (synthetic
++  `duckbrain@localhost.localdomain` author — corroborates GIT-IDENTITY-001).
++  See DF-0925-08.
++
++Also noted for the foreman: on this HEAD, `DUCKBRAIN_AUTH_FILE=<fresh path>
++token --name=x` CREATED the store (contradicts pending DF-0925-06 /
++pitfall-20 note; possibly fixed or invocation-dependent).
++
++## Measurements (Step 2b)
++
++| Operation | Number | Conditions |
++|---|---|---|
++| REST POST write (warm) | 0.19 s mean (0.16–0.25, n=10) | :3797 restored-root daemon; includes embedding call — good |
++| `s3 query` over bucket | 3.6 s cold / 3.9 s warm | incl. node+DuckDB boot ~2 s, rest httpfs GETs |
++| First full pull (6 objects) | 4.6 s | empty root, after `namespace create` |
++| Delta push | 1.6 s (uploaded=2 skipped=4) | single-ns sync |
++| Autopush latency write→remote | ≤ ~60 s | 30 s debounce + interval gate (by design) |
++
++Nothing here is slow enough to file a PERF row: user-visible latency is
++either sub-second (writes) or bounded by documented debounce/interval
++design. The heavyweight op (SQL over S3) is fast for its class.
++
++## Cleanup performed
++
++Scratch daemons stopped; scratch bucket prefix cleared via the product's own
++`s3 clear` (6/6, failed=0); ephemeral bunker agent destroyed (note: destroy
++needed a home-shrink first — bunkerd's destroy aborts when the pre-delete
++home archive exceeds its own window; a >1 GB node_modules home is enough.
++Infra-side, not a repo defect; TTL backstop unaffected).
+diff --git a/docs/dogfood/diagnostics.md b/docs/dogfood/diagnostics.md
+index 8d9ff68..4c63e4f 100644
+--- a/docs/dogfood/diagnostics.md
++++ b/docs/dogfood/diagnostics.md
+@@ -648,3 +648,57 @@ and the UI's own production bundle.
+ - write ack → subscriber event: 9.2 s measured (bounded by the 30s debounce)
+ - 500-write burst through 100 rpm limiter: 103×201 + 97×429; ledger exactly
+   equals acked writes; feed replay later delivered 100% of them, contiguous.
++
++## Run 11 — 2026-09-25 dogfood (S3 native tier — the flagship never pushed)
++
++Why this run exists: runs 1–10 exercised MCP/REST/CLI/auth/deletion/as-of/
++web-UI/SSE but never pushed a byte to the bucket. The S3 tier is the
++README's most distinctive claim (SQL over the archive, ~30s RPO, multi-host
++memory) and its only previous live evidence was `s3 status` with the tier
++off.
++
++How the tier actually works, learned by using it (two independent paths —
++this distinction explains most of the S3 surprise-bugs ever filed):
++
++1. **Manifest/JSONL sync** (`src/s3/sync.ts`, `duckbrain s3 sync`,
++   `s3.enabled`+`pushOnCommit` autopush): the daemon walks namespace files,
++   diffs against `.s3state/<ns>.json`, PUTs changed JSONL partitions +
++   `manifest.json` + `_audit/current.jsonl`. Excludes `.git/`. This is what
++   "SQL over S3" reads — the remote copy is query-shaped, not a git mirror.
++2. **Git-mirror autopush** (AUTOPUSH-001, `selectPushRemote`): shells out to
++   `git push s3daily <branch>` per commit flush. Requires a per-namespace
++   `s3daily` remote — which NOTHING creates or documents for new namespaces
++   (DF-0925-08). Empty remotes = this path silently does nothing.
++
++The paths do not share endpoint precedence (s3-native.md's Path A/B tables —
++`AWS_ENDPOINT_URL_S3` is the one env var that wins on both; we left both
++unset and used config `s3.endpoint`, which kept them consistent).
++
++What worked end-to-end on a real bucket (scratch prefix): autopush of all
++partitions after the 30s debounce; byte-exact delta push; SQL over S3 via
++httpfs (row-level projections, 3.6–3.9 s); restore → daemon → 9/9 read-back;
++write-after-restore; two-host round trip where a RUNNING daemon on host A
++served host B's writes after `s3 sync pull` with no restart; `s3 clear`
++dry-run/real with requested-by+reason audit; `s3 ghosts` listing.
++
++What failed and why it matters: the DR promise ("pull on another machine =
++DR") breaks at fresh-machine bootstrap. Pull resolves namespaces from the
++LOCAL config only, `sync all pull` claims success with 0 restored, and the
++pulled namespace has no git history (data-only). Filed DF-0925-07 (P1).
++The fix shape is bootstrap-then-pull (materialize namespaces found under
++the remote prefix) — the manifest already lists everything pull needs.
++
++Fresh-machine leg (dedi-2 agent 8be0cc13, destroyed; las-03 down, las-02
++bunkerd crash-looping): README quickstart green verbatim on bare Ubuntu 24.04
++(node 7s/pnpm 10s/install RC 0/health 503-expected/full write-read happy
++path). `s3 status` with no config = clean "disabled", exit 0. Docs drift:
++git identity NOT required (stale README claim, corroborates
++GIT-IDENTITY-001). Infra lesson: bunkerd destroy ABORTS (home retained,
++user kept) when the pre-delete home archive exceeds its own kill window —
++a >1 GB node_modules home suffices; shrink the home, then destroy.
++Also on this HEAD: `DUCKBRAIN_AUTH_FILE=<fresh> token` CREATES the store
++(contradicts pending DF-0925-06 — verify before re-filing).
++
++Numbers: POST write 0.19 s mean warm (n=10, embedding included); s3 query
++3.6 s cold / 3.9 s warm (≈2 s is node+DuckDB boot); pull 4.6 s (6 objects);
++push 1.6 s delta. Nothing user-visible slow enough for a PERF row.
+diff --git a/skills/duckbrain-usage/SKILL.md b/skills/duckbrain-usage/SKILL.md
+index 27e027b..85a8bfa 100644
+--- a/skills/duckbrain-usage/SKILL.md
++++ b/skills/duckbrain-usage/SKILL.md
+@@ -15,7 +15,7 @@ description: >-
+   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
+   'default' + sends zero credentials, DF-0924-05). Load this
+   before integrating DuckBrain into anything or answering "does DuckBrain work?".
+-version: 1.9.0
++version: 1.10.0
+ category: software-development
+ ---
+ 
+@@ -309,6 +309,39 @@ Also: the write→event latency is the `gitBatching.maxSeconds` debounce
+ `token --auth-file` refuses to CREATE a store (DF-0925-06): bootstrap with
+ `echo '{"apiKeys":[]}' > <path>` before the first mint.
+ 
++## S3 storage tier (verified end-to-end 2026-09-25, run 11)
++
++Two independent paths — know which one you mean:
++
++1. **Manifest/JSONL sync** (`s3.enabled` + `pushOnCommit: true` in config →
++   restart daemon): every namespace commit auto-PUTs JSONL partitions +
++   `manifest.json` + `_audit/current.jsonl` to `s3://<bucket>/<prefix>/<ns>/`
++   within ~30s (debounce) + `intervalSec`. Delta-only, byte-exact. This is
++   what `s3 query` reads.
++2. **Git-mirror autopush** (AUTOPUSH-001): pushes the namespace GIT repo to
++   the `s3daily` remote per commit. Requires `git remote add s3daily
++   s3://duckbrain/current/git/<ns>` — NO command/docs create this for a new
++   namespace (DF-0925-08); without the remote it silently does nothing.
++
++```bash
++# query the bucket WITHOUT restoring (httpfs; Hetzner needs forcePathStyle)
++duckbrain s3 query "SELECT key, domain FROM read_json_auto('s3://<bucket>/<prefix>/<ns>/concept/2026-09/current.jsonl')"
++# 3.6–3.9s wall including node+DuckDB boot. Works on Hetzner/R2/MinIO/AWS.
++
++# second host: SHARED MEMORY (data-only — NOT full DR, see pitfall 21)
++duckbrain namespace create <ns>      # REQUIRED before first pull
++duckbrain s3 sync <ns> pull          # downloaded=6 files
++# writes on the second host need pushOnCommit:true (config) or manual:
++duckbrain s3 sync <ns> push          # uploaded=2 skipped=4 style output
++# a RUNNING daemon on either host serves pulled rows with NO restart.
++```
++
++Safety: `duckbrain s3 clear <ns> --dry-run | --yes --requested-by=<who>
++--reason=<why>` destroys ONLY the namespace's remote objects; `s3 ghosts`
++lists sync state outliving its namespace dir (read-only without --sweep).
++Credentials stay in AWS env/profile, never config. `AWS_ENDPOINT_URL_S3` is
++the one env var that overrides the endpoint on BOTH sync and push paths.
++
+ ## Pitfalls that WILL bite you (verified live 2026-08-16/17 against source + scratch daemon)
+ 
+ 1. **MCP `remember` content field is `embedding_text`, NOT `content`**
+@@ -432,6 +465,19 @@ Also: the write→event latency is the `gitBatching.maxSeconds` debounce
+     writes to the same name succeed. On a fresh install the list shows a
+     phantom `default` with `directoryMissing:true`. Trust the write path's
+     answer over the list.
++21. **S3 pull is NOT a DR restore (DF-0925-07, P1).** On a fresh machine
++    `s3 sync <ns> pull` errors "Namespace not found" and
++    `s3 sync all pull` exits 0 with "0 namespaces, 0 files transferred" —
++    silent no-op, not a restore. Pull enumerates LOCAL namespaces only; you
++    must `duckbrain namespace create <ns>` first (undocumented), and even
++    then the namespace git history does NOT come back (data-only restore).
++    Treat any pull reporting 0 restored against a non-empty prefix as a
++    failure. Verified against a real Hetzner bucket 2026-09-25.
++22. **The `s3daily` git-mirror remote is never wired for new namespaces
++    (DF-0925-08).** Autopush's git-half needs
++    `git remote add s3daily s3://duckbrain/current/git/<ns>` per namespace;
++    nothing in README/docs/skill says so, so git history never reaches S3
++    and the JSONL manifest tier is the only thing actually syncing.
+ 
+ ## Testing your changes safely
+ 

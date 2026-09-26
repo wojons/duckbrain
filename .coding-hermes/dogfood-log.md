@@ -333,3 +333,56 @@ no duplicated dogfood run.
   (surgical append 240→242 rows, numstat 2/0 verified, commit 29cbd6f),
   this entry. Scratch prefix cleared via the product's own `s3 clear`
   (6/6 deleted, bucket prefix empty); prod auth/namespaces untouched.
+
+## Run 12 — 2026-09-26 (tick cron dogfood-pick; angle: examples/ on-ramp + concurrency contract) — Verdict: PROMISING-BUT-ROUGH
+
+- **Promise tested:** "a new integrator can follow the repo's own examples
+  (examples/http-api, examples/mcp-client, examples/custom-storage) and the
+  README's Multi-Agent concurrency claim to a working first integration."
+- **What was exercised (scratch daemon :3821, DUCKBRAIN_CONFIG_PATH +
+  DUCKBRAIN_NAMESPACES_PATH isolation, prod :3000 untouched — auth.json md5
+  verified unchanged):** all three example walkthroughs executed as documented;
+  real MCP SDK 1.30.0 stdio session; corrected REST+MCP lifecycle; 12-way
+  concurrent same-key writes; ?q=/contains= search battery; fresh-machine
+  install on bunker dedi-2 agent c667cb35 (destroyed); perf pass.
+- **Top findings (board DF-0926-01..06, tasks 242→248 committed):**
+  1. DF-0926-01 (P0) — examples unusable as shipped: `pnpm start -- <cmd>` →
+     "Unknown command: --" (both READMEs); client.js ESM/CJS SyntaxError; bare
+     `duckbrain http` binds default port 3000, deletes the LIVE prod daemon's
+     pidfile calling it stale, exits 0 on EADDRINUSE (reproduced 2×, prod
+     pidfile restored both times).
+  2. DF-0926-02 (P1) — undocumented ?key=/?query= silently return the
+     UNFILTERED list (discriminator-proven with 2 memories) — the repo's own
+     example client teaches both.
+  3. DF-0926-03 (P1) — ?contains= deterministically misses terms present
+     verbatim in stored content (Hello/from/different → 0; zebra/API → hit),
+     stable across the documented index rebuild (rowCount 2) and commit debounce.
+  4. DF-0926-04 (P1) — DUCKBRAIN_NAMESPACE / DUCKBRAIN_DATA_DIR inert (example +
+     ai-configure.md teach them; MCP write with the env set landed in
+     'default'); DF-0926-05 (P2) custom-storage example documents nonexistent
+     --verify-config/--config + config keys the zod schema drops; DF-0926-06
+     (P3) key-path validation 500s instead of 400.
+- **What held up:** the engine behind the examples — corrected lifecycle works
+  on REST and MCP (real schema: domain enum, string content, attributes,
+  embedding_text; switch_namespace {name}); **concurrency contract exact**
+  (12/12 concurrent same-key POSTs → 12 distinct versions, listed 12/12 —
+  http-api.md:321 holds); ?q= keyword-fallback 200 without a provider; perf
+  POST 13.9ms avg / GET 9.7ms avg warm (n=20) — no PERF row warranted; fresh
+  install 18s with smoke id-match (DF-0919-01/02 still fixed; first nvm
+  attempt hit a transient CDN error, retry succeeded).
+- **Time-to-first-success:** following the repo's own examples verbatim — NOT
+  ACHIEVABLE (4 consecutive blocked steps); with documented API + server error
+  strings as the guide — ~4 min from clean scratch daemon to first
+  write+read-back.
+- **Friction count:** 6 new (→ DF-0926-01..06). 0 regressions in previously
+  verified surfaces touched this run.
+- **Bunker leg:** DONE (not skipped) — dedi-2 agent c667cb35, clone+nvm+
+  corepack+pnpm install 18s, boot+write+read-back smoke id-match, agent
+  destroyed. INFRA DEFECT: `bunker destroy` on dedi-2 deadline-cancels userdel
+  mid-destroy — registry says "destroyed", agent user+home remained ssh-able;
+  row BNK-DF-001 filed on /home/kara/bunker; manual userdel completed cleanup.
+- **Left behind:** docs/dogfood/2026-09-26-examples-integration.md,
+  diagnostics.md Run 12, skills/duckbrain-usage v1.11.0 (pitfalls 23-27 +
+  working quickstart), DF-0926-01..06 (surgical commit; sibling
+  REVIEW-DUCKBRAIN-006..009 rows preserved uncommitted byte-exact), BNK-DF-001
+  on the bunker board, this entry.
