@@ -76,6 +76,8 @@ curl -sN "http://127.0.0.1:3799/api/ns/<ns>/changes?tables=memories" -H "X-API-K
 3. Docs drift (P2/P3): SUPA-5 spec + positioning matrix still say "Planned"
    while the feature ships and works; as_of/asOf doc gaps; token
    --auth-file cannot bootstrap a fresh store.
+   — Resolved 2026-09-25 (DF-0925-03): SUPA-5 spec + positioning matrix now
+   mark the change feed shipped with evidence and known issues (DF-0925-01/02).
 
 ## Numbers (Step 2b / perf law)
 

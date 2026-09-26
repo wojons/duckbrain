@@ -2,14 +2,15 @@
 
 - **Board row:** DB-SUPA-5 (P1, complexity 2)
 - **Spec row:** DB-SUPA-10 (SPEC SET B)
-- **Status:** pending implementation — contract for the build
+- **Status:** Shipped (2026-09-25) — implemented and covered by the named tests below; open defects are listed under Known Issues
+- **Evidence:** route `src/http/routes/realtime.ts` (`GET /api/ns/:ns/changes`, exported from `src/http/routes/index.ts`, mounted at `src/cli/http.ts:511`); implementation modules `src/http/realtime/hub.ts`, `src/http/realtime/replay.ts`, `src/http/realtime/cursor.ts`, `src/http/realtime/wire.ts`; test suites `src/http/routes/realtime-wire.test.ts`, `src/http/routes/realtime-routes.test.ts`, `src/http/routes/realtime-cursor.test.ts`, `src/http/routes/realtime-e2e.test.ts`, `src/http/routes/realtime-auth.test.ts`, `src/http/routes/realtime-fanout.test.ts`, `src/http/routes/realtime-replay.test.ts` (7 suites, 20 tests, green 2026-09-25) plus the legacy-isolation suite `src/http/routes/events.test.ts`; HTTP reference `docs/api/http-api.md` ("Realtime Change Feed (SUPA-5)")
 - **Companion specs:** `docs/specs/SUPA-1-write-durability.md`, `docs/specs/SUPA-2-serialization.md`, `docs/specs/SUPA-3-rest.md`, and `docs/specs/SUPA-4-auth.md`
 
 ## Problem Statement
 
-DuckBrain has an SSE connection scaffold, not a durable change feed. `createEventsRoutes` in `src/http/routes/events.ts:12-138` keeps a process-local `Map<string, Response[]>`, sends an unversioned `connected` payload, broadcasts caller-supplied data, and explicitly says write publishing remains future work (`:4-6`, `:76-80`). It has no table filter, authorization filter, resume cursor, replay store, bounded queue, or coupling to a successful serializer flush. It must not be represented as DB-SUPA-5 implementation.
+DuckBrain's legacy `createEventsRoutes` scaffold in `src/http/routes/events.ts` (a process-local `Map<string, Response[]>` with an unversioned `connected` payload broadcasting caller-supplied data) is **not** the DB-SUPA-5 contract; it remains legacy behavior and must not be represented as DB-SUPA-5 implementation. DB-SUPA-5 is implemented separately (see **Status** above) with its own durable, committed change feed.
 
-The serializer already provides an ordering seam but not a durable cursor. `WriteOperation` is `insert | update | delete` and `WriteRequest` carries namespace, table, operation, row image, principal, and `seq` (`src/serialization/types.ts:3-18`). `NamespaceWriter` assigns `seq` while enqueueing (`src/serialization/namespaceWriter.ts:491-506`), sorts a flush batch by `seq` (`:670-680`), appends data then accepted audit rows (`:763-799`), schedules a namespace git commit (`:801-809`), and returns the accepted sequence (`:811-813`). That `seq` is process-local and resets after restart; it is neither an external cursor nor evidence that a namespace-git commit exists.
+The serializer provides an ordering seam but not an external cursor. `WriteOperation` is `insert | update | delete` and `WriteRequest` carries namespace, table, operation, row image, principal, and `seq` (`src/serialization/types.ts:3-18`). `NamespaceWriter` assigns `seq` while enqueueing (`src/serialization/namespaceWriter.ts:491-506`), sorts a flush batch by `seq` (`:670-680`), appends data then accepted audit rows (`:763-799`), schedules a namespace git commit (`:801-809`), and returns the accepted sequence (`:811-813`). That `seq` is process-local and resets after restart; it is neither an external cursor nor evidence that a namespace-git commit exists.
 
 DB-SUPA-5 supplies one additive, committed-only change feed. The namespace append/audit log is the changelog; there is no broker, global event database, or best-effort process-memory history. Version 1 is SSE. WebSocket is deferred because the stated requirements are server-to-client ordered notifications and resumable replay, both served by SSE with ordinary HTTP auth, proxy behavior, and `Last-Event-ID` support. A future WebSocket transport may consume the same committed event records and cursor contract only after a separate compatibility decision.
 
@@ -42,7 +43,7 @@ A delete is never represented as `row: null`: consumers need a deterministic ide
 
 ### Contract: route, grammar, authorization, and transport decision
 
-The planned module is `src/http/routes/realtime.ts`, exported from `src/http/routes/index.ts` and mounted by `createHttpServer` in `src/cli/http.ts` after the existing auth middleware and before `errorHandler`. The current `/api/events/:namespace` route remains legacy during a documented deprecation window but is not the DB-SUPA-5 contract and must not publish DB-SUPA-5 records.
+The module is `src/http/routes/realtime.ts`, exported from `src/http/routes/index.ts` and mounted by `createHttpServer` in `src/cli/http.ts` (line 511) after the existing auth middleware and before `errorHandler`. The current `/api/events/:namespace` route remains legacy during a documented deprecation window but is not the DB-SUPA-5 contract and must not publish DB-SUPA-5 records.
 
 `GET /api/ns/:ns/changes` is the only v1 subscription route. It requires the SUPA-4 namespace grant plus `tables.read` on every selected table. Its query grammar is deliberately small:
 
@@ -86,9 +87,9 @@ Delivery is at-least-once. On reconnect, a supplied cursor resumes strictly afte
 - **Git commit failure:** `src/git/autocommit.ts:64-124` is currently best-effort and logs a failure. The realtime implementation therefore polls/observes successful reachable `HEAD` movement, not timer execution. A failed commit leaves writes pending and unpublished; this is deliberately observable in metrics and health, not a live event.
 - **New namespace first write:** current `commitNamespaceWithParams` synchronously initializes and commits a first namespace write (`src/git/autocommit.ts:144-155`). The change feed may publish only after that resulting commit is readable.
 - **Authorization changes during an open stream:** authorize at connection, on every replayed event, and before every live enqueue. A revoked grant ends the stream with `event: duckbrain.revoked.v1` then close; it never continues to leak queued rows.
-- **Subscriber limits:** default limits are 100 subscribers per process, 256 queued events and 1 MiB queued payload bytes per subscriber, maximum replay 10,000 events or seven days of first-parent commits, whichever is reached first. Reaching a limit is a specified overflow or `410`, not a memory-growth exception. Configuration is a planned `realtime` block in `DuckBrainConfigSchema`.
+- **Subscriber limits:** default limits are 100 subscribers per process, 256 queued events and 1 MiB queued payload bytes per subscriber, maximum replay 10,000 events or seven days of first-parent commits, whichever is reached first. Reaching a limit is a specified overflow or `410`, not a memory-growth exception. Configuration is the `realtime` block in `DuckBrainConfigSchema` (`src/config/index.ts:108`).
 - **Row images and PII:** authorization is applied before serialization to a subscriber queue. A change record may be retained in namespace git history for authorized auditors, but row-image redaction is not a v1 feature; table access is the boundary.
-- **Legacy events route:** existing `/api/events/:namespace`, its broadcast POST, and stats endpoint are not a compatible resume protocol. They may coexist temporarily but must be marked legacy and cannot share active-connection state with the planned change feed.
+- **Legacy events route:** existing `/api/events/:namespace`, its broadcast POST, and stats endpoint are not a compatible resume protocol. They may coexist temporarily but must be marked legacy and cannot share active-connection state with the change feed.
 
 ## Non-Goals
 
@@ -105,11 +106,11 @@ Delivery is at-least-once. On reconnect, a supplied cursor resumes strictly afte
 - **Namespace git commits — required.** `src/git/autocommit.ts:6-15` distinguishes immediate working-tree writes from debounced history. DB-SUPA-5 needs an observable successful commit boundary, first-parent traversal, parent/child git tree-object comparison, and canonical `_audit` segment+line reconstruction; the existing `src/git/asof.ts:111-257` proves ref resolution and no-checkout reads but only knows memory manifests today.
 - **DB-SUPA-4 auth — required.** `tables.read` and namespace grants gate subscription, replay, and live delivery. The middleware order in `createHttpServer` (`src/cli/http.ts:261-359`) must remain auth before routes.
 - **DB-SUPA-6 declared DDL — required for generic tables.** It supplies table keys and schema versions. `memories` may use the built-in compatibility key `id` while generic table changes wait for declared schemas.
-- **Existing source touchpoints, all planned changes:** `src/http/routes/events.ts` and `events.test.ts` (legacy behavior to isolate), `src/http/routes/index.ts` (new route export), `src/cli/http.ts` (mount), `src/serialization/audit.ts` (accepted replay record with `targetPath`), `src/serialization/namespaceWriter.ts` (append-only `_audit` segment enforcement and post-commit notifier seam), `src/storage/jsonl.ts:82-111` (numeric segment-name basis only), `src/git/asof.ts` (generic committed-ledger tree/object reader), and `src/config/index.ts` (bounded feed configuration). No cursor-signing key, secret store, pre-commit commit-order state, or manifest-based audit membership is a dependency.
+- **Existing source touchpoints:** legacy isolation touches `src/http/routes/events.ts` and `events.test.ts`; the shipped implementation lives in `src/http/routes/realtime.ts` (route export in `src/http/routes/index.ts`), `src/http/realtime/{hub,replay,cursor,wire}.ts`, and the mount in `src/cli/http.ts` (:511); it builds on `src/serialization/audit.ts` (accepted replay record with `targetPath`), `src/serialization/namespaceWriter.ts` (append-only `_audit` segment enforcement and post-commit notifier seam), `src/storage/jsonl.ts:82-111` (numeric segment-name basis), `src/git/asof.ts` (committed-ledger tree/object reader), and `src/config/index.ts` (bounded feed configuration). No cursor-signing key, secret store, pre-commit commit-order state, or manifest-based audit membership is a dependency.
 
 ## Test Plan
 
-All planned suites run through `pnpm test`; these are proposed tests, not current files.
+All suites below exist on disk and run through `pnpm test` (green 2026-09-25: 8 suites / 31 tests including the legacy isolation suite).
 
 | Suite and named check | Acceptance criteria |
 |---|---|
@@ -122,4 +123,9 @@ All planned suites run through `pnpm test`; these are proposed tests, not curren
 | `src/http/routes/realtime-replay.test.ts` — `all audit chunks are discovered before replay`; `multiple flush batches in one commit derive contiguous ordinals`; `restart before commit derives no duplicate or reset ordinal`; `current then numeric segment order is not lexicographic`; `strictly-after replay boundary`; `pruned history returns 410`; `parent prefix violation numeric gap rewrite or deletion fails closed` | AC-3, AC-7, AC-8 |
 | Existing `src/http/routes/events.test.ts` revised as `legacy events route remains isolated` | Regression proof that current broadcast scaffolding is not accidentally treated as the committed feed |
 
-The E2E fixture must run two actual HTTP SSE clients against one server, write through `NamespaceWriter`, force a namespace commit, collect both streams, restart the server, and resume from the captured first event id. It must also exercise a deliberately slow response sink so queue bounds are verified rather than inferred from unit spies.
+The E2E fixture (`src/http/realtime/fixtures.ts`) runs two actual HTTP SSE clients against one server, writes through `NamespaceWriter`, forces a namespace commit, collects both streams, restarts the server, and resumes from the captured first event id. It also exercises a deliberately slow response sink so queue bounds are verified rather than inferred from unit spies.
+
+## Known Issues (open, 2026-09-25)
+
+- **DF-0925-01 (P1):** SSE replay ignores the `ops=` filter — a resuming `?ops=<op>` subscription replays every committed op, not only the requested subset; live delivery filters correctly.
+- **DF-0925-02 (P1):** data/audit split-commit — a write's data row and its accepted audit row can land in different namespace commits, leaving the change temporarily invisible to subscribers (async commit not fenced by the namespace writer lock).
