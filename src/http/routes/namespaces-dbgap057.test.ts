@@ -438,19 +438,26 @@ describe("DB-GAP-057: GET /api/namespaces unions on-disk census with config rows
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dbgap057-union-"));
     nsRoot = path.join(tmpRoot, "namespaces");
     fs.mkdirSync(nsRoot, { recursive: true });
-    // Seed the default namespace the way prod always has it (dir + mapping):
-    // the real listNamespacesTool auto-unshifts a synthetic "default" row
-    // when it is absent from the registry, and a synthetic row without a
-    // directory would pollute the drift census this suite measures.
-    fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
-    registerNamespace(".", "default", path.join(nsRoot, "default"));
-
     savedEnv = {
       DUCKBRAIN_CONFIG_PATH: process.env.DUCKBRAIN_CONFIG_PATH,
       DUCKBRAIN_NAMESPACES_PATH: process.env.DUCKBRAIN_NAMESPACES_PATH,
     };
     process.env.DUCKBRAIN_CONFIG_PATH = path.join(tmpRoot, CONFIG_FILENAME);
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
+    // Seed the default namespace the way prod always has it (dir + mapping):
+    // the real listNamespacesTool auto-unshifts a synthetic "default" row
+    // when it is absent from the registry, and a synthetic row without a
+    // directory would pollute the drift census this suite measures.
+    //
+    // DF-0924-06: the registration MUST happen with the redirect above
+    // already in place. It previously ran first, so registerNamespace(".")
+    // resolved "." to the SUITE-level temp config, the tmpRoot config the
+    // route reads never saw the `default` mapping, and the phantom-default
+    // row papered over the gap. With the DF-0924-06 census union the
+    // dir-without-mapping is truthful onDiskOnly drift, so the seed has to
+    // land in the config this suite actually reads.
+    fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
+    registerNamespace(".", "default", path.join(nsRoot, "default"));
   });
 
   afterEach(() => {
