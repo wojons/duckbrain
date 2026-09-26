@@ -15,7 +15,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.10.0
+version: 1.11.0
 category: software-development
 ---
 
@@ -478,6 +478,75 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     `git remote add s3daily s3://duckbrain/current/git/<ns>` per namespace;
     nothing in README/docs/skill says so, so git history never reaches S3
     and the JSONL manifest tier is the only thing actually syncing.
+23. **The examples/ tree is stale against the real API (DF-0926-01..05,
+    verified 2026-09-26).** `pnpm start -- <cmd>` fails (`Unknown command: --`
+    — use `node bin/duckbrain.js <cmd>`); `client.js` is ESM in a CJS repo
+    (run it as `.mjs`); the example POST/remember payload needs
+    `domain` (enum: person/event/concept/message/config/raw_note),
+    string `content`, and (MCP) `embedding_text` — the example sends none of
+    those; key paths must start with `/` (and key-format validation currently
+    500s, DF-0926-06); `custom-storage` documents a `--verify-config` flag and
+    `--config=<file>` that do not exist. Follow
+    `docs/api/http-api.md` + the server's own 400 messages, not the examples.
+24. **`?key=` and `?query=` on GET /api/memories are silently ignored
+    (DF-0926-02).** They are not in the documented query table, yet the
+    endpoint 200s and returns the UNFILTERED list — a client that thinks it
+    queried one key gets every memory. Use `GET /api/memories/key/:key`
+    (single key), `?contains=` (keyword), `?q=` (semantic), or `?prefix=`.
+25. **`?contains=` keyword search misses common terms (DF-0926-03).** On a
+    2-row namespace, `contains=zebra` hit but `Hello`/`from`/`different`
+    — all verbatim in stored content — returned 0, stable across an index
+    rebuild (rowCount 2) and the commit debounce. Cross-check any
+    "not found" against `?q=` (its keyword fallback DID match "hello") or the
+    raw JSONL before trusting a negative.
+26. **`DUCKBRAIN_NAMESPACE` and `DUCKBRAIN_DATA_DIR` are INERT (DF-0926-04).**
+    Neither is read by the memory path (`DUCKBRAIN_DATA_DIR` only relocates
+    the PID file). The mcp-client example and six config blocks in
+    docs/guide/ai-configure.md recommend them — every agent so configured
+    silently shares namespace `default`. Per-process namespace comes from
+    `--namespace` (human CLI), the config's `defaultNamespace`, or MCP
+    `switch_namespace {name}` — which PERSISTS into duckbrain.config.json
+    (see pitfall 4). On a shared box, never rely on env for isolation.
+27. **Default port is 3000 and a failed bind still "succeeds" (DF-0926-01).**
+    `duckbrain http` without `--port` binds 3000 — the prod daemon's port on
+    this box. When the port is taken the boot log prints
+    `HTTP server started at http://127.0.0.1:3000`, then `Removed stale
+    pidfile`, deletes the LIVE daemon's `/tmp/duckbrain-http-3000.pid`,
+    writes its own pid into it, and exits 0 on EADDRINUSE. Always pass an
+    explicit scratch `--port`, and check the pidfile after any port-conflict
+    boot (prod pid 4066723 had to be restored twice during the 09-26 run).
+
+## HTTP examples quickstart (the working path, 2026-09-26)
+
+Boot a scratch daemon and run the on-ramp flow that actually works (explicit
+port, env-isolated store; schema = what the server actually validates):
+
+```bash
+mkdir -p /tmp/db-scratch/namespaces
+cat > /tmp/db-scratch/cfg.json <<JSON
+{"defaultNamespace":"default","authorEmail":"me@example.test",
+ "namespacesPath":"/tmp/db-scratch/namespaces"}
+JSON
+DUCKBRAIN_CONFIG_PATH=/tmp/db-scratch/cfg.json \
+DUCKBRAIN_NAMESPACES_PATH=/tmp/db-scratch/namespaces \
+node bin/duckbrain.js http --port=3821 --auth=none &
+
+# write (the real schema — domain enum, string content, attributes, embedding_text)
+curl -s -X POST localhost:3821/api/memories -H 'Content-Type: application/json' \
+  -d '{"key":"/examples/http/test","domain":"concept","content":"Hello!",
+       "attributes":{},"embedding_text":"Hello!"}'
+# read one key (documented route — NOT ?key=, which is silently ignored)
+curl -s localhost:3821/api/memories/key/%2Fexamples%2Fhttp%2Ftest
+# search: ?contains= (keyword, offline) or ?q= (semantic; keyword-fallback 200
+# without a provider). ?query=/?key= are silently ignored (DF-0926-02).
+curl -s 'localhost:3821/api/memories?contains=hello&limit=5'
+```
+
+MCP stdio: `node bin/duckbrain.js stdio` with the same DUCKBRAIN_*_PATH envs.
+`remember` needs `{key, content, domain, attributes, embedding_text}`;
+`switch_namespace` takes `{name}` and persists into duckbrain.config.json;
+`forget` takes the memory `id` UUID. N concurrent same-key POSTs are N
+independent versions (verified 12/12 distinct ids, 2026-09-26).
 
 ## Testing your changes safely
 
