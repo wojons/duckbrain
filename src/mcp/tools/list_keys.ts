@@ -7,6 +7,11 @@
 
 import { z } from "zod";
 import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
+import {
+  ensureFreshKeyList,
+  keysCacheEnabled,
+  type KeyListEntry,
+} from "../../keys/keyListCache";
 import { resolveNamespacePath } from "./shared";
 import path from "path";
 import fs from "fs";
@@ -68,6 +73,81 @@ function extractPrefixes(key: string, maxDepth: number): string[] {
 }
 
 /**
+ * PERF-001 warm page: exact JS mirror of the SQL page semantics
+ * (LIKE-prefix filter + LIMIT/OFFSET over the artifact's baked-in
+ * RETR-005 order), plus the same prefix-count post-processing. Returns
+ * null when the input shape is outside what the mirror can guarantee —
+ * the caller then runs the direct SQL path.
+ */
+async function tryServeKeysFromCache(
+  validated: ValidatedListKeysInput,
+  namespacePath: string,
+): Promise<Awaited<ReturnType<typeof runKeysQuery>> | null> {
+  // The SQL pattern is `key LIKE ? || '%'` — a fully literal suffix match.
+  // A prefix containing LIKE wildcards (% or _) would be interpreted as a
+  // pattern by SQL; only serve warm when the prefix has none.
+  const prefix = validated.prefix.endsWith("/")
+    ? validated.prefix.slice(0, -1)
+    : validated.prefix;
+  if (prefix.includes("%") || prefix.includes("_")) {
+    return null;
+  }
+  if (validated.limit < 0 || validated.offset < 0) {
+    return null;
+  }
+
+  const ensured = await ensureFreshKeyList(namespacePath);
+  if (ensured.entries === null) {
+    return null;
+  }
+  return servePageFromEntries(ensured.entries, validated, prefix);
+}
+
+/**
+ * Page + count projection over an ordered key-list artifact. Shared by the
+ * warm path and the benchmark's deep-equal assertion.
+ */
+export function servePageFromEntries(
+  entries: KeyListEntry[],
+  validated: ValidatedListKeysInput,
+  prefix: string,
+): {
+  keys: string[];
+  hasMore: boolean;
+  nextOffset: number | null;
+  prefixes: Record<string, number>;
+} {
+  const matched =
+    prefix === ""
+      ? entries // LIKE '%' — the default '/' input normalizes to ''.
+      : entries.filter((e) => e.key.startsWith(prefix));
+
+  const page = matched.slice(
+    validated.offset,
+    validated.offset + validated.limit + 1,
+  );
+  const hasMore = page.length > validated.limit;
+  if (hasMore) {
+    page.pop();
+  }
+
+  const prefixCounts: Record<string, number> = {};
+  for (const entry of page) {
+    const prefixes = extractPrefixes(entry.key, validated.maxDepth);
+    for (const p of prefixes) {
+      prefixCounts[p] = (prefixCounts[p] || 0) + 1;
+    }
+  }
+
+  return {
+    keys: page.map((e) => e.key),
+    hasMore,
+    nextOffset: hasMore ? validated.offset + validated.limit : null,
+    prefixes: prefixCounts,
+  };
+}
+
+/**
  * Core keys query shared by listKeysTool and the /health keys probe
  * (DB-GAP-035).
  *
@@ -118,6 +198,22 @@ async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
       nextOffset: null,
       prefixes: {},
     };
+  }
+
+  // PERF-001: serve the page from the materialized key list when fresh.
+  // The artifact preserves the SQL read order (RETR-005: __latest DESC
+  // NULLS LAST, key ASC) verbatim, and the prefix filter below is the exact
+  // JS mirror of the SQL `key LIKE ? || '%'` (LIKE has no regex classes and
+  // the prefix is fully literal), so warm pages are deep-equal to cold
+  // full scans. Any shape the mirror cannot guarantee (regex-wildcard
+  // prefixes, degenerate limits) or a failed/unavailable rebuild falls
+  // back to the direct SQL path below — the cache is a speedup or a no-op,
+  // never a correctness change.
+  if (keysCacheEnabled()) {
+    const warm = await tryServeKeysFromCache(validated, namespacePath);
+    if (warm) {
+      return warm;
+    }
   }
 
   // Get DuckDB connection

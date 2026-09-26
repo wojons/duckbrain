@@ -17,6 +17,10 @@ import { getDuckDBConnection } from "../duckdb/connection";
 import { READ_JSON_COLUMNS } from "../duckdb/queries";
 import { execSync } from "child_process";
 import { compareChunkNames } from "../storage/jsonl";
+import {
+  invalidateKeysCache,
+  namespacePathForPartition,
+} from "../keys/keyListCache";
 
 /**
  * Squash operation options
@@ -204,6 +208,11 @@ export async function squashPartition(
     for (const jsonlFile of jsonlFiles) {
       fs.unlinkSync(jsonlFile);
     }
+
+    // PERF-001: a compaction rewrite removes keys — invalidate the key-list
+    // cache so the next list_keys rebuilds (best-effort, never throws).
+    const perfNsPath = findNamespacePath(partitionPath);
+    if (perfNsPath) invalidateKeysCache(perfNsPath);
 
     // Update manifest to reflect Parquet format
     const namespacePath = findNamespacePath(partitionPath);
@@ -458,6 +467,11 @@ export async function removeTombstones(partitionPath: string): Promise<{
     const targetBase = numericBases.length > 0 ? numericBases[0] : "0001";
     const finalPath = path.join(partitionPath, `${targetBase}.jsonl`);
     fs.renameSync(newChunkPath, finalPath);
+
+    // PERF-001: the rewrite may remove tombstoned keys — invalidate the
+    // key-list cache so the next list_keys rebuilds (best-effort).
+    const perfNsPath = namespacePathForPartition(partitionPath);
+    if (perfNsPath) invalidateKeysCache(perfNsPath);
 
     return {
       removed: tombstoneCount,

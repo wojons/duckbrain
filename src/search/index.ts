@@ -114,7 +114,12 @@ export interface MemoryRecord {
  * agree on which files are sources.
  */
 export function isSkippedSourceDir(name: string): boolean {
-  return name === ".git" || name === ".embeddings" || name === SEARCH_INDEX_DIR;
+  return (
+    name === ".git" ||
+    name === ".embeddings" ||
+    name === SEARCH_INDEX_DIR ||
+    name === ".keys"
+  );
 }
 
 /** Every `*.jsonl` source file under a namespace, in walk order. */
