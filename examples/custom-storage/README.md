@@ -87,7 +87,7 @@ docker run -d \
 ### Docker Compose
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   duckbrain:
     image: duckbrain:latest
@@ -172,12 +172,16 @@ DuckBrain supports multiple storage backends:
 ## Testing Configuration
 
 ```bash
-# Test with custom config
-pnpm start -- http --config=./examples/custom-storage/duckbrain.config.json
-
-# Verify configuration
-pnpm start -- --verify-config
+# Test with custom config (DUCKBRAIN_CONFIG_PATH redirects the config file)
+DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json \
+  node bin/duckbrain.js http --port=39472
 ```
+
+(Do not use the `--`-separator spellings (`pnpm start` + `--` + `http`, or
+`pnpm start` + `--` + `--verify-config`) here: under the repo's pinned pnpm
+the `--` separator is forwarded to the CLI verbatim and DuckBrain exits with
+`Unknown command: --`. There is also no `--verify-config` CLI flag — config
+resolution is logged at startup.)
 
 ## Troubleshooting
 

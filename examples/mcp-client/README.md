@@ -5,6 +5,7 @@ This example demonstrates how to use DuckBrain as an MCP server with a client.
 ## Setup
 
 1. Install DuckBrain:
+
 ```bash
 pnpm install --frozen-lockfile
 ```
@@ -12,6 +13,7 @@ pnpm install --frozen-lockfile
 2. Configure your MCP client (e.g., Claude Desktop) to use DuckBrain:
 
 **Claude Desktop Config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
 ```json
 {
   "mcpServers": {
@@ -34,7 +36,7 @@ pnpm install --frozen-lockfile
 Once configured, DuckBrain provides these tools to Claude:
 
 - `remember` - Store a memory
-- `recall` - Query memories  
+- `recall` - Query memories
 - `list_keys` - List memory keys
 - `forget` - Remove a memory
 
@@ -55,7 +57,12 @@ Once configured, DuckBrain provides these tools to Claude:
 ## Testing
 
 Test the MCP connection:
+
 ```bash
 # Run DuckBrain in stdio mode
-pnpm start -- stdio
+node bin/duckbrain.js stdio
 ```
+
+(Do not use the `--`-separator spelling (`pnpm start` + `--` + `stdio`) here:
+under the repo's pinned pnpm the separator is forwarded to the CLI verbatim
+and DuckBrain exits with `Unknown command: --`.)

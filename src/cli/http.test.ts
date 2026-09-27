@@ -238,3 +238,101 @@ describe("DOGFOOD-016 stale pidfile cleanup", () => {
     }
   });
 });
+
+describe("DF-0926-01 bind-conflict lifecycle", () => {
+  /**
+   * Spawn the real CLI entry (`node bin/duckbrain.js http --port=<port>`) in
+   * an isolated scratch environment (unique data dir + namespaces path +
+   * unique port) so a bind conflict can never touch a live daemon's
+   * pidfile. Every spawned child is terminated via its explicit PID —
+   * never a pattern kill.
+   */
+  it("bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent", async () => {
+    // Occupant: a real healthy DuckBrain HTTP daemon owns the scratch port.
+    const port = await findFreePort();
+    const { dataDir: dirA, nsPath: nsA } = prepareDataDir(
+      "duckbrain-bind-occupy-a-",
+    );
+    const occupant = spawnHttpServer(port, dirA, nsA);
+
+    // Challenger: fresh scratch env, SAME port.
+    const { dataDir: dirB, nsPath: nsB } = prepareDataDir(
+      "duckbrain-bind-challenger-b-",
+    );
+    const pidFileB = path.join(dirB, `duckbrain-http-${port}.pid`);
+    const pidFileA = path.join(dirA, `duckbrain-http-${port}.pid`);
+
+    try {
+      await waitForHealth(port);
+      expect(fs.readFileSync(pidFileA, "utf8").trim()).toBe(
+        String(occupant.pid),
+      );
+
+      const challenger = spawnHttpServer(port, dirB, nsB);
+      let stderr = "";
+      let stdout = "";
+      challenger.stderr?.on("data", (c: Buffer) => (stderr += c.toString()));
+      challenger.stdout?.on("data", (c: Buffer) => (stdout += c.toString()));
+
+      // waitForClose resolves on self-exit (the fixed behavior). On the
+      // pre-fix code the challenger lingers as a zombie copy (never self-
+      // exits, never serves) and the 60s deadline fires with SIGKILL +
+      // reject — either way the test fails before the fix.
+      await waitForClose(challenger, 60000);
+
+      const exitCode = (
+        challenger as ChildProcess & { exitCode?: number | null }
+      ).exitCode;
+      expect(exitCode).not.toBe(0);
+
+      // The started banner must never have been printed.
+      const combined = stdout + stderr;
+      expect(combined).not.toContain("HTTP server started at");
+      expect(combined).not.toContain("HTTP server ready");
+      expect(combined).not.toContain("PID written to");
+      // The failure path itself must be loud.
+      expect(combined).toContain("Failed to start HTTP server");
+
+      // The challenger must not have written its own pidfile...
+      expect(fs.existsSync(pidFileB)).toBe(false);
+      // ...and the live occupant's pidfile must be untouched.
+      expect(fs.existsSync(pidFileA)).toBe(true);
+      expect(fs.readFileSync(pidFileA, "utf8").trim()).toBe(
+        String(occupant.pid),
+      );
+
+      // The occupant must still be the one serving.
+      await waitForHealth(port, 5000);
+    } finally {
+      try {
+        occupant.kill("SIGKILL");
+      } catch {
+        // ignore
+      }
+      fs.rmSync(dirA, { recursive: true, force: true });
+      fs.rmSync(dirB, { recursive: true, force: true });
+    }
+  }, 90000);
+
+  it("healthy boot still writes the pidfile only after the port listens", async () => {
+    const port = await findFreePort();
+    const { dataDir, nsPath } = prepareDataDir("duckbrain-bind-ok-");
+    const child = spawnHttpServer(port, dataDir, nsPath);
+
+    try {
+      await waitForHealth(port);
+      const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
+      // Success path: pidfile exists AFTER a successful bind and names the
+      // live process (per-port pidfile behavior preserved).
+      expect(fs.existsSync(pidFile)).toBe(true);
+      expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
+    } finally {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // ignore
+      }
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  }, 30000);
+});

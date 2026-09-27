@@ -735,9 +735,11 @@ exit nonzero on bind failure.
 
 **Errors hit this run, and their fixes (the right way per finding):**
 
-- `Unknown command: --` from `pnpm start -- http …` — pnpm's `--` separator is
-  forwarded verbatim to the CLI. Right way: `node bin/duckbrain.js http …`, or
-  fix package.json to strip the separator (filed, DF-0926-01).
+- `Unknown command: --` from a `pnpm start` invocation with the `--`
+  separator before the subcommand — pnpm's `--` separator is
+  forwarded verbatim to the CLI. Right way: `pnpm start http …` (no
+  separator) or `node bin/duckbrain.js http …` (separator issue filed,
+  DF-0926-01).
 - `Cannot use 'import.meta' outside a module` — example is ESM in a CJS repo.
   Right way: run the copy as `.mjs` (dogfood did); durable fix is the example's
   own extension or `"type": "module"` scoping (same row).
