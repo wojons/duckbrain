@@ -127,11 +127,19 @@ export const BLANK_CONTENT_MESSAGE =
  * that defect wearing a string costume — it is what made the empty-payload
  * rows indistinguishable from real ones in the corpus. If a genuine note
  * ever needs to be exactly `"null"`, this set is the single place to change.
+ *
+ * `"{}"` (DB-GAP-056): the historical empty-payload class — an attributes
+ * object stringified into the content slot, the dominant shape of the empty
+ * rows in the fleet corpus (Off-by-One answer 2309: empty memory content
+ * fails validation at the write boundary). The match is exact-after-trim,
+ * so real JSON content (`{"a": 1}`, `[{}]`, prose mentioning {}) is
+ * unaffected.
  */
 export const PLACEHOLDER_CONTENT: ReadonlySet<string> = new Set([
   "null",
   "undefined",
   "n/a",
+  "{}",
 ]);
 
 /** True when `text` is not a usable memory body (missing, empty, or blank). */
