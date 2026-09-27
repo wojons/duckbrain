@@ -41,8 +41,17 @@ import {
 /** In-process TTL for cached health results (monitor-polling budget). */
 export const EMBEDDING_HEALTH_TTL_MS = 30_000;
 
-/** Embed probe timeout: short on purpose — /health must never hang. */
-export const EMBEDDING_HEALTH_PROBE_TIMEOUT_MS = 3_000;
+/** Embed probe timeout: short on purpose — /health must never hang.
+ *
+ * Raised 3_000 → 8_000 on 2026-09-27: the production embedder is a REMOTE
+ * provider (OpenRouter qwen3-embedding-8b, 4096d) whose measured round trip is
+ * 3.1s — i.e. above the old budget, so /health reported `degraded` /
+ * healthy:false on every probe while real recalls worked fine (verified: a real
+ * embed returned HTTP 200 with dim=4096). A probe budget narrower than the
+ * provider's normal latency is a false alarm generator, not a safety bound;
+ * the OPS-002 whole-probe deadline below is what actually protects /health.
+ */
+export const EMBEDDING_HEALTH_PROBE_TIMEOUT_MS = 8_000;
 
 /**
  * Hard deadline for ONE whole health probe attempt (OPS-002).
@@ -69,7 +78,7 @@ export const EMBEDDING_HEALTH_PROBE_TIMEOUT_MS = 3_000;
  * handler bound stays the last-resort backstop for callers that bypass this
  * module's cache entirely.
  */
-export const EMBEDDING_HEALTH_DEADLINE_MS = 3_500;
+export const EMBEDDING_HEALTH_DEADLINE_MS = 8_500;
 
 /** Reachability classification timeout (same budget as isHealthy probes). */
 const CLASSIFY_TIMEOUT_MS = 1_500;

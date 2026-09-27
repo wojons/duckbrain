@@ -156,8 +156,15 @@ function dnsRebindingProtection(allowedHosts: string[]) {
   };
 }
 
-/** Outer deadline for the whole /health response (OPS-002). */
-export const HEALTH_HANDLER_DEADLINE_MS = 4_000;
+/** Outer deadline for the whole /health response (OPS-002).
+ *
+ * Raised 4_000 → 9_000 on 2026-09-27 to stay ABOVE the embedding probe's own
+ * deadline (now 8_500 — a remote embedder whose real latency is 3.1s). The
+ * ordering invariant is unchanged: the embedding probe reports inside its own
+ * budget by its own precise cause, and this handler bound stays the
+ * last-resort backstop.
+ */
+export const HEALTH_HANDLER_DEADLINE_MS = 9_000;
 
 /** A sub-probe outcome: it settled with a value, or missed the deadline. */
 type ProbeOutcome<T> = { ok: true; value: T } | { ok: false };
@@ -877,11 +884,58 @@ export function listenOnSocket(
 }
 
 /**
+ * Bind a TCP listener and settle only when the outcome is certain.
+ *
+ * DF-0926-01: Node can deliver the 'listening' callback BEFORE the 'error'
+ * event on the SAME server when the port is taken (measured: listening cb at
+ * t+4ms, EADDRINUSE at t+5ms — the kernel refuses the bind asynchronously
+ * after listen() was called). A promise that resolves directly inside the
+ * listening callback therefore settles the start as a success first, and the
+ * later error event is swallowed by the already-resolved promise: the daemon
+ * printed its "started" banner, wrote a pidfile, and exited 0 without serving
+ * anything. The fix is to defer the resolution one macrotask turn: a pending
+ * error event always wins the race, and a genuine bind stays genuine because
+ * the callback does not fire for a server that will error.
+ *
+ * @param app Express app to listen with
+ * @param port TCP port to bind
+ * @param host Interface to bind
+ */
+function listenTcp(
+  app: Express,
+  port: number,
+  host: string,
+): Promise<http.Server> {
+  return new Promise<http.Server>((resolve, reject) => {
+    let settled = false;
+    const httpServer = app.listen(port, host, () => {
+      // Let an in-flight error event (EADDRINUSE) claim the failure first.
+      setImmediate(() => {
+        if (settled) return;
+        settled = true;
+        resolve(httpServer);
+      });
+    });
+    httpServer.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+  });
+}
+
+/**
  * Start HTTP server
  *
  * Listens on TCP (port) and, if `options.socket` is set, on a Unix domain
  * socket. Socket permissions are applied via chmod/chown after bind so the
  * file is created with the requested mode (default 0660) and optional group.
+ *
+ * Lifecycle (DF-0926-01): the TCP bind happens FIRST; the success banner,
+ * stale-pidfile cleanup, and pidfile write only run after the port is
+ * actually bound. A failed bind rejects before any of those side effects,
+ * and the catch path below exits nonzero — a conflicting daemon can no
+ * longer announce success, clobber a live pidfile, or exit 0.
  *
  * @param options Server options
  */
@@ -897,75 +951,67 @@ export async function startHttpMode(
     const servers: http.Server[] = [];
 
     // Start TCP listener (always, unless socket-only mode is requested via port 0)
-    await new Promise<void>((resolve, reject) => {
-      const httpServer = app.listen(port, host, () => {
-        console.error(
-          `[duckbrain] HTTP server started at http://${host}:${port}`,
-        );
-        resolve();
-      });
+    const httpServer = await listenTcp(app, port, host);
+    servers.push(httpServer);
+    console.error(`[duckbrain] HTTP server started at http://${host}:${port}`);
 
-      httpServer.on("error", reject);
-      servers.push(httpServer);
+    // Graceful shutdown
+    const shutdown = () => {
+      // Remove PID file on shutdown
+      try {
+        if (fs.existsSync(pidFile)) {
+          fs.unlinkSync(pidFile);
+        }
+      } catch (e) {
+        // Ignore cleanup errors
+      }
 
-      // Graceful shutdown
-      const shutdown = () => {
-        // Remove PID file on shutdown
+      // Remove socket file if present
+      if (socket) {
         try {
-          if (fs.existsSync(pidFile)) {
-            fs.unlinkSync(pidFile);
+          if (fs.existsSync(socket)) {
+            fs.unlinkSync(socket);
           }
         } catch (e) {
           // Ignore cleanup errors
         }
+      }
 
-        // Remove socket file if present
-        if (socket) {
-          try {
-            if (fs.existsSync(socket)) {
-              fs.unlinkSync(socket);
-            }
-          } catch (e) {
-            // Ignore cleanup errors
-          }
+      Promise.all(
+        servers.map(
+          (s) =>
+            new Promise<void>((r) => {
+              s.close(() => r());
+            }),
+        ),
+      ).then(async () => {
+        // SUPA-1 (AC-7): drain the durability barrier BEFORE the debounced
+        // commit flush — every fsync-mode append has already hit its barrier
+        // (appends are synchronous), and the SUPA-2 serializer's queued
+        // appends hook into drainDurableWrites() once it lands. Commit flush
+        // last: it is the history transport, not the durability mechanism.
+        await drainDurableWrites().catch(() => {});
+        // OPS-006: give async git work already in flight (commit + push
+        // spawned off the event loop) a bounded chance to land before the
+        // windows that never fired are flushed synchronously below. Bounded
+        // and best-effort by contract — shutdown never hangs on git.
+        try {
+          await drainAsyncCommits();
+        } catch {
+          // Git is best-effort — never block shutdown on it.
         }
+        try {
+          flushAllCommits();
+        } catch {
+          // Git is best-effort — never block shutdown on it.
+        }
+        await stopServer();
+        process.exit(0);
+      });
+    };
 
-        Promise.all(
-          servers.map(
-            (s) =>
-              new Promise<void>((r) => {
-                s.close(() => r());
-              }),
-          ),
-        ).then(async () => {
-          // SUPA-1 (AC-7): drain the durability barrier BEFORE the debounced
-          // commit flush — every fsync-mode append has already hit its barrier
-          // (appends are synchronous), and the SUPA-2 serializer's queued
-          // appends hook into drainDurableWrites() once it lands. Commit flush
-          // last: it is the history transport, not the durability mechanism.
-          await drainDurableWrites().catch(() => {});
-          // OPS-006: give async git work already in flight (commit + push
-          // spawned off the event loop) a bounded chance to land before the
-          // windows that never fired are flushed synchronously below. Bounded
-          // and best-effort by contract — shutdown never hangs on git.
-          try {
-            await drainAsyncCommits();
-          } catch {
-            // Git is best-effort — never block shutdown on it.
-          }
-          try {
-            flushAllCommits();
-          } catch {
-            // Git is best-effort — never block shutdown on it.
-          }
-          await stopServer();
-          process.exit(0);
-        });
-      };
-
-      process.on("SIGINT", shutdown);
-      process.on("SIGTERM", shutdown);
-    });
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
 
     // Write PID to local file for easy management. If a previous instance
     // crashed and left a pidfile whose PID is no longer alive, remove it
