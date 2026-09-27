@@ -286,7 +286,7 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
     // Real rebuilt FTS sidecar (the RETR-001 keyword leg).
     await rebuildNamespaceIndex(NS);
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

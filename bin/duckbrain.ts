@@ -73,7 +73,7 @@ Commands:
 HTTP Options:
   --port=PORT        HTTP server port (default: 3000)
   --bind-all         Bind to all interfaces (0.0.0.0) instead of localhost
-  --auth=TYPE        Authentication type: none, basic, apikey (default: none)
+  --auth=TYPE        Authentication type: none, basic, apikey (default: apikey; use none only for explicit local mode)
   --auth-file=PATH   Read auth users/apiKeys from PATH instead of
                      ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
                      the file must exist — for scratch/test daemons

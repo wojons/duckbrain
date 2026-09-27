@@ -24,7 +24,7 @@ pnpm start http --auth=apikey --rate-limit=60
 |--------|---------|-------------|
 | `--port` | 3000 | HTTP server port |
 | `--bind-all` | — | Bind to `0.0.0.0` (all interfaces) instead of localhost |
-| `--auth` | none | Authentication type: `none`, `basic`, or `apikey` |
+| `--auth` | apikey | Authentication type: `none`, `basic`, or `apikey`; use `none` only for explicit local-only development |
 | `--auth-file` | `~/.duckbrain/auth.json` | Read auth users/apiKeys from this file instead (env fallback: `DUCKBRAIN_AUTH_FILE`); the file must exist — intended for scratch/test daemons |
 | `--rate-limit` | 100 | Requests per minute per IP |
 

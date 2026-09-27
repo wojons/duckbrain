@@ -4,12 +4,12 @@
  * The module battery (src/http/routes/tables-supa3.test.ts) mounts its own
  * hand-built express app — it used to install
  * express.text({ type: "application/x-ndjson" }) itself, so the battery was
- * green while the production app built by createHttpServer() (src/cli/http.ts)
+ * green while the production app built by createHttpServer({ authType: "none" }) (src/cli/http.ts)
  * only had express.json(), which never matches application/x-ndjson. Live
  * NDJSON inserts 400'd with "NDJSON body required" and the battery could not
  * see it — the exact test-only-plumbing phantom-coverage class.
  *
- * This test builds the app through createHttpServer() (the production wiring,
+ * This test builds the app through createHttpServer({ authType: "none" }) (the production wiring,
  * auth disabled) and drives it over a REAL socket (http.request against a
  * listening server), so the body-parser chain this file exercises is the one
  * production uses. Reverting the express.text mount in src/cli/http.ts makes
@@ -122,7 +122,7 @@ afterAll(() => {
 });
 
 describe("DB-SUPA-3: NDJSON insert over the production wiring", () => {
-  it("POST application/x-ndjson through createHttpServer() inserts and reads back", async () => {
+  it("POST application/x-ndjson through createHttpServer({ authType: 'none' }) inserts and reads back", async () => {
     invalidateTableRegistry(FIXTURE_NS);
     const BASE = `/api/ns/${FIXTURE_NS}/tables`;
 

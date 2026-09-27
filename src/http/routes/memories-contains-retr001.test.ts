@@ -92,7 +92,7 @@ function keywordMemory(id: string, key: string, text: string, snippet: string) {
 
 describe("RETR-001: GET /api/memories?contains= forwards keyword filter to recall", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

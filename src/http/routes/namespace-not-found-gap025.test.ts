@@ -70,7 +70,7 @@ const EXPECTED_MESSAGE = `Namespace '${MISSING_NS}' does not exist`;
 
 describe("GAP-025: nonexistent namespace returns 404, not 500", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

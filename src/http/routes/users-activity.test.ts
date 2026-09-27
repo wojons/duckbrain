@@ -47,7 +47,7 @@ function request(
 
 describe("/users endpoint", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {
@@ -83,7 +83,7 @@ describe("/users endpoint", () => {
 
 describe("/activity endpoint", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {
@@ -133,7 +133,7 @@ describe("/activity endpoint", () => {
 
 describe("combined: users and activity are separate", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

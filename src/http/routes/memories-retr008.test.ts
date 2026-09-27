@@ -101,7 +101,7 @@ function keywordMemory(
 
 describe("RETR-008: GET /api/memories?contains= highlight passthrough", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

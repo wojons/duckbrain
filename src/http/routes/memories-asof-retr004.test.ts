@@ -148,7 +148,7 @@ describe("RETR-004: memory-as-of — GET /api/memories", () => {
     );
     sha2 = commitAll("http second memory", D2);
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

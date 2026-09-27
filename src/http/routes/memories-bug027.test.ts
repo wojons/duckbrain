@@ -64,7 +64,7 @@ describe("BUG-027: Tombstone filtering — GET /api/memories/:id after delete", 
   let createdId: string;
 
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

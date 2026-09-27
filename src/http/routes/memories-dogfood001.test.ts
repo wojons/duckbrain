@@ -93,7 +93,7 @@ function semanticMemory(id: string, key: string, text: string) {
 
 describe("DOGFOOD-001: GET /api/memories?q= forwards query to semantic recall", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

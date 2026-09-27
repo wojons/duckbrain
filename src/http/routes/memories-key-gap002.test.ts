@@ -70,7 +70,7 @@ describe("GAP-002: GET /api/memories/key/:key returns memory or 404", () => {
   const singleKey = `/gap002-single-${stamp}`;
 
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

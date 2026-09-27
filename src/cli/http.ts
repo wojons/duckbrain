@@ -400,7 +400,9 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     options.namespacesPath ?? resolveNamespacesPath(),
   );
   const authConfig: AuthConfig = {
-    ...(options.authConfig ?? { type: options.authType ?? "none" }),
+    // The CLI front door is fail-closed by default. Embedded callers and
+    // explicit --auth=none still provide an intentional local/test opt-out.
+    ...(options.authConfig ?? { type: options.authType ?? "apikey" }),
   };
   if (
     !options.authConfig &&

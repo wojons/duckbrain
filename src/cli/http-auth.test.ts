@@ -87,6 +87,114 @@ async function eventually(assertion: () => void): Promise<void> {
   throw last;
 }
 
+describe("AUTH-DEFAULT-001: production front door defaults to apikey", () => {
+  let dir: string;
+  let namespacesPath: string;
+  let authFile: string;
+  const freshKey = "3".repeat(32);
+  const servers: Server[] = [];
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-auth-default-"));
+    namespacesPath = path.join(dir, "namespaces");
+    authFile = path.join(dir, "auth.json");
+    fs.mkdirSync(path.join(namespacesPath, "alpha"), { recursive: true });
+    fs.writeFileSync(
+      authFile,
+      JSON.stringify({
+        apiKeys: [
+          {
+            keyHash: hashApiKey(freshKey),
+            name: "fresh-default",
+            roles: ["writer"],
+            namespaces: ["alpha"],
+          },
+        ],
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map(close));
+    await flushDenialAuditsForTests();
+    await drainAsyncCommits();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("production-shaped startup without --auth rejects a keyless write (401) and never creates the memory", async () => {
+    const { server, base } = await start({
+      authFile,
+      namespacesPath,
+    });
+    servers.push(server);
+    const reply = await request(
+      base,
+      "POST",
+      "/api/memories?namespace=alpha",
+      undefined,
+      { key: "/auth-default/denied", domain: "raw_note", content: "nope" },
+    );
+    expect(reply.status).toBe(401);
+    expect(vi.mocked(rememberTool)).not.toHaveBeenCalled();
+    // The write must not land on disk either — the rejection is the contract.
+    const partition = path.join(namespacesPath, "alpha");
+    expect(fs.existsSync(partition)).toBe(true);
+    expect(
+      fs.readdirSync(partition).filter((entry) => entry.endsWith(".jsonl")),
+    ).toEqual([]);
+  });
+
+  it("the implicit apikey default still accepts a valid key (no regression on the fail-closed door)", async () => {
+    const { server, base } = await start({
+      authFile,
+      namespacesPath,
+    });
+    servers.push(server);
+    const reply = await request(
+      base,
+      "POST",
+      "/api/memories?namespace=alpha",
+      freshKey,
+      { key: "/auth-default/ok", domain: "raw_note", content: "hi" },
+    );
+    expect(reply.status).toBe(201);
+    expect(reply.body).toMatchObject({ key: "/auth-default/ok" });
+  });
+});
+
+describe("AUTH-DEFAULT-001: explicit local opt-out", () => {
+  let dir: string;
+  let namespacesPath: string;
+  const servers: Server[] = [];
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-auth-none-"));
+    namespacesPath = path.join(dir, "namespaces");
+  });
+
+  afterEach(async () => {
+    await Promise.all(servers.splice(0).map(close));
+    await flushDenialAuditsForTests();
+    await drainAsyncCommits();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("authType none remains an intentional unauthenticated local mode", async () => {
+    const { server, base } = await start({
+      authType: "none",
+      namespacesPath,
+    });
+    servers.push(server);
+    const reply = await request(base, "POST", "/api/memories", undefined, {
+      key: "/auth-none/ok",
+      domain: "raw_note",
+      content: "local",
+    });
+    expect(reply.status).toBe(201);
+    expect(reply.body).toMatchObject({ key: "/auth-none/ok" });
+  });
+});
+
 describe("SUPA-4 HTTP auth integration", () => {
   let dir: string;
   let namespacesPath: string;

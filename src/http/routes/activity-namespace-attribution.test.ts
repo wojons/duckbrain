@@ -118,7 +118,7 @@ describe("ACTIVITY-NS-ATTR: /activity attributes each row to its own namespace",
       { key: "/zeta/two", ts: "2026-06-01T10:00:03.000Z" },
     ]);
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {
