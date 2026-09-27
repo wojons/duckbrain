@@ -121,6 +121,18 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
       res.setHeader("X-RateLimit-Limit", config.requestsPerMinute);
       res.setHeader("X-RateLimit-Remaining", 0);
       res.setHeader("Retry-After", retryAfterSecs);
+      // Structured WARN for every refusal — observability fields only,
+      // never request bodies, auth headers, or secrets.
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          event: "rate_limit_refused",
+          ip,
+          limit: config.requestsPerMinute,
+          remaining: 0,
+          retryAfter: retryAfterSecs,
+        }),
+      );
       res
         .status(429)
         .json({ error: "Rate limit exceeded", retryAfter: retryAfterSecs });
