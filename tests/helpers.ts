@@ -222,6 +222,58 @@ export function killProcess(child: ChildProcess): void {
   }
 }
 
+/**
+ * Stop a detached test process and wait for its child/descendants to finish.
+ * Teardown must join the process before deleting its data directory: a
+ * fire-and-forget SIGTERM can leave git/DuckDB writers racing recursive rm.
+ */
+export async function stopProcess(
+  child: ChildProcess,
+  timeoutMs = 15_000,
+): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  let settled = false;
+  let resolveClose: (() => void) | undefined;
+  const closed = new Promise<void>((resolve) => {
+    resolveClose = resolve;
+  });
+  const onClose = () => {
+    settled = true;
+    resolveClose?.();
+  };
+  child.once("close", onClose);
+  killProcess(child);
+
+  const timeout = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), timeoutMs),
+  );
+  const result = await Promise.race([
+    closed.then(() => "closed" as const),
+    timeout,
+  ]);
+  if (result === "timeout" && !settled) {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      else child.kill("SIGKILL");
+    } catch {}
+    const killTimeout = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), 5_000),
+    );
+    const killed = await Promise.race([
+      closed.then(() => "closed" as const),
+      killTimeout,
+    ]);
+    if (killed === "timeout") {
+      child.removeListener("close", onClose);
+      throw new Error(
+        `stopProcess: child ${child.pid ?? "unknown"} still alive after SIGTERM+SIGKILL`,
+      );
+    }
+  }
+  child.removeListener("close", onClose);
+}
+
 export async function startSshContainer(
   id: string,
   sshPort: number,

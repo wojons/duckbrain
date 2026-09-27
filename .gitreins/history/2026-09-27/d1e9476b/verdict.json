@@ -1,0 +1,75 @@
+{
+  "task_id": "INT-CI-014",
+  "task_title": "Fix CI integration teardown race in examples on-ramp test",
+  "task_criteria": [
+    "Reproduce and fix the ENOTEMPTY teardown failure in tests/examples-onramp-df092601.int.test.ts; exact CI integration command passes on pushed successor and run 36317691978 plus successor are recorded"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "d888abe80dfe86e27ff94e5d1a64757aaca2f6c0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:31AM INF scanned ~10578390 bytes (10.58 MB) in 3.82s\n8:31AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 314351 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T132535.890614Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  178 passed (178)\n      Tests  1414 passed (1414)\n   Start at  08:31:33\n   Duration  120.17s (tests 81%, import 15%, transform 2%, setup 1%)\n\n    Isolate  178 workers spawned \u00b7 ~158ms startup each (spawn + environment, per file)\n             at least ~6.89s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T132535.890614Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: INT-CI-014\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-27T13:33:33.725755",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-27T13:33:33.782361+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 36422,
+        "truncated": false,
+        "source": "git show d888abe80dfe"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 4153,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-014"
+  }
+}

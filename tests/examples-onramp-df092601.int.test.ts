@@ -21,7 +21,7 @@ import os from "os";
 import path from "path";
 import {
   startDuckbrainHttp,
-  killProcess,
+  stopProcess,
   waitForUrl,
   getRandomPort,
   DAEMON_READY_TIMEOUT_MS,
@@ -55,8 +55,8 @@ describe("DF-0926-01: examples on-ramp runs against a live scratch daemon", () =
     );
   }, 120000);
 
-  afterAll(() => {
-    killProcess(server);
+  afterAll(async () => {
+    await stopProcess(server);
     if (savedDataDir === undefined) {
       delete process.env.DUCKBRAIN_DATA_DIR;
     } else {
