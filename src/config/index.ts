@@ -551,6 +551,24 @@ function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
     next = { ...next, namespacesPath: nsPathOverride };
   }
 
+  // DF-0926-04: DUCKBRAIN_NAMESPACE selects the ACTIVE namespace at runtime —
+  // the documented per-agent isolation knob (docs/guide/ai-configure.md,
+  // examples/mcp-client/README.md). Historically the variable had ZERO readers
+  // in src/, so every agent configured per those docs silently wrote to the
+  // config's defaultNamespace instead of its own namespace.
+  //
+  // Runtime-only, exactly like DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_CONFIG_PATH:
+  // it overrides the file's defaultNamespace for THIS process but is never
+  // persisted (updateConfig merges against readFileConfig, GAP-007), so an agent
+  // started with the env var can never rewrite a shared duckbrain.config.json.
+  //
+  // Effective precedence: explicit param (MCP arg / CLI --namespace / HTTP
+  // ?namespace=) > DUCKBRAIN_NAMESPACE > config defaultNamespace > "default".
+  const nsNameOverride = process.env.DUCKBRAIN_NAMESPACE?.trim();
+  if (nsNameOverride) {
+    next = { ...next, defaultNamespace: nsNameOverride };
+  }
+
   // SUPA-1: DUCKBRAIN_DURABILITY_MODE overrides the runtime DEFAULT write mode
   // (never persisted — same convention as DUCKBRAIN_NAMESPACES_PATH). A
   // malformed value fails config load through the zod enum: no silent fallback

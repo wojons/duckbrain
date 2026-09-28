@@ -7,15 +7,16 @@ description: >-
   ranks with a 0.25 score floor, MCP remember needs embedding_text + attributes,
   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
   active namespace — remember/recall echo it now, compaction stats/status
-  still instance-blind, HTTP omitted-?namespace= means the literal 'default'
-  namespace while the CLI defaults to config defaultNamespace, CLI `forget`
+  still instance-blind, namespace resolution is explicit param >
+  DUCKBRAIN_NAMESPACE > config `defaultNamespace` > 'default' on all three
+  write surfaces (HTTP included, since DF-0926-04), CLI `forget`
   hardcodes namespace 'default' so it fails for every other namespace — use
   MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
   ABSENT from the stale origin/main, whose server silently answers ?as_of=
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.11.0
+version: 1.12.0
 category: software-development
 ---
 
@@ -34,6 +35,7 @@ REST API, CLI, Web UI**.
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
 | CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
+| Env override | `DUCKBRAIN_NAMESPACE=<ns>` | the per-agent active namespace; wins over the config's `defaultNamespace`, loses to an explicit param, never persisted (DF-0926-04) |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
 | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
 
@@ -499,14 +501,20 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     rebuild (rowCount 2) and the commit debounce. Cross-check any
     "not found" against `?q=` (its keyword fallback DID match "hello") or the
     raw JSONL before trusting a negative.
-26. **`DUCKBRAIN_NAMESPACE` and `DUCKBRAIN_DATA_DIR` are INERT (DF-0926-04).**
-    Neither is read by the memory path (`DUCKBRAIN_DATA_DIR` only relocates
-    the PID file). The mcp-client example and six config blocks in
-    docs/guide/ai-configure.md recommend them — every agent so configured
-    silently shares namespace `default`. Per-process namespace comes from
-    `--namespace` (human CLI), the config's `defaultNamespace`, or MCP
-    `switch_namespace {name}` — which PERSISTS into duckbrain.config.json
-    (see pitfall 4). On a shared box, never rely on env for isolation.
+26. **`DUCKBRAIN_NAMESPACE` IS honored (fixed in DF-0926-04); `DUCKBRAIN_DATA_DIR`
+    is still PID-only.** The namespace env var had ZERO readers in `src/` while
+    the mcp-client example and the config blocks in
+    `docs/guide/ai-configure.md` recommended it — every agent so configured
+    silently shared namespace `default`. It is now read by the config layer
+    (`applyEnvOverrides`), so the resolved order is **explicit param
+    (`--namespace=`, `?namespace=`, the `remember` tool's `namespace` arg) >
+    `DUCKBRAIN_NAMESPACE` > config `defaultNamespace` > `default`** on all three
+    write surfaces. It is a RUNTIME override and is never written back into
+    `duckbrain.config.json` (GAP-007 invariant), which makes it the right knob
+    on a shared box: a sibling's `switch_namespace` (which DOES persist into the
+    config, see pitfall 4) cannot move an env-pinned agent. `DUCKBRAIN_DATA_DIR`
+    remains the HTTP PID-file directory only — the memory-store root is
+    `DUCKBRAIN_NAMESPACES_PATH`.
 27. **Default port is 3000 and a failed bind still "succeeds" (DF-0926-01).**
     `duckbrain http` without `--port` binds 3000 — the prod daemon's port on
     this box. When the port is taken the boot log prints

@@ -107,7 +107,7 @@ Set up DuckBrain MCP for Claude:
       ],
       "env": {
         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
       }
     }
   }
@@ -151,7 +151,7 @@ Set up DuckBrain MCP for Claude:
       ],
       "env": {
         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
       }
     }
   }
@@ -180,7 +180,7 @@ Set up DuckBrain MCP for Cursor:
       ],
       "env": {
         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
       }
     }
   }
@@ -209,7 +209,7 @@ mcp_servers:
       - stdio
     env:
       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
+      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
 
 # Optional: Set DuckBrain as default memory system
 memory:
@@ -232,7 +232,7 @@ mcp_servers:
       - stdio
     env:
       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
+      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
 ```
 
 2. OpenCode will auto-discover MCP tools.
@@ -264,7 +264,7 @@ Add to VS Code settings.json:
         ],
         "env": {
           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
         }
       }
     }
@@ -292,7 +292,7 @@ Set up DuckBrain MCP for GitHub Copilot in VS Code:
         ],
         "env": {
           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
         }
       }
     }
@@ -322,7 +322,7 @@ Windsurf uses the same MCP config format as Cursor:
       ],
       "env": {
         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
+        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
       }
     }
   }
@@ -347,7 +347,7 @@ mcp_servers:
       - stdio
     env:
       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
+      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
 
 # Enable MCP tools
 use_mcp: true
@@ -544,12 +544,55 @@ duckbrain init [PROJECT_NAME] --data-dir ./memory
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DUCKBRAIN_NAMESPACE` | Current project namespace | `default` |
-| `DUCKBRAIN_DATA_DIR` | Where to store memory files | `./memory` |
+| `DUCKBRAIN_NAMESPACE` | Active namespace for this agent — overrides the config file's `defaultNamespace` (see below) | `default` |
+| `DUCKBRAIN_NAMESPACES_PATH` | Directory holding the namespace repositories — the "where is memory stored" knob | `./namespaces` |
+| `DUCKBRAIN_DATA_DIR` | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`) — **not** the memory store | system temp dir |
 | `DUCKBRAIN_API_PORT` | HTTP API port | `3000` |
 | `DUCKBRAIN_UI_PORT` | Web UI port | `8989` |
 | `DUCKBRAIN_GIT_REMOTE` | Git remote for syncing | (none) |
 | `DUCKBRAIN_LOG_LEVEL` | Logging verbosity | `info` |
+
+> **Not implemented yet:** `DUCKBRAIN_UI_PORT`, `DUCKBRAIN_GIT_REMOTE` and
+> `DUCKBRAIN_LOG_LEVEL` have no readers in the current code — setting them has
+> no effect. The HTTP port is the `duckbrain http --port=…` flag, and a
+> namespace's git remote is configured with `duckbrain remote`.
+
+### 🎯 Namespace Resolution Order
+
+The namespace an operation writes to (or reads from) is resolved in exactly
+this order — the first one that is set wins:
+
+1. **Explicit parameter** — `remember`'s `namespace` argument, the CLI's
+   `--namespace=<name>`, or the HTTP API's `?namespace=<name>` / `"namespace"`
+   body field.
+2. **`DUCKBRAIN_NAMESPACE`** — the environment variable, set per agent.
+3. **`defaultNamespace`** in `duckbrain.config.json`.
+4. **`default`** — the last resort.
+
+```bash
+# One shared DuckBrain, one namespace per agent: set the env var in the
+# agent's MCP `env` block (see the per-agent configs above)…
+"env": { "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]" }
+
+# …and every remember/recall/list_keys that does not name a namespace lands in
+# "[PROJECT_NAME]" instead of the shared `default`.
+```
+
+`DUCKBRAIN_NAMESPACE` is a **runtime** override: it is never written back to
+`duckbrain.config.json`, so an agent started with it cannot rewrite the shared
+config. Two other ways to pin the active namespace persistently:
+
+- `switch_namespace` (MCP tool) persists `defaultNamespace` into
+  `duckbrain.config.json` — sticky across processes. **If `DUCKBRAIN_NAMESPACE`
+  is set it still wins**, so a persisted switch cannot move an env-pinned
+  agent (unset the variable to let the switch take effect).
+- `duckbrain config set defaultNamespace <name>` (CLI).
+
+**Where memory actually lives:** all namespaces are directories under
+`DUCKBRAIN_NAMESPACES_PATH` (default `./namespaces`, i.e. `<duckbrain
+root>/namespaces`). Use it when you want an agent's whole store somewhere else
+(a separate project directory, a mount); use `DUCKBRAIN_NAMESPACE` when agents
+should share one store but stay isolated inside it.
 
 ---
 

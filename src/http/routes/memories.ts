@@ -29,7 +29,10 @@ import {
   type NormalizedTimeRange,
 } from "../../utils/timerange";
 import { resolveAsOfRef } from "../../git/asof";
-import { resolveNamespacePath } from "../../mcp/tools/shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+} from "../../mcp/tools/shared";
 import { durabilityHeaderFor } from "../../storage/durability";
 import {
   auditRequestDenial,
@@ -106,14 +109,22 @@ function throwWriteError(
 const router: Router = Router();
 
 // DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
-// memory route (read, write, update, delete). The namespace resolution
-// mirrors each route's own (query param, falling back to body.namespace for
-// writes, else "default"). Passes through untouched in auth=none mode and
-// for unrestricted tokens.
+// memory route (read, write, update, delete). Passes through untouched in
+// auth=none mode and for unrestricted tokens.
+//
+// DF-0926-04: the namespace comes from the ONE canonical resolver
+// (`resolveNamespaceName`: explicit param > DUCKBRAIN_NAMESPACE > config
+// defaultNamespace > "default"), and the routes below call THIS function
+// rather than re-deriving it. The previous per-route `|| "default"` fallback
+// ignored both the documented env var and the config's defaultNamespace, and
+// duplicating the expression risked the grant check grading a different
+// namespace than the route actually touched.
 const resolveRequestNamespace = (req: Request): string =>
-  (req.query.namespace as string) ||
-  (req.body as { namespace?: string } | undefined)?.namespace ||
-  "default";
+  resolveNamespaceName(
+    (req.query.namespace as string) ||
+      (req.body as { namespace?: string } | undefined)?.namespace ||
+      undefined,
+  );
 
 router.use(requireNamespaceGrant(resolveRequestNamespace));
 
@@ -275,7 +286,7 @@ router.get(
       // RETR-011: view selector — ?historical=true includes expired /
       // not-yet-valid rows (the current view is the default).
       historical: req.query.historical === "true",
-      namespace: (req.query.namespace as string) || "default",
+      namespace: resolveRequestNamespace(req),
     };
 
     // RETR-006: attribute filters — every ?attr.<name>=<value> query param
@@ -458,7 +469,7 @@ router.get(
     const key = Array.isArray(keyParam)
       ? keyParam.join("/")
       : String(keyParam ?? "");
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
 
     // Normalize key to start with /
     const normalizedKey = key.startsWith("/") ? key : `/${key}`;
@@ -495,7 +506,7 @@ router.get(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
 
     // Use exact ID lookup in DuckDB — no in-memory scan
     const result = await recallTool({
@@ -579,8 +590,7 @@ router.post(
     // DB-GAP-031: an authenticated principal stamps the record — a
     // client-supplied ?author= or body author is never honored on writes.
     const principal = getPrincipal(req);
-    const writtenNamespace =
-      (req.query.namespace as string) || body.namespace || "default";
+    const writtenNamespace = resolveRequestNamespace(req);
     const result = await rememberTool(
       {
         key: body.key,
@@ -646,7 +656,7 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const body = req.body as UpdateMemoryRequest;
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
     // DB-GAP-031: authenticated principal stamps both the tombstone and the
     // new version — client-supplied author values are never honored.
     const principal = getPrincipal(req);
@@ -768,7 +778,7 @@ router.delete(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
     // DB-GAP-031: authenticated principal stamps the tombstone — a
     // client-supplied author value is never honored.
     const principal = getPrincipal(req);

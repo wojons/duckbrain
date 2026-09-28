@@ -10,6 +10,7 @@ import { listKeysTool } from "../../mcp/tools/list_keys";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { KeyTreeResponse } from "../types/api";
 import { buildKeyTree } from "../../utils/keyTree";
+import { resolveNamespaceName } from "../../mcp/tools/shared";
 
 const router: Router = Router();
 
@@ -32,7 +33,10 @@ router.get(
     const limit = req.query.limit
       ? parseInt(req.query.limit as string, 10)
       : 100;
-    const namespace = (req.query.namespace as string) || "default";
+    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
+    // > config defaultNamespace > "default" (the old `|| "default"` ignored
+    // both the documented env var and the configured default).
+    const namespace = resolveNamespaceName(req.query.namespace as string);
 
     // Call listKeysTool to get flat key list
     const result = await listKeysTool({
@@ -78,7 +82,10 @@ router.get(
     const offset = req.query.offset
       ? parseInt(req.query.offset as string, 10)
       : 0;
-    const namespace = (req.query.namespace as string) || "default";
+    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
+    // > config defaultNamespace > "default" (the old `|| "default"` ignored
+    // both the documented env var and the configured default).
+    const namespace = resolveNamespaceName(req.query.namespace as string);
 
     const result = await listKeysTool({
       prefix,

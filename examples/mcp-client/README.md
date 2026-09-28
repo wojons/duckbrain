@@ -22,7 +22,7 @@ pnpm install --frozen-lockfile
       "args": ["/path/to/duckbrain/bin/duckbrain.js", "stdio"],
       "env": {
         "DUCKBRAIN_NAMESPACE": "claude",
-        "DUCKBRAIN_DATA_DIR": "/path/to/duckbrain/memory"
+        "DUCKBRAIN_NAMESPACES_PATH": "/path/to/duckbrain/namespaces"
       }
     }
   }
@@ -30,6 +30,28 @@ pnpm install --frozen-lockfile
 ```
 
 3. Restart Claude Desktop
+
+## Namespace Resolution
+
+`DUCKBRAIN_NAMESPACE` is what isolates one agent's memory from another's. The
+namespace an operation uses is resolved in this order (first one set wins):
+
+1. an explicit parameter — the `remember` tool's `namespace` argument, the
+   CLI's `--namespace=<name>`, or the HTTP API's `?namespace=<name>`
+2. `DUCKBRAIN_NAMESPACE` from the agent's `env` block
+3. `defaultNamespace` in `duckbrain.config.json`
+4. `default`
+
+So the config above makes every `remember`/`recall`/`list_keys` call that does
+not name a namespace land in `claude`. The env var is applied at runtime only —
+it is never written back into `duckbrain.config.json`. To change the namespace
+for good, use the `switch_namespace` tool or
+`duckbrain config set defaultNamespace <name>`.
+
+`DUCKBRAIN_NAMESPACES_PATH` is the separate "where is memory stored" knob: it
+is the directory that holds the namespace repositories (default
+`<duckbrain root>/namespaces`). Note that `DUCKBRAIN_DATA_DIR` is **not** the
+memory store — it only sets the directory for the HTTP server's PID file.
 
 ## Usage
 

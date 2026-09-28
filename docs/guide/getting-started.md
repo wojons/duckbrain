@@ -153,15 +153,20 @@ pnpm test:integration    # integration suites — needs sshpass
 Create a `.env` file in your project root:
 
 ```bash
-# Required
+# Required — isolates this agent's memory from every other agent's
 DUCKBRAIN_NAMESPACE=my-project
 
 # Optional
-DUCKBRAIN_DATA_DIR=./memory
+DUCKBRAIN_NAMESPACES_PATH=./namespaces   # where the namespace repos live
 DUCKBRAIN_API_PORT=3000
 DUCKBRAIN_UI_PORT=8989
 DUCKBRAIN_LOG_LEVEL=info
 ```
+
+`DUCKBRAIN_NAMESPACE` is resolved as: explicit parameter (`--namespace=`,
+`?namespace=`, the `remember` tool's `namespace` argument) >
+`DUCKBRAIN_NAMESPACE` > the config file's `defaultNamespace` > `default`. It is
+a runtime override and is never written back into `duckbrain.config.json`.
 
 See [Configuration Reference](configuration) for all options.
 
