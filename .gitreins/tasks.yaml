@@ -2007,3 +2007,22 @@ tasks:
   status: complete
   created_at: '2026-09-28T18:15:27.419393+00:00'
   completed_at: '2026-09-28T18:15:44.124653+00:00'
+- id: DEPS-003
+  title: bump @aws-sdk/client-s3 3.1136.0 -> 3.1137.0
+  criteria:
+  - pnpm-lock.yaml and package-lock.json both contain @aws-sdk/client-s3 3.1137.x;
+    pnpm install --frozen-lockfile exit 0; pnpm build exit 0; tsc --noEmit exit 0;
+    vitest suite green (1430 tests)
+  status: complete
+  created_at: '2026-09-28T21:44:01.678371+00:00'
+  completed_at: '2026-09-28T21:44:38.673441+00:00'
+- id: DF-0926-04
+  title: honor DUCKBRAIN_NAMESPACE env var for runtime namespace isolation
+  criteria:
+  - process.env.DUCKBRAIN_NAMESPACE override in applyEnvOverrides() (src/config/index.ts);
+    HTTP routes (keys.ts, memories.ts) thread resolved namespace through to tool calls;
+    .env.example, docs, examples/mcp-client/README.md updated; 14 new focused tests
+    pass; full suite 1444/1444 green; tsc clean
+  status: complete
+  created_at: '2026-09-28T22:29:43.328212+00:00'
+  completed_at: '2026-09-28T22:30:25.811751+00:00'
