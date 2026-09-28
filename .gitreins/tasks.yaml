@@ -1981,3 +1981,11 @@ tasks:
   status: complete
   created_at: '2026-09-27T22:05:22.638849+00:00'
   completed_at: '2026-09-27T22:15:01.320537+00:00'
+- id: INT-CI-016
+  title: Sync AGENTS.md test counts
+  criteria:
+  - AGENTS.md must report the live 179 Vitest suites and 1430 tests at both documented
+    count locations; protected-file toggle must be restored true and exact successor
+    CI must be checked
+  status: in_progress
+  created_at: '2026-09-28T01:35:16.179868+00:00'
