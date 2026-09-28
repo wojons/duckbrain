@@ -1999,3 +1999,11 @@ tasks:
   status: complete
   created_at: '2026-09-28T03:08:09.866623+00:00'
   completed_at: '2026-09-28T03:10:10.562832+00:00'
+- id: DF-0925-02
+  title: DF-0925-02 verify paired data/audit commit behavior
+  criteria:
+  - The namespace commit path stages accepted data and its audit record together under
+    the write lock; focused regression test passes.
+  status: complete
+  created_at: '2026-09-28T18:15:27.419393+00:00'
+  completed_at: '2026-09-28T18:15:44.124653+00:00'
