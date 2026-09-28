@@ -1987,5 +1987,6 @@ tasks:
   - AGENTS.md must report the live 179 Vitest suites and 1430 tests at both documented
     count locations; protected-file toggle must be restored true and exact successor
     CI must be checked
-  status: in_progress
+  status: complete
   created_at: '2026-09-28T01:35:16.179868+00:00'
+  completed_at: '2026-09-28T01:43:29.786461+00:00'
