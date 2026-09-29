@@ -26,6 +26,7 @@ import {
   highlightMatches,
   type IndexRow,
 } from "./rank";
+import { FTS_STOPWORDS } from "./stopwords";
 import {
   buildTimeRangeConditions,
   buildAttributeConditions,
@@ -105,6 +106,13 @@ export interface KeywordSearchOptions {
    *  DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS / DEFAULT_AUTOBUILD_MAX_ROWS
    *  (single-namespace reads only). */
   autoBuildMaxRows?: number;
+  /** DF-0926-03: when true, a query whose ONLY tokens are FTS stopwords
+   *  ("hello", "from", "different") also runs a raw-text literal pass, so
+   *  content stored verbatim still matches (?contains= surface). Default
+   *  false: the hybrid ?q= fusion contract (RETR-002) depends on the
+   *  keyword leg finding nothing for stopword-only queries so the
+   *  semantic leg fuses alone. */
+  includeStopwordLiterals?: boolean;
 }
 
 function escapeSqlLiteral(s: string): string {
@@ -294,6 +302,43 @@ async function collectKeywordCandidates(
         const row = toIndexRow(r);
         // A row already found via FTS keeps its real BM25 score.
         if (!candidates.has(row.id)) candidates.set(row.id, row);
+      }
+    }
+
+    // DF-0926-03: stopword-only queries ("hello", "from", "different")
+    // never reached any candidate pass — dropStopwords removes their tokens
+    // to keep the query token set aligned with what the FTS index stored
+    // (the rank.ts contract), and the BM25 block above is then skipped
+    // entirely, so a query containing ONLY stopwords matched nothing while
+    // the text was stored verbatim. When every token was dropped, add a
+    // raw-text word-boundary pass — the same role as the prefix pass
+    // above: candidates outside the BM25 macro, re-ranked by rank.ts's
+    // tiers on raw_text. The FTS query construction is untouched, so the
+    // FTS/JS stopword alignment stays intact; a stopword absent from the
+    // stored text still matches no row. OPT-IN (includeStopwordLiterals):
+    // the hybrid ?q= fusion contract (RETR-002) relies on the keyword leg
+    // finding nothing for stopword-only queries so the semantic leg fuses
+    // alone, so only the ?contains= surface enables the pass.
+    if (
+      opts.includeStopwordLiterals === true &&
+      ftsTokens.length === 0 &&
+      kept.length === 0 &&
+      tokens.length > 0
+    ) {
+      // Tokens come from tokenize() ([a-z0-9]+ only), so they can be
+      // embedded in a character class without regex escaping; the explicit
+      // filter keeps the guarantee local rather than trusting the caller.
+      const NB = "[^a-z0-9]";
+      const stopwordConditions = [...new Set(tokens)]
+        .filter((t) => FTS_STOPWORDS.has(t) && /^[a-z0-9]+$/.test(t))
+        .map((t) => `regexp_matches(raw_text, '(^|${NB})${t}(${NB}|$)', 'i')`);
+      if (stopwordConditions.length > 0) {
+        const sql = `SELECT ${cols}, 0 AS score FROM memories WHERE (${stopwordConditions.join(" OR ")})${timeClause}${attrClause}${validityClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
+        const rows = await allAsync(db, sql);
+        for (const r of rows) {
+          const row = toIndexRow(r);
+          if (!candidates.has(row.id)) candidates.set(row.id, row);
+        }
       }
     }
   } finally {

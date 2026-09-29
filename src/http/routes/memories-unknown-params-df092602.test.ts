@@ -72,7 +72,10 @@ function httpRequest(method: string, path: string): Promise<HttpResponse> {
 function advertisedParams(message: string): string[] {
   const marker = "Valid parameters:";
   const at = message.indexOf(marker);
-  expect(at, `400 message must list valid parameters: ${message}`).toBeGreaterThan(-1);
+  expect(
+    at,
+    `400 message must list valid parameters: ${message}`,
+  ).toBeGreaterThan(-1);
   return message
     .slice(at + marker.length)
     .split(",")
@@ -92,7 +95,10 @@ function documentedParams(): string[] {
   );
   const heading = "#### `GET /api/memories`";
   const start = doc.indexOf(heading);
-  expect(start, "docs/api/http-api.md must document GET /api/memories").toBeGreaterThan(-1);
+  expect(
+    start,
+    "docs/api/http-api.md must document GET /api/memories",
+  ).toBeGreaterThan(-1);
   const rest = doc.slice(start + heading.length);
   const end = rest.indexOf("\n#### ");
   const section = end === -1 ? rest : rest.slice(0, end);
@@ -175,7 +181,14 @@ describe("DF-0926-02: GET /api/memories rejects undocumented query params", () =
     expect(status).toBe(400);
     const advertised = advertisedParams(body.error);
     // Guard against a vacuous parse: the documented core params must be there.
-    for (const name of ["prefix", "domain", "q", "contains", "limit", "namespace"]) {
+    for (const name of [
+      "prefix",
+      "domain",
+      "q",
+      "contains",
+      "limit",
+      "namespace",
+    ]) {
       expect(advertised, body.error).toContain(name);
     }
     // ...and the repeatable attribute form, which is a documented prefix.
@@ -195,11 +208,17 @@ describe("DF-0926-02: GET /api/memories rejects undocumented query params", () =
 
     // Every documented param is accepted...
     for (const name of documented) {
-      expect(advertised, `documented param '${name}' must be accepted`).toContain(name);
+      expect(
+        advertised,
+        `documented param '${name}' must be accepted`,
+      ).toContain(name);
     }
     // ...and nothing is accepted that the docs do not advertise.
     for (const name of advertised) {
-      expect(documented, `accepted param '${name}' must be documented`).toContain(name);
+      expect(
+        documented,
+        `accepted param '${name}' must be documented`,
+      ).toContain(name);
     }
   });
 

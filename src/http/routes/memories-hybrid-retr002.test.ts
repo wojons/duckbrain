@@ -42,6 +42,7 @@ import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
 import { EmbeddingCache } from "../../embedding/cache";
 import { rebuildNamespaceIndex } from "../../search/index";
+import { keywordSearch } from "../../search/query";
 
 // Shared by the mocked provider AND the pre-seeded cache, so vectors agree.
 const { bowVector } = vi.hoisted(() => {
@@ -338,12 +339,20 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
         restoreIndex();
       }
 
-      // Keyword-only: the contains= path (same keywordSearch leg).
-      const kw = await httpRequest(
-        "GET",
-        `/api/memories?contains=${enc}&namespace=${NS_NAME}&limit=10`,
+      // Keyword-only: the keywordSearch leg exactly as the hybrid ?q= path
+      // drives it. DF-0926-03 gave the HTTP ?contains= surface an opt-in
+      // stopword literal pass (includeStopwordLiterals in recall.ts), so
+      // driving that route here would no longer measure the fusion
+      // component — stopword-only queries now legitimately hit through
+      // contains=, and the keyword average would read 1.0 for reasons that
+      // have nothing to do with RRF fusion quality.
+      const kw = await keywordSearch(NS, q.q, { limit: 10 });
+      keyword.push(
+        mrr(
+          kw.memories.map((m) => m.id),
+          relevant,
+        ),
       );
-      keyword.push(mrr(kw.body.items?.map((i: any) => i.id) ?? [], relevant));
     }
 
     // Exact expectations from the fixture construction.

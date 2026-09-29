@@ -24,6 +24,7 @@ import {
   writeContentViolation,
 } from "../../schema/memory";
 import { rememberTool } from "../../mcp/tools/remember";
+import { drainAsyncCommits } from "../../git/autocommit";
 
 const SCRATCH_ROOT = fs.mkdtempSync(
   path.join(os.tmpdir(), "duckbrain-emptycontent-"),
@@ -131,8 +132,18 @@ beforeAll(async () => {
   });
 });
 
-afterAll(() => {
-  server?.close();
+afterAll(async () => {
+  // Await the close, then drain in-flight async git work BEFORE deleting
+  // the scratch tree: an unawaited close returns while the last POST's
+  // auto-commit chain (debounce timers are unref'd) can still be writing
+  // into <root>/namespaces/<ns>/.git, and the rmSync then dies with
+  // ENOTEMPTY while every test in the file has already passed. Mirrors
+  // the http-auth.test.ts teardown (close → flush → drainAsyncCommits →
+  // rmSync).
+  if (server) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  await drainAsyncCommits();
   if (PREV_NS_PATH === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
   else process.env.DUCKBRAIN_NAMESPACES_PATH = PREV_NS_PATH;
   if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;

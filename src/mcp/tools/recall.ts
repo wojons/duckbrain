@@ -599,6 +599,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
               // (historical=true disables the clause).
               historical: validated.historical === true,
               now,
+              // DF-0926-03: stopword-only contains= queries still find
+              // content stored verbatim (contains= is a literal filter,
+              // unlike the hybrid ?q= fusion contract).
+              includeStopwordLiterals: true,
             },
           )
         : await keywordSearch(namespacePath, validated.contains, {
@@ -613,6 +617,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             // (historical=true disables the clause).
             historical: validated.historical === true,
             now,
+            // DF-0926-03: stopword-only contains= queries still find
+            // content stored verbatim (contains= is a literal filter,
+            // unlike the hybrid ?q= fusion contract).
+            includeStopwordLiterals: true,
           });
       // DB-GAP-046: the page window (offset, limit) is applied to the ranked
       // keyword hits — the fetch above already reached through the page end.
