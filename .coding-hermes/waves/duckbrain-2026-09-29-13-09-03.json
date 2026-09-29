@@ -1,0 +1,16 @@
+{
+  "scheduler_tick": "duckbrain-2026-09-29-13-09-03",
+  "wave_budget": 3,
+  "base": "e66c82a (feat/native-s3 HEAD; worktree.sh origin/main default overridden with reset --hard)",
+  "tasks": [
+    {"task": "QA-DUCKBRAIN-004", "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-004", "branch": "wt/QA-DUCKBRAIN-004", "brief": "/tmp/db-wave-qa004-brief.md"},
+    {"task": "HTTP-HELP-001", "worktree": "/home/kara/worktrees/duckbrain-HTTP-HELP-001", "branch": "wt/HTTP-HELP-001", "brief": "/tmp/db-wave-http-help-brief.md"},
+    {"task": "NAMESPACE-AUTOCREATE-001", "worktree": "/home/kara/worktrees/duckbrain-NAMESPACE-AUTOCREATE-001", "branch": "wt/NAMESPACE-AUTOCREATE-001", "brief": "/tmp/db-wave-nsauto-brief.md"}
+  ],
+  "excluded": {
+    "REVIEW-DUCKBRAIN-006": "stale-resolved: auth default already apikey at src/cli/http.ts:405 + bin/duckbrain.ts:76",
+    "RELEASE-*": "NO-GO sweep rows awaiting Bane authorization; not actionable work",
+    "SYNC-2026-09-28-001": "needs diagnosis design; not a mechanical fix",
+    "SUPA6-DECLARE-GAP-001": "complexity 3, spec confirmation required pre-dispatch"
+  }
+}
