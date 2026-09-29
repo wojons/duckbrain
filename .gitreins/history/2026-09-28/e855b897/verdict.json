@@ -1,0 +1,95 @@
+{
+  "task_id": "DF-0926-04",
+  "task_title": "honor DUCKBRAIN_NAMESPACE env var for runtime namespace isolation",
+  "task_criteria": [
+    "process.env.DUCKBRAIN_NAMESPACE override in applyEnvOverrides() (src/config/index.ts); HTTP routes (keys.ts, memories.ts) thread resolved namespace through to tool calls; .env.example, docs, examples/mcp-client/README.md updated; 14 new focused tests pass; full suite 1444/1444 green; tsc clean"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "eade2cb6e994c670a61e6ca5940d611df4974ae2",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:30PM INF scanned ~14130183 bytes (14.13 MB) in 3.46s\n5:30PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 339178 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  181 passed (181)\n      Tests  1444 passed (1444)\n   Start at  17:30:27\n   Duration  76.57s (tests 72%, import 24%, transform 3%, setup 1%, worker 1%)\n\n    Isolate  181 workers spawned \u00b7 ~155ms startup each (spawn + environment, per file)\n             at least ~6.86s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 1 column 79 (char 78)) The resolved namespace is threaded into the actual tool calls (`listKeysTool({... namespace})`, `rememberTool({... namespace: writtenNamespace})`, etc.). All parts of the criterion are verified.\n\nSummary of findings:\n- **applyEnvOverrides() override**: present in `src/config/index.ts` (commit eade2c",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 1 column 79 (char 78)) The resolved namespace is threaded into the actual tool calls (`listKeysTool({... namespace})`, `rememberTool({... namespace: writtenNamespace})`, etc.). All parts of the criterion are verified.\n\nSummary of findings:\n- **applyEnvOverrides() override**: present in `src/config/index.ts` (commit eade2c",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [],
+            "summary": "(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 1 column 79 (char 78)) The resolved namespace is threaded into the actual tool calls (`listKeysTool({... namespace})`, `rememberTool({... namespace: writtenNamespace})`, etc.). All parts of the criterion are verified.\n\nSummary of findings:\n- **applyEnvOverrides() override**: present in `src/config/index.ts` (commit eade2c"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-04\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 1 column 79 (char 78)) The resolved namespace is threaded into the actual tool calls (`listKeysTool({... namespace})`, `rememberTool({... namespace: writtenNamespace})`, etc.). All parts of the criterion are verified.\n\nSummary of findings:\n- **applyEnvOverrides() override**: present in `src/config/index.ts` (commit eade2c\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-28T22:38:15.547427",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-28T22:38:15.596171+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 55830,
+        "truncated": false,
+        "source": "git show eade2cb6e994"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 8204,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-04"
+  }
+}

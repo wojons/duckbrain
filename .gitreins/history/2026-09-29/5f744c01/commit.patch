@@ -1,0 +1,101 @@
+commit 881f9d34ed3544d60b97c4bad23c353d0c895356
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Sep 28 21:20:14 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Sep 28 21:20:14 2026 -0500
+
+    fix(DF-0924-04): as_of + q= returns 400 instead of 500
+    
+    throwRecallError now maps 'as_of cannot be combined' errors to
+    ValidationError (400) instead of ApiError (500). The combination is
+    a client validation error, not a server fault.
+    
+    Test updated to assert 400 + VALIDATION_ERROR code.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                          |  6 ++++++
+ src/http/routes/memories-asof-retr004.test.ts |  3 ++-
+ src/http/routes/memories.ts                   | 20 +++++++++++---------
+ 3 files changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 0434a8b..1fc4f98 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2026,3 +2026,9 @@ tasks:
+   status: complete
+   created_at: '2026-09-28T22:29:43.328212+00:00'
+   completed_at: '2026-09-28T22:30:25.811751+00:00'
++- id: DF-0924-04
++  title: P3 as_of + q= combination returns 500 instead of 400
++  criteria:
++  - HTTP status 400 when as_of combined with q= or contains=
++  status: in_progress
++  created_at: '2026-09-29T02:19:31.316198+00:00'
+diff --git a/src/http/routes/memories-asof-retr004.test.ts b/src/http/routes/memories-asof-retr004.test.ts
+index 08a401e..d0985aa 100644
+--- a/src/http/routes/memories-asof-retr004.test.ts
++++ b/src/http/routes/memories-asof-retr004.test.ts
+@@ -211,7 +211,8 @@ describe("RETR-004: memory-as-of — GET /api/memories", () => {
+       "GET",
+       `/api/memories?as_of=${sha1}&q=first&namespace=default`,
+     );
+-    expect(res.status).toBe(500);
++    expect(res.status).toBe(400);
++    expect(res.body.code).toBe("VALIDATION_ERROR");
+     expect(res.body.error).toMatch(/as_of cannot be combined/);
+   });
+ 
+diff --git a/src/http/routes/memories.ts b/src/http/routes/memories.ts
+index 0e32e74..620cd1c 100644
+--- a/src/http/routes/memories.ts
++++ b/src/http/routes/memories.ts
+@@ -69,6 +69,10 @@ function throwRecallError(error: string): never {
+   if (isEmbeddingsDownError(error)) {
+     throw new ApiError(error, 503, "EMBEDDINGS_UNAVAILABLE");
+   }
++  // DF-0924-04: as_of + q/contains is a client validation error, not a server fault.
++  if (error.includes("as_of cannot be combined")) {
++    throw new ValidationError(error);
++  }
+   throw new ApiError(error, 500);
+ }
+ 
+@@ -225,10 +229,9 @@ const LIST_QUERY_PARAMS = [
+ const ATTRIBUTE_PARAM_PREFIX = "attr.";
+ const ATTRIBUTE_PARAM_FORM = `${ATTRIBUTE_PARAM_PREFIX}<name>`;
+ 
+-const LIST_QUERY_PARAM_LIST = [
+-  ...LIST_QUERY_PARAMS,
+-  ATTRIBUTE_PARAM_FORM,
+-].join(", ");
++const LIST_QUERY_PARAM_LIST = [...LIST_QUERY_PARAMS, ATTRIBUTE_PARAM_FORM].join(
++  ", ",
++);
+ 
+ /**
+  * DF-0926-02: hints for the two undocumented spellings the repo's own HTTP
+@@ -237,8 +240,7 @@ const LIST_QUERY_PARAM_LIST = [
+  */
+ const LIST_QUERY_PARAM_HINTS: Record<string, string> = {
+   key: "read one exact key with GET /api/memories/key/:key, or filter the list with ?prefix=",
+-  query:
+-    "use ?q= (semantic search) or ?contains= (offline keyword search)",
++  query: "use ?q= (semantic search) or ?contains= (offline keyword search)",
+ };
+ 
+ /**
+@@ -262,9 +264,9 @@ function isListQueryParam(name: string): boolean {
+  * called, so an unhonourable request can never be answered with a 200 list.
+  */
+ function rejectUnknownListQueryParams(query: unknown): void {
+-  const unknown = Object.keys(
+-    (query ?? {}) as Record<string, unknown>,
+-  ).filter((name) => !isListQueryParam(name));
++  const unknown = Object.keys((query ?? {}) as Record<string, unknown>).filter(
++    (name) => !isListQueryParam(name),
++  );
+   if (unknown.length === 0) {
+     return;
+   }

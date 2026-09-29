@@ -1,0 +1,67 @@
+{
+  "task_id": "DF-0924-06",
+  "task_title": "Verify namespace census and switch reconciliation",
+  "task_criteria": [
+    "GET /api/namespaces includes on-disk-only namespaces, fresh phantom default is absent, and switch_namespace accepts an existing unmapped directory; focused regression tests pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "ee45b0ec4c91319a1a2c478bbdd69ad976072705",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:11PM INF scanned ~14155388 bytes (14.16 MB) in 2.43s\n4:11PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 337744 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-offset-prefix-gap046.test.ts (8 tests) 658ms\n \u276f src/http/routes/memories-timerange-retr003.test.ts (9 tests) 470ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-offset-prefix-gap046.test.ts > DB-GAP-046: GET /api/memories prefix + offset paging\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14851,12 +14851,11 @@\n      \"auger-pytest-ff86c738e1e6\": \"/home/kara/duckbrain/namespaces/auger-pytest-ff86c738e1e6\",\n      \"auger-pytest-d9f89f69e28b\": \"/home/kara/duckbrain/namespaces/auger-pytest-d9f89f69e28b\",\n      \"auger-pytest-f15805fe0732\": \"/home/kara/duckbrain/namespaces/auger-pytest-f15805fe0732\",\n      \"auger-pytest-5785bf4d9f75\": \"/home/kara/duckbrain/namespaces/auger-pytest-5785bf4d9f75\",\n      \"auger-pytest-98f221002dac\": \"/home/kara/duckbrain/namespaces/auger-pytest-98f221002dac\",\n-     \"auger-pytest-9eb5fcd158df\": \"/home/kara/duckbrain/namespaces/auger-pytest-9eb5fcd158df\",\n-     \"auger-pytest-c27f631210ba\": \"/home/kara/duckbrain/namespaces/auger-pytest-c27f631210ba\"\n+     \"auger-pytest-9eb5fcd158df\": \"/home/kara/duckbrain/namespaces/auger-pytest-9eb5fcd158df\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-offset-prefix-gap046.test.ts:198:30\n    196|   afterAll(() => {\n    197|     server.close();\n    198|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    199|     fs.rmSync(NS, { recursive: true, force: true });\n    200|     fs.rmSync(LIVE_NS, { recursive: true, force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/memories-timerange-retr003.test.ts > RETR-003: time-scoped recall \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14851,11 +14851,12 @@\n      \"auger-pytest-ff86c738e1e6\": \"/home/kara/duckbrain/namespaces/auger-pytest-ff86c738e1e6\",\n      \"auger-pytest-d9f89f69e28b\": \"/home/kara/duckbrain/namespaces/auger-pytest-d9f89f69e28b\",\n      \"auger-pytest-f15805fe0732\": \"/home/kara/duckbrain/namespaces/auger-pytest-f15805fe0732\",\n      \"auger-pytest-5785bf4d9f75\": \"/home/kara/duckbrain/namespaces/auger-pytest-5785bf4d9f75\",\n      \"auger-pytest-98f221002dac\": \"/home/kara/duckbrain/namespaces/auger-pytest-98f221002dac\",\n-     \"auger-pytest-9eb5fcd158df\": \"/home/kara/duckbrain/namespaces/auger-pytest-9eb5fcd158df\"\n+     \"auger-pytest-9eb5fcd158df\": \"/home/kara/duckbrain/namespaces/auger-pytest-9eb5fcd158df\",\n+     \"auger-pytest-abdee7347d69\": \"/home/kara/duckbrain/namespaces/auger-pytest-abdee7347d69\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-timerange-retr003.test.ts:131:30\n    129|   afterAll(() => {\n    130|     server.close();\n    131|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    132|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    133|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  2 failed | 177 passed (179)\n      Tests  1430 passed (1430)\n   Start at  16:11:07\n   Duration  69.56s (tests 78%, import 18%, transform 3%, setup 1%)\n\n    Isolate  179 workers spawned \u00b7 ~109ms startup each (spawn + environment, per file)\n             at least ~4.78s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DF-0924-06\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-28T21:12:17.762271",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-28T21:12:17.795683+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 8454,
+        "truncated": false,
+        "source": "git show ee45b0ec4c91"
+      }
+    ],
+    "task_id": "DF-0924-06"
+  }
+}
