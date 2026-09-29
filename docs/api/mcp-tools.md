@@ -111,6 +111,7 @@ Query memories with flexible filtering.
   query?: string;       // Semantic search query (uses DuckDB VSS extension)
   limit?: number;       // Max results (default: 10)
   namespace?: string;   // Namespace to query (default: current active namespace)
+  asOf?: string;        // RETR-004: ISO-8601 date or git ref (commit/branch/tag) — read namespace state as it existed at that point in git history. Cannot combine with query/contains (semantic/keyword search has no historical state).
 }
 ```
 
@@ -146,6 +147,15 @@ Query memories with flexible filtering.
   "limit": 20
 }
 ```
+
+**Time travel (RETR-004):**
+```json
+{
+  "keyPrefix": "/projects/myapp/",
+  "asOf": "2026-08-10"
+}
+```
+Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state.
 
 **Returns:**
 
