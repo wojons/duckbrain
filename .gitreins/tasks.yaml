@@ -2047,5 +2047,6 @@ tasks:
   - contains=<stopword like Hello/from/different> returns rows whose content contains
     that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon
     live proof
-  status: in_progress
+  status: complete
   created_at: '2026-09-29T05:34:29.723545+00:00'
+  completed_at: '2026-09-29T06:25:35.450001+00:00'
