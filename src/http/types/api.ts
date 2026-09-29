@@ -34,6 +34,12 @@ export interface MemoryResponse {
   /** Action type (add, edit, tombstone) */
   action: string;
   /**
+   * NAMESPACE-AUTOCREATE-001: present (true) only on a 201 whose write
+   * CREATED the namespace (it did not exist before). Absent when the
+   * namespace already existed.
+   */
+  namespace_autocreated?: true;
+  /**
    * Cosine similarity to the query vector — present only on semantic ?q=
    * responses (DOGFOOD-011); keyword ?contains= responses carry the BM25
    * score instead (RETR-001)
