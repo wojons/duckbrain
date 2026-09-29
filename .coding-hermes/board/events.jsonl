@@ -1286,3 +1286,4 @@
 {"event":"close","task_id":"DF-0926-04","timestamp":"2026-09-29T00:59:28Z","reason":"verified fix in eade2cb: DUCKBRAIN_NAMESPACE now selects namespace via applyEnvOverrides() in src/config/index.ts; all consumers inherit through resolveNamespaceName"}
 {"event":"close","task_id":"DF-0926-02","timestamp":"2026-09-29T01:14:57Z","commit":"f661cc3","reason":"unknown query params now rejected 400 with hints; parity test locks docs vs route"}
 {"event":"file","task_id":"INT-CI-002","timestamp":"2026-09-29T01:22:13Z","reason":"CI red from DF-0926-02 landing: AGENTS.md counts stale (181/1444 vs live 182/1452). Protected file — needs interactive approval to edit."}
+{"id":"EVT-611","tick":611,"timestamp":"2026-09-29T02:52:00Z","type":"tick-close","summary":"foreman-direct: AGENTS.md count sync 181/1444->182/1452 (INT-CI-017 close); board JSONL corruption repair (line 219 split DF-0924-03/04); commit 59e1c94 pushed","commit":"59e1c94"}
