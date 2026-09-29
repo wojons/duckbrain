@@ -189,6 +189,98 @@ function parseOffset(raw: unknown): number {
 }
 
 /**
+ * DF-0926-02: the complete query-parameter surface of GET /api/memories.
+ *
+ * The handler builds its filters from a fixed set of names and used to let
+ * anything else pass unread — so a client that sent `?key=` or `?query=`
+ * (both taught by examples/http-api/client.js at the time of the dogfood
+ * run) got HTTP 200 with the UNFILTERED list and believed its filter had
+ * been applied. A silent wrong result is worse than an error: the caller
+ * has no signal that the filter was dropped. Every param the route reads
+ * is named here, and anything else is refused with 400 VALIDATION_ERROR
+ * listing this list, so the same class cannot come back with a new
+ * spelling. `docs/api/http-api.md` must advertise exactly this set — the
+ * DF-0926-02 test parses both and fails on drift in either direction.
+ */
+const LIST_QUERY_PARAMS = [
+  "prefix",
+  "domain",
+  "author",
+  "q",
+  "contains",
+  "after",
+  "before",
+  "between",
+  "as_of",
+  "historical",
+  "limit",
+  "offset",
+  "namespace",
+  // RETR-007: cross-namespace keyword search (read below via
+  // params.allNamespaces).
+  "allNamespaces",
+] as const;
+
+/** RETR-006: attribute filters are a documented PREFIX, not a fixed name. */
+const ATTRIBUTE_PARAM_PREFIX = "attr.";
+const ATTRIBUTE_PARAM_FORM = `${ATTRIBUTE_PARAM_PREFIX}<name>`;
+
+const LIST_QUERY_PARAM_LIST = [
+  ...LIST_QUERY_PARAMS,
+  ATTRIBUTE_PARAM_FORM,
+].join(", ");
+
+/**
+ * DF-0926-02: hints for the two undocumented spellings the repo's own HTTP
+ * example taught. Naming the replacement turns "you sent something I do not
+ * understand" into a fixable message.
+ */
+const LIST_QUERY_PARAM_HINTS: Record<string, string> = {
+  key: "read one exact key with GET /api/memories/key/:key, or filter the list with ?prefix=",
+  query:
+    "use ?q= (semantic search) or ?contains= (offline keyword search)",
+};
+
+/**
+ * DF-0926-02: is this query-param name part of the documented surface?
+ * `attr.` with no attribute name is NOT — it would be read as a filter on
+ * an empty attribute name.
+ */
+function isListQueryParam(name: string): boolean {
+  if ((LIST_QUERY_PARAMS as readonly string[]).includes(name)) {
+    return true;
+  }
+  return (
+    name.startsWith(ATTRIBUTE_PARAM_PREFIX) &&
+    name.length > ATTRIBUTE_PARAM_PREFIX.length
+  );
+}
+
+/**
+ * DF-0926-02: reject any query parameter this route does not read, instead
+ * of silently ignoring it. Runs BEFORE any filter is built or any tool is
+ * called, so an unhonourable request can never be answered with a 200 list.
+ */
+function rejectUnknownListQueryParams(query: unknown): void {
+  const unknown = Object.keys(
+    (query ?? {}) as Record<string, unknown>,
+  ).filter((name) => !isListQueryParam(name));
+  if (unknown.length === 0) {
+    return;
+  }
+  const offenders = unknown
+    .map((name) =>
+      LIST_QUERY_PARAM_HINTS[name]
+        ? `'${name}' (${LIST_QUERY_PARAM_HINTS[name]})`
+        : `'${name}'`,
+    )
+    .join(", ");
+  throw new ValidationError(
+    `Unknown query parameter(s): ${offenders}. Valid parameters: ${LIST_QUERY_PARAM_LIST}.`,
+  );
+}
+
+/**
  * Transform MCP memory to API response format
  */
 function transformMemory(memory: any): MemoryResponse {
@@ -259,6 +351,11 @@ function normalizeValidityWindow(
 router.get(
   "/",
   asyncHandler(async (req: Request, res: Response) => {
+    // DF-0926-02: refuse query params this route cannot honour BEFORE any
+    // filter is built — an unrecognized param must never be silently dropped
+    // and answered with the unfiltered list.
+    rejectUnknownListQueryParams(req.query);
+
     const params: QueryParams = {
       prefix: req.query.prefix as string | undefined,
       // GAP-023: validated — rejects negative/non-numeric with 400

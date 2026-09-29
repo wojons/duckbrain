@@ -340,6 +340,7 @@ Query memories with filters.
 | `author` | — | Author email filter |
 | `q` | — | Text search query |
 | `contains` | — | Keyword filter (offline full-text search over content/key/attributes) |
+| `allNamespaces` | `false` | RETR-007: cross-namespace keyword search — with `contains=`, union the keyword hits over EVERY manifest namespace (each hit carries its own `namespace`). Requires an unrestricted token; mutually exclusive with `namespace` (the scoped param is ignored when this flag is set) |
 | `after` | — | Only rows at or after this ISO-8601 instant (timestamp or chat-archive key date facet) |
 | `before` | — | Only rows at or before this ISO-8601 instant |
 | `between` | — | ISO-8601 range as `START,END` — shorthand for `after` + `before` |
@@ -349,6 +350,8 @@ Query memories with filters.
 | `limit` | 50 | Max results to return |
 | `offset` | 0 | Pagination offset |
 | `namespace` | `default` | Namespace to query |
+
+> **Note — unknown query parameters (DF-0926-02):** this endpoint accepts exactly the parameters in the table above (`attr.<name>` as a repeatable prefix). Any OTHER query parameter is refused with **400 `VALIDATION_ERROR`** whose message names the offending parameter and lists the valid ones — it is never silently ignored. In particular `?key=` and `?query=` are not parameters of this endpoint: `?key=…` returns a 400 pointing at `GET /api/memories/key/:key` (or `?prefix=` to filter the list), and `?query=…` returns a 400 pointing at `?q=` / `?contains=`. Before the fix these two were accepted and dropped, so a client that believed it had recalled one key — or run one search — received HTTP 200 with the unfiltered list.
 
 > **Note — semantic search (`?q=`) and embeddings (DB-GAP-036):** `?q=` needs a reachable embedding provider at query time (LM Studio / Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider). When no provider can embed, the endpoint returns **503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start an embedding provider or run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) works offline; its per-namespace index is refreshed automatically when it is missing or older than the newest write (bounded and single-flight — `DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS`, default 5000 source rows), with `duckbrain search-index rebuild` as the escape hatch for namespaces over that bound. Check `GET /health` — its `embedding` block reports provider health.
 
