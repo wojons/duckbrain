@@ -42,7 +42,6 @@ Full positioning — the complete capability matrix, source notes, and as-of wal
 ### Roadmap surface (not available now)
 
 - **Planned:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6).
-- **Planned:** committed, resumable SSE change feed (SUPA-5).
 - **Implemented on branch — release evidence pending:** role grants, pluggable auth backends, and token lifecycle (DB-SUPA-4). Implemented with named tests, but not “available now” until release evidence is verified.
 
 See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-status matrix and the evidence bar behind every label.
