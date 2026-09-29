@@ -1040,6 +1040,177 @@ export async function startHttpMode(
   }
 }
 
+/**
+ * HTTP-HELP-001: the `duckbrain http` front door (help short-circuit, flag
+ * parsing, server start), extracted from bin/duckbrain.ts so vitest can
+ * drive it in-process — the bin entry module runs closeAllConnections() and
+ * main() at import time and must never be imported by a test.
+ *
+ * A bare `--help` or `-h` ANYWHERE in the args is answered with the http
+ * options block on STDOUT and an immediate return — before any flag parsing
+ * and WITHOUT calling start(). The production start() is startHttpMode, the
+ * only caller of createHttpServer() on this path, so "start not called"
+ * transitively proves the server is never constructed for a help request.
+ * With no --help the behavior is identical to the pre-extraction bin case:
+ * same flags, same space/`=` forms, same defaults (port 3000, authType
+ * "none", rateLimit 100).
+ *
+ * `helped: true` lets the bin entry exit 0 immediately after printing help.
+ */
+export interface HttpCommandStartOptions {
+  port: number;
+  authType: "none" | "basic" | "apikey";
+  authFile?: string;
+  rateLimit: number;
+  bindAll: boolean;
+  socket?: string;
+  socketMode?: string;
+  socketGroup?: string;
+}
+
+export interface HttpCommandResult {
+  /** True when a help request was answered; no server was started. */
+  helped: boolean;
+}
+
+/**
+ * Print the `duckbrain http` options block to STDOUT.
+ *
+ * Mirrors the real flag list parsed below / HttpServerOptions (port,
+ * bind-all, auth, auth-file, rate-limit, unix-socket family) and the
+ * documented defaults, so `http --help` never drifts from what the command
+ * actually accepts.
+ */
+function printHttpHelp(): void {
+  console.log(
+    `
+Usage: duckbrain http [options]
+
+Start the DuckBrain server with HTTP transport (MCP-over-HTTP + REST API).
+
+Options:
+  --port=PORT              HTTP server port (default: 3000)
+  --bind-all               Bind to all interfaces (0.0.0.0) instead of localhost
+  --auth=TYPE              Authentication type: none, basic, apikey
+                           (default: none; the server fail-closes to apikey
+                           when an auth store is present)
+  --auth-file=PATH         Read auth users/apiKeys from PATH instead of
+                           ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
+                           the file must exist — for scratch/test daemons
+  --rate-limit=N           Requests per minute per IP (default: 100)
+  --unix-socket=PATH       Also listen on a Unix domain socket at PATH
+                           (enables MCP-over-HTTP and CLI access via socket)
+  --unix-socket-mode=OCTAL Socket file permissions (default: 0660)
+  --unix-socket-group=NAME Chown socket to group NAME or numeric GID
+  --help, -h               Show this help message
+
+Examples:
+  duckbrain http --port=3000
+  duckbrain http --auth=basic --rate-limit=60
+  duckbrain http --bind-all --port=8080
+  duckbrain http --unix-socket=/run/duckbrain.sock
+`.trim(),
+  );
+}
+
+export async function handleHttpCommand(
+  args: string[],
+  deps: { start?: (options: HttpCommandStartOptions) => Promise<void> } = {},
+): Promise<HttpCommandResult> {
+  // HTTP-HELP-001: help FIRST — a bare --help/-h anywhere in the args is a
+  // help request, never a server start. The old code ignored --help and
+  // went straight to startHttpMode, binding :3000 (EADDRINUSE under an
+  // already-running daemon) or silently starting a server on a free port.
+  if (args.includes("--help") || args.includes("-h")) {
+    printHttpHelp();
+    return { helped: true };
+  }
+
+  const start = deps.start ?? startHttpMode;
+
+  // Support both --port=9000 and --port 9000 formats
+  const portIdx = args.findIndex(
+    (arg) => arg === "--port" || arg.startsWith("--port="),
+  );
+  const bindAllIdx = args.findIndex((arg) => arg === "--bind-all");
+  const authIdx = args.findIndex(
+    (arg) => arg === "--auth" || arg.startsWith("--auth="),
+  );
+  const authFileIdx = args.findIndex(
+    (arg) => arg === "--auth-file" || arg.startsWith("--auth-file="),
+  );
+  const rateLimitIdx = args.findIndex(
+    (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
+  );
+  const socketIdx = args.findIndex(
+    (arg) => arg === "--unix-socket" || arg.startsWith("--unix-socket="),
+  );
+  const socketModeIdx = args.findIndex(
+    (arg) =>
+      arg === "--unix-socket-mode" || arg.startsWith("--unix-socket-mode="),
+  );
+  const socketGroupIdx = args.findIndex(
+    (arg) =>
+      arg === "--unix-socket-group" || arg.startsWith("--unix-socket-group="),
+  );
+
+  const port =
+    portIdx !== -1
+      ? args[portIdx].includes("=")
+        ? parseInt(args[portIdx].split("=")[1])
+        : parseInt(args[portIdx + 1])
+      : 3000;
+  const bindAll = bindAllIdx !== -1;
+  const authType =
+    authIdx !== -1
+      ? ((args[authIdx].includes("=")
+          ? args[authIdx].split("=")[1]
+          : args[authIdx + 1]) as "none" | "basic" | "apikey")
+      : "none";
+  const authFile =
+    authFileIdx !== -1
+      ? args[authFileIdx].includes("=")
+        ? args[authFileIdx].split("=")[1]
+        : args[authFileIdx + 1]
+      : undefined;
+  const rateLimit =
+    rateLimitIdx !== -1
+      ? args[rateLimitIdx].includes("=")
+        ? parseInt(args[rateLimitIdx].split("=")[1])
+        : parseInt(args[rateLimitIdx + 1])
+      : 100;
+  const socket =
+    socketIdx !== -1
+      ? args[socketIdx].includes("=")
+        ? args[socketIdx].split("=")[1]
+        : args[socketIdx + 1]
+      : undefined;
+  const socketMode =
+    socketModeIdx !== -1
+      ? args[socketModeIdx].includes("=")
+        ? args[socketModeIdx].split("=")[1]
+        : args[socketModeIdx + 1]
+      : undefined;
+  const socketGroup =
+    socketGroupIdx !== -1
+      ? args[socketGroupIdx].includes("=")
+        ? args[socketGroupIdx].split("=")[1]
+        : args[socketGroupIdx + 1]
+      : undefined;
+
+  await start({
+    port,
+    authType,
+    authFile,
+    rateLimit,
+    bindAll,
+    socket,
+    socketMode,
+    socketGroup,
+  });
+  return { helped: false };
+}
+
 // Auto-start if run directly
 if (
   process.argv[1]?.endsWith("http.ts") ||
