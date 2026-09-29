@@ -8,7 +8,11 @@
 import { z } from "zod";
 import { DomainEnum } from "../../schema/memory";
 import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
-import { queryMemories, countMemories } from "../../duckdb/queries";
+import {
+  queryMemories,
+  countMemories,
+  queryMemoriesWithTotal,
+} from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
@@ -985,13 +989,17 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // When another process has the DuckDB file open (e.g. MCP daemon),
     // the Node.js binding silently creates a broken Database that fails on
     // first query. Evict the bad entry and retry with a fresh connection.
+    // PERF-003: rows AND total are fused into ONE read_json scan — the old
+    // queryMemories + countMemories pair re-mounted every chunk file twice
+    // per request (two full re-ingests of the namespace per list call).
     let memories: Awaited<ReturnType<typeof queryMemories>>;
     let total: number;
     try {
-      memories = await queryMemories(db, partitionPaths, filters);
-      // GAP-024: true COUNT(*) of all rows matching the active filters,
-      // unlimited by limit/offset.
-      total = await countMemories(db, partitionPaths, filters);
+      ({ memories, total } = await queryMemoriesWithTotal(
+        db,
+        partitionPaths,
+        filters,
+      ));
     } catch (e: any) {
       if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
         console.error(
@@ -999,8 +1007,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         );
         evictConnection(namespacePath);
         const db2 = getDuckDBConnection("singleton", namespacePath);
-        memories = await queryMemories(db2, partitionPaths, filters);
-        total = await countMemories(db2, partitionPaths, filters);
+        ({ memories, total } = await queryMemoriesWithTotal(
+          db2,
+          partitionPaths,
+          filters,
+        ));
       } else {
         throw e;
       }
