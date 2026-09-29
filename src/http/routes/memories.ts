@@ -69,6 +69,10 @@ function throwRecallError(error: string): never {
   if (isEmbeddingsDownError(error)) {
     throw new ApiError(error, 503, "EMBEDDINGS_UNAVAILABLE");
   }
+  // DF-0924-04: as_of + q/contains is a client validation error, not a server fault.
+  if (error.includes("as_of cannot be combined")) {
+    throw new ValidationError(error);
+  }
   throw new ApiError(error, 500);
 }
 
@@ -225,10 +229,9 @@ const LIST_QUERY_PARAMS = [
 const ATTRIBUTE_PARAM_PREFIX = "attr.";
 const ATTRIBUTE_PARAM_FORM = `${ATTRIBUTE_PARAM_PREFIX}<name>`;
 
-const LIST_QUERY_PARAM_LIST = [
-  ...LIST_QUERY_PARAMS,
-  ATTRIBUTE_PARAM_FORM,
-].join(", ");
+const LIST_QUERY_PARAM_LIST = [...LIST_QUERY_PARAMS, ATTRIBUTE_PARAM_FORM].join(
+  ", ",
+);
 
 /**
  * DF-0926-02: hints for the two undocumented spellings the repo's own HTTP
@@ -237,8 +240,7 @@ const LIST_QUERY_PARAM_LIST = [
  */
 const LIST_QUERY_PARAM_HINTS: Record<string, string> = {
   key: "read one exact key with GET /api/memories/key/:key, or filter the list with ?prefix=",
-  query:
-    "use ?q= (semantic search) or ?contains= (offline keyword search)",
+  query: "use ?q= (semantic search) or ?contains= (offline keyword search)",
 };
 
 /**
@@ -262,9 +264,9 @@ function isListQueryParam(name: string): boolean {
  * called, so an unhonourable request can never be answered with a 200 list.
  */
 function rejectUnknownListQueryParams(query: unknown): void {
-  const unknown = Object.keys(
-    (query ?? {}) as Record<string, unknown>,
-  ).filter((name) => !isListQueryParam(name));
+  const unknown = Object.keys((query ?? {}) as Record<string, unknown>).filter(
+    (name) => !isListQueryParam(name),
+  );
   if (unknown.length === 0) {
     return;
   }

@@ -2026,3 +2026,9 @@ tasks:
   status: complete
   created_at: '2026-09-28T22:29:43.328212+00:00'
   completed_at: '2026-09-28T22:30:25.811751+00:00'
+- id: DF-0924-04
+  title: P3 as_of + q= combination returns 500 instead of 400
+  criteria:
+  - HTTP status 400 when as_of combined with q= or contains=
+  status: in_progress
+  created_at: '2026-09-29T02:19:31.316198+00:00'
