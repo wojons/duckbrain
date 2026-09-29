@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { isPidAlive } from "../utils/pidfile";
 import type { FencingToken } from "./types";
@@ -27,15 +28,38 @@ export interface NamespaceWriteLock {
  */
 export type NamespaceLockOwner = "commit";
 
+/**
+ * QA-DUCKBRAIN-004: legacy test fixtures create their partitions directly
+ * under os.tmpdir(), so the derived lock root IS the shared temp directory
+ * and every lock lands in the fixed cross-process path
+ * <tmpdir>/.duckbrain-write. On a multi-uid machine, once another uid has
+ * created that dir (mode 775), every acquire fails EACCES. Those roots are
+ * never the config-derived production root (which lives under the repo, or
+ * is a temp SUBdirectory via DUCKBRAIN_NAMESPACES_PATH), so only the
+ * exact-tmpdir case is rerouted. The rerouted dir embeds the (unique) ns
+ * name as a SIBLING of the namespace dir rather than a child of it: tmpdir
+ * test namespaces can be git repos, and the commit path stages with
+ * `git add -A` while holding this very lock — a lock dir inside the repo
+ * would sweep itself into every commit. `<tmpdir>/.duckbrain-write-<ns>` is
+ * unique per fixture (mkdtemp suffix), so no cross-uid sharing is possible
+ * and production behavior stays byte-identical.
+ */
+function isSharedTempRoot(root: string): boolean {
+  return path.resolve(root) === path.resolve(os.tmpdir());
+}
+
+function lockDirFor(namespacesPath: string, ns: string): string {
+  if (isSharedTempRoot(namespacesPath)) {
+    return path.join(path.resolve(namespacesPath), `.duckbrain-write-${ns}`);
+  }
+  return path.join(path.resolve(namespacesPath), ".duckbrain-write");
+}
+
 export function namespaceWriteLockPath(
   namespacesPath: string,
   ns: string,
 ): string {
-  return path.join(
-    path.resolve(namespacesPath),
-    ".duckbrain-write",
-    `${ns}.lock`,
-  );
+  return path.join(lockDirFor(namespacesPath, ns), `${ns}.lock`);
 }
 
 export interface NamespaceWriteLockPayload {
