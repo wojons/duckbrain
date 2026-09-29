@@ -218,10 +218,13 @@ function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
  *
  * DB-GAP-035: also probes the keys store (same resilient read as list_keys)
  * and surfaces keys_error — null when the store answers, a short error
- * string when the keys read path fails (corrupt JSONL, missing namespace,
+ * string when the keys read path fails (corrupt JSONL, corrupt manifest,
  * connection loss). A failed keys probe flips status to degraded: every
  * consumer of keys over HTTP/MCP would fail, so a green /health would be a
- * false green.
+ * false green. A namespace that does not exist yet (fresh install, empty
+ * namespaces root) is HEALTHY, not degraded (HEALTH-KEYS-UNDEFINED-001) —
+ * the probe resolves the config default namespace and reports null when
+ * nothing has been written to it yet.
  *
  * GAP-030: HTTP status now carries the signal too — 503 when degraded
  * (embedding.healthy=false or keys_error set), 200 when healthy — so a
