@@ -2064,3 +2064,13 @@ tasks:
   status: complete
   created_at: '2026-09-29T07:37:53.224853+00:00'
   completed_at: '2026-09-29T08:37:38.925081+00:00'
+- id: DF-0925-07
+  title: DR pull restores a fresh machine from S3
+  criteria:
+  - 'On an empty namespaces root: (a) pull materializes namespaces found under the
+    remote prefix (bootstrap-then-pull); (b) ''s3 sync all pull'' reports restored-vs-skipped
+    loudly and never claims success with 0 restored when the remote prefix is non-empty;
+    (c) README/docs document the exact fresh-machine restore command sequence'
+  status: complete
+  created_at: '2026-09-29T09:06:50.981232+00:00'
+  completed_at: '2026-09-29T11:08:05.578597+00:00'
