@@ -206,6 +206,33 @@ duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/eve
 
 Restart the MCP/HTTP daemon after activating so autocommit picks up `pushOnCommit`. See [docs/s3-native.md](docs/s3-native.md) for the full design.
 
+#### Fresh-machine DR restore (paste-able)
+
+`pull` restores from the bucket, not from local state — on a machine with an empty (or absent) `namespaces/` root, `sync <ns> pull` bootstraps the namespace dir and `sync all pull` enumerates the REMOTE prefix. The exact sequence on a fresh machine:
+
+```bash
+# 0. one-time: repo, deps, config, credentials
+git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install
+#    set the s3 block from the section above in duckbrain.config.json, then:
+export AWS_PROFILE=<your-profile>          # or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+
+# 1. restore ALL namespaces (works into an empty or missing namespaces/ root)
+duckbrain s3 sync all pull
+
+# 2. reinit git tracking — a pull is DATA-ONLY: git history never travels
+#    through S3 objects, so each restored namespace has no .git yet
+for d in namespaces/*/; do (cd "$d" && git init -q \
+  && git config user.email "duckbrain@localhost.localdomain" \
+  && git config user.name "DuckBrain" \
+  && git add -A && git commit -q -m "restore: reinit tracking after S3 pull" || true); done
+
+# 3. start the serving daemon
+pnpm start http --port=3000 &
+curl -s http://127.0.0.1:3000/health
+```
+
+Notes: a restored namespace arrives data-only (JSONL + manifest files; the loop in step 2 recreates its git repo, and the daemon self-heals any namespace still missing a commit). A bootstrap pull never touches `namespaceMappings` — if you want the namespace registered in config, `duckbrain namespace create <ns>` afterward. The pull summary prints per-namespace downloaded counts; if namespaces exist on S3 but ALL fail to restore, `sync all pull` prints a loud warning and exits nonzero — a restore is never a silent zero.
+
 ## Screenshots
 
 ### Memory Tree View

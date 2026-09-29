@@ -15,7 +15,12 @@ import { getConfig } from "../config";
 import { safeJsonStringify } from "../utils/serialize";
 import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
 import { loadManifest } from "./manifest";
-import { walkLocal, syncNamespace, syncAllNamespaces } from "./sync";
+import {
+  walkLocal,
+  syncNamespace,
+  syncAllNamespaces,
+  listRemoteNamespaces,
+} from "./sync";
 import { runS3Query } from "./query";
 import { listRemoteObjects, buildClient } from "./client";
 import {
@@ -82,10 +87,17 @@ export async function s3Status(
   if (resolved.length === 0) {
     // no mappings configured — scan the namespaces dir
     const fs = await import("fs");
-    const dirs = fs
-      .readdirSync(nsRoot, { withFileTypes: true })
-      .filter((e: any) => e.isDirectory() && !e.name.startsWith("."))
-      .map((e: any) => e.name);
+    let dirs: string[] = [];
+    try {
+      dirs = fs
+        .readdirSync(nsRoot, { withFileTypes: true })
+        .filter((e: any) => e.isDirectory() && !e.name.startsWith("."))
+        .map((e: any) => e.name);
+    } catch {
+      // Absent namespaces root (fresh machine before a restore) — status
+      // still prints the config/endpoint block, just lists no namespaces.
+      dirs = [];
+    }
     resolved.push(...dirs);
   }
 
@@ -125,12 +137,38 @@ export async function s3Sync(
         `[S3] ${direction} ${stats.ns}: uploaded=${stats.uploaded} downloaded=${stats.downloaded} skipped=${stats.skipped} in ${stats.durationMs}ms`,
       );
     }
-  } else {
-    const all = await syncAllNamespaces(s3, nsRoot, direction);
-    const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
-    console.log(
-      `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
-    );
+    return;
+  }
+
+  // `all pull` reports restored-vs-skipped and NEVER reports a silent zero:
+  // if the remote prefix holds namespaces but nothing was restored (every
+  // per-namespace sync failed), that is a failed restore — warn loudly and
+  // exit nonzero. (DF-0925-07; the push summary stays as-is.)
+  const all = await syncAllNamespaces(s3, nsRoot, direction);
+  const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
+  console.log(
+    `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
+  );
+  if (direction === "pull") {
+    for (const s of all) {
+      console.log(
+        `[S3] pull ${s.ns}: downloaded=${s.downloaded} skipped=${s.skipped} in ${s.durationMs}ms`,
+      );
+    }
+    let remoteCount = -1;
+    try {
+      remoteCount = (await listRemoteNamespaces(buildClient(s3), s3)).length;
+    } catch (err) {
+      console.warn(
+        `[S3] remote listing for the restore summary failed: ${(err as Error).message}`,
+      );
+    }
+    if (remoteCount > 0 && all.length === 0) {
+      console.error(
+        `[S3] WARNING: ${remoteCount} namespace(s) exist on S3 but ALL failed to restore (0 restored). Your namespaces root was NOT repopulated — check the per-namespace errors above.`,
+      );
+      process.exit(1);
+    }
   }
 }
 
