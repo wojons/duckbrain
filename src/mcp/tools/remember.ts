@@ -20,6 +20,7 @@ import {
   type AuthPrincipal,
 } from "../../auth/middleware";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
+import { getConfig, resolveDuckbrainRoot } from "../../config/index";
 import { normalizeAttributes } from "../../utils/serialize";
 import { resolveNamespaceName, resolveNamespacePath } from "./shared";
 import fs from "fs";
@@ -133,6 +134,14 @@ interface RememberOutput {
   /** Namespace actually written — resolved from the arg or the active
    *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
   namespace?: string;
+  /**
+   * NAMESPACE-AUTOCREATE-001: present (true) ONLY when this write CREATED
+   * the namespace (mkdir -p + git init) because it did not exist before.
+   * Absent when the namespace already existed. The HTTP 201 surfaces it
+   * verbatim, so a typo'd ?namespace= is visible in the response body, not
+   * just the daemon log.
+   */
+  namespace_autocreated?: boolean;
   /** Present when the write landed outside the 'default' namespace because
    *  the caller OMITTED the arg and the sticky active namespace was used
    *  (DOGFOOD-017); an explicit namespace argument never warns (DF-0919-06) */
@@ -249,9 +258,36 @@ export async function rememberTool(
     const resolvedNamespace = resolveNamespaceName(namespace);
     const namespacePath = resolveNamespacePath(resolvedNamespace);
 
-    // Ensure namespace directory exists
-    if (!fs.existsSync(namespacePath)) {
+    // NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES. The
+    // daemon serves the fleet — many lanes write to legit namespaces over
+    // HTTP — so auto-create stays the DEFAULT and existing writers are never
+    // broken. What changes:
+    //
+    //  1. LOUD (default mode): a write that creates the namespace still
+    //     succeeds, but the output carries namespace_autocreated: true and a
+    //     WARN lands in the operator log. A typo'd ?namespace= is now visible
+    //     in both the response body and the log instead of scattering
+    //     memories silently.
+    //  2. STRICT (opt-out): with namespaces.autoCreate=false
+    //     (DUCKBRAIN_NAMESPACES_AUTOCREATE=false), a write to a non-existent
+    //     namespace is REFUSED with the serializer's NAMESPACE_NOT_FOUND code
+    //     and the legacy "does not exist" wording — the route's
+    //     throwWriteError maps that code to 404 — and NOTHING is created on
+    //     disk.
+    const nsExistsBefore = fs.existsSync(namespacePath);
+    if (!nsExistsBefore) {
+      const config = getConfig(resolveDuckbrainRoot());
+      if (!config.namespaces.autoCreate) {
+        return {
+          success: false,
+          code: "NAMESPACE_NOT_FOUND",
+          error: `Namespace '${resolvedNamespace}' does not exist (write rejected: namespace auto-creation is disabled via namespaces.autoCreate / DUCKBRAIN_NAMESPACES_AUTOCREATE). Create it first with POST /api/namespaces.`,
+        };
+      }
       fs.mkdirSync(namespacePath, { recursive: true });
+      console.warn(
+        `[namespace-autocreate] WARN: namespace '${resolvedNamespace}' did not exist and was auto-created by this write (mkdir -p + git init). If this namespace is unexpected (e.g. a typo in ?namespace=), inspect ${namespacePath}. Set namespaces.autoCreate=false / DUCKBRAIN_NAMESPACES_AUTOCREATE=false to reject such writes instead.`,
+      );
     }
 
     // Determine partition path (time-based). Directory creation, chunk
@@ -314,6 +350,13 @@ export async function rememberTool(
       author: memory.author,
       namespace: resolvedNamespace,
     };
+    // NAMESPACE-AUTOCREATE-001: this write created the namespace — say so in
+    // the machine-readable output (the HTTP 201 echoes it verbatim as
+    // namespace_autocreated: true). Absent when the namespace already
+    // existed, so existing clients reading the body see no change.
+    if (!nsExistsBefore) {
+      response.namespace_autocreated = true;
+    }
     if (!namespace && resolvedNamespace !== "default") {
       response.warning = `Memory written to namespace '${resolvedNamespace}', not 'default'. The active namespace is sticky across processes — pass namespace explicitly to control where writes land.`;
     }

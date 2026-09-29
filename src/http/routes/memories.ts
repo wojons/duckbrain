@@ -99,7 +99,11 @@ function throwWriteError(
   const status =
     result.code === "FORBIDDEN"
       ? 403
-      : result.code === "NOT_FOUND"
+      : // NAMESPACE-AUTOCREATE-001: strict-mode write into a namespace that
+        // does not exist (namespaces.autoCreate=false refused it) — same wire
+        // status as the read-side GAP-025 404s. The code stays more specific
+        // than the legacy NOT_FOUND so clients can tell the two apart.
+        result.code === "NOT_FOUND" || result.code === "NAMESPACE_NOT_FOUND"
         ? 404
         : result.code === "SERIALIZER_QUEUE_FULL" ||
             result.code === "SERIALIZER_LOCKED" ||
@@ -733,6 +737,12 @@ router.post(
       author: result.author!,
       isTombstone: false,
       action: "add",
+      // NAMESPACE-AUTOCREATE-001: additive — present (true) only when THIS
+      // write created the namespace (it did not exist before); absent when
+      // the namespace already existed, so existing clients see no change.
+      ...(result.namespace_autocreated
+        ? { namespace_autocreated: true as const }
+        : {}),
     };
 
     // SUPA-1 (AC-6): every 2xx write response advertises the durability mode
