@@ -1,0 +1,9 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index 30b21b3..2b1cc87 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1306,3 +1306,4 @@
+ {"ts":"2026-09-30T02:58:00Z","task":"SYNC-2026-09-28-001","event":"complete","reasoning":"deepseek-v4-pro worker; root cause varchar dedup ordering; commit acd4294; tier2 PASS, tier1 flake-only (src/cli/http.test.ts passes isolated 8/8); CI AGENTS.md count drift fixed via 65731bf","commit_hash":"acd4294"}
+ {"id":"EVT-1790743558","task_id":"PERF-002","event":"close","status":"complete","reason":"stale-resolved: PERF-003 fused single-scan landed (commit 0b5be05, tick 613); board row was not flipped in tick 617","tick":"duckbrain-2026-09-30-04-20-42","commit":"e3db6e1"}
+ {"tick_id":"duckbrain-2026-09-30-04-53-02","event":"close","row_id":"OBS-DUCKBRAIN-AGENTS-COUNT","reason":"stale-resolved: counts already synced to 190/1510 at commit 65731bf, matches live suite"}
++{"tick_id":null,"event":null,"row_id":null,"reason":null,"id":8031,"timestamp":"2026-09-30T05:06:45.4776+00:00","event_type":"task_created","task_id":"DEPS-004","actor":"foreman","detail":"{\"id\":\"DEPS-004\",\"status\":\"pending\"}"}

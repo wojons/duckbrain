@@ -1,0 +1,102 @@
+{
+  "task_id": "REVIEW-DUCKBRAIN-006",
+  "task_title": "default daemon auth to apikey",
+  "task_criteria": [
+    "fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit works; README+help+code agree; suite green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bbee2ccf50176f18215f30dc052d30d54e71a8cd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:28AM INF scanned ~13982579 bytes (13.98 MB) in 3.65s\n5:28AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 364226 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T070947.942098Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 624ms\n \u276f src/http/routes/memories-offset-prefix-gap046.test.ts (8 tests) 674ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-offset-prefix-gap046.test.ts > DB-GAP-046: GET /api/memories prefix + offset paging\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14932,12 +14932,11 @@\n      \"auger-092-probe\": \"/home/kara/duckbrain/namespaces/auger-092-probe\",\n      \"auger-pytest-e7b4a792fdd9\": \"/home/kara/duckbrain/namespaces/auger-pytest-e7b4a792fdd9\",\n      \"auger-pytest-71885410b334\": \"/home/kara/duckbrain/namespaces/auger-pytest-71885410b334\",\n      \"auger-pytest-7add09bcc675\": \"/home/kara/duckbrain/namespaces/auger-pytest-7add09bcc675\",\n      \"auger-pytest-32a4346b7e28\": \"/home/kara/duckbrain/namespaces/auger-pytest-32a4346b7e28\",\n-     \"auger-pytest-078558e0df15\": \"/home/kara/duckbrain/namespaces/auger-pytest-078558e0df15\",\n-     \"auger-pytest-35b54df7a071\": \"/home/kara/duckbrain/namespaces/auger-pytest-35b54df7a071\"\n+     \"auger-pytest-078558e0df15\": \"/home/kara/duckbrain/namespaces/auger-pytest-078558e0df15\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-offset-prefix-gap046.test.ts:198:30\n    196|   afterAll(() => {\n    197|     server.close();\n    198|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    199|     fs.rmSync(NS, { recursive: true, force: true });\n    200|     fs.rmSync(LIVE_NS, { recursive: true, force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 POST /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14932,12 +14932,11 @@\n      \"auger-092-probe\": \"/home/kara/duckbrain/namespaces/auger-092-probe\",\n      \"auger-pytest-e7b4a792fdd9\": \"/home/kara/duckbrain/namespaces/auger-pytest-e7b4a792fdd9\",\n      \"auger-pytest-71885410b334\": \"/home/kara/duckbrain/namespaces/auger-pytest-71885410b334\",\n      \"auger-pytest-7add09bcc675\": \"/home/kara/duckbrain/namespaces/auger-pytest-7add09bcc675\",\n      \"auger-pytest-32a4346b7e28\": \"/home/kara/duckbrain/namespaces/auger-pytest-32a4346b7e28\",\n-     \"auger-pytest-078558e0df15\": \"/home/kara/duckbrain/namespaces/auger-pytest-078558e0df15\",\n-     \"auger-pytest-35b54df7a071\": \"/home/kara/duckbrain/namespaces/auger-pytest-35b54df7a071\"\n+     \"auger-pytest-078558e0df15\": \"/home/kara/duckbrain/namespaces/auger-pytest-078558e0df15\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:244:30\n    242|   afterAll(() => {\n    243|     server.close();\n    244|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    245|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    246|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  2 failed | 189 passed (191)\n      Tests  1523 passed (1523)\n   Start at  05:28:50\n   Duration  95.68s (tests 80%, import 17%, transform 2%)\n\n    Isolate  191 workers spawned \u00b7 ~140ms startup each (spawn + environment, per file)\n             at least ~6.53s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T070947.942098Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit works; README+help+code agree; suite green: Code: src/cli/http.ts handleHttpCommand default flipped from \"none\" to \"apikey\" (commit 19980a3); explicit --auth=none prints a loud UNAUTHENTICATED warning (src/cli/http.ts:1175-1193). 401 path: src/auth/middleware.ts ApiKeyAuthBackend.authenticate throws AuthFailure(\"Unauthorized: API key required\") when no x-api-key header, and authMiddleware only bypasses /health and type===\"none\". Help text src/cli/http.ts:1101-1105 reads \"(default: apikey ... EXPLICIT UNSAFE opt-out)\". README lines 104,113-115,134,147-150 all state default apikey with --auth=none explicit; docs/api/http-api.md:1285, docs/guide/getting-started.md:87, docs/guide/deployment.md:21/431, SECURITY.md:71 agree. Tests: new src/cli/auth-default-review-006.test.ts (3 live-daemon arms) PASS \u2014 'npx vitest run src/cli/auth-default-review-006.test.ts' -> Test Files 1 passed (1), Tests 3 passed (3); http-help-httphelp001 + auth-file-enforcement-df092407 -> 19 passed. Full suite: 'npx vitest run' -> Test Files 191 passed (191), Tests 1523 passed (1523), EXIT=0.\nDefault daemon auth is now apikey (401 on unauthenticated writes), explicit --auth=none works with a warning, README/help/docs/code agree, and the full vitest suite is green (191 files / 1523 tests, exit 0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit works; README+help+code agree; suite green: Code: src/cli/http.ts handleHttpCommand default flipped from \"none\" to \"apikey\" (commit 19980a3); explicit --auth=none prints a loud UNAUTHENTICATED warning (src/cli/http.ts:1175-1193). 401 path: src/auth/middleware.ts ApiKeyAuthBackend.authenticate throws AuthFailure(\"Unauthorized: API key required\") when no x-api-key header, and authMiddleware only bypasses /health and type===\"none\". Help text src/cli/http.ts:1101-1105 reads \"(default: apikey ... EXPLICIT UNSAFE opt-out)\". README lines 104,113-115,134,147-150 all state default apikey with --auth=none explicit; docs/api/http-api.md:1285, docs/guide/getting-started.md:87, docs/guide/deployment.md:21/431, SECURITY.md:71 agree. Tests: new src/cli/auth-default-review-006.test.ts (3 live-daemon arms) PASS \u2014 'npx vitest run src/cli/auth-default-review-006.test.ts' -> Test Files 1 passed (1), Tests 3 passed (3); http-help-httphelp001 + auth-file-enforcement-df092407 -> 19 passed. Full suite: 'npx vitest run' -> Test Files 191 passed (191), Tests 1523 passed (1523), EXIT=0.\nDefault daemon auth is now apikey (401 on unauthenticated writes), explicit --auth=none works with a warning, README/help/docs/code agree, and the full vitest suite is green (191 files / 1523 tests, exit 0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit works; README+help+code agree; suite green",
+                "status": "PASS",
+                "detail": "Code: src/cli/http.ts handleHttpCommand default flipped from \"none\" to \"apikey\" (commit 19980a3); explicit --auth=none prints a loud UNAUTHENTICATED warning (src/cli/http.ts:1175-1193). 401 path: src/auth/middleware.ts ApiKeyAuthBackend.authenticate throws AuthFailure(\"Unauthorized: API key required\") when no x-api-key header, and authMiddleware only bypasses /health and type===\"none\". Help text src/cli/http.ts:1101-1105 reads \"(default: apikey ... EXPLICIT UNSAFE opt-out)\". README lines 104,113-115,134,147-150 all state default apikey with --auth=none explicit; docs/api/http-api.md:1285, docs/guide/getting-started.md:87, docs/guide/deployment.md:21/431, SECURITY.md:71 agree. Tests: new src/cli/auth-default-review-006.test.ts (3 live-daemon arms) PASS \u2014 'npx vitest run src/cli/auth-default-review-006.test.ts' -> Test Files 1 passed (1), Tests 3 passed (3); http-help-httphelp001 + auth-file-enforcement-df092407 -> 19 passed. Full suite: 'npx vitest run' -> Test Files 191 passed (191), Tests 1523 passed (1523), EXIT=0.",
+                "resolution_probability": 0.14
+              }
+            ],
+            "summary": "Default daemon auth is now apikey (401 on unauthenticated writes), explicit --auth=none works with a warning, README/help/docs/code agree, and the full vitest suite is green (191 files / 1523 tests, exit 0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: REVIEW-DUCKBRAIN-006\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit works; README+help+code agree; suite green: Code: src/cli/http.ts handleHttpCommand default flipped from \"none\" to \"apikey\" (commit 19980a3); explicit --auth=none prints a loud UNAUTHENTICATED warning (src/cli/http.ts:1175-1193). 401 path: src/auth/middleware.ts ApiKeyAuthBackend.authenticate throws AuthFailure(\"Unauthorized: API key required\") when no x-api-key header, and authMiddleware only bypasses /health and type===\"none\". Help text src/cli/http.ts:1101-1105 reads \"(default: apikey ... EXPLICIT UNSAFE opt-out)\". README lines 104,113-115,134,147-150 all state default apikey with --auth=none explicit; docs/api/http-api.md:1285, docs/guide/getting-started.md:87, docs/guide/deployment.md:21/431, SECURITY.md:71 agree. Tests: new src/cli/auth-default-review-006.test.ts (3 live-daemon arms) PASS \u2014 'npx vitest run src/cli/auth-default-review-006.test.ts' -> Test Files 1 passed (1), Tests 3 passed (3); http-help-httphelp001 + auth-file-enforcement-df092407 -> 19 passed. Full suite: 'npx vitest run' -> Test Files 191 passed (191), Tests 1523 passed (1523), EXIT=0.\nDefault daemon auth is now apikey (401 on unauthenticated writes), explicit --auth=none works with a warning, README/help/docs/code agree, and the full vitest suite is green (191 files / 1523 tests, exit 0).\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-30T10:35:30.625869",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T10:35:30.686099+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4260,
+        "truncated": false,
+        "source": "git show bbee2ccf5017"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2573,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "REVIEW-DUCKBRAIN-006"
+  }
+}
