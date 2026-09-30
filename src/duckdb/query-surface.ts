@@ -407,8 +407,11 @@ export function collectNamespaceJsonl(namespacePath: string): string[] {
  *
  * read_json_auto WITH the explicit all-VARCHAR columns override — never
  * bare (DOGFOOD-010/018/019 duplicate-key SIGABRT). The dedup window
- * (ROW_NUMBER() per id, timestamp DESC) + tombstone exclusion mirror
- * queryMemories exactly. Validity filtering (DOGFOOD-031) excludes rows
+ * (ROW_NUMBER() per id, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST)
+ * + tombstone exclusion mirror queryMemories exactly — the temporal
+ * try_cast orders mixed-format timestamps as instants (RETR-003), so the
+ * newest version wins instead of the lexicographically-last VARCHAR.
+ * Validity filtering (DOGFOOD-031) excludes rows
  * with expired valid_until or not-yet-valid valid_from, matching the
  * recall layer's default behavior.
  */
@@ -417,7 +420,7 @@ export function buildNamespaceViewSql(jsonlFiles: string[]): string {
   return `CREATE TEMP VIEW memories AS
 SELECT id, key, domain, timestamp, author, action, embedding_text, attributes
 FROM (
-  SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) AS __rn
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) AS __rn
   FROM read_json_auto([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
 ) sub
 WHERE __rn = 1

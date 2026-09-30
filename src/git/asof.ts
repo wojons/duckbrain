@@ -23,10 +23,11 @@
  * Semantics mirrored from queryMemories (src/duckdb/queries.ts):
  *   - malformed JSONL lines are skipped (read_json ignore_errors=true)
  *   - filters apply BEFORE dedup (inner WHERE clause)
- *   - dedup keeps the LATEST record per id (ROW_NUMBER ... ORDER BY timestamp
- *     DESC); the DuckDB window orders by the RAW varchar, this mirror orders
- *     by parsed instant — the corpus is consistent enough that the two agree,
- *     and parsed ordering matches the RETR-005 final ORDER BY intent
+ *   - dedup keeps the LATEST record per id (ROW_NUMBER ... ORDER BY
+ *     try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST); the DuckDB window
+ *     and this mirror BOTH order by parsed instant (SYNC-2026-09-28-001 — the
+ *     DuckDB window previously ordered by the RAW varchar, which misordered
+ *     mixed-format timestamps), matching the RETR-005 final ORDER BY intent
  *   - a memory whose latest record is a tombstone is excluded
  *   - final order: timestamp DESC (unparseable last), id ASC; then LIMIT
  *   - after/before bounds match a row when its OWN timestamp satisfies all

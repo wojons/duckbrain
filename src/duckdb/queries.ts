@@ -476,6 +476,12 @@ export function queryMemories(
   // This fixes BUG-027: tombstone filtering was broken because the
   // old flat WHERE clause excluded tombstone records but still returned
   // the original 'add' record with the same ID.
+  //
+  // The "latest" pick orders by try_cast(timestamp AS TIMESTAMP) — NOT the
+  // raw VARCHAR — so mixed timestamp formats (.749Z vs .749525+00:00,
+  // RETR-003) order as instants and the genuinely newest version wins. A
+  // lexicographic VARCHAR sort misorders those (0x5A 'Z' > 0x35 '5'), so
+  // the OLDER .749Z row would be kept and the newer version made invisible.
   const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
 
   // GAP-023: explicit undefined check — a falsy 0 previously produced NO
@@ -499,7 +505,7 @@ export function queryMemories(
   const sql = `
     SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
     FROM (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
@@ -585,7 +591,7 @@ export function countMemories(
   const sql = `
     SELECT COUNT(*) AS total
     FROM (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
@@ -716,7 +722,7 @@ export async function queryMemoriesWithTotal(
     WITH matches AS MATERIALIZED (
       SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
       FROM (
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
         FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
         ${innerWhereClause}
       ) sub
