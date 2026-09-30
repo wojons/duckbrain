@@ -386,3 +386,22 @@ no duplicated dogfood run.
   working quickstart), DF-0926-01..06 (surgical commit; sibling
   REVIEW-DUCKBRAIN-006..009 rows preserved uncommitted byte-exact), BNK-DF-001
   on the bunker board, this entry.
+
+## Run 13 — 2026-09-30 05:10Z tick (duckbrain-dogfood)
+
+**Target:** DuckBrain (live HTTP daemon :3000, uptime 47h) + ephemeral bunker install leg on bunker-las-03 (agent df-duckbrain-install, destroyed+verified).
+
+**Real-use workflow:** POST /api/memories (201) -> GET by key (200, exact content) -> prefix list -> tree (correct hierarchy) -> ?contains= keyword search (0.46s, 6 hits) -> ?q= semantic search -> negative cases (bad key 401, unknown route 404, unknown query param 400 with actionable message per DF-0926-02). All green except semantic latency.
+
+**Verdict: PROMISING-BUT-ROUGH (stable vs run 12).** The core write/read/search surface works and error surfaces are unusually good (refusals name the valid parameters). Two fresh-install frictions and one user-noticeable perf number are the deltas.
+
+**Findings (rows on tasks.jsonl, commit 2850fd4):**
+- DF-0930-01 (P2): README quickstart basic write 500s on fresh install — zod email validation rejects bare-host git email; README never mentions git user.email.
+- DF-0930-02 (P3): README verify step assumes namespace 'quickstart' exists without creating it (404).
+- PERF-005 (P2): ?q= semantic search 14.5-22.4s warm, 19.9s cold, one form >30s timeout, vs 0.46s keyword — user-noticeable on the 245k-row default namespace.
+
+**Install leg: EXECUTED PASS** (not skipped). Clone 28s, pnpm install 73s, build 6s, smoke green after the git-email fix; evidence /tmp/df-duckbrain-install-evidence.jsonl (16 rows); agent destroyed, `bunker list` verified empty. Frictions recorded in DF-0930-01/02.
+
+**Perf:** numbers above; profile deferred to the foreman (hot path suspected: embedding provider round-trips + VSS scan; PERF-004 already covers CLI startup).
+
+**Left behind:** 3 board rows, this entry. No code changes; no visibility/permission changes.
