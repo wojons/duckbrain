@@ -115,9 +115,10 @@ pnpm start http --port=3000 &
 # 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
 curl -s http://127.0.0.1:3000/health
 
-# 3. create a scratch namespace
+# 3. create a scratch namespace (409 "already exists" is fine — keep going)
 curl -s -X POST http://127.0.0.1:3000/api/namespaces \
   -H 'Content-Type: application/json' -d '{"name":"quickstart"}'
+printf 'namespace ready\n'
 
 # 4. write a memory
 curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
@@ -128,7 +129,7 @@ curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
 curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
 ```
 
-Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon requires API-key authentication by default. For explicit local-only development, pass `--auth=none`; otherwise bootstrap a key store and start with `--auth=apikey`. Stop the background daemon with `kill %1` when done.
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. As shipped, `pnpm start http` runs with `--auth=none` (unauthenticated; localhost dev), so these commands need no key. To require API-key authentication instead, mint a key first (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
 
 ### Running DuckBrain
 
