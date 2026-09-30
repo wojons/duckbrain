@@ -2169,3 +2169,11 @@ tasks:
   status: complete
   created_at: '2026-09-30T09:54:37.177308+00:00'
   completed_at: '2026-09-30T10:28:49.192687+00:00'
+- id: QA-DUCKBRAIN-005
+  title: Fix 3 failing native-suite tests
+  criteria:
+  - All three failing suites green locally; tsc clean; no config mutation; commit
+    pushed
+  status: complete
+  created_at: '2026-09-30T13:10:49.620073+00:00'
+  completed_at: '2026-09-30T13:24:12.228920+00:00'
