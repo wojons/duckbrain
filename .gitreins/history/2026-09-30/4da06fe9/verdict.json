@@ -1,0 +1,102 @@
+{
+  "task_id": "QA-DUCKBRAIN-005",
+  "task_title": "Fix 3 failing native-suite tests",
+  "task_criteria": [
+    "All three failing suites green locally; tsc clean; no config mutation; commit pushed"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "48dbac7de9f18944f7b264ca3c720961318b797f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:24AM INF scanned ~13979695 bytes (13.98 MB) in 1.73s\n8:24AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 366392 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\n\n Test Files  191 passed (191)\n      Tests  1524 passed (1524)\n   Start at  08:24:13\n   Duration  60.43s (tests 83%, import 15%, transform 1%)\n\n    Isolate  191 workers spawned \u00b7 ~78ms startup each (spawn + environment, per file)\n             at least ~3.64s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 All three failing suites green locally; tsc clean; no config mutation; commit pushed: Commit 48dbac7 'fix(QA-DUCKBRAIN-005): repair the three suites the clean-machine battery reds' at HEAD fixes src/schema/table-registry.test.ts, src/cli/unix-socket-flag.test.ts, src/duckdb/queries.test.ts (+ src/cli/http.ts product fix, vitest.config.ts hookTimeout 30s). (1) THREE SUITES GREEN: `npx vitest run src/schema/table-registry.test.ts src/cli/unix-socket-flag.test.ts src/duckdb/queries.test.ts` => 'Test Files 3 passed (3) / Tests 19 passed (19)', exit_code=0. (2) TSC CLEAN: `npx tsc --noEmit` => exit_code=0, no output. (3) NO CONFIG MUTATION: duckbrain.config.json absent from commit (grep count 0), `git status --short duckbrain.config.json` empty, sha256 bb5b64866ca0a9ef420406de6efd022fc897ef5d8f154ec54e65ee0c9e7ce8b0; no namespaces/ files in commit; commit message documents 'sha256 identical before/after'. (4) COMMIT PUSHED: HEAD=48dbac7de9f18944f7b264ca3c720961318b797f == origin/feat/native-s3, confirmed by `git ls-remote origin feat/native-s3` => 48dbac7... refs/heads/feat/native-s3.\nAll three previously-failing native suites pass (19/19), tsc is clean, duckbrain.config.json is unmutated, and commit 48dbac7 is pushed to origin/feat/native-s3.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 All three failing suites green locally; tsc clean; no config mutation; commit pushed: Commit 48dbac7 'fix(QA-DUCKBRAIN-005): repair the three suites the clean-machine battery reds' at HEAD fixes src/schema/table-registry.test.ts, src/cli/unix-socket-flag.test.ts, src/duckdb/queries.test.ts (+ src/cli/http.ts product fix, vitest.config.ts hookTimeout 30s). (1) THREE SUITES GREEN: `npx vitest run src/schema/table-registry.test.ts src/cli/unix-socket-flag.test.ts src/duckdb/queries.test.ts` => 'Test Files 3 passed (3) / Tests 19 passed (19)', exit_code=0. (2) TSC CLEAN: `npx tsc --noEmit` => exit_code=0, no output. (3) NO CONFIG MUTATION: duckbrain.config.json absent from commit (grep count 0), `git status --short duckbrain.config.json` empty, sha256 bb5b64866ca0a9ef420406de6efd022fc897ef5d8f154ec54e65ee0c9e7ce8b0; no namespaces/ files in commit; commit message documents 'sha256 identical before/after'. (4) COMMIT PUSHED: HEAD=48dbac7de9f18944f7b264ca3c720961318b797f == origin/feat/native-s3, confirmed by `git ls-remote origin feat/native-s3` => 48dbac7... refs/heads/feat/native-s3.\nAll three previously-failing native suites pass (19/19), tsc is clean, duckbrain.config.json is unmutated, and commit 48dbac7 is pushed to origin/feat/native-s3.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "All three failing suites green locally; tsc clean; no config mutation; commit pushed",
+                "status": "PASS",
+                "detail": "Commit 48dbac7 'fix(QA-DUCKBRAIN-005): repair the three suites the clean-machine battery reds' at HEAD fixes src/schema/table-registry.test.ts, src/cli/unix-socket-flag.test.ts, src/duckdb/queries.test.ts (+ src/cli/http.ts product fix, vitest.config.ts hookTimeout 30s). (1) THREE SUITES GREEN: `npx vitest run src/schema/table-registry.test.ts src/cli/unix-socket-flag.test.ts src/duckdb/queries.test.ts` => 'Test Files 3 passed (3) / Tests 19 passed (19)', exit_code=0. (2) TSC CLEAN: `npx tsc --noEmit` => exit_code=0, no output. (3) NO CONFIG MUTATION: duckbrain.config.json absent from commit (grep count 0), `git status --short duckbrain.config.json` empty, sha256 bb5b64866ca0a9ef420406de6efd022fc897ef5d8f154ec54e65ee0c9e7ce8b0; no namespaces/ files in commit; commit message documents 'sha256 identical before/after'. (4) COMMIT PUSHED: HEAD=48dbac7de9f18944f7b264ca3c720961318b797f == origin/feat/native-s3, confirmed by `git ls-remote origin feat/native-s3` => 48dbac7... refs/heads/feat/native-s3.",
+                "resolution_probability": 0.07
+              }
+            ],
+            "summary": "All three previously-failing native suites pass (19/19), tsc is clean, duckbrain.config.json is unmutated, and commit 48dbac7 is pushed to origin/feat/native-s3."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-005\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 All three failing suites green locally; tsc clean; no config mutation; commit pushed: Commit 48dbac7 'fix(QA-DUCKBRAIN-005): repair the three suites the clean-machine battery reds' at HEAD fixes src/schema/table-registry.test.ts, src/cli/unix-socket-flag.test.ts, src/duckdb/queries.test.ts (+ src/cli/http.ts product fix, vitest.config.ts hookTimeout 30s). (1) THREE SUITES GREEN: `npx vitest run src/schema/table-registry.test.ts src/cli/unix-socket-flag.test.ts src/duckdb/queries.test.ts` => 'Test Files 3 passed (3) / Tests 19 passed (19)', exit_code=0. (2) TSC CLEAN: `npx tsc --noEmit` => exit_code=0, no output. (3) NO CONFIG MUTATION: duckbrain.config.json absent from commit (grep count 0), `git status --short duckbrain.config.json` empty, sha256 bb5b64866ca0a9ef420406de6efd022fc897ef5d8f154ec54e65ee0c9e7ce8b0; no namespaces/ files in commit; commit message documents 'sha256 identical before/after'. (4) COMMIT PUSHED: HEAD=48dbac7de9f18944f7b264ca3c720961318b797f == origin/feat/native-s3, confirmed by `git ls-remote origin feat/native-s3` => 48dbac7... refs/heads/feat/native-s3.\nAll three previously-failing native suites pass (19/19), tsc is clean, duckbrain.config.json is unmutated, and commit 48dbac7 is pushed to origin/feat/native-s3.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-30T13:31:50.794865",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T13:31:50.809124+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 18734,
+        "truncated": false,
+        "source": "git show 48dbac7de9f1"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 590,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-005"
+  }
+}
