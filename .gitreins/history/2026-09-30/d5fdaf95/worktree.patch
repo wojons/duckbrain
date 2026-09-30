@@ -1,0 +1,12 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 87ec3b3..4385275 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2190,5 +2190,6 @@ tasks:
+   criteria:
+   - AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest
+     run; CI GAP-012 assert step passes
+-  status: in_progress
++  status: complete
+   created_at: '2026-09-30T14:28:55.129189+00:00'
++  completed_at: '2026-09-30T14:29:13.219280+00:00'
