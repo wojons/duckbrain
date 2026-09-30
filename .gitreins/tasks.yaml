@@ -2185,3 +2185,10 @@ tasks:
   status: complete
   created_at: '2026-09-30T13:59:58.506220+00:00'
   completed_at: '2026-09-30T14:05:11.087703+00:00'
+- id: INT-CI-1
+  title: Sync AGENTS.md test counts to live (191/1524)
+  criteria:
+  - AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest
+    run; CI GAP-012 assert step passes
+  status: in_progress
+  created_at: '2026-09-30T14:28:55.129189+00:00'
