@@ -1021,9 +1021,25 @@ export async function startHttpMode(
     // Write PID to local file for easy management. If a previous instance
     // crashed and left a pidfile whose PID is no longer alive, remove it
     // first so a dead pid never shadows the live server (DOGFOOD-016).
+    //
+    // Best-effort, mirroring cleanupStalePidFile's contract: the pidfile is
+    // bookkeeping for `scoped-stop` / `server_status`, and the TCP listener
+    // is ALREADY bound and serving by this point. A shared temp dir can hold
+    // a pidfile owned by another user (a root-run instance, a container)
+    // whose unlink+rewrite is refused with EACCES, and a read-only data dir
+    // refuses the write outright — neither may take down a ready server, and
+    // neither has anything to do with the flag/port the caller asked for.
     cleanupStalePidFile(pidFile);
-    fs.writeFileSync(pidFile, process.pid.toString());
-    console.error(`[duckbrain] PID written to: ${pidFile}`);
+    try {
+      fs.writeFileSync(pidFile, process.pid.toString());
+      console.error(`[duckbrain] PID written to: ${pidFile}`);
+    } catch (error) {
+      console.error(
+        `[duckbrain] Could not write pidfile ${pidFile}: ${
+          error instanceof Error ? error.message : String(error)
+        } — continuing without it (server is already listening)`,
+      );
+    }
 
     // Start Unix socket listener if requested
     if (socket) {
