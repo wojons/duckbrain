@@ -43,6 +43,9 @@ describe("DF-0926-01: examples on-ramp runs against a live scratch daemon", () =
     savedDataDir = process.env.DUCKBRAIN_DATA_DIR;
     server = await startDuckbrainHttp({
       port,
+      // REVIEW-DUCKBRAIN-006: explicit opt-out — examples/http-api/client.js
+      // drives the unauthenticated local surface and sends no credentials.
+      authType: "none",
       env: {
         DUCKBRAIN_DATA_DIR: scratchDir,
         DUCKBRAIN_NAMESPACES_PATH: path.join(scratchDir, "namespaces"),

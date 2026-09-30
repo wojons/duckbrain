@@ -18,7 +18,9 @@ services:
       - DUCKBRAIN_API_PORT=3000
       - DUCKBRAIN_UI_PORT=8989
     entrypoint: ["npx", "tsx", "bin/duckbrain.ts"]
-    command: ["http", "--port=3000", "--bind-all"]
+    # Dev stack: the shipped default is --auth=apikey, so this local-only
+    # stack opts out EXPLICITLY (the daemon logs the unauthenticated warning).
+    command: ["http", "--port=3000", "--bind-all", "--auth=none"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/namespaces"]
       interval: 10s

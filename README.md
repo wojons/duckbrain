@@ -100,7 +100,8 @@ cd duckbrain
 # Install dependencies
 pnpm install
 
-# Start the development server
+# Start the development server (API + Web UI; the API runs with an explicit
+# --auth=none because the default is apikey — see "Verify the install" below)
 pnpm run dev
 ```
 
@@ -109,8 +110,9 @@ pnpm run dev
 Paste in order; the last command must print the memory you stored:
 
 ```bash
-# 1. start the HTTP daemon in the background
-pnpm start http --port=3000 &
+# 1. start the HTTP daemon in the background (--auth=none = explicit local-only
+#    unauthenticated mode; dropping the flag requires API keys, see step 5 note)
+pnpm start http --port=3000 --auth=none &
 
 # 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
 curl -s http://127.0.0.1:3000/health
@@ -128,7 +130,7 @@ curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
 curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
 ```
 
-Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon requires API-key authentication by default. For explicit local-only development, pass `--auth=none`; otherwise bootstrap a key store and start with `--auth=apikey`. Stop the background daemon with `kill %1` when done.
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon requires API-key authentication by default — `--auth` defaults to `apikey`, so the snippet above opens it explicitly with `--auth=none` and the daemon logs an unauthenticated-mode warning. For anything but local development, bootstrap a key store (`duckbrain token`) and start with `--auth=apikey`, sending `-H 'X-API-Key: <key>'` (or `--auth=basic` with `-u user:pass`). Stop the background daemon with `kill %1` when done.
 
 ### Running DuckBrain
 
@@ -141,7 +143,10 @@ pnpm start stdio
 **HTTP Server Mode (MCP-over-HTTP + REST API):**
 
 ```bash
-pnpm start http --port=3000
+# API-key auth is ON by default — pass the key store via ~/.duckbrain/auth.json
+# (duckbrain token) and send X-API-Key, or opt out explicitly for local use:
+pnpm start http --port=3000                 # default: --auth=apikey
+pnpm start http --port=3000 --auth=none     # explicit local-only, unauthenticated
 ```
 
 **HTTP Server Mode with Unix socket** (for MCP-over-HTTP over a permissioned filesystem socket):
@@ -310,7 +315,7 @@ The HTTP server (`pnpm start http`, default `http://127.0.0.1:3000`) also serves
 | `GET /api/memories/key/:key` | Latest memory for a key path (`?namespace=`)                                                                                    |
 | `GET /api/memories/:id`      | Single memory by ID (`?namespace=`)                                                                                             |
 
-When the server is started with `--auth=apikey`, clients must send `X-API-Key`; keys are configured in `~/.duckbrain/auth.json`. See [Using API Key Authentication](docs/api/http-api.md#using-api-key-authentication).
+The daemon requires API keys **by default** (`--auth=apikey`), so clients must send the key header; keys are configured in `~/.duckbrain/auth.json`. Only an explicit `--auth=none` (local/test mode) serves these routes unauthenticated. See [Using API Key Authentication](docs/api/http-api.md#using-api-key-authentication).
 
 ```bash
 # Key tree

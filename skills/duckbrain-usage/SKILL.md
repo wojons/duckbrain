@@ -456,11 +456,14 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     "Loading..." skeletons. Do not demo the UI against an auth=apikey
     daemon or a non-default namespace — it will look broken because it is.
     The API underneath those panels works (verified same-run over REST).
-17. **`--auth-file` does NOT enable auth by itself (DF-0924-07):** a daemon
-    started with `--auth-file=<store>` but WITHOUT `--auth=apikey` accepts
-    no-key and wrong-key requests with 200/201. The flag only relocates the
-    store; enforcement requires `--auth=apikey`. Always pass both on scratch
-    daemons that handle anything sensitive.
+17. **`--auth-file` relocates the store AND implies apikey (DF-0924-07, then
+    REVIEW-DUCKBRAIN-006):** a daemon started with `--auth-file=<store>` but
+    WITHOUT `--auth=apikey` enforces apikey anyway (keyless requests 401) and
+    logs an auto-enable banner. Since REVIEW-DUCKBRAIN-006 the CLI default is
+    `apikey` outright: a fresh `duckbrain http` with no `--auth` rejects
+    unauthenticated reads and writes. `--auth=none` is the explicit unsafe
+    opt-out (the daemon warns). Always pass `--auth=apikey` on scratch daemons
+    that handle anything sensitive.
 18. **GET /api/namespaces and /switch see only config namespaceMappings
     (DF-0924-06):** a namespace that exists on disk (created by direct
     writes) is invisible to the list and returns 404 from switch — while
