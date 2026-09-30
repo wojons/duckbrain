@@ -1,0 +1,51 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 1b2a675..e58478a 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1982,14 +1982,13 @@ tasks:
+   created_at: '2026-09-27T22:05:22.638849+00:00'
+   completed_at: '2026-09-27T22:15:01.320537+00:00'
+ - id: INT-CI-016
+-  title: Sync AGENTS.md test counts
++  title: Sync AGENTS.md test counts 181/1444->188/1501 (CI GAP-012 red)
+   criteria:
+-  - AGENTS.md must report the live 179 Vitest suites and 1430 tests at both documented
+-    count locations; protected-file toggle must be restored true and exact successor
+-    CI must be checked
++  - 'AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert
++    passes on pushed successor'
+   status: complete
+-  created_at: '2026-09-28T01:35:16.179868+00:00'
+-  completed_at: '2026-09-28T01:43:29.786461+00:00'
++  created_at: '2026-09-29T20:06:08.282769+00:00'
++  completed_at: '2026-09-29T20:06:39.168018+00:00'
+ - id: DF-0924-01
+   title: Verify default-branch fresh install
+   criteria:
+@@ -2090,3 +2089,26 @@ tasks:
+   status: complete
+   created_at: '2026-09-29T12:10:53.139058+00:00'
+   completed_at: '2026-09-29T12:13:12.362954+00:00'
++- id: QA-DUCKBRAIN-004
++  title: Fix multi-uid EACCES on shared /tmp/.duckbrain-write test locks
++  criteria:
++  - Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir
++    root; full suite green on multi-uid layout
++  status: complete
++  created_at: '2026-09-29T15:13:03.922327+00:00'
++  completed_at: '2026-09-29T15:13:16.251335+00:00'
++- id: HTTP-HELP-001
++  title: duckbrain http --help prints options, exits 0
++  criteria:
++  - http --help prints the HTTP option list and exits 0 without binding a port
++  status: complete
++  created_at: '2026-09-29T15:13:04.480514+00:00'
++  completed_at: '2026-09-29T15:13:15.786822+00:00'
++- id: NAMESPACE-AUTOCREATE-001
++  title: Loud + opt-out-able namespace auto-create on writes
++  criteria:
++  - Writes to unknown namespaces succeed with namespace_autocreated:true; namespaces.autoCreate=false
++    rejects with a loud error
++  status: complete
++  created_at: '2026-09-29T15:13:05.017665+00:00'
++  completed_at: '2026-09-29T15:13:15.949233+00:00'

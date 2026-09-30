@@ -1,0 +1,31 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 1b2a675..3277fc7 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2090,3 +2090,26 @@ tasks:
+   status: complete
+   created_at: '2026-09-29T12:10:53.139058+00:00'
+   completed_at: '2026-09-29T12:13:12.362954+00:00'
++- id: QA-DUCKBRAIN-004
++  title: Fix multi-uid EACCES on shared /tmp/.duckbrain-write test locks
++  criteria:
++  - Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir
++    root; full suite green on multi-uid layout
++  status: complete
++  created_at: '2026-09-29T15:13:03.922327+00:00'
++  completed_at: '2026-09-29T15:13:16.251335+00:00'
++- id: HTTP-HELP-001
++  title: duckbrain http --help prints options, exits 0
++  criteria:
++  - http --help prints the HTTP option list and exits 0 without binding a port
++  status: complete
++  created_at: '2026-09-29T15:13:04.480514+00:00'
++  completed_at: '2026-09-29T15:13:15.786822+00:00'
++- id: NAMESPACE-AUTOCREATE-001
++  title: Loud + opt-out-able namespace auto-create on writes
++  criteria:
++  - Writes to unknown namespaces succeed with namespace_autocreated:true; namespaces.autoCreate=false
++    rejects with a loud error
++  status: complete
++  created_at: '2026-09-29T15:13:05.017665+00:00'
++  completed_at: '2026-09-29T15:13:15.949233+00:00'

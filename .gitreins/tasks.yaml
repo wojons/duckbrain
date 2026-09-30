@@ -1983,7 +1983,6 @@ tasks:
   completed_at: '2026-09-27T22:15:01.320537+00:00'
 - id: INT-CI-016
   title: Sync AGENTS.md test counts 181/1444->188/1501 (CI GAP-012 red)
-  verdict: 2cc51a53 (tier2 PASS 2026-09-29)
   criteria:
   - 'AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert
     passes on pushed successor'
@@ -2113,3 +2112,13 @@ tasks:
   status: complete
   created_at: '2026-09-29T15:13:05.017665+00:00'
   completed_at: '2026-09-29T15:13:15.949233+00:00'
+- id: HEALTH-KEYS-UNDEFINED-001
+  title: 'Fix fresh-install /health degraded: keys_error Namespace undefined'
+  criteria:
+  - curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum
+    not degraded due to keys probe); probeKeysStore passes the resolved default namespace
+    name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run
+    green
+  status: complete
+  created_at: '2026-09-29T22:11:09.467312+00:00'
+  completed_at: '2026-09-29T23:49:05.119981+00:00'

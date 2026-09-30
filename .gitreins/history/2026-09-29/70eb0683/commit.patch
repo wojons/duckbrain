@@ -1,0 +1,35 @@
+commit b43aa0c4606d50a1d06aec915cbb34fe87854b6b
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Sep 29 10:12:45 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Sep 29 10:12:45 2026 -0500
+
+    board: wave tick duckbrain-2026-09-29-13-09-03 — AGENTS.md count sync 185/1479->181/1444 after wave merges
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index e818d1c..9ca7510 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (185 suites, 1479 tests)
++- **Test Framework:** Vitest (181 suites, 1444 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1479 tests, 185 suites
++pnpm test          # 1444 tests, 181 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

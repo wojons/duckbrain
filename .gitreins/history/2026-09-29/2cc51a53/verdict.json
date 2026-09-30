@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-016",
+  "task_title": "Sync AGENTS.md test counts 181/1444->188/1501 (CI GAP-012 red)",
+  "task_criteria": [
+    "AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert passes on pushed successor"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bb7ef4083fa68e181d8bc1511b3d2009beadebfa",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n3:06PM INF scanned ~13948453 bytes (13.95 MB) in 2.36s\n3:06PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 356648 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  188 passed (188)\n      Tests  1501 passed (1501)\n   Start at  15:06:40\n   Duration  87.98s (tests 78%, import 19%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  188 workers spawned \u00b7 ~135ms startup each (spawn + environment, per file)\n             at least ~6.19s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert passes on pushed successor: AGENTS.md:14 = '- **Test Framework:** Vitest (188 suites, 1501 tests)' and AGENTS.md:33 = 'pnpm test          # 1501 tests, 188 suites' \u2014 both documented count locations carry the required values. Live suite verified fresh: `npx vitest run` -> 'Test Files  188 passed (188)' / 'Tests  1501 passed (1501)', EXIT=0. CI count-assert run verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (188 suites, 1501 tests)', exit 0; .github/workflows/ci.yml:69-70 invokes exactly this step. Commit cd1c674 'fix(ci): sync AGENTS.md test counts 181/1444 -> 188/1501 (INT-CI-016)' changed both locations (diff: '-Vitest (181 suites, 1444 tests)' -> '+Vitest (188 suites, 1501 tests)'; '-# 1444 tests, 181 suites' -> '+# 1501 tests, 188 suites'), is an ancestor of HEAD (bb7ef40, `git merge-base --is-ancestor cd1c674 HEAD` = YES) and pushed. Board evidence .coding-hermes/board/events.jsonl:1300 and the releng sweep record CI GREEN on exact HEAD cd1c674, run 36623980816, both jobs test:success + docker:success. [resolution 0.11; AGENTS.md]\nAGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites at both locations, the live suite reports exactly 188/1501, and the CI count-assert passes (exit 0) on the pushed successor commit cd1c674.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert passes on pushed successor: AGENTS.md:14 = '- **Test Framework:** Vitest (188 suites, 1501 tests)' and AGENTS.md:33 = 'pnpm test          # 1501 tests, 188 suites' \u2014 both documented count locations carry the required values. Live suite verified fresh: `npx vitest run` -> 'Test Files  188 passed (188)' / 'Tests  1501 passed (1501)', EXIT=0. CI count-assert run verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (188 suites, 1501 tests)', exit 0; .github/workflows/ci.yml:69-70 invokes exactly this step. Commit cd1c674 'fix(ci): sync AGENTS.md test counts 181/1444 -> 188/1501 (INT-CI-016)' changed both locations (diff: '-Vitest (181 suites, 1444 tests)' -> '+Vitest (188 suites, 1501 tests)'; '-# 1444 tests, 181 suites' -> '+# 1501 tests, 188 suites'), is an ancestor of HEAD (bb7ef40, `git merge-base --is-ancestor cd1c674 HEAD` = YES) and pushed. Board evidence .coding-hermes/board/events.jsonl:1300 and the releng sweep record CI GREEN on exact HEAD cd1c674, run 36623980816, both jobs test:success + docker:success. [resolution 0.11; AGENTS.md]\nAGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites at both locations, the live suite reports exactly 188/1501, and the CI count-assert passes (exit 0) on the pushed successor commit cd1c674.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert passes on pushed successor",
+                "status": "PASS",
+                "detail": "AGENTS.md:14 = '- **Test Framework:** Vitest (188 suites, 1501 tests)' and AGENTS.md:33 = 'pnpm test          # 1501 tests, 188 suites' \u2014 both documented count locations carry the required values. Live suite verified fresh: `npx vitest run` -> 'Test Files  188 passed (188)' / 'Tests  1501 passed (1501)', EXIT=0. CI count-assert run verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (188 suites, 1501 tests)', exit 0; .github/workflows/ci.yml:69-70 invokes exactly this step. Commit cd1c674 'fix(ci): sync AGENTS.md test counts 181/1444 -> 188/1501 (INT-CI-016)' changed both locations (diff: '-Vitest (181 suites, 1444 tests)' -> '+Vitest (188 suites, 1501 tests)'; '-# 1444 tests, 181 suites' -> '+# 1501 tests, 188 suites'), is an ancestor of HEAD (bb7ef40, `git merge-base --is-ancestor cd1c674 HEAD` = YES) and pushed. Board evidence .coding-hermes/board/events.jsonl:1300 and the releng sweep record CI GREEN on exact HEAD cd1c674, run 36623980816, both jobs test:success + docker:success. [resolution 0.11; AGENTS.md]",
+                "resolution_probability": 0.11,
+                "cited_path": "AGENTS.md"
+              }
+            ],
+            "summary": "AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites at both locations, the live suite reports exactly 188/1501, and the CI count-assert passes (exit 0) on the pushed successor commit cd1c674."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-016\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert passes on pushed successor: AGENTS.md:14 = '- **Test Framework:** Vitest (188 suites, 1501 tests)' and AGENTS.md:33 = 'pnpm test          # 1501 tests, 188 suites' \u2014 both documented count locations carry the required values. Live suite verified fresh: `npx vitest run` -> 'Test Files  188 passed (188)' / 'Tests  1501 passed (1501)', EXIT=0. CI count-assert run verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (188 suites, 1501 tests)', exit 0; .github/workflows/ci.yml:69-70 invokes exactly this step. Commit cd1c674 'fix(ci): sync AGENTS.md test counts 181/1444 -> 188/1501 (INT-CI-016)' changed both locations (diff: '-Vitest (181 suites, 1444 tests)' -> '+Vitest (188 suites, 1501 tests)'; '-# 1444 tests, 181 suites' -> '+# 1501 tests, 188 suites'), is an ancestor of HEAD (bb7ef40, `git merge-base --is-ancestor cd1c674 HEAD` = YES) and pushed. Board evidence .coding-hermes/board/events.jsonl:1300 and the releng sweep record CI GREEN on exact HEAD cd1c674, run 36623980816, both jobs test:success + docker:success. [resolution 0.11; AGENTS.md]\nAGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites at both locations, the live suite reports exactly 188/1501, and the CI count-assert passes (exit 0) on the pushed successor commit cd1c674.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-29T21:17:00.158935",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T21:17:00.602744+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 22760,
+        "truncated": false,
+        "source": "git show bb7ef4083fa6"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2216,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-016"
+  }
+}
