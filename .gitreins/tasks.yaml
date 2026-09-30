@@ -2122,3 +2122,10 @@ tasks:
   status: complete
   created_at: '2026-09-29T22:11:09.467312+00:00'
   completed_at: '2026-09-29T23:49:05.119981+00:00'
+- id: INT-CI-017
+  title: CI red on AGENTS.md count assert after health-fix added 3 tests
+  criteria:
+  - AGENTS.md carries live vitest counts (188 suites, 1504 tests) and scripts/sync-agents-md-counts.sh
+    --check passes against a fresh vitest run
+  status: in_progress
+  created_at: '2026-09-30T00:37:24.565012+00:00'
