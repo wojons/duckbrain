@@ -86,10 +86,18 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
   it("same id, mixed formats: the NEWER (+00:00 microsecond) version wins, not the lexicographically-last Z version", async () => {
     seed([
       // OLDER: .749Z = 749.000ms.
-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749Z" }),
+      line({
+        id: OLDER_ID,
+        key: "/dedup/mixed",
+        timestamp: "2026-08-07T09:27:00.749Z",
+      }),
       // NEWER: .749525+00:00 = 749.525ms. A lexicographic DESC sorts the
       // '.749Z' row first ('Z' 0x5A > '5' 0x35) and would hide this one.
-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749525+00:00" }),
+      line({
+        id: OLDER_ID,
+        key: "/dedup/mixed",
+        timestamp: "2026-08-07T09:27:00.749525+00:00",
+      }),
     ]);
 
     const rows = await queryMemories(db, [partition], {
@@ -102,8 +110,16 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
 
   it("count agrees with the query: exactly one live version survives the dedup", async () => {
     seed([
-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749Z" }),
-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749525+00:00" }),
+      line({
+        id: OLDER_ID,
+        key: "/dedup/mixed",
+        timestamp: "2026-08-07T09:27:00.749Z",
+      }),
+      line({
+        id: OLDER_ID,
+        key: "/dedup/mixed",
+        timestamp: "2026-08-07T09:27:00.749525+00:00",
+      }),
     ]);
 
     const total = await countMemories(db, [partition], {
@@ -114,9 +130,18 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
 
   it("a mixed-format TOMBSTONE still outranks an older add and excludes the memory", async () => {
     seed([
-      line({ id: TOMB_ID, key: "/dedup/tomb", timestamp: "2026-08-10T00:00:00.749Z" }),
+      line({
+        id: TOMB_ID,
+        key: "/dedup/tomb",
+        timestamp: "2026-08-10T00:00:00.749Z",
+      }),
       // Tombstone at a NEWER instant, but lexicographically EARLIER.
-      line({ id: TOMB_ID, key: "/dedup/tomb", timestamp: "2026-08-10T00:00:00.749525+00:00", action: "tombstone" }),
+      line({
+        id: TOMB_ID,
+        key: "/dedup/tomb",
+        timestamp: "2026-08-10T00:00:00.749525+00:00",
+        action: "tombstone",
+      }),
     ]);
 
     const rows = await queryMemories(db, [partition], {
@@ -131,7 +156,11 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
     // NULLS LAST must never let it win over a later parseable version.
     seed([
       line({ id: NULL_ID, key: "/dedup/null", timestamp: null }),
-      line({ id: NULL_ID, key: "/dedup/null", timestamp: "2026-08-20T00:00:00.000Z" }),
+      line({
+        id: NULL_ID,
+        key: "/dedup/null",
+        timestamp: "2026-08-20T00:00:00.000Z",
+      }),
     ]);
 
     const rows = await queryMemories(db, [partition], {

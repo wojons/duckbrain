@@ -2177,3 +2177,11 @@ tasks:
   status: complete
   created_at: '2026-09-30T13:10:49.620073+00:00'
   completed_at: '2026-09-30T13:24:12.228920+00:00'
+- id: QA-DUCKBRAIN-006
+  title: package-lock.json stale after DEPS-004 (docker npm ci dead)
+  criteria:
+  - npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches
+    package.json
+  status: complete
+  created_at: '2026-09-30T13:59:58.506220+00:00'
+  completed_at: '2026-09-30T14:05:11.087703+00:00'

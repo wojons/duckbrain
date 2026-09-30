@@ -137,7 +137,8 @@ describe("HEALTH-KEYS-UNDEFINED-001: fresh install /health is healthy", () => {
       expect((captured.body as any).keys_error).toBeNull();
       expect(JSON.stringify(captured.body)).not.toContain("undefined");
     } finally {
-      if (savedNsPath === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      if (savedNsPath === undefined)
+        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
       else process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsPath;
       if (savedNsName === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
       else process.env.DUCKBRAIN_NAMESPACE = savedNsName;

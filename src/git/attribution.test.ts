@@ -110,7 +110,9 @@ describe("DF-0930-01: bare-host git email falls back to the default", () => {
 
   it("valid git email test@example.com is used as-is", async () => {
     mockedExecSync.mockImplementation(((cmd: string | Buffer) => {
-      return cmd === "git config user.email" ? "test@example.com\n" : "Test User\n";
+      return cmd === "git config user.email"
+        ? "test@example.com\n"
+        : "Test User\n";
     }) as typeof execSync);
     const { getAuthorEmail, getAuthorName } = await import("./attribution.js");
 
@@ -121,9 +123,8 @@ describe("DF-0930-01: bare-host git email falls back to the default", () => {
   it("schema validation of a full memory accepts the default but rejects the bare-host value", async () => {
     // Pins the fixture contract: the bare-host email is exactly what the
     // strict schema rejects, and the default is what it accepts.
-    const { safeValidateMemory, createMemory } = await import(
-      "../schema/memory.js"
-    );
+    const { safeValidateMemory, createMemory } =
+      await import("../schema/memory.js");
 
     const rejected = safeValidateMemory(
       createMemory({

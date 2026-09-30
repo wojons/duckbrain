@@ -36,7 +36,10 @@ describe("SYNC-2026-09-28-001: write (201) -> immediate recall -> visible", () =
     oldNs = process.env.DUCKBRAIN_NAMESPACES_PATH;
     oldCfg = process.env.DUCKBRAIN_CONFIG_PATH;
     process.env.DUCKBRAIN_NAMESPACES_PATH = root;
-    process.env.DUCKBRAIN_CONFIG_PATH = path.join(root, "duckbrain.config.json");
+    process.env.DUCKBRAIN_CONFIG_PATH = path.join(
+      root,
+      "duckbrain.config.json",
+    );
     resetSerializerStateForTests();
   });
 

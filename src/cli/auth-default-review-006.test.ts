@@ -136,7 +136,8 @@ function requestStatus(
 }
 
 function killChild(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  if (child.exitCode !== null || child.signalCode !== null)
+    return Promise.resolve();
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
