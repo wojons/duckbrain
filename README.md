@@ -90,7 +90,7 @@ Add `$HOME/.local/bin` to your shell profile so `pnpm` remains on `PATH` in new 
 
 `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
 
-**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`.
+**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`. Memory author attribution also reads `git config user.email` — if it holds a bare-host address with no dot in the domain (e.g. `dogfood@localhost`), that value is skipped and memories are attributed to the built-in default `duckbrain@localhost.localdomain` instead.
 
 ```bash
 # Clone the repository

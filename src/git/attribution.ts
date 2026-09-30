@@ -6,6 +6,7 @@
  */
 
 import { execSync } from "child_process";
+import { z } from "zod";
 
 /**
  * Author information
@@ -16,13 +17,39 @@ export interface AuthorInfo {
 }
 
 /**
+ * The same email shape MemorySchema enforces on `author`
+ * (`author: z.string().email()`, zod v4). Shared by import so the fallback
+ * layer and the validator can never drift apart.
+ */
+const EmailSchema = z.string().email();
+
+/**
+ * Whether an email candidate is usable as a memory author
+ *
+ * DF-0930-01: bare-host git identities such as `dogfood@localhost` or
+ * `root@box` are non-empty strings but fail the schema's email validation
+ * (zod requires a dot in the domain part), which turned every memory write
+ * on such hosts into HTTP 500 "Memory validation failed: Invalid email
+ * address". A candidate the schema would reject is treated as unset.
+ */
+function isEmailSchemaUsable(value: string): boolean {
+  return EmailSchema.safeParse(value).success;
+}
+
+/**
  * Get git config value
  * Falls back to environment variable or default
+ *
+ * @param isUsable - Optional predicate a candidate must satisfy to be used
+ *   (applied to both the git value and the env fallback). A candidate that
+ *   fails it is skipped, as if unset, and resolution continues to the next
+ *   source. Callers resolving non-email keys (e.g. user.name) omit it.
  */
 function getGitConfig(
   key: string,
   envVar: string,
   defaultValue: string,
+  isUsable?: (value: string) => boolean,
 ): string {
   try {
     const value = execSync(`git config ${key}`, {
@@ -31,7 +58,7 @@ function getGitConfig(
       timeout: 5000,
     }).trim();
 
-    if (value) {
+    if (value && (!isUsable || isUsable(value))) {
       return value;
     }
   } catch {
@@ -40,7 +67,7 @@ function getGitConfig(
 
   // Fall back to environment variable
   const envValue = process.env[envVar];
-  if (envValue) {
+  if (envValue && (!isUsable || isUsable(envValue))) {
     return envValue;
   }
 
@@ -51,6 +78,11 @@ function getGitConfig(
 /**
  * Get author email from git config or environment
  *
+ * A git-config or env email that would fail the schema's email validation
+ * (e.g. a bare-host `user.email` like `dogfood@localhost` with no dot in the
+ * domain) is skipped, so the TLD-valid default is returned instead — the
+ * strict schema never sees an invalid author.
+ *
  * @returns Author email address
  */
 export function getAuthorEmail(): string {
@@ -58,6 +90,7 @@ export function getAuthorEmail(): string {
     "user.email",
     "GIT_AUTHOR_EMAIL",
     "duckbrain@localhost.localdomain",
+    isEmailSchemaUsable,
   );
 }
 
