@@ -601,7 +601,8 @@ should share one store but stay isolated inside it.
 For remote access or multi-agent setups:
 
 ```bash
-# Start HTTP server
+# Start HTTP server (--auth defaults to apikey; add --auth=none for explicit
+# local-only unauthenticated mode — the daemon warns when you do)
 duckbrain http --port=3000
 
 # Configure MCP to use HTTP transport

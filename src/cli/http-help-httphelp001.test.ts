@@ -11,9 +11,12 @@
  * proves the server factory never runs for a help request.
  *
  * The seam tests also pin the parse behavior the fix moved from
- * bin/duckbrain.ts into handleHttpCommand(): the unchanged no-flag
- * defaults (port 3000, authType "none", rateLimit 100) and both flag
- * forms, guarding the extraction refactor itself.
+ * bin/duckbrain.ts into handleHttpCommand(): the no-flag defaults (port
+ * 3000, rateLimit 100) and both flag forms, guarding the extraction
+ * refactor itself. One default moved: authType's no-flag value is now
+ * "apikey" (REVIEW-DUCKBRAIN-006) — the flag vocabulary and the parse
+ * shape are unchanged, and an explicit --auth=none is still honored
+ * (and warns on stderr).
  *
  * e2e (spawn) coverage lives in http-help-e2e-httphelp001.test.ts.
  */
@@ -32,6 +35,21 @@ async function captureLogs(fn: () => Promise<unknown>): Promise<string[]> {
     await fn();
   } finally {
     console.log = origLog;
+  }
+  return lines;
+}
+
+/** Capture console.error lines for the duration of fn (warning capture). */
+async function captureErr(fn: () => Promise<unknown>): Promise<string[]> {
+  const lines: string[] = [];
+  const origErr = console.error;
+  console.error = (...a: any[]) => {
+    lines.push(a.join(" "));
+  };
+  try {
+    await fn();
+  } finally {
+    console.error = origErr;
   }
   return lines;
 }
@@ -86,7 +104,7 @@ describe("HTTP-HELP-001: handleHttpCommand help short-circuit", () => {
 });
 
 describe("HTTP-HELP-001: parse behavior preserved through the extraction", () => {
-  it("no-flag behavior UNCHANGED: start called with the historical defaults", async () => {
+  it("no-flag auth default is fail-closed apikey (REVIEW-DUCKBRAIN-006)", async () => {
     const rec = makeStartRecorder();
     const result = await handleHttpCommand([], { start: rec.start });
 
@@ -94,7 +112,7 @@ describe("HTTP-HELP-001: parse behavior preserved through the extraction", () =>
     expect(rec.calls).toHaveLength(1);
     expect(rec.calls[0]).toEqual({
       port: 3000,
-      authType: "none",
+      authType: "apikey",
       authFile: undefined,
       rateLimit: 100,
       bindAll: false,
@@ -134,5 +152,69 @@ describe("HTTP-HELP-001: parse behavior preserved through the extraction", () =>
     expect(rec.calls[0].socketMode).toBe("0660");
     expect(rec.calls[0].socketGroup).toBe("docker");
     expect(rec.calls[0].authFile).toBe("/tmp/db-test-auth.json");
+  });
+});
+
+describe("REVIEW-DUCKBRAIN-006: explicit --auth=none opt-out is honored and loud", () => {
+  /**
+   * The default is fail-closed (apikey), so the unauthenticated-mode warning
+   * fires EXACTLY when the operator asked for none — it is the operator's
+   * evidence that the door is open, not noise on every start.
+   */
+  it("--auth=none still resolves none and prints the unauthenticated warning to stderr", async () => {
+    const rec = makeStartRecorder();
+    const errs = await captureErr(() =>
+      handleHttpCommand(["--auth=none"], { start: rec.start }),
+    );
+
+    expect(rec.calls).toHaveLength(1);
+    expect(rec.calls[0].authType).toBe("none");
+    const stderr = errs.join("\n");
+    expect(stderr).toMatch(/WARNING/);
+    expect(stderr).toMatch(/UNAUTHENTICATED/);
+    expect(stderr).toContain("--auth=none");
+  });
+
+  it("space form (--auth none) is honored and warns the same way", async () => {
+    const rec = makeStartRecorder();
+    const errs = await captureErr(() =>
+      handleHttpCommand(["--auth", "none"], { start: rec.start }),
+    );
+
+    expect(rec.calls[0].authType).toBe("none");
+    expect(errs.join("\n")).toMatch(/UNAUTHENTICATED/);
+  });
+
+  it("no --auth prints NO warning (the default already is apikey)", async () => {
+    const rec = makeStartRecorder();
+    const errs = await captureErr(() =>
+      handleHttpCommand([], { start: rec.start }),
+    );
+
+    expect(rec.calls[0].authType).toBe("apikey");
+    expect(errs.join("\n")).not.toMatch(/UNAUTHENTICATED/);
+  });
+
+  it("explicit --auth=apikey prints NO warning", async () => {
+    const rec = makeStartRecorder();
+    const errs = await captureErr(() =>
+      handleHttpCommand(["--auth=apikey"], { start: rec.start }),
+    );
+
+    expect(rec.calls[0].authType).toBe("apikey");
+    expect(errs.join("\n")).not.toMatch(/WARNING/);
+  });
+
+  it("the printed help advertises apikey as the default and marks none unsafe", async () => {
+    const rec = makeStartRecorder();
+    const lines = await captureLogs(() =>
+      handleHttpCommand(["--help"], { start: rec.start }),
+    );
+    const out = lines.join("\n");
+
+    expect(rec.calls).toHaveLength(0);
+    expect(out).toMatch(/--auth=TYPE/);
+    expect(out).toContain("(default: apikey");
+    expect(out).toMatch(/UNSAFE/);
   });
 });

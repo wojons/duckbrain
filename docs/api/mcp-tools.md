@@ -573,7 +573,7 @@ Start the DuckBrain HTTP server as a detached background process if it is not al
 {
   port?: number;        // TCP port (default: 3000)
   bindAll?: boolean;    // Bind to 0.0.0.0 instead of 127.0.0.1 (default: false)
-  authType?: "none" | "basic" | "apikey";  // Authentication type (default: none)
+  authType?: "none" | "basic" | "apikey";  // Authentication type (default: apikey; use none only for explicit local mode)
   rateLimit?: number;   // Requests per minute per IP (default: 100)
   socket?: string;      // Also listen on a Unix domain socket at this path
   socketMode?: string;  // Socket file permissions as octal string (default: 0660)
@@ -588,7 +588,7 @@ Start the DuckBrain HTTP server as a detached background process if it is not al
 {
   "port": 3000,
   "socket": "/tmp/duckbrain.sock",
-  "authType": "none"
+  "authType": "apikey"
 }
 ```
 

@@ -1056,7 +1056,11 @@ export async function startHttpMode(
  * transitively proves the server is never constructed for a help request.
  * With no --help the behavior is identical to the pre-extraction bin case:
  * same flags, same space/`=` forms, same defaults (port 3000, authType
- * "none", rateLimit 100).
+ * "apikey", rateLimit 100). REVIEW-DUCKBRAIN-006 flipped authType's default
+ * from "none" to "apikey": the flag vocabulary and parse shape are
+ * unchanged, only the no-flag fallback moved to the fail-closed value, and
+ * an explicit --auth=none now prints a loud unauthenticated-mode warning on
+ * stderr.
  *
  * `helped: true` lets the bin entry exit 0 immediately after printing help.
  */
@@ -1095,8 +1099,10 @@ Options:
   --port=PORT              HTTP server port (default: 3000)
   --bind-all               Bind to all interfaces (0.0.0.0) instead of localhost
   --auth=TYPE              Authentication type: none, basic, apikey
-                           (default: none; the server fail-closes to apikey
-                           when an auth store is present)
+                           (default: apikey — a fresh daemon requires
+                           API keys; --auth=none is an EXPLICIT UNSAFE
+                           opt-out that serves unauthenticated reads
+                           and writes, for local/test use only)
   --auth-file=PATH         Read auth users/apiKeys from PATH instead of
                            ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
                            the file must exist — for scratch/test daemons
@@ -1164,12 +1170,29 @@ export async function handleHttpCommand(
         : parseInt(args[portIdx + 1])
       : 3000;
   const bindAll = bindAllIdx !== -1;
+  // REVIEW-DUCKBRAIN-006: the CLI default is apikey, not none. A fresh
+  // daemon must never serve unauthenticated reads/writes; opening the door
+  // is an explicit operator action (--auth=none) and is announced loudly
+  // on stderr below. createHttpServer() carries the same default, so an
+  // embedded caller that passes no authType is fail-closed too.
   const authType =
     authIdx !== -1
       ? ((args[authIdx].includes("=")
           ? args[authIdx].split("=")[1]
           : args[authIdx + 1]) as "none" | "basic" | "apikey")
-      : "none";
+      : "apikey";
+  // Explicit opt-out only (the default above is apikey, so this fires
+  // exactly when the operator asked for none): the warning is the
+  // operator's evidence that the daemon is unauthenticated.
+  if (authType === "none") {
+    console.error(
+      "[auth] WARNING: --auth=none disables authentication — with no auth " +
+        "store this daemon accepts UNAUTHENTICATED reads and writes (an " +
+        "explicit --auth-file/DUCKBRAIN_AUTH_FILE still auto-enables apikey " +
+        "and prints its own banner). Use it only for explicit local/test " +
+        "mode; the default is --auth=apikey.",
+    );
+  }
   const authFile =
     authFileIdx !== -1
       ? args[authFileIdx].includes("=")

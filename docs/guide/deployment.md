@@ -18,13 +18,21 @@ docker-compose -f docker-compose.dev.yml up
 
 ### Running the Container
 
-```bash
-# Basic run with default settings (port 3000)
-docker run -p 3000:3000 -v duckbrain-data:/data duckbrain
+The image starts the daemon with `http --port=3000 --bind-all` and **no `--auth` flag, so it runs with the default `apikey` mode** — a fresh container rejects unauthenticated reads and writes with `401` unless you supply a key store. Give it one of:
 
-# Custom port and bind all interfaces
-docker run -p 8080:3000 -v duckbrain-data:/data \
-  duckbrain http --port=3000 --bind-all
+```bash
+# 1. Explicit local-only mode (no authentication — the daemon logs a warning)
+docker run -p 3000:3000 -v duckbrain-data:/data duckbrain \
+  http --port=3000 --bind-all --auth=none
+
+# 2. API-key mode: mount a store and send X-API-Key
+docker run -p 3000:3000 -v duckbrain-data:/data \
+  -v "$HOME/.duckbrain:/home/node/.duckbrain" duckbrain \
+  http --port=3000 --bind-all --auth=apikey
+
+# Custom port and bind all interfaces (same auth rules)
+docker run -p 8080:3000 -v duckbrain-data:/data duckbrain \
+  http --port=3000 --bind-all --auth=apikey
 ```
 
 The Docker image uses a two-stage build:
@@ -420,10 +428,14 @@ duckbrain.example.com {
 
 ### Authentication
 
-For any public-facing or network-accessible deployment, configure authentication:
+The daemon runs with `--auth=apikey` **by default** — a fresh start requires API keys and rejects unauthenticated reads and writes with `401`. Authentication is therefore already configured for any public-facing or network-accessible deployment; the only way to open the door is the explicit `--auth=none` opt-out, which is intended for local single-user setups and prints an unauthenticated-mode warning at boot.
 
 ```bash
-node bin/duckbrain.js http --auth=apikey
+# default: API keys required (credentials from ~/.duckbrain/auth.json)
+node bin/duckbrain.js http
+
+# explicit local-only mode: no authentication (unsafe, warns at boot)
+node bin/duckbrain.js http --auth=none
 ```
 
 Store API keys in `~/.duckbrain/auth.json` (see [Configuration Reference](configuration)).

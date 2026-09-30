@@ -5,14 +5,17 @@ DuckBrain's HTTP server provides REST API access to memories, namespaces, and sy
 ## Starting the HTTP Server
 
 ```bash
-# Default port 3000, localhost only
+# Default port 3000, localhost only — API-key auth is ON by default
 pnpm start http
 
 # Custom port
 pnpm start http --port=8080
 
+# Explicit local-only mode: no authentication (unsafe; emits a warning)
+pnpm start http --auth=none
+
 # Bind to all interfaces (for remote access)
-pnpm start http --bind-all --port=8080
+pnpm start http --bind-all --port=8080 --auth=apikey
 
 # With authentication
 pnpm start http --auth=apikey --rate-limit=60
@@ -1279,13 +1282,13 @@ curl -X POST http://localhost:3000/api/compaction/squash \
 
 ## Authentication
 
-The HTTP server supports three authentication modes configured via `--auth` or `~/.duckbrain/auth.json` (see [Configuration](../guide/configuration) for details).
+The HTTP server supports three authentication modes configured via `--auth` or `~/.duckbrain/auth.json` (see [Configuration](../guide/configuration) for details). **The default is `apikey`** — a fresh daemon that omits `--auth` rejects unauthenticated reads and writes with `401` (a valid `X-API-Key` is required); `--auth=none` is an explicit opt-out for local-only use and logs an unauthenticated-mode warning at boot.
 
 | Mode | Mechanism | Header |
 |------|-----------|--------|
-| `none` | No authentication | — |
+| `none` | No authentication (explicit `--auth=none` only) | — |
 | `basic` | HTTP Basic Auth (bcrypt) | `Authorization: Basic ...` |
-| `apikey` | API key in header | `X-API-Key: <key>` |
+| `apikey` | API key in header (**default**) | `X-API-Key: <key>` |
 
 The `/health` endpoint always bypasses authentication.
 
