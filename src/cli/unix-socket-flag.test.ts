@@ -12,10 +12,12 @@
  * Hermeticity: every spawned daemon gets its own DUCKBRAIN_DATA_DIR and
  * DUCKBRAIN_NAMESPACES_PATH (the pattern the sibling CLI suites use —
  * src/cli/http.test.ts, auth-file.test.ts, token-auth-file-dogfood026.test.ts).
- * Without DUCKBRAIN_DATA_DIR the pidfile is the SHARED
+ * Without DUCKBRAIN_DATA_DIR the pidfile falls back to the per-uid
+ * `<tmpdir>/duckbrain-<uid>/duckbrain-http-<socket-basename>.pid`
+ * (QA-DUCKBRAIN-002) — before that fix it was the SHARED
  * `<tmpdir>/duckbrain-http-<socket-basename>.pid`, so a leftover owned by
  * another user (a root-run instance, a container, a previous clean-machine
- * battery) makes the daemon's pidfile write fail with EACCES. The daemon
+ * battery) made the daemon's pidfile write fail with EACCES. The daemon
  * treats that as non-fatal (see src/cli/http.ts) and this suite never
  * depends on it either way.
  */

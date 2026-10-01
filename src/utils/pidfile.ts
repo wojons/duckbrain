@@ -9,16 +9,54 @@
  *   - TCP-only instance on port N: `duckbrain-http-<N>.pid`
  *   - socket-only (or socket + port) instance: `duckbrain-http-<socket-basename>.pid`
  *
- * The directory is controlled by `DUCKBRAIN_DATA_DIR`, falling back to
- * `os.tmpdir()`.
+ * Directory precedence (highest first):
+ *   1. the explicit `dir` argument (test pinning),
+ *   2. `DUCKBRAIN_DATA_DIR` (operator/systemd override — unchanged semantics),
+ *   3. a per-uid directory under the shared temp dir:
+ *      `os.tmpdir()/duckbrain-<uid>`.
+ *
+ * The per-uid fallback (QA-DUCKBRAIN-002) replaces the old bare
+ * `os.tmpdir()` fallback: on a multi-uid host a fixed name in a shared
+ * directory can be owned by ANOTHER uid (bunker agents, containers,
+ * root-run instances, a previous tenant's leaked instance), which blocked
+ * pidfile bookkeeping with EACCES. Two uids can never collide on
+ * `duckbrain-<uid>`, while one uid's leftovers behave exactly as before.
+ * The directory is created best-effort (mode 0700) when the fallback is
+ * resolved; if creation fails the write side degrades to its existing
+ * best-effort warning instead of failing startup.
  */
 
 import path from "path";
 import os from "os";
 import fs from "fs";
 
-export function httpPidFilePath(port: number, socket?: string): string {
-  const baseDir = process.env.DUCKBRAIN_DATA_DIR || os.tmpdir();
+/** The uid of the running process (POSIX getuid, os.userInfo elsewhere). */
+function runtimeUid(): number {
+  if (typeof process.getuid === "function") return process.getuid();
+  return os.userInfo().uid;
+}
+
+/**
+ * The owner-isolated fallback pidfile directory: `os.tmpdir()/duckbrain-<uid>`.
+ * Created best-effort with mode 0700; never throws.
+ */
+function perUidPidDir(): string {
+  const dir = path.join(os.tmpdir(), `duckbrain-${runtimeUid()}`);
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  } catch {
+    // Best-effort: the pidfile write itself is already non-fatal, so a
+    // dir we could not create simply surfaces as that same warning.
+  }
+  return dir;
+}
+
+export function httpPidFilePath(
+  port: number,
+  socket?: string,
+  dir?: string,
+): string {
+  const baseDir = dir || process.env.DUCKBRAIN_DATA_DIR || perUidPidDir();
   const suffix = socket ? path.basename(socket) : String(port);
   return path.join(baseDir, `duckbrain-http-${suffix}.pid`);
 }
