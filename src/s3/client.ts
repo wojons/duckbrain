@@ -12,6 +12,8 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import { Agent } from "https";
 import type { S3Config } from "./config";
 import { resolveEffectiveEndpoint } from "./config";
 
@@ -28,6 +30,12 @@ export interface RemoteObject {
  * AWS_ENDPOINT_URL_S3 / AWS_ENDPOINT_URL env override wins over the config
  * value — the client and the `s3 status` display can never diverge about
  * which store is actually in use. (DOGFOOD-030)
+ *
+ * S3-GIT-006: every request leg is bounded — connectionTimeout 10s,
+ * requestTimeout 120s, maxSockets 20 — so a slow or black-holed S3 endpoint
+ * can no longer pin a sync (or the cron wrapper's lock) indefinitely. A
+ * rejected request is a LOUD retryable failure; an unbounded hang was a
+ * silent lock-holder that starved every later cron tick.
  */
 export function buildClient(cfg: S3Config): S3Client {
   const endpoint = resolveEffectiveEndpoint(cfg);
@@ -37,6 +45,11 @@ export function buildClient(cfg: S3Config): S3Client {
     // explicitly only when set in config so callers don't need env juggling.
     ...(cfg.profile ? { profile: cfg.profile } : {}),
     ...(endpoint ? { endpoint, forcePathStyle: cfg.forcePathStyle } : {}),
+    requestHandler: new NodeHttpHandler({
+      requestTimeout: 120_000,
+      connectionTimeout: 10_000,
+      httpsAgent: new Agent({ keepAlive: true, maxSockets: 20 }),
+    }),
   });
 }
 
@@ -94,7 +107,8 @@ export async function getObject(
   );
   // Body is a streaming blob in Node SDK v3
   const body = resp.Body as unknown as
-    { transformToByteArray(): Promise<Uint8Array> } | undefined;
+    | { transformToByteArray(): Promise<Uint8Array> }
+    | undefined;
   if (!body) throw new Error(`Empty body for s3://${bucket}/${key}`);
   const bytes = await body.transformToByteArray();
   return Buffer.from(bytes);

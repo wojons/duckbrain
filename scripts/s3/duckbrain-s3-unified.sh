@@ -46,6 +46,15 @@ GIT_PASS_STAMP="$STATE_DIR/s3-git-pass.last"
 # push + weekly tar can outlive the tick window; without flock two concurrent
 # runs clobber the same /tmp tarball (observed 2026-08-27 — manual run
 # collided with the first cron tick; S3 data survived, upload raced).
+#
+# S3-GIT-006: the layer scripts + node below are spawned WITHOUT the lock fd.
+# The shell takes the lock on fd 9 and every layer invocation closes fd 9
+# for that invocation only (`9>&-`): the shell's own fd still holds the
+# flock, while children no longer inherit it — so a timeout-killed cron can
+# never leave the lock reachable from orphaned node processes. (Closing the
+# shell's fd itself would RELEASE the flock — the lock lives on the open
+# file description, which dies with its last fd — so the close must be
+# per-invocation, never `exec 9>&-` at top level.)
 mkdir -p "$STATE_DIR"
 LOCK="$STATE_DIR/duckbrain-s3-unified.lock"
 exec 9>"$LOCK"
@@ -69,9 +78,11 @@ skip_component() {
 }
 
 # ---- 1. NATIVE DELTA SYNC — every run -------------------------------------
+# `9>&-` per invocation (S3-GIT-006): the layer gets NO fd 9; the shell keeps
+# holding the flock itself.
 if skip_component native; then
   echo "duckbrain unified S3 backup: native-sync SKIPPED (DUCKBRAIN_S3_SKIP_COMPONENTS=$SKIP_COMPONENTS)"
-elif ! "$SCRIPTS_DIR/duckbrain-s3-native-sync.sh"; then
+elif ! "$SCRIPTS_DIR/duckbrain-s3-native-sync.sh" 9>&-; then
   failures="$failures native-sync"
 fi
 
@@ -83,7 +94,8 @@ if skip_component git; then
   echo "duckbrain unified S3 backup: git-push SKIPPED (DUCKBRAIN_S3_SKIP_COMPONENTS=$SKIP_COMPONENTS)"
 elif [ $((NOW - LAST_GIT)) -ge 86400 ]; then
   GIT_START=$(date +%s)
-  GIT_OUT="$("$SCRIPTS_DIR/duckbrain-s3-daily.sh" 2>&1)"
+  # `9>&-` per invocation (S3-GIT-006): see the lock comment above.
+  GIT_OUT="$("$SCRIPTS_DIR/duckbrain-s3-daily.sh" 9>&- 2>&1)"
   GIT_RC=$?
   if [ -n "$GIT_OUT" ]; then printf '%s\n' "$GIT_OUT"; fi
   PASS_TS=0
@@ -111,7 +123,8 @@ case "$LAST_ARCH" in ''|*[!0-9]*) LAST_ARCH=0 ;; esac
 if skip_component weekly; then
   echo "duckbrain unified S3 backup: weekly-archive SKIPPED (DUCKBRAIN_S3_SKIP_COMPONENTS=$SKIP_COMPONENTS)"
 elif [ $((NOW - LAST_ARCH)) -ge 604800 ]; then
-  if "$SCRIPTS_DIR/duckbrain-s3-weekly.sh"; then
+  # `9>&-` per invocation (S3-GIT-006): see the lock comment above.
+  if "$SCRIPTS_DIR/duckbrain-s3-weekly.sh" 9>&-; then
     echo "$NOW" > "$ARCH_MARKER"
   else
     failures="$failures weekly-archive"
