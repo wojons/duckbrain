@@ -2214,3 +2214,12 @@ tasks:
   status: complete
   created_at: '2026-09-30T18:51:19.222958+00:00'
   completed_at: '2026-10-01T02:21:42.511657+00:00'
+- id: AUTOCOMMIT-ENOENT-001
+  title: 'Auto-commit deleted-cwd race: distinct message for removed namespaces'
+  criteria:
+  - Deferred autocommit for a deleted namespace does not emit spawn git ENOENT; emits
+    distinct message; genuine git failures name binary/cwd; existing autocommit tests
+    green
+  status: complete
+  created_at: '2026-10-01T03:09:13.297252+00:00'
+  completed_at: '2026-10-01T04:48:41.122125+00:00'
