@@ -2211,5 +2211,6 @@ tasks:
     auth store, prod namespaces, or the live :3000 unit; pre-existing suites pass;
     pnpm tsc --noEmit clean; the unit + integration suites are green at the worker
     commit.'
-  status: in_progress
+  status: complete
   created_at: '2026-09-30T18:51:19.222958+00:00'
+  completed_at: '2026-10-01T02:21:42.511657+00:00'
