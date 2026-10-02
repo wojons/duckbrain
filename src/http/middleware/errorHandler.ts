@@ -7,6 +7,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
+import { isDurabilityError } from "../../storage/durability-errors";
 
 /**
  * Custom API error class with status code
@@ -97,6 +98,19 @@ export function errorHandler(
     res.status(404).json({
       error: err.message,
       code: "NOT_FOUND",
+    });
+    return;
+  }
+
+  // QA-DUCKBRAIN-003: a DurabilityError is not an ApiError, so without this
+  // branch it fell through to the generic 500 INTERNAL_ERROR envelope and the
+  // machine-readable DURABILITY_* code was lost from the HTTP response. The
+  // status stays 500 by design (SUPA-1: durability failures fail LOUD — the
+  // code itself is what callers and monitoring must see).
+  if (isDurabilityError(err)) {
+    res.status(err.status).json({
+      error: err.message,
+      code: err.code,
     });
     return;
   }

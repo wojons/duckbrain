@@ -2240,3 +2240,15 @@ tasks:
   status: complete
   created_at: '2026-10-01T21:58:19.104086+00:00'
   completed_at: '2026-10-01T22:35:44.373372+00:00'
+- id: QA-DUCKBRAIN-003
+  title: O_DIRECT append leaves empty current.jsonl residue + DURABILITY_* surfaces
+    as bare 500
+  criteria:
+  - 'All acceptance criteria in the worker brief pass: (1) appendJsonlDirect unlinks
+    a file it created when O_DIRECT is rejected, verified by RED-then-GREEN tests
+    on an O_DIRECT-less fs (TMPDIR=/dev/shm); (2) a pre-existing direct-mode file
+    is never deleted on failure; (3) DURABILITY_* errors reach the HTTP error envelope
+    with their machine-readable code visible; (4) full unit suite + tsc + prettier
+    green; AGENTS.md counts synced'
+  status: in_progress
+  created_at: '2026-10-02T07:48:17.808448+00:00'
