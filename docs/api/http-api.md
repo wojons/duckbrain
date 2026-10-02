@@ -194,21 +194,41 @@ Returns an empty user list. Reserved for future implementation.
 }
 ```
 
-### Activity Feed (Stub)
+### Activity Feed
 
 `GET /activity`
 
-Returns an empty activity feed. Reserved for future implementation.
+Returns recent memory activity across all namespaces — the newest non-tombstone
+rows from every namespace's JSONL segments, ordered by `timestamp` descending.
 
 | Query Param | Default | Description |
 |-------------|---------|-------------|
-| `limit` | 50 | Max activities to return |
+| `limit` | 50 | Max activities to return (capped at 200) |
+| `namespace` | — | Restrict the feed to one namespace. Grant-checked: a token without a grant for it gets `403 Forbidden`. |
+
+**Authorization:** an unrestricted token (or `--auth=none`) sees the
+every-namespace feed. A token carrying `namespaces` grants sees **only its
+granted namespaces**, whether or not `?namespace=` is given — ungranted
+namespaces' segments are not read at all.
 
 **Response:**
 
 ```json
 {
-  "activities": [],
+  "activities": [
+    {
+      "id": "…",
+      "key": "/projects/myapp",
+      "domain": "concept",
+      "timestamp": "2026-10-02T10:30:00Z",
+      "author": "agent-alpha@duckbrain.local",
+      "action": "add",
+      "content": "…",
+      "attributes": {},
+      "namespace": "my-project"
+    }
+  ],
+  "count": 1,
   "limit": 50
 }
 ```
@@ -547,7 +567,7 @@ Get hierarchical memory key tree.
 | `prefix` | `/` | Key prefix filter |
 | `depth` | 10 | Max hierarchy depth |
 | `limit` | 100 | Max keys to return |
-| `namespace` | `default` | Namespace to query |
+| `namespace` | active namespace | Namespace to query — grant-checked (`403` on a token without that grant) |
 
 **Response:**
 
@@ -593,7 +613,7 @@ Get flat list of keys (for autocomplete, dropdowns).
 | `prefix` | `/` | Key prefix filter |
 | `limit` | 100 | Max keys to return |
 | `offset` | 0 | Pagination offset |
-| `namespace` | `default` | Namespace to query |
+| `namespace` | active namespace | Namespace to query — grant-checked (`403` on a token without that grant) |
 
 **Response:**
 
@@ -1200,7 +1220,7 @@ curl -Ns "http://localhost:3000/api/ns/my-project/changes?cursor=$LAST" \
 
 ### Compaction
 
-Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`).
+Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`). Both routes are namespace-grant-checked: `?namespace=` — or `namespace` in the squash body — selects the namespace they operate on, and a token without a grant for it is rejected with `403 Forbidden` before the tool runs, exactly like `/api/memories`.
 
 #### `GET /api/compaction/stats`
 
@@ -1250,6 +1270,7 @@ Compact old memory partitions to reduce repository size. Converts JSONL to Parqu
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `namespace` | string | active namespace | Namespace to compact. Also accepted as `?namespace=`. Grant-checked. |
 | `partition` | string | — | Specific partition to squash (relative to the namespace path, or absolute). Omit to compact all old partitions. |
 | `dryRun` | boolean | `false` | Preview without making changes. |
 | `aggressive` | boolean | `false` | Also squash git history. |
@@ -1348,7 +1369,19 @@ token to exactly those namespaces:
 - `namespaces` **present** → the token may read, write, update, delete, and
   create only the listed namespaces. Requests targeting any other namespace
   are rejected with `403 Forbidden` (checked before the route runs, for
-  reads AND writes AND namespace creation).
+  reads AND writes AND namespace creation). The check is mounted on every
+  namespace-scoped REST surface — `/api/memories`, `/api/namespaces`,
+  `/api/ns/:ns/tables`, `/api/keys` (and `/api/keys/flat`),
+  `/api/compaction/stats`, `/api/compaction/squash` and `/activity` — plus the
+  namespace-scoped MCP tools, and every denial is written to the denial audit
+  with reason `namespace_scope` (see `GET /api/keys?namespace=` on a token
+  without that grant for the wire shape).
+- `/activity` is the one cross-namespace feed: an explicit
+  `?namespace=<ns>` is grant-checked exactly like the routes above (`403`
+  when ungranted), and **without** it a scoped token's feed is silently
+  confined to its granted namespaces — an ungranted namespace's rows are
+  neither read from disk nor returned. An unrestricted token keeps the
+  historical every-namespace feed.
 - `/health` always bypasses authentication and grants.
 
 #### Minting a Scoped Token

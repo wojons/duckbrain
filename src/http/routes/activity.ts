@@ -10,10 +10,65 @@ import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
 import { deepConvertBigInts } from "../../utils/serialize";
 import { resolveNamespacesPath } from "../../config/index";
+import { resolveNamespaceName } from "../../mcp/tools/shared";
+import { getPrincipal, requireNamespaceGrant } from "../../auth/middleware";
 import path from "path";
 import fs from "fs";
 
 const router: Router = Router();
+
+/**
+ * DB-GAP-062: the optional `?namespace=` scope the caller asks for.
+ * `undefined` when the request names none — the feed then stays
+ * cross-namespace (confined to the principal's grants when it is scoped).
+ */
+function requestedNamespace(req: Request): string | undefined {
+  const raw = req.query.namespace;
+  return typeof raw === "string" && raw !== "" ? raw : undefined;
+}
+
+const resolveRequestNamespace = (req: Request): string =>
+  resolveNamespaceName(requestedNamespace(req));
+
+// DB-GAP-062: /activity had no namespace-grant middleware at all, so a token
+// scoped to one namespace received the cross-namespace feed — every other
+// namespace's recent memories.
+//
+// Unlike /api/keys, /api/compaction and /api/memories, this route does not
+// resolve a namespace when the request names none: the feed IS
+// cross-namespace, so the only namespace a request can target is an explicit
+// `?namespace=`. That explicit form gets the exact refusal every other router
+// produces (403 + audited `namespace_scope`); without it the response is
+// confined to the token's grants by `visibleNamespaces()` below, so an
+// ungranted namespace is filtered out rather than refused. Untouched in
+// auth=none mode and for unrestricted tokens (`namespaces` absent).
+const requireNamespaceGrantForRequest = requireNamespaceGrant(
+  resolveRequestNamespace,
+);
+router.use((req, res, next) => {
+  if (requestedNamespace(req) === undefined) return next();
+  return requireNamespaceGrantForRequest(req, res, next);
+});
+
+/**
+ * DB-GAP-062: the namespaces this request may actually see.
+ *
+ * `undefined` means "every namespace" (unrestricted token, or auth=none with
+ * no principal) — the historical behavior. Otherwise an allow-list:
+ *  - scoped token  → its grants, clamped to `?namespace=` when it names one;
+ *  - unrestricted  → the single requested namespace, when it names one.
+ *
+ * A scoped token's request for a namespace OUTSIDE its grants never reaches
+ * here — `requireNamespaceGrant` above already answered 403.
+ */
+function visibleNamespaces(req: Request): string[] | undefined {
+  const requested = requestedNamespace(req);
+  const grants = getPrincipal(req)?.namespaces;
+  if (grants === undefined) return requested ? [requested] : undefined;
+  return requested
+    ? grants.filter((grant) => grant === requested)
+    : [...grants];
+}
 
 /**
  * In-memory DuckDB connection for cross-namespace queries.
@@ -174,7 +229,10 @@ function namespaceFromFile(filePath: string, root: string): string {
 /**
  * Query recent memories across all namespaces.
  */
-async function queryRecentActivity(limit: number): Promise<
+async function queryRecentActivity(
+  limit: number,
+  allowed?: string[],
+): Promise<
   Array<{
     id: string;
     key: string;
@@ -190,14 +248,35 @@ async function queryRecentActivity(limit: number): Promise<
   const nsDirs = collectNamespaceDirs();
   if (nsDirs.length === 0) return [];
 
+  // DB-GAP-062: confine both the read and the response to the namespaces this
+  // request may see. `allowed === undefined` keeps the historical
+  // single-root-glob, every-namespace feed byte-for-byte; a scoped request
+  // reads only its namespaces' segments (so ungranted rows are never even
+  // loaded) and is filtered again per row below as a safety net.
+  const visibleDirs =
+    allowed === undefined
+      ? nsDirs
+      : nsDirs.filter((ns) => allowed.includes(ns));
+  if (visibleDirs.length === 0) return [];
+
   const db = getCrossNsConnection();
   const root = resolveNamespacesPath();
-  const glob = namespaceRootGlob().replace(/'/g, "''");
+  // LAYOUT: <root>/<ns>/<domain>/<YYYY-MM>/<file>.jsonl — the root glob
+  // (namespaceRootGlob) matches the four segments below <root>, so a
+  // per-namespace glob names the namespace and then matches THREE.
+  const nsRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
+  const globList = (
+    allowed === undefined
+      ? [namespaceRootGlob()]
+      : visibleDirs.map((ns) => `${nsRoot}/${ns}/*/*/*.jsonl`)
+  )
+    .map((glob) => `'${glob.replace(/'/g, "''")}'`)
+    .join(", ");
 
   return new Promise((resolve) => {
     const sql = `
       SELECT id, key, domain, timestamp, author, action, embedding_text, attributes, filename
-      FROM read_json(['${glob}'], filename=true, format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      FROM read_json([${globList}], filename=true, format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       WHERE action != 'tombstone'
       ORDER BY timestamp DESC
       LIMIT ${Math.min(limit, 200)}
@@ -211,26 +290,34 @@ async function queryRecentActivity(limit: number): Promise<
         }
 
         resolve(
-          (result as any[]).map((row: any) =>
-            deepConvertBigInts({
-              id: row.id,
-              key: row.key,
-              domain: row.domain,
-              timestamp: row.timestamp,
-              author: row.author,
-              action: row.action,
-              content: row.embedding_text || "",
-              attributes:
-                typeof row.attributes === "string"
-                  ? parseDuckDBStruct(row.attributes)
-                  : row.attributes || {},
-              // Per-row, from the file the row was read out of. The previous
-              // implementation labelled every row with allFiles[0]'s namespace.
-              namespace: row.filename
-                ? namespaceFromFile(row.filename, root)
-                : "default",
-            }),
-          ),
+          (result as any[])
+            .map((row: any) =>
+              deepConvertBigInts({
+                id: row.id,
+                key: row.key,
+                domain: row.domain,
+                timestamp: row.timestamp,
+                author: row.author,
+                action: row.action,
+                content: row.embedding_text || "",
+                attributes:
+                  typeof row.attributes === "string"
+                    ? parseDuckDBStruct(row.attributes)
+                    : row.attributes || {},
+                // Per-row, from the file the row was read out of. The previous
+                // implementation labelled every row with allFiles[0]'s namespace.
+                namespace: row.filename
+                  ? namespaceFromFile(row.filename, root)
+                  : "default",
+              }),
+            )
+            // DB-GAP-062: belt-and-braces on top of the per-namespace glob
+            // above — a row whose file resolved outside the allow-list (or a
+            // future change to the glob) still never reaches the response.
+            .filter(
+              (row: any) =>
+                allowed === undefined || allowed.includes(row.namespace),
+            ),
         );
       });
     } catch {
@@ -242,6 +329,10 @@ async function queryRecentActivity(limit: number): Promise<
 /**
  * GET /activity
  * Returns recent memory activity across all namespaces.
+ *
+ * DB-GAP-062: optional `?namespace=` restricts the feed to one namespace and
+ * is grant-checked; without it a scoped token still only ever sees its own
+ * namespaces (an unrestricted token sees every namespace, as before).
  */
 router.get(
   "/",
@@ -251,7 +342,10 @@ router.get(
       200,
     );
 
-    const activities = await queryRecentActivity(limit);
+    const activities = await queryRecentActivity(
+      limit,
+      visibleNamespaces(req),
+    );
 
     res.json({
       activities,
