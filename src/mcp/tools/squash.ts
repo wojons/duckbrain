@@ -14,10 +14,9 @@ import {
 import {
   resolveNamespaceName,
   resolveNamespacePath,
-  namespaceScopeViolation,
-  resolveToolPrincipal,
+  enforceNamespaceScope,
+  type McpToolContext,
 } from "./shared";
-import type { AuthPrincipal } from "../../auth/middleware";
 import path from "path";
 
 /**
@@ -66,9 +65,7 @@ interface SquashOutput {
 }
 
 /** Injectable context for the squash handlers — the SUPA-4 principal seam. */
-export interface SquashContext {
-  principal?: AuthPrincipal;
-}
+export interface SquashContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name
@@ -101,8 +98,8 @@ export async function squashTool(
     // so a token scoped to other namespaces must be refused before any work —
     // REST's table/compaction routes enforce this via middleware and /mcp has
     // no per-tool route to mount it on.
-    const scopeViolation = namespaceScopeViolation(
-      resolveToolPrincipal(context),
+    const scopeViolation = enforceNamespaceScope(
+      context,
       resolveNamespaceName(namespace),
     );
     if (scopeViolation) {
@@ -229,8 +226,8 @@ export async function getCompactionStatsTool(
   // DB-GAP-031 (MCP parity): stats expose a namespace's storage shape, so the
   // same grant rule applies as for squash — checked before the try so the
   // machine-readable refusal is not flattened by the generic catch.
-  const scopeViolation = namespaceScopeViolation(
-    resolveToolPrincipal(context),
+  const scopeViolation = enforceNamespaceScope(
+    context,
     resolveNamespaceName(input?.namespace),
   );
   if (scopeViolation) {

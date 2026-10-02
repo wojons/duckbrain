@@ -15,17 +15,15 @@ import {
 import { getPartitionPath } from "../../storage/jsonl";
 import { getAuthorEmail } from "../../git/attribution";
 import { getMcpRequestPrincipal } from "../../cli/http";
-import {
-  principalAuthorEmail,
-  type AuthPrincipal,
-} from "../../auth/middleware";
+import { principalAuthorEmail } from "../../auth/middleware";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
 import { getConfig, resolveDuckbrainRoot } from "../../config/index";
 import { normalizeAttributes } from "../../utils/serialize";
 import {
   resolveNamespaceName,
   resolveNamespacePath,
-  namespaceScopeViolation,
+  enforceNamespaceScope,
+  type McpToolContext,
 } from "./shared";
 import fs from "fs";
 
@@ -117,10 +115,7 @@ function normalizeValidityWindow(data: {
   };
 }
 
-export interface RememberContext {
-  /** Injectable SUPA-4 principal seam; MCP-over-HTTP falls back to ALS. */
-  principal?: AuthPrincipal;
-}
+export interface RememberContext extends McpToolContext {}
 
 /**
  * Output schema for remember tool (hybrid format per D-05)
@@ -272,10 +267,7 @@ export async function rememberTool(
     // so the check runs here — against the RESOLVED namespace (the one this
     // write will actually touch, including the sticky active default when the
     // arg is omitted) — BEFORE any directory is created or row enqueued.
-    const scopeViolation = namespaceScopeViolation(
-      mcpPrincipal,
-      resolvedNamespace,
-    );
+    const scopeViolation = enforceNamespaceScope(context, resolvedNamespace);
     if (scopeViolation) return scopeViolation;
 
     // NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES. The

@@ -15,10 +15,9 @@ import {
 import {
   resolveNamespacePath,
   resolveNamespaceName,
-  namespaceScopeViolation,
-  resolveToolPrincipal,
+  enforceNamespaceScope,
+  type McpToolContext,
 } from "./shared";
-import type { AuthPrincipal } from "../../auth/middleware";
 import path from "path";
 import fs from "fs";
 
@@ -64,9 +63,7 @@ interface ListKeysOutput {
 }
 
 /** Injectable context for the list_keys handler — the SUPA-4 principal seam. */
-export interface ListKeysContext {
-  principal?: AuthPrincipal;
-}
+export interface ListKeysContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name
@@ -379,8 +376,8 @@ export async function listKeysTool(
   // `requireNamespaceGrant` middleware, which /mcp has no per-tool route for.
   // Deliberately OUTSIDE the try below: runKeysQuery's catch would otherwise
   // flatten the machine-readable refusal into a generic error payload.
-  const scopeViolation = namespaceScopeViolation(
-    resolveToolPrincipal(context),
+  const scopeViolation = enforceNamespaceScope(
+    context,
     resolveNamespaceName(validated.namespace),
   );
   if (scopeViolation) {

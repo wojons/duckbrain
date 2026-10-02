@@ -9,12 +9,12 @@ import { z } from "zod";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { queryMemories, tombstoneMemory } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import type { AuthPrincipal } from "../../auth/middleware";
 import {
   resolveNamespaceName,
   resolveNamespacePath,
-  namespaceScopeViolation,
+  enforceNamespaceScope,
   resolveToolPrincipal,
+  type McpToolContext,
 } from "./shared";
 import path from "path";
 import fs from "fs";
@@ -42,9 +42,7 @@ const ForgetInputSchema = z.object({
 
 type ForgetInput = z.infer<typeof ForgetInputSchema>;
 
-export interface ForgetContext {
-  principal?: AuthPrincipal;
-}
+export interface ForgetContext extends McpToolContext {}
 
 /**
  * Output schema for forget tool
@@ -124,7 +122,7 @@ export async function forgetTool(
     // middleware, and /mcp has no per-tool route to mount that on. The same
     // principal is reused for the tombstone's author stamp below.
     const principal = resolveToolPrincipal(context);
-    const scopeViolation = namespaceScopeViolation(principal, resolvedNamespace);
+    const scopeViolation = enforceNamespaceScope(context, resolvedNamespace);
     if (scopeViolation) return scopeViolation;
 
     // Check if namespace exists

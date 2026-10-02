@@ -17,10 +17,9 @@ import { getPartitionsForDomain } from "../../storage/manifest";
 import {
   resolveNamespaceName,
   resolveNamespacePath,
-  namespaceScopeViolation,
-  resolveToolPrincipal,
+  enforceNamespaceScope,
+  type McpToolContext,
 } from "./shared";
-import type { AuthPrincipal } from "../../auth/middleware";
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
@@ -222,9 +221,7 @@ interface RecallOutput {
  * MCP-over-HTTP leaves it empty so the handler reads the authenticated
  * principal from the DOGFOOD-025 module-scope slot.
  */
-export interface RecallContext {
-  principal?: AuthPrincipal;
-}
+export interface RecallContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name using config.
@@ -476,11 +473,9 @@ export async function recallTool(
   // grades the token's grant here — before the namespace-exists probe, so a
   // scoped token cannot even probe foreign namespaces — and returns the
   // machine-readable `namespace_scope` refusal.
-  const scopeViolation = namespaceScopeViolation(
-    resolveToolPrincipal(context),
-    resolvedNamespace,
-    { allNamespaces: validated.allNamespaces },
-  );
+  const scopeViolation = enforceNamespaceScope(context, resolvedNamespace, {
+    allNamespaces: validated.allNamespaces,
+  });
   if (scopeViolation) {
     return {
       memories: [],

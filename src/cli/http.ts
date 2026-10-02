@@ -25,8 +25,9 @@ import {
   authMiddleware,
   AuthConfig,
   getPrincipal,
+  auditRequestDenial,
 } from "../auth/middleware.js";
-import type { AuthPrincipal } from "../auth/middleware.js";
+import type { AuthPrincipal, DenialAuditor } from "../auth/middleware.js";
 import { FileAuthStore } from "../auth/storeSchema.js";
 import { authorizeTableAccess } from "../auth/roles.js";
 import { createDenialAuditor } from "../serialization/audit.js";
@@ -759,6 +760,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       // setting the module-scope slot here and clearing it in finally is
       // single-flight safe (see getMcpRequestPrincipal below).
       mcpRequestPrincipal = getPrincipal(req);
+      // SUPA-4 (audit-every-denial): expose the SAME request-scoped denial
+      // auditor the REST middlewares audit through (the auth middleware
+      // installed it on this request) so an MCP tool refusal writes its
+      // denial row to the shared sink instead of vanishing. Bound to the
+      // request, and cleared with the principal when the call completes.
+      mcpRequestAuditDenial = (event) => auditRequestDenial(req, event);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         // Return a single JSON response per request instead of an open SSE
@@ -771,6 +778,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       } finally {
         await transport.close().catch(() => {});
         mcpRequestPrincipal = undefined;
+        mcpRequestAuditDenial = undefined;
       }
     });
 
@@ -824,6 +832,16 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 let mcpRequestPrincipal: AuthPrincipal | undefined;
 
 /**
+ * SUPA-4: module-scope slot holding the denial auditor of the MCP request
+ * currently being served — the same request-scoped sink
+ * `requireNamespaceGrant` / `requireTableGrant` audit through on the REST
+ * routes. Set inside the /mcp mutex (single-flight) and cleared in finally;
+ * MCP tool handlers reach it via `getMcpRequestDenialAuditor()`, which is how
+ * a refusal taken below the transport lands an audit row.
+ */
+let mcpRequestAuditDenial: DenialAuditor | undefined;
+
+/**
  * DOGFOOD-025: resolve the authenticated principal of the in-flight MCP
  * request, if any.
  *
@@ -833,6 +851,18 @@ let mcpRequestPrincipal: AuthPrincipal | undefined;
  */
 export function getMcpRequestPrincipal(): AuthPrincipal | undefined {
   return mcpRequestPrincipal;
+}
+
+/**
+ * SUPA-4 (audit-every-denial): resolve the denial auditor of the in-flight
+ * MCP request, if any.
+ *
+ * Returns undefined for stdio transports, auth=none local mode and embedders
+ * that installed no auditor — a refusal is then returned un-audited (the
+ * legacy behavior) and nothing blocks on audit I/O.
+ */
+export function getMcpRequestDenialAuditor(): DenialAuditor | undefined {
+  return mcpRequestAuditDenial;
 }
 
 /**

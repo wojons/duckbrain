@@ -8,9 +8,16 @@ import {
   resolveDuckbrainRoot,
   resolveNamespacesPath,
 } from "../../config/index";
-import { getMcpRequestPrincipal } from "../../cli/http";
+import {
+  getMcpRequestDenialAuditor,
+  getMcpRequestPrincipal,
+} from "../../cli/http";
 import { namespaceScopeDenial } from "../../auth/roles";
-import type { AuthPrincipal } from "../../auth/middleware";
+import type {
+  AuthPrincipal,
+  DenialAuditEvent,
+  DenialAuditor,
+} from "../../auth/middleware";
 
 /**
  * Resolve a namespace name from a namespace argument.
@@ -64,6 +71,21 @@ export interface NamespaceScopeViolation {
 }
 
 /**
+ * Injectable per-call seams for an MCP tool handler.
+ *
+ * `principal` is the SUPA-4 principal seam; `auditDenial` is the SUPA-4
+ * audit-every-denial seam. Both are injection points for tests/embedders —
+ * MCP-over-HTTP leaves the context empty and the handler falls back to the
+ * request-scoped slots the /mcp route fills from the authenticated request.
+ */
+export interface McpToolContext {
+  /** Authenticated principal (SUPA-4 / DOGFOOD-025 seam). */
+  principal?: AuthPrincipal;
+  /** Request-scoped denial auditor — the sink REST audits through. */
+  auditDenial?: DenialAuditor;
+}
+
+/**
  * Resolve the authenticated principal for an MCP tool call.
  *
  * `context.principal` is the injectable seam (SUPA-4 tests / embedders);
@@ -72,10 +94,85 @@ export interface NamespaceScopeViolation {
  * Both are undefined in stdio / auth=none local mode, where no grant check
  * must run.
  */
-export function resolveToolPrincipal(context?: {
-  principal?: AuthPrincipal;
-}): AuthPrincipal | undefined {
+export function resolveToolPrincipal(
+  context?: McpToolContext,
+): AuthPrincipal | undefined {
   return context?.principal ?? getMcpRequestPrincipal();
+}
+
+/**
+ * Resolve the denial auditor of the in-flight MCP request, if any.
+ *
+ * The /mcp route fills the request-scoped slot from the Express request the
+ * auth middleware instrumented, so an MCP refusal reaches the SAME sink
+ * (`createDenialAuditor`, src/serialization/audit.ts) a REST 403 uses.
+ * Undefined in stdio / auth=none local mode and in embedders that never
+ * installed an auditor — auditing is best-effort, never a precondition.
+ */
+export function resolveToolDenialAuditor(
+  context?: McpToolContext,
+): DenialAuditor | undefined {
+  return context?.auditDenial ?? getMcpRequestDenialAuditor();
+}
+
+/**
+ * SUPA-4 audit-every-denial: append a denial row for a namespace-scope
+ * refusal taken on the MCP path.
+ *
+ * Mirrors the row `requireNamespaceGrant` writes on the REST path
+ * (`op: "namespace.access"`, `reason: "namespace_scope"`, the token name as
+ * `principal`) so both transports produce the same audit evidence. A
+ * cross-namespace (`allNamespaces`) refusal names no single target, exactly
+ * like the REST route's, and is reported without an `ns` so the sink sends it
+ * to the bounded server-level denials file.
+ *
+ * Best-effort by contract: a throwing or rejecting auditor is swallowed and
+ * can never change the refusal payload the caller receives.
+ */
+export function auditNamespaceScopeDenial(
+  context: McpToolContext | undefined,
+  namespace: string | undefined,
+  principal: AuthPrincipal | undefined,
+): void {
+  const auditor = resolveToolDenialAuditor(context);
+  if (!auditor) return;
+  const event: DenialAuditEvent = {
+    ts: new Date().toISOString(),
+    ...(namespace === undefined ? {} : { ns: namespace }),
+    op: "namespace.access",
+    principal: principal?.name ?? null,
+    outcome: "denied",
+    reason: "namespace_scope",
+  };
+  try {
+    void Promise.resolve(auditor(event)).catch(() => undefined);
+  } catch {
+    // Auditing is best-effort and never changes a denial response.
+  }
+}
+
+/**
+ * Enforce the token's namespace grant on the MCP path AND audit the refusal.
+ *
+ * Same contract as `namespaceScopeViolation` (returns the machine-readable
+ * refusal, or `undefined` when the call is allowed), plus the SUPA-4 audit
+ * row every refusal owes. Tool handlers call this instead of
+ * `namespaceScopeViolation` so no MCP refusal can be silent.
+ */
+export function enforceNamespaceScope(
+  context: McpToolContext | undefined,
+  namespace: string,
+  options: { allNamespaces?: boolean } = {},
+): NamespaceScopeViolation | undefined {
+  const principal = resolveToolPrincipal(context);
+  const violation = namespaceScopeViolation(principal, namespace, options);
+  if (!violation) return undefined;
+  auditNamespaceScopeDenial(
+    context,
+    options.allNamespaces ? undefined : namespace,
+    principal,
+  );
+  return violation;
 }
 
 /**
