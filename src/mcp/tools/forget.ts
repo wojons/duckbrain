@@ -9,9 +9,13 @@ import { z } from "zod";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { queryMemories, tombstoneMemory } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import { getMcpRequestPrincipal } from "../../cli/http";
 import type { AuthPrincipal } from "../../auth/middleware";
-import { resolveNamespaceName, resolveNamespacePath } from "./shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  namespaceScopeViolation,
+  resolveToolPrincipal,
+} from "./shared";
 import path from "path";
 import fs from "fs";
 
@@ -50,6 +54,9 @@ interface ForgetOutput {
   id?: string;
   tombstoned?: boolean;
   code?: string;
+  /** DB-GAP-031 (MCP parity): 'namespace_scope' when the token has no grant
+   *  for the target namespace — see ./shared */
+  reason?: string;
   retryAfter?: number;
   error?: string;
 }
@@ -111,6 +118,15 @@ export async function forgetTool(
     const resolvedNamespace = resolveNamespaceName(namespace);
     const namespacePath = resolveNamespacePath(resolvedNamespace);
 
+    // DB-GAP-031 (MCP parity): a tombstone is a write to the namespace, so a
+    // scoped token must be refused here before any namespace or partition work
+    // — the REST route already refuses it in `requireNamespaceGrant`
+    // middleware, and /mcp has no per-tool route to mount that on. The same
+    // principal is reused for the tombstone's author stamp below.
+    const principal = resolveToolPrincipal(context);
+    const scopeViolation = namespaceScopeViolation(principal, resolvedNamespace);
+    if (scopeViolation) return scopeViolation;
+
     // Check if namespace exists
     if (!fs.existsSync(namespacePath)) {
       return {
@@ -153,7 +169,8 @@ export async function forgetTool(
 
     // Create tombstone record. The authenticated principal is evaluated by
     // the SUPA-4 seam before enqueue and again while the flush lock is held.
-    const principal = context.principal ?? getMcpRequestPrincipal();
+    // DB-GAP-031 (MCP parity): `principal` was resolved above, next to the
+    // namespace-grant check that uses it.
     await tombstoneMemory(db, id, partitionPath, reason, author, principal);
 
     return {

@@ -14,7 +14,13 @@ import {
   queryMemoriesWithTotal,
 } from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import { resolveNamespaceName, resolveNamespacePath } from "./shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  namespaceScopeViolation,
+  resolveToolPrincipal,
+} from "./shared";
+import type { AuthPrincipal } from "../../auth/middleware";
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
@@ -201,7 +207,23 @@ interface RecallOutput {
   /** Namespace actually queried — resolved from the arg or the active
    *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
   namespace?: string;
+  /** DB-GAP-031 (MCP parity): false on a namespace-grant refusal. Absent on
+   *  the legacy error payloads, which carried only `error`. */
+  success?: boolean;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
   error?: string;
+}
+
+/**
+ * Injectable context for the recall handler — the SUPA-4 principal seam.
+ * MCP-over-HTTP leaves it empty so the handler reads the authenticated
+ * principal from the DOGFOOD-025 module-scope slot.
+ */
+export interface RecallContext {
+  principal?: AuthPrincipal;
 }
 
 /**
@@ -392,9 +414,14 @@ async function runSemanticLeg(opts: {
  * Recall tool handler
  *
  * @param input - Tool input parameters
+ * @param context - Injectable principal seam (SUPA-4); MCP-over-HTTP falls
+ *                  back to the DOGFOOD-025 ALS slot via resolveToolPrincipal
  * @returns Query results with memories and count
  */
-export async function recallTool(input: unknown): Promise<RecallOutput> {
+export async function recallTool(
+  input: unknown,
+  context: RecallContext = {},
+): Promise<RecallOutput> {
   console.error("[recall] Tool called with input:", JSON.stringify(input));
 
   // Validate input
@@ -442,6 +469,26 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   // was omitted and the active config defaultNamespace was used).
   const resolvedNamespace = resolveNamespaceName(validated.namespace);
   const namespacePath = resolveNamespacePath(resolvedNamespace);
+
+  // DB-GAP-031 (MCP parity): the REST route refuses an ungranted namespace in
+  // `requireNamespaceGrant` middleware (and refuses ?allNamespaces=true for
+  // any scoped token outright). /mcp has no per-tool route, so the handler
+  // grades the token's grant here — before the namespace-exists probe, so a
+  // scoped token cannot even probe foreign namespaces — and returns the
+  // machine-readable `namespace_scope` refusal.
+  const scopeViolation = namespaceScopeViolation(
+    resolveToolPrincipal(context),
+    resolvedNamespace,
+    { allNamespaces: validated.allNamespaces },
+  );
+  if (scopeViolation) {
+    return {
+      memories: [],
+      count: 0,
+      namespace: resolvedNamespace,
+      ...scopeViolation,
+    };
+  }
 
   // Check if namespace exists (skipped for RETR-007 all-namespaces unions —
   // the union enumerates manifest namespaces itself and never needs the

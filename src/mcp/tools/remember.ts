@@ -22,7 +22,11 @@ import {
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
 import { getConfig, resolveDuckbrainRoot } from "../../config/index";
 import { normalizeAttributes } from "../../utils/serialize";
-import { resolveNamespaceName, resolveNamespacePath } from "./shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  namespaceScopeViolation,
+} from "./shared";
 import fs from "fs";
 
 /**
@@ -149,6 +153,10 @@ interface RememberOutput {
   /** SUPA-1: machine-readable failure code (e.g. DURABILITY_UNSUPPORTED,
    *  DURABILITY_DIRECT_FRAME_ERROR) so HTTP routes can surface it verbatim */
   code?: string;
+  /** DB-GAP-031 (MCP parity): denial reason when the token has no grant for
+   *  the target namespace — 'namespace_scope', the same reason REST audits.
+   *  See `namespaceScopeViolation` in ./shared. */
+  reason?: string;
   fields?: Record<string, string>;
   retryAfter?: number;
   error?: string;
@@ -257,6 +265,18 @@ export async function rememberTool(
     // was omitted and the active config defaultNamespace was used).
     const resolvedNamespace = resolveNamespaceName(namespace);
     const namespacePath = resolveNamespacePath(resolvedNamespace);
+
+    // DB-GAP-031 (MCP parity): a token scoped to specific namespaces must not
+    // reach an ungranted one through the MCP tool. The REST router enforces
+    // this in `requireNamespaceGrant` middleware; /mcp has no per-tool route,
+    // so the check runs here — against the RESOLVED namespace (the one this
+    // write will actually touch, including the sticky active default when the
+    // arg is omitted) — BEFORE any directory is created or row enqueued.
+    const scopeViolation = namespaceScopeViolation(
+      mcpPrincipal,
+      resolvedNamespace,
+    );
+    if (scopeViolation) return scopeViolation;
 
     // NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES. The
     // daemon serves the fleet — many lanes write to legit namespaces over

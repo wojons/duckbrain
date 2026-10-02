@@ -12,7 +12,13 @@ import {
   keysCacheEnabled,
   type KeyListEntry,
 } from "../../keys/keyListCache";
-import { resolveNamespacePath, resolveNamespaceName } from "./shared";
+import {
+  resolveNamespacePath,
+  resolveNamespaceName,
+  namespaceScopeViolation,
+  resolveToolPrincipal,
+} from "./shared";
+import type { AuthPrincipal } from "../../auth/middleware";
 import path from "path";
 import fs from "fs";
 
@@ -47,7 +53,19 @@ interface ListKeysOutput {
   hasMore: boolean;
   nextOffset: number | null;
   prefixes: Record<string, number>;
+  /** DB-GAP-031 (MCP parity): false when the token has no grant for the
+   *  target namespace. Absent on the legacy payloads. */
+  success?: boolean;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
   error?: string;
+}
+
+/** Injectable context for the list_keys handler — the SUPA-4 principal seam. */
+export interface ListKeysContext {
+  principal?: AuthPrincipal;
 }
 
 /**
@@ -334,7 +352,10 @@ async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
  * @param input - Tool input parameters
  * @returns Structured key listing with pagination
  */
-export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
+export async function listKeysTool(
+  input: unknown,
+  context: ListKeysContext = {},
+): Promise<ListKeysOutput> {
   console.error("[list_keys] Tool called with input:", JSON.stringify(input));
 
   // Validate input
@@ -352,6 +373,25 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
 
   const validated = parseResult.data;
   console.error("[list_keys] Validated input:", validated);
+
+  // DB-GAP-031 (MCP parity): grade the token's namespace grant before any
+  // namespace work — the same check the REST routers mount as
+  // `requireNamespaceGrant` middleware, which /mcp has no per-tool route for.
+  // Deliberately OUTSIDE the try below: runKeysQuery's catch would otherwise
+  // flatten the machine-readable refusal into a generic error payload.
+  const scopeViolation = namespaceScopeViolation(
+    resolveToolPrincipal(context),
+    resolveNamespaceName(validated.namespace),
+  );
+  if (scopeViolation) {
+    return {
+      keys: [],
+      hasMore: false,
+      nextOffset: null,
+      prefixes: {},
+      ...scopeViolation,
+    };
+  }
 
   try {
     return await runKeysQuery(validated);
