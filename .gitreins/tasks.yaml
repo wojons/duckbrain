@@ -2223,3 +2223,20 @@ tasks:
   status: complete
   created_at: '2026-10-01T03:09:13.297252+00:00'
   completed_at: '2026-10-01T04:48:41.122125+00:00'
+- id: S3-GIT-006
+  title: Bound S3 sync request legs + stop fd-9 lock inheritance in unified cron
+  criteria:
+  - A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the
+    unified cron's child processes do not inherit the flock fd (hermetic /proc test)
+  status: complete
+  created_at: '2026-10-01T13:54:50.476235+00:00'
+  completed_at: '2026-10-01T15:26:51.342398+00:00'
+- id: QA-DUCKBRAIN-007
+  title: Declare @smithy/node-http-handler in package.json (fresh-install import failure
+    at HEAD c504336)
+  criteria:
+  - package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing
+    vitest suite green
+  status: complete
+  created_at: '2026-10-01T21:58:19.104086+00:00'
+  completed_at: '2026-10-01T22:35:44.373372+00:00'
