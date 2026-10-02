@@ -1,0 +1,100 @@
+{
+  "task_id": "QA-DUCKBRAIN-007",
+  "task_title": "Declare @smithy/node-http-handler in package.json (fresh-install import failure at HEAD c504336)",
+  "task_criteria": [
+    "package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing vitest suite green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "cf2a4c1d722d30354bd8c0b91e487789df0c0fc7",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:35PM INF scanned ~14017414 bytes (14.02 MB) in 1.57s\n5:35PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 382148 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "",
+          "error": "Command timed out",
+          "data": {}
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing vitest suite green: package.json:43 declares \"@smithy/node-http-handler\": \"4.12.1\" (confirmed via node -e -> dep: 4.12.1); bug confirmed at HEAD c504336 (git show c504336:package.json -> declared: False), fixed by commit a859c86 (+1 package.json, +3 pnpm-lock.yaml). pnpm-lock.yaml:175 importer entry specifier/version 4.12.1. FRESH-STORE INSTALL: copied manifests to /tmp/freshstore-ddO4B2 with empty store /tmp/pnpmstore-YhYtZU, ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> output '+ @smithy/node-http-handler 4.12.1'; require.resolve -> node_modules/.pnpm/@smithy+node-http-handler@4.12.1/.../index.js; NodeHttpHandler instantiated OK. S3-IMPORTING VITEST SUITE: `npx vitest run src/s3/ src/git/s3-repair-ops012.test.ts` -> Test Files 7 passed (7), Tests 64 passed (64), exit_code 0 (includes src/s3/client-timeout-s3git006.test.ts importing NodeHttpHandler). Import site src/s3/client.ts:15. `npx tsc --noEmit` exit 0; LSP diagnostics empty. [resolution 0.13; package.json]\n@smithy/node-http-handler is declared in package.json and lockfile, a fresh-store pnpm install resolves it, and the s3-importing vitest suite passes 64/64.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing vitest suite green: package.json:43 declares \"@smithy/node-http-handler\": \"4.12.1\" (confirmed via node -e -> dep: 4.12.1); bug confirmed at HEAD c504336 (git show c504336:package.json -> declared: False), fixed by commit a859c86 (+1 package.json, +3 pnpm-lock.yaml). pnpm-lock.yaml:175 importer entry specifier/version 4.12.1. FRESH-STORE INSTALL: copied manifests to /tmp/freshstore-ddO4B2 with empty store /tmp/pnpmstore-YhYtZU, ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> output '+ @smithy/node-http-handler 4.12.1'; require.resolve -> node_modules/.pnpm/@smithy+node-http-handler@4.12.1/.../index.js; NodeHttpHandler instantiated OK. S3-IMPORTING VITEST SUITE: `npx vitest run src/s3/ src/git/s3-repair-ops012.test.ts` -> Test Files 7 passed (7), Tests 64 passed (64), exit_code 0 (includes src/s3/client-timeout-s3git006.test.ts importing NodeHttpHandler). Import site src/s3/client.ts:15. `npx tsc --noEmit` exit 0; LSP diagnostics empty. [resolution 0.13; package.json]\n@smithy/node-http-handler is declared in package.json and lockfile, a fresh-store pnpm install resolves it, and the s3-importing vitest suite passes 64/64.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing vitest suite green",
+                "status": "PASS",
+                "detail": "package.json:43 declares \"@smithy/node-http-handler\": \"4.12.1\" (confirmed via node -e -> dep: 4.12.1); bug confirmed at HEAD c504336 (git show c504336:package.json -> declared: False), fixed by commit a859c86 (+1 package.json, +3 pnpm-lock.yaml). pnpm-lock.yaml:175 importer entry specifier/version 4.12.1. FRESH-STORE INSTALL: copied manifests to /tmp/freshstore-ddO4B2 with empty store /tmp/pnpmstore-YhYtZU, ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> output '+ @smithy/node-http-handler 4.12.1'; require.resolve -> node_modules/.pnpm/@smithy+node-http-handler@4.12.1/.../index.js; NodeHttpHandler instantiated OK. S3-IMPORTING VITEST SUITE: `npx vitest run src/s3/ src/git/s3-repair-ops012.test.ts` -> Test Files 7 passed (7), Tests 64 passed (64), exit_code 0 (includes src/s3/client-timeout-s3git006.test.ts importing NodeHttpHandler). Import site src/s3/client.ts:15. `npx tsc --noEmit` exit 0; LSP diagnostics empty. [resolution 0.13; package.json]",
+                "resolution_probability": 0.13,
+                "cited_path": "package.json"
+              }
+            ],
+            "summary": "@smithy/node-http-handler is declared in package.json and lockfile, a fresh-store pnpm install resolves it, and the s3-importing vitest suite passes 64/64."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-007\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing vitest suite green: package.json:43 declares \"@smithy/node-http-handler\": \"4.12.1\" (confirmed via node -e -> dep: 4.12.1); bug confirmed at HEAD c504336 (git show c504336:package.json -> declared: False), fixed by commit a859c86 (+1 package.json, +3 pnpm-lock.yaml). pnpm-lock.yaml:175 importer entry specifier/version 4.12.1. FRESH-STORE INSTALL: copied manifests to /tmp/freshstore-ddO4B2 with empty store /tmp/pnpmstore-YhYtZU, ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> output '+ @smithy/node-http-handler 4.12.1'; require.resolve -> node_modules/.pnpm/@smithy+node-http-handler@4.12.1/.../index.js; NodeHttpHandler instantiated OK. S3-IMPORTING VITEST SUITE: `npx vitest run src/s3/ src/git/s3-repair-ops012.test.ts` -> Test Files 7 passed (7), Tests 64 passed (64), exit_code 0 (includes src/s3/client-timeout-s3git006.test.ts importing NodeHttpHandler). Import site src/s3/client.ts:15. `npx tsc --noEmit` exit 0; LSP diagnostics empty. [resolution 0.13; package.json]\n@smithy/node-http-handler is declared in package.json and lockfile, a fresh-store pnpm install resolves it, and the s3-importing vitest suite passes 64/64.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-01T22:42:13.479677",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-01T22:42:13.508022+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 11895,
+        "truncated": false,
+        "source": "git show cf2a4c1d722d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3442,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-007"
+  }
+}
