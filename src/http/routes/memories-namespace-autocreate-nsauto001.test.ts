@@ -39,10 +39,19 @@
  * auth file only. Teardown kills ONLY this suite's child pids — never
  * `pkill`, never the production :3000 daemon. No production namespace; no
  * network beyond 127.0.0.1.
+ *
+ * Port discipline (t_7d8b48d3 / DB-GAP-063): a free port is not OURS until
+ * our child binds it, and another `listen(0)` on the box can be handed the
+ * same port in that window (CI run 37074375725 attempt 1: the "strict" leg
+ * talked to a foreign auth=none app in a sibling worker and read
+ * namespace_autocreated: true — green on the same tree at attempt 2). Ports
+ * are therefore drawn from a window the kernel never auto-assigns, and every
+ * spawn is identity-verified against a sentinel namespace before it is used.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { spawn, spawnSync, type ChildProcess } from "child_process";
+import crypto from "crypto";
 import net from "net";
 import http from "http";
 import fs from "fs";
@@ -180,7 +189,60 @@ const BIN_PATH = path.join(REPO_ROOT, "bin", "duckbrain.js");
 const EXISTING_NS = "nsauto001-rest";
 const TYPO_NS = "nsauto001-rest-typo";
 
-function findFreePort(): Promise<number> {
+/**
+ * Port window OUTSIDE the kernel's ephemeral range (Linux 32768-60999,
+ * macOS 49152-65535).
+ *
+ * t_7d8b48d3 / DB-GAP-063: binding :0 hands back a port from that shared
+ * ephemeral pool, and the port only becomes OURS ~1s later when the child
+ * binds it — any concurrent `listen(0)` on the box (sibling test files in
+ * this very suite do it, e.g. src/cli/cli-security.test.ts) can be handed
+ * the same port in that window. Drawing from a window the kernel never
+ * auto-assigns removes the collision at the source; `assertDaemonIsOurs()`
+ * below is the hard guard for whatever still slips through.
+ */
+const PORT_WINDOW_MIN = 21000;
+const PORT_WINDOW_MAX = 29999;
+
+/** How many times a spawn may be re-attempted before the rig gives up. */
+const SCRATCH_DAEMON_ATTEMPTS = 3;
+/** Per-attempt readiness budget (NOT per test): boot is ~1-2s. */
+const SCRATCH_DAEMON_READY_MS = 15000;
+
+/**
+ * TEST-ONLY seam: when set, the next findFreePort() returns this port
+ * verbatim. Used by the port-race regression test below to force a collision
+ * with a foreign listener deterministically.
+ */
+let forcedPortForNextSpawn: number | null = null;
+
+function bindCandidate(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.listen(port, "127.0.0.1", () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+async function findFreePort(): Promise<number> {
+  if (forcedPortForNextSpawn !== null) {
+    const forced = forcedPortForNextSpawn;
+    forcedPortForNextSpawn = null;
+    return forced;
+  }
+
+  // 1. Private window: the kernel never auto-assigns these to anyone else.
+  const span = PORT_WINDOW_MAX - PORT_WINDOW_MIN + 1;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const candidate =
+      PORT_WINDOW_MIN + Math.floor(Math.random() * span);
+    if (await bindCandidate(candidate)) return candidate;
+  }
+
+  // 2. Window unusable (tiny box / everything taken) — the kernel's own
+  //    choice again; the identity check in spawnScratchDaemon still guards it.
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.listen(0, "127.0.0.1", () => {
@@ -192,7 +254,11 @@ function findFreePort(): Promise<number> {
   });
 }
 
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
+function waitForHealth(
+  port: number,
+  timeout = 30000,
+  child?: ChildProcess,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const attempt = () => {
@@ -217,6 +283,18 @@ function waitForHealth(port: number, timeout = 30000): Promise<void> {
       });
     };
     const retry = () => {
+      // t_7d8b48d3: a dead child can never answer — fail over to a fresh port
+      // instead of burning the whole readiness budget on a port somebody else
+      // already owns.
+      if (child && (child.exitCode !== null || child.signalCode !== null)) {
+        reject(
+          new Error(
+            `scratch daemon exited (code ${child.exitCode}) before it answered ` +
+              `/health on port ${port} — most likely EADDRINUSE from a port race`,
+          ),
+        );
+        return;
+      }
       if (Date.now() - start > timeout) {
         reject(new Error(`server did not become healthy on port ${port}`));
         return;
@@ -232,6 +310,13 @@ function waitForClose(
   timeout = 30000,
 ): Promise<number | null> {
   return new Promise((resolve, reject) => {
+    // t_7d8b48d3: an already-exited child never emits 'close' again, so a late
+    // listener would hang for the full timeout. Observed when re-rolling a
+    // scratch daemon whose bind had failed with EADDRINUSE.
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve(child.exitCode);
+      return;
+    }
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error("child process did not exit in time"));
@@ -275,17 +360,64 @@ function mintScratchToken(dataDir: string): {
 interface ScratchDaemon {
   port: number;
   dataDir: string;
+  nsPath: string;
+  /** Identity witness: a namespace only THIS daemon's root has. */
+  sentinel: string;
   token: string;
   child: ChildProcess;
   stderrText: string;
 }
 
 /**
- * Spawn one scratch daemon. `strict` flips DUCKBRAIN_NAMESPACES_AUTOCREATE.
- * `preExistingNamespaces` are created on disk BEFORE boot so writes to them
- * take the not-autocreated path.
+ * Spawn one VERIFIED scratch daemon. `strict` flips
+ * DUCKBRAIN_NAMESPACES_AUTOCREATE. `preExistingNamespaces` are created on
+ * disk BEFORE boot so writes to them take the not-autocreated path.
+ *
+ * t_7d8b48d3 / DB-GAP-063 — why readiness alone is not enough:
+ * `findFreePort()` releases the port before the child binds it (~1s of tsx
+ * boot), so a concurrent `listen(0)` on the box can be handed the same port.
+ * On CI (run 37074375725 attempt 1) leg (i)'s STRICT child died with
+ * EADDRINUSE, `/health` was answered by a foreign auth=none app running in
+ * another vitest worker (src/cli/cli-security.test.ts does exactly that with
+ * `listen(0)`), the probe POST landed on that app — whose namespace root was
+ * the *worker's* test-setup root, not this rig's — and the response was
+ * 201 + `namespace_autocreated: true`, i.e. the assertion under test failed
+ * even though the strict daemon never answered. Attempt 2 of the same run was
+ * green on byte-identical tree content.
+ *
+ * Each attempt therefore proves the IDENTITY of the process behind the port
+ * (it must serve a sentinel namespace only this spawn created) and re-rolls a
+ * fresh port otherwise.
  */
 async function spawnScratchDaemon(
+  prefix: string,
+  strict: boolean,
+  preExistingNamespaces: string[],
+): Promise<ScratchDaemon> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= SCRATCH_DAEMON_ATTEMPTS; attempt++) {
+    const daemon = await spawnScratchDaemonOnce(
+      prefix,
+      strict,
+      preExistingNamespaces,
+    );
+    try {
+      await waitForHealth(daemon.port, SCRATCH_DAEMON_READY_MS, daemon.child);
+      await assertDaemonIsOurs(daemon);
+      return daemon;
+    } catch (error) {
+      lastError = error;
+      await killScratchDaemon(daemon);
+    }
+  }
+  throw new Error(
+    `could not obtain a verified scratch daemon after ` +
+      `${SCRATCH_DAEMON_ATTEMPTS} attempts: ` +
+      `${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
+}
+
+async function spawnScratchDaemonOnce(
   prefix: string,
   strict: boolean,
   preExistingNamespaces: string[],
@@ -296,6 +428,11 @@ async function spawnScratchDaemon(
   for (const ns of preExistingNamespaces) {
     fs.mkdirSync(path.join(nsPath, ns), { recursive: true });
   }
+  // Identity witness: a namespace that exists under THIS root and nowhere
+  // else. `/api/namespaces` censuses the directories on disk, so a foreign
+  // listener can never fake it.
+  const sentinel = `nsauto001-sentinel-${crypto.randomBytes(4).toString("hex")}`;
+  fs.mkdirSync(path.join(nsPath, sentinel), { recursive: true });
   const { authFile, token } = mintScratchToken(dataDir);
 
   const child = spawn(
@@ -324,6 +461,8 @@ async function spawnScratchDaemon(
   const daemon: ScratchDaemon = {
     port,
     dataDir,
+    nsPath,
+    sentinel,
     token,
     child,
     stderrText: "",
@@ -334,8 +473,39 @@ async function spawnScratchDaemon(
       daemon.stderrText += chunk.toString();
     },
   );
-  await waitForHealth(port);
   return daemon;
+}
+
+/**
+ * Fail unless the server listening on `daemon.port` is the daemon this rig
+ * spawned. Verified by asking it to census its namespace root: the sentinel
+ * directory created under `daemon.nsPath` must be visible. A foreign process
+ * that grabbed our port (another test file's `listen(0)`, an unrelated
+ * service) answers without it — and, for an auth=none listener, would happily
+ * accept our probe write and mutate its own storage instead.
+ */
+async function assertDaemonIsOurs(daemon: ScratchDaemon): Promise<void> {
+  if (daemon.child.exitCode !== null || daemon.child.signalCode !== null) {
+    throw new Error(
+      `scratch daemon on port ${daemon.port} exited (code ` +
+        `${daemon.child.exitCode}) before it could be verified — a foreign ` +
+        `process most likely owns the port`,
+    );
+  }
+  const res = await fetch(`http://127.0.0.1:${daemon.port}/api/namespaces`, {
+    headers: { "X-API-Key": daemon.token },
+  });
+  const body = (await res.json().catch(() => null)) as {
+    namespaces?: Array<{ name?: string }>;
+  } | null;
+  const names = (body?.namespaces ?? []).map((ns) => ns.name);
+  if (!names.includes(daemon.sentinel)) {
+    throw new Error(
+      `port ${daemon.port} is not serving this rig's namespace root ` +
+        `(${daemon.nsPath}): /api/namespaces (status ${res.status}) does not ` +
+        `list the sentinel '${daemon.sentinel}' — a foreign listener owns the port`,
+    );
+  }
 }
 
 async function killScratchDaemon(daemon: ScratchDaemon): Promise<void> {
@@ -350,7 +520,20 @@ async function killScratchDaemon(daemon: ScratchDaemon): Promise<void> {
       // already dead
     }
   }
-  fs.rmSync(daemon.dataDir, { recursive: true, force: true });
+  // t_7d8b48d3: SIGTERM makes the daemon flush + commit, which spawns git
+  // children that can still be writing inside <ns>/.git while we walk the
+  // tree — fs.rmSync then throws ENOTEMPTY from rmdir mid-removal (observed
+  // on the PRE-fix file too, 2 of 4 loaded runs; a third flake source in this
+  // suite). Cleanup of a temp dir must never red a test: retry briefly, then
+  // leave it (an orphaned temp dir is harmless, a false red is not).
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.rmSync(daemon.dataDir, { recursive: true, force: true });
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
 }
 
 async function postMemory(
@@ -464,4 +647,76 @@ describe("NAMESPACE-AUTOCREATE-001: REST POST /api/memories namespace policy", (
       await killScratchDaemon(strictWithNs);
     }
   }, 60000);
+});
+
+/* ==================================================== port-race regression */
+
+/**
+ * t_7d8b48d3 regression: the rig must never trust a server just because it
+ * answers /health on the port we picked.
+ *
+ * This leg recreates the CI race deterministically — a FOREIGN auth=none
+ * daemon (its own namespace root, none of our namespaces) squats the port the
+ * rig is about to hand to its child — and asserts spawnScratchDaemon()
+ * rejects the impostor and re-rolls onto a port it can prove it owns.
+ *
+ * Without the identity check this reproduces the CI failure byte for byte:
+ * the strict child dies with EADDRINUSE, /health is answered by the foreign
+ * app, and the POST comes back 201 + namespace_autocreated: true (CI run
+ * 37074375725 attempt 1, leg (i)).
+ */
+describe("NAMESPACE-AUTOCREATE-001: scratch-daemon rig rejects a foreign listener (port race)", () => {
+  it("(j) a squatter on the assigned port is rejected and the spawn lands on a verified port", async () => {
+    const foreignData = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-nsauto-foreign-"),
+    );
+    const foreignNs = path.join(foreignData, "namespaces");
+    fs.mkdirSync(foreignNs, { recursive: true });
+    const foreignPort = await findFreePort();
+    const foreign = spawn(
+      process.execPath,
+      [BIN_PATH, "http", `--port=${foreignPort}`, "--auth=none"],
+      {
+        env: {
+          ...process.env,
+          DUCKBRAIN_DATA_DIR: foreignData,
+          DUCKBRAIN_NAMESPACES_PATH: foreignNs,
+          NO_COLOR: "1",
+          DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
+          DUCKBRAIN_EMBEDDING_API_KEY: "",
+        },
+        stdio: "pipe",
+      },
+    );
+    let daemon: ScratchDaemon | null = null;
+    try {
+      await waitForHealth(foreignPort, 30000, foreign);
+      // The rig is now told this port is free — exactly the state findFreePort
+      // left behind on CI just before the foreign app was handed the port.
+      forcedPortForNextSpawn = foreignPort;
+
+      daemon = await spawnScratchDaemon(
+        "duckbrain-nsauto-racetest-",
+        true,
+        [EXISTING_NS],
+      );
+
+      // It re-rolled instead of trusting the squatter.
+      expect(daemon.port).not.toBe(foreignPort);
+      // ...and the daemon it kept is provably ours: the strict daemon sees the
+      // namespace this rig pre-created, so the write is NOT an autocreation.
+      const post = await postMemory(daemon, EXISTING_NS);
+      expect(post.status).toBe(201);
+      expect(post.body.namespace_autocreated).toBeUndefined();
+      // The foreign listener's root never received our write.
+      expect(fs.existsSync(path.join(foreignNs, EXISTING_NS))).toBe(false);
+    } finally {
+      forcedPortForNextSpawn = null;
+      if (daemon) await killScratchDaemon(daemon);
+      if (foreign.exitCode === null && foreign.signalCode === null) {
+        foreign.kill("SIGTERM");
+      }
+      fs.rmSync(foreignData, { recursive: true, force: true });
+    }
+  }, 120000);
 });
