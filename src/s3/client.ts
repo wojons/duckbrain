@@ -107,8 +107,7 @@ export async function getObject(
   );
   // Body is a streaming blob in Node SDK v3
   const body = resp.Body as unknown as
-    | { transformToByteArray(): Promise<Uint8Array> }
-    | undefined;
+    { transformToByteArray(): Promise<Uint8Array> } | undefined;
   if (!body) throw new Error(`Empty body for s3://${bucket}/${key}`);
   const bytes = await body.transformToByteArray();
   return Buffer.from(bytes);
