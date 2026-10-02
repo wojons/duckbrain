@@ -20,6 +20,7 @@ import { runGitAsync } from "../../git/exec";
 import fs from "fs";
 import path from "path";
 import { deleteNamespace } from "../../namespaces/delete";
+import { logLifecycle } from "../../namespaces/lifecycle";
 import { censusOnDiskNamespaces } from "../../namespaces/census";
 
 /**
@@ -102,6 +103,13 @@ const DeleteNamespaceInputSchema = z.object({
   name: z.string().describe("Namespace name to delete"),
   /** Confirmation flag (required) */
   confirm: z.boolean().describe("Must be true to confirm deletion"),
+  /** Who asked (actor id, session, ticket) — recorded in the audit log. */
+  requestedBy: z
+    .string()
+    .optional()
+    .describe("Who requested the deletion (actor id, session, ticket)"),
+  /** Why — recorded in the audit log. */
+  reason: z.string().optional().describe("Why the namespace is being deleted"),
 });
 
 type DeleteNamespaceInput = z.infer<typeof DeleteNamespaceInputSchema>;
@@ -379,7 +387,23 @@ export async function deleteNamespaceTool(
     // Validate input
     DeleteNamespaceInputSchema.parse(input);
 
-    return deleteNamespace(input.name, input.confirm);
+    const result = deleteNamespace(input.name, input.confirm);
+
+    // DF-0923-02: the shared core writes no audit line — MCP delete was a
+    // silent destructive path. Always append one lifecycle line (even when
+    // the delete fails, so refusals are auditable too); best-effort, it never
+    // breaks the operation. Optional who/why from the tool input.
+    logLifecycle(resolveNamespacesPath(), {
+      op: "delete-from-disk",
+      surface: "mcp",
+      ns: input.name,
+      requestedBy: input.requestedBy?.trim() || "operator",
+      reason: input.reason ?? "",
+      success: result.success,
+      error: result.success ? undefined : result.error,
+    });
+
+    return result;
   } catch (error) {
     return {
       success: false,
