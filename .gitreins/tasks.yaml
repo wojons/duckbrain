@@ -2250,5 +2250,6 @@ tasks:
     is never deleted on failure; (3) DURABILITY_* errors reach the HTTP error envelope
     with their machine-readable code visible; (4) full unit suite + tsc + prettier
     green; AGENTS.md counts synced'
-  status: in_progress
+  status: complete
   created_at: '2026-10-02T07:48:17.808448+00:00'
+  completed_at: '2026-10-02T09:49:57.623253+00:00'
