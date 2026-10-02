@@ -77,6 +77,13 @@ export interface HttpServerOptions {
   port?: number;
   /** Bind to all interfaces (0.0.0.0) instead of localhost only */
   bindAll?: boolean;
+  /** Extra Host-header values the DNS-rebinding guard accepts, on top of
+   *  the always-allowed "localhost"/"127.0.0.1". Needed when the server is
+   *  reached through a side-door or reverse proxy (e.g. a tailnet address
+   *  or hostname) while staying bound to loopback. CLI: --allowed-hosts /
+   *  env: DUCKBRAIN_ALLOWED_HOSTS. An empty/absent list keeps the guard at
+   *  its loopback-only default. */
+  allowedHosts?: string[];
   /** Authentication type: none, basic, or apikey */
   authType?: "none" | "basic" | "apikey";
   /** Rate limit: requests per minute per IP (default: 100) */
@@ -378,7 +385,19 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   const app = express();
 
   // 1. DNS rebinding protection
-  const allowedHosts = ["localhost", "127.0.0.1"];
+  //
+  // Always allows loopback; an operator reaching the server through a
+  // side-door or reverse proxy (tailnet address/hostname, container gateway)
+  // extends the list with --allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS instead
+  // of abandoning the check entirely with --bind-all. Hostnames are matched
+  // with the port stripped, exactly as the guard compares them.
+  const allowedHosts = [
+    "localhost",
+    "127.0.0.1",
+    ...(options.allowedHosts ?? [])
+      .map((entry) => entry.split(":")[0].trim())
+      .filter(Boolean),
+  ];
   if (options.bindAll) {
     // When binding to all interfaces, allow any hostname
     // User explicitly chose to expose the server
@@ -1086,6 +1105,7 @@ export interface HttpCommandStartOptions {
   authFile?: string;
   rateLimit: number;
   bindAll: boolean;
+  allowedHosts?: string[];
   socket?: string;
   socketMode?: string;
   socketGroup?: string;
@@ -1114,6 +1134,12 @@ Start the DuckBrain server with HTTP transport (MCP-over-HTTP + REST API).
 Options:
   --port=PORT              HTTP server port (default: 3000)
   --bind-all               Bind to all interfaces (0.0.0.0) instead of localhost
+  --allowed-hosts=H1,H2    Extra Host-header values the DNS-rebinding guard
+                           accepts (repeatable and/or comma-separated; env:
+                           DUCKBRAIN_ALLOWED_HOSTS). Use this when the
+                           server is reached through a side-door or reverse
+                           proxy (e.g. a tailnet address) so it can stay
+                           bound to loopback instead of --bind-all.
   --auth=TYPE              Authentication type: none, basic, apikey
                            (default: apikey — a fresh daemon requires
                            API keys; --auth=none is an EXPLICIT UNSAFE
@@ -1134,6 +1160,7 @@ Examples:
   duckbrain http --auth=basic --rate-limit=60
   duckbrain http --bind-all --port=8080
   duckbrain http --unix-socket=/run/duckbrain.sock
+  duckbrain http --allowed-hosts=100.97.236.14,memory.example.ts.net
 `.trim(),
   );
 }
@@ -1240,12 +1267,45 @@ export async function handleHttpCommand(
         : args[socketGroupIdx + 1]
       : undefined;
 
+  // DUCKBRAIN-ALLOWED-HOSTS-001: extra Host-header values for the
+  // DNS-rebinding guard — repeatable and/or comma-separated. parseArgs keeps
+  // only the last --flag=value, so the raw args are re-scanned (same
+  // convention as `duckbrain token --namespace`). An explicit flag wins over
+  // the DUCKBRAIN_ALLOWED_HOSTS env fallback; absent both, the guard keeps
+  // its loopback-only default.
+  const allowedHosts: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--allowed-hosts") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--allowed-hosts=")) {
+      value = arg.slice("--allowed-hosts=".length);
+    }
+    if (value === undefined) continue;
+    for (const entry of value.split(",")) {
+      const trimmed = entry.split(":")[0].trim();
+      if (trimmed && !allowedHosts.includes(trimmed)) {
+        allowedHosts.push(trimmed);
+      }
+    }
+  }
+  if (allowedHosts.length === 0 && process.env.DUCKBRAIN_ALLOWED_HOSTS) {
+    for (const entry of process.env.DUCKBRAIN_ALLOWED_HOSTS.split(",")) {
+      const trimmed = entry.split(":")[0].trim();
+      if (trimmed && !allowedHosts.includes(trimmed)) {
+        allowedHosts.push(trimmed);
+      }
+    }
+  }
+
   await start({
     port,
     authType,
     authFile,
     rateLimit,
     bindAll,
+    ...(allowedHosts.length > 0 ? { allowedHosts } : {}),
     socket,
     socketMode,
     socketGroup,
