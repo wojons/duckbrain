@@ -543,8 +543,16 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes());
 
   // Legacy namespaces — delegate to real MCP tool
-  app.get("/namespaces", async (_req: Request, res: Response) => {
-    const result = await listNamespacesTool({});
+  app.get("/namespaces", async (req: Request, res: Response) => {
+    // card t_667d7e6c: this legacy listing grades the caller's token grant
+    // like `/api/namespaces` — pass the authenticated principal so the rows
+    // are filtered to it. `result.currentNamespace` is undefined when the
+    // active namespace is outside the grant, and an undefined value drops out
+    // of the JSON body (the key is omitted, not null).
+    const result = await listNamespacesTool(
+      {},
+      { principal: getPrincipal(req) },
+    );
     if (!result.success) {
       res
         .status(500)

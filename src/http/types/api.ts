@@ -274,8 +274,16 @@ export interface KeyTreeResponse {
 export interface NamespaceListResponse {
   /** Available namespaces */
   namespaces: NamespaceResponse[];
-  /** Currently active namespace */
-  currentNamespace: string;
+  /**
+   * Currently active namespace.
+   *
+   * Omitted (the key is absent from the JSON body) when the caller's token
+   * carries a `namespaces` grant that does NOT cover the active namespace:
+   * a scoped token must not learn — nor be told it is "on" — a namespace it
+   * cannot access (card t_667d7e6c). Unrestricted tokens (`namespaces`
+   * absent) and `--auth=none` daemons always receive it.
+   */
+  currentNamespace?: string;
   /**
    * DB-GAP-057: registry-vs-disk drift census, present ONLY when the two
    * sources disagree in either direction (a directory with no mapping, or a

@@ -23,6 +23,13 @@
  *   MCP  switch_namespace  @ granted   -> success (real use still works)
  *   MCP  list_namespaces   @ scoped    -> enumerates ONLY granted names
  *   MCP  list_namespaces   @ unrestricted -> full listing (unchanged)
+ *   REST GET  /api/namespaces @ scoped -> ONLY granted rows, currentNamespace
+ *                                        present (grant covers the active ns)
+ *   REST GET  /api/namespaces @ out-of-grant -> no rows, no currentNamespace
+ *   REST GET  /api/namespaces @ unrestricted -> full listing (unchanged)
+ *   REST GET  /namespaces  (legacy) @ scoped -> ONLY granted names
+ *   REST GET  /users       @ scoped    -> aggregates ONLY granted namespaces'
+ *                                        authors (card t_667d7e6c arms)
  *   MCP  create/delete     @ granted   -> success (grant-driven, not blanket)
  *   denial audit: an MCP refusal row with reason 'namespace_scope' lands in
  *   the SAME sink REST writes to (namespace ledger, or the server-level file
@@ -33,7 +40,7 @@
  * never touched. Run with `pnpm test:integration`.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ChildProcess } from "child_process";
+import { ChildProcess, execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -68,6 +75,31 @@ const adminToken = "a".repeat(48);
 const GRANTED = "home-ns";
 const GRANTABLE = "second-ns";
 const FOREIGN = "foreign";
+/** The active namespace (`defaultNamespace`) of a fresh scratch config. */
+const ACTIVE = "default";
+/** Commit authors seeded per namespace, so /users aggregation is observable. */
+const GRANTED_AUTHOR = "granted-author";
+const FOREIGN_AUTHOR = "foreign-author";
+
+/** Seed one commit author in a namespace directory (git is the /users source). */
+function seedGitAuthor(dir: string, author: string): void {
+  execFileSync("git", ["init", "-q"], { cwd: dir });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      `user.name=${author}`,
+      "-c",
+      `user.email=${author}@example.test`,
+      "commit",
+      "--allow-empty",
+      "-q",
+      "-m",
+      `seed ${author}`,
+    ],
+    { cwd: dir },
+  );
+}
 
 interface Reply {
   status: number;
@@ -168,6 +200,11 @@ describe("MCP namespace-management grant parity (card t_369581ef)", () => {
     for (const ns of [GRANTED, FOREIGN, "default"]) {
       fs.mkdirSync(path.join(namespacesPath, ns), { recursive: true });
     }
+    // card t_667d7e6c: /users aggregates git commit authors per visible
+    // namespace, so each namespace carries a DISTINCT author — the scoped
+    // arm can then prove the FOREIGN author never enters the response.
+    seedGitAuthor(path.join(namespacesPath, GRANTED), GRANTED_AUTHOR);
+    seedGitAuthor(path.join(namespacesPath, FOREIGN), FOREIGN_AUTHOR);
     fs.writeFileSync(
       authFile,
       JSON.stringify({
@@ -324,6 +361,74 @@ describe("MCP namespace-management grant parity (card t_369581ef)", () => {
     expect(
       (toolPayload(admin).namespaces ?? []).map((ns: any) => ns.name),
     ).toContain(FOREIGN);
+  });
+
+  // ── card t_667d7e6c: the REST/legacy LISTINGS grade the same grant ────────
+  // Ordering matters and is deterministic in this file: the MCP switch test
+  // above persisted the ACTIVE namespace to `home-ns`. So `scopedToken`
+  // (home-ns, second-ns) has the active namespace INSIDE its grant, while
+  // `restProbeToken` (rest-ns only) has it OUTSIDE.
+
+  it("filters GET /api/namespaces to the token grant and omits an out-of-grant currentNamespace", async () => {
+    const admin = await rest("GET", "/api/namespaces", adminToken);
+    const adminNames = admin.body.namespaces.map((ns: any) => ns.name);
+    expect(admin.body.currentNamespace).toBe(GRANTED);
+    expect(adminNames).toContain(FOREIGN);
+    expect(adminNames).toContain(ACTIVE);
+
+    const scoped = await rest("GET", "/api/namespaces", scopedToken);
+    expect(scoped.status).toBe(200);
+    const scopedNames = scoped.body.namespaces.map((ns: any) => ns.name);
+    expect(scopedNames).toContain(GRANTED);
+    expect(scopedNames).not.toContain(FOREIGN);
+    // The on-disk-only `default` row must not be re-added by this route's own
+    // census union either (the tool's rows arrive already grant-filtered).
+    expect(scopedNames).not.toContain(ACTIVE);
+    // Grant covers the active namespace: the key is present.
+    expect(scoped.body.currentNamespace).toBe(GRANTED);
+
+    // Grant OUTSIDE the active namespace: no rows, and the key is ABSENT
+    // (not null) — the caller must not learn the daemon's active namespace.
+    const outside = await rest("GET", "/api/namespaces", restProbeToken);
+    expect(outside.status).toBe(200);
+    expect(outside.body.namespaces).toEqual([]);
+    expect(Object.keys(outside.body).sort()).toEqual(["namespaces"]);
+  });
+
+  it("filters legacy GET /namespaces to the token grant", async () => {
+    const scoped = await rest("GET", "/namespaces", scopedToken);
+    expect(scoped.status).toBe(200);
+    expect(scoped.body.namespaces).toContain(GRANTED);
+    expect(scoped.body.namespaces).not.toContain(FOREIGN);
+    expect(scoped.body.namespaces).not.toContain(ACTIVE);
+    expect(scoped.body.currentNamespace).toBe(GRANTED);
+
+    const outside = await rest("GET", "/namespaces", restProbeToken);
+    expect(outside.body.namespaces).toEqual([]);
+    expect(Object.keys(outside.body).sort()).toEqual(["namespaces"]);
+
+    const admin = await rest("GET", "/namespaces", adminToken);
+    expect(admin.body.namespaces).toContain(FOREIGN);
+    expect(admin.body.currentNamespace).toBe(GRANTED);
+  });
+
+  it("filters GET /users author aggregation to the token grant", async () => {
+    // The namespace set scanned shrinks with the grant: the scoped response
+    // must not carry the FOREIGN author (nor its namespace name), while the
+    // unrestricted token still aggregates both.
+    const scoped = await rest("GET", "/users", scopedToken);
+    expect(scoped.status).toBe(200);
+    expect(scoped.body.users).toContain(GRANTED_AUTHOR);
+    expect(scoped.body.users).not.toContain(FOREIGN_AUTHOR);
+    expect(scoped.body.count).toBe(scoped.body.users.length);
+
+    const outside = await rest("GET", "/users", restProbeToken);
+    expect(outside.body.users).toEqual([]);
+    expect(outside.body.count).toBe(0);
+
+    const admin = await rest("GET", "/users", adminToken);
+    expect(admin.body.users).toContain(GRANTED_AUTHOR);
+    expect(admin.body.users).toContain(FOREIGN_AUTHOR);
   });
 
   it("still creates and deletes inside the grant (the refusal is grant-driven)", async () => {

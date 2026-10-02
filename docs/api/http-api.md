@@ -172,6 +172,11 @@ curl -X POST http://localhost:3000/mcp \
 
 Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full namespace management.
 
+The list is filtered to the caller's token grant (card t_667d7e6c): a token
+carrying `namespaces` grants sees only those names, and `currentNamespace` is
+omitted when the active namespace is outside the grant. Unrestricted tokens
+and `--auth=none` see the full list.
+
 **Response:**
 
 ```json
@@ -185,6 +190,10 @@ Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full
 `GET /users`
 
 Returns an empty user list. Reserved for future implementation.
+
+The author scan follows the caller's namespace grant (card t_667d7e6c): only
+the token's visible namespaces are scanned, so a scoped token neither learns
+foreign namespace names nor their authors.
 
 **Response:**
 
@@ -662,6 +671,13 @@ List all namespaces.
 A row whose namespace directory is missing on disk (registry row survived an
 out-of-band `rm -rf`) carries `"directoryMissing": true`; healthy rows omit
 the field entirely (REG-GONE-001).
+
+**Authorization (card t_667d7e6c):** the listing is filtered to the caller's
+token grant — the rows cover exactly the namespaces in the token's
+`namespaces` list (registry rows *and* on-disk-only rows), and
+`currentNamespace` is **omitted from the body** when the active namespace is
+outside the grant. An unrestricted token (`namespaces` absent) and an
+`--auth=none` daemon receive the full listing, unchanged.
 
 **Example:**
 

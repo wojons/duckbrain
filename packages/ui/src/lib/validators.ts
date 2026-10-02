@@ -157,7 +157,14 @@ export function isValidNamespaceListResponse(
 
   // Required fields
   if (!Array.isArray(response.namespaces)) return false;
-  if (typeof response.currentNamespace !== "string") return false;
+  // card t_667d7e6c: the server OMITS `currentNamespace` (the key is absent,
+  // never null) when a scoped token's active namespace is outside its grant.
+  // An absent value stays valid; a present one must still be a string.
+  if (
+    response.currentNamespace !== undefined &&
+    typeof response.currentNamespace !== "string"
+  )
+    return false;
 
   // Validate each namespace
   for (const ns of response.namespaces) {
