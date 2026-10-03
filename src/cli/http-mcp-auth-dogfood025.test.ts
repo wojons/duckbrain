@@ -28,11 +28,17 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn, ChildProcess } from "child_process";
-import net from "net";
-import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
@@ -42,73 +48,6 @@ const SCRATCH_TOKEN_NAME = "scratch-mcp-agent";
 const PRINCIPAL_AUTHOR = `${SCRATCH_TOKEN_NAME}@duckbrain.local`;
 
 /* ---------------------------------------------------------------- helpers */
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          // GAP-030: this test spawns with openai + empty key (degraded
-          // state), so /health answers 503 — accept it as live.
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeout = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
 
 function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -234,10 +173,19 @@ describe("DOGFOOD-025: MCP-over-HTTP remember stamps the authenticated token aut
   beforeAll(async () => {
     port = await findFreePort();
     ({ dataDir, nsPath } = prepareDataDir("duckbrain-dogfood025-"));
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
     daemon = spawnHttpServer(port, dataDir, nsPath, authFile);
-    await waitForHealth(port);
+    await waitForHealth(port, 30000, daemon);
+    await assertDaemonIsOurs({
+      port,
+      child: daemon,
+      nsPath,
+      dataDir,
+      sentinel,
+      token: SCRATCH_KEY,
+    });
 
     // AC3: stdio server (no auth) — spawn a fresh child so the singleton
     // MCP server in THIS process is never touched.
@@ -271,7 +219,7 @@ describe("DOGFOOD-025: MCP-over-HTTP remember stamps the authenticated token aut
         }
       }
     }
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    await removeTempDirSafely(dataDir);
   }, 30000);
 
   /** Fresh authenticated MCP client per test (stateless streamable HTTP). */

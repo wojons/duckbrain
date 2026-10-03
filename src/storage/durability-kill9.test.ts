@@ -19,10 +19,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, execSync, type ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
-import net from "net";
 import path from "path";
 import http from "http";
 import { readFromJsonl } from "./jsonl";
+import {
+  findFreePort,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 const TEST_TIMEOUT = 90_000;
@@ -38,17 +43,7 @@ interface Fixture {
   configPath: string;
   authFilePath: string;
   port: number;
-}
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const s = net.createServer();
-    s.listen(0, "127.0.0.1", () => {
-      const port = (s.address() as net.AddressInfo).port;
-      s.close(() => resolve(port));
-    });
-    s.on("error", reject);
-  });
+  sentinel: string;
 }
 
 /**
@@ -62,6 +57,7 @@ async function makeFixture(): Promise<Fixture> {
   const nsPath = path.join(dataDir, "namespaces");
   fs.mkdirSync(path.join(nsPath, "nsA"), { recursive: true });
   fs.mkdirSync(path.join(nsPath, "nsB"), { recursive: true });
+  const sentinel = createSentinelNamespace(nsPath);
 
   const configPath = path.join(dataDir, "duckbrain.config.json");
   fs.writeFileSync(
@@ -93,6 +89,7 @@ async function makeFixture(): Promise<Fixture> {
     configPath,
     authFilePath,
     port: await findFreePort(),
+    sentinel,
   };
 }
 
@@ -121,6 +118,11 @@ function spawnServer(fixture: Fixture): {
     DUCKBRAIN_NAMESPACES_PATH: fixture.nsPath,
     DUCKBRAIN_DATA_DIR: fixture.dataDir,
     NO_COLOR: "1",
+    // Fast-fail embedding probe so /health answers promptly (tests/helpers.ts
+    // INT-CI-003 pattern) — keeps waitForHealth's polling under the default
+    // 100 req/min rate limit so the identity probe never hits 429 under load.
+    DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
+    DUCKBRAIN_EMBEDDING_API_KEY: "",
   };
   // Never inherit a durability env override from the parent test process.
   delete env.DUCKBRAIN_DURABILITY_MODE;
@@ -275,14 +277,14 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
     fixture = await makeFixture();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     try {
       child?.kill("SIGKILL");
     } catch {
       /* already gone */
     }
     child = null;
-    fs.rmSync(fixture.dataDir, { recursive: true, force: true });
+    await removeTempDirSafely(fixture.dataDir);
   });
 
   it(
@@ -291,6 +293,14 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       const started = spawnServer(fixture);
       child = started.child;
       await waitForHealth(fixture.port, child);
+      await assertDaemonIsOurs({
+        port: fixture.port,
+        child,
+        nsPath: fixture.nsPath,
+        dataDir: fixture.dataDir,
+        sentinel: fixture.sentinel,
+        token: SCRATCH_KEY,
+      });
 
       const nsDir = path.join(fixture.nsPath, "nsA");
       const res = await postMemory(fixture.port, "nsA", "/supa1/kill9/fsync");
@@ -341,6 +351,14 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       const started = spawnServer(fixture);
       child = started.child;
       await waitForHealth(fixture.port, child);
+      await assertDaemonIsOurs({
+        port: fixture.port,
+        child,
+        nsPath: fixture.nsPath,
+        dataDir: fixture.dataDir,
+        sentinel: fixture.sentinel,
+        token: SCRATCH_KEY,
+      });
 
       const nsDir = path.join(fixture.nsPath, "nsB");
       const res = await postMemory(
@@ -372,6 +390,14 @@ describe("SUPA-1 AC-1: kill -9 after ack (fsync mode)", () => {
       const started = spawnServer(fixture);
       child = started.child;
       await waitForHealth(fixture.port, child);
+      await assertDaemonIsOurs({
+        port: fixture.port,
+        child,
+        nsPath: fixture.nsPath,
+        dataDir: fixture.dataDir,
+        sentinel: fixture.sentinel,
+        token: SCRATCH_KEY,
+      });
 
       const nsDir = path.join(fixture.nsPath, "nsA");
       const res = await postMemory(

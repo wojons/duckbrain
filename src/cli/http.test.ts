@@ -4,79 +4,20 @@
 
 import { describe, it, expect } from "vitest";
 import { spawn, ChildProcess } from "child_process";
-import net from "net";
-import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { startHttpMode, createHttpServer } from "./http";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          // GAP-030: the in-process server probes the host's real embedding
-          // providers and may legitimately answer 503 (degraded) — liveness
-          // is proven by any HTTP answer, 200 or 503.
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(child: ChildProcess, timeout = 5000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
 
 function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -97,6 +38,13 @@ function spawnHttpServer(
       DUCKBRAIN_DATA_DIR: dataDir,
       DUCKBRAIN_NAMESPACES_PATH: nsPath,
       NO_COLOR: "1",
+      // Fast-fail embedding probe so /health answers promptly — without it
+      // the daemon probes real providers, /health stalls, waitForHealth polls
+      // past the default 100 req/min rate limit, and the identity probe (and
+      // subsequent requests) get 429 under load (tests/helpers.ts INT-CI-003
+      // pattern).
+      DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
+      DUCKBRAIN_EMBEDDING_API_KEY: "",
     },
     stdio: "pipe",
   });
@@ -125,10 +73,12 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
   it("writes and removes a per-instance pidfile on shutdown", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-http-pid-test-");
+    const sentinel = createSentinelNamespace(nsPath);
     const child = spawnHttpServer(port, dataDir, nsPath);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({ port, child, nsPath, dataDir, sentinel });
       const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
       expect(fs.existsSync(pidFile)).toBe(true);
       expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
@@ -143,7 +93,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       } catch {
         // ignore if already dead
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 30000);
 
@@ -156,11 +106,30 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
     const { dataDir: dataDir2, nsPath: nsPath2 } = prepareDataDir(
       "duckbrain-http-pid-concurrent-2-",
     );
+    const sentinel1 = createSentinelNamespace(nsPath1);
+    const sentinel2 = createSentinelNamespace(nsPath2);
     const child1 = spawnHttpServer(port1, dataDir1, nsPath1);
     const child2 = spawnHttpServer(port2, dataDir2, nsPath2);
 
     try {
-      await Promise.all([waitForHealth(port1), waitForHealth(port2)]);
+      await Promise.all([
+        waitForHealth(port1, 30000, child1),
+        waitForHealth(port2, 30000, child2),
+      ]);
+      await assertDaemonIsOurs({
+        port: port1,
+        child: child1,
+        nsPath: nsPath1,
+        dataDir: dataDir1,
+        sentinel: sentinel1,
+      });
+      await assertDaemonIsOurs({
+        port: port2,
+        child: child2,
+        nsPath: nsPath2,
+        dataDir: dataDir2,
+        sentinel: sentinel2,
+      });
 
       const pidFile1 = path.join(dataDir1, `duckbrain-http-${port1}.pid`);
       const pidFile2 = path.join(dataDir2, `duckbrain-http-${port2}.pid`);
@@ -190,8 +159,8 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       } catch {
         // ignore
       }
-      fs.rmSync(dataDir1, { recursive: true, force: true });
-      fs.rmSync(dataDir2, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir1);
+      await removeTempDirSafely(dataDir2);
     }
   }, 30000);
 });
@@ -211,6 +180,7 @@ describe("DOGFOOD-016 stale pidfile cleanup", () => {
   it("replaces a stale pidfile (dead pid) with the live pid on startup", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-http-stale-pid-");
+    const sentinel = createSentinelNamespace(nsPath);
     const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
 
     // Simulate a crashed previous instance: pidfile with a dead pid.
@@ -219,7 +189,8 @@ describe("DOGFOOD-016 stale pidfile cleanup", () => {
     const child = spawnHttpServer(port, dataDir, nsPath);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({ port, child, nsPath, dataDir, sentinel });
 
       // The stale pidfile must have been replaced by the live server's pid
       // (a dead pid must never shadow a running instance).
@@ -234,7 +205,7 @@ describe("DOGFOOD-016 stale pidfile cleanup", () => {
       } catch {
         // ignore if already dead
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   });
 });
@@ -253,6 +224,7 @@ describe("DF-0926-01 bind-conflict lifecycle", () => {
     const { dataDir: dirA, nsPath: nsA } = prepareDataDir(
       "duckbrain-bind-occupy-a-",
     );
+    const sentinelA = createSentinelNamespace(nsA);
     const occupant = spawnHttpServer(port, dirA, nsA);
 
     // Challenger: fresh scratch env, SAME port.
@@ -263,7 +235,14 @@ describe("DF-0926-01 bind-conflict lifecycle", () => {
     const pidFileA = path.join(dirA, `duckbrain-http-${port}.pid`);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, occupant);
+      await assertDaemonIsOurs({
+        port,
+        child: occupant,
+        nsPath: nsA,
+        dataDir: dirA,
+        sentinel: sentinelA,
+      });
       expect(fs.readFileSync(pidFileA, "utf8").trim()).toBe(
         String(occupant.pid),
       );
@@ -309,18 +288,20 @@ describe("DF-0926-01 bind-conflict lifecycle", () => {
       } catch {
         // ignore
       }
-      fs.rmSync(dirA, { recursive: true, force: true });
-      fs.rmSync(dirB, { recursive: true, force: true });
+      await removeTempDirSafely(dirA);
+      await removeTempDirSafely(dirB);
     }
   }, 90000);
 
   it("healthy boot still writes the pidfile only after the port listens", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-bind-ok-");
+    const sentinel = createSentinelNamespace(nsPath);
     const child = spawnHttpServer(port, dataDir, nsPath);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({ port, child, nsPath, dataDir, sentinel });
       const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
       // Success path: pidfile exists AFTER a successful bind and names the
       // live process (per-port pidfile behavior preserved).
@@ -332,7 +313,7 @@ describe("DF-0926-01 bind-conflict lifecycle", () => {
       } catch {
         // ignore
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 30000);
 });

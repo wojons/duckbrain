@@ -48,10 +48,17 @@ import {
 import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { spawn, type ChildProcess } from "child_process";
-import net from "net";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../../testing/race-safe-daemon";
 
 import { createNamespaceTool } from "../../mcp/tools/namespace";
 import { CONFIG_FILENAME, registerNamespace } from "../../config";
@@ -62,66 +69,6 @@ const BIN_PATH = path.join(REPO_ROOT, "bin", "duckbrain.js");
 const SCRATCH_KEY = "sk-scr-dbgap057";
 
 /* ---------------------------------------------------------------- helpers */
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      fetch(`http://127.0.0.1:${port}/health`, {
-        signal: AbortSignal.timeout(1000),
-      })
-        .then((res) => {
-          res.body?.cancel().catch(() => {});
-          if (res.status === 200 || res.status === 503) {
-            resolve();
-            return;
-          }
-          retry();
-        })
-        .catch(retry);
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeout = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
 
 function writeScratchAuthFile(dir: string): string {
   const authFile = path.join(dir, "scratch-auth.json");
@@ -216,6 +163,7 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
     // Seed the default namespace the way prod always has it (dir + mapping),
     // so the drift census measures only what these tests create.
     fs.mkdirSync(path.join(nsPath, "default"), { recursive: true });
+    const sentinel = createSentinelNamespace(nsPath);
     fs.writeFileSync(
       path.join(scratchRoot, CONFIG_FILENAME),
       JSON.stringify({
@@ -262,7 +210,20 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
       // why the split-brain survived the whole suite.
       { env, stdio: "pipe", cwd: scratchRoot },
     );
-    await waitForHealth(port);
+    await waitForHealth(port, 30000, daemon);
+    await assertDaemonIsOurs({
+      port,
+      child: daemon,
+      nsPath,
+      dataDir,
+      sentinel,
+      token: SCRATCH_KEY,
+    });
+    // The sentinel is an UNMAPPED directory — keep it only long enough to
+    // prove ownership, then remove it so the drift census below measures
+    // only what AC-1/AC-2 create (a leftover sentinel would surface as
+    // onDiskOnly drift and break the clean-scratch assertion).
+    fs.rmSync(path.join(nsPath, sentinel), { recursive: true, force: true });
   }, 60000);
 
   afterAll(async () => {
@@ -278,8 +239,8 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
         }
       }
     }
-    fs.rmSync(scratchRoot, { recursive: true, force: true });
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    await removeTempDirSafely(scratchRoot);
+    await removeTempDirSafely(dataDir);
   }, 30000);
 
   it("AC-1: POST 201 → immediate GET lists the namespace (the auger failure shape)", async () => {

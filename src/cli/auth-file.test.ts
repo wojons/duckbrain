@@ -25,7 +25,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, ChildProcess } from "child_process";
 import crypto from "crypto";
-import net from "net";
 import http from "http";
 import fs from "fs";
 import os from "os";
@@ -35,78 +34,20 @@ import {
   resolveAuthStorePath,
   defaultAuthStorePath,
 } from "./http";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 const PROD_AUTH_PATH = path.join(os.homedir(), ".duckbrain", "auth.json");
 const SCRATCH_KEY = "sk-scratch-dbgap043";
 
 /* ---------------------------------------------------------------- helpers */
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            // GAP-030: 503=degraded but UP
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeout = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
 
 /** GET a path, resolve with the status code (body discarded). */
 function httpStatus(
@@ -308,6 +249,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
   it("daemon with --auth-file serves auth from the temp file and never touches ~/.duckbrain/auth.json", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-dbgap043-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
     const prodBefore = snapshotProdAuth();
 
@@ -317,7 +259,15 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
     ]);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: SCRATCH_KEY,
+      });
 
       // No key → 401; wrong key → 401; the temp file's key → 200.
       expect(await httpStatus(port, "/stats")).toBe(401);
@@ -340,13 +290,14 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
       } catch {
         // ignore if already dead
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
   it("daemon with DUCKBRAIN_AUTH_FILE (env fallback) serves auth from the temp file", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-dbgap043-env-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
     const prodBefore = snapshotProdAuth();
 
@@ -355,7 +306,15 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
     });
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: SCRATCH_KEY,
+      });
       expect(await httpStatus(port, "/stats")).toBe(401);
       expect(
         await httpStatus(port, "/stats", { "X-API-Key": SCRATCH_KEY }),
@@ -370,7 +329,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
       } catch {
         // ignore if already dead
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
@@ -398,7 +357,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
       } catch {
         // ignore if already dead
       }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 });

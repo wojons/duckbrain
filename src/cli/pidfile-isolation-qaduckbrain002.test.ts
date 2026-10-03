@@ -22,9 +22,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "path";
 import os from "os";
 import fs from "fs";
-import http from "http";
-import net from "net";
-import { spawn, type ChildProcess } from "child_process";
+import { spawn } from "child_process";
 import { httpPidFilePath } from "../utils/pidfile";
 import {
   startDuckbrainHttp,
@@ -34,6 +32,14 @@ import {
   getRandomPort,
   DAEMON_READY_TIMEOUT_MS,
 } from "../../tests/helpers";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 
@@ -97,76 +103,6 @@ describe("httpPidFilePath owner isolation (QA-DUCKBRAIN-002)", () => {
   });
 });
 
-/** Find a free TCP port (same pattern as src/cli/http.test.ts). */
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-/** Poll /health until the daemon answers (200/401/503 all prove serving). */
-function waitForHealthAnswers(port: number, timeoutMs = 60000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          res.resume();
-          if (
-            res.statusCode === 200 ||
-            res.statusCode === 401 ||
-            res.statusCode === 503
-          ) {
-            resolve();
-            return;
-          }
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeoutMs) {
-        reject(new Error(`server did not answer /health on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeoutMs = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeoutMs);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
-
 describe("spawned daemon with an ENOTDIR pidfile dir (QA-DUCKBRAIN-002 AC1)", () => {
   it("still binds, answers /health, warns about the pidfile, exits 0 on SIGTERM", async () => {
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-qa002-"));
@@ -177,6 +113,7 @@ describe("spawned daemon with an ENOTDIR pidfile dir (QA-DUCKBRAIN-002 AC1)", ()
     fs.writeFileSync(blockedDataDir, "");
     const nsPath = path.join(scratch, "namespaces");
     fs.mkdirSync(path.join(nsPath, "default"), { recursive: true });
+    const sentinel = createSentinelNamespace(nsPath);
 
     const port = await findFreePort();
     const child = spawn(
@@ -198,7 +135,14 @@ describe("spawned daemon with an ENOTDIR pidfile dir (QA-DUCKBRAIN-002 AC1)", ()
     child.stderr?.on("data", (d: Buffer) => (stderr += d.toString()));
 
     try {
-      await waitForHealthAnswers(port);
+      await waitForHealth(port, 60000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir: blockedDataDir,
+        sentinel,
+      });
       expect(stderr).toContain("Could not write pidfile");
     } finally {
       child.kill("SIGTERM");
@@ -206,7 +150,7 @@ describe("spawned daemon with an ENOTDIR pidfile dir (QA-DUCKBRAIN-002 AC1)", ()
     const code = await waitForClose(child);
     expect(code).toBe(0);
 
-    fs.rmSync(scratch, { recursive: true, force: true });
+    await removeTempDirSafely(scratch);
   }, 120_000);
 });
 

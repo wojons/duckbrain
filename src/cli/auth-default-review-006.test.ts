@@ -26,11 +26,17 @@
 
 import { describe, it, expect } from "vitest";
 import { spawn, ChildProcess } from "child_process";
-import net from "net";
 import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  findFreePort,
+  waitForHealth,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 /** Key literal for the scratch store — never a real credential. */
@@ -38,52 +44,6 @@ const SCRATCH_KEY = "r".repeat(32);
 /** Built by concatenation so no tool display ever mangles this line. */
 const AUTH_HEADER = "X-" + "API-" + "Key";
 const UNAUTH_WARNING_MARKER = "UNAUTHENTICATED";
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address() as net.AddressInfo;
-      const port = address.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-/** Poll /health until it answers (200 healthy or 503 degraded = alive). */
-function waitForHealth(port: number, timeoutMs = 60000): Promise<void> {
-  const start = Date.now();
-  return new Promise((resolve, reject) => {
-    const attempt = () => {
-      const req = http.request(
-        { host: "127.0.0.1", port, path: "/health", method: "GET" },
-        (res) => {
-          res.resume();
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            resolve();
-            return;
-          }
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-      req.end();
-    };
-    const retry = () => {
-      if (Date.now() - start > timeoutMs) {
-        reject(new Error(`daemon never became healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 200);
-    };
-    attempt();
-  });
-}
 
 interface StatusReply {
   status: number;
@@ -217,6 +177,7 @@ describe("REVIEW-DUCKBRAIN-006: fresh daemon defaults to apikey (live daemon)", 
   it("no --auth + store: keyless write 401, valid key write 201, /health open, silent boot", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-review006-default-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
     // NOTE: no --auth flag at all — this is the fresh-daemon shape.
@@ -227,7 +188,15 @@ describe("REVIEW-DUCKBRAIN-006: fresh daemon defaults to apikey (live daemon)", 
     child.stderr?.on("data", (d) => (stderr += d.toString()));
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 60000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: SCRATCH_KEY,
+      });
 
       const keylessWrite = await requestStatus(
         port,
@@ -252,20 +221,28 @@ describe("REVIEW-DUCKBRAIN-006: fresh daemon defaults to apikey (live daemon)", 
       expect(stderr).not.toContain(UNAUTH_WARNING_MARKER);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
   it("explicit --auth=none: boots with the unauthenticated warning and accepts keyless writes", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-review006-none-");
+    const sentinel = createSentinelNamespace(nsPath);
 
     const child = spawnHttpServer(port, dataDir, nsPath, ["--auth=none"]);
     let stderr = "";
     child.stderr?.on("data", (d) => (stderr += d.toString()));
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 60000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+      });
 
       const keylessWrite = await requestStatus(
         port,
@@ -281,18 +258,26 @@ describe("REVIEW-DUCKBRAIN-006: fresh daemon defaults to apikey (live daemon)", 
       expect(stderr).toContain("--auth=none");
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
   it("no --auth and no store at all: keyless write still 401 (fail-closed, no credential can be valid)", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-review006-nostore-");
+    const sentinel = createSentinelNamespace(nsPath);
 
     const child = spawnHttpServer(port, dataDir, nsPath, []);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 60000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+      });
 
       const keylessWrite = await requestStatus(
         port,
@@ -308,7 +293,7 @@ describe("REVIEW-DUCKBRAIN-006: fresh daemon defaults to apikey (live daemon)", 
       expect([200, 503]).toContain(health.status);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 });

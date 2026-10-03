@@ -24,11 +24,17 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { spawn, ChildProcess } from "child_process";
-import net from "net";
-import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -50,74 +56,6 @@ const ENV_CLI = "df092604-env-cli";
 const EXPLICIT_NS = "df092604-explicit";
 
 /* ------------------------------------------------------------- helpers */
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 60_000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 1000 },
-        (res) => {
-          // The embedding probe is deliberately degraded here, so /health
-          // answers 503 while the API is live — accept both.
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(child: ChildProcess, timeout = 30_000): Promise<void> {
-  return new Promise((resolve) => {
-    if (child.exitCode !== null) {
-      resolve();
-      return;
-    }
-    const timer = setTimeout(() => {
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // already gone
-      }
-      resolve();
-    }, timeout);
-    child.on("close", () => {
-      clearTimeout(timer);
-      resolve();
-    });
-  });
-}
 
 /**
  * Env for a child: scratch store + scratch config + the namespace under test.
@@ -212,8 +150,8 @@ beforeAll(() => {
   );
 });
 
-afterAll(() => {
-  fs.rmSync(SCRATCH, { recursive: true, force: true });
+afterAll(async () => {
+  await removeTempDirSafely(SCRATCH);
 });
 
 describe("DF-0926-04: DUCKBRAIN_NAMESPACE selects the namespace for real clients", () => {
@@ -339,6 +277,7 @@ describe("DF-0926-04: the HTTP API resolves the same namespace as the config/env
 
   beforeAll(async () => {
     port = await findFreePort();
+    const sentinel = createSentinelNamespace(NS_ROOT);
     daemon = spawn(
       process.execPath,
       // --auth=none is the documented explicit local/test opt-out; this suite
@@ -351,7 +290,14 @@ describe("DF-0926-04: the HTTP API resolves the same namespace as the config/env
         stdio: "pipe",
       },
     );
-    await waitForHealth(port);
+    await waitForHealth(port, 60000, daemon);
+    await assertDaemonIsOurs({
+      port,
+      child: daemon,
+      nsPath: NS_ROOT,
+      dataDir: SCRATCH,
+      sentinel,
+    });
   }, 120_000);
 
   afterAll(async () => {
