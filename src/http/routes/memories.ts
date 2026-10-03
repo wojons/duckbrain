@@ -689,6 +689,13 @@ router.post(
       );
     }
 
+    // DF-0926-06: validate key format before it reaches rememberTool
+    if (!body.key.startsWith("/")) {
+      throw new ValidationError(
+        `Invalid key '${body.key}': key must be a filesystem-style path starting with / (e.g., /projects/mcp)`,
+      );
+    }
+
     // Call rememberTool to create memory
     // DB-GAP-031: an authenticated principal stamps the record — a
     // client-supplied ?author= or body author is never honored on writes.
