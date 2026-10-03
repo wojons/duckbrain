@@ -1,0 +1,94 @@
+{
+  "task_id": "DF-0926-01",
+  "task_title": "Fix examples on-ramp and HTTP bind failure handling",
+  "task_criteria": [
+    "Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "7a8e464052077547a617a4f4be78340e89dae312",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:00AM INF scanned ~9509310 bytes (9.51 MB) in 3.09s\n8:00AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 286491 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 569ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14737,11 +14737,12 @@\n      \"auger-pytest-b9a5f6d2dbf7\": \"/home/kara/duckbrain/namespaces/auger-pytest-b9a5f6d2dbf7\",\n      \"auger-pytest-898141604df6\": \"/home/kara/duckbrain/namespaces/auger-pytest-898141604df6\",\n      \"auger-pytest-9df5ffb59f0b\": \"/home/kara/duckbrain/namespaces/auger-pytest-9df5ffb59f0b\",\n      \"auger-pytest-59a55744cd91\": \"/home/kara/duckbrain/namespaces/auger-pytest-59a55744cd91\",\n      \"auger-pytest-2c5b5c6a1987\": \"/home/kara/duckbrain/namespaces/auger-pytest-2c5b5c6a1987\",\n-     \"auger-pytest-a04b137d2193\": \"/home/kara/duckbrain/namespaces/auger-pytest-a04b137d2193\"\n+     \"auger-pytest-a04b137d2193\": \"/home/kara/duckbrain/namespaces/auger-pytest-a04b137d2193\",\n+     \"auger-pytest-4bad2eeef74a\": \"/home/kara/duckbrain/namespaces/auger-pytest-4bad2eeef74a\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:154:30\n    152|   afterAll(() => {\n    153|     server.close();\n    154|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    155|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    156|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 177 passed (178)\n      Tests  1412 passed (1412)\n   Start at  08:00:47\n   Duration  85.73s (tests 80%, import 17%, transform 2%, setup 1%)\n\n    Isolate  178 workers spawned \u00b7 ~120ms startup each (spawn + environment, per file)\n             at least ~5.21s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) AC1 safe pnpm invocation \u2014 examples/http-api/README.md:9 still `pnpm start -- http --port=3000`, examples/mcp-client/README.md:60 still `pnpm start -- stdio`, examples/custom-storage/README.md:176,179 still `pnpm start -- ...`; `npx pnpm start -- http --port=3999` => 'Unknown command: --' exit 1. (b) AC2 runnable client payloads \u2014 examples/http-api/client.js still uses `import.meta.url` in a `\"type\":\"commonjs\"` repo; `import('./examples/http-api/client.js')` => \"Cannot use 'import.meta' outside a module\"; README still teaches wrong payload {key, content:{...}} and ?key=/?query=. (c) AC3 nonzero bind failure without banner \u2014 reproduced: holder process holds 127.0.0.1:3991 (ss confirms), then `node bin/duckbrain.js http --port 3991` prints '[duckbrain] HTTP server started at http://127.0.0.1:3991' banner, writes the pidfile, prints 'HTTP server ready', and EXITS 0 \u2014 banner printed and exit 0, defect intact. (d) AC4 pidfile only after successful bind \u2014 src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but since EADDRINUSE is not surfaced (exit 0, banner printed), /tmp/duckbrain-http-3991.pid IS written despite the occupied port. Test evidence: `npx vitest run` => 'Test Files 178 passed (178), Tests 1412 passed (1412)', EXIT=0; targeted `npx vitest run src/cli/http.test.ts src/utils/pidfile.test.ts` => 'Test Files 2 passed (2), Tests 14 passed (14)', EXIT=0 \u2014 but grep for EADDRINUSE in src/**/*.test.ts shows no test covers bind failure/banner/live-pidfile, so the green suite does not validate any AC. Prior judge history independently confirms: commit 3284e54 'verdict: DF-0926-01 \u2014 FAIL' and b87d894 'record DF-0926-01 failed judge \u2014 no implementation'.\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) AC1 safe pnpm invocation \u2014 examples/http-api/README.md:9 still `pnpm start -- http --port=3000`, examples/mcp-client/README.md:60 still `pnpm start -- stdio`, examples/custom-storage/README.md:176,179 still `pnpm start -- ...`; `npx pnpm start -- http --port=3999` => 'Unknown command: --' exit 1. (b) AC2 runnable client payloads \u2014 examples/http-api/client.js still uses `import.meta.url` in a `\"type\":\"commonjs\"` repo; `import('./examples/http-api/client.js')` => \"Cannot use 'import.meta' outside a module\"; README still teaches wrong payload {key, content:{...}} and ?key=/?query=. (c) AC3 nonzero bind failure without banner \u2014 reproduced: holder process holds 127.0.0.1:3991 (ss confirms), then `node bin/duckbrain.js http --port 3991` prints '[duckbrain] HTTP server started at http://127.0.0.1:3991' banner, writes the pidfile, prints 'HTTP server ready', and EXITS 0 \u2014 banner printed and exit 0, defect intact. (d) AC4 pidfile only after successful bind \u2014 src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but since EADDRINUSE is not surfaced (exit 0, banner printed), /tmp/duckbrain-http-3991.pid IS written despite the occupied port. Test evidence: `npx vitest run` => 'Test Files 178 passed (178), Tests 1412 passed (1412)', EXIT=0; targeted `npx vitest run src/cli/http.test.ts src/utils/pidfile.test.ts` => 'Test Files 2 passed (2), Tests 14 passed (14)', EXIT=0 \u2014 but grep for EADDRINUSE in src/**/*.test.ts shows no test covers bind failure/banner/live-pidfile, so the green suite does not validate any AC. Prior judge history independently confirms: commit 3284e54 'verdict: DF-0926-01 \u2014 FAIL' and b87d894 'record DF-0926-01 failed judge \u2014 no implementation'.\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.",
+                "status": "FAIL",
+                "detail": "No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) AC1 safe pnpm invocation \u2014 examples/http-api/README.md:9 still `pnpm start -- http --port=3000`, examples/mcp-client/README.md:60 still `pnpm start -- stdio`, examples/custom-storage/README.md:176,179 still `pnpm start -- ...`; `npx pnpm start -- http --port=3999` => 'Unknown command: --' exit 1. (b) AC2 runnable client payloads \u2014 examples/http-api/client.js still uses `import.meta.url` in a `\"type\":\"commonjs\"` repo; `import('./examples/http-api/client.js')` => \"Cannot use 'import.meta' outside a module\"; README still teaches wrong payload {key, content:{...}} and ?key=/?query=. (c) AC3 nonzero bind failure without banner \u2014 reproduced: holder process holds 127.0.0.1:3991 (ss confirms), then `node bin/duckbrain.js http --port 3991` prints '[duckbrain] HTTP server started at http://127.0.0.1:3991' banner, writes the pidfile, prints 'HTTP server ready', and EXITS 0 \u2014 banner printed and exit 0, defect intact. (d) AC4 pidfile only after successful bind \u2014 src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but since EADDRINUSE is not surfaced (exit 0, banner printed), /tmp/duckbrain-http-3991.pid IS written despite the occupied port. Test evidence: `npx vitest run` => 'Test Files 178 passed (178), Tests 1412 passed (1412)', EXIT=0; targeted `npx vitest run src/cli/http.test.ts src/utils/pidfile.test.ts` => 'Test Files 2 passed (2), Tests 14 passed (14)', EXIT=0 \u2014 but grep for EADDRINUSE in src/**/*.test.ts shows no test covers bind failure/banner/live-pidfile, so the green suite does not validate any AC. Prior judge history independently confirms: commit 3284e54 'verdict: DF-0926-01 \u2014 FAIL' and b87d894 'record DF-0926-01 failed judge \u2014 no implementation'.",
+                "resolution_probability": 0.0
+              }
+            ],
+            "summary": "The task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-01\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Implement all four acceptance criteria from board row DF-0926-01: safe pnpm/example invocation, runnable client payloads, nonzero bind failure without banner or live pidfile mutation, and pidfile write only after successful bind.: No implementation exists \u2014 the only diff is a status flip in .gitreins/tasks.yaml (git diff --name-only => .gitreins/tasks.yaml only; examples/, package.json, bin/duckbrain.ts, src/cli/http.ts, src/utils/pidfile.ts all unchanged). All four ACs verified still broken by live reproduction: (a) AC1 safe pnpm invocation \u2014 examples/http-api/README.md:9 still `pnpm start -- http --port=3000`, examples/mcp-client/README.md:60 still `pnpm start -- stdio`, examples/custom-storage/README.md:176,179 still `pnpm start -- ...`; `npx pnpm start -- http --port=3999` => 'Unknown command: --' exit 1. (b) AC2 runnable client payloads \u2014 examples/http-api/client.js still uses `import.meta.url` in a `\"type\":\"commonjs\"` repo; `import('./examples/http-api/client.js')` => \"Cannot use 'import.meta' outside a module\"; README still teaches wrong payload {key, content:{...}} and ?key=/?query=. (c) AC3 nonzero bind failure without banner \u2014 reproduced: holder process holds 127.0.0.1:3991 (ss confirms), then `node bin/duckbrain.js http --port 3991` prints '[duckbrain] HTTP server started at http://127.0.0.1:3991' banner, writes the pidfile, prints 'HTTP server ready', and EXITS 0 \u2014 banner printed and exit 0, defect intact. (d) AC4 pidfile only after successful bind \u2014 src/cli/http.ts:973-974 writes the pidfile after the listen promise resolves, but since EADDRINUSE is not surfaced (exit 0, banner printed), /tmp/duckbrain-http-3991.pid IS written despite the occupied port. Test evidence: `npx vitest run` => 'Test Files 178 passed (178), Tests 1412 passed (1412)', EXIT=0; targeted `npx vitest run src/cli/http.test.ts src/utils/pidfile.test.ts` => 'Test Files 2 passed (2), Tests 14 passed (14)', EXIT=0 \u2014 but grep for EADDRINUSE in src/**/*.test.ts shows no test covers bind failure/banner/live-pidfile, so the green suite does not validate any AC. Prior judge history independently confirms: commit 3284e54 'verdict: DF-0926-01 \u2014 FAIL' and b87d894 'record DF-0926-01 failed judge \u2014 no implementation'.\nThe task is marked complete but contains zero implementation \u2014 only a tasks.yaml status flip \u2014 and live reproduction confirms all four acceptance criteria (safe pnpm invocation, runnable client payloads, nonzero bind failure without banner/live-pidfile mutation, pidfile write only after successful bind) remain unmet.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-26T13:17:33.519128",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-26T13:17:33.546531+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4487,
+        "truncated": false,
+        "source": "git show 7a8e46405207"
+      }
+    ],
+    "task_id": "DF-0926-01"
+  }
+}

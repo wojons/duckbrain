@@ -244,6 +244,40 @@ big-data scans without transferring everything.
 5. `duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"` → SQL over S3.
 6. Restart the MCP/HTTP daemon so autocommit picks up `pushOnCommit`.
 
+## Fresh-machine DR restore
+
+`pull` restores from the bucket, not from local state. On a machine whose
+`namespaces/` root is empty or absent (DF-0925-07):
+
+- `duckbrain s3 sync <ns> pull` BOOTSTRAPS: it creates the missing namespace
+  dir and downloads the namespace's files. (Push on a missing namespace still
+  fails loudly — there is nothing local to push.) Bootstrap is data-only: the
+  `namespaceMappings` config registry is NOT touched (use
+  `duckbrain namespace create <ns>` if you want it registered).
+- `duckbrain s3 sync all pull` enumerates the REMOTE prefix
+  (`listRemoteNamespaces`) and unions it with the local namespace dirs, so a
+  fresh machine restores every namespace that exists on S3. The summary
+  prints per-namespace downloaded counts; if the remote prefix holds
+  namespaces but ALL restores fail, the CLI prints a loud warning and exits
+  nonzero — a restore is never a silent zero.
+
+A restored namespace arrives **data-only**: JSONL + manifest files. Git
+history never travels through S3 objects, so the restored namespace has no
+`.git` until tracking is reinitialized (matches the daemon's own identity,
+src/git/autocommit.ts):
+
+```bash
+for d in namespaces/*/; do (cd "$d" && git init -q \
+  && git config user.email "duckbrain@localhost.localdomain" \
+  && git config user.name "DuckBrain" \
+  && git add -A && git commit -q -m "restore: reinit tracking after S3 pull" || true); done
+```
+
+The empty-commit `|| true` covers namespaces with zero files (an empty repo
+is fine — the daemon's first write path re-runs init/commit itself). The full
+paste-able sequence (clone → pull → git reinit → serve) is in
+[README.md → Fresh-machine DR restore](../README.md#fresh-machine-dr-restore-paste-able).
+
 ## Pitfalls baked in
 
 - ⛔ httpfs on its OWN connection — the singleton connection strips extensions

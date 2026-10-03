@@ -14,8 +14,9 @@
     "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/http-ratelimit.int.test.ts",
     "start": "node bin/duckbrain.js",
     "start:http": "node bin/duckbrain.js http --port 3000",
+    "dev:api": "node bin/duckbrain.js http --port 3000 --auth=none",
     "start:ui": "pnpm --dir packages/ui dev",
-    "dev": "concurrently \"pnpm start:http\" \"pnpm start:ui\"",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm start:ui\"",
     "dev:docker": "docker-compose -f docker-compose.dev.yml up",
     "build": "pnpm --dir packages/ui build",
     "docker:build": "docker build -t duckbrain .",
@@ -37,8 +38,9 @@
   },
   "homepage": "https://github.com/wojons/duckbrain#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1136.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@aws-sdk/client-s3": "3.1145.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@smithy/node-http-handler": "4.12.1",
     "async-mutex": "^0.5.0",
     "bcryptjs": "^3.0.3",
     "duckdb": "1.4.4",
@@ -50,11 +52,11 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.2",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
     "concurrently": "^10.0.5",
-    "typescript": "^7.0.0",
-    "vitest": "^5.0.1"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   },
   "engines": {
     "node": ">=22"

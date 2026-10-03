@@ -289,6 +289,46 @@ describe("SUPA-1/SUPA-2: direct mode is framed through the serializer", () => {
     expect(res.headers["x-durability"]).toBe("direct");
     expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(1);
   });
+
+  // QA-DUCKBRAIN-003 AC-3: a durability failure that surfaces through the
+  // HTTP error envelope must carry its machine-readable DURABILITY_* code,
+  // never the generic INTERNAL_ERROR. The open mock reproduces the kernel's
+  // O_DIRECT rejection (EINVAL after O_CREAT) so the failure path runs on
+  // every filesystem.
+  it("surfaces the DURABILITY_* code through the HTTP error envelope on a rejected O_DIRECT write", async () => {
+    writeConfig({
+      durability: {
+        defaultMode: "buffered",
+        overrides: { [DIRECT_NS]: "direct" },
+      },
+    });
+
+    const realOpenSync = fs.openSync.bind(fs);
+    const openSpy = vi.spyOn(fs, "openSync");
+    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
+      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
+        try {
+          realOpenSync(p, fs.constants.O_WRONLY | fs.constants.O_CREAT, 0o644);
+        } catch {
+          // ignore: the EINVAL throw below is the failure under test
+        }
+        const error: NodeJS.ErrnoException = new Error(
+          "invalid argument, open",
+        );
+        error.code = "EINVAL";
+        throw error;
+      }
+      return realOpenSync(p, flags, mode);
+    }) as any);
+
+    const res = await postMemory(DIRECT_NS, "/supa1/http/direct-rejected");
+
+    expect(res.status).toBe(500);
+    expect(String(res.body?.code)).toMatch(/^DURABILITY_/);
+    expect(res.body?.code).not.toBe("INTERNAL_ERROR");
+    // Keep it loud (SUPA-1 spec: durability failures fail at 500 deliberately).
+    expect(res.headers["x-durability"]).toBeUndefined();
+  });
 });
 
 describe("SUPA-1 AC-3: buffered mode honesty", () => {

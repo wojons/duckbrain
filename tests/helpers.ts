@@ -1,4 +1,7 @@
 import { execSync, spawn, ChildProcess } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 const CONTAINER_PREFIX = "duckbrain-test";
 
@@ -65,7 +68,39 @@ export function createStderrTail(maxLines = 50): StderrTail {
 }
 
 /** A duckbrain daemon child that carries a rolling stderr tail. */
-export type DuckbrainChild = ChildProcess & { stderrTail: string };
+export type DuckbrainChild = ChildProcess & {
+  stderrTail: string;
+  /**
+   * Effective DUCKBRAIN_DATA_DIR the daemon runs with (QA-DUCKBRAIN-002):
+   * a helper-created temp dir unless the caller supplied one via opts.env
+   * or the ambient process env.
+   */
+  dataDir?: string;
+  /** Effective DUCKBRAIN_NAMESPACES_PATH the daemon runs with. */
+  namespacesPath?: string;
+};
+
+/**
+ * Helper-created temp roots, so cleanupDaemonDirs removes ONLY dirs this
+ * module made — never a caller-supplied or ambient data dir.
+ */
+const helperTempRoots = new WeakMap<DuckbrainChild, string>();
+
+/**
+ * Remove the temp data dir a startDuckbrainHttp call created for this
+ * child (if any). Tolerant of an already-cleaned dir and of children whose
+ * dirs were caller-supplied (a no-op for those).
+ */
+export function cleanupDaemonDirs(child: ChildProcess): void {
+  const root = helperTempRoots.get(child as DuckbrainChild);
+  if (!root) return;
+  try {
+    fs.rmSync(root, { recursive: true, force: true });
+  } catch {
+    // Best-effort teardown — an already-removed dir is not a failure.
+  }
+  helperTempRoots.delete(child as DuckbrainChild);
+}
 
 /** Last captured stderr tail of a child ("" when not captured). */
 export function getStderrTail(child: ChildProcess): string {
@@ -164,6 +199,52 @@ export async function startDuckbrainHttp(opts: {
   if (opts.rateLimit) args.push(`--rate-limit=${opts.rateLimit}`);
   if (opts.bindAll) args.push("--bind-all");
 
+  // QA-DUCKBRAIN-002: scratch daemons are hermetic BY DEFAULT. Without
+  // these pins every spawned daemon shared the fixed /tmp pidfile path
+  // (colliding across uids and with stale leftovers) AND the cwd-relative
+  // production namespace root. A value the caller supplied — via opts.env
+  // OR already present in the ambient process env (several suites pin
+  // process.env.DUCKBRAIN_NAMESPACES_PATH around their describe block) —
+  // always wins; we only fill the gaps.
+  //
+  // DUCKBRAIN_CONFIG_PATH is pinned to a (nonexistent) file inside the temp
+  // root for the same reason: without it the daemon's cwd-relative config
+  // discovery finds the repo's duckbrain.config.json, which on a real host
+  // carries the PRODUCTION namespace registry — a scratch daemon then
+  // iterates production namespaces (e.g. GET /users opens one DuckDB
+  // connection per registry entry). A missing file parses to schema
+  // defaults (empty registry), so nothing needs to be written.
+  const callerEnv = opts.env ?? {};
+  const scratchEnv: Record<string, string> = {};
+  let dataDir: string | undefined;
+  let namespacesPath: string | undefined;
+  let tempRoot: string | undefined;
+  const needsDataDir =
+    !callerEnv.DUCKBRAIN_DATA_DIR && !process.env.DUCKBRAIN_DATA_DIR;
+  const needsNsPath =
+    !callerEnv.DUCKBRAIN_NAMESPACES_PATH &&
+    !process.env.DUCKBRAIN_NAMESPACES_PATH;
+  const needsConfigPath =
+    !callerEnv.DUCKBRAIN_CONFIG_PATH && !process.env.DUCKBRAIN_CONFIG_PATH;
+  if (needsDataDir || needsNsPath || needsConfigPath) {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-int-"));
+    if (needsDataDir) {
+      dataDir = tempRoot;
+      scratchEnv.DUCKBRAIN_DATA_DIR = dataDir;
+    }
+    if (needsNsPath) {
+      namespacesPath = path.join(tempRoot, "namespaces");
+      fs.mkdirSync(path.join(namespacesPath, "default"), { recursive: true });
+      scratchEnv.DUCKBRAIN_NAMESPACES_PATH = namespacesPath;
+    }
+    if (needsConfigPath) {
+      scratchEnv.DUCKBRAIN_CONFIG_PATH = path.join(
+        tempRoot,
+        "duckbrain.config.json",
+      );
+    }
+  }
+
   // Spawn via `node --import tsx` (tsx's documented loader integration)
   // rather than `npx tsx`: npx adds per-spawn resolution overhead and an
   // extra process hop, which under CI runner load compounds the cold-start
@@ -185,6 +266,7 @@ export async function startDuckbrainHttp(opts: {
       // answered within 60s). Tests already accept the "degraded" status.
       DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
       DUCKBRAIN_EMBEDDING_API_KEY: "",
+      ...scratchEnv,
       ...opts.env,
     },
     // Own process group so killProcess can SIGTERM the whole tree —
@@ -201,6 +283,17 @@ export async function startDuckbrainHttp(opts: {
     tail.push(chunk);
     child.stderrTail = tail.value();
   });
+
+  // QA-DUCKBRAIN-002: expose the effective dirs so suites can assert
+  // isolation and teardown can remove the helper-created temp root via
+  // cleanupDaemonDirs (only dirs THIS helper created are ever removed).
+  child.dataDir =
+    dataDir ?? callerEnv.DUCKBRAIN_DATA_DIR ?? process.env.DUCKBRAIN_DATA_DIR;
+  child.namespacesPath =
+    namespacesPath ??
+    callerEnv.DUCKBRAIN_NAMESPACES_PATH ??
+    process.env.DUCKBRAIN_NAMESPACES_PATH;
+  if (tempRoot) helperTempRoots.set(child, tempRoot);
 
   return child;
 }
@@ -220,6 +313,58 @@ export function killProcess(child: ChildProcess): void {
       child.kill("SIGTERM");
     } catch {}
   }
+}
+
+/**
+ * Stop a detached test process and wait for its child/descendants to finish.
+ * Teardown must join the process before deleting its data directory: a
+ * fire-and-forget SIGTERM can leave git/DuckDB writers racing recursive rm.
+ */
+export async function stopProcess(
+  child: ChildProcess,
+  timeoutMs = 15_000,
+): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  let settled = false;
+  let resolveClose: (() => void) | undefined;
+  const closed = new Promise<void>((resolve) => {
+    resolveClose = resolve;
+  });
+  const onClose = () => {
+    settled = true;
+    resolveClose?.();
+  };
+  child.once("close", onClose);
+  killProcess(child);
+
+  const timeout = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), timeoutMs),
+  );
+  const result = await Promise.race([
+    closed.then(() => "closed" as const),
+    timeout,
+  ]);
+  if (result === "timeout" && !settled) {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      else child.kill("SIGKILL");
+    } catch {}
+    const killTimeout = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), 5_000),
+    );
+    const killed = await Promise.race([
+      closed.then(() => "closed" as const),
+      killTimeout,
+    ]);
+    if (killed === "timeout") {
+      child.removeListener("close", onClose);
+      throw new Error(
+        `stopProcess: child ${child.pid ?? "unknown"} still alive after SIGTERM+SIGKILL`,
+      );
+    }
+  }
+  child.removeListener("close", onClose);
 }
 
 export async function startSshContainer(

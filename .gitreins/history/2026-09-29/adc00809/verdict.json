@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0926-03",
+  "task_title": "Fix ?contains= FTS stopword misses",
+  "task_criteria": [
+    "contains=<stopword like Hello/from/different> returns rows whose content contains that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon live proof"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "5899b4a1f1a07ca897059d9a1987a85c08f37181",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:30AM INF scanned ~14157793 bytes (14.16 MB) in 1.71s\n1:30AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 347358 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  183 passed (183)\n      Tests  1458 passed (1458)\n   Start at  01:30:40\n   Duration  60.35s (tests 77%, import 20%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  183 workers spawned \u00b7 ~106ms startup each (spawn + environment, per file)\n             at least ~4.76s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 contains=<stopword like Hello/from/different> returns rows whose content contains that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon live proof: Implementation: src/search/query.ts adds opt-in includeStopwordLiterals raw-text word-boundary pass (regexp_matches on raw_text) for stopword-only queries; src/mcp/tools/recall.ts:605,623 enables it on both contains= call sites; HTTP route src/http/routes/memories.ts:485 forwards ?contains= to recallTool. (1) LIVE scratch-daemon proof: started `node bin/duckbrain.js http --port 3999` with DUCKBRAIN_NAMESPACES_PATH=/tmp/df092603-live, wrote board fixtures 'Hello from HTTP API' + 'zebra', rebuilt index (rowCount 2), then curl: contains=Hello -> 1 hit (content 'Hello from HTTP API'), contains=hello -> 1 (case-insensitive), contains=from -> 1, contains=zebra -> 1; after adding 'a different approach entirely', contains=different -> 1 hit; contains=different with no matching row -> 0 (no false positives). (2) RED-GREEN: `npx vitest run src/search/search-stopword-contains-df092603.test.ts` -> 'Test Files 1 passed (1), Tests 6 passed (6)'; reverting query.ts+recall.ts to 5899b4a^ -> 'Tests 3 failed | 3 passed (6)' with AssertionError 'expected 0 to be greater than or equal to 1' on contains=Hello/from/recallTool; restored -> 6 passed. (3) Full suite: `npx vitest run` -> 'Test Files 183 passed (183), Tests 1458 passed (1458)', 0 failures. (4) tsc: `npx tsc --noEmit` -> exit 0, no output. (5) prettier: `npx prettier --check src/search/query.ts src/mcp/tools/recall.ts src/search/search-stopword-contains-df092603.test.ts` -> 'All matched files use Prettier code style!' exit 0.\nThe ?contains= stopword fix is implemented and fully verified: live scratch-daemon probes return rows for Hello/from/different, the regression test is RED-GREEN, and the full suite (1458 tests), tsc, and prettier are all green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 contains=<stopword like Hello/from/different> returns rows whose content contains that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon live proof: Implementation: src/search/query.ts adds opt-in includeStopwordLiterals raw-text word-boundary pass (regexp_matches on raw_text) for stopword-only queries; src/mcp/tools/recall.ts:605,623 enables it on both contains= call sites; HTTP route src/http/routes/memories.ts:485 forwards ?contains= to recallTool. (1) LIVE scratch-daemon proof: started `node bin/duckbrain.js http --port 3999` with DUCKBRAIN_NAMESPACES_PATH=/tmp/df092603-live, wrote board fixtures 'Hello from HTTP API' + 'zebra', rebuilt index (rowCount 2), then curl: contains=Hello -> 1 hit (content 'Hello from HTTP API'), contains=hello -> 1 (case-insensitive), contains=from -> 1, contains=zebra -> 1; after adding 'a different approach entirely', contains=different -> 1 hit; contains=different with no matching row -> 0 (no false positives). (2) RED-GREEN: `npx vitest run src/search/search-stopword-contains-df092603.test.ts` -> 'Test Files 1 passed (1), Tests 6 passed (6)'; reverting query.ts+recall.ts to 5899b4a^ -> 'Tests 3 failed | 3 passed (6)' with AssertionError 'expected 0 to be greater than or equal to 1' on contains=Hello/from/recallTool; restored -> 6 passed. (3) Full suite: `npx vitest run` -> 'Test Files 183 passed (183), Tests 1458 passed (1458)', 0 failures. (4) tsc: `npx tsc --noEmit` -> exit 0, no output. (5) prettier: `npx prettier --check src/search/query.ts src/mcp/tools/recall.ts src/search/search-stopword-contains-df092603.test.ts` -> 'All matched files use Prettier code style!' exit 0.\nThe ?contains= stopword fix is implemented and fully verified: live scratch-daemon probes return rows for Hello/from/different, the regression test is RED-GREEN, and the full suite (1458 tests), tsc, and prettier are all green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "contains=<stopword like Hello/from/different> returns rows whose content contains that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon live proof",
+                "status": "PASS",
+                "detail": "Implementation: src/search/query.ts adds opt-in includeStopwordLiterals raw-text word-boundary pass (regexp_matches on raw_text) for stopword-only queries; src/mcp/tools/recall.ts:605,623 enables it on both contains= call sites; HTTP route src/http/routes/memories.ts:485 forwards ?contains= to recallTool. (1) LIVE scratch-daemon proof: started `node bin/duckbrain.js http --port 3999` with DUCKBRAIN_NAMESPACES_PATH=/tmp/df092603-live, wrote board fixtures 'Hello from HTTP API' + 'zebra', rebuilt index (rowCount 2), then curl: contains=Hello -> 1 hit (content 'Hello from HTTP API'), contains=hello -> 1 (case-insensitive), contains=from -> 1, contains=zebra -> 1; after adding 'a different approach entirely', contains=different -> 1 hit; contains=different with no matching row -> 0 (no false positives). (2) RED-GREEN: `npx vitest run src/search/search-stopword-contains-df092603.test.ts` -> 'Test Files 1 passed (1), Tests 6 passed (6)'; reverting query.ts+recall.ts to 5899b4a^ -> 'Tests 3 failed | 3 passed (6)' with AssertionError 'expected 0 to be greater than or equal to 1' on contains=Hello/from/recallTool; restored -> 6 passed. (3) Full suite: `npx vitest run` -> 'Test Files 183 passed (183), Tests 1458 passed (1458)', 0 failures. (4) tsc: `npx tsc --noEmit` -> exit 0, no output. (5) prettier: `npx prettier --check src/search/query.ts src/mcp/tools/recall.ts src/search/search-stopword-contains-df092603.test.ts` -> 'All matched files use Prettier code style!' exit 0.",
+                "resolution_probability": 0.1
+              }
+            ],
+            "summary": "The ?contains= stopword fix is implemented and fully verified: live scratch-daemon probes return rows for Hello/from/different, the regression test is RED-GREEN, and the full suite (1458 tests), tsc, and prettier are all green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-03\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 contains=<stopword like Hello/from/different> returns rows whose content contains that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon live proof: Implementation: src/search/query.ts adds opt-in includeStopwordLiterals raw-text word-boundary pass (regexp_matches on raw_text) for stopword-only queries; src/mcp/tools/recall.ts:605,623 enables it on both contains= call sites; HTTP route src/http/routes/memories.ts:485 forwards ?contains= to recallTool. (1) LIVE scratch-daemon proof: started `node bin/duckbrain.js http --port 3999` with DUCKBRAIN_NAMESPACES_PATH=/tmp/df092603-live, wrote board fixtures 'Hello from HTTP API' + 'zebra', rebuilt index (rowCount 2), then curl: contains=Hello -> 1 hit (content 'Hello from HTTP API'), contains=hello -> 1 (case-insensitive), contains=from -> 1, contains=zebra -> 1; after adding 'a different approach entirely', contains=different -> 1 hit; contains=different with no matching row -> 0 (no false positives). (2) RED-GREEN: `npx vitest run src/search/search-stopword-contains-df092603.test.ts` -> 'Test Files 1 passed (1), Tests 6 passed (6)'; reverting query.ts+recall.ts to 5899b4a^ -> 'Tests 3 failed | 3 passed (6)' with AssertionError 'expected 0 to be greater than or equal to 1' on contains=Hello/from/recallTool; restored -> 6 passed. (3) Full suite: `npx vitest run` -> 'Test Files 183 passed (183), Tests 1458 passed (1458)', 0 failures. (4) tsc: `npx tsc --noEmit` -> exit 0, no output. (5) prettier: `npx prettier --check src/search/query.ts src/mcp/tools/recall.ts src/search/search-stopword-contains-df092603.test.ts` -> 'All matched files use Prettier code style!' exit 0.\nThe ?contains= stopword fix is implemented and fully verified: live scratch-daemon probes return rows for Hello/from/different, the regression test is RED-GREEN, and the full suite (1458 tests), tsc, and prettier are all green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-29T06:43:32.321688",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T06:43:32.343427+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 18755,
+        "truncated": false,
+        "source": "git show 5899b4a1f1a0"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 507,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-03"
+  }
+}

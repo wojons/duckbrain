@@ -37,14 +37,21 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawn, spawnSync, type ChildProcess } from "child_process";
-import net from "net";
-import http from "http";
+import { spawn, type ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { rememberTool, rememberToolDef } from "../../mcp/tools/remember";
 import { recallTool } from "../../mcp/tools/recall";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+  mintScratchToken,
+} from "../../testing/race-safe-daemon";
 
 const PAST = "2020-01-01T00:00:00.000Z";
 const FUTURE = "2999-01-01T00:00:00.000Z";
@@ -254,103 +261,11 @@ const BIN_PATH = path.join(REPO_ROOT, "bin", "duckbrain.js");
 
 const HTTP_NS = "df091905";
 
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          // Embedding provider intentionally degraded (openai + empty key):
-          // /health answers 503 — accept it as live (DOGFOOD-025 pattern).
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeout = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
-
 function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const nsPath = path.join(dataDir, "namespaces");
   fs.mkdirSync(path.join(nsPath, HTTP_NS), { recursive: true });
   return { dataDir, nsPath };
-}
-
-function mintScratchToken(dataDir: string): {
-  authFile: string;
-  token: string;
-} {
-  const authFile = path.join(dataDir, "scratch-auth.json");
-  const res = spawnSync(process.execPath, [BIN_PATH, "token", "--name=test"], {
-    env: { ...process.env, DUCKBRAIN_AUTH_FILE: authFile },
-    encoding: "utf-8",
-  });
-  if (res.status !== 0) {
-    throw new Error(`token mint failed (${res.status}): ${res.stderr}`);
-  }
-  const lines = res.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const token = lines[1] ?? "";
-  if (!/^[0-9a-f]{64}$/.test(token)) {
-    throw new Error(
-      `could not parse raw token from mint output: ${JSON.stringify(res.stdout)}`,
-    );
-  }
-  return { authFile, token };
 }
 
 describe("DF-0919-05: REST POST /api/memories accepts camelCase validity aliases", () => {
@@ -363,6 +278,7 @@ describe("DF-0919-05: REST POST /api/memories accepts camelCase validity aliases
     port = await findFreePort();
     ({ dataDir } = prepareDataDir("duckbrain-df091905-"));
     const nsPath = path.join(dataDir, "namespaces");
+    const sentinel = createSentinelNamespace(nsPath);
     const { authFile, token: minted } = mintScratchToken(dataDir);
     token = minted;
 
@@ -388,7 +304,15 @@ describe("DF-0919-05: REST POST /api/memories accepts camelCase validity aliases
         stdio: "pipe",
       },
     );
-    await waitForHealth(port);
+    await waitForHealth(port, 30000, daemon);
+    await assertDaemonIsOurs({
+      port,
+      child: daemon,
+      nsPath,
+      dataDir,
+      sentinel,
+      token,
+    });
   }, 60000);
 
   afterAll(async () => {
@@ -405,7 +329,7 @@ describe("DF-0919-05: REST POST /api/memories accepts camelCase validity aliases
         }
       }
     }
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    await removeTempDirSafely(dataDir);
   }, 30000);
 
   async function postMemory(

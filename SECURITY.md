@@ -65,11 +65,13 @@ docker run --cap-drop=ALL duckbrain:latest
 
 ## Known Security Considerations
 
-1. **API Tokens**: By default, the HTTP API runs with `--auth=none` and
-   tokens are not required. Enable authentication in production by running
-   the server with `--auth=apikey` and configuring API keys in
-   `~/.duckbrain/auth.json`. Mint scoped per-namespace tokens with
-   `duckbrain token --namespace=<ns>`. See
+1. **API Tokens**: The HTTP API defaults to `--auth=apikey`, so a fresh
+   daemon rejects unauthenticated reads and writes (`401`) — configure API
+   keys in `~/.duckbrain/auth.json` and send them with the client. Opening
+   the server without authentication requires the explicit `--auth=none`
+   opt-out, which is intended for local single-user use only and logs an
+   unauthenticated-mode warning at boot. Mint scoped per-namespace tokens
+   with `duckbrain token --namespace=<ns>`. See
    [Authentication Configuration](docs/guide/configuration.md#authentication-configuration)
    for the full setup.
 

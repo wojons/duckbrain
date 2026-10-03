@@ -1,0 +1,419 @@
+commit 48dbac7de9f18944f7b264ca3c720961318b797f
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Sep 30 08:20:56 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Sep 30 08:20:56 2026 -0500
+
+    fix(QA-DUCKBRAIN-005): repair the three suites the clean-machine battery reds
+    
+    Three independent failures at bbee2cc, each reproduced and root-caused
+    before the fix (evidence: bunker battery agent 3bd89267, native.log held at
+    /tmp/qa-duck-harvest/native.log, and the act CI log ci.log in the same
+    harvest).
+    
+    1) src/schema/table-registry.test.ts t4 (REG-GONE-002) — the test induced a
+       failed scan with `chmod 0o000` on the tables dir, but uid 0 bypasses
+       DIRECTORY mode bits: under root (how the act/CI leg runs the suite) the
+       chmod is a silent no-op, the scan SUCCEEDS, and the assertion sees
+       `[{name:'late',...}]` instead of `[]` — the exact battery error
+       ("expected [...] to deeply equal []", ci.log line 201). Reproduced by
+       running the file as root. Fix: induce the failure with readdir's ENOTDIR
+       under root (replace the tables dir with a regular file) and keep chmod
+       0o000 for non-root, so the same "listing failed" condition holds for
+       every uid; the declaration bytes are restored for the healing arm.
+    
+    2) src/duckdb/queries.test.ts hook timeout — the battery's 10 s hook failure
+       is `afterEach` (line 28, closeDuckDB), reported against the file's first
+       test, which took 10037 ms while the remaining ten tests took ~200-330 ms
+       each: a one-time native cost. Root cause: loadVSSExtension uses
+       `db.exec()` with no callback, which node-duckdb dispatches
+       fire-and-forget, so initDuckDB resolves before INSTALL/LOAD vss has run
+       and the first `db.close()` blocks until that in-flight work drains
+       (measured: first close 1253 ms with a cold ~/.duckdb cache, 45 ms warm).
+       vitest.config.ts already grants tests 15 s for exactly this native
+       reality but left hooks at vitest's 10 s default. Fix: hookTimeout 30 s.
+       Verified live: a 12 s hook passes with the repo config and fails with
+       "--hookTimeout=10000".
+    
+    3) src/cli/unix-socket-flag.test.ts — no flag leak exists (the local guard is
+       fine: the daemon prints "HTTP server listening on Unix socket <path>").
+       The battery's exit-1 came from startup bookkeeping: without
+       DUCKBRAIN_DATA_DIR the pidfile is the SHARED
+       `<tmpdir>/duckbrain-http-<socket-basename>.pid`; the test SIGKILLs its
+       child, so the file is never removed, and once one is owned by a different
+       user (root-run instance/container/earlier battery) the daemon dies with
+       "Failed to start HTTP server: EACCES ... pidfile" -> exit 1 before it
+       binds anything. Reproduced exactly by leaving a root-owned
+       /tmp/duckbrain-http-test.sock.pid in place.
+       - test: give every spawned daemon its own DUCKBRAIN_DATA_DIR +
+         DUCKBRAIN_NAMESPACES_PATH (the sibling CLI suites' hermeticity pattern),
+         and replace `expect(code).not.toBe(1)` — true for ANY unrelated startup
+         failure and silent about the flag — with the positive evidence that the
+         HTTP path consumed the flag ("HTTP server started" + "listening on Unix
+         socket <path>"). A new arm pins the product side: with
+         DUCKBRAIN_DATA_DIR pointed at a regular file the pidfile write fails
+         ENOTDIR for every uid (a chmod refusal is bypassed by root) and the
+         daemon must degrade to a warning, not exit 1.
+       - product (src/cli/http.ts): the pidfile write is now best-effort like
+         cleanupStalePidFile — the listener is already bound, and a foreign-owned
+         or unwritable pidfile must never take down a ready server. RED-proof:
+         with the pre-fix http.ts the new arm fails ("Failed to start HTTP
+         server: ENOTDIR ...", no socket banner); the other three arms pass on
+         both trees, so they are not coupled to the product change.
+    
+    Verification: three suites 19/19 green (also green as root for the
+    table-registry file, which is where t4 red); tsc --noEmit rc=0; full suite
+    green; no writes to the repo's duckbrain.config.json (sha256 identical
+    before/after) or namespaces/ (0 non-.git files newer than the run marker;
+    the scheduler auto-commit that appears is the live daemon's 5-minute
+    cadence).
+    
+    Residual (not fixed here, product-side, wider than this row): the pidfile
+    name is derived from the socket BASENAME in a shared directory, so two
+    instances whose sockets share a basename collide on one pidfile, and a
+    foreign-owned leftover now only degrades bookkeeping instead of killing the
+    daemon. Also loadVSSExtension remains fire-and-forget, so initDuckDB
+    resolves before the extension is installed; awaiting it would move the cold
+    cost into init (and change offline behavior), which is out of this row's
+    blast radius.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http.ts                   |  20 ++++-
+ src/cli/unix-socket-flag.test.ts  | 155 +++++++++++++++++++++++++++-----------
+ src/schema/table-registry.test.ts |  36 ++++++++-
+ vitest.config.ts                  |   9 +++
+ 4 files changed, 171 insertions(+), 49 deletions(-)
+
+diff --git a/src/cli/http.ts b/src/cli/http.ts
+index 28c5bd1..ce1651d 100644
+--- a/src/cli/http.ts
++++ b/src/cli/http.ts
+@@ -1021,9 +1021,25 @@ export async function startHttpMode(
+     // Write PID to local file for easy management. If a previous instance
+     // crashed and left a pidfile whose PID is no longer alive, remove it
+     // first so a dead pid never shadows the live server (DOGFOOD-016).
++    //
++    // Best-effort, mirroring cleanupStalePidFile's contract: the pidfile is
++    // bookkeeping for `scoped-stop` / `server_status`, and the TCP listener
++    // is ALREADY bound and serving by this point. A shared temp dir can hold
++    // a pidfile owned by another user (a root-run instance, a container)
++    // whose unlink+rewrite is refused with EACCES, and a read-only data dir
++    // refuses the write outright — neither may take down a ready server, and
++    // neither has anything to do with the flag/port the caller asked for.
+     cleanupStalePidFile(pidFile);
+-    fs.writeFileSync(pidFile, process.pid.toString());
+-    console.error(`[duckbrain] PID written to: ${pidFile}`);
++    try {
++      fs.writeFileSync(pidFile, process.pid.toString());
++      console.error(`[duckbrain] PID written to: ${pidFile}`);
++    } catch (error) {
++      console.error(
++        `[duckbrain] Could not write pidfile ${pidFile}: ${
++          error instanceof Error ? error.message : String(error)
++        } — continuing without it (server is already listening)`,
++      );
++    }
+ 
+     // Start Unix socket listener if requested
+     if (socket) {
+diff --git a/src/cli/unix-socket-flag.test.ts b/src/cli/unix-socket-flag.test.ts
+index 8edd6e4..df08562 100644
+--- a/src/cli/unix-socket-flag.test.ts
++++ b/src/cli/unix-socket-flag.test.ts
+@@ -8,6 +8,16 @@
+  * would be swallowed by that interceptor (Bug: "Socket '/tmp/x.sock' not
+  * found at ~/.duckbrain/sockets/..."). These tests pin the fix: the HTTP
+  * subcommand must receive its own unix-socket flag untouched.
++ *
++ * Hermeticity: every spawned daemon gets its own DUCKBRAIN_DATA_DIR and
++ * DUCKBRAIN_NAMESPACES_PATH (the pattern the sibling CLI suites use —
++ * src/cli/http.test.ts, auth-file.test.ts, token-auth-file-dogfood026.test.ts).
++ * Without DUCKBRAIN_DATA_DIR the pidfile is the SHARED
++ * `<tmpdir>/duckbrain-http-<socket-basename>.pid`, so a leftover owned by
++ * another user (a root-run instance, a container, a previous clean-machine
++ * battery) makes the daemon's pidfile write fail with EACCES. The daemon
++ * treats that as non-fatal (see src/cli/http.ts) and this suite never
++ * depends on it either way.
+  */
+ 
+ import { describe, it, expect } from "vitest";
+@@ -18,16 +28,23 @@ import os from "os";
+ 
+ const cliPath = path.join(process.cwd(), "bin", "duckbrain.js");
+ 
++interface CliRun {
++  code: number | null;
++  stdout: string;
++  stderr: string;
++}
++
+ /**
+  * Run the CLI and capture stdout/stderr until exit or timeout.
+  */
+ function runCli(
+   args: string[],
+-  timeoutMs = 4500,
+-): Promise<{ code: number | null; stdout: string; stderr: string }> {
++  opts: { env?: Record<string, string>; timeoutMs?: number } = {},
++): Promise<CliRun> {
++  const timeoutMs = opts.timeoutMs ?? 4500;
+   return new Promise((resolve) => {
+     const child = spawn(process.execPath, [cliPath, ...args], {
+-      env: { ...process.env, NO_COLOR: "1" },
++      env: { ...process.env, NO_COLOR: "1", ...opts.env },
+       stdio: ["pipe", "pipe", "pipe"],
+     });
+     let stdout = "";
+@@ -45,20 +62,48 @@ function runCli(
+   });
+ }
+ 
++/** A private scratch dir for one spawned daemon (socket + pidfile live here). */
++function scratchDir(): string {
++  return fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-cli-"));
++}
++
++/**
++ * Env that pins every daemon side effect (pidfile, namespace resolution)
++ * inside the test's own scratch dir.
++ */
++function hermeticEnv(dir: string): Record<string, string> {
++  return {
++    DUCKBRAIN_DATA_DIR: dir,
++    DUCKBRAIN_NAMESPACES_PATH: path.join(dir, "namespaces"),
++  };
++}
++
++/** Remove the scratch dir (and any socket the killed daemon left behind). */
++function cleanup(dir: string, sock: string): void {
++  try {
++    if (fs.existsSync(sock)) fs.unlinkSync(sock);
++  } catch {
++    // ignore
++  }
++  try {
++    fs.rmSync(dir, { recursive: true, force: true });
++  } catch {
++    // ignore
++  }
++}
++
+ describe("HTTP unix-socket flag (regression: flag collision)", () => {
+   it("--unix-socket is NOT treated as a remote --socket connection", async () => {
+-    const tmpSock = path.join(
+-      fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-cli-")),
+-      "test.sock",
+-    );
++    const dir = scratchDir();
++    const tmpSock = path.join(dir, "test.sock");
+ 
+     // If the interceptor wrongly ate --unix-socket, the CLI would try to
+     // reach a remote socket named "/tmp/.../test.sock" and fail fast with
+     // "Socket not found" BEFORE starting an HTTP listener. Correct
+     // behavior: the HTTP server starts and binds the socket.
+-    const { code, stderr, stdout } = await runCli(
++    const { stderr, stdout } = await runCli(
+       ["http", `--unix-socket=${tmpSock}`, "--port=0"],
+-      4500,
++      { env: hermeticEnv(dir) },
+     );
+ 
+     const combined = stdout + stderr;
+@@ -67,49 +112,46 @@ describe("HTTP unix-socket flag (regression: flag collision)", () => {
+     expect(combined).not.toContain("Socket not found");
+     expect(combined).not.toContain("Active sockets:");
+ 
+-    // It should have reached HTTP startup (either bound the socket, or
+-    // failed for an unrelated reason like port 0 / already-bound). The key
+-    // assertion: no remote-socket routing happened.
+-    expect(code).not.toBe(1);
+-
+-    // Cleanup: the process may still be running (killed by timeout) —
+-    // remove any socket file it created.
+-    try {
+-      if (fs.existsSync(tmpSock)) fs.unlinkSync(tmpSock);
+-      fs.rmSync(path.dirname(tmpSock), { recursive: true, force: true });
+-    } catch {
+-      // ignore
+-    }
++    // It DID reach HTTP startup and consumed the flag as its own flag: both
++    // banners prove the http subcommand ran, bound TCP, and bound THIS
++    // socket path. This replaces the old `expect(code).not.toBe(1)` proxy,
++    // which was wrong in both directions — ANY unrelated startup failure is
++    // also exit 1 (a foreign-owned pidfile in the shared temp dir was
++    // enough), while saying nothing about the flag reaching the HTTP path.
++    expect(combined).toContain("HTTP server started at http://127.0.0.1:0");
++    expect(combined).toContain(
++      `HTTP server listening on Unix socket ${tmpSock}`,
++    );
++    expect(combined).not.toContain("Failed to start HTTP server");
++
++    cleanup(dir, tmpSock);
+   }, 20000);
+ 
+   it("--unix-socket= with separate value form works", async () => {
+-    const tmpSock = path.join(
+-      fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-cli-")),
+-      "separate.sock",
+-    );
++    const dir = scratchDir();
++    const tmpSock = path.join(dir, "separate.sock");
+ 
+     const { stderr, stdout } = await runCli(
+       ["http", "--unix-socket", tmpSock, "--port=0"],
+-      4500,
++      { env: hermeticEnv(dir) },
+     );
+     const combined = stdout + stderr;
+ 
+     expect(combined).not.toContain("Socket not found");
+     expect(combined).not.toContain("Active sockets:");
++    // The separate-value spelling must reach the HTTP path too.
++    expect(combined).toContain("HTTP server started at http://127.0.0.1:0");
++    expect(combined).toContain(
++      `HTTP server listening on Unix socket ${tmpSock}`,
++    );
++    expect(combined).not.toContain("Failed to start HTTP server");
+ 
+-    try {
+-      if (fs.existsSync(tmpSock)) fs.unlinkSync(tmpSock);
+-      fs.rmSync(path.dirname(tmpSock), { recursive: true, force: true });
+-    } catch {
+-      // ignore
+-    }
++    cleanup(dir, tmpSock);
+   }, 20000);
+ 
+   it("--unix-socket-mode and --unix-socket-group are accepted by the CLI", async () => {
+-    const tmpSock = path.join(
+-      fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-cli-")),
+-      "mode.sock",
+-    );
++    const dir = scratchDir();
++    const tmpSock = path.join(dir, "mode.sock");
+ 
+     const { stderr, stdout } = await runCli(
+       [
+@@ -119,18 +161,43 @@ describe("HTTP unix-socket flag (regression: flag collision)", () => {
+         "--unix-socket-group=nogroup",
+         "--port=0",
+       ],
+-      4500,
++      { env: hermeticEnv(dir) },
+     );
+     const combined = stdout + stderr;
+ 
+     // Must not be routed to remote-socket machinery
+     expect(combined).not.toContain("Active sockets:");
+ 
+-    try {
+-      if (fs.existsSync(tmpSock)) fs.unlinkSync(tmpSock);
+-      fs.rmSync(path.dirname(tmpSock), { recursive: true, force: true });
+-    } catch {
+-      // ignore
+-    }
++    cleanup(dir, tmpSock);
++  }, 20000);
++
++  it("a pidfile that cannot be written does not take down the daemon", async () => {
++    const dir = scratchDir();
++    const tmpSock = path.join(dir, "blocked.sock");
++
++    // The pidfile lives in DUCKBRAIN_DATA_DIR. Point it at a regular FILE so
++    // the pidfile path is `<file>/duckbrain-http-*.pid` and the write fails
++    // with ENOTDIR for every uid (a chmod-based refusal would be silently
++    // bypassed by root, which is how the clean-machine battery runs). A
++    // shared temp dir reaches the same state via a foreign-owned leftover
++    // (EACCES). The TCP listener is already bound when the pidfile is
++    // written, so this must degrade to a warning — never exit 1.
++    const blockedDataDir = path.join(dir, "not-a-directory");
++    fs.writeFileSync(blockedDataDir, "");
++
++    const { stderr, stdout } = await runCli(
++      ["http", `--unix-socket=${tmpSock}`, "--port=0"],
++      { env: { ...hermeticEnv(dir), DUCKBRAIN_DATA_DIR: blockedDataDir } },
++    );
++    const combined = stdout + stderr;
++
++    expect(combined).toContain("Could not write pidfile");
++    expect(combined).toContain("HTTP server started at http://127.0.0.1:0");
++    expect(combined).toContain(
++      `HTTP server listening on Unix socket ${tmpSock}`,
++    );
++    expect(combined).not.toContain("Failed to start HTTP server");
++
++    cleanup(dir, tmpSock);
+   }, 20000);
+ });
+diff --git a/src/schema/table-registry.test.ts b/src/schema/table-registry.test.ts
+index e93b1f9..b9fb859 100644
+--- a/src/schema/table-registry.test.ts
++++ b/src/schema/table-registry.test.ts
+@@ -194,13 +194,43 @@ describe("REG-GONE-002 declared-table registry invalidation", () => {
+       glob: "late/current.jsonl",
+     });
+     const tablesDir = path.join(root, FLAKY_NS, "tables");
+-
+-    fs.chmodSync(tablesDir, 0o000);
++    const declarationFile = path.join(tablesDir, "late.table.json");
++    const declaration = fs.readFileSync(declarationFile, "utf-8");
++
++    // Make the listing itself fail, then restore. chmod 0o000 is the
++    // canonical inducement, but uid 0 bypasses DIRECTORY mode bits (the
++    // clean-machine / CI battery runs this suite as root), where the chmod
++    // is a silent no-op and the scan SUCCEEDS — the assertion below then
++    // sees the healed declaration instead of a failed scan. Root falls back
++    // to replacing the tables DIR with a regular file: readdir on a
++    // non-directory fails with ENOTDIR for every uid, so the inducement is
++    // the same "listing failed" condition under either uid.
++    const scanBlindToModeBits =
++      typeof process.getuid === "function" && process.getuid() === 0;
++    const breakScan = (): void => {
++      if (scanBlindToModeBits) {
++        fs.rmSync(tablesDir, { recursive: true, force: true });
++        fs.writeFileSync(tablesDir, "");
++      } else {
++        fs.chmodSync(tablesDir, 0o000);
++      }
++    };
++    const restoreScan = (): void => {
++      if (scanBlindToModeBits) {
++        fs.rmSync(tablesDir, { force: true });
++        fs.mkdirSync(tablesDir, { recursive: true });
++        fs.writeFileSync(declarationFile, declaration);
++      } else {
++        fs.chmodSync(tablesDir, 0o755);
++      }
++    };
++
++    breakScan();
+     try {
+       // The listing itself fails: nothing may be cached from it.
+       expect(listTables(FLAKY_NS)).toEqual([]);
+     } finally {
+-      fs.chmodSync(tablesDir, 0o755);
++      restoreScan();
+     }
+ 
+     // The retry succeeds — proof the failure was never cached.
+diff --git a/vitest.config.ts b/vitest.config.ts
+index ed6a87d..cefc521 100644
+--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -11,6 +11,15 @@ export default defineConfig({
+     // integration-style unit tests enough wall time under the full suite.
+     maxWorkers: 4,
+     testTimeout: 15_000,
++    // The same native-DuckDB reality applies to the hooks, which do the same
++    // init/close work the tests do. The FIRST connection in a worker process
++    // installs/loads the vss extension (a ~48 MB download on a cold
++    // ~/.duckdb cache) and `db.close()` does not return until that in-flight
++    // extension work drains — measured 1.25 s here with a cold extension
++    // cache (45 ms warm), and >10 s on the loaded clean-machine QA battery,
++    // where the 10 s vitest default reds the first afterEach of
++    // src/duckdb/queries.test.ts. Give hooks the same headroom as tests.
++    hookTimeout: 30_000,
+     root: ".",
+     coverage: {
+       provider: "v8",

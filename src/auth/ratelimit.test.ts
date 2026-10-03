@@ -164,3 +164,125 @@ describe("rateLimitMiddleware", () => {
     expect(status).toHaveBeenCalledWith(429);
   });
 });
+
+describe("rateLimitMiddleware 429 observability", () => {
+  it("should emit a structured WARN log with refusal fields on 429", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const config: RateLimitConfig = { requestsPerMinute: 1 };
+      const middleware = rateLimitMiddleware(config);
+
+      // First (allowed) request must not log
+      middleware(
+        mockReq({ ip: "10.0.1.1" }) as Request,
+        mockRes().res as Response,
+        mockNext(),
+      );
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      // Second (refused) request: 429 + one structured WARN
+      const { res, status, setHeader } = mockRes();
+      middleware(
+        mockReq({ ip: "10.0.1.1" }) as Request,
+        res as Response,
+        mockNext(),
+      );
+
+      expect(status).toHaveBeenCalledWith(429);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      const raw = String(warnSpy.mock.calls[0][0]);
+      const entry = JSON.parse(raw);
+      expect(entry).toMatchObject({
+        level: "warn",
+        event: "rate_limit_refused",
+        ip: "10.0.1.1",
+        limit: 1,
+        remaining: 0,
+      });
+      expect(typeof entry.retryAfter).toBe("number");
+      expect(entry.retryAfter).toBeGreaterThan(0);
+
+      // Logged retryAfter must match the Retry-After header sent to the client
+      const retryHeader = setHeader.mock.calls.find(
+        (call: any[]) => call[0] === "Retry-After",
+      );
+      expect(retryHeader).toBeDefined();
+      expect(entry.retryAfter).toBe(retryHeader![1]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("should log every refused request, not just the first refusal", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const config: RateLimitConfig = { requestsPerMinute: 1 };
+      const middleware = rateLimitMiddleware(config);
+
+      middleware(
+        mockReq({ ip: "10.0.1.2" }) as Request,
+        mockRes().res as Response,
+        mockNext(),
+      );
+
+      for (let i = 0; i < 2; i++) {
+        const { res, status } = mockRes();
+        middleware(
+          mockReq({ ip: "10.0.1.2" }) as Request,
+          res as Response,
+          mockNext(),
+        );
+        expect(status).toHaveBeenCalledWith(429);
+      }
+
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      for (const call of warnSpy.mock.calls) {
+        const entry = JSON.parse(String(call[0]));
+        expect(entry.event).toBe("rate_limit_refused");
+        expect(entry.ip).toBe("10.0.1.2");
+        expect(entry.remaining).toBe(0);
+      }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("should never log credentials, auth headers, or request bodies", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const config: RateLimitConfig = { requestsPerMinute: 1 };
+      const middleware = rateLimitMiddleware(config);
+
+      middleware(
+        mockReq({ ip: "10.0.1.3" }) as Request,
+        mockRes().res as Response,
+        mockNext(),
+      );
+
+      const { res, status } = mockRes();
+      middleware(
+        mockReq({
+          ip: "10.0.1.3",
+          headers: { authorization: "Bearer super-secret-token-abc123" },
+          body: { content: "body-secret-value" },
+        }) as Request,
+        res as Response,
+        mockNext(),
+      );
+
+      // The refusal must actually log (non-vacuous absence assertion)
+      expect(status).toHaveBeenCalledWith(429);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      const raw = String(warnSpy.mock.calls[0][0]);
+      expect(raw).not.toContain("super-secret-token-abc123");
+      expect(raw).not.toContain("Bearer");
+      expect(raw).not.toContain("authorization");
+      expect(raw).not.toContain("body-secret-value");
+      expect(raw).not.toContain("body");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});

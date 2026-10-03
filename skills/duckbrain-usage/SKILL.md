@@ -7,15 +7,16 @@ description: >-
   ranks with a 0.25 score floor, MCP remember needs embedding_text + attributes,
   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
   active namespace — remember/recall echo it now, compaction stats/status
-  still instance-blind, HTTP omitted-?namespace= means the literal 'default'
-  namespace while the CLI defaults to config defaultNamespace, CLI `forget`
+  still instance-blind, namespace resolution is explicit param >
+  DUCKBRAIN_NAMESPACE > config `defaultNamespace` > 'default' on all three
+  write surfaces (HTTP included, since DF-0926-04), CLI `forget`
   hardcodes namespace 'default' so it fails for every other namespace — use
   MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
   ABSENT from the stale origin/main, whose server silently answers ?as_of=
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.11.0
+version: 1.13.0
 category: software-development
 ---
 
@@ -34,6 +35,7 @@ REST API, CLI, Web UI**.
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
 | CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
+| Env override | `DUCKBRAIN_NAMESPACE=<ns>` | the per-agent active namespace; wins over the config's `defaultNamespace`, loses to an explicit param, never persisted (DF-0926-04) |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
 | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
 
@@ -454,11 +456,14 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     "Loading..." skeletons. Do not demo the UI against an auth=apikey
     daemon or a non-default namespace — it will look broken because it is.
     The API underneath those panels works (verified same-run over REST).
-17. **`--auth-file` does NOT enable auth by itself (DF-0924-07):** a daemon
-    started with `--auth-file=<store>` but WITHOUT `--auth=apikey` accepts
-    no-key and wrong-key requests with 200/201. The flag only relocates the
-    store; enforcement requires `--auth=apikey`. Always pass both on scratch
-    daemons that handle anything sensitive.
+17. **`--auth-file` relocates the store AND implies apikey (DF-0924-07, then
+    REVIEW-DUCKBRAIN-006):** a daemon started with `--auth-file=<store>` but
+    WITHOUT `--auth=apikey` enforces apikey anyway (keyless requests 401) and
+    logs an auto-enable banner. Since REVIEW-DUCKBRAIN-006 the CLI default is
+    `apikey` outright: a fresh `duckbrain http` with no `--auth` rejects
+    unauthenticated reads and writes. `--auth=none` is the explicit unsafe
+    opt-out (the daemon warns). Always pass `--auth=apikey` on scratch daemons
+    that handle anything sensitive.
 18. **GET /api/namespaces and /switch see only config namespaceMappings
     (DF-0924-06):** a namespace that exists on disk (created by direct
     writes) is invisible to the list and returns 404 from switch — while
@@ -499,14 +504,20 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     rebuild (rowCount 2) and the commit debounce. Cross-check any
     "not found" against `?q=` (its keyword fallback DID match "hello") or the
     raw JSONL before trusting a negative.
-26. **`DUCKBRAIN_NAMESPACE` and `DUCKBRAIN_DATA_DIR` are INERT (DF-0926-04).**
-    Neither is read by the memory path (`DUCKBRAIN_DATA_DIR` only relocates
-    the PID file). The mcp-client example and six config blocks in
-    docs/guide/ai-configure.md recommend them — every agent so configured
-    silently shares namespace `default`. Per-process namespace comes from
-    `--namespace` (human CLI), the config's `defaultNamespace`, or MCP
-    `switch_namespace {name}` — which PERSISTS into duckbrain.config.json
-    (see pitfall 4). On a shared box, never rely on env for isolation.
+26. **`DUCKBRAIN_NAMESPACE` IS honored (fixed in DF-0926-04); `DUCKBRAIN_DATA_DIR`
+    is still PID-only.** The namespace env var had ZERO readers in `src/` while
+    the mcp-client example and the config blocks in
+    `docs/guide/ai-configure.md` recommended it — every agent so configured
+    silently shared namespace `default`. It is now read by the config layer
+    (`applyEnvOverrides`), so the resolved order is **explicit param
+    (`--namespace=`, `?namespace=`, the `remember` tool's `namespace` arg) >
+    `DUCKBRAIN_NAMESPACE` > config `defaultNamespace` > `default`** on all three
+    write surfaces. It is a RUNTIME override and is never written back into
+    `duckbrain.config.json` (GAP-007 invariant), which makes it the right knob
+    on a shared box: a sibling's `switch_namespace` (which DOES persist into the
+    config, see pitfall 4) cannot move an env-pinned agent. `DUCKBRAIN_DATA_DIR`
+    remains the HTTP PID-file directory only — the memory-store root is
+    `DUCKBRAIN_NAMESPACES_PATH`.
 27. **Default port is 3000 and a failed bind still "succeeds" (DF-0926-01).**
     `duckbrain http` without `--port` binds 3000 — the prod daemon's port on
     this box. When the port is taken the boot log prints
@@ -515,6 +526,23 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     writes its own pid into it, and exits 0 on EADDRINUSE. Always pass an
     explicit scratch `--port`, and check the pidfile after any port-conflict
     boot (prod pid 4066723 had to be restored twice during the 09-26 run).
+
+28. **As-of at prod scale is 7.2s p50 warm (PERF-011).** On the prod daemon
+    (`:3000`, default ns, 245k rows) `GET /api/memories?namespace=default&as_of=…`
+    takes 7.2–8.2s warm vs 177ms on a 2-memory scratch ns. If an as-of call
+    "hangs", it is this, not a dead server — set client timeouts ≥15s and
+    prefer `?contains=` (0.46s) when semantic precision is not needed.
+29. **Namespace auto-create is invisible on writes (DF-1003-03).** POSTing a
+    memory to a namespace that does not exist 201s into `default` (or the
+    configured default); the response body does not name the effective
+    namespace and the only trace is a server-side WARN. ALWAYS
+    `POST /api/namespaces {"name":…}` first (this also git-inits the ns, so
+    as-of works), then write.
+30. **Scripting as-of? Stamp T1 AFTER the write + after the 30s autocommit
+    batch.** The git batching window (`gitBatching.maxSeconds=30`) means a
+    commit for a just-written memory does not exist yet; an as_of at/before
+    your write instant correctly 400s "No commit found at or before".
+    Wait ≥32s after the write before freezing the timestamp you will query.
 
 ## HTTP examples quickstart (the working path, 2026-09-26)
 

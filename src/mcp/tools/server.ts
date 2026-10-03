@@ -395,7 +395,9 @@ const ServerHttpStartInputSchema = z.object({
   authType: z
     .enum(["none", "basic", "apikey"])
     .optional()
-    .describe("Authentication type (default: none)"),
+    .describe(
+      "Authentication type (default: apikey; use none only for explicit local mode)",
+    ),
   rateLimit: z
     .number()
     .optional()

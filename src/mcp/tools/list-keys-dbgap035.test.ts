@@ -88,10 +88,40 @@ describe("DB-GAP-035: probeKeysStore (health)", () => {
     expect(await probeKeysStore(NS_NAME)).toBeNull();
   });
 
-  it("returns a short error string when the namespace is missing", async () => {
-    const err = await probeKeysStore("dbgap035-does-not-exist");
-    expect(typeof err).toBe("string");
-    expect(err!.length).toBeLessThanOrEqual(200);
-    expect(err).toContain("does not exist");
+  // HEALTH-KEYS-UNDEFINED-001: a namespace that does not exist yet is a
+  // fresh install, not a degraded store — the probe must report healthy
+  // (null), never an "Namespace '...' does not exist" error.
+  it("treats a missing namespace as a fresh install — healthy, not degraded", async () => {
+    expect(await probeKeysStore("dbgap035-does-not-exist")).toBeNull();
+  });
+
+  it("resolves the config default instead of interpolating the raw argument", async () => {
+    const saved = process.env.DUCKBRAIN_NAMESPACE;
+    process.env.DUCKBRAIN_NAMESPACE = "dbgap035-fresh-default";
+    try {
+      // The no-arg probe must resolve through the config default (the same
+      // resolution every other keys consumer uses) and a not-yet-created
+      // default namespace is healthy — pre-fix this surfaced
+      // "Namespace 'undefined' does not exist" on fresh installs.
+      expect(await probeKeysStore()).toBeNull();
+    } finally {
+      if (saved === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
+      else process.env.DUCKBRAIN_NAMESPACE = saved;
+    }
+  });
+
+  it("still reports a short error string on a genuine store error", async () => {
+    // Namespace dir exists, but its manifest is corrupt JSON — a real store
+    // error (not a fresh install), which must keep degrading /health.
+    const nsPath = path.join(NS_ROOT, "dbgap035-corrupt-manifest");
+    fs.mkdirSync(nsPath, { recursive: true });
+    fs.writeFileSync(path.join(nsPath, "manifest.json"), "{corrupt", "utf-8");
+    try {
+      const err = await probeKeysStore("dbgap035-corrupt-manifest");
+      expect(typeof err).toBe("string");
+      expect(err!.length).toBeLessThanOrEqual(200);
+    } finally {
+      fs.rmSync(nsPath, { recursive: true, force: true });
+    }
   });
 });

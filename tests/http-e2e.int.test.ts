@@ -17,7 +17,10 @@ let server: ChildProcess;
 
 describe("HTTP Server E2E Integration", () => {
   beforeAll(async () => {
-    server = await startDuckbrainHttp({ port });
+    // REVIEW-DUCKBRAIN-006: the daemon default is now apikey, so this suite —
+    // which exercises the unauthenticated REST/redirect surface — opts out
+    // EXPLICITLY with --auth=none instead of relying on the old default.
+    server = await startDuckbrainHttp({ port, authType: "none" });
     // INT-CI-002: hardened wait (30s + child stderr tail on timeout).
     await waitForUrl(
       `http://127.0.0.1:${port}/health`,
@@ -105,6 +108,8 @@ describe("HTTP Server E2E Integration", () => {
 
   it("should bind to localhost only by default", async () => {
     const localPort = getRandomPort();
+    // Deliberately NO authType: the point here is the default bind address,
+    // and /health is pre-auth on a default (apikey) daemon.
     const localServer = await startDuckbrainHttp({ port: localPort });
     try {
       await waitForUrl(
@@ -165,7 +170,9 @@ describe("GAP-001: reads survive a foreign write-lock on the namespace DuckDB fi
   beforeAll(async () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
-    gapServer = await startDuckbrainHttp({ port: gapPort });
+    // REVIEW-DUCKBRAIN-006: this suite drives the daemon unauthenticated, so
+    // it opts out explicitly (the default is now apikey).
+    gapServer = await startDuckbrainHttp({ port: gapPort, authType: "none" });
     await waitForUrl(
       `http://127.0.0.1:${gapPort}/health`,
       DAEMON_READY_TIMEOUT_MS,
@@ -261,7 +268,8 @@ describe("GAP-002: /api/memories/key/:key over a real daemon", () => {
   beforeAll(async () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
-    gap2Server = await startDuckbrainHttp({ port: gap2Port });
+    // REVIEW-DUCKBRAIN-006: explicit opt-out — unauthenticated requests below.
+    gap2Server = await startDuckbrainHttp({ port: gap2Port, authType: "none" });
     await waitForUrl(
       `http://127.0.0.1:${gap2Port}/health`,
       DAEMON_READY_TIMEOUT_MS,
@@ -328,7 +336,8 @@ describe("GAP-020: POST /api/memories honors body.namespace", () => {
   beforeAll(async () => {
     fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
     process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
-    gap20Server = await startDuckbrainHttp({ port: gap20Port });
+    // REVIEW-DUCKBRAIN-006: explicit opt-out — unauthenticated requests below.
+    gap20Server = await startDuckbrainHttp({ port: gap20Port, authType: "none" });
     await waitForUrl(
       `http://127.0.0.1:${gap20Port}/health`,
       DAEMON_READY_TIMEOUT_MS,

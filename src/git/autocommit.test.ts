@@ -8,8 +8,10 @@ import {
   drainAsyncCommits,
   flushAllCommits,
   flushNamespaceCommit,
+  resolveGitBinary,
   selectPushRemote,
   buildPushCommand,
+  GIT_BINARY_UNRESOLVED,
   type BatchingParams,
 } from "./autocommit";
 
@@ -53,6 +55,20 @@ const params30: BatchingParams = {
   maxSeconds: 30,
   enabled: true,
 };
+
+/** One commit per write — forces the commit path without a debounce window. */
+const noBatching: BatchingParams = {
+  maxLines: 100,
+  maxSeconds: 30,
+  enabled: false,
+};
+
+/** Join every recorded console call of a spy for substring assertions. */
+function outputOf(spy: { mock: { calls: unknown[][] } }): string {
+  return spy.mock.calls
+    .map((call) => call.map((arg) => String(arg)).join(" "))
+    .join("\n");
+}
 
 describe("autocommit batching", () => {
   beforeEach(() => {
@@ -156,6 +172,139 @@ describe("autocommit batching", () => {
       expect(commitCount(ns)).toBe(1);
     } finally {
       fs.rmSync(ns, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("deferred-commit failure classification (AUTOCOMMIT-ENOENT-001)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * The measured defect: a client creates an ephemeral namespace, writes, and
+   * DELETES it inside the batching window (the auger pytest suite does this
+   * ~370x/day). The debounced timer then fired on a directory that no longer
+   * existed and the spawn failed with `spawn git ENOENT` — the same errno Node
+   * reports for a missing BINARY — so the log blamed git. The deferred commit
+   * must now skip, say what actually happened, and never emit the ENOENT
+   * warning.
+   */
+  it("skips a deferred commit whose namespace was removed and says so", async () => {
+    const ns = makeTempNamespace();
+    initGitRepo(ns);
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      writeRecord(ns, "a.jsonl", "one");
+      commitNamespaceWithParams(ns, "chore: test", params30);
+      // Nothing committed yet — window still open…
+      expect(commitCount(ns)).toBe(0);
+      // …and the client removes its namespace before the timer fires.
+      fs.rmSync(ns, { recursive: true, force: true });
+      expect(fs.existsSync(ns)).toBe(false);
+
+      vi.advanceTimersByTime(30_000);
+      await drainAsyncCommits();
+
+      // Asserted on the log TEXT, not merely the absence of a crash: the
+      // distinct, accurate, info-level message naming the namespace.
+      expect(outputOf(info)).toContain(
+        `[Git] Namespace removed before deferred commit; skipping ${ns}`,
+      );
+      // The false-positive warning (and its ENOENT wording) is gone entirely.
+      expect(outputOf(warn)).not.toContain("ENOENT");
+      expect(outputOf(warn)).not.toContain("Auto-commit warning");
+    } finally {
+      info.mockRestore();
+      warn.mockRestore();
+      fs.rmSync(ns, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * The duplicated second site: the synchronous exit-flush path spawns git
+   * through `execSync` with the same cwd, so a window flushed after the
+   * namespace was deleted failed identically. An 'exit' handler must never
+   * throw, and it must report the removed namespace rather than a spawn error.
+   */
+  it("skips the exit-flush commit for a namespace removed inside the window", () => {
+    const ns = makeTempNamespace();
+    initGitRepo(ns);
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      writeRecord(ns, "a.jsonl", "one");
+      commitNamespaceWithParams(ns, "chore: test", params30);
+      fs.rmSync(ns, { recursive: true, force: true });
+
+      expect(() => flushNamespaceCommit(ns)).not.toThrow();
+      expect(outputOf(info)).toContain(
+        `[Git] Namespace removed before exit-flush commit; skipping ${ns}`,
+      );
+      expect(outputOf(warn)).not.toContain("ENOENT");
+      expect(outputOf(warn)).not.toContain("Auto-commit warning");
+    } finally {
+      info.mockRestore();
+      warn.mockRestore();
+      fs.rmSync(ns, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * The case the old warning could not be told apart from the deleted-cwd
+   * race: a LIVE namespace whose git genuinely cannot be spawned. The warning
+   * must name the resolved git binary and the cwd.
+   */
+  it("names the resolved git binary and cwd when a live namespace cannot spawn git", async () => {
+    const ns = makeTempNamespace();
+    initGitRepo(ns);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const originalPath = process.env.PATH;
+    const emptyPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-no-git-"),
+    );
+    try {
+      writeRecord(ns, "a.jsonl", "one");
+      // GENUINE git-unavailable: the namespace directory is still on disk (the
+      // pre-spawn check passes), but nothing named `git` is on PATH.
+      process.env.PATH = emptyPath;
+
+      await commitNamespaceWithParams(ns, "chore: test", noBatching);
+
+      const output = outputOf(warn);
+      expect(output).toContain("[Git] Auto-commit warning");
+      expect(output).toContain(`cwd=${ns}`);
+      expect(output).toContain(`git=${GIT_BINARY_UNRESOLVED}`);
+      // The namespace is untouched and commit-free — nothing was skipped here,
+      // the spawn itself failed.
+      expect(commitCount(ns)).toBe(0);
+    } finally {
+      process.env.PATH = originalPath;
+      warn.mockRestore();
+      fs.rmSync(emptyPath, { recursive: true, force: true });
+      fs.rmSync(ns, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves the git binary from PATH and reports an unresolved PATH", () => {
+    const resolved = resolveGitBinary();
+    expect(resolved).not.toBe(GIT_BINARY_UNRESOLVED);
+    expect(fs.existsSync(resolved)).toBe(true);
+    expect(path.basename(resolved)).toMatch(/^git(\.exe|\.cmd|\.bat)?$/);
+
+    const emptyPath = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-no-git-"),
+    );
+    try {
+      expect(resolveGitBinary({ PATH: emptyPath })).toBe(GIT_BINARY_UNRESOLVED);
+      expect(resolveGitBinary({ PATH: "" })).toBe(GIT_BINARY_UNRESOLVED);
+    } finally {
+      fs.rmSync(emptyPath, { recursive: true, force: true });
     }
   });
 });

@@ -42,7 +42,6 @@ Full positioning — the complete capability matrix, source notes, and as-of wal
 ### Roadmap surface (not available now)
 
 - **Planned:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6).
-- **Planned:** committed, resumable SSE change feed (SUPA-5).
 - **Implemented on branch — release evidence pending:** role grants, pluggable auth backends, and token lifecycle (DB-SUPA-4). Implemented with named tests, but not “available now” until release evidence is verified.
 
 See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-status matrix and the evidence bar behind every label.
@@ -91,7 +90,7 @@ Add `$HOME/.local/bin` to your shell profile so `pnpm` remains on `PATH` in new 
 
 `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
 
-**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`.
+**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`. Memory author attribution also reads `git config user.email` — if it holds a bare-host address with no dot in the domain (e.g. `dogfood@localhost`), that value is skipped and memories are attributed to the built-in default `duckbrain@localhost.localdomain` instead.
 
 ```bash
 # Clone the repository
@@ -101,7 +100,8 @@ cd duckbrain
 # Install dependencies
 pnpm install
 
-# Start the development server
+# Start the development server (API + Web UI; the API runs with an explicit
+# --auth=none because the default is apikey — see "Verify the install" below)
 pnpm run dev
 ```
 
@@ -110,15 +110,17 @@ pnpm run dev
 Paste in order; the last command must print the memory you stored:
 
 ```bash
-# 1. start the HTTP daemon in the background
-pnpm start http --port=3000 &
+# 1. start the HTTP daemon in the background (--auth=none = explicit local-only
+#    unauthenticated mode; dropping the flag requires API keys, see step 5 note)
+pnpm start http --port=3000 --auth=none &
 
 # 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
 curl -s http://127.0.0.1:3000/health
 
-# 3. create a scratch namespace
+# 3. create a scratch namespace (409 "already exists" is fine — keep going)
 curl -s -X POST http://127.0.0.1:3000/api/namespaces \
   -H 'Content-Type: application/json' -d '{"name":"quickstart"}'
+printf 'namespace ready\n'
 
 # 4. write a memory
 curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
@@ -129,7 +131,7 @@ curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
 curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
 ```
 
-Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key. Stop the background daemon with `kill %1` when done.
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. The snippet above starts the daemon with `--auth=none` explicitly because the default is now `apikey` — a fresh daemon with no `--auth` flag requires API-key authentication and rejects unauthenticated writes with 401. For anything but local development, bootstrap a key store (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
 
 ### Running DuckBrain
 
@@ -142,7 +144,10 @@ pnpm start stdio
 **HTTP Server Mode (MCP-over-HTTP + REST API):**
 
 ```bash
-pnpm start http --port=3000
+# API-key auth is ON by default — pass the key store via ~/.duckbrain/auth.json
+# (duckbrain token) and send X-API-Key, or opt out explicitly for local use:
+pnpm start http --port=3000                 # default: --auth=apikey
+pnpm start http --port=3000 --auth=none     # explicit local-only, unauthenticated
 ```
 
 **HTTP Server Mode with Unix socket** (for MCP-over-HTTP over a permissioned filesystem socket):
@@ -205,6 +210,33 @@ duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/eve
 ```
 
 Restart the MCP/HTTP daemon after activating so autocommit picks up `pushOnCommit`. See [docs/s3-native.md](docs/s3-native.md) for the full design.
+
+#### Fresh-machine DR restore (paste-able)
+
+`pull` restores from the bucket, not from local state — on a machine with an empty (or absent) `namespaces/` root, `sync <ns> pull` bootstraps the namespace dir and `sync all pull` enumerates the REMOTE prefix. The exact sequence on a fresh machine:
+
+```bash
+# 0. one-time: repo, deps, config, credentials
+git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install
+#    set the s3 block from the section above in duckbrain.config.json, then:
+export AWS_PROFILE=<your-profile>          # or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+
+# 1. restore ALL namespaces (works into an empty or missing namespaces/ root)
+duckbrain s3 sync all pull
+
+# 2. reinit git tracking — a pull is DATA-ONLY: git history never travels
+#    through S3 objects, so each restored namespace has no .git yet
+for d in namespaces/*/; do (cd "$d" && git init -q \
+  && git config user.email "duckbrain@localhost.localdomain" \
+  && git config user.name "DuckBrain" \
+  && git add -A && git commit -q -m "restore: reinit tracking after S3 pull" || true); done
+
+# 3. start the serving daemon
+pnpm start http --port=3000 &
+curl -s http://127.0.0.1:3000/health
+```
+
+Notes: a restored namespace arrives data-only (JSONL + manifest files; the loop in step 2 recreates its git repo, and the daemon self-heals any namespace still missing a commit). A bootstrap pull never touches `namespaceMappings` — if you want the namespace registered in config, `duckbrain namespace create <ns>` afterward. The pull summary prints per-namespace downloaded counts; if namespaces exist on S3 but ALL fail to restore, `sync all pull` prints a loud warning and exits nonzero — a restore is never a silent zero.
 
 ## Screenshots
 
@@ -284,7 +316,7 @@ The HTTP server (`pnpm start http`, default `http://127.0.0.1:3000`) also serves
 | `GET /api/memories/key/:key` | Latest memory for a key path (`?namespace=`)                                                                                    |
 | `GET /api/memories/:id`      | Single memory by ID (`?namespace=`)                                                                                             |
 
-When the server is started with `--auth=apikey`, clients must send `X-API-Key`; keys are configured in `~/.duckbrain/auth.json`. See [Using API Key Authentication](docs/api/http-api.md#using-api-key-authentication).
+The daemon requires API keys **by default** (`--auth=apikey`), so clients must send the key header; keys are configured in `~/.duckbrain/auth.json`. Only an explicit `--auth=none` (local/test mode) serves these routes unauthenticated. See [Using API Key Authentication](docs/api/http-api.md#using-api-key-authentication).
 
 ```bash
 # Key tree

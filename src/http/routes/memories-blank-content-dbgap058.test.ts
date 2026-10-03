@@ -127,7 +127,7 @@ beforeAll(async () => {
   process.env.DUCKBRAIN_NAMESPACES_PATH = SCRATCH_NS_ROOT;
   process.env.DUCKBRAIN_CONFIG_PATH = SCRATCH_CONFIG_PATH;
 
-  const app = createHttpServer();
+  const app = createHttpServer({ authType: "none" });
   server = createServer(app);
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", () => {

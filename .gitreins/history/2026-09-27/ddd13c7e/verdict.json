@@ -1,0 +1,75 @@
+{
+  "task_id": "AUTH-DEFAULT-001-VERDICT",
+  "task_title": "AUTH-DEFAULT-001 post-hoc judge verdict",
+  "task_criteria": [
+    "The landed AUTH-DEFAULT-001 implementation commit 22e2b7a is evaluated: fresh startup rejects unauthenticated writes, test seams explicit, docs accurate"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "909c9be3a6faf2b1b4812b56083f62a0961f77c4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:41PM INF scanned ~9670672 bytes (9.67 MB) in 1.78s\n4:41PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 323589 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-timerange-retr003.test.ts (9 tests) 491ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-timerange-retr003.test.ts > RETR-003: time-scoped recall \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14814,11 +14814,12 @@\n      \"auger-pytest-a91713dea97f\": \"/home/kara/duckbrain/namespaces/auger-pytest-a91713dea97f\",\n      \"auger-pytest-3ba2a9417b67\": \"/home/kara/duckbrain/namespaces/auger-pytest-3ba2a9417b67\",\n      \"auger-pytest-2e5ada1881dd\": \"/home/kara/duckbrain/namespaces/auger-pytest-2e5ada1881dd\",\n      \"auger-smoke-1335863\": \"/home/kara/duckbrain/namespaces/auger-smoke-1335863\",\n      \"fleet-monitoring\": \"/home/kara/duckbrain/namespaces/fleet-monitoring\",\n-     \"auger-pytest-f0d69a54841d\": \"/home/kara/duckbrain/namespaces/auger-pytest-f0d69a54841d\"\n+     \"auger-pytest-f0d69a54841d\": \"/home/kara/duckbrain/namespaces/auger-pytest-f0d69a54841d\",\n+     \"auger-pytest-13221db4dbcb\": \"/home/kara/duckbrain/namespaces/auger-pytest-13221db4dbcb\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-timerange-retr003.test.ts:131:30\n    129|   afterAll(() => {\n    130|     server.close();\n    131|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    132|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    133|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 178 passed (179)\n      Tests  1427 passed (1427)\n   Start at  16:41:05\n   Duration  67.58s (tests 80%, import 18%, transform 2%)\n\n    Isolate  179 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~4.33s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: AUTH-DEFAULT-001-VERDICT\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-27T21:42:13.787312",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-27T21:42:13.809353+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 30731,
+        "truncated": false,
+        "source": "git show 909c9be3a6fa"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 8449,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "AUTH-DEFAULT-001-VERDICT"
+  }
+}

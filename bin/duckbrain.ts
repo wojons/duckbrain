@@ -23,7 +23,7 @@
  */
 
 import { startStdioMode } from "../src/cli/stdio.js";
-import { startHttpMode } from "../src/cli/http.js";
+import { handleHttpCommand } from "../src/cli/http.js";
 import { runHumanCLI } from "../src/cli/human.js";
 import { runEmbeddingsCLI } from "../src/cli/embeddings.js";
 import { runSearchIndexCLI } from "../src/cli/search-index.js";
@@ -73,7 +73,7 @@ Commands:
 HTTP Options:
   --port=PORT        HTTP server port (default: 3000)
   --bind-all         Bind to all interfaces (0.0.0.0) instead of localhost
-  --auth=TYPE        Authentication type: none, basic, apikey (default: none)
+  --auth=TYPE        Authentication type: none, basic, apikey (default: apikey; use none only for explicit local mode)
   --auth-file=PATH   Read auth users/apiKeys from PATH instead of
                      ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
                      the file must exist — for scratch/test daemons
@@ -246,88 +246,15 @@ async function main() {
         break;
 
       case "http": {
-        // Support both --port=9000 and --port 9000 formats
-        const portIdx = commandArgs.findIndex(
-          (arg) => arg === "--port" || arg.startsWith("--port="),
-        );
-        const bindAllIdx = commandArgs.findIndex((arg) => arg === "--bind-all");
-        const authIdx = commandArgs.findIndex(
-          (arg) => arg === "--auth" || arg.startsWith("--auth="),
-        );
-        const authFileIdx = commandArgs.findIndex(
-          (arg) => arg === "--auth-file" || arg.startsWith("--auth-file="),
-        );
-        const rateLimitIdx = commandArgs.findIndex(
-          (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
-        );
-        const socketIdx = commandArgs.findIndex(
-          (arg) => arg === "--unix-socket" || arg.startsWith("--unix-socket="),
-        );
-        const socketModeIdx = commandArgs.findIndex(
-          (arg) =>
-            arg === "--unix-socket-mode" ||
-            arg.startsWith("--unix-socket-mode="),
-        );
-        const socketGroupIdx = commandArgs.findIndex(
-          (arg) =>
-            arg === "--unix-socket-group" ||
-            arg.startsWith("--unix-socket-group="),
-        );
-
-        const port =
-          portIdx !== -1
-            ? commandArgs[portIdx].includes("=")
-              ? parseInt(commandArgs[portIdx].split("=")[1])
-              : parseInt(commandArgs[portIdx + 1])
-            : 3000;
-        const bindAll = bindAllIdx !== -1;
-        const authType =
-          authIdx !== -1
-            ? ((commandArgs[authIdx].includes("=")
-                ? commandArgs[authIdx].split("=")[1]
-                : commandArgs[authIdx + 1]) as "none" | "basic" | "apikey")
-            : "none";
-        const authFile =
-          authFileIdx !== -1
-            ? commandArgs[authFileIdx].includes("=")
-              ? commandArgs[authFileIdx].split("=")[1]
-              : commandArgs[authFileIdx + 1]
-            : undefined;
-        const rateLimit =
-          rateLimitIdx !== -1
-            ? commandArgs[rateLimitIdx].includes("=")
-              ? parseInt(commandArgs[rateLimitIdx].split("=")[1])
-              : parseInt(commandArgs[rateLimitIdx + 1])
-            : 100;
-        const socket =
-          socketIdx !== -1
-            ? commandArgs[socketIdx].includes("=")
-              ? commandArgs[socketIdx].split("=")[1]
-              : commandArgs[socketIdx + 1]
-            : undefined;
-        const socketMode =
-          socketModeIdx !== -1
-            ? commandArgs[socketModeIdx].includes("=")
-              ? commandArgs[socketModeIdx].split("=")[1]
-              : commandArgs[socketModeIdx + 1]
-            : undefined;
-        const socketGroup =
-          socketGroupIdx !== -1
-            ? commandArgs[socketGroupIdx].includes("=")
-              ? commandArgs[socketGroupIdx].split("=")[1]
-              : commandArgs[socketGroupIdx + 1]
-            : undefined;
-
-        await startHttpMode({
-          port,
-          authType,
-          authFile,
-          rateLimit,
-          bindAll,
-          socket,
-          socketMode,
-          socketGroup,
-        });
+        // HTTP-HELP-001: the http front door (help short-circuit + flag
+        // parsing) lives in src/cli/http.ts now, so vitest can drive it
+        // in-process — this bin entry runs main() at import time and must
+        // never be imported by a test. A bare --help/-h anywhere in the
+        // args prints the options block and exits 0 WITHOUT calling
+        // startHttpMode; every other invocation parses and starts exactly
+        // as before (same flags, same defaults).
+        const { helped } = await handleHttpCommand(commandArgs);
+        if (helped) process.exit(0);
         break;
       }
 

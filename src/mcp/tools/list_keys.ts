@@ -12,7 +12,12 @@ import {
   keysCacheEnabled,
   type KeyListEntry,
 } from "../../keys/keyListCache";
-import { resolveNamespacePath } from "./shared";
+import {
+  resolveNamespacePath,
+  resolveNamespaceName,
+  enforceNamespaceScope,
+  type McpToolContext,
+} from "./shared";
 import path from "path";
 import fs from "fs";
 
@@ -47,8 +52,18 @@ interface ListKeysOutput {
   hasMore: boolean;
   nextOffset: number | null;
   prefixes: Record<string, number>;
+  /** DB-GAP-031 (MCP parity): false when the token has no grant for the
+   *  target namespace. Absent on the legacy payloads. */
+  success?: boolean;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
   error?: string;
 }
+
+/** Injectable context for the list_keys handler — the SUPA-4 principal seam. */
+export interface ListKeysContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name
@@ -164,12 +179,16 @@ async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
   nextOffset: number | null;
   prefixes: Record<string, number>;
 }> {
-  // Resolve namespace path
+  // Resolve namespace path. The NAME is resolved once (config default /
+  // DUCKBRAIN_NAMESPACE) and the resolved name is what every message names —
+  // an absent argument must never be interpolated verbatim into an error
+  // string (HEALTH-KEYS-UNDEFINED-001).
+  const namespaceName = resolveNamespaceName(validated.namespace);
   const namespacePath = resolveNamespacePath(validated.namespace);
 
   // Check if namespace exists
   if (!fs.existsSync(namespacePath)) {
-    throw new Error(`Namespace '${validated.namespace}' does not exist`);
+    throw new Error(`Namespace '${namespaceName}' does not exist`);
   }
 
   // Get manifest to find partition paths
@@ -330,7 +349,10 @@ async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
  * @param input - Tool input parameters
  * @returns Structured key listing with pagination
  */
-export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
+export async function listKeysTool(
+  input: unknown,
+  context: ListKeysContext = {},
+): Promise<ListKeysOutput> {
   console.error("[list_keys] Tool called with input:", JSON.stringify(input));
 
   // Validate input
@@ -349,6 +371,25 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
   const validated = parseResult.data;
   console.error("[list_keys] Validated input:", validated);
 
+  // DB-GAP-031 (MCP parity): grade the token's namespace grant before any
+  // namespace work — the same check the REST routers mount as
+  // `requireNamespaceGrant` middleware, which /mcp has no per-tool route for.
+  // Deliberately OUTSIDE the try below: runKeysQuery's catch would otherwise
+  // flatten the machine-readable refusal into a generic error payload.
+  const scopeViolation = enforceNamespaceScope(
+    context,
+    resolveNamespaceName(validated.namespace),
+  );
+  if (scopeViolation) {
+    return {
+      keys: [],
+      hasMore: false,
+      nextOffset: null,
+      prefixes: {},
+      ...scopeViolation,
+    };
+  }
+
   try {
     return await runKeysQuery(validated);
   } catch (error) {
@@ -366,9 +407,18 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
  * Keys-store health probe for GET /health (DB-GAP-035).
  *
  * Runs the same resilient keys query as list_keys (limit 1) against the
- * active namespace and returns null when the store answers, or a short
- * error string when the probe fails (corrupt store, missing namespace,
- * connection loss — anything that would break the keys read path).
+ * given namespace (or the config default when none is given — the same
+ * resolution every other keys consumer uses; the raw argument is never
+ * interpolated into a message, HEALTH-KEYS-UNDEFINED-001) and returns null
+ * when the store answers, or a short error string when the probe fails.
+ *
+ * Fresh installs are healthy: the config default namespace may not exist
+ * yet (empty namespaces root, nothing ever written), which the probe
+ * reports as null — no keys exist and no consumer has anything to fail
+ * on. Only genuine store errors degrade /health: corrupt JSONL, a corrupt
+ * manifest, connection loss — anything that would break the keys read
+ * path for data that IS there.
+ *
  * Quiet by design: health monitors poll frequently, so the probe does not
  * log (listKeysTool's console.error noise is MCP-call-only).
  */
@@ -376,12 +426,23 @@ export async function probeKeysStore(
   namespace?: string,
 ): Promise<string | null> {
   try {
+    // HEALTH-KEYS-UNDEFINED-001: resolve the config default explicitly (the
+    // same resolution every other keys consumer uses) and pass THAT name on —
+    // the raw (possibly undefined) argument never reaches a query or message.
+    const resolvedNamespace = resolveNamespaceName(namespace);
+    const namespacePath = resolveNamespacePath(resolvedNamespace);
+    const isFreshInstall =
+      !fs.existsSync(namespacePath) ||
+      fs.readdirSync(namespacePath).length === 0;
+    if (isFreshInstall) {
+      return null;
+    }
     await runKeysQuery({
       prefix: "/",
       maxDepth: 1,
       limit: 1,
       offset: 0,
-      namespace,
+      namespace: resolvedNamespace,
     });
     return null;
   } catch (error) {

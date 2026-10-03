@@ -58,8 +58,8 @@ const never = <T>(): Promise<T> => new Promise<T>(() => {});
 const TEST_DEADLINE_MS = 60;
 
 describe("OPS-002: HEALTH_HANDLER_DEADLINE_MS", () => {
-  it("defaults to a bounded 4000ms budget", () => {
-    expect(HEALTH_HANDLER_DEADLINE_MS).toBe(4_000);
+  it("defaults to a bounded 9000ms budget", () => {
+    expect(HEALTH_HANDLER_DEADLINE_MS).toBe(9_000);
   });
 });
 

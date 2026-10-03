@@ -22,6 +22,7 @@ import {
   getObject,
   type RemoteObject,
 } from "./client";
+import type { S3Client } from "@aws-sdk/client-s3";
 import {
   loadManifest,
   saveManifest,
@@ -208,6 +209,31 @@ export function namespacePath(namespacesPath: string, ns: string): string {
   return path.resolve(namespacesPath, ns);
 }
 
+/**
+ * Enumerate the namespaces that exist REMOTELY under the configured prefix.
+ *
+ * Groups object keys by their first path segment after `<prefix>/` — the
+ * namespace name — so a fresh machine can discover what is restorable before
+ * anything exists locally. Used by pull mode (bootstrap pull + `sync all
+ * pull`); push never needs it.
+ */
+export async function listRemoteNamespaces(
+  client: S3Client,
+  cfg: S3Config,
+): Promise<string[]> {
+  const objects = await listRemoteObjects(client, cfg.bucket, `${cfg.prefix}/`);
+  const names = new Set<string>();
+  for (const key of objects.keys()) {
+    const rest = key.slice(cfg.prefix.length + 1); // "<ns>/<relPath>"
+    const slash = rest.indexOf("/");
+    // Only count keys that carry a namespace segment AND a payload below it —
+    // a bare `<prefix>/<ns>` or `<prefix>/<ns>/` (slash at the very end) is
+    // not restorable data.
+    if (slash > 0 && slash < rest.length - 1) names.add(rest.slice(0, slash));
+  }
+  return [...names].sort();
+}
+
 /** Push a single namespace's deltas to S3. */
 export async function pushNamespace(
   cfg: S3Config,
@@ -335,8 +361,18 @@ export async function syncNamespace(
     console.warn("[S3] sync skipped: s3.enabled is false");
     return null;
   }
-  if (!fs.existsSync(namespacePath(namespacesPath, ns))) {
-    throw new Error(`Namespace not found: ${ns}`);
+  const nsDir = namespacePath(namespacesPath, ns);
+  if (!fs.existsSync(nsDir)) {
+    // Pull BOOTSTRAPS a namespace missing locally (fresh-machine DR restore
+    // — DF-0925-07): the remote prefix is the source of truth, so the dir is
+    // created and the pull proceeds. Push keeps the hard throw — there is
+    // nothing local to push. Bootstrap is a DATA restore only: it never
+    // touches the config namespaceMappings registry, and the pulled namespace
+    // arrives without git history (see README "Fresh-machine DR restore").
+    if (direction === "push") {
+      throw new Error(`Namespace not found: ${ns}`);
+    }
+    fs.mkdirSync(nsDir, { recursive: true });
   }
   const lock = acquireLock(namespacesPath);
   if (!lock) {
@@ -358,11 +394,31 @@ export async function syncAllNamespaces(
   direction: "push" | "pull" = "push",
 ): Promise<SyncStats[]> {
   const out: SyncStats[] = [];
-  const entries = fs
-    .readdirSync(namespacesPath, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
-    .map((e) => e.name);
-  for (const ns of entries) {
+  let localEntries: string[] = [];
+  try {
+    localEntries = fs
+      .readdirSync(namespacesPath, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+      .map((e) => e.name);
+  } catch (err) {
+    // A missing namespaces ROOT is the fresh-machine restore case for pull
+    // (syncNamespace bootstraps root + namespace via mkdir -p). Push has
+    // nothing to push without a root — keep that failure loud (rethrow).
+    if (direction === "push") throw err;
+  }
+
+  let nsList = localEntries;
+  if (direction === "pull") {
+    // Pull enumerates the REMOTE prefix (a fresh machine has no local dirs to
+    // iterate — the old local-only walk reported "0 namespaces" while
+    // restoring nothing) and unions with local ones so an `all pull` also
+    // refreshes namespaces that exist on both sides.
+    const client = buildClient(cfg);
+    const remoteNames = await listRemoteNamespaces(client, cfg);
+    nsList = [...new Set([...remoteNames, ...localEntries])].sort();
+  }
+
+  for (const ns of nsList) {
     try {
       const stats = await syncNamespace(cfg, ns, namespacesPath, direction);
       if (stats) out.push(stats);

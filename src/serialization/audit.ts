@@ -97,10 +97,33 @@ async function appendServerDenial(
 }
 
 /**
+ * True when `ns` names an existing namespace directory under `root`.
+ *
+ * Used to decide whether a denial row can be appended to that namespace's
+ * SUPA-2 `_audit` ledger. A name that is not a single in-root directory (and
+ * therefore has no storage) is never given one by an audit append.
+ */
+function namespaceStorageExists(root: string, ns: string): boolean {
+  const candidate = path.resolve(root, ns);
+  if (candidate !== root && !candidate.startsWith(root + path.sep)) {
+    return false;
+  }
+  return fs.existsSync(candidate);
+}
+
+/**
  * Build the non-blocking denial sink installed by the HTTP server. Namespace
  * denials reuse the SUPA-2 writer; pre-namespace denials use the bounded
  * server JSONL file. Errors are logged and swallowed so denial responses can
  * never recurse into auth or wait on audit I/O.
+ *
+ * Card t_369581ef: a denial that NAMES a namespace with no storage yet (an
+ * MCP/REST refusal to create, switch to, or delete a namespace that does not
+ * exist) cannot be appended to that namespace's ledger — the SUPA-2 writer
+ * rejects audit rows for a missing namespace, and creating the directory here
+ * would materialize storage for a caller we just refused. Such a denial is a
+ * pre-namespace denial: it lands in the bounded server-level file, so
+ * "every denial is audited" holds for it too.
  */
 export function createDenialAuditor(
   namespacesPath: string,
@@ -110,7 +133,7 @@ export function createDenialAuditor(
   return (input) => {
     denialAuditTail = denialAuditTail
       .then(async () => {
-        if (input.ns) {
+        if (input.ns && namespaceStorageExists(root, input.ns)) {
           const { getNamespaceWriter } = await import("./namespaceWriter.js");
           await appendAuditRow(
             input.ns,

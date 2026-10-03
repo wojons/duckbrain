@@ -193,7 +193,7 @@ describe("DOGFOOD-011: semantic search relevance threshold + scores", () => {
       cache.set("test/fake", EmbeddingCache.contentHash(text), bowVector(text));
     }
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

@@ -76,7 +76,7 @@ function httpRequest(method: string, path: string): Promise<HttpResponse> {
 
 describe("RETR-006: GET /api/memories?attr.<name>=<value> forwards attribute filters to recall", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

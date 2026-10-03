@@ -432,6 +432,102 @@ describe("SUPA-1 direct mode", () => {
       /DURABILITY_DIRECT_FRAME_ERROR/,
     );
   });
+
+  // QA-DUCKBRAIN-003 AC-1: on a filesystem that rejects O_DIRECT the kernel
+  // honors O_CREAT BEFORE the open fails with EINVAL — the freshly-created
+  // empty target used to be left behind as residue. The open mock below
+  // reproduces exactly that observed create-then-EINVAL shape so the
+  // failure path is exercised on every filesystem.
+  it("leaves no created file behind when the O_DIRECT open fails after O_CREAT", () => {
+    const realOpenSync = fs.openSync.bind(fs);
+    const openSpy = vi.spyOn(fs, "openSync");
+    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
+      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
+        // Kernel semantics: the O_CREAT name is created first, THEN the
+        // O_DIRECT rejection lands. Recreate that residue setup.
+        try {
+          realOpenSync(p, fs.constants.O_WRONLY | fs.constants.O_CREAT, 0o644);
+        } catch {
+          // ignore: the EINVAL throw below is the failure under test
+        }
+        const error: NodeJS.ErrnoException = new Error(
+          "invalid argument, open",
+        );
+        error.code = "EINVAL";
+        throw error;
+      }
+      return realOpenSync(p, flags, mode);
+    }) as any);
+
+    const filePath = path.join(tmpDir, "event", "2026-09", "current.jsonl");
+    const framed = frameJsonlRecord(makeRecord(12));
+
+    let thrown: unknown;
+    try {
+      appendJsonlDirect(filePath, framed);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(isDurabilityError(thrown)).toBe(true);
+    expect((thrown as { code: string }).code).toBe("DURABILITY_UNSUPPORTED");
+    // THE residue assertion: the failed append leaves ZERO files behind.
+    expect(fs.existsSync(filePath)).toBe(false);
+  });
+
+  // QA-DUCKBRAIN-003 AC-2 (negative control): a direct-mode append to a
+  // PRE-EXISTING file that fails must never delete that file. The failure is
+  // forced on the WRITE leg so the residue cleanup path really runs (with
+  // fileExisted=true) and must leave the original bytes untouched.
+  it("never deletes a pre-existing file when the direct append fails", () => {
+    const filePath = path.join(tmpDir, "event", "2026-09", "current.jsonl");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const original =
+      '{"key":"/pre/existing","domain":"event"}\nMORE ORIGINAL DATA\n';
+    fs.writeFileSync(filePath, original, "utf-8");
+
+    const realOpenSync = fs.openSync.bind(fs);
+    const realWriteSync = fs.writeSync.bind(fs);
+    let directFd: number | null = null;
+    const openSpy = vi.spyOn(fs, "openSync");
+    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
+      const fd = realOpenSync(p, flags, mode);
+      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
+        directFd = fd;
+      }
+      return fd;
+    }) as any);
+    const writeSpy = vi.spyOn(fs, "writeSync");
+    writeSpy.mockImplementation(((
+      fd: any,
+      buffer: any,
+      offset?: any,
+      length?: any,
+      position?: any,
+    ) => {
+      if (fd === directFd) {
+        const error: NodeJS.ErrnoException = new Error(
+          "invalid argument, write",
+        );
+        error.code = "EINVAL";
+        throw error;
+      }
+      return realWriteSync(fd, buffer, offset, length, position);
+    }) as any);
+
+    let thrown: unknown;
+    try {
+      appendJsonlDirect(filePath, frameJsonlRecord(makeRecord(13)));
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(isDurabilityError(thrown)).toBe(true);
+    expect((thrown as { code: string }).code).toBe("DURABILITY_UNSUPPORTED");
+    // The pre-existing file survived the failed append byte-for-byte.
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(fs.readFileSync(filePath, "utf-8")).toBe(original);
+  });
 });
 
 describe("SUPA-1 mode resolution and config validation (AC-5)", () => {

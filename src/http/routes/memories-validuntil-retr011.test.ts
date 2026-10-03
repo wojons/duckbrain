@@ -138,7 +138,7 @@ describe("RETR-011: fact versioning — GET /api/memories", () => {
       }),
     );
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {
@@ -228,7 +228,7 @@ describe("RETR-011: fact versioning — POST /api/memories", () => {
       }),
     );
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

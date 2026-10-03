@@ -253,7 +253,7 @@ describe("DB-GAP-031: auth=none keeps the git-config author fallback", () => {
   let nonePort: number;
 
   beforeAll(async () => {
-    const app = createHttpServer(); // default authType none
+    const app = createHttpServer({ authType: "none" }); // default authType none
     noneServer = createServer(app);
     await new Promise<void>((resolve) => {
       noneServer.listen(0, "127.0.0.1", () => {

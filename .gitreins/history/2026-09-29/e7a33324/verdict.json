@@ -1,0 +1,101 @@
+{
+  "task_id": "QA-DUCKBRAIN-004",
+  "task_title": "Fix multi-uid EACCES on shared /tmp/.duckbrain-write test locks",
+  "task_criteria": [
+    "Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "b43aa0c4606d50a1d06aec915cbb34fe87854b6b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:13AM INF scanned ~13945342 bytes (13.95 MB) in 6.82s\n10:13AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 353181 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/cli/http.test.ts (8 tests | 1 failed) 35494ms\n   \u276f DF-0926-01 bind-conflict lifecycle (2)\n     \u00d7 bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent 13363ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/cli/http.test.ts > DF-0926-01 bind-conflict lifecycle > bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent\nError: server did not become healthy on port 33385\n \u276f retry src/cli/http.test.ts:55:16\n     53|     const retry = () => {\n     54|       if (Date.now() - start > timeout) {\n     55|         reject(new Error(`server did not become healthy on port ${port\u2026\n       |                ^\n     56|         return;\n     57|       }\n \u276f ClientRequest.<anonymous> src/cli/http.test.ts:44:11\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 187 passed (188)\n      Tests  1 failed | 1500 passed (1501)\n   Start at  10:13:19\n   Duration  165.06s (tests 74%, import 21%, transform 3%, setup 1%)\n\n    Isolate  188 workers spawned \u00b7 ~293ms startup each (spawn + environment, per file)\n             at least ~13.49s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout: Criterion 0: \"Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout\"\n\nPART A (per-namespace sibling dirs) \u2014 PASS:\n- src/serialization/lock.ts:47-56 adds isSharedTempRoot() (path.resolve(root)===path.resolve(os.tmpdir())) and lockDirFor() which returns path.join(resolve(namespacesPath), `.duckbrain-write-${ns}`) when the root IS the shared tmpdir, else the status-quo `<root>/.duckbrain-write`.\n- namespaceWriteLockPath (lock.ts:58-63) now joins lockDirFor(...) + `${ns}.lock`, so tmpdir-rooted test locks land in `<tmpdir>/.duckbrain-write-<ns>/<ns>.lock` \u2014 a per-namespace SIBLING dir, never `<tmpdir>/.duckbrain-write` (the shared cross-uid root).\n- Regression tests in src/serialization/lock.test.ts:145-268 assert exactly this: lockPath is NOT `<tmpdir>/.duckbrain-write/<ns>.lock`, startsWith `<tmpdir>/.duckbrain-write-<ns>/`, is not inside the ns dir, two tmpdir callers get distinct lock dirs, and non-tmpdir roots keep the status-quo path.\n- Multi-uid simulation test (lock.test.ts:181-217) mocks os.tmpdir to a fake tmpdir whose `.duckbrain-write` is chmod 0555 (EACCES), and asserts acquireNamespaceWriteLock still succeeds, the hostile shared dir is never written (readdirSync === []), and the ns dir is untouched.\n\nPART B (full suite green) \u2014 NOT VERIFIED:\n- `npx vitest run src/serialization/lock.test.ts` => exit_code 0, \"Test Files 1 passed (1) / Tests 10 passed (10)\".\n- Full `npx vitest run` was launched (nohup, /tmp/qa004-full.log) but the machine is heavily loaded with many concurrent vitest runs from other repos; after ~30 min the log was still 0 bytes and the run had not completed. No full-suite result was obtained, so the \"full suite green\" half of the criterion is unproven by command output.\n- Note: /tmp/.duckbrain-write exists (drwxrwxr-x kara kara) with a stale lock from Sep 27, i.e. the shared dir is present in this environment.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout: Criterion 0: \"Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout\"\n\nPART A (per-namespace sibling dirs) \u2014 PASS:\n- src/serialization/lock.ts:47-56 adds isSharedTempRoot() (path.resolve(root)===path.resolve(os.tmpdir())) and lockDirFor() which returns path.join(resolve(namespacesPath), `.duckbrain-write-${ns}`) when the root IS the shared tmpdir, else the status-quo `<root>/.duckbrain-write`.\n- namespaceWriteLockPath (lock.ts:58-63) now joins lockDirFor(...) + `${ns}.lock`, so tmpdir-rooted test locks land in `<tmpdir>/.duckbrain-write-<ns>/<ns>.lock` \u2014 a per-namespace SIBLING dir, never `<tmpdir>/.duckbrain-write` (the shared cross-uid root).\n- Regression tests in src/serialization/lock.test.ts:145-268 assert exactly this: lockPath is NOT `<tmpdir>/.duckbrain-write/<ns>.lock`, startsWith `<tmpdir>/.duckbrain-write-<ns>/`, is not inside the ns dir, two tmpdir callers get distinct lock dirs, and non-tmpdir roots keep the status-quo path.\n- Multi-uid simulation test (lock.test.ts:181-217) mocks os.tmpdir to a fake tmpdir whose `.duckbrain-write` is chmod 0555 (EACCES), and asserts acquireNamespaceWriteLock still succeeds, the hostile shared dir is never written (readdirSync === []), and the ns dir is untouched.\n\nPART B (full suite green) \u2014 NOT VERIFIED:\n- `npx vitest run src/serialization/lock.test.ts` => exit_code 0, \"Test Files 1 passed (1) / Tests 10 passed (10)\".\n- Full `npx vitest run` was launched (nohup, /tmp/qa004-full.log) but the machine is heavily loaded with many concurrent vitest runs from other repos; after ~30 min the log was still 0 bytes and the run had not completed. No full-suite result was obtained, so the \"full suite green\" half of the criterion is unproven by command output.\n- Note: /tmp/.duckbrain-write exists (drwxrwxr-x kara kara) with a stale lock from Sep 27, i.e. the shared dir is present in this environment.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout",
+                "status": "FAIL",
+                "detail": "Criterion 0: \"Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout\"\n\nPART A (per-namespace sibling dirs) \u2014 PASS:\n- src/serialization/lock.ts:47-56 adds isSharedTempRoot() (path.resolve(root)===path.resolve(os.tmpdir())) and lockDirFor() which returns path.join(resolve(namespacesPath), `.duckbrain-write-${ns}`) when the root IS the shared tmpdir, else the status-quo `<root>/.duckbrain-write`.\n- namespaceWriteLockPath (lock.ts:58-63) now joins lockDirFor(...) + `${ns}.lock`, so tmpdir-rooted test locks land in `<tmpdir>/.duckbrain-write-<ns>/<ns>.lock` \u2014 a per-namespace SIBLING dir, never `<tmpdir>/.duckbrain-write` (the shared cross-uid root).\n- Regression tests in src/serialization/lock.test.ts:145-268 assert exactly this: lockPath is NOT `<tmpdir>/.duckbrain-write/<ns>.lock`, startsWith `<tmpdir>/.duckbrain-write-<ns>/`, is not inside the ns dir, two tmpdir callers get distinct lock dirs, and non-tmpdir roots keep the status-quo path.\n- Multi-uid simulation test (lock.test.ts:181-217) mocks os.tmpdir to a fake tmpdir whose `.duckbrain-write` is chmod 0555 (EACCES), and asserts acquireNamespaceWriteLock still succeeds, the hostile shared dir is never written (readdirSync === []), and the ns dir is untouched.\n\nPART B (full suite green) \u2014 NOT VERIFIED:\n- `npx vitest run src/serialization/lock.test.ts` => exit_code 0, \"Test Files 1 passed (1) / Tests 10 passed (10)\".\n- Full `npx vitest run` was launched (nohup, /tmp/qa004-full.log) but the machine is heavily loaded with many concurrent vitest runs from other repos; after ~30 min the log was still 0 bytes and the run had not completed. No full-suite result was obtained, so the \"full suite green\" half of the criterion is unproven by command output.\n- Note: /tmp/.duckbrain-write exists (drwxrwxr-x kara kara) with a stale lock from Sep 27, i.e. the shared dir is present in this environment."
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-004\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout: Criterion 0: \"Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir root; full suite green on multi-uid layout\"\n\nPART A (per-namespace sibling dirs) \u2014 PASS:\n- src/serialization/lock.ts:47-56 adds isSharedTempRoot() (path.resolve(root)===path.resolve(os.tmpdir())) and lockDirFor() which returns path.join(resolve(namespacesPath), `.duckbrain-write-${ns}`) when the root IS the shared tmpdir, else the status-quo `<root>/.duckbrain-write`.\n- namespaceWriteLockPath (lock.ts:58-63) now joins lockDirFor(...) + `${ns}.lock`, so tmpdir-rooted test locks land in `<tmpdir>/.duckbrain-write-<ns>/<ns>.lock` \u2014 a per-namespace SIBLING dir, never `<tmpdir>/.duckbrain-write` (the shared cross-uid root).\n- Regression tests in src/serialization/lock.test.ts:145-268 assert exactly this: lockPath is NOT `<tmpdir>/.duckbrain-write/<ns>.lock`, startsWith `<tmpdir>/.duckbrain-write-<ns>/`, is not inside the ns dir, two tmpdir callers get distinct lock dirs, and non-tmpdir roots keep the status-quo path.\n- Multi-uid simulation test (lock.test.ts:181-217) mocks os.tmpdir to a fake tmpdir whose `.duckbrain-write` is chmod 0555 (EACCES), and asserts acquireNamespaceWriteLock still succeeds, the hostile shared dir is never written (readdirSync === []), and the ns dir is untouched.\n\nPART B (full suite green) \u2014 NOT VERIFIED:\n- `npx vitest run src/serialization/lock.test.ts` => exit_code 0, \"Test Files 1 passed (1) / Tests 10 passed (10)\".\n- Full `npx vitest run` was launched (nohup, /tmp/qa004-full.log) but the machine is heavily loaded with many concurrent vitest runs from other repos; after ~30 min the log was still 0 bytes and the run had not completed. No full-suite result was obtained, so the \"full suite green\" half of the criterion is unproven by command output.\n- Note: /tmp/.duckbrain-write exists (drwxrwxr-x kara kara) with a stale lock from Sep 27, i.e. the shared dir is present in this environment.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T16:46:07.299399",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T16:46:07.360912+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1277,
+        "truncated": false,
+        "source": "git show b43aa0c4606d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1315,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-004"
+  }
+}

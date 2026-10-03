@@ -148,7 +148,7 @@ describe("RETR-004: memory-as-of — GET /api/memories", () => {
     );
     sha2 = commitAll("http second memory", D2);
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {
@@ -211,7 +211,8 @@ describe("RETR-004: memory-as-of — GET /api/memories", () => {
       "GET",
       `/api/memories?as_of=${sha1}&q=first&namespace=default`,
     );
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
     expect(res.body.error).toMatch(/as_of cannot be combined/);
   });
 

@@ -64,8 +64,9 @@ You should see the DuckBrain help output with available commands.
 Or verify the full HTTP path end to end — paste in order; the last command must print the memory you stored:
 
 ```bash
-# 1. start the HTTP daemon in the background
-pnpm start http --port=3000 &
+# 1. start the HTTP daemon in the background (--auth=none = explicit local-only
+#    unauthenticated mode; dropping the flag requires API keys, see the note below)
+pnpm start http --port=3000 --auth=none &
 
 # 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
 curl -s http://127.0.0.1:3000/health
@@ -83,7 +84,7 @@ curl -s -X POST 'http://127.0.0.1:3000/api/memories?namespace=quickstart' \
 curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
 ```
 
-Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key. Stop the background daemon with `kill %1` when done.
+Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon requires API-key authentication by default — `--auth` defaults to `apikey`, so the snippet above opens it explicitly with `--auth=none` and the daemon logs an unauthenticated-mode warning. For anything but local development, bootstrap a key store (`duckbrain token`) and start with `--auth=apikey`, sending `-H 'X-API-Key: <key>'` (or `--auth=basic` with `-u user:pass`). Stop the background daemon with `kill %1` when done.
 
 ## Quick Start
 
@@ -99,7 +100,8 @@ pnpm start stdio
 ### Option B: HTTP Server Mode (For Web UI or Remote Access)
 
 ```bash
-# Start HTTP API server
+# Start HTTP API server — --auth defaults to apikey (a fresh daemon rejects
+# unauthenticated writes); add --auth=none for explicit local-only mode
 pnpm start http --port 3000
 ```
 
@@ -153,15 +155,20 @@ pnpm test:integration    # integration suites — needs sshpass
 Create a `.env` file in your project root:
 
 ```bash
-# Required
+# Required — isolates this agent's memory from every other agent's
 DUCKBRAIN_NAMESPACE=my-project
 
 # Optional
-DUCKBRAIN_DATA_DIR=./memory
+DUCKBRAIN_NAMESPACES_PATH=./namespaces   # where the namespace repos live
 DUCKBRAIN_API_PORT=3000
 DUCKBRAIN_UI_PORT=8989
 DUCKBRAIN_LOG_LEVEL=info
 ```
+
+`DUCKBRAIN_NAMESPACE` is resolved as: explicit parameter (`--namespace=`,
+`?namespace=`, the `remember` tool's `namespace` argument) >
+`DUCKBRAIN_NAMESPACE` > the config file's `defaultNamespace` > `default`. It is
+a runtime override and is never written back into `duckbrain.config.json`.
 
 See [Configuration Reference](configuration) for all options.
 

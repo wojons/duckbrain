@@ -8,9 +8,18 @@
 import { z } from "zod";
 import { DomainEnum } from "../../schema/memory";
 import { getDuckDBConnection, evictConnection } from "../../duckdb/connection";
-import { queryMemories, countMemories } from "../../duckdb/queries";
+import {
+  queryMemories,
+  countMemories,
+  queryMemoriesWithTotal,
+} from "../../duckdb/queries";
 import { getPartitionsForDomain } from "../../storage/manifest";
-import { resolveNamespaceName, resolveNamespacePath } from "./shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  enforceNamespaceScope,
+  type McpToolContext,
+} from "./shared";
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
@@ -197,8 +206,22 @@ interface RecallOutput {
   /** Namespace actually queried — resolved from the arg or the active
    *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
   namespace?: string;
+  /** DB-GAP-031 (MCP parity): false on a namespace-grant refusal. Absent on
+   *  the legacy error payloads, which carried only `error`. */
+  success?: boolean;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
   error?: string;
 }
+
+/**
+ * Injectable context for the recall handler — the SUPA-4 principal seam.
+ * MCP-over-HTTP leaves it empty so the handler reads the authenticated
+ * principal from the DOGFOOD-025 module-scope slot.
+ */
+export interface RecallContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name using config.
@@ -388,9 +411,14 @@ async function runSemanticLeg(opts: {
  * Recall tool handler
  *
  * @param input - Tool input parameters
+ * @param context - Injectable principal seam (SUPA-4); MCP-over-HTTP falls
+ *                  back to the DOGFOOD-025 ALS slot via resolveToolPrincipal
  * @returns Query results with memories and count
  */
-export async function recallTool(input: unknown): Promise<RecallOutput> {
+export async function recallTool(
+  input: unknown,
+  context: RecallContext = {},
+): Promise<RecallOutput> {
   console.error("[recall] Tool called with input:", JSON.stringify(input));
 
   // Validate input
@@ -438,6 +466,24 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
   // was omitted and the active config defaultNamespace was used).
   const resolvedNamespace = resolveNamespaceName(validated.namespace);
   const namespacePath = resolveNamespacePath(resolvedNamespace);
+
+  // DB-GAP-031 (MCP parity): the REST route refuses an ungranted namespace in
+  // `requireNamespaceGrant` middleware (and refuses ?allNamespaces=true for
+  // any scoped token outright). /mcp has no per-tool route, so the handler
+  // grades the token's grant here — before the namespace-exists probe, so a
+  // scoped token cannot even probe foreign namespaces — and returns the
+  // machine-readable `namespace_scope` refusal.
+  const scopeViolation = enforceNamespaceScope(context, resolvedNamespace, {
+    allNamespaces: validated.allNamespaces,
+  });
+  if (scopeViolation) {
+    return {
+      memories: [],
+      count: 0,
+      namespace: resolvedNamespace,
+      ...scopeViolation,
+    };
+  }
 
   // Check if namespace exists (skipped for RETR-007 all-namespaces unions —
   // the union enumerates manifest namespaces itself and never needs the
@@ -599,6 +645,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
               // (historical=true disables the clause).
               historical: validated.historical === true,
               now,
+              // DF-0926-03: stopword-only contains= queries still find
+              // content stored verbatim (contains= is a literal filter,
+              // unlike the hybrid ?q= fusion contract).
+              includeStopwordLiterals: true,
             },
           )
         : await keywordSearch(namespacePath, validated.contains, {
@@ -613,6 +663,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
             // (historical=true disables the clause).
             historical: validated.historical === true,
             now,
+            // DF-0926-03: stopword-only contains= queries still find
+            // content stored verbatim (contains= is a literal filter,
+            // unlike the hybrid ?q= fusion contract).
+            includeStopwordLiterals: true,
           });
       // DB-GAP-046: the page window (offset, limit) is applied to the ranked
       // keyword hits — the fetch above already reached through the page end.
@@ -977,13 +1031,17 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
     // When another process has the DuckDB file open (e.g. MCP daemon),
     // the Node.js binding silently creates a broken Database that fails on
     // first query. Evict the bad entry and retry with a fresh connection.
+    // PERF-003: rows AND total are fused into ONE read_json scan — the old
+    // queryMemories + countMemories pair re-mounted every chunk file twice
+    // per request (two full re-ingests of the namespace per list call).
     let memories: Awaited<ReturnType<typeof queryMemories>>;
     let total: number;
     try {
-      memories = await queryMemories(db, partitionPaths, filters);
-      // GAP-024: true COUNT(*) of all rows matching the active filters,
-      // unlimited by limit/offset.
-      total = await countMemories(db, partitionPaths, filters);
+      ({ memories, total } = await queryMemoriesWithTotal(
+        db,
+        partitionPaths,
+        filters,
+      ));
     } catch (e: any) {
       if (e?.message?.includes("DUCKDB_CONNECTION_LOST")) {
         console.error(
@@ -991,8 +1049,11 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
         );
         evictConnection(namespacePath);
         const db2 = getDuckDBConnection("singleton", namespacePath);
-        memories = await queryMemories(db2, partitionPaths, filters);
-        total = await countMemories(db2, partitionPaths, filters);
+        ({ memories, total } = await queryMemoriesWithTotal(
+          db2,
+          partitionPaths,
+          filters,
+        ));
       } else {
         throw e;
       }

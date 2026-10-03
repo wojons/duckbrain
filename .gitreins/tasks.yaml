@@ -1908,3 +1908,411 @@ tasks:
   status: complete
   created_at: '2026-09-25T23:23:06.413519+00:00'
   completed_at: '2026-09-25T23:30:01.317796+00:00'
+- id: DF-0925-01
+  title: Fix SSE replay ops filter
+  criteria:
+  - Replay with ops=delete returns only delete events and preserves existing live
+    subscription filtering
+  status: complete
+  created_at: '2026-09-26T14:18:35.025085+00:00'
+  completed_at: '2026-09-26T22:37:18.827353+00:00'
+- id: DF-0926-01
+  title: Complete the examples on-ramp + bind-conflict lifecycle fix
+  criteria:
+  - 'AC1: no ''pnpm start --'' invocation anywhere in README.md/docs/examples, and
+    the documented forms run. AC2: ''node examples/http-api/client.js'' executes its
+    full step list against a live scratch daemon and exits 0. AC3: a second duckbrain
+    http on an occupied port exits nonzero, prints no started banner, and leaves the
+    live occupant''s pidfile byte-identical. AC4: the pidfile is written only after
+    a successful bind. Gates: prettier src/+examples/ clean, tsc --noEmit exit 0,
+    vitest run green, AGENTS.md counts synced.'
+  status: complete
+  created_at: '2026-09-27T11:43:10.414575+00:00'
+  completed_at: '2026-09-27T11:43:15.524258+00:00'
+- id: INT-CI-014
+  title: Fix CI integration teardown race in examples on-ramp test
+  criteria:
+  - Reproduce and fix the ENOTEMPTY teardown failure in tests/examples-onramp-df092601.int.test.ts;
+    exact CI integration command passes on pushed successor and run 36317691978 plus
+    successor are recorded
+  status: complete
+  created_at: '2026-09-27T12:26:20.732351+00:00'
+  completed_at: '2026-09-27T13:32:05.181880+00:00'
+- id: DB-GAP-056
+  title: Reject empty memory payloads
+  criteria:
+  - Remember and HTTP memory writes reject empty or {} content before persistence,
+    with regression tests and an observable empty-content health counter; historical
+    cleanup remains explicitly addressed or safely scoped.
+  status: complete
+  created_at: '2026-09-27T18:14:44.411833+00:00'
+  completed_at: '2026-09-27T19:00:17.023670+00:00'
+- id: INT-CI-015
+  title: Sync AGENTS.md test counts
+  criteria:
+  - AGENTS.md must report the live Vitest totals of 179 suites and 1424 tests in both
+    documented count locations, and scripts/sync-agents-md-counts.sh --check /tmp/duckbrain-598-counts.log
+    must pass.
+  status: complete
+  created_at: '2026-09-27T19:28:53.510440+00:00'
+  completed_at: '2026-09-27T19:33:56.984522+00:00'
+- id: AUTH-DEFAULT-001
+  title: Make the HTTP front door authenticated by default (retry)
+  criteria:
+  - Fresh CLI/package startup rejects unauthenticated API writes while explicit test
+    seams and auth opt-out behavior remain covered; regression tests and docs pass
+  status: complete
+  created_at: '2026-09-27T20:17:01.334442+00:00'
+  completed_at: '2026-09-27T20:53:58.502474+00:00'
+- id: AUTH-DEFAULT-001-VERDICT
+  title: AUTH-DEFAULT-001 post-hoc judge verdict
+  criteria:
+  - 'The landed AUTH-DEFAULT-001 implementation commit 22e2b7a is evaluated: fresh
+    startup rejects unauthenticated writes, test seams explicit, docs accurate'
+  status: complete
+  created_at: '2026-09-27T21:01:59.568063+00:00'
+  completed_at: '2026-09-27T21:02:06.025399+00:00'
+- id: RATE-LIMIT-001
+  title: Log HTTP rate-limit refusals
+  criteria:
+  - Every HTTP 429 refusal emits a WARN structured event with IP, configured limit,
+    remaining=0, retryAfter; status/body/headers remain compatible and tests prove
+    sensitive data is absent.
+  status: complete
+  created_at: '2026-09-27T22:05:22.638849+00:00'
+  completed_at: '2026-09-27T22:15:01.320537+00:00'
+- id: INT-CI-016
+  title: Sync AGENTS.md test counts 181/1444->188/1501 (CI GAP-012 red)
+  criteria:
+  - 'AGENTS.md carries (188 suites, 1501 tests) and # 1501 tests, 188 suites; CI count-assert
+    passes on pushed successor'
+  status: complete
+  created_at: '2026-09-29T20:06:08.282769+00:00'
+  completed_at: '2026-09-29T20:06:39.168018+00:00'
+- id: DF-0924-01
+  title: Verify default-branch fresh install
+  criteria:
+  - A clean frozen install of the default branch must link express directly and boot
+    the documented HTTP quickstart without manual package fixes; verify the exact
+    default-branch acceptance criteria.
+  status: complete
+  created_at: '2026-09-28T03:08:09.866623+00:00'
+  completed_at: '2026-09-28T03:10:10.562832+00:00'
+- id: DF-0925-02
+  title: DF-0925-02 verify paired data/audit commit behavior
+  criteria:
+  - The namespace commit path stages accepted data and its audit record together under
+    the write lock; focused regression test passes.
+  status: complete
+  created_at: '2026-09-28T18:15:27.419393+00:00'
+  completed_at: '2026-09-28T18:15:44.124653+00:00'
+- id: DEPS-003
+  title: bump @aws-sdk/client-s3 3.1136.0 -> 3.1137.0
+  criteria:
+  - pnpm-lock.yaml and package-lock.json both contain @aws-sdk/client-s3 3.1137.x;
+    pnpm install --frozen-lockfile exit 0; pnpm build exit 0; tsc --noEmit exit 0;
+    vitest suite green (1430 tests)
+  status: complete
+  created_at: '2026-09-28T21:44:01.678371+00:00'
+  completed_at: '2026-09-28T21:44:38.673441+00:00'
+- id: DF-0926-04
+  title: honor DUCKBRAIN_NAMESPACE env var for runtime namespace isolation
+  criteria:
+  - process.env.DUCKBRAIN_NAMESPACE override in applyEnvOverrides() (src/config/index.ts);
+    HTTP routes (keys.ts, memories.ts) thread resolved namespace through to tool calls;
+    .env.example, docs, examples/mcp-client/README.md updated; 14 new focused tests
+    pass; full suite 1444/1444 green; tsc clean
+  status: complete
+  created_at: '2026-09-28T22:29:43.328212+00:00'
+  completed_at: '2026-09-28T22:30:25.811751+00:00'
+- id: DF-0924-04
+  title: P3 as_of + q= combination returns 500 instead of 400
+  criteria:
+  - HTTP status 400 when as_of combined with q= or contains=
+  status: complete
+  created_at: '2026-09-29T02:19:31.316198+00:00'
+  completed_at: '2026-09-29T02:20:58.451851+00:00'
+- id: DF-0924-03
+  title: Document MCP recall asOf parameter
+  criteria:
+  - docs/api/mcp-tools.md documents asOf parameter with type, description, and usage
+    example
+  status: complete
+  created_at: '2026-09-29T02:41:09.876787+00:00'
+  completed_at: '2026-09-29T02:42:05.174628+00:00'
+- id: DF-0926-03
+  title: Fix ?contains= FTS stopword misses
+  criteria:
+  - contains=<stopword like Hello/from/different> returns rows whose content contains
+    that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon
+    live proof
+  status: complete
+  created_at: '2026-09-29T05:34:29.723545+00:00'
+  completed_at: '2026-09-29T06:25:35.450001+00:00'
+- id: PERF-003
+  title: Fuse recall count leg into page scan (one read_json per request)
+  criteria:
+  - 'recall.ts calls queryMemories + countMemories back-to-back, each mounting ALL
+    chunk files via read_json. Implement a combined query+total API: SELECT *, COUNT(*)
+    OVER () AS __total over the deduped set; recall.ts consumes the combined result
+    and the legacy two-scan path is gone from the hot path. Acceptance: (a) output
+    identical (rows AND __total) before/after incl. empty-page offset case; (b) exactly
+    ONE read_json per list request at SQL layer; (c) GAP-024 total = unlimited deduped
+    match count, not raw scan count; (d) npx vitest run green; (e) AGENTS.md test
+    counts synced to live numbers in the same commit.'
+  status: complete
+  created_at: '2026-09-29T07:37:53.224853+00:00'
+  completed_at: '2026-09-29T08:37:38.925081+00:00'
+- id: DF-0925-07
+  title: DR pull restores a fresh machine from S3
+  criteria:
+  - 'On an empty namespaces root: (a) pull materializes namespaces found under the
+    remote prefix (bootstrap-then-pull); (b) ''s3 sync all pull'' reports restored-vs-skipped
+    loudly and never claims success with 0 restored when the remote prefix is non-empty;
+    (c) README/docs document the exact fresh-machine restore command sequence'
+  status: complete
+  created_at: '2026-09-29T09:06:50.981232+00:00'
+  completed_at: '2026-09-29T11:08:05.578597+00:00'
+- id: README-2
+  title: Remove stale not-available claim for SUPA-5 change feed in README
+  criteria:
+  - README.md no longer lists SUPA-5 SSE change feed under the Roadmap (not available
+    now) section; commit touches only README.md
+  status: complete
+  created_at: '2026-09-29T11:45:00.360541+00:00'
+  completed_at: '2026-09-29T11:46:26.412139+00:00'
+- id: PERF-002
+  title: "PERF-002 \u2014 fuse recall double read_json scan into one query"
+  criteria:
+  - Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes
+    limit=5 warm <3.0s; total/empty-page semantics verified
+  status: complete
+  created_at: '2026-09-29T12:10:53.139058+00:00'
+  completed_at: '2026-09-29T12:13:12.362954+00:00'
+- id: QA-DUCKBRAIN-004
+  title: Fix multi-uid EACCES on shared /tmp/.duckbrain-write test locks
+  criteria:
+  - Test-path lock files land in per-namespace sibling dirs, never the shared tmpdir
+    root; full suite green on multi-uid layout
+  status: complete
+  created_at: '2026-09-29T15:13:03.922327+00:00'
+  completed_at: '2026-09-29T15:13:16.251335+00:00'
+- id: HTTP-HELP-001
+  title: duckbrain http --help prints options, exits 0
+  criteria:
+  - http --help prints the HTTP option list and exits 0 without binding a port
+  status: complete
+  created_at: '2026-09-29T15:13:04.480514+00:00'
+  completed_at: '2026-09-29T15:13:15.786822+00:00'
+- id: NAMESPACE-AUTOCREATE-001
+  title: Loud + opt-out-able namespace auto-create on writes
+  criteria:
+  - Writes to unknown namespaces succeed with namespace_autocreated:true; namespaces.autoCreate=false
+    rejects with a loud error
+  status: complete
+  created_at: '2026-09-29T15:13:05.017665+00:00'
+  completed_at: '2026-09-29T15:13:15.949233+00:00'
+- id: HEALTH-KEYS-UNDEFINED-001
+  title: 'Fix fresh-install /health degraded: keys_error Namespace undefined'
+  criteria:
+  - curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum
+    not degraded due to keys probe); probeKeysStore passes the resolved default namespace
+    name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run
+    green
+  status: complete
+  created_at: '2026-09-29T22:11:09.467312+00:00'
+  completed_at: '2026-09-29T23:49:05.119981+00:00'
+- id: INT-CI-017
+  title: CI red on AGENTS.md count assert after health-fix added 3 tests
+  criteria:
+  - AGENTS.md carries live vitest counts (188 suites, 1504 tests) and scripts/sync-agents-md-counts.sh
+    --check passes against a fresh vitest run
+  status: complete
+  created_at: '2026-09-30T00:37:24.565012+00:00'
+  completed_at: '2026-09-30T00:39:09.164161+00:00'
+- id: SYNC-2026-09-28-001
+  title: Writes return 201 but are not persisted (silent write loss)
+  criteria:
+  - Reproduce write-then-invisible on namespace consensus; pin the durability contract
+    (201 guarantee or correct status); regression test proves a 201 write is re-readable;
+    full suite green
+  status: complete
+  created_at: '2026-09-30T02:10:01.256876+00:00'
+  completed_at: '2026-09-30T02:45:59.651629+00:00'
+- id: DF-0930-01
+  title: Quickstart write fails on bare-host git email
+  criteria:
+  - author fallback yields TLD-valid email; unit tests; full suite green
+  status: complete
+  created_at: '2026-09-30T06:44:49.841042+00:00'
+  completed_at: '2026-09-30T08:42:49.841494+00:00'
+- id: DEPS-004
+  title: patch-level dependency refresh
+  criteria:
+  - package.json/lockfile bumped patch-level, no majors; tsc clean; vitest suite green
+  status: complete
+  created_at: '2026-09-30T09:54:36.610126+00:00'
+  completed_at: '2026-09-30T09:56:54.127411+00:00'
+- id: DF-0930-02
+  title: README quickstart namespace creation
+  criteria:
+  - README verify block creates quickstart namespace before first write; fresh-scratch
+    sequence has no 404
+  status: complete
+  created_at: '2026-09-30T09:54:36.885150+00:00'
+  completed_at: '2026-09-30T10:23:57.480043+00:00'
+- id: REVIEW-DUCKBRAIN-006
+  title: default daemon auth to apikey
+  criteria:
+  - fresh daemon no --auth rejects unauthenticated writes 401; --auth=none explicit
+    works; README+help+code agree; suite green
+  status: complete
+  created_at: '2026-09-30T09:54:37.177308+00:00'
+  completed_at: '2026-09-30T10:28:49.192687+00:00'
+- id: QA-DUCKBRAIN-005
+  title: Fix 3 failing native-suite tests
+  criteria:
+  - All three failing suites green locally; tsc clean; no config mutation; commit
+    pushed
+  status: complete
+  created_at: '2026-09-30T13:10:49.620073+00:00'
+  completed_at: '2026-09-30T13:24:12.228920+00:00'
+- id: QA-DUCKBRAIN-006
+  title: package-lock.json stale after DEPS-004 (docker npm ci dead)
+  criteria:
+  - npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches
+    package.json
+  status: complete
+  created_at: '2026-09-30T13:59:58.506220+00:00'
+  completed_at: '2026-09-30T14:05:11.087703+00:00'
+- id: INT-CI-1
+  title: Sync AGENTS.md test counts to live (191/1524)
+  criteria:
+  - AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest
+    run; CI GAP-012 assert step passes
+  status: complete
+  created_at: '2026-09-30T14:28:55.129189+00:00'
+  completed_at: '2026-09-30T14:29:13.219280+00:00'
+- id: QA-DUCKBRAIN-002
+  title: 'Cross-UID fixed-name pidfile: scratch daemons must never share a pidfile
+    path (EACCES fatal-startup class)'
+  criteria:
+  - '1) A daemon whose DUCKBRAIN_DATA_DIR points at an unwritable/ENOTDIR/foreign-owned
+    location still binds and serves (pidfile write is best-effort, warning printed,
+    exit 0). 2) With DUCKBRAIN_DATA_DIR unset, the default pidfile is per-instance
+    owner-isolated (not a uid-shared fixed /tmp path): prove with a live spawned daemon
+    that the pidfile it writes holds its own pid and unlink is possible, and that
+    a foreign/root-owned file at the legacy /tmp/duckbrain-http-3000.pid path no longer
+    blocks a daemon launched without DUCKBRAIN_DATA_DIR. 3) The integration harness
+    gives EVERY spawned daemon its own DUCKBRAIN_DATA_DIR + DUCKBRAIN_NAMESPACES_PATH
+    (helpers.ts default + global-setup prewarm), and pidfile.ts accepts an explicit
+    override dir so tests can pin it. 4) New regression tests assert applied pidfile
+    location + isolation (two daemons do not collide); no test writes to the prod
+    auth store, prod namespaces, or the live :3000 unit; pre-existing suites pass;
+    pnpm tsc --noEmit clean; the unit + integration suites are green at the worker
+    commit.'
+  status: complete
+  created_at: '2026-09-30T18:51:19.222958+00:00'
+  completed_at: '2026-10-01T02:21:42.511657+00:00'
+- id: AUTOCOMMIT-ENOENT-001
+  title: 'Auto-commit deleted-cwd race: distinct message for removed namespaces'
+  criteria:
+  - Deferred autocommit for a deleted namespace does not emit spawn git ENOENT; emits
+    distinct message; genuine git failures name binary/cwd; existing autocommit tests
+    green
+  status: complete
+  created_at: '2026-10-01T03:09:13.297252+00:00'
+  completed_at: '2026-10-01T04:48:41.122125+00:00'
+- id: S3-GIT-006
+  title: Bound S3 sync request legs + stop fd-9 lock inheritance in unified cron
+  criteria:
+  - A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the
+    unified cron's child processes do not inherit the flock fd (hermetic /proc test)
+  status: complete
+  created_at: '2026-10-01T13:54:50.476235+00:00'
+  completed_at: '2026-10-01T15:26:51.342398+00:00'
+- id: QA-DUCKBRAIN-007
+  title: Declare @smithy/node-http-handler in package.json (fresh-install import failure
+    at HEAD c504336)
+  criteria:
+  - package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing
+    vitest suite green
+  status: complete
+  created_at: '2026-10-01T21:58:19.104086+00:00'
+  completed_at: '2026-10-01T22:35:44.373372+00:00'
+- id: QA-DUCKBRAIN-003
+  title: O_DIRECT append leaves empty current.jsonl residue + DURABILITY_* surfaces
+    as bare 500
+  criteria:
+  - 'All acceptance criteria in the worker brief pass: (1) appendJsonlDirect unlinks
+    a file it created when O_DIRECT is rejected, verified by RED-then-GREEN tests
+    on an O_DIRECT-less fs (TMPDIR=/dev/shm); (2) a pre-existing direct-mode file
+    is never deleted on failure; (3) DURABILITY_* errors reach the HTTP error envelope
+    with their machine-readable code visible; (4) full unit suite + tsc + prettier
+    green; AGENTS.md counts synced'
+  status: complete
+  created_at: '2026-10-02T07:48:17.808448+00:00'
+  completed_at: '2026-10-02T09:49:57.623253+00:00'
+- id: DF-0926-05
+  title: Rewrite examples/custom-storage to the real config schema and flags
+  criteria:
+  - example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts
+    zod schema; zero --verify-config or --config= occurrences; the documented invocation
+    was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f)
+  status: complete
+  created_at: '2026-10-03T02:48:20.922740+00:00'
+  completed_at: '2026-10-03T02:48:28.400620+00:00'
+- id: DF-0924-10
+  title: Remove fictional npm install/upgrade path from agent-facing docs (re-judge
+    after src fix 09b0dff)
+  criteria:
+  - grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/)
+    and historical planning (.planning/) shows zero 'npm install -g duckbrain' or
+    npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md
+    documents the git-clone + pnpm install --frozen-lockfile source path consistent
+    with README.md
+  status: complete
+  created_at: '2026-10-03T02:18:38.984962+00:00'
+  completed_at: '2026-10-03T03:01:32.934574+00:00'
+- id: DF-0926-06
+  title: Fix key-path validation HTTP status
+  criteria:
+  - POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR
+    instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style
+    path'
+  status: complete
+  created_at: '2026-10-03T06:54:15.844534+00:00'
+  completed_at: '2026-10-03T07:04:46.222190+00:00'
+- id: DEPS-005
+  title: Sync 5 outdated Node deps (vitest 5.0.3, coverage-v8 5.0.3, @types/node 26.6.4,
+    s3 SDK 3.1145, MCP SDK 1.31)
+  criteria:
+  - package.json lists vitest@^5.0.3, @vitest/coverage-v8@^5.0.3, @types/node@^26.6.4,
+    @aws-sdk/client-s3@3.1145.0, @modelcontextprotocol/sdk@^1.31.0; pnpm-lock.yaml
+    regenerated clean (no minimumReleaseAge violations); npm ci --dry-run exits 0;
+    tsc --noEmit clean; affected suites pass or failures are classified pre-existing
+    load-timeout (same failures on pre-change tree)
+  status: complete
+  created_at: '2026-10-03T09:12:06.875946+00:00'
+  completed_at: '2026-10-03T09:20:16.816970+00:00'
+- id: DB-GAP-063
+  title: Harden remaining scratch-daemon test rigs against port-race/foreign-daemon
+    identity (rollout of the nsauto001 pattern)
+  criteria:
+  - One shared race-safe scratch-daemon helper (private port window + per-spawn identity
+    probe of a sentinel namespace via GET /api/namespaces + bounded spawn retry +
+    early death rejection + best-effort teardown) is either created and adopted by
+    the remaining CLI-server-spawning test files listed in the row's affected_files_remaining,
+    or each file is hardened the same way; vitest run over the touched suites is green;
+    tsc --noEmit clean
+  status: in_progress
+  created_at: '2026-10-03T12:14:11.325869+00:00'
+- id: BOARD-INTEGRITY-001
+  title: Prevent concurrent JSONL board corruption
+  criteria:
+  - Enhanced board_append.py uses flock() advisory locking + JSON validation; board_validate.py
+    detects corruption; stress test proves 10 concurrent writers x 20 rows = 200/200
+    lines, zero corruption
+  status: complete
+  created_at: '2026-10-03T15:33:34.757228+00:00'
+  completed_at: '2026-10-03T10:49:50.969262'

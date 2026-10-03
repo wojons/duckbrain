@@ -1,0 +1,288 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index cfe6b7b..835a47c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2064,3 +2064,13 @@ tasks:
+   status: complete
+   created_at: '2026-09-29T07:37:53.224853+00:00'
+   completed_at: '2026-09-29T08:37:38.925081+00:00'
++- id: DF-0925-07
++  title: DR pull restores a fresh machine from S3
++  criteria:
++  - 'On an empty namespaces root: (a) pull materializes namespaces found under the
++    remote prefix (bootstrap-then-pull); (b) ''s3 sync all pull'' reports restored-vs-skipped
++    loudly and never claims success with 0 restored when the remote prefix is non-empty;
++    (c) README/docs document the exact fresh-machine restore command sequence'
++  status: complete
++  created_at: '2026-09-29T09:06:50.981232+00:00'
++  completed_at: '2026-09-29T11:08:05.578597+00:00'
+diff --git a/README.md b/README.md
+index 896ef2a..4ee6fd9 100644
+--- a/README.md
++++ b/README.md
+@@ -206,6 +206,33 @@ duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/eve
+ 
+ Restart the MCP/HTTP daemon after activating so autocommit picks up `pushOnCommit`. See [docs/s3-native.md](docs/s3-native.md) for the full design.
+ 
++#### Fresh-machine DR restore (paste-able)
++
++`pull` restores from the bucket, not from local state — on a machine with an empty (or absent) `namespaces/` root, `sync <ns> pull` bootstraps the namespace dir and `sync all pull` enumerates the REMOTE prefix. The exact sequence on a fresh machine:
++
++```bash
++# 0. one-time: repo, deps, config, credentials
++git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install
++#    set the s3 block from the section above in duckbrain.config.json, then:
++export AWS_PROFILE=<your-profile>          # or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
++
++# 1. restore ALL namespaces (works into an empty or missing namespaces/ root)
++duckbrain s3 sync all pull
++
++# 2. reinit git tracking — a pull is DATA-ONLY: git history never travels
++#    through S3 objects, so each restored namespace has no .git yet
++for d in namespaces/*/; do (cd "$d" && git init -q \
++  && git config user.email "duckbrain@localhost.localdomain" \
++  && git config user.name "DuckBrain" \
++  && git add -A && git commit -q -m "restore: reinit tracking after S3 pull" || true); done
++
++# 3. start the serving daemon
++pnpm start http --port=3000 &
++curl -s http://127.0.0.1:3000/health
++```
++
++Notes: a restored namespace arrives data-only (JSONL + manifest files; the loop in step 2 recreates its git repo, and the daemon self-heals any namespace still missing a commit). A bootstrap pull never touches `namespaceMappings` — if you want the namespace registered in config, `duckbrain namespace create <ns>` afterward. The pull summary prints per-namespace downloaded counts; if namespaces exist on S3 but ALL fail to restore, `sync all pull` prints a loud warning and exits nonzero — a restore is never a silent zero.
++
+ ## Screenshots
+ 
+ ### Memory Tree View
+diff --git a/docs/s3-native.md b/docs/s3-native.md
+index b1540e8..34c4df8 100644
+--- a/docs/s3-native.md
++++ b/docs/s3-native.md
+@@ -244,6 +244,40 @@ big-data scans without transferring everything.
+ 5. `duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"` → SQL over S3.
+ 6. Restart the MCP/HTTP daemon so autocommit picks up `pushOnCommit`.
+ 
++## Fresh-machine DR restore
++
++`pull` restores from the bucket, not from local state. On a machine whose
++`namespaces/` root is empty or absent (DF-0925-07):
++
++- `duckbrain s3 sync <ns> pull` BOOTSTRAPS: it creates the missing namespace
++  dir and downloads the namespace's files. (Push on a missing namespace still
++  fails loudly — there is nothing local to push.) Bootstrap is data-only: the
++  `namespaceMappings` config registry is NOT touched (use
++  `duckbrain namespace create <ns>` if you want it registered).
++- `duckbrain s3 sync all pull` enumerates the REMOTE prefix
++  (`listRemoteNamespaces`) and unions it with the local namespace dirs, so a
++  fresh machine restores every namespace that exists on S3. The summary
++  prints per-namespace downloaded counts; if the remote prefix holds
++  namespaces but ALL restores fail, the CLI prints a loud warning and exits
++  nonzero — a restore is never a silent zero.
++
++A restored namespace arrives **data-only**: JSONL + manifest files. Git
++history never travels through S3 objects, so the restored namespace has no
++`.git` until tracking is reinitialized (matches the daemon's own identity,
++src/git/autocommit.ts):
++
++```bash
++for d in namespaces/*/; do (cd "$d" && git init -q \
++  && git config user.email "duckbrain@localhost.localdomain" \
++  && git config user.name "DuckBrain" \
++  && git add -A && git commit -q -m "restore: reinit tracking after S3 pull" || true); done
++```
++
++The empty-commit `|| true` covers namespaces with zero files (an empty repo
++is fine — the daemon's first write path re-runs init/commit itself). The full
++paste-able sequence (clone → pull → git reinit → serve) is in
++[README.md → Fresh-machine DR restore](../README.md#fresh-machine-dr-restore-paste-able).
++
+ ## Pitfalls baked in
+ 
+ - ⛔ httpfs on its OWN connection — the singleton connection strips extensions
+diff --git a/src/s3/cli.ts b/src/s3/cli.ts
+index d4bccaa..1ad291f 100644
+--- a/src/s3/cli.ts
++++ b/src/s3/cli.ts
+@@ -15,7 +15,12 @@ import { getConfig } from "../config";
+ import { safeJsonStringify } from "../utils/serialize";
+ import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
+ import { loadManifest } from "./manifest";
+-import { walkLocal, syncNamespace, syncAllNamespaces } from "./sync";
++import {
++  walkLocal,
++  syncNamespace,
++  syncAllNamespaces,
++  listRemoteNamespaces,
++} from "./sync";
+ import { runS3Query } from "./query";
+ import { listRemoteObjects, buildClient } from "./client";
+ import {
+@@ -82,10 +87,17 @@ export async function s3Status(
+   if (resolved.length === 0) {
+     // no mappings configured — scan the namespaces dir
+     const fs = await import("fs");
+-    const dirs = fs
+-      .readdirSync(nsRoot, { withFileTypes: true })
+-      .filter((e: any) => e.isDirectory() && !e.name.startsWith("."))
+-      .map((e: any) => e.name);
++    let dirs: string[] = [];
++    try {
++      dirs = fs
++        .readdirSync(nsRoot, { withFileTypes: true })
++        .filter((e: any) => e.isDirectory() && !e.name.startsWith("."))
++        .map((e: any) => e.name);
++    } catch {
++      // Absent namespaces root (fresh machine before a restore) — status
++      // still prints the config/endpoint block, just lists no namespaces.
++      dirs = [];
++    }
+     resolved.push(...dirs);
+   }
+ 
+@@ -125,12 +137,38 @@ export async function s3Sync(
+         `[S3] ${direction} ${stats.ns}: uploaded=${stats.uploaded} downloaded=${stats.downloaded} skipped=${stats.skipped} in ${stats.durationMs}ms`,
+       );
+     }
+-  } else {
+-    const all = await syncAllNamespaces(s3, nsRoot, direction);
+-    const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
+-    console.log(
+-      `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
+-    );
++    return;
++  }
++
++  // `all pull` reports restored-vs-skipped and NEVER reports a silent zero:
++  // if the remote prefix holds namespaces but nothing was restored (every
++  // per-namespace sync failed), that is a failed restore — warn loudly and
++  // exit nonzero. (DF-0925-07; the push summary stays as-is.)
++  const all = await syncAllNamespaces(s3, nsRoot, direction);
++  const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
++  console.log(
++    `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
++  );
++  if (direction === "pull") {
++    for (const s of all) {
++      console.log(
++        `[S3] pull ${s.ns}: downloaded=${s.downloaded} skipped=${s.skipped} in ${s.durationMs}ms`,
++      );
++    }
++    let remoteCount = -1;
++    try {
++      remoteCount = (await listRemoteNamespaces(buildClient(s3), s3)).length;
++    } catch (err) {
++      console.warn(
++        `[S3] remote listing for the restore summary failed: ${(err as Error).message}`,
++      );
++    }
++    if (remoteCount > 0 && all.length === 0) {
++      console.error(
++        `[S3] WARNING: ${remoteCount} namespace(s) exist on S3 but ALL failed to restore (0 restored). Your namespaces root was NOT repopulated — check the per-namespace errors above.`,
++      );
++      process.exit(1);
++    }
+   }
+ }
+ 
+diff --git a/src/s3/sync.ts b/src/s3/sync.ts
+index 2d86559..1c07ab9 100644
+--- a/src/s3/sync.ts
++++ b/src/s3/sync.ts
+@@ -22,6 +22,7 @@ import {
+   getObject,
+   type RemoteObject,
+ } from "./client";
++import type { S3Client } from "@aws-sdk/client-s3";
+ import {
+   loadManifest,
+   saveManifest,
+@@ -208,6 +209,31 @@ export function namespacePath(namespacesPath: string, ns: string): string {
+   return path.resolve(namespacesPath, ns);
+ }
+ 
++/**
++ * Enumerate the namespaces that exist REMOTELY under the configured prefix.
++ *
++ * Groups object keys by their first path segment after `<prefix>/` — the
++ * namespace name — so a fresh machine can discover what is restorable before
++ * anything exists locally. Used by pull mode (bootstrap pull + `sync all
++ * pull`); push never needs it.
++ */
++export async function listRemoteNamespaces(
++  client: S3Client,
++  cfg: S3Config,
++): Promise<string[]> {
++  const objects = await listRemoteObjects(client, cfg.bucket, `${cfg.prefix}/`);
++  const names = new Set<string>();
++  for (const key of objects.keys()) {
++    const rest = key.slice(cfg.prefix.length + 1); // "<ns>/<relPath>"
++    const slash = rest.indexOf("/");
++    // Only count keys that carry a namespace segment AND a payload below it —
++    // a bare `<prefix>/<ns>` or `<prefix>/<ns>/` (slash at the very end) is
++    // not restorable data.
++    if (slash > 0 && slash < rest.length - 1) names.add(rest.slice(0, slash));
++  }
++  return [...names].sort();
++}
++
+ /** Push a single namespace's deltas to S3. */
+ export async function pushNamespace(
+   cfg: S3Config,
+@@ -335,8 +361,18 @@ export async function syncNamespace(
+     console.warn("[S3] sync skipped: s3.enabled is false");
+     return null;
+   }
+-  if (!fs.existsSync(namespacePath(namespacesPath, ns))) {
+-    throw new Error(`Namespace not found: ${ns}`);
++  const nsDir = namespacePath(namespacesPath, ns);
++  if (!fs.existsSync(nsDir)) {
++    // Pull BOOTSTRAPS a namespace missing locally (fresh-machine DR restore
++    // — DF-0925-07): the remote prefix is the source of truth, so the dir is
++    // created and the pull proceeds. Push keeps the hard throw — there is
++    // nothing local to push. Bootstrap is a DATA restore only: it never
++    // touches the config namespaceMappings registry, and the pulled namespace
++    // arrives without git history (see README "Fresh-machine DR restore").
++    if (direction === "push") {
++      throw new Error(`Namespace not found: ${ns}`);
++    }
++    fs.mkdirSync(nsDir, { recursive: true });
+   }
+   const lock = acquireLock(namespacesPath);
+   if (!lock) {
+@@ -358,11 +394,31 @@ export async function syncAllNamespaces(
+   direction: "push" | "pull" = "push",
+ ): Promise<SyncStats[]> {
+   const out: SyncStats[] = [];
+-  const entries = fs
+-    .readdirSync(namespacesPath, { withFileTypes: true })
+-    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+-    .map((e) => e.name);
+-  for (const ns of entries) {
++  let localEntries: string[] = [];
++  try {
++    localEntries = fs
++      .readdirSync(namespacesPath, { withFileTypes: true })
++      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
++      .map((e) => e.name);
++  } catch (err) {
++    // A missing namespaces ROOT is the fresh-machine restore case for pull
++    // (syncNamespace bootstraps root + namespace via mkdir -p). Push has
++    // nothing to push without a root — keep that failure loud (rethrow).
++    if (direction === "push") throw err;
++  }
++
++  let nsList = localEntries;
++  if (direction === "pull") {
++    // Pull enumerates the REMOTE prefix (a fresh machine has no local dirs to
++    // iterate — the old local-only walk reported "0 namespaces" while
++    // restoring nothing) and unions with local ones so an `all pull` also
++    // refreshes namespaces that exist on both sides.
++    const client = buildClient(cfg);
++    const remoteNames = await listRemoteNamespaces(client, cfg);
++    nsList = [...new Set([...remoteNames, ...localEntries])].sort();
++  }
++
++  for (const ns of nsList) {
+     try {
+       const stats = await syncNamespace(cfg, ns, namespacesPath, direction);
+       if (stats) out.push(stats);

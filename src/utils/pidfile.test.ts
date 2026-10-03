@@ -12,6 +12,12 @@ import { httpPidFilePath, cleanupStalePidFile } from "./pidfile";
 describe("httpPidFilePath", () => {
   let originalDataDir: string | undefined;
 
+  // QA-DUCKBRAIN-002: the no-override fallback is the per-uid dir
+  // `os.tmpdir()/duckbrain-<uid>`, not the bare shared os.tmpdir().
+  const uid =
+    typeof process.getuid === "function" ? process.getuid() : os.userInfo().uid;
+  const perUidDir = path.join(os.tmpdir(), `duckbrain-${uid}`);
+
   beforeEach(() => {
     originalDataDir = process.env.DUCKBRAIN_DATA_DIR;
     delete process.env.DUCKBRAIN_DATA_DIR;
@@ -27,22 +33,22 @@ describe("httpPidFilePath", () => {
 
   it("uses port 3000 by default", () => {
     const result = httpPidFilePath(3000);
-    expect(result).toBe(path.join(os.tmpdir(), "duckbrain-http-3000.pid"));
+    expect(result).toBe(path.join(perUidDir, "duckbrain-http-3000.pid"));
   });
 
   it("uses the explicit TCP port", () => {
     expect(httpPidFilePath(8080)).toBe(
-      path.join(os.tmpdir(), "duckbrain-http-8080.pid"),
+      path.join(perUidDir, "duckbrain-http-8080.pid"),
     );
   });
 
   it("uses the socket basename when a socket path is provided", () => {
     expect(httpPidFilePath(3000, "/tmp/duckbrain.sock")).toBe(
-      path.join(os.tmpdir(), "duckbrain-http-duckbrain.sock.pid"),
+      path.join(perUidDir, "duckbrain-http-duckbrain.sock.pid"),
     );
   });
 
-  it("prefers DUCKBRAIN_DATA_DIR over os.tmpdir()", () => {
+  it("prefers DUCKBRAIN_DATA_DIR over the per-uid temp dir fallback", () => {
     process.env.DUCKBRAIN_DATA_DIR = "/var/lib/duckbrain";
     expect(httpPidFilePath(3000)).toBe(
       "/var/lib/duckbrain/duckbrain-http-3000.pid",

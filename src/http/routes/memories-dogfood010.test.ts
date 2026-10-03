@@ -252,7 +252,7 @@ describe("DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)", () => 
     process.env.DUCKBRAIN_NAMESPACES_PATH = scratchDir;
     buildPoisonedNamespace(path.join(scratchDir, "repro"));
 
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

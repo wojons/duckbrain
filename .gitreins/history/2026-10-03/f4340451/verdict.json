@@ -1,0 +1,100 @@
+{
+  "task_id": "DF-0924-10",
+  "task_title": "Remove fictional npm install/upgrade path from agent-facing docs",
+  "task_criteria": [
+    "grep across repo (excl .planning) shows zero 'npm install -g duckbrain' or npmjs duckbrain package references; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install source path consistent with README"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "561d684de590d16b5b12204d4a339c6ba271c786",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:08PM INF scanned ~14125087 bytes (14.13 MB) in 1.73s\n9:08PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 395808 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "",
+          "error": "Command timed out",
+          "data": {}
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 grep across repo (excl .planning) shows zero 'npm install -g duckbrain' or npmjs duckbrain package references; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install source path consistent with README: First half FAILS: `git grep -n \"npm install -g duckbrain\" -- . ':!.planning'` returns src/ssh/client.ts:326: `console.error(`  ssh ${host} \"sudo npm install -g duckbrain\"`);` \u2014 a user-facing instruction still printing the fictional npm install path (in installRemote(), alongside the real curl-from-GitHub-releases path). Additional npmjs-duckbrain references remain in .coding-hermes/board/tasks.jsonl:226, .coding-hermes/board/events.jsonl:1319, and .gitreins/history/*/commit.patch. Second half PASSES: .opencode/agents/duckbrain-cli.md lines 15-22 document `git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile` with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (`git clone ... && cd duckbrain && pnpm install`). Because the criterion is conjunctive and the zero-reference requirement is violated, the criterion FAILS.\nThe agent doc was correctly rewritten to the git-clone + pnpm path, but the fictional `npm install -g duckbrain` string still exists in src/ssh/client.ts:326, so the zero-reference requirement is not met.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 grep across repo (excl .planning) shows zero 'npm install -g duckbrain' or npmjs duckbrain package references; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install source path consistent with README: First half FAILS: `git grep -n \"npm install -g duckbrain\" -- . ':!.planning'` returns src/ssh/client.ts:326: `console.error(`  ssh ${host} \"sudo npm install -g duckbrain\"`);` \u2014 a user-facing instruction still printing the fictional npm install path (in installRemote(), alongside the real curl-from-GitHub-releases path). Additional npmjs-duckbrain references remain in .coding-hermes/board/tasks.jsonl:226, .coding-hermes/board/events.jsonl:1319, and .gitreins/history/*/commit.patch. Second half PASSES: .opencode/agents/duckbrain-cli.md lines 15-22 document `git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile` with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (`git clone ... && cd duckbrain && pnpm install`). Because the criterion is conjunctive and the zero-reference requirement is violated, the criterion FAILS.\nThe agent doc was correctly rewritten to the git-clone + pnpm path, but the fictional `npm install -g duckbrain` string still exists in src/ssh/client.ts:326, so the zero-reference requirement is not met.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "grep across repo (excl .planning) shows zero 'npm install -g duckbrain' or npmjs duckbrain package references; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install source path consistent with README",
+                "status": "FAIL",
+                "detail": "First half FAILS: `git grep -n \"npm install -g duckbrain\" -- . ':!.planning'` returns src/ssh/client.ts:326: `console.error(`  ssh ${host} \"sudo npm install -g duckbrain\"`);` \u2014 a user-facing instruction still printing the fictional npm install path (in installRemote(), alongside the real curl-from-GitHub-releases path). Additional npmjs-duckbrain references remain in .coding-hermes/board/tasks.jsonl:226, .coding-hermes/board/events.jsonl:1319, and .gitreins/history/*/commit.patch. Second half PASSES: .opencode/agents/duckbrain-cli.md lines 15-22 document `git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile` with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (`git clone ... && cd duckbrain && pnpm install`). Because the criterion is conjunctive and the zero-reference requirement is violated, the criterion FAILS.",
+                "resolution_probability": 0.26,
+                "cited_path": ".opencode/agents/duckbrain-cli.md"
+              }
+            ],
+            "summary": "The agent doc was correctly rewritten to the git-clone + pnpm path, but the fictional `npm install -g duckbrain` string still exists in src/ssh/client.ts:326, so the zero-reference requirement is not met."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-10\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 grep across repo (excl .planning) shows zero 'npm install -g duckbrain' or npmjs duckbrain package references; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install source path consistent with README: First half FAILS: `git grep -n \"npm install -g duckbrain\" -- . ':!.planning'` returns src/ssh/client.ts:326: `console.error(`  ssh ${host} \"sudo npm install -g duckbrain\"`);` \u2014 a user-facing instruction still printing the fictional npm install path (in installRemote(), alongside the real curl-from-GitHub-releases path). Additional npmjs-duckbrain references remain in .coding-hermes/board/tasks.jsonl:226, .coding-hermes/board/events.jsonl:1319, and .gitreins/history/*/commit.patch. Second half PASSES: .opencode/agents/duckbrain-cli.md lines 15-22 document `git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile` with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (`git clone ... && cd duckbrain && pnpm install`). Because the criterion is conjunctive and the zero-reference requirement is violated, the criterion FAILS.\nThe agent doc was correctly rewritten to the git-clone + pnpm path, but the fictional `npm install -g duckbrain` string still exists in src/ssh/client.ts:326, so the zero-reference requirement is not met.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-03T02:15:33.810938",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-03T02:15:33.840486+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 10910,
+        "truncated": false,
+        "source": "git show 561d684de590"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1186,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-10"
+  }
+}

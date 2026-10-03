@@ -16,8 +16,9 @@
  *      "apikey" and a loud boot banner goes to stderr.
  *   2. An operator-set explicit type (--auth=basic) wins — no auto-flip;
  *      the store still loads and binds.
- *   3. Default (no flag, no env) is byte-for-byte unchanged: no banner, no
- *      type change, keyless requests still pass (prod file best-effort load).
+ *   3. Default (no flag, no env): REVIEW-DUCKBRAIN-006 flipped this from
+ *      "none" to "apikey" — no auto-flip banner (nothing was auto-enabled),
+ *      keyless reads/writes 401, /health stays open.
  *   4. On an auto-enabled daemon: keyless /api/* -> 401, valid key -> 200,
  *      valid-but-ungranted key -> 403, wrong key -> 401, /health stays open.
  *
@@ -31,12 +32,19 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { spawn, ChildProcess } from "child_process";
-import net from "net";
 import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { createHttpServer } from "./http";
+import {
+  findFreePort,
+  waitForHealth,
+  waitForClose,
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+  removeTempDirSafely,
+} from "../testing/race-safe-daemon";
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 const KEY = "sk-df092407-scratch-key";
@@ -45,72 +53,6 @@ const OTHER_NS_KEY = "sk-df092407-scoped-key";
 const BANNER_MARKER = "auto-enabling apikey authentication";
 
 /* ---------------------------------------------------------------- helpers */
-
-function findFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address() as net.AddressInfo;
-      const port = addr.port;
-      server.close(() => resolve(port));
-    });
-    server.on("error", reject);
-  });
-}
-
-function waitForHealth(port: number, timeout = 30000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const attempt = () => {
-      const req = http.get(
-        { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-        (res) => {
-          if (res.statusCode === 200 || res.statusCode === 503) {
-            // GAP-030: 503=degraded but UP
-            res.resume();
-            resolve();
-            return;
-          }
-          res.resume();
-          retry();
-        },
-      );
-      req.on("error", retry);
-      req.on("timeout", () => {
-        req.destroy();
-        retry();
-      });
-    };
-    const retry = () => {
-      if (Date.now() - start > timeout) {
-        reject(new Error(`server did not become healthy on port ${port}`));
-        return;
-      }
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-}
-
-function waitForClose(
-  child: ChildProcess,
-  timeout = 30000,
-): Promise<number | null> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("child process did not exit in time"));
-    }, timeout);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
-  });
-}
 
 interface StatusReply {
   status: number;
@@ -256,6 +198,7 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
   it("flag form: --auth-file without --auth enforces apikey (keyless 401, valid 200, ungranted 403, /health open)", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-df092407-flag-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
     const child = spawnHttpServer(port, dataDir, nsPath, [
@@ -263,7 +206,15 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
     ]);
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: KEY,
+      });
 
       // The defect: keyless requests served full data (GET 200, POST 201).
       const keylessGet = await requestStatus(port, "GET", "/api/memories");
@@ -333,13 +284,14 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
       await killChild(child);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
-  it("env form: DUCKBRAIN_AUTH_FILE alone enforces apikey and prints the boot banner", async () => {
+  it("env form: DUCKBRAIN_AUTH_FILE alone enforces apikey (keyless 401, key 200, no auto-flip banner)", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-df092407-env-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
     const child = spawnHttpServer(port, dataDir, nsPath, [], {
@@ -349,7 +301,15 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
     child.stderr?.on("data", (d) => (stderr += d.toString()));
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: KEY,
+      });
 
       expect((await requestStatus(port, "GET", "/api/memories")).status).toBe(
         401,
@@ -362,19 +322,75 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
         ).status,
       ).toBe(200);
 
-      expect(stderr).toContain(BANNER_MARKER);
-      expect(stderr).toContain(authFile);
+      // REVIEW-DUCKBRAIN-006: the CLI default is apikey, so the auto-flip
+      // banner no longer fires on this shape — there is nothing to
+      // auto-enable (the resolved type was already apikey, not "none"). The
+      // explicit-none arm below keeps the DF-0924-07 banner covered.
+      expect(stderr).not.toContain(BANNER_MARKER);
+      // The default path must not claim the daemon is open either.
+      expect(stderr).not.toContain("UNAUTHENTICATED");
 
       await killChild(child);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
+    }
+  }, 90000);
+
+  it("explicit --auth=none + --auth-file still auto-enables apikey and prints the banner", async () => {
+    const port = await findFreePort();
+    const { dataDir, nsPath } = prepareDataDir("duckbrain-df092407-none-flip-");
+    const sentinel = createSentinelNamespace(nsPath);
+    const authFile = writeScratchAuthFile(dataDir);
+
+    // The DF-0924-07 protection: an operator-set type "none" plus an explicit
+    // store must NOT serve unauthenticated requests. REVIEW-DUCKBRAIN-006
+    // changed the DEFAULT, not this guard.
+    const child = spawnHttpServer(port, dataDir, nsPath, [
+      "--auth=none",
+      `--auth-file=${authFile}`,
+    ]);
+    let stderr = "";
+    child.stderr?.on("data", (d) => (stderr += d.toString()));
+
+    try {
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+        token: KEY,
+      });
+
+      expect((await requestStatus(port, "GET", "/api/memories")).status).toBe(
+        401,
+      );
+      expect(
+        (
+          await requestStatus(port, "GET", "/api/memories", {
+            "X-API-Key": KEY,
+          })
+        ).status,
+      ).toBe(200);
+
+      // Both messages are expected here: the opt-out warning (the operator
+      // asked for none) and the auto-flip banner (the store overrode it).
+      expect(stderr).toContain(BANNER_MARKER);
+      expect(stderr).toContain("UNAUTHENTICATED");
+
+      await killChild(child);
+    } finally {
+      await killChild(child);
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
   it("explicit --auth=basic wins: no auto-flip banner, basic auth enforced, store still loads", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-df092407-basic-");
+    const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
     const child = spawnHttpServer(port, dataDir, nsPath, [
@@ -385,7 +401,14 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
     child.stderr?.on("data", (d) => (stderr += d.toString()));
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+      });
 
       // No auto-enable banner: the operator's explicit type wins.
       expect(stderr).not.toContain(BANNER_MARKER);
@@ -410,30 +433,59 @@ describe("DF-0924-07 scratch daemons: auth-file implies apikey", () => {
       await killChild(child);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 
-  it("default (no flag, no env) unchanged: no banner, keyless requests still pass", async () => {
+  it("default (no flag, no env) is fail-closed apikey: keyless read/write 401, /health open, no banner", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-df092407-default-");
+    const sentinel = createSentinelNamespace(nsPath);
 
     const child = spawnHttpServer(port, dataDir, nsPath, []);
     let stderr = "";
     child.stderr?.on("data", (d) => (stderr += d.toString()));
 
     try {
-      await waitForHealth(port);
+      await waitForHealth(port, 30000, child);
+      await assertDaemonIsOurs({
+        port,
+        child,
+        nsPath,
+        dataDir,
+        sentinel,
+      });
 
+      // REVIEW-DUCKBRAIN-006: the CLI default is apikey, so the production
+      // startup shape (no --auth flag at all) rejects reads AND writes. No
+      // auto-flip banner: nothing was auto-enabled, the default already is
+      // apikey on this path.
       expect(stderr).not.toContain(BANNER_MARKER);
       expect((await requestStatus(port, "GET", "/api/memories")).status).toBe(
-        200,
+        401,
       );
+
+      const keylessWrite = await requestStatus(
+        port,
+        "POST",
+        "/api/memories?namespace=default",
+        {},
+        JSON.stringify({
+          key: "/df092407/default-flip",
+          domain: "raw_note",
+          content: "must not land",
+        }),
+      );
+      expect(keylessWrite.status).toBe(401);
+
+      // /health stays pre-auth: liveness answers on a locked daemon.
+      const healthStatus = (await requestStatus(port, "GET", "/health")).status;
+      expect([200, 503]).toContain(healthStatus);
 
       await killChild(child);
     } finally {
       await killChild(child);
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      await removeTempDirSafely(dataDir);
     }
   }, 90000);
 });
@@ -476,7 +528,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
     return new Promise((resolve) => server.close(() => resolve()));
   }
 
-  it('authType "none" (the CLI default bin always passes) + authFile still enforces apikey', async () => {
+  it('authType "none" (an explicit opt-out) + authFile still enforces apikey', async () => {
     const dir = fs.mkdtempSync(
       path.join(os.tmpdir(), "duckbrain-df092407-unit-"),
     );
@@ -484,8 +536,10 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
     fs.mkdirSync(path.join(nsPath, "default"), { recursive: true });
     const authFile = writeScratchAuthFile(dir);
 
-    // bin/duckbrain.ts resolves --auth with a default of "none" and always
-    // passes authType — this is the exact production option shape.
+    // An explicit --auth=none (the operator opt-out) is still fail-closed
+    // when an auth store is supplied: REVIEW-DUCKBRAIN-006 flipped the CLI
+    // DEFAULT to apikey, but the DF-0924-07 auto-flip must keep protecting
+    // callers that pass type none on purpose. This is that option shape.
     const { server, port } = await startInProcess({
       authType: "none",
       authFile,

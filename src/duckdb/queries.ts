@@ -392,6 +392,40 @@ export const READ_JSON_COLUMNS =
   "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', valid_from:'VARCHAR', valid_until:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
 
 /**
+ * Map one raw DuckDB row (all-VARCHAR READ_JSON_COLUMNS shape) to the
+ * exported MemoryType shape.
+ *
+ * PERF-003: extracted from queryMemories so queryMemoriesWithTotal shapes
+ * its rows with the SAME code path — identical key order, identical
+ * attributes parsing (parseDuckDBStruct), identical BigInt normalization —
+ * which is what makes the fused result byte-identical to the old
+ * two-scan path.
+ */
+function mapMemoryRow(row: any): MemoryType {
+  return deepConvertBigInts({
+    id: row.id,
+    key: row.key,
+    domain: row.domain,
+    timestamp: row.timestamp,
+    // RETR-011: optional validity window — absent on rows written
+    // before the fields existed (NULL → undefined).
+    ...(typeof row.valid_from === "string"
+      ? { valid_from: row.valid_from }
+      : {}),
+    ...(typeof row.valid_until === "string"
+      ? { valid_until: row.valid_until }
+      : {}),
+    author: row.author,
+    action: row.action,
+    embedding_text: row.embedding_text,
+    attributes:
+      typeof row.attributes === "string"
+        ? parseDuckDBStruct(row.attributes)
+        : row.attributes,
+  });
+}
+
+/**
  * Query memories from DuckDB with optional filters
  *
  * @param db - DuckDB database instance
@@ -442,6 +476,12 @@ export function queryMemories(
   // This fixes BUG-027: tombstone filtering was broken because the
   // old flat WHERE clause excluded tombstone records but still returned
   // the original 'add' record with the same ID.
+  //
+  // The "latest" pick orders by try_cast(timestamp AS TIMESTAMP) — NOT the
+  // raw VARCHAR — so mixed timestamp formats (.749Z vs .749525+00:00,
+  // RETR-003) order as instants and the genuinely newest version wins. A
+  // lexicographic VARCHAR sort misorders those (0x5A 'Z' > 0x35 '5'), so
+  // the OLDER .749Z row would be kept and the newer version made invisible.
   const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
 
   // GAP-023: explicit undefined check — a falsy 0 previously produced NO
@@ -465,7 +505,7 @@ export function queryMemories(
   const sql = `
     SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
     FROM (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
@@ -501,31 +541,7 @@ export function queryMemories(
           return;
         }
 
-        resolve(
-          (result as any[]).map((row: any) =>
-            deepConvertBigInts({
-              id: row.id,
-              key: row.key,
-              domain: row.domain,
-              timestamp: row.timestamp,
-              // RETR-011: optional validity window — absent on rows written
-              // before the fields existed (NULL → undefined).
-              ...(typeof row.valid_from === "string"
-                ? { valid_from: row.valid_from }
-                : {}),
-              ...(typeof row.valid_until === "string"
-                ? { valid_until: row.valid_until }
-                : {}),
-              author: row.author,
-              action: row.action,
-              embedding_text: row.embedding_text,
-              attributes:
-                typeof row.attributes === "string"
-                  ? parseDuckDBStruct(row.attributes)
-                  : row.attributes,
-            }),
-          ),
-        );
+        resolve((result as any[]).map(mapMemoryRow));
       });
     } catch (error) {
       console.error("DuckDB query error:", error);
@@ -575,7 +591,7 @@ export function countMemories(
   const sql = `
     SELECT COUNT(*) AS total
     FROM (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY timestamp DESC) as __rn
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
       FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
       ${innerWhereClause}
     ) sub
@@ -608,6 +624,166 @@ export function countMemories(
     } catch (error) {
       console.error("DuckDB count error:", error);
       resolve(0);
+    }
+  });
+}
+
+/** Combined query+total result (PERF-003). */
+export interface QueryMemoriesWithTotalResult {
+  memories: MemoryType[];
+  /**
+   * The true total for the active filters — the DEDUPED, tombstone-filtered
+   * match count, unlimited by limit/offset (GAP-024 semantics — identical to
+   * what countMemories reports).
+   */
+  total: number;
+}
+
+/**
+ * Query memories AND their true total in ONE read_json scan (PERF-003).
+ *
+ * The old list path ran queryMemories + countMemories back-to-back; EACH
+ * mounted every chunk file via DuckDB read_json, so every recall/list
+ * request paid two full re-ingests of the namespace. This fused query
+ * mounts the files once, computes the dedup window ONCE, and derives both
+ * the page and the total from that single materialized set.
+ *
+ * Shape (combined API — NOT a module-level capture var; the probe's capture
+ * var was a thread-safety/abstraction smell, PERF-003 redesign):
+ *
+ *   WITH matches AS MATERIALIZED ( … dedup + tombstone filter, UNLIMITED … )
+ *   , total AS MATERIALIZED ( SELECT COUNT(*) FROM matches )
+ *   , page AS ( SELECT * FROM matches ORDER BY … LIMIT … OFFSET … )
+ *   SELECT … FROM (
+ *     SELECT 'row' AS kind, page.*, 0 AS __total FROM page
+ *     UNION ALL
+ *     SELECT 'total', NULL…, total.__total FROM total
+ *   ) ORDER BY kind DESC
+ *
+ * The count leg reads the MATERIALIZED dedup set — NOT a re-mount of
+ * read_json — so there is exactly ONE read_json per list request, and the
+ * total row is emitted even when LIMIT/OFFSET leaves the page empty
+ * (an offset beyond the end still carries the true total).
+ *
+ * Rows and total are byte-identical to the old two-scan path: same inner
+ * conditions, same dedup window, same ordering, same LIMIT/OFFSET
+ * placement, same row mapper (mapMemoryRow), and the total is a COUNT(*)
+ * over exactly the set countMemories counts.
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters (limit/offset slice the page;
+ *   the total is always the unlimited match count)
+ * @returns { memories, total }
+ */
+export async function queryMemoriesWithTotal(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): Promise<QueryMemoriesWithTotalResult> {
+  const empty: QueryMemoriesWithTotalResult = { memories: [], total: 0 };
+  if (partitionPaths.length === 0) {
+    return empty;
+  }
+
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+  if (jsonlFiles.length === 0) {
+    return empty;
+  }
+
+  const innerConditions = buildWhereConditions(filters);
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+
+  // Same dedup/tombstone semantics as queryMemories/countMemories
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
+
+  // RETR-005 default order; the semantic leg keeps cosine similarity first
+  // (same override queryMemories applies).
+  let orderByClause = DEFAULT_ORDER_BY;
+  if (filters?.query && filters?.embedding) {
+    const embeddingStr = `[${filters.embedding.join(",")}]`;
+    orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC`;
+  }
+
+  // GAP-023: LIMIT 0 must emit "LIMIT 0" (undefined → no clause).
+  const limitClause =
+    filters?.limit !== undefined ? `LIMIT ${filters.limit}` : "";
+
+  // DB-GAP-046: page window emitted only alongside a LIMIT (same rule as
+  // queryMemories — a bare OFFSET would split callers onto a second path).
+  const offsetClause =
+    filters?.limit !== undefined && (filters?.offset ?? 0) > 0
+      ? `OFFSET ${filters.offset}`
+      : "";
+
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  const sql = `
+    WITH matches AS MATERIALIZED (
+      SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
+      FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
+        FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+        ${innerWhereClause}
+      ) sub
+      WHERE ${outerWhereClause}
+    ),
+    total AS MATERIALIZED (
+      SELECT COUNT(*) AS __total FROM matches
+    ),
+    page AS (
+      SELECT * FROM matches
+      ${orderByClause}
+      ${limitClause}
+      ${offsetClause}
+    )
+    SELECT kind, id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, __total
+    FROM (
+      SELECT 'row' AS kind, p.*, 0 AS __total FROM page p
+      UNION ALL
+      SELECT 'total' AS kind, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.__total FROM total t
+    ) fused
+    ORDER BY kind DESC
+  `;
+
+  return new Promise<QueryMemoriesWithTotalResult>((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          console.error("DuckDB query error:", err);
+          // BUG-034: Propagate connection errors so callers can retry
+          // (same contract as queryMemories/countMemories).
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve(empty);
+          return;
+        }
+
+        if (!result || !Array.isArray(result)) {
+          resolve(empty);
+          return;
+        }
+
+        const memories: MemoryType[] = [];
+        let total = 0;
+        for (const row of result as any[]) {
+          if (row?.kind === "total") {
+            // COUNT(*) comes back as BIGINT; Number() normalizes it
+            total = Number(row.__total ?? 0);
+          } else if (row?.kind === "row") {
+            memories.push(mapMemoryRow(row));
+          }
+        }
+        resolve({ memories, total });
+      });
+    } catch (error) {
+      console.error("DuckDB query error:", error);
+      resolve(empty);
     }
   });
 }

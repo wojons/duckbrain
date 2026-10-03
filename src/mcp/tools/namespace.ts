@@ -20,7 +20,13 @@ import { runGitAsync } from "../../git/exec";
 import fs from "fs";
 import path from "path";
 import { deleteNamespace } from "../../namespaces/delete";
+import { logLifecycle } from "../../namespaces/lifecycle";
 import { censusOnDiskNamespaces } from "../../namespaces/census";
+import {
+  enforceNamespaceScope,
+  resolveToolPrincipal,
+  type McpToolContext,
+} from "./shared";
 
 /**
  * Create namespace tool input schema
@@ -45,6 +51,10 @@ interface CreateNamespaceOutput {
   success: boolean;
   path?: string;
   error?: string;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
 }
 
 /**
@@ -92,6 +102,10 @@ interface SwitchNamespaceOutput {
   previous?: string;
   current?: string;
   error?: string;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
 }
 
 /**
@@ -102,6 +116,13 @@ const DeleteNamespaceInputSchema = z.object({
   name: z.string().describe("Namespace name to delete"),
   /** Confirmation flag (required) */
   confirm: z.boolean().describe("Must be true to confirm deletion"),
+  /** Who asked (actor id, session, ticket) — recorded in the audit log. */
+  requestedBy: z
+    .string()
+    .optional()
+    .describe("Who requested the deletion (actor id, session, ticket)"),
+  /** Why — recorded in the audit log. */
+  reason: z.string().optional().describe("Why the namespace is being deleted"),
 });
 
 type DeleteNamespaceInput = z.infer<typeof DeleteNamespaceInputSchema>;
@@ -114,20 +135,34 @@ interface DeleteNamespaceOutput {
   /** Absolute path of the directory that was removed (only on success) */
   path?: string;
   error?: string;
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
 }
 
 /**
  * Create a new namespace
  *
  * @param input - Namespace creation parameters
+ * @param context - Injectable principal/audit seams (SUPA-4)
  * @returns Creation result with path
  */
 export async function createNamespaceTool(
   input: CreateNamespaceInput,
+  context: McpToolContext = {},
 ): Promise<CreateNamespaceOutput> {
   try {
     // Validate input
     CreateNamespaceInputSchema.parse(input);
+
+    // card t_369581ef (DB-GAP-031 MCP parity): creating a namespace requires
+    // a grant for THAT namespace, exactly like POST /api/namespaces
+    // (`requireNamespaceGrant`). /mcp has no per-tool route to mount that
+    // middleware on, so the handler grades the token's grant here — before any
+    // directory or config write — and audits the refusal (SUPA-4).
+    const scopeViolation = enforceNamespaceScope(context, input.name);
+    if (scopeViolation) return scopeViolation;
 
     // GAP-062: the namespace root comes from the config file's own directory,
     // never the caller's cwd — a create from an unrelated checkout must not
@@ -219,10 +254,12 @@ export async function createNamespaceTool(
  * List all namespaces
  *
  * @param input - Empty input
+ * @param context - Injectable principal/audit seams (SUPA-4)
  * @returns List of namespaces with metadata
  */
 export async function listNamespacesTool(
   input: ListNamespacesInput,
+  context: McpToolContext = {},
 ): Promise<ListNamespacesOutput> {
   try {
     // Validate input (empty schema)
@@ -288,10 +325,27 @@ export async function listNamespacesTool(
       }
     }
 
+    // card t_369581ef (DB-GAP-031 MCP parity): the listing itself must respect
+    // the token's grant. A scoped token that can neither read nor write a
+    // namespace must not learn its name (nor be told it is the active default)
+    // through an enumeration — the count and the rows are filtered to the
+    // grant. Unrestricted tokens (`namespaces` absent) and auth=none keep the
+    // full listing unchanged.
+    const grant = resolveToolPrincipal(context)?.namespaces;
+    const visibleNamespaces = grant
+      ? namespaceList.filter((ns) => grant.includes(ns.name))
+      : namespaceList;
+    const visibleCurrentNamespace =
+      grant &&
+      currentNamespace !== undefined &&
+      !grant.includes(currentNamespace)
+        ? undefined
+        : currentNamespace;
+
     return {
       success: true,
-      namespaces: namespaceList,
-      currentNamespace,
+      namespaces: visibleNamespaces,
+      currentNamespace: visibleCurrentNamespace,
     };
   } catch (error) {
     return {
@@ -306,14 +360,24 @@ export async function listNamespacesTool(
  * Switch to a different namespace
  *
  * @param input - Namespace name to switch to
+ * @param context - Injectable principal/audit seams (SUPA-4)
  * @returns Switch result with previous/current namespace
  */
 export async function switchNamespaceTool(
   input: SwitchNamespaceInput,
+  context: McpToolContext = {},
 ): Promise<SwitchNamespaceOutput> {
   try {
     // Validate input
     SwitchNamespaceInputSchema.parse(input);
+
+    // card t_369581ef (DB-GAP-031 MCP parity): switching persists the ACTIVE
+    // namespace into duckbrain.config.json, which every subsequent
+    // namespace-less call inherits. A scoped token must therefore not be able
+    // to point the instance at a namespace it has no grant for — refused and
+    // audited before the config is touched (SUPA-4).
+    const scopeViolation = enforceNamespaceScope(context, input.name);
+    if (scopeViolation) return scopeViolation;
 
     const config = getConfig(".");
     const previous = config.defaultNamespace;
@@ -370,16 +434,55 @@ export async function switchNamespaceTool(
  * mirror the pre-refactor tool contract exactly (DOGFOOD-004).
  *
  * @param input - Namespace name and confirmation
+ * @param context - Injectable principal/audit seams (SUPA-4)
  * @returns Deletion result
  */
 export async function deleteNamespaceTool(
   input: DeleteNamespaceInput,
+  context: McpToolContext = {},
 ): Promise<DeleteNamespaceOutput> {
   try {
     // Validate input
     DeleteNamespaceInputSchema.parse(input);
 
-    return deleteNamespace(input.name, input.confirm);
+    // card t_369581ef (DB-GAP-031 MCP parity): deleting a namespace requires a
+    // grant for THAT namespace, exactly like DELETE /api/namespaces/:name
+    // (`requireNamespaceGrant`). The refusal runs before the shared deletion
+    // core, so a scoped token can neither remove nor probe a foreign
+    // namespace. It is recorded twice on purpose: the SUPA-4 denial audit row
+    // (every 403 gets one) and the DF-0923-02 lifecycle line below, which
+    // stays "always appended, refusals included".
+    const scopeViolation = enforceNamespaceScope(context, input.name);
+    if (scopeViolation) {
+      logLifecycle(resolveNamespacesPath(), {
+        op: "delete-from-disk",
+        surface: "mcp",
+        ns: input.name,
+        requestedBy: input.requestedBy?.trim() || "operator",
+        reason: input.reason ?? "",
+        success: false,
+        error: scopeViolation.error,
+      });
+      return scopeViolation;
+    }
+
+    const result = deleteNamespace(input.name, input.confirm);
+
+    // DF-0923-02: the shared core writes no audit line — MCP delete was a
+    // silent destructive path. Always append one lifecycle line (even when
+    // the delete fails, so refusals are auditable too); best-effort, it never
+    // breaks the operation. Optional who/why from the tool input.
+    logLifecycle(resolveNamespacesPath(), {
+      op: "delete-from-disk",
+      surface: "mcp",
+      ns: input.name,
+      requestedBy: input.requestedBy?.trim() || "operator",
+      reason: input.reason ?? "",
+      success: result.success,
+      error: result.success ? undefined : result.error,
+    });
+
+    return result;
   } catch (error) {
     return {
       success: false,

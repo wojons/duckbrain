@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0925-02",
+  "task_title": "DF-0925-02 verify paired data/audit commit behavior",
+  "task_criteria": [
+    "The namespace commit path stages accepted data and its audit record together under the write lock; focused regression test passes."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "c65bc29bd6ad9e239ba67183f5b51522f3a794fd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:15PM INF scanned ~12325363 bytes (12.33 MB) in 2.11s\n1:15PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 334414 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 558ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14846,12 +14846,11 @@\n      \"auger-pytest-9a3d1b51c459\": \"/home/kara/duckbrain/namespaces/auger-pytest-9a3d1b51c459\",\n      \"auger-pytest-8eba83a09416\": \"/home/kara/duckbrain/namespaces/auger-pytest-8eba83a09416\",\n      \"auger-pytest-924952592eb9\": \"/home/kara/duckbrain/namespaces/auger-pytest-924952592eb9\",\n      \"auger-pytest-fb4695869456\": \"/home/kara/duckbrain/namespaces/auger-pytest-fb4695869456\",\n      \"auger-pytest-ace566cad293\": \"/home/kara/duckbrain/namespaces/auger-pytest-ace566cad293\",\n-     \"auger-pytest-70dfc6dfa878\": \"/home/kara/duckbrain/namespaces/auger-pytest-70dfc6dfa878\",\n-     \"auger-pytest-539367fe0bb9\": \"/home/kara/duckbrain/namespaces/auger-pytest-539367fe0bb9\"\n+     \"auger-pytest-70dfc6dfa878\": \"/home/kara/duckbrain/namespaces/auger-pytest-70dfc6dfa878\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:154:30\n    152|   afterAll(() => {\n    153|     server.close();\n    154|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    155|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    156|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 POST /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14845,12 +14845,11 @@\n      \"auger-pytest-554979504847\": \"/home/kara/duckbrain/namespaces/auger-pytest-554979504847\",\n      \"auger-pytest-9a3d1b51c459\": \"/home/kara/duckbrain/namespaces/auger-pytest-9a3d1b51c459\",\n      \"auger-pytest-8eba83a09416\": \"/home/kara/duckbrain/namespaces/auger-pytest-8eba83a09416\",\n      \"auger-pytest-924952592eb9\": \"/home/kara/duckbrain/namespaces/auger-pytest-924952592eb9\",\n      \"auger-pytest-fb4695869456\": \"/home/kara/duckbrain/namespaces/auger-pytest-fb4695869456\",\n-     \"auger-pytest-ace566cad293\": \"/home/kara/duckbrain/namespaces/auger-pytest-ace566cad293\",\n-     \"auger-pytest-70dfc6dfa878\": \"/home/kara/duckbrain/namespaces/auger-pytest-70dfc6dfa878\"\n+     \"auger-pytest-ace566cad293\": \"/home/kara/duckbrain/namespaces/auger-pytest-ace566cad293\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:244:30\n    242|   afterAll(() => {\n    243|     server.close();\n    244|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    245|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    246|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  1 failed | 178 passed (179)\n      Tests  1430 passed (1430)\n   Start at  13:15:45\n   Duration  74.44s (tests 82%, import 15%, transform 1%)\n\n    Isolate  179 workers spawned \u00b7 ~98ms startup each (spawn + environment, per file)\n             at least ~4.30s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The namespace commit path stages accepted data and its audit record together under the write lock; focused regression test passes.: Code: namespaceWriter.ts flushOnceLocked() acquires the namespace write lock at line 841 (acquireNamespaceWriteLock(this.namespacesPath, this.ns)) and, under it, stages accepted data (dataEntries.push ~line 908) together with their accepted audit change records (auditPlan.push({kind:'change', pending, audit: acceptedAudit(...)}) ~line 913), appending both before releaseNamespaceWriteLock in the finally block (line 1018). autocommit.ts asyncCommit() fences stage\u2192commit via withNamespaceCommitLock (line 267) which acquires the SAME lock file: acquireNamespaceWriteLock(root, ns, 'commit') with namespaceLockIdentity mapping namespacePath\u2192{root:dirname, ns:basename} (lines 252-259), matching namespaceWriteLockPath = <root>/.duckbrain-write/<ns>.lock (lock.ts:30-38). Test: src/git/autocommit-supapair.test.ts 'DF-0925-02 commit fencing' (line 244) suspends a real flush inside afterLockAcquired while it holds the lock, attempts a real commit, asserts midLockCommits===0 and census.unpairedData===[]; 'DF-0925-02 AC-1 burst pairing' (line 395) runs 30 writes @25/s and asserts commits>=3, totalDataIds=30, totalAuditIds=30, unpairedData=[]; pairCensus (line 167) flags any data id whose accepted audit is absent from the same commit. Fresh run: `npx vitest run src/git/autocommit-supapair.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 3 passed (3)'; combined with namespaceWriter.test.ts + autocommit.test.ts \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 22 passed (22)'. Regression proof: temporarily neutering withNamespaceCommitLock made the test FAIL with 'AssertionError: expected 1 to be +0' at autocommit-supapair.test.ts:313; restoring the file (git diff clean) returned it to 3/3 passing \u2014 confirming the test genuinely detects the split-commit defect and the lock is load-bearing.\nThe namespace commit path stages accepted data and its audit record together under the shared namespace write lock, and the focused DF-0925-02 regression test (autocommit-supapair.test.ts) passes 3/3 and provably fails when the lock is removed.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The namespace commit path stages accepted data and its audit record together under the write lock; focused regression test passes.: Code: namespaceWriter.ts flushOnceLocked() acquires the namespace write lock at line 841 (acquireNamespaceWriteLock(this.namespacesPath, this.ns)) and, under it, stages accepted data (dataEntries.push ~line 908) together with their accepted audit change records (auditPlan.push({kind:'change', pending, audit: acceptedAudit(...)}) ~line 913), appending both before releaseNamespaceWriteLock in the finally block (line 1018). autocommit.ts asyncCommit() fences stage\u2192commit via withNamespaceCommitLock (line 267) which acquires the SAME lock file: acquireNamespaceWriteLock(root, ns, 'commit') with namespaceLockIdentity mapping namespacePath\u2192{root:dirname, ns:basename} (lines 252-259), matching namespaceWriteLockPath = <root>/.duckbrain-write/<ns>.lock (lock.ts:30-38). Test: src/git/autocommit-supapair.test.ts 'DF-0925-02 commit fencing' (line 244) suspends a real flush inside afterLockAcquired while it holds the lock, attempts a real commit, asserts midLockCommits===0 and census.unpairedData===[]; 'DF-0925-02 AC-1 burst pairing' (line 395) runs 30 writes @25/s and asserts commits>=3, totalDataIds=30, totalAuditIds=30, unpairedData=[]; pairCensus (line 167) flags any data id whose accepted audit is absent from the same commit. Fresh run: `npx vitest run src/git/autocommit-supapair.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 3 passed (3)'; combined with namespaceWriter.test.ts + autocommit.test.ts \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 22 passed (22)'. Regression proof: temporarily neutering withNamespaceCommitLock made the test FAIL with 'AssertionError: expected 1 to be +0' at autocommit-supapair.test.ts:313; restoring the file (git diff clean) returned it to 3/3 passing \u2014 confirming the test genuinely detects the split-commit defect and the lock is load-bearing.\nThe namespace commit path stages accepted data and its audit record together under the shared namespace write lock, and the focused DF-0925-02 regression test (autocommit-supapair.test.ts) passes 3/3 and provably fails when the lock is removed.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The namespace commit path stages accepted data and its audit record together under the write lock; focused regression test passes.",
+                "status": "PASS",
+                "detail": "Code: namespaceWriter.ts flushOnceLocked() acquires the namespace write lock at line 841 (acquireNamespaceWriteLock(this.namespacesPath, this.ns)) and, under it, stages accepted data (dataEntries.push ~line 908) together with their accepted audit change records (auditPlan.push({kind:'change', pending, audit: acceptedAudit(...)}) ~line 913), appending both before releaseNamespaceWriteLock in the finally block (line 1018). autocommit.ts asyncCommit() fences stage\u2192commit via withNamespaceCommitLock (line 267) which acquires the SAME lock file: acquireNamespaceWriteLock(root, ns, 'commit') with namespaceLockIdentity mapping namespacePath\u2192{root:dirname, ns:basename} (lines 252-259), matching namespaceWriteLockPath = <root>/.duckbrain-write/<ns>.lock (lock.ts:30-38). Test: src/git/autocommit-supapair.test.ts 'DF-0925-02 commit fencing' (line 244) suspends a real flush inside afterLockAcquired while it holds the lock, attempts a real commit, asserts midLockCommits===0 and census.unpairedData===[]; 'DF-0925-02 AC-1 burst pairing' (line 395) runs 30 writes @25/s and asserts commits>=3, totalDataIds=30, totalAuditIds=30, unpairedData=[]; pairCensus (line 167) flags any data id whose accepted audit is absent from the same commit. Fresh run: `npx vitest run src/git/autocommit-supapair.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 3 passed (3)'; combined with namespaceWriter.test.ts + autocommit.test.ts \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 22 passed (22)'. Regression proof: temporarily neutering withNamespaceCommitLock made the test FAIL with 'AssertionError: expected 1 to be +0' at autocommit-supapair.test.ts:313; restoring the file (git diff clean) returned it to 3/3 passing \u2014 confirming the test genuinely detects the split-commit defect and the lock is load-bearing.",
+                "resolution_probability": 0.48
+              }
+            ],
+            "summary": "The namespace commit path stages accepted data and its audit record together under the shared namespace write lock, and the focused DF-0925-02 regression test (autocommit-supapair.test.ts) passes 3/3 and provably fails when the lock is removed."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0925-02\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The namespace commit path stages accepted data and its audit record together under the write lock; focused regression test passes.: Code: namespaceWriter.ts flushOnceLocked() acquires the namespace write lock at line 841 (acquireNamespaceWriteLock(this.namespacesPath, this.ns)) and, under it, stages accepted data (dataEntries.push ~line 908) together with their accepted audit change records (auditPlan.push({kind:'change', pending, audit: acceptedAudit(...)}) ~line 913), appending both before releaseNamespaceWriteLock in the finally block (line 1018). autocommit.ts asyncCommit() fences stage\u2192commit via withNamespaceCommitLock (line 267) which acquires the SAME lock file: acquireNamespaceWriteLock(root, ns, 'commit') with namespaceLockIdentity mapping namespacePath\u2192{root:dirname, ns:basename} (lines 252-259), matching namespaceWriteLockPath = <root>/.duckbrain-write/<ns>.lock (lock.ts:30-38). Test: src/git/autocommit-supapair.test.ts 'DF-0925-02 commit fencing' (line 244) suspends a real flush inside afterLockAcquired while it holds the lock, attempts a real commit, asserts midLockCommits===0 and census.unpairedData===[]; 'DF-0925-02 AC-1 burst pairing' (line 395) runs 30 writes @25/s and asserts commits>=3, totalDataIds=30, totalAuditIds=30, unpairedData=[]; pairCensus (line 167) flags any data id whose accepted audit is absent from the same commit. Fresh run: `npx vitest run src/git/autocommit-supapair.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 3 passed (3)'; combined with namespaceWriter.test.ts + autocommit.test.ts \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 22 passed (22)'. Regression proof: temporarily neutering withNamespaceCommitLock made the test FAIL with 'AssertionError: expected 1 to be +0' at autocommit-supapair.test.ts:313; restoring the file (git diff clean) returned it to 3/3 passing \u2014 confirming the test genuinely detects the split-commit defect and the lock is load-bearing.\nThe namespace commit path stages accepted data and its audit record together under the shared namespace write lock, and the focused DF-0925-02 regression test (autocommit-supapair.test.ts) passes 3/3 and provably fails when the lock is removed.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-28T18:17:57.828675",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-28T18:17:57.864308+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 9119,
+        "truncated": false,
+        "source": "git show c65bc29bd6ad"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 17920,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0925-02"
+  }
+}

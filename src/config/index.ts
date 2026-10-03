@@ -82,6 +82,21 @@ export const DuckBrainConfigSchema = z.object({
     overrides: {},
   }),
 
+  /**
+   * NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES.
+   * `autoCreate: true` (default) preserves the legacy behavior — a write to
+   * a non-existent namespace creates its directory (mkdir -p + git init) and
+   * succeeds. `autoCreate: false` (strict mode) makes such a write fail with
+   * NAMESPACE_NOT_FOUND instead, so a typo'd ?namespace= can never silently
+   * scatter memories into a directory nobody meant to create. Reads (recall,
+   * search, list_keys) are unaffected — they never created namespaces.
+   */
+  namespaces: z
+    .object({
+      autoCreate: z.boolean().default(true),
+    })
+    .default({ autoCreate: true }),
+
   /** SUPA-2 per-namespace fan-in queue bounds */
   serialization: z
     .object({
@@ -551,6 +566,48 @@ function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
     next = { ...next, namespacesPath: nsPathOverride };
   }
 
+  // DF-0926-04: DUCKBRAIN_NAMESPACE selects the ACTIVE namespace at runtime —
+  // the documented per-agent isolation knob (docs/guide/ai-configure.md,
+  // examples/mcp-client/README.md). Historically the variable had ZERO readers
+  // in src/, so every agent configured per those docs silently wrote to the
+  // config's defaultNamespace instead of its own namespace.
+  //
+  // Runtime-only, exactly like DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_CONFIG_PATH:
+  // it overrides the file's defaultNamespace for THIS process but is never
+  // persisted (updateConfig merges against readFileConfig, GAP-007), so an agent
+  // started with the env var can never rewrite a shared duckbrain.config.json.
+  //
+  // Effective precedence: explicit param (MCP arg / CLI --namespace / HTTP
+  // ?namespace=) > DUCKBRAIN_NAMESPACE > config defaultNamespace > "default".
+  const nsNameOverride = process.env.DUCKBRAIN_NAMESPACE?.trim();
+  if (nsNameOverride) {
+    next = { ...next, defaultNamespace: nsNameOverride };
+  }
+
+  // NAMESPACE-AUTOCREATE-001: DUCKBRAIN_NAMESPACES_AUTOCREATE=false opts the
+  // daemon into STRICT mode — a write to a non-existent namespace fails with
+  // NAMESPACE_NOT_FOUND instead of silently creating it (a typo'd ?namespace=
+  // must not scatter memories). Default (unset/"true") preserves the legacy
+  // auto-create behavior so existing fleet writers are never broken.
+  //
+  // Runtime-only, never persisted — same convention as
+  // DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_DURABILITY_MODE. Only the exact
+  // spellings "true" / "false" are accepted: anything else fails config load
+  // rather than silently falling back to either side of a data-integrity
+  // knob (same doctrine as DUCKBRAIN_DURABILITY_MODE above).
+  const envAutocreate = process.env.DUCKBRAIN_NAMESPACES_AUTOCREATE;
+  if (envAutocreate !== undefined && envAutocreate !== "") {
+    if (envAutocreate === "true") {
+      next = { ...next, namespaces: { autoCreate: true } };
+    } else if (envAutocreate === "false") {
+      next = { ...next, namespaces: { autoCreate: false } };
+    } else {
+      throw new Error(
+        `DUCKBRAIN_NAMESPACES_AUTOCREATE must be "true" or "false", got: ${envAutocreate}`,
+      );
+    }
+  }
+
   // SUPA-1: DUCKBRAIN_DURABILITY_MODE overrides the runtime DEFAULT write mode
   // (never persisted — same convention as DUCKBRAIN_NAMESPACES_PATH). A
   // malformed value fails config load through the zod enum: no silent fallback
@@ -699,6 +756,9 @@ export function initializeConfig(
     durability: {
       defaultMode: "buffered",
       overrides: {},
+    },
+    namespaces: {
+      autoCreate: true,
     },
     serialization: {
       maxPendingRows: 10_000,

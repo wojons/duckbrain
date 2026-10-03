@@ -397,42 +397,59 @@ export function appendJsonlDirect(
 
   let fd: number;
   try {
-    fd = fs.openSync(targetPath, flags, 0o644);
-  } catch (error) {
-    const code = (error as { code?: string } | null)?.code;
-    if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
-      throw new DurabilityError(
-        "DURABILITY_UNSUPPORTED",
-        `O_DIRECT is not supported on this filesystem for ${targetPath} — ` +
-          `write NOT acknowledged, no bytes written: ${errnoDetail(error)}`,
-      );
-    }
-    throw new DurabilityError(
-      "DURABILITY_FSYNC_FAILED",
-      `cannot open ${targetPath} for direct-mode append — write NOT acknowledged: ${errnoDetail(error)}`,
-    );
-  }
-
-  try {
     try {
-      fs.writeSync(fd, record.buffer, 0, record.buffer.length, null);
+      fd = fs.openSync(targetPath, flags, 0o644);
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
       if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
         throw new DurabilityError(
           "DURABILITY_UNSUPPORTED",
-          `O_DIRECT write rejected on ${targetPath} (${errnoDetail(error)}) — ` +
-            "write NOT acknowledged, no buffered fallback taken",
+          `O_DIRECT is not supported on this filesystem for ${targetPath} — ` +
+            `write NOT acknowledged, no bytes written: ${errnoDetail(error)}`,
         );
       }
       throw new DurabilityError(
         "DURABILITY_FSYNC_FAILED",
-        `direct-mode write failed for ${targetPath} — write NOT acknowledged: ${errnoDetail(error)}`,
+        `cannot open ${targetPath} for direct-mode append — write NOT acknowledged: ${errnoDetail(error)}`,
       );
     }
-    barrierFile(fd, targetPath);
-  } finally {
-    fs.closeSync(fd);
+
+    try {
+      try {
+        fs.writeSync(fd, record.buffer, 0, record.buffer.length, null);
+      } catch (error) {
+        const code = (error as { code?: string } | null)?.code;
+        if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
+          throw new DurabilityError(
+            "DURABILITY_UNSUPPORTED",
+            `O_DIRECT write rejected on ${targetPath} (${errnoDetail(error)}) — ` +
+              "write NOT acknowledged, no buffered fallback taken",
+          );
+        }
+        throw new DurabilityError(
+          "DURABILITY_FSYNC_FAILED",
+          `direct-mode write failed for ${targetPath} — write NOT acknowledged: ${errnoDetail(error)}`,
+        );
+      }
+      barrierFile(fd, targetPath);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    // QA-DUCKBRAIN-003: when the filesystem rejects O_DIRECT the kernel
+    // honors O_CREAT BEFORE the EINVAL lands, so a failed direct-mode append
+    // (open or first write) can leave the freshly-created target behind as
+    // an empty file. Remove that residue — but ONLY a file this call would
+    // have created (`!fileExisted`); a pre-existing target is never touched,
+    // and the durability error itself is always rethrown unchanged.
+    if (isDurabilityError(error) && !fileExisted) {
+      try {
+        fs.unlinkSync(targetPath);
+      } catch {
+        // best-effort: never mask the durability failure with a cleanup error
+      }
+    }
+    throw error;
   }
 
   fsyncParentsForCreate(targetPath, fileExisted, createdDirs);

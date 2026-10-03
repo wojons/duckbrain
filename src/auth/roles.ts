@@ -96,6 +96,33 @@ function roleHas(principal: GrantPrincipal, action: ResourceAction): boolean {
   );
 }
 
+/**
+ * Namespace-scope denial for callers that enforce ONLY the DB-GAP-031
+ * per-token namespace grant — no role or table check.
+ *
+ * The REST surface mounts `requireNamespaceGrant` as Express middleware, so
+ * its check runs before any route handler. The MCP surface has no route to
+ * hang middleware on: the target namespace appears only inside tool
+ * arguments and the principal arrives through the DOGFOOD-025
+ * `getMcpRequestPrincipal()` seam. The tool handlers therefore call this
+ * helper, which grades the SAME grant as REST and reports the SAME
+ * `namespace_scope` reason, so one token cannot be refused on one transport
+ * and honored on the other.
+ *
+ * Returns the denial when the principal is namespace-scoped and `namespace`
+ * is not in its grants; `undefined` when access is allowed, when there is no
+ * principal (auth=none local mode), or when the token is unrestricted
+ * (`namespaces` absent — DB-GAP-031 semantics).
+ */
+export function namespaceScopeDenial(
+  principal: GrantPrincipal | undefined,
+  namespace: string,
+): { reason: "namespace_scope"; message: string } | undefined {
+  const decision = namespaceDecision(principal, namespace);
+  if (!decision || decision.allowed) return undefined;
+  return { reason: "namespace_scope", message: decision.message };
+}
+
 export function hasAnyRole(
   principal: GrantPrincipal,
   roles: readonly Role[],

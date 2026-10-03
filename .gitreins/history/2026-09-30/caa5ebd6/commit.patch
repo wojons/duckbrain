@@ -1,0 +1,46 @@
+commit bbee2ccf50176f18215f30dc052d30d54e71a8cd
+Merge: d24b309 19980a3
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Sep 30 04:47:10 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Sep 30 04:47:10 2026 -0500
+
+    merge: REVIEW-DUCKBRAIN-006 default daemon auth to apikey (worker 19980a3)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ AGENTS.md                                      |   4 +-
+ README.md                                      |  17 +-
+ SECURITY.md                                    |  12 +-
+ docker-compose.dev.yml                         |   4 +-
+ docs/AI_CONFIGURE.md                           |   3 +-
+ docs/api/http-api.md                           |  13 +-
+ docs/api/mcp-tools.md                          |   4 +-
+ docs/guide/ai-configure.md                     |   3 +-
+ docs/guide/deployment.md                       |  28 ++-
+ docs/guide/getting-started.md                  |  10 +-
+ package.json                                   |   3 +-
+ skills/duckbrain-usage/SKILL.md                |  13 +-
+ src/cli/auth-default-review-006.test.ts        | 313 +++++++++++++++++++++++++
+ src/cli/auth-file-enforcement-df092407.test.ts |  88 ++++++-
+ src/cli/http-help-httphelp001.test.ts          |  92 +++++++-
+ src/cli/http.ts                                |  31 ++-
+ src/mcp/tools/server.ts                        |   4 +-
+ tests/examples-onramp-df092601.int.test.ts     |   3 +
+ tests/http-e2e.int.test.ts                     |  17 +-
+ 19 files changed, 598 insertions(+), 64 deletions(-)
+
+diff --cc README.md
+index 120721e,d8a3bca..19d23ff
+--- a/README.md
++++ b/README.md
+@@@ -129,7 -130,7 +131,7 @@@ curl -s -X POST 'http://127.0.0.1:3000/
+  curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quickstart'
+  ```
+  
+- Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. As shipped, `pnpm start http` runs with `--auth=none` (unauthenticated; localhost dev), so these commands need no key. To require API-key authentication instead, mint a key first (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
+ -Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A fresh daemon requires API-key authentication by default — `--auth` defaults to `apikey`, so the snippet above opens it explicitly with `--auth=none` and the daemon logs an unauthenticated-mode warning. For anything but local development, bootstrap a key store (`duckbrain token`) and start with `--auth=apikey`, sending `-H 'X-API-Key: <key>'` (or `--auth=basic` with `-u user:pass`). Stop the background daemon with `kill %1` when done.
+++Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. The snippet above starts the daemon with `--auth=none` explicitly because the default is now `apikey` — a fresh daemon with no `--auth` flag requires API-key authentication and rejects unauthenticated writes with 401. For anything but local development, bootstrap a key store (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
+  
+  ### Running DuckBrain
+  

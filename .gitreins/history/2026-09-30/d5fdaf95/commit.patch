@@ -1,0 +1,58 @@
+commit 971e9901c91784b1eda6a79a2811ba7e7ea5f75f
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Sep 30 09:29:02 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Sep 30 09:29:02 2026 -0500
+
+    fix(INT-CI-1): sync AGENTS.md test counts to live 191 suites / 1524 tests
+    
+    QA-DUCKBRAIN-005's unix-socket-flag tests bumped the live suite to 1524
+    tests while AGENTS.md stayed at 1523, reding the GAP-012 count-drift
+    assert on every push since. Counts re-measured live this tick
+    (npx vitest run: 191 passed / 1524 passed) before the edit; protected-
+    instruction-file toggle flipped false for the 2-line edit and restored
+    true immediately after (verified).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml | 7 +++++++
+ AGENTS.md            | 4 ++--
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d2784e5..87ec3b3 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2185,3 +2185,10 @@ tasks:
+   status: complete
+   created_at: '2026-09-30T13:59:58.506220+00:00'
+   completed_at: '2026-09-30T14:05:11.087703+00:00'
++- id: INT-CI-1
++  title: Sync AGENTS.md test counts to live (191/1524)
++  criteria:
++  - AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest
++    run; CI GAP-012 assert step passes
++  status: in_progress
++  created_at: '2026-09-30T14:28:55.129189+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index 9d7c4ea..2263b0f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (191 suites, 1523 tests)
++- **Test Framework:** Vitest (191 suites, 1524 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1523 tests, 191 suites
++pnpm test          # 1524 tests, 191 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

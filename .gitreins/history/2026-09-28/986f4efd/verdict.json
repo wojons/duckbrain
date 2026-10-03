@@ -1,0 +1,75 @@
+{
+  "task_id": "INT-CI-016",
+  "task_title": "Sync AGENTS.md counts after RATE-LIMIT-001",
+  "task_criteria": [
+    "AGENTS.md must state 179 suites and 1430 tests in both count locations; the count assertion must pass on the captured live Vitest summary; protected-file toggle must be restored true."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "4f4195210a84ab0e3fc253d68eb26ad9314c0cbe",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:11PM INF scanned ~9585349 bytes (9.59 MB) in 1.98s\n8:11PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 327484 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  179 passed (179)\n      Tests  1430 passed (1430)\n   Start at  20:11:52\n   Duration  71.41s (tests 79%, import 18%, transform 1%, setup 1%)\n\n    Isolate  179 workers spawned \u00b7 ~105ms startup each (spawn + environment, per file)\n             at least ~4.57s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: INT-CI-016\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-28T01:13:04.291143",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-28T01:13:04.333815+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 13268,
+        "truncated": false,
+        "source": "git show 4f4195210a84"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 9953,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-016"
+  }
+}

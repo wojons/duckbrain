@@ -29,7 +29,10 @@ import {
   type NormalizedTimeRange,
 } from "../../utils/timerange";
 import { resolveAsOfRef } from "../../git/asof";
-import { resolveNamespacePath } from "../../mcp/tools/shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+} from "../../mcp/tools/shared";
 import { durabilityHeaderFor } from "../../storage/durability";
 import {
   auditRequestDenial,
@@ -66,6 +69,10 @@ function throwRecallError(error: string): never {
   if (isEmbeddingsDownError(error)) {
     throw new ApiError(error, 503, "EMBEDDINGS_UNAVAILABLE");
   }
+  // DF-0924-04: as_of + q/contains is a client validation error, not a server fault.
+  if (error.includes("as_of cannot be combined")) {
+    throw new ValidationError(error);
+  }
   throw new ApiError(error, 500);
 }
 
@@ -92,7 +99,11 @@ function throwWriteError(
   const status =
     result.code === "FORBIDDEN"
       ? 403
-      : result.code === "NOT_FOUND"
+      : // NAMESPACE-AUTOCREATE-001: strict-mode write into a namespace that
+        // does not exist (namespaces.autoCreate=false refused it) — same wire
+        // status as the read-side GAP-025 404s. The code stays more specific
+        // than the legacy NOT_FOUND so clients can tell the two apart.
+        result.code === "NOT_FOUND" || result.code === "NAMESPACE_NOT_FOUND"
         ? 404
         : result.code === "SERIALIZER_QUEUE_FULL" ||
             result.code === "SERIALIZER_LOCKED" ||
@@ -106,14 +117,22 @@ function throwWriteError(
 const router: Router = Router();
 
 // DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
-// memory route (read, write, update, delete). The namespace resolution
-// mirrors each route's own (query param, falling back to body.namespace for
-// writes, else "default"). Passes through untouched in auth=none mode and
-// for unrestricted tokens.
+// memory route (read, write, update, delete). Passes through untouched in
+// auth=none mode and for unrestricted tokens.
+//
+// DF-0926-04: the namespace comes from the ONE canonical resolver
+// (`resolveNamespaceName`: explicit param > DUCKBRAIN_NAMESPACE > config
+// defaultNamespace > "default"), and the routes below call THIS function
+// rather than re-deriving it. The previous per-route `|| "default"` fallback
+// ignored both the documented env var and the config's defaultNamespace, and
+// duplicating the expression risked the grant check grading a different
+// namespace than the route actually touched.
 const resolveRequestNamespace = (req: Request): string =>
-  (req.query.namespace as string) ||
-  (req.body as { namespace?: string } | undefined)?.namespace ||
-  "default";
+  resolveNamespaceName(
+    (req.query.namespace as string) ||
+      (req.body as { namespace?: string } | undefined)?.namespace ||
+      undefined,
+  );
 
 router.use(requireNamespaceGrant(resolveRequestNamespace));
 
@@ -175,6 +194,96 @@ function parseOffset(raw: unknown): number {
     throw new ValidationError("offset must be a non-negative integer");
   }
   return parsed;
+}
+
+/**
+ * DF-0926-02: the complete query-parameter surface of GET /api/memories.
+ *
+ * The handler builds its filters from a fixed set of names and used to let
+ * anything else pass unread — so a client that sent `?key=` or `?query=`
+ * (both taught by examples/http-api/client.js at the time of the dogfood
+ * run) got HTTP 200 with the UNFILTERED list and believed its filter had
+ * been applied. A silent wrong result is worse than an error: the caller
+ * has no signal that the filter was dropped. Every param the route reads
+ * is named here, and anything else is refused with 400 VALIDATION_ERROR
+ * listing this list, so the same class cannot come back with a new
+ * spelling. `docs/api/http-api.md` must advertise exactly this set — the
+ * DF-0926-02 test parses both and fails on drift in either direction.
+ */
+const LIST_QUERY_PARAMS = [
+  "prefix",
+  "domain",
+  "author",
+  "q",
+  "contains",
+  "after",
+  "before",
+  "between",
+  "as_of",
+  "historical",
+  "limit",
+  "offset",
+  "namespace",
+  // RETR-007: cross-namespace keyword search (read below via
+  // params.allNamespaces).
+  "allNamespaces",
+] as const;
+
+/** RETR-006: attribute filters are a documented PREFIX, not a fixed name. */
+const ATTRIBUTE_PARAM_PREFIX = "attr.";
+const ATTRIBUTE_PARAM_FORM = `${ATTRIBUTE_PARAM_PREFIX}<name>`;
+
+const LIST_QUERY_PARAM_LIST = [...LIST_QUERY_PARAMS, ATTRIBUTE_PARAM_FORM].join(
+  ", ",
+);
+
+/**
+ * DF-0926-02: hints for the two undocumented spellings the repo's own HTTP
+ * example taught. Naming the replacement turns "you sent something I do not
+ * understand" into a fixable message.
+ */
+const LIST_QUERY_PARAM_HINTS: Record<string, string> = {
+  key: "read one exact key with GET /api/memories/key/:key, or filter the list with ?prefix=",
+  query: "use ?q= (semantic search) or ?contains= (offline keyword search)",
+};
+
+/**
+ * DF-0926-02: is this query-param name part of the documented surface?
+ * `attr.` with no attribute name is NOT — it would be read as a filter on
+ * an empty attribute name.
+ */
+function isListQueryParam(name: string): boolean {
+  if ((LIST_QUERY_PARAMS as readonly string[]).includes(name)) {
+    return true;
+  }
+  return (
+    name.startsWith(ATTRIBUTE_PARAM_PREFIX) &&
+    name.length > ATTRIBUTE_PARAM_PREFIX.length
+  );
+}
+
+/**
+ * DF-0926-02: reject any query parameter this route does not read, instead
+ * of silently ignoring it. Runs BEFORE any filter is built or any tool is
+ * called, so an unhonourable request can never be answered with a 200 list.
+ */
+function rejectUnknownListQueryParams(query: unknown): void {
+  const unknown = Object.keys((query ?? {}) as Record<string, unknown>).filter(
+    (name) => !isListQueryParam(name),
+  );
+  if (unknown.length === 0) {
+    return;
+  }
+  const offenders = unknown
+    .map((name) =>
+      LIST_QUERY_PARAM_HINTS[name]
+        ? `'${name}' (${LIST_QUERY_PARAM_HINTS[name]})`
+        : `'${name}'`,
+    )
+    .join(", ");
+  throw new ValidationError(
+    `Unknown query parameter(s): ${offenders}. Valid parameters: ${LIST_QUERY_PARAM_LIST}.`,
+  );
 }
 
 /**
@@ -248,6 +357,11 @@ function normalizeValidityWindow(
 router.get(
   "/",
   asyncHandler(async (req: Request, res: Response) => {
+    // DF-0926-02: refuse query params this route cannot honour BEFORE any
+    // filter is built — an unrecognized param must never be silently dropped
+    // and answered with the unfiltered list.
+    rejectUnknownListQueryParams(req.query);
+
     const params: QueryParams = {
       prefix: req.query.prefix as string | undefined,
       // GAP-023: validated — rejects negative/non-numeric with 400
@@ -275,7 +389,7 @@ router.get(
       // RETR-011: view selector — ?historical=true includes expired /
       // not-yet-valid rows (the current view is the default).
       historical: req.query.historical === "true",
-      namespace: (req.query.namespace as string) || "default",
+      namespace: resolveRequestNamespace(req),
     };
 
     // RETR-006: attribute filters — every ?attr.<name>=<value> query param
@@ -458,7 +572,7 @@ router.get(
     const key = Array.isArray(keyParam)
       ? keyParam.join("/")
       : String(keyParam ?? "");
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
 
     // Normalize key to start with /
     const normalizedKey = key.startsWith("/") ? key : `/${key}`;
@@ -495,7 +609,7 @@ router.get(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
 
     // Use exact ID lookup in DuckDB — no in-memory scan
     const result = await recallTool({
@@ -575,12 +689,18 @@ router.post(
       );
     }
 
+    // DF-0926-06: validate key format before it reaches rememberTool
+    if (!body.key.startsWith("/")) {
+      throw new ValidationError(
+        `Invalid key '${body.key}': key must be a filesystem-style path starting with / (e.g., /projects/mcp)`,
+      );
+    }
+
     // Call rememberTool to create memory
     // DB-GAP-031: an authenticated principal stamps the record — a
     // client-supplied ?author= or body author is never honored on writes.
     const principal = getPrincipal(req);
-    const writtenNamespace =
-      (req.query.namespace as string) || body.namespace || "default";
+    const writtenNamespace = resolveRequestNamespace(req);
     const result = await rememberTool(
       {
         key: body.key,
@@ -624,6 +744,12 @@ router.post(
       author: result.author!,
       isTombstone: false,
       action: "add",
+      // NAMESPACE-AUTOCREATE-001: additive — present (true) only when THIS
+      // write created the namespace (it did not exist before); absent when
+      // the namespace already existed, so existing clients see no change.
+      ...(result.namespace_autocreated
+        ? { namespace_autocreated: true as const }
+        : {}),
     };
 
     // SUPA-1 (AC-6): every 2xx write response advertises the durability mode
@@ -646,7 +772,7 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
     const body = req.body as UpdateMemoryRequest;
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
     // DB-GAP-031: authenticated principal stamps both the tombstone and the
     // new version — client-supplied author values are never honored.
     const principal = getPrincipal(req);
@@ -768,7 +894,7 @@ router.delete(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
-    const namespace = (req.query.namespace as string) || "default";
+    const namespace = resolveRequestNamespace(req);
     // DB-GAP-031: authenticated principal stamps the tombstone — a
     // client-supplied author value is never honored.
     const principal = getPrincipal(req);

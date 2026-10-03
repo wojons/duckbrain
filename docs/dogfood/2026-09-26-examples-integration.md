@@ -22,7 +22,7 @@ second wall, then a 500. Once you know the real API (from `docs/api/http-api.md`
 
 | Step | What the docs say | What actually happened |
 |---|---|---|
-| Start HTTP API example | `pnpm start -- http --port=3000` | `pnpm start -- X` forwards a literal `--` → CLI: `Unknown command: --`, exit 1. **Both** example READMEs' pnpm invocations fail verbatim under the repo's pinned pnpm. |
+| Start HTTP API example | pnpm start with the `--` separator | A `--`-separated pnpm start invocation forwards a literal `--` → CLI: `Unknown command: --`, exit 1. **Both** example READMEs' pnpm invocations failed verbatim under the repo's pinned pnpm. |
 | Run the example client | `node examples/http-api/client.js` | SyntaxError: `import.meta` in a `.js` file in a CommonJS repo (no `"type": "module"`). Must copy to `.mjs` — or the README should say to. |
 | `client.remember(...)` | POST `/api/memories` `{key, content}` | 400 `Missing required fields: key, domain, content` — example never sends `domain`. |
 | Add `domain: "example"` | — | 400 listing the real enum: `person, event, concept, message, config, raw_note`. |

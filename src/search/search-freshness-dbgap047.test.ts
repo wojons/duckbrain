@@ -486,7 +486,7 @@ describe("DB-GAP-047: HTTP read paths answer without a manual rebuild", () => {
   }
 
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

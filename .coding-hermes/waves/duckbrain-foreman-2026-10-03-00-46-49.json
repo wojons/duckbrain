@@ -1,0 +1,26 @@
+{
+  "tick": "duckbrain-foreman-2026-10-03-00-46-49",
+  "project": "duckbrain",
+  "budget": 2,
+  "created_at": "2026-10-03T00:58:00-05:00",
+  "workers": [
+    {
+      "task": "DF-0924-10",
+      "step": 1,
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0924-10",
+      "branch": "wt/DF-0924-10",
+      "base": "origin/main",
+      "base_sha": "02237b1"
+    },
+    {
+      "task": "DF-0926-05",
+      "step": 2,
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0926-05",
+      "branch": "wt/DF-0926-05",
+      "base": "origin/main",
+      "base_sha": "02237b1"
+    }
+  ],
+  "independence": "DF-0924-10 edits .opencode/agents/duckbrain-cli.md (npm-install fiction); DF-0926-05 edits examples/custom-storage/README.md (fictional config schema/flags). Disjoint single-file surfaces, no shared files, no depends_on edges. Both docs-only.",
+  "ch:trace": "row=DF-0924-10 row=DF-0926-05"
+}

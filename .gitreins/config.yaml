@@ -8,7 +8,11 @@ guards:
   tests: true
   test_mode: diff
   test_command: "npx vitest run"
-  test_timeout: 300
+  # 300s starved tier1 twice under fleet load (loadavg 50-80: full suite
+  # needs 600-900s; judge aad2df37 + ad221990 both died on 'Command timed
+  # out' while CI on the same SHAs was green). 900s ALSO starved (9f08ab48,
+  # loadavg ~80 → suite >900s); 1800s covers the loaded-suite ceiling.
+  test_timeout: 1800
   dead_code: false # Python-only
   skylos: false
   static_analysis: false

@@ -5,17 +5,20 @@ DuckBrain's HTTP server provides REST API access to memories, namespaces, and sy
 ## Starting the HTTP Server
 
 ```bash
-# Default port 3000, localhost only
-pnpm start -- http
+# Default port 3000, localhost only — API-key auth is ON by default
+pnpm start http
 
 # Custom port
-pnpm start -- http --port=8080
+pnpm start http --port=8080
+
+# Explicit local-only mode: no authentication (unsafe; emits a warning)
+pnpm start http --auth=none
 
 # Bind to all interfaces (for remote access)
-pnpm start -- http --bind-all --port=8080
+pnpm start http --bind-all --port=8080 --auth=apikey
 
 # With authentication
-pnpm start -- http --auth=apikey --rate-limit=60
+pnpm start http --auth=apikey --rate-limit=60
 ```
 
 ### HTTP Server Options
@@ -24,7 +27,7 @@ pnpm start -- http --auth=apikey --rate-limit=60
 |--------|---------|-------------|
 | `--port` | 3000 | HTTP server port |
 | `--bind-all` | — | Bind to `0.0.0.0` (all interfaces) instead of localhost |
-| `--auth` | none | Authentication type: `none`, `basic`, or `apikey` |
+| `--auth` | apikey | Authentication type: `none`, `basic`, or `apikey`; use `none` only for explicit local-only development |
 | `--auth-file` | `~/.duckbrain/auth.json` | Read auth users/apiKeys from this file instead (env fallback: `DUCKBRAIN_AUTH_FILE`); the file must exist — intended for scratch/test daemons |
 | `--rate-limit` | 100 | Requests per minute per IP |
 
@@ -169,6 +172,11 @@ curl -X POST http://localhost:3000/mcp \
 
 Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full namespace management.
 
+The list is filtered to the caller's token grant (card t_667d7e6c): a token
+carrying `namespaces` grants sees only those names, and `currentNamespace` is
+omitted when the active namespace is outside the grant. Unrestricted tokens
+and `--auth=none` see the full list.
+
 **Response:**
 
 ```json
@@ -183,6 +191,10 @@ Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full
 
 Returns an empty user list. Reserved for future implementation.
 
+The author scan follows the caller's namespace grant (card t_667d7e6c): only
+the token's visible namespaces are scanned, so a scoped token neither learns
+foreign namespace names nor their authors.
+
 **Response:**
 
 ```json
@@ -191,21 +203,41 @@ Returns an empty user list. Reserved for future implementation.
 }
 ```
 
-### Activity Feed (Stub)
+### Activity Feed
 
 `GET /activity`
 
-Returns an empty activity feed. Reserved for future implementation.
+Returns recent memory activity across all namespaces — the newest non-tombstone
+rows from every namespace's JSONL segments, ordered by `timestamp` descending.
 
 | Query Param | Default | Description |
 |-------------|---------|-------------|
-| `limit` | 50 | Max activities to return |
+| `limit` | 50 | Max activities to return (capped at 200) |
+| `namespace` | — | Restrict the feed to one namespace. Grant-checked: a token without a grant for it gets `403 Forbidden`. |
+
+**Authorization:** an unrestricted token (or `--auth=none`) sees the
+every-namespace feed. A token carrying `namespaces` grants sees **only its
+granted namespaces**, whether or not `?namespace=` is given — ungranted
+namespaces' segments are not read at all.
 
 **Response:**
 
 ```json
 {
-  "activities": [],
+  "activities": [
+    {
+      "id": "…",
+      "key": "/projects/myapp",
+      "domain": "concept",
+      "timestamp": "2026-10-02T10:30:00Z",
+      "author": "agent-alpha@duckbrain.local",
+      "action": "add",
+      "content": "…",
+      "attributes": {},
+      "namespace": "my-project"
+    }
+  ],
+  "count": 1,
   "limit": 50
 }
 ```
@@ -340,6 +372,7 @@ Query memories with filters.
 | `author` | — | Author email filter |
 | `q` | — | Text search query |
 | `contains` | — | Keyword filter (offline full-text search over content/key/attributes) |
+| `allNamespaces` | `false` | RETR-007: cross-namespace keyword search — with `contains=`, union the keyword hits over EVERY manifest namespace (each hit carries its own `namespace`). Requires an unrestricted token; mutually exclusive with `namespace` (the scoped param is ignored when this flag is set) |
 | `after` | — | Only rows at or after this ISO-8601 instant (timestamp or chat-archive key date facet) |
 | `before` | — | Only rows at or before this ISO-8601 instant |
 | `between` | — | ISO-8601 range as `START,END` — shorthand for `after` + `before` |
@@ -349,6 +382,8 @@ Query memories with filters.
 | `limit` | 50 | Max results to return |
 | `offset` | 0 | Pagination offset |
 | `namespace` | `default` | Namespace to query |
+
+> **Note — unknown query parameters (DF-0926-02):** this endpoint accepts exactly the parameters in the table above (`attr.<name>` as a repeatable prefix). Any OTHER query parameter is refused with **400 `VALIDATION_ERROR`** whose message names the offending parameter and lists the valid ones — it is never silently ignored. In particular `?key=` and `?query=` are not parameters of this endpoint: `?key=…` returns a 400 pointing at `GET /api/memories/key/:key` (or `?prefix=` to filter the list), and `?query=…` returns a 400 pointing at `?q=` / `?contains=`. Before the fix these two were accepted and dropped, so a client that believed it had recalled one key — or run one search — received HTTP 200 with the unfiltered list.
 
 > **Note — semantic search (`?q=`) and embeddings (DB-GAP-036):** `?q=` needs a reachable embedding provider at query time (LM Studio / Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider). When no provider can embed, the endpoint returns **503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start an embedding provider or run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) works offline; its per-namespace index is refreshed automatically when it is missing or older than the newest write (bounded and single-flight — `DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS`, default 5000 source rows), with `duckbrain search-index rebuild` as the escape hatch for namespaces over that bound. Check `GET /health` — its `embedding` block reports provider health.
 
@@ -443,6 +478,8 @@ Create a new memory.
 > **Note — validity window (RETR-011):** `valid_from` / `valid_until` are optional ISO-8601 datetimes. Omitted = the memory is valid from the moment of writing, indefinitely. A past `valid_until` (or future `valid_from`) keeps the memory out of the default current recall view; it remains visible with `?historical=true` on `GET /api/memories`. The camelCase spellings `validFrom` / `validUntil` are accepted as aliases on this endpoint and mapped onto the canonical snake_case fields (if both spellings are sent, snake_case wins); responses always echo snake_case only.
 
 > **Note — namespace selection:** The target namespace may be passed either as the `?namespace=` query parameter **or** as a `"namespace"` field in the JSON body. When both are present the query parameter wins; the body value is the fallback; when neither is supplied the memory is written to the `default` namespace.
+
+> **Note — namespace auto-creation (NAMESPACE-AUTOCREATE-001):** if the target namespace does not exist yet, the write still succeeds (201) and the namespace is created automatically (`mkdir -p` + git init) — the long-standing fleet behavior, unchanged by default. Such a write is **loud**: the 201 body carries `"namespace_autocreated": true` (the field is absent when the namespace already existed), and the daemon logs a `[namespace-autocreate]` WARN — so a typo'd `?namespace=` is visible in both the response and the log instead of silently scattering memories into a directory nobody meant to create. To **reject** such writes instead, set `"namespaces": { "autoCreate": false }` in `duckbrain.config.json`, or `DUCKBRAIN_NAMESPACES_AUTOCREATE=false` in the daemon's environment (runtime-only, never persisted — same convention as `DUCKBRAIN_DURABILITY_MODE`; only the exact spellings `true` / `false` are accepted, anything else fails config load). In strict mode a write to a non-existent namespace returns **404 `NAMESPACE_NOT_FOUND`** and creates nothing on disk; create the namespace first with `POST /api/namespaces`. Read endpoints were already 404 for missing namespaces (GAP-025) and are unaffected.
 
 > **Note — field naming across surfaces:** The HTTP API accepts `content` for the memory body. This maps directly to the MCP `remember` tool's `embedding_text` field — both surfaces store and return the **same** underlying text field (see [MCP Tools Reference](mcp-tools.md#remember)). A memory written via HTTP with `content` is retrievable via MCP `recall` with the text in `embedding_text`, and vice versa.
 
@@ -539,7 +576,7 @@ Get hierarchical memory key tree.
 | `prefix` | `/` | Key prefix filter |
 | `depth` | 10 | Max hierarchy depth |
 | `limit` | 100 | Max keys to return |
-| `namespace` | `default` | Namespace to query |
+| `namespace` | active namespace | Namespace to query — grant-checked (`403` on a token without that grant) |
 
 **Response:**
 
@@ -585,7 +622,7 @@ Get flat list of keys (for autocomplete, dropdowns).
 | `prefix` | `/` | Key prefix filter |
 | `limit` | 100 | Max keys to return |
 | `offset` | 0 | Pagination offset |
-| `namespace` | `default` | Namespace to query |
+| `namespace` | active namespace | Namespace to query — grant-checked (`403` on a token without that grant) |
 
 **Response:**
 
@@ -634,6 +671,13 @@ List all namespaces.
 A row whose namespace directory is missing on disk (registry row survived an
 out-of-band `rm -rf`) carries `"directoryMissing": true`; healthy rows omit
 the field entirely (REG-GONE-001).
+
+**Authorization (card t_667d7e6c):** the listing is filtered to the caller's
+token grant — the rows cover exactly the namespaces in the token's
+`namespaces` list (registry rows *and* on-disk-only rows), and
+`currentNamespace` is **omitted from the body** when the active namespace is
+outside the grant. An unrestricted token (`namespaces` absent) and an
+`--auth=none` daemon receive the full listing, unchanged.
 
 **Example:**
 
@@ -1192,7 +1236,7 @@ curl -Ns "http://localhost:3000/api/ns/my-project/changes?cursor=$LAST" \
 
 ### Compaction
 
-Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`).
+Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`). Both routes are namespace-grant-checked: `?namespace=` — or `namespace` in the squash body — selects the namespace they operate on, and a token without a grant for it is rejected with `403 Forbidden` before the tool runs, exactly like `/api/memories`.
 
 #### `GET /api/compaction/stats`
 
@@ -1242,6 +1286,7 @@ Compact old memory partitions to reduce repository size. Converts JSONL to Parqu
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `namespace` | string | active namespace | Namespace to compact. Also accepted as `?namespace=`. Grant-checked. |
 | `partition` | string | — | Specific partition to squash (relative to the namespace path, or absolute). Omit to compact all old partitions. |
 | `dryRun` | boolean | `false` | Preview without making changes. |
 | `aggressive` | boolean | `false` | Also squash git history. |
@@ -1274,13 +1319,13 @@ curl -X POST http://localhost:3000/api/compaction/squash \
 
 ## Authentication
 
-The HTTP server supports three authentication modes configured via `--auth` or `~/.duckbrain/auth.json` (see [Configuration](../guide/configuration) for details).
+The HTTP server supports three authentication modes configured via `--auth` or `~/.duckbrain/auth.json` (see [Configuration](../guide/configuration) for details). **The default is `apikey`** — a fresh daemon that omits `--auth` rejects unauthenticated reads and writes with `401` (a valid `X-API-Key` is required); `--auth=none` is an explicit opt-out for local-only use and logs an unauthenticated-mode warning at boot.
 
 | Mode | Mechanism | Header |
 |------|-----------|--------|
-| `none` | No authentication | — |
+| `none` | No authentication (explicit `--auth=none` only) | — |
 | `basic` | HTTP Basic Auth (bcrypt) | `Authorization: Basic ...` |
-| `apikey` | API key in header | `X-API-Key: <key>` |
+| `apikey` | API key in header (**default**) | `X-API-Key: <key>` |
 
 The `/health` endpoint always bypasses authentication.
 
@@ -1292,10 +1337,10 @@ touches the production one:
 
 ```bash
 # Flag form
-pnpm start -- http --auth=apikey --auth-file=/tmp/scratch-auth.json
+pnpm start http --auth=apikey --auth-file=/tmp/scratch-auth.json
 
 # Env fallback (used when the flag is absent)
-DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start -- http --auth=apikey
+DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start http --auth=apikey
 ```
 
 - Precedence: `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env > prod default.
@@ -1311,7 +1356,7 @@ DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start -- http --auth=apikey
 
 ```bash
 # Start server with API key auth
-pnpm start -- http --auth=apikey
+pnpm start http --auth=apikey
 
 # Configure keys in ~/.duckbrain/auth.json
 # {"apiKeys": [{"key": "sk-duckbrain-abc123", "name": "default"}]}
@@ -1340,7 +1385,19 @@ token to exactly those namespaces:
 - `namespaces` **present** → the token may read, write, update, delete, and
   create only the listed namespaces. Requests targeting any other namespace
   are rejected with `403 Forbidden` (checked before the route runs, for
-  reads AND writes AND namespace creation).
+  reads AND writes AND namespace creation). The check is mounted on every
+  namespace-scoped REST surface — `/api/memories`, `/api/namespaces`,
+  `/api/ns/:ns/tables`, `/api/keys` (and `/api/keys/flat`),
+  `/api/compaction/stats`, `/api/compaction/squash` and `/activity` — plus the
+  namespace-scoped MCP tools, and every denial is written to the denial audit
+  with reason `namespace_scope` (see `GET /api/keys?namespace=` on a token
+  without that grant for the wire shape).
+- `/activity` is the one cross-namespace feed: an explicit
+  `?namespace=<ns>` is grant-checked exactly like the routes above (`403`
+  when ungranted), and **without** it a scoped token's feed is silently
+  confined to its granted namespaces — an ungranted namespace's rows are
+  neither read from disk nor returned. An unrestricted token keeps the
+  historical every-namespace feed.
 - `/health` always bypasses authentication and grants.
 
 #### Minting a Scoped Token

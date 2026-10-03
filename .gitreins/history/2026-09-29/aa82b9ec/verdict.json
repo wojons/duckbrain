@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0925-07",
+  "task_title": "DR pull restores a fresh machine from S3",
+  "task_criteria": [
+    "On an empty namespaces root: (a) pull materializes namespaces found under the remote prefix (bootstrap-then-pull); (b) 's3 sync all pull' reports restored-vs-skipped loudly and never claims success with 0 restored when the remote prefix is non-empty; (c) README/docs document the exact fresh-machine restore command sequence"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "536ae95810ca13d969d8f4bd07bc194186e87a15",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n6:08AM INF scanned ~13907532 bytes (13.91 MB) in 7.64s\n6:08AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 350202 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts (4 tests) 670ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-pagination-gap024.test.ts > GAP-024: pagination response correctness \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14881,11 +14881,13 @@\n      \"auger-pytest-6b581fabd10f\": \"/home/kara/duckbrain/namespaces/auger-pytest-6b581fabd10f\",\n      \"auger-pytest-76247d0c38bd\": \"/home/kara/duckbrain/namespaces/auger-pytest-76247d0c38bd\",\n      \"auger-pytest-7a3a37182b6c\": \"/home/kara/duckbrain/namespaces/auger-pytest-7a3a37182b6c\",\n      \"auger-pytest-45a9026282a4\": \"/home/kara/duckbrain/namespaces/auger-pytest-45a9026282a4\",\n      \"auger-pytest-eaca423cbb47\": \"/home/kara/duckbrain/namespaces/auger-pytest-eaca423cbb47\",\n-     \"auger-pytest-d34a8ad23300\": \"/home/kara/duckbrain/namespaces/auger-pytest-d34a8ad23300\"\n+     \"auger-pytest-d34a8ad23300\": \"/home/kara/duckbrain/namespaces/auger-pytest-d34a8ad23300\",\n+     \"auger-pytest-29e93e7219a3\": \"/home/kara/duckbrain/namespaces/auger-pytest-29e93e7219a3\",\n+     \"auger-pytest-825b160a88b6\": \"/home/kara/duckbrain/namespaces/auger-pytest-825b160a88b6\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts:136:30\n    134|     server.close();\n    135|     // GAP-022 AC1: config file must be byte-identical after the test \u2026\n    136|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    137|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    138|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 184 passed (185)\n      Tests  1479 passed (1479)\n   Start at  06:08:10\n   Duration  202.75s (tests 78%, import 19%, transform 2%, setup 1%)\n\n    Isolate  185 workers spawned \u00b7 ~343ms startup each (spawn + environment, per file)\n             at least ~15.50s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 On an empty namespaces root: (a) pull materializes namespaces found under the remote prefix (bootstrap-then-pull); (b) 's3 sync all pull' reports restored-vs-skipped loudly and never claims success with 0 restored when the remote prefix is non-empty; (c) README/docs document the exact fresh-machine restore command sequence: (a) src/s3/sync.ts:361-374 syncNamespace bootstraps a missing ns dir on pull via fs.mkdirSync(nsDir,{recursive:true}) (push still throws); syncAllNamespaces:391-420 enumerates the REMOTE prefix via listRemoteNamespaces (sync.ts:220-236) and unions with local dirs. (b) src/s3/cli.ts:147-172 prints per-namespace downloaded/skipped counts and, when remoteCount>0 && all.length===0, prints a loud WARNING and process.exit(1). (c) README.md:209-235 'Fresh-machine DR restore (paste-able)' gives the exact sequence (clone -> config -> 'duckbrain s3 sync all pull' -> git reinit -> serve); docs/s3-native.md:247-280 documents the same with a valid cross-link anchor. Test evidence (fresh runs): 'npx vitest run src/s3/cli-pull-df092507.test.ts' -> Test Files 1 passed, Tests 15 passed (incl. 'pull creates the missing namespace dir and downloads the files', 'restores into an ABSENT namespaces root (truly fresh machine)', 'all pull restoring 0 with a non-empty remote warns and exits nonzero', 'a fully in-sync re-run restores 0 files but does NOT warn'); 'npx vitest run src/s3' -> 5 files / 43 tests passed; battery log /tmp/battery-614.log -> 184 files / 1464 tests passed + prettier clean.\nAll three sub-criteria (bootstrap pull, loud restored-vs-skipped reporting with nonzero exit on silent zero, and documented fresh-machine restore sequence) are implemented and verified by 15 passing dedicated tests plus the full suite.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 On an empty namespaces root: (a) pull materializes namespaces found under the remote prefix (bootstrap-then-pull); (b) 's3 sync all pull' reports restored-vs-skipped loudly and never claims success with 0 restored when the remote prefix is non-empty; (c) README/docs document the exact fresh-machine restore command sequence: (a) src/s3/sync.ts:361-374 syncNamespace bootstraps a missing ns dir on pull via fs.mkdirSync(nsDir,{recursive:true}) (push still throws); syncAllNamespaces:391-420 enumerates the REMOTE prefix via listRemoteNamespaces (sync.ts:220-236) and unions with local dirs. (b) src/s3/cli.ts:147-172 prints per-namespace downloaded/skipped counts and, when remoteCount>0 && all.length===0, prints a loud WARNING and process.exit(1). (c) README.md:209-235 'Fresh-machine DR restore (paste-able)' gives the exact sequence (clone -> config -> 'duckbrain s3 sync all pull' -> git reinit -> serve); docs/s3-native.md:247-280 documents the same with a valid cross-link anchor. Test evidence (fresh runs): 'npx vitest run src/s3/cli-pull-df092507.test.ts' -> Test Files 1 passed, Tests 15 passed (incl. 'pull creates the missing namespace dir and downloads the files', 'restores into an ABSENT namespaces root (truly fresh machine)', 'all pull restoring 0 with a non-empty remote warns and exits nonzero', 'a fully in-sync re-run restores 0 files but does NOT warn'); 'npx vitest run src/s3' -> 5 files / 43 tests passed; battery log /tmp/battery-614.log -> 184 files / 1464 tests passed + prettier clean.\nAll three sub-criteria (bootstrap pull, loud restored-vs-skipped reporting with nonzero exit on silent zero, and documented fresh-machine restore sequence) are implemented and verified by 15 passing dedicated tests plus the full suite.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "On an empty namespaces root: (a) pull materializes namespaces found under the remote prefix (bootstrap-then-pull); (b) 's3 sync all pull' reports restored-vs-skipped loudly and never claims success with 0 restored when the remote prefix is non-empty; (c) README/docs document the exact fresh-machine restore command sequence",
+                "status": "PASS",
+                "detail": "(a) src/s3/sync.ts:361-374 syncNamespace bootstraps a missing ns dir on pull via fs.mkdirSync(nsDir,{recursive:true}) (push still throws); syncAllNamespaces:391-420 enumerates the REMOTE prefix via listRemoteNamespaces (sync.ts:220-236) and unions with local dirs. (b) src/s3/cli.ts:147-172 prints per-namespace downloaded/skipped counts and, when remoteCount>0 && all.length===0, prints a loud WARNING and process.exit(1). (c) README.md:209-235 'Fresh-machine DR restore (paste-able)' gives the exact sequence (clone -> config -> 'duckbrain s3 sync all pull' -> git reinit -> serve); docs/s3-native.md:247-280 documents the same with a valid cross-link anchor. Test evidence (fresh runs): 'npx vitest run src/s3/cli-pull-df092507.test.ts' -> Test Files 1 passed, Tests 15 passed (incl. 'pull creates the missing namespace dir and downloads the files', 'restores into an ABSENT namespaces root (truly fresh machine)', 'all pull restoring 0 with a non-empty remote warns and exits nonzero', 'a fully in-sync re-run restores 0 files but does NOT warn'); 'npx vitest run src/s3' -> 5 files / 43 tests passed; battery log /tmp/battery-614.log -> 184 files / 1464 tests passed + prettier clean.",
+                "resolution_probability": 0.27
+              }
+            ],
+            "summary": "All three sub-criteria (bootstrap pull, loud restored-vs-skipped reporting with nonzero exit on silent zero, and documented fresh-machine restore sequence) are implemented and verified by 15 passing dedicated tests plus the full suite."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0925-07\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 On an empty namespaces root: (a) pull materializes namespaces found under the remote prefix (bootstrap-then-pull); (b) 's3 sync all pull' reports restored-vs-skipped loudly and never claims success with 0 restored when the remote prefix is non-empty; (c) README/docs document the exact fresh-machine restore command sequence: (a) src/s3/sync.ts:361-374 syncNamespace bootstraps a missing ns dir on pull via fs.mkdirSync(nsDir,{recursive:true}) (push still throws); syncAllNamespaces:391-420 enumerates the REMOTE prefix via listRemoteNamespaces (sync.ts:220-236) and unions with local dirs. (b) src/s3/cli.ts:147-172 prints per-namespace downloaded/skipped counts and, when remoteCount>0 && all.length===0, prints a loud WARNING and process.exit(1). (c) README.md:209-235 'Fresh-machine DR restore (paste-able)' gives the exact sequence (clone -> config -> 'duckbrain s3 sync all pull' -> git reinit -> serve); docs/s3-native.md:247-280 documents the same with a valid cross-link anchor. Test evidence (fresh runs): 'npx vitest run src/s3/cli-pull-df092507.test.ts' -> Test Files 1 passed, Tests 15 passed (incl. 'pull creates the missing namespace dir and downloads the files', 'restores into an ABSENT namespaces root (truly fresh machine)', 'all pull restoring 0 with a non-empty remote warns and exits nonzero', 'a fully in-sync re-run restores 0 files but does NOT warn'); 'npx vitest run src/s3' -> 5 files / 43 tests passed; battery log /tmp/battery-614.log -> 184 files / 1464 tests passed + prettier clean.\nAll three sub-criteria (bootstrap pull, loud restored-vs-skipped reporting with nonzero exit on silent zero, and documented fresh-machine restore sequence) are implemented and verified by 15 passing dedicated tests plus the full suite.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T11:16:37.662433",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T11:16:37.701075+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 20398,
+        "truncated": false,
+        "source": "git show 536ae95810ca"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 12708,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0925-07"
+  }
+}

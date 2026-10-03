@@ -321,12 +321,15 @@ export async function installRemote(host: string): Promise<boolean> {
     }
 
     // User-space install failed — print sudo command (D-21: never auto-escalate)
+    // DuckBrain is not published to npm — the release binary is the only
+    // remote-install path (DF-0924-10).
     console.error("");
     console.error("User-space installation failed. Run manually with sudo:");
-    console.error(`  ssh ${host} "sudo npm install -g duckbrain"`);
-    console.error("  OR:");
     console.error(
       `  ssh ${host} "sudo curl -fsSL https://github.com/wojons/duckbrain/releases/latest/download/duckbrain-linux-x64 -o /usr/local/bin/duckbrain && sudo chmod +x /usr/local/bin/duckbrain"`,
+    );
+    console.error(
+      "  (DuckBrain is not published to npm — install from the GitHub release binary.)",
     );
     return false;
   } catch (error) {

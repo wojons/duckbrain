@@ -10,8 +10,26 @@ import { listKeysTool } from "../../mcp/tools/list_keys";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { KeyTreeResponse } from "../types/api";
 import { buildKeyTree } from "../../utils/keyTree";
+import { resolveNamespaceName } from "../../mcp/tools/shared";
+import { requireNamespaceGrant } from "../../auth/middleware";
 
 const router: Router = Router();
+
+/**
+ * DB-GAP-062: the ONE namespace source for both the grant gate and the tool
+ * call — explicit `?namespace=` > DUCKBRAIN_NAMESPACE > config defaultNamespace
+ * > "default" (DF-0926-04). Deriving the gate's namespace separately from the
+ * route's risked grading a different namespace than the one actually read.
+ */
+const resolveRequestNamespace = (req: Request): string =>
+  resolveNamespaceName(req.query.namespace as string);
+
+// DB-GAP-062: /api/keys had no namespace-grant middleware at all, so a token
+// scoped to one namespace could read another namespace's key tree. Same
+// refusal as /api/memories and the table routes: 403 + audited
+// `namespace_scope`. Untouched in auth=none mode and for unrestricted tokens
+// (`namespaces` absent).
+router.use(requireNamespaceGrant(resolveRequestNamespace));
 
 /**
  * GET /api/keys
@@ -32,7 +50,11 @@ router.get(
     const limit = req.query.limit
       ? parseInt(req.query.limit as string, 10)
       : 100;
-    const namespace = (req.query.namespace as string) || "default";
+    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
+    // > config defaultNamespace > "default" (the old `|| "default"` ignored
+    // both the documented env var and the configured default). DB-GAP-062:
+    // shared with the grant gate above so both grade the same namespace.
+    const namespace = resolveRequestNamespace(req);
 
     // Call listKeysTool to get flat key list
     const result = await listKeysTool({
@@ -78,7 +100,11 @@ router.get(
     const offset = req.query.offset
       ? parseInt(req.query.offset as string, 10)
       : 0;
-    const namespace = (req.query.namespace as string) || "default";
+    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
+    // > config defaultNamespace > "default" (the old `|| "default"` ignored
+    // both the documented env var and the configured default). DB-GAP-062:
+    // shared with the grant gate above so both grade the same namespace.
+    const namespace = resolveRequestNamespace(req);
 
     const result = await listKeysTool({
       prefix,

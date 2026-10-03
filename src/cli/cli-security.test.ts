@@ -16,7 +16,7 @@ import { createServer } from "http";
  * Send a POST to /cli on the Express app via a real HTTP server.
  */
 async function postCli(body: unknown): Promise<{ status: number; body: any }> {
-  const app = createHttpServer();
+  const app = createHttpServer({ authType: "none" });
   const server = createServer(app);
 
   return new Promise((resolve, reject) => {

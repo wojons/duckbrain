@@ -735,9 +735,11 @@ exit nonzero on bind failure.
 
 **Errors hit this run, and their fixes (the right way per finding):**
 
-- `Unknown command: --` from `pnpm start -- http …` — pnpm's `--` separator is
-  forwarded verbatim to the CLI. Right way: `node bin/duckbrain.js http …`, or
-  fix package.json to strip the separator (filed, DF-0926-01).
+- `Unknown command: --` from a `pnpm start` invocation with the `--`
+  separator before the subcommand — pnpm's `--` separator is
+  forwarded verbatim to the CLI. Right way: `pnpm start http …` (no
+  separator) or `node bin/duckbrain.js http …` (separator issue filed,
+  DF-0926-01).
 - `Cannot use 'import.meta' outside a module` — example is ESM in a CJS repo.
   Right way: run the copy as `.mjs` (dogfood did); durable fix is the example's
   own extension or `"type": "module"` scoping (same row).
@@ -763,3 +765,43 @@ Run-11's "shrink the home" workaround does not fix this one (still failed at
 240 MB). Manual `userdel -r` over root ssh completed the cleanup. The fix
 belongs in bunker (wait on userdel / retry / make the deadline ≥ the archive
 verify), and the CLI should treat deadline as UNKNOWN, not failure-to-cleanup.
+
+## Run 14 (2026-10-03) — as-of at prod scale + fresh-box install at published HEAD
+
+Angle: run 8 proved as-of on a 2-memory scratch ns; no run had touched the
+prod-size namespace or re-run install at published-origin HEAD. Both done this
+run.
+
+How the prod-scale number was taken: same endpoint, same as_of param, prod
+daemon :3000, default ns (245k rows). p50 7248 ms p100 8158 ms warm (n=15),
+vs 177 ms avg on the 2-memory scratch ns. The five-run 4.3–4.6 s block before
+the 7–8 s block is odd (later calls slower than earlier ones — cache eviction
+or provider warm path, not JIT warm-up); the foreman profiling PERF-011
+should start there, node --cpu-prof on a prod-size copy.
+
+Lessons specific to this run:
+- DUCKBRAIN_DATA_DIR is STILL dead at HEAD (DF-1003-01; original DF-0926-04).
+  The supported isolation knobs are DUCKBRAIN_NAMESPACES_PATH (BUG-037) and
+  DUCKBRAIN_HOME_ROOT. When a prior run's "docs teach env var X" finding
+  survives two runs, stop teaching X in new artifacts — grep the config
+  resolver (src/config/index.ts resolveDuckbrainRoot/resolveNamespacesPath)
+  before writing an isolation recipe into any doc.
+- The 30 s git autocommit batch (config gitBatching.maxSeconds=30) means an
+  as-of script that stamps T1 before the first write will ALWAYS 400
+  "No commit found" — the commit does not exist yet. Stamp T1 AFTER the write
+  and AFTER the batch window. This bit three consecutive script arms; the
+  product's error message caught it every time, which is the error surface
+  working as designed.
+- Namespace auto-create is server-side-WARN only (DF-1003-03): a write to an
+  uncreated ns 201s into `default` and the response body never says so. On a
+  fresh box the defaultNamespace differs from your dev box — query the ns you
+  wrote to, not the one you meant.
+- Fresh-box install channel at published HEAD (wojons/duckbrain) is green:
+  clone + nvm node 22 + corepack pnpm + install --frozen-lockfile + build all
+  pass. The as-of workflow transferred output-identical modulo timing lines.
+  What was NOT re-exercised: examples/ and the README quickstart commands
+  (DF-1003-02 records the gap honestly).
+- Script transfer to bunker: `cat file | ssh host 'cat > ~/x.sh'` then
+  `( setsid bash ~/x.sh > ~/x.log 2>&1 & )` — the `&`-inside-ssh-one-liner
+  form kills the job when ssh exits (log stays 0 bytes; not a silent no-op,
+  a never-ran).

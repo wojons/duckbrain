@@ -101,7 +101,7 @@ function keywordMemory(id: string, key: string, text: string, snippet: string) {
 
 describe("RETR-007: GET /api/memories?allNamespaces=true (auth none)", () => {
   beforeAll(async () => {
-    const app = createHttpServer();
+    const app = createHttpServer({ authType: "none" });
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, "127.0.0.1", () => {

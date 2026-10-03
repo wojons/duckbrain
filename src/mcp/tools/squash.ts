@@ -11,7 +11,12 @@ import {
   compactHistory,
   getCompactionStats,
 } from "../../git/squash";
-import { resolveNamespaceName, resolveNamespacePath } from "./shared";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  enforceNamespaceScope,
+  type McpToolContext,
+} from "./shared";
 import path from "path";
 
 /**
@@ -52,7 +57,15 @@ interface SquashOutput {
     tombstonesRemoved?: number;
   };
   errors?: string[];
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
+  error?: string;
 }
+
+/** Injectable context for the squash handlers — the SUPA-4 principal seam. */
+export interface SquashContext extends McpToolContext {}
 
 /**
  * Resolve namespace path from namespace name
@@ -61,9 +74,14 @@ interface SquashOutput {
  * Squash tool handler
  *
  * @param input - Tool input parameters
+ * @param context - Injectable principal seam (SUPA-4); MCP-over-HTTP falls
+ *                  back to the DOGFOOD-025 ALS slot via resolveToolPrincipal
  * @returns Squash operation results
  */
-export async function squashTool(input: SquashInput): Promise<SquashOutput> {
+export async function squashTool(
+  input: SquashInput,
+  context: SquashContext = {},
+): Promise<SquashOutput> {
   try {
     // Validate input
     const parseResult = SquashInputSchema.safeParse(input);
@@ -75,6 +93,25 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
     }
 
     const { partition, dryRun, aggressive, namespace } = parseResult.data;
+
+    // DB-GAP-031 (MCP parity): squash rewrites/compacts a namespace's storage,
+    // so a token scoped to other namespaces must be refused before any work —
+    // REST's table/compaction routes enforce this via middleware and /mcp has
+    // no per-tool route to mount it on.
+    const scopeViolation = enforceNamespaceScope(
+      context,
+      resolveNamespaceName(namespace),
+    );
+    if (scopeViolation) {
+      return {
+        success: false,
+        message: scopeViolation.error,
+        code: scopeViolation.code,
+        reason: scopeViolation.reason,
+        error: scopeViolation.error,
+        errors: [scopeViolation.error],
+      };
+    }
 
     // If specific partition provided, squash it directly
     if (partition) {
@@ -158,9 +195,12 @@ export async function squashTool(input: SquashInput): Promise<SquashOutput> {
  * deployments → all-zero stats.
  * @returns Repository compaction statistics
  */
-export async function getCompactionStatsTool(input?: {
-  namespace?: string;
-}): Promise<{
+export async function getCompactionStatsTool(
+  input?: {
+    namespace?: string;
+  },
+  context: SquashContext = {},
+): Promise<{
   success: boolean;
   /** Namespace actually scanned — resolved from the arg or the active
    *  (config defaultNamespace) namespace when omitted (DOGFOOD-014) */
@@ -177,8 +217,28 @@ export async function getCompactionStatsTool(input?: {
     oldPartitions: string[];
     largePartitions: Array<{ path: string; size: number; records: number }>;
   };
+  /** Machine-readable failure code (NAMESPACE_SCOPE) — see ./shared */
+  code?: string;
+  /** Denial reason, 'namespace_scope' — the same reason REST audits */
+  reason?: string;
   error?: string;
 }> {
+  // DB-GAP-031 (MCP parity): stats expose a namespace's storage shape, so the
+  // same grant rule applies as for squash — checked before the try so the
+  // machine-readable refusal is not flattened by the generic catch.
+  const scopeViolation = enforceNamespaceScope(
+    context,
+    resolveNamespaceName(input?.namespace),
+  );
+  if (scopeViolation) {
+    return {
+      success: false,
+      code: scopeViolation.code,
+      reason: scopeViolation.reason,
+      error: scopeViolation.error,
+    };
+  }
+
   try {
     const namespacePath = resolveNamespacePath(input?.namespace);
     const stats = await getCompactionStats(namespacePath);

@@ -18,6 +18,9 @@
  */
 
 import { describe, it, expect } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { createHealthHandler } from "./http";
 
 /** Minimal express Response double — the handler calls res.status() + res.json(). */
@@ -100,5 +103,46 @@ describe("DB-GAP-035: /health keys_error", () => {
     expect((captured.body as any).keys_error).toContain("connection lost");
     expect((captured.body as any).keys_error!.length).toBeLessThanOrEqual(200);
     expect((captured.body as any).status).toBe("degraded");
+  });
+});
+
+/**
+ * HEALTH-KEYS-UNDEFINED-001: a fresh install has an EMPTY namespaces root —
+ * the config default namespace does not exist yet. The wired-in keys probe
+ * (probeKeysStore with no explicit namespace, exactly what createHttpServer
+ * mounts) must resolve the config default and report healthy, so /health is
+ * 200 — pre-fix the probe fed the raw `undefined` argument to list_keys and
+ * /health answered 503 with keys_error "Namespace 'undefined' does not
+ * exist".
+ *
+ * Runs against a real (empty) namespaces root via DUCKBRAIN_NAMESPACES_PATH,
+ * with the embedding probe injected healthy so keys is the only live signal.
+ */
+describe("HEALTH-KEYS-UNDEFINED-001: fresh install /health is healthy", () => {
+  it("empty namespaces root — default namespace absent — is NOT degraded", async () => {
+    const freshRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-fresh-install-"),
+    );
+    const savedNsPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const savedNsName = process.env.DUCKBRAIN_NAMESPACE;
+    process.env.DUCKBRAIN_NAMESPACES_PATH = freshRoot;
+    try {
+      // Default keysProbe — the same resolution the HTTP layer mounts.
+      const handler = createHealthHandler(async () => healthyEmbedding);
+      const { res, captured } = fakeRes();
+      await handler({} as any, res as any);
+
+      expect(captured.statusCode).toBe(200);
+      expect((captured.body as any).status).toBe("healthy");
+      expect((captured.body as any).keys_error).toBeNull();
+      expect(JSON.stringify(captured.body)).not.toContain("undefined");
+    } finally {
+      if (savedNsPath === undefined)
+        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      else process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsPath;
+      if (savedNsName === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
+      else process.env.DUCKBRAIN_NAMESPACE = savedNsName;
+      fs.rmSync(freshRoot, { recursive: true, force: true });
+    }
   });
 });

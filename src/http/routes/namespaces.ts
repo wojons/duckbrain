@@ -14,11 +14,12 @@ import {
   switchNamespaceTool,
 } from "../../mcp/tools/namespace";
 import { deleteNamespace } from "../../namespaces/delete";
+import { logLifecycle } from "../../namespaces/lifecycle";
 import { resolveNamespacesPath } from "../../config/index";
 import { censusOnDiskNamespaces } from "./namespace-census";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { NamespaceListResponse, NamespaceResponse } from "../types/api";
-import { requireNamespaceGrant } from "../../auth/middleware";
+import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
 
 const router: Router = Router();
 
@@ -70,8 +71,17 @@ function transformNamespace(
  */
 router.get(
   "/",
-  asyncHandler(async (_req: Request, res: Response) => {
-    const result = await listNamespacesTool({});
+  asyncHandler(async (req: Request, res: Response) => {
+    // card t_667d7e6c: the LISTING itself grades the caller's token grant —
+    // pass the authenticated principal through the tool's injection seam
+    // (`McpToolContext`, src/mcp/tools/shared.ts) so the rows come back
+    // filtered exactly like the MCP `list_namespaces` tool. A scoped token
+    // must not learn an ungranted namespace's name (nor be told it is the
+    // active default) from the REST enumeration. Unrestricted tokens
+    // (`namespaces` absent) and auth=none (no principal) keep the full
+    // listing byte-for-byte.
+    const principal = getPrincipal(req);
+    const result = await listNamespacesTool({}, { principal });
 
     if (!result.success) {
       throw new ApiError(result.error || "Failed to list namespaces", 500);
@@ -107,8 +117,14 @@ router.get(
       result.namespaces.filter((ns: any) => ns.onDiskOnly).map((ns) => ns.name),
     );
     let onDiskOnlyCount = onDiskOnlyNames.size;
+    // card t_667d7e6c: this route's own census union is a SECOND enumeration
+    // source — the tool's rows above are already grant-filtered, so an
+    // ungranted directory must not be re-added here as an onDiskOnly row
+    // (nor counted in `drift`: those counts describe the VISIBLE listing).
+    const grant = principal?.namespaces;
     for (const [name, nsPath] of onDisk) {
       if (listedNames.has(name)) continue;
+      if (grant && !grant.includes(name)) continue;
       onDiskOnlyCount++;
       namespaces.push({
         name,
@@ -127,7 +143,14 @@ router.get(
 
     const response: NamespaceListResponse = {
       namespaces,
-      currentNamespace: result.currentNamespace || "default",
+      // card t_667d7e6c: a scoped token whose ACTIVE namespace is outside its
+      // grant gets no `currentNamespace` key at all (same rule the MCP tool
+      // applies by returning undefined). Unrestricted tokens and auth=none
+      // keep the previous value — including the "default" fallback used when
+      // the config has no defaultNamespace.
+      ...(grant && !grant.includes(result.currentNamespace || "default")
+        ? {}
+        : { currentNamespace: result.currentNamespace || "default" }),
       ...(drift ? { drift } : {}),
     };
 
@@ -256,8 +279,12 @@ router.delete(
 
     // Deletion requires explicit confirmation — mirrors the MCP tool's
     // confirm guard. Anything other than exactly true is rejected.
-    const { confirm } = (req.body ?? {}) as { confirm?: unknown };
-    if (confirm !== true) {
+    const body = (req.body ?? {}) as {
+      confirm?: unknown;
+      requestedBy?: unknown;
+      reason?: unknown;
+    };
+    if (body.confirm !== true) {
       throw new ApiError(
         "Confirmation required. Set confirm=true to delete namespace.",
         400,
@@ -266,6 +293,23 @@ router.delete(
     }
 
     const result = deleteNamespace(name, true);
+
+    // DF-0923-02: the shared core writes no audit line — REST DELETE was a
+    // silent destructive path. Always append one lifecycle line (even when
+    // the delete fails, so refusals are auditable too); best-effort, it never
+    // breaks the operation. Optional who/why from the request body.
+    logLifecycle(resolveNamespacesPath(), {
+      op: "delete-from-disk",
+      surface: "rest",
+      ns: name,
+      requestedBy:
+        typeof body.requestedBy === "string" && body.requestedBy.trim()
+          ? body.requestedBy
+          : "operator",
+      reason: typeof body.reason === "string" ? body.reason : "",
+      success: result.success,
+      error: result.success ? undefined : result.error,
+    });
 
     if (!result.success) {
       const error = result.error || "Failed to delete namespace";

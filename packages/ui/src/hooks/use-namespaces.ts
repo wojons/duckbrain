@@ -86,7 +86,12 @@ export function useNamespaceBootStatus(): NamespaceBootStatus {
       // Adoption FIRST, then the flip: on the commit that reports "ready"
       // the store already holds the server value.
       setNamespaceBootError(false);
-      setCurrentNamespace(data.currentNamespace);
+      // card t_667d7e6c: /api/namespaces OMITS currentNamespace for a scoped
+      // token whose ACTIVE namespace is outside its grant. Adopt the first
+      // VISIBLE (granted) namespace instead — never the ungranted active one
+      // — and leave the stored value untouched when nothing is visible.
+      const adopted = data.currentNamespace ?? data.namespaces[0]?.name;
+      if (adopted !== undefined) setCurrentNamespace(adopted);
       setStatus("ready");
     }
   }, [data, setCurrentNamespace, setNamespaceBootError]);

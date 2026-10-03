@@ -830,7 +830,7 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
     const note = result.providers[0].note;
     // OPS-004: the live note was the bare abort message, which named neither
     // the budget that expired nor the fact that the provider may still work.
-    expect(note).toContain("3000ms health budget");
+    expect(note).toContain("8000ms health budget");
     expect(note).toContain("NOT DUCKBRAIN_EMBEDDING_TIMEOUT_MS");
   });
 
@@ -966,11 +966,11 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
         return httpResponse({ json: { data: [] } });
       }),
     );
-    // Deterministically make the measured embed latency exceed the 3s health
-    // budget without sleeping: every Date.now() call advances 4s.
+    // Deterministically make the measured embed latency exceed the 8s health
+    // budget without sleeping: every Date.now() call advances 12s.
     const base = Date.now();
     let calls = 0;
-    vi.spyOn(Date, "now").mockImplementation(() => base + 4_000 * calls++);
+    vi.spyOn(Date, "now").mockImplementation(() => base + 12_000 * calls++);
 
     const report = await preflightEmbedding();
 
@@ -978,7 +978,7 @@ describe("OPS-004: classified embedding failures and the secret-safe preflight",
     expect(budget.verdict).toBe("warn");
     // Usable, so the preflight still passes — but the flap is named.
     expect(report.ok).toBe(true);
-    expect(budget.note).toContain("3000ms /health embed-probe budget");
+    expect(budget.note).toContain("8000ms /health embed-probe budget");
     expect(budget.note).toContain("intermittently");
     vi.restoreAllMocks();
   });

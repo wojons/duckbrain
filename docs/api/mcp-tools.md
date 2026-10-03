@@ -111,6 +111,7 @@ Query memories with flexible filtering.
   query?: string;       // Semantic search query (uses DuckDB VSS extension)
   limit?: number;       // Max results (default: 10)
   namespace?: string;   // Namespace to query (default: current active namespace)
+  asOf?: string;        // RETR-004: ISO-8601 date or git ref (commit/branch/tag) — read namespace state as it existed at that point in git history. Cannot combine with query/contains (semantic/keyword search has no historical state).
 }
 ```
 
@@ -146,6 +147,15 @@ Query memories with flexible filtering.
   "limit": 20
 }
 ```
+
+**Time travel (RETR-004):**
+```json
+{
+  "keyPrefix": "/projects/myapp/",
+  "asOf": "2026-08-10"
+}
+```
+Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state.
 
 **Returns:**
 
@@ -563,7 +573,7 @@ Start the DuckBrain HTTP server as a detached background process if it is not al
 {
   port?: number;        // TCP port (default: 3000)
   bindAll?: boolean;    // Bind to 0.0.0.0 instead of 127.0.0.1 (default: false)
-  authType?: "none" | "basic" | "apikey";  // Authentication type (default: none)
+  authType?: "none" | "basic" | "apikey";  // Authentication type (default: apikey; use none only for explicit local mode)
   rateLimit?: number;   // Requests per minute per IP (default: 100)
   socket?: string;      // Also listen on a Unix domain socket at this path
   socketMode?: string;  // Socket file permissions as octal string (default: 0660)
@@ -578,7 +588,7 @@ Start the DuckBrain HTTP server as a detached background process if it is not al
 {
   "port": 3000,
   "socket": "/tmp/duckbrain.sock",
-  "authType": "none"
+  "authType": "apikey"
 }
 ```
 

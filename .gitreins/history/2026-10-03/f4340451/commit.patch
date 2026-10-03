@@ -1,0 +1,282 @@
+commit 561d684de590d16b5b12204d4a339c6ba271c786
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Fri Oct 2 20:25:43 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Fri Oct 2 20:25:43 2026 -0500
+
+    chore(format): prettier --write 6 files left unformatted by prior commits
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/http/routes/activity.ts                        |  5 +-
+ src/http/routes/compaction.ts                      |  4 +-
+ ...memories-namespace-autocreate-nsauto001.test.ts | 11 ++-
+ .../routes/rest-namespace-grant-dbgap062.test.ts   | 80 +++++++++++++++-------
+ .../tools/mcp-namespace-admin-grant-supa4.test.ts  | 27 +++++---
+ src/mcp/tools/namespace.ts                         |  4 +-
+ 6 files changed, 83 insertions(+), 48 deletions(-)
+
+diff --git a/src/http/routes/activity.ts b/src/http/routes/activity.ts
+index 6781afd..735fb5e 100644
+--- a/src/http/routes/activity.ts
++++ b/src/http/routes/activity.ts
+@@ -342,10 +342,7 @@ router.get(
+       200,
+     );
+ 
+-    const activities = await queryRecentActivity(
+-      limit,
+-      visibleNamespaces(req),
+-    );
++    const activities = await queryRecentActivity(limit, visibleNamespaces(req));
+ 
+     res.json({
+       activities,
+diff --git a/src/http/routes/compaction.ts b/src/http/routes/compaction.ts
+index 4e52b36..5402b88 100644
+--- a/src/http/routes/compaction.ts
++++ b/src/http/routes/compaction.ts
+@@ -24,9 +24,7 @@ const requestedNamespace = (req: Request): string | undefined =>
+   (req.body && typeof req.body.namespace === "string"
+     ? req.body.namespace
+     : undefined) ??
+-  (typeof req.query.namespace === "string"
+-    ? req.query.namespace
+-    : undefined);
++  (typeof req.query.namespace === "string" ? req.query.namespace : undefined);
+ 
+ /**
+  * DB-GAP-062: the resolved namespace, shared by the grant gate and both route
+diff --git a/src/http/routes/memories-namespace-autocreate-nsauto001.test.ts b/src/http/routes/memories-namespace-autocreate-nsauto001.test.ts
+index 89fc7ae..057e0c5 100644
+--- a/src/http/routes/memories-namespace-autocreate-nsauto001.test.ts
++++ b/src/http/routes/memories-namespace-autocreate-nsauto001.test.ts
+@@ -236,8 +236,7 @@ async function findFreePort(): Promise<number> {
+   // 1. Private window: the kernel never auto-assigns these to anyone else.
+   const span = PORT_WINDOW_MAX - PORT_WINDOW_MIN + 1;
+   for (let attempt = 0; attempt < 200; attempt++) {
+-    const candidate =
+-      PORT_WINDOW_MIN + Math.floor(Math.random() * span);
++    const candidate = PORT_WINDOW_MIN + Math.floor(Math.random() * span);
+     if (await bindCandidate(candidate)) return candidate;
+   }
+ 
+@@ -695,11 +694,9 @@ describe("NAMESPACE-AUTOCREATE-001: scratch-daemon rig rejects a foreign listene
+       // left behind on CI just before the foreign app was handed the port.
+       forcedPortForNextSpawn = foreignPort;
+ 
+-      daemon = await spawnScratchDaemon(
+-        "duckbrain-nsauto-racetest-",
+-        true,
+-        [EXISTING_NS],
+-      );
++      daemon = await spawnScratchDaemon("duckbrain-nsauto-racetest-", true, [
++        EXISTING_NS,
++      ]);
+ 
+       // It re-rolled instead of trusting the squatter.
+       expect(daemon.port).not.toBe(foreignPort);
+diff --git a/src/http/routes/rest-namespace-grant-dbgap062.test.ts b/src/http/routes/rest-namespace-grant-dbgap062.test.ts
+index 20a37fd..be3806d 100644
+--- a/src/http/routes/rest-namespace-grant-dbgap062.test.ts
++++ b/src/http/routes/rest-namespace-grant-dbgap062.test.ts
+@@ -83,7 +83,11 @@ const AUTH_CONFIG = {
+     { key: "unrestricted-key", name: "unrestricted-agent" },
+     { key: "scoped-a-key", name: "scoped-agent", namespaces: ["a"] },
+     { key: "scoped-ab-key", name: "scoped-ab-agent", namespaces: ["a", "b"] },
+-    { key: "scoped-default-key", name: "default-agent", namespaces: ["default"] },
++    {
++      key: "scoped-default-key",
++      name: "default-agent",
++      namespaces: ["default"],
++    },
+   ],
+ };
+ 
+@@ -109,17 +113,18 @@ function mountApp(
+   app.use(authMiddleware(authConfig));
+   app.use(express.json());
+   app.use(mountPath, router);
+-  app.use(
+-    (err: any, _req: Request, res: Response, _next: NextFunction) =>
+-      res.status(err.status || 500).json({
+-        error: err.message || "Internal server error",
+-        ...(err.code ? { code: err.code } : {}),
+-      }),
++  app.use((err: any, _req: Request, res: Response, _next: NextFunction) =>
++    res.status(err.status || 500).json({
++      error: err.message || "Internal server error",
++      ...(err.code ? { code: err.code } : {}),
++    }),
+   );
+   return app;
+ }
+ 
+-function startServer(app: express.Express): Promise<{ server: Server; port: number }> {
++function startServer(
++  app: express.Express,
++): Promise<{ server: Server; port: number }> {
+   const server = createServer(app);
+   return new Promise((resolve) => {
+     server.listen(0, "127.0.0.1", () => {
+@@ -242,9 +247,14 @@ describe("DB-GAP-062: /api/keys enforces namespace grants", () => {
+   });
+ 
+   it("refuses a scoped token reading an ungranted namespace (403 + audited namespace_scope)", async () => {
+-    const { status, body } = await httpRequest(port, "GET", "/api/keys?namespace=b", {
+-      headers: { "X-API-Key": "scoped-a-key" },
+-    });
++    const { status, body } = await httpRequest(
++      port,
++      "GET",
++      "/api/keys?namespace=b",
++      {
++        headers: { "X-API-Key": "scoped-a-key" },
++      },
++    );
+     expect(status).toBe(403);
+     expect(body.error).toContain("'b'");
+     expect(mockedListKeysTool).not.toHaveBeenCalled();
+@@ -260,9 +270,14 @@ describe("DB-GAP-062: /api/keys enforces namespace grants", () => {
+   });
+ 
+   it("refuses a scoped token on /api/keys/flat too (router-level mount)", async () => {
+-    const { status } = await httpRequest(port, "GET", "/api/keys/flat?namespace=b", {
+-      headers: { "X-API-Key": "scoped-a-key" },
+-    });
++    const { status } = await httpRequest(
++      port,
++      "GET",
++      "/api/keys/flat?namespace=b",
++      {
++        headers: { "X-API-Key": "scoped-a-key" },
++      },
++    );
+     expect(status).toBe(403);
+     expect(mockedListKeysTool).not.toHaveBeenCalled();
+   });
+@@ -392,10 +407,15 @@ describe("DB-GAP-062: /api/compaction enforces namespace grants", () => {
+   });
+ 
+   it("refuses a scoped token squashing an ungranted namespace named in the BODY", async () => {
+-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
+-      headers: { "X-API-Key": "scoped-a-key" },
+-      body: { namespace: "b", dryRun: true },
+-    });
++    const { status } = await httpRequest(
++      port,
++      "POST",
++      "/api/compaction/squash",
++      {
++        headers: { "X-API-Key": "scoped-a-key" },
++        body: { namespace: "b", dryRun: true },
++      },
++    );
+     expect(status).toBe(403);
+     expect(mockedSquashTool).not.toHaveBeenCalled();
+   });
+@@ -412,10 +432,15 @@ describe("DB-GAP-062: /api/compaction enforces namespace grants", () => {
+   });
+ 
+   it("lets a scoped token squash inside its grants", async () => {
+-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
+-      headers: { "X-API-Key": "scoped-a-key" },
+-      body: { namespace: "a", dryRun: true },
+-    });
++    const { status } = await httpRequest(
++      port,
++      "POST",
++      "/api/compaction/squash",
++      {
++        headers: { "X-API-Key": "scoped-a-key" },
++        body: { namespace: "a", dryRun: true },
++      },
++    );
+     expect(status).toBe(200);
+     expect(mockedSquashTool).toHaveBeenCalledWith(
+       expect.objectContaining({ namespace: "a", dryRun: true }),
+@@ -459,9 +484,14 @@ describe("DB-GAP-062: /api/compaction under auth=none", () => {
+   it("squashes with no token and no principal (unchanged)", async () => {
+     AUDIT.mockClear();
+     mockedSquashTool.mockResolvedValue({ success: true, message: "ok" } as any);
+-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
+-      body: { namespace: "b", dryRun: true },
+-    });
++    const { status } = await httpRequest(
++      port,
++      "POST",
++      "/api/compaction/squash",
++      {
++        body: { namespace: "b", dryRun: true },
++      },
++    );
+     expect(status).toBe(200);
+     expect(AUDIT).not.toHaveBeenCalled();
+   });
+diff --git a/src/mcp/tools/mcp-namespace-admin-grant-supa4.test.ts b/src/mcp/tools/mcp-namespace-admin-grant-supa4.test.ts
+index 5400337..3c14b8e 100644
+--- a/src/mcp/tools/mcp-namespace-admin-grant-supa4.test.ts
++++ b/src/mcp/tools/mcp-namespace-admin-grant-supa4.test.ts
+@@ -46,7 +46,12 @@ import {
+   listNamespacesTool,
+   switchNamespaceTool,
+ } from "./namespace";
+-import { getConfig, resolveDuckbrainRoot, resolveNamespacesPath, updateConfig } from "../../config/index";
++import {
++  getConfig,
++  resolveDuckbrainRoot,
++  resolveNamespacesPath,
++  updateConfig,
++} from "../../config/index";
+ import { lifecycleLogPath } from "../../namespaces/lifecycle";
+ import { drainAsyncCommits } from "../../git/autocommit";
+ import type { AuthPrincipal, DenialAuditEvent } from "../../auth/middleware";
+@@ -250,9 +255,12 @@ describe("card t_369581ef: list_namespaces does not leak the grant", () => {
+     expect(scoped.currentNamespace).toBeUndefined();
+ 
+     // Unrestricted tokens keep the full listing unchanged.
+-    const unrestricted = await listNamespacesTool({}, {
+-      principal: UNRESTRICTED,
+-    });
++    const unrestricted = await listNamespacesTool(
++      {},
++      {
++        principal: UNRESTRICTED,
++      },
++    );
+     expect(unrestricted.namespaces.map((ns) => ns.name)).toContain("infra");
+     expect(unrestricted.currentNamespace).toBe("infra");
+   });
+@@ -301,10 +309,13 @@ describe("card t_369581ef: SUPA-4 denial audit on the MCP path", () => {
+       { name: "writable", setDefault: false },
+       { principal: SCOPED, auditDenial: sink.auditDenial },
+     );
+-    await listNamespacesTool({}, {
+-      principal: SCOPED,
+-      auditDenial: sink.auditDenial,
+-    });
++    await listNamespacesTool(
++      {},
++      {
++        principal: SCOPED,
++        auditDenial: sink.auditDenial,
++      },
++    );
+     created.push("admin-ns");
+     await createNamespaceTool(
+       { name: "admin-ns", setDefault: false },
+diff --git a/src/mcp/tools/namespace.ts b/src/mcp/tools/namespace.ts
+index 09ad705..19170cc 100644
+--- a/src/mcp/tools/namespace.ts
++++ b/src/mcp/tools/namespace.ts
+@@ -336,7 +336,9 @@ export async function listNamespacesTool(
+       ? namespaceList.filter((ns) => grant.includes(ns.name))
+       : namespaceList;
+     const visibleCurrentNamespace =
+-      grant && currentNamespace !== undefined && !grant.includes(currentNamespace)
++      grant &&
++      currentNamespace !== undefined &&
++      !grant.includes(currentNamespace)
+         ? undefined
+         : currentNamespace;
+ 

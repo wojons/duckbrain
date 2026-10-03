@@ -42,6 +42,18 @@
  * extend the window a flush or DDL waits on the namespace. The exit-flush
  * path takes the lock one-shot without waiting (an 'exit' handler must always
  * return): a busy lock skips the commit and the next write's sweep covers it.
+ *
+ * AUTOCOMMIT-ENOENT-001 — a client can create an ephemeral namespace, write,
+ * and DELETE it inside the batching window (`gitBatching.maxSeconds`, default
+ * 30s; the auger pytest suite does exactly this, ~370x/day). The deferred
+ * commit then spawns git with a cwd that no longer exists, and Node reports
+ * `spawn git ENOENT` — the SAME errno as a missing binary — so the warning
+ * read as "git is unavailable" for a namespace that was simply gone. The
+ * commit paths now check the namespace directory BEFORE spawning: a removed
+ * namespace is skipped with a distinct, accurate info-level message (never
+ * the word ENOENT), while a spawn that fails with the directory present is
+ * enriched with the resolved git binary path and the cwd, so a log reader can
+ * always tell the two cases apart.
  */
 
 import { execFile, execSync } from "child_process";
@@ -138,6 +150,90 @@ const DEFAULT_PARAMS: BatchingParams = {
 
 /** Hard bound for a single `git push` (async and exit-flush paths share it). */
 const PUSH_TIMEOUT_MS = 30_000;
+
+/**
+ * AUTOCOMMIT-ENOENT-001 — sentinel reported when `git` cannot be resolved from
+ * PATH at all. The commit warning names the RESOLVED binary so a log reader
+ * can tell "git is missing/unavailable" from "the namespace was removed"
+ * (the two failures Node reports with the same `spawn git ENOENT`).
+ */
+export const GIT_BINARY_UNRESOLVED = "unresolved on PATH";
+
+/**
+ * AUTOCOMMIT-ENOENT-001 — resolve the `git` executable the spawn path will
+ * actually use.
+ *
+ * Node's own spawn error is no help here: for ENOENT it reports
+ * `error.path = "git"` (the bare command as given to `execFile`, not the
+ * absolute path it searched for). Searching PATH ourselves is what makes the
+ * warning actionable. Never throws; returns `GIT_BINARY_UNRESOLVED` when
+ * nothing named `git` (or `git.exe`/`.cmd`/`.bat` on Windows) is a file on
+ * PATH. Resolved lazily per call (never cached) because a process can change
+ * PATH at runtime.
+ */
+export function resolveGitBinary(env: NodeJS.ProcessEnv = process.env): string {
+  const extensions =
+    process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  for (const dir of (env.PATH ?? "").split(path.delimiter)) {
+    if (!dir) continue;
+    for (const ext of extensions) {
+      const candidate = path.join(dir, `git${ext}`);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Not in this PATH entry — keep searching.
+      }
+    }
+  }
+  return GIT_BINARY_UNRESOLVED;
+}
+
+/**
+ * AUTOCOMMIT-ENOENT-001 — is the namespace directory still on disk?
+ *
+ * Used as a pre-spawn guard: `execFile("git", …, { cwd })` on a deleted cwd
+ * fails with `spawn git ENOENT`, indistinguishable in the log from a missing
+ * git binary. `statSync` (not a bare `existsSync`) so a path that exists but is
+ * no longer a directory also counts as gone.
+ */
+function namespaceStillPresent(namespacePath: string): boolean {
+  try {
+    return fs.statSync(namespacePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * AUTOCOMMIT-ENOENT-001 — the namespace a commit was scheduled for is gone.
+ * Info level and deliberately free of the word ENOENT: nothing failed, the
+ * work was simply cancelled by a client deleting its own ephemeral namespace
+ * inside the batching window. The JSONL rows left behind are gone with the
+ * directory, so there is nothing for the next write to sweep up either.
+ */
+function logNamespaceRemoved(namespacePath: string, phase: string): void {
+  console.info(
+    `[Git] Namespace removed before ${phase}; skipping ${namespacePath}`,
+  );
+}
+
+/**
+ * AUTOCOMMIT-ENOENT-001 — the one warning shape the commit paths emit.
+ *
+ * Beyond the error message, the resolved git binary and the cwd are always
+ * reported so the two ENOENT-shaped failures are distinguishable from the log
+ * alone: `git=unresolved on PATH` means git genuinely could not be spawned,
+ * while a resolved path with a cwd that no longer exists is the deleted-cwd
+ * race (already skipped before any spawn, so this combination should not
+ * normally occur).
+ */
+function commitWarning(namespacePath: string, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    `[Git] Auto-commit warning for ${namespacePath}: ${message}` +
+    ` (git=${resolveGitBinary()}, cwd=${namespacePath})`
+  );
+}
 
 /**
  * Per-namespace autopush gate state (PUSH-001). Keyed by absolute namespace
@@ -348,6 +444,19 @@ async function asyncCommit(
   namespacePath: string,
   message: string,
 ): Promise<void> {
+  // AUTOCOMMIT-ENOENT-001: a client can create an ephemeral namespace, write,
+  // and DELETE it inside the batching window (the auger pytest suite does
+  // exactly this ~370x/day). The debounced timer then fires on a directory
+  // that no longer exists, and the first spawn fails with `spawn git ENOENT`
+  // — the errno Node also reports for a MISSING BINARY, which made the log
+  // claim git was unavailable. Skip the doomed commit before touching git (or
+  // even the namespace lock) and say what actually happened; a genuine
+  // git-unavailable failure on a LIVE namespace still reaches the warning
+  // below, which now names the resolved binary and the cwd.
+  if (!namespaceStillPresent(namespacePath)) {
+    logNamespaceRemoved(namespacePath, "deferred commit");
+    return;
+  }
   try {
     await withCommitGate(namespacePath, () =>
       withNamespaceCommitLock(namespacePath, async () => {
@@ -406,9 +515,10 @@ async function asyncCommit(
     // record is already durable and the next scheduled commit's `git add -A`
     // sweeps the remainder, so warning-and-skipping keeps the guarantee
     // without serializing the serving path behind a stuck owner.
-    console.warn(
-      `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
-    );
+    // AUTOCOMMIT-ENOENT-001: the warning names the resolved git binary and the
+    // cwd (see commitWarning) so it is never confused with the removed-
+    // namespace skip above.
+    console.warn(commitWarning(namespacePath, error));
   }
 }
 
@@ -504,6 +614,14 @@ export async function drainAsyncCommits(
  * the next write's `git add -A` sweeps whatever a skipped flush left.
  */
 function immediateCommit(namespacePath: string, message: string): void {
+  // AUTOCOMMIT-ENOENT-001 (second, synchronous site): the exit-flush flush of
+  // a debounce window opened for a namespace that was deleted in the meantime
+  // hits the same misleading `spawn git ENOENT`. Same pre-spawn check, same
+  // reason — an 'exit' handler must also never throw.
+  if (!namespaceStillPresent(namespacePath)) {
+    logNamespaceRemoved(namespacePath, "exit-flush commit");
+    return;
+  }
   try {
     withNamespaceCommitLockSync(namespacePath, () => {
       // Init git repo if it doesn't exist
@@ -560,10 +678,10 @@ function immediateCommit(namespacePath: string, message: string): void {
     maybeSyncOnCommit(namespacePath);
     pushNamespace(namespacePath);
   } catch (error) {
-    // Log but don't fail the tool — git is best-effort
-    console.warn(
-      `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
-    );
+    // Log but don't fail the tool — git is best-effort.
+    // AUTOCOMMIT-ENOENT-001: resolved binary + cwd in the warning, as on the
+    // serving path (commitWarning).
+    console.warn(commitWarning(namespacePath, error));
   }
 }
 

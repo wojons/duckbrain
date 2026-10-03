@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index c2db7e0..1e8859d 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1972,3 +1972,12 @@ tasks:
+   status: complete
+   created_at: '2026-09-27T21:01:59.568063+00:00'
+   completed_at: '2026-09-27T21:02:06.025399+00:00'
++- id: RATE-LIMIT-001
++  title: Log HTTP rate-limit refusals
++  criteria:
++  - Every HTTP 429 refusal emits a WARN structured event with IP, configured limit,
++    remaining=0, retryAfter; status/body/headers remain compatible and tests prove
++    sensitive data is absent.
++  status: complete
++  created_at: '2026-09-27T22:05:22.638849+00:00'
++  completed_at: '2026-09-27T22:15:01.320537+00:00'

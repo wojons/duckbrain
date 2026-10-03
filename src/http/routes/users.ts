@@ -10,6 +10,7 @@ import { runGitAsync } from "../../git/exec";
 import { listNamespacesTool } from "../../mcp/tools/namespace";
 import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
+import { getPrincipal } from "../../auth/middleware";
 import path from "path";
 import fs from "fs";
 
@@ -135,8 +136,16 @@ function getAuthorsFromDb(namespacePath: string): Promise<string[]> {
  */
 router.get(
   "/",
-  asyncHandler(async (_req: Request, res: Response) => {
-    const namespacesResult = await listNamespacesTool({});
+  asyncHandler(async (req: Request, res: Response) => {
+    // card t_667d7e6c: author aggregation follows the caller's grant — the
+    // namespace set handed to the tool is grant-filtered, so a scoped token
+    // neither learns foreign namespace names through this route's scan nor
+    // receives their authors. The response shape is unchanged ({users,count});
+    // the aggregated set simply shrinks with the visible namespace set.
+    const namespacesResult = await listNamespacesTool(
+      {},
+      { principal: getPrincipal(req) },
+    );
 
     if (!namespacesResult.success) {
       res.json({ users: [] });

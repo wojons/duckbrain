@@ -194,13 +194,43 @@ describe("REG-GONE-002 declared-table registry invalidation", () => {
       glob: "late/current.jsonl",
     });
     const tablesDir = path.join(root, FLAKY_NS, "tables");
+    const declarationFile = path.join(tablesDir, "late.table.json");
+    const declaration = fs.readFileSync(declarationFile, "utf-8");
 
-    fs.chmodSync(tablesDir, 0o000);
+    // Make the listing itself fail, then restore. chmod 0o000 is the
+    // canonical inducement, but uid 0 bypasses DIRECTORY mode bits (the
+    // clean-machine / CI battery runs this suite as root), where the chmod
+    // is a silent no-op and the scan SUCCEEDS — the assertion below then
+    // sees the healed declaration instead of a failed scan. Root falls back
+    // to replacing the tables DIR with a regular file: readdir on a
+    // non-directory fails with ENOTDIR for every uid, so the inducement is
+    // the same "listing failed" condition under either uid.
+    const scanBlindToModeBits =
+      typeof process.getuid === "function" && process.getuid() === 0;
+    const breakScan = (): void => {
+      if (scanBlindToModeBits) {
+        fs.rmSync(tablesDir, { recursive: true, force: true });
+        fs.writeFileSync(tablesDir, "");
+      } else {
+        fs.chmodSync(tablesDir, 0o000);
+      }
+    };
+    const restoreScan = (): void => {
+      if (scanBlindToModeBits) {
+        fs.rmSync(tablesDir, { force: true });
+        fs.mkdirSync(tablesDir, { recursive: true });
+        fs.writeFileSync(declarationFile, declaration);
+      } else {
+        fs.chmodSync(tablesDir, 0o755);
+      }
+    };
+
+    breakScan();
     try {
       // The listing itself fails: nothing may be cached from it.
       expect(listTables(FLAKY_NS)).toEqual([]);
     } finally {
-      fs.chmodSync(tablesDir, 0o755);
+      restoreScan();
     }
 
     // The retry succeeds — proof the failure was never cached.
