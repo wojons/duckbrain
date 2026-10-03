@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0924-10",
+  "task_title": "Remove fictional npm install/upgrade path from agent-facing docs (re-judge after src fix 09b0dff)",
+  "task_criteria": [
+    "grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "09b0dfff9c016d5e900a84a20d078ad519192138",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:01PM INF scanned ~14113643 bytes (14.11 MB) in 1.95s\n10:01PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 395968 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\nstderr | src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive\n[recall] Tool called with input: {\"limit\":51,\"offset\":0,\"namespace\":\"repro\",\"query\":\"alpha\"}\n[recall] Validated input: {\n  keyPrefix: undefined,\n  domain: undefined,\n  query: 'alpha',\n  limit: 51,\n  offset: 0,\n  namespace: 'repro'\n}\n\n \u276f src/http/routes/memories-dogfood010.test.ts (3 tests | 1 failed) 35499ms\n   \u276f DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) (3)\n     \u00d7 ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive 15011ms\n \u276f src/search/search-retr008.test.ts (12 tests | 12 skipped) 60010ms\nstderr | src/serialization/ddl-inference-compat.test.ts > SUPA-6 bounded inference removal > create-only inference requires confirmation\n[duckbrain] schema inference compatibility access (duckbrain_schema_inference_compat_total): namespace 'supa6-inference' read 'infer.jsonl' without a declaration \u2014 create-only inference for table 'inferred'. Declare the table via DDL before the compatibility window closes; generic reads/writes then use declared types and headers only.\n\nstderr | src/serialization/ddl-inference-compat.test.ts > SUPA-6 bounded inference removal > create-only inference requires confirmation\n[duckbrain] schema inference compatibility access (duckbrain_schema_inference_compat_total): namespace 'supa6-inference' read 'nokey.jsonl' without a declaration \u2014 create-only inference for table 'noluck'. Declare the table via DDL before the compatibility window closes; generic reads/writes then use declared types and headers only.\n\nstderr | src/serialization/ddl-inference-compat.test.ts > SUPA-6 bounded inference removal > create-only inference requires confirmation\n[duckbrain] schema inference compatibility access (duckbrain_schema_inference_compat_total): namespace 'supa6-inference' read 'mixed.jsonl' without a declaration \u2014 create-only inference for table 'mixed'. Declare the table via DDL before the compatibility window closes; generic reads/writes then use declared types and headers only.\n\n\n\u2026 [49204 chars omitted \u2014 954 line(s)] \u2026\n \u276f src/mcp/tools/remember-recall-durability.test.ts:92:3\n     90|   });\n     91|\n     92|   it(\"the one write that verifies alongside three sibling keys: 4 writ\u2026\n       |   ^\n     93|     // Mirror the reported incident shape: an accumulator key with pri\u2026\n     94|     // entries, a status key with prior entries, and two event keys.\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[59/60]\u23af\n\n\u23af\u23af\u23af\u23af\u23af\u23af Unhandled Errors \u23af\u23af\u23af\u23af\u23af\u23af\n\nVitest caught 1 unhandled error during the test run.\nThis might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.\n\n\u23af\u23af\u23af\u23af Unhandled Rejection \u23af\u23af\u23af\u23af\u23af\nError: read ECONNRESET\n \u276f TCP.onStreamRead node:internal/stream_base_commons:216:20\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\nSerialized Error: { errno: -104, code: 'ECONNRESET', syscall: 'read' }\nThis error originated in \"src/cli/http-serialization.test.ts\" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.\nThe last test to run before this error was \"maps queue pressure to 503 with Retry-After: 1\". This means either:\n- the error was thrown while Vitest was running this test, or\n- the error was thrown after the test completed, and this was the most recent test at that point.\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n\n Test Files  38 failed | 161 passed (199)\n      Tests  48 failed | 1511 passed | 45 skipped (1604)\n     Errors  1 error\n   Start at  22:01:34\n   Duration  1072.75s (tests 95%, setup 3%, import 1%, transform 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep for 'npm install -g duckbrain' and 'npmjs.org/package/duckbrain' excluding .gitreins/.coding-hermes/.planning returns ZERO matches in docs AND src (only hits are inside the excluded dirs: .gitreins/tasks.yaml:2271, .coding-hermes/board/*, .planning/phases/*). src fix 09b0dff removed the fictional 'sudo npm install -g duckbrain' line from src/ssh/client.ts (now src/ssh/client.ts:324-332 points to the GitHub release binary with note 'DuckBrain is not published to npm'). .opencode/agents/duckbrain-cli.md:15-16 documents 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with comment 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:96-101 (git clone https://github.com/wojons/duckbrain.git + pnpm install) and README.md:220. Test evidence: `npx vitest run src/ssh/client.test.ts` \u2192 'Test Files 1 passed (1), Tests 11 passed (11)'. Remaining npm+duckbrain co-occurrences are pnpm, the agent doc's explicit 'not published to npm' statement, or historical dogfood E404 notes \u2014 none are install instructions. [resolution 0.16; .opencode/agents/duckbrain-cli.md, README.md]\nThe fictional npm install/upgrade path is fully removed from docs and src (only excluded append-only/planning dirs retain it), and the agent doc's git-clone + pnpm install --frozen-lockfile path matches README.md.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep for 'npm install -g duckbrain' and 'npmjs.org/package/duckbrain' excluding .gitreins/.coding-hermes/.planning returns ZERO matches in docs AND src (only hits are inside the excluded dirs: .gitreins/tasks.yaml:2271, .coding-hermes/board/*, .planning/phases/*). src fix 09b0dff removed the fictional 'sudo npm install -g duckbrain' line from src/ssh/client.ts (now src/ssh/client.ts:324-332 points to the GitHub release binary with note 'DuckBrain is not published to npm'). .opencode/agents/duckbrain-cli.md:15-16 documents 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with comment 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:96-101 (git clone https://github.com/wojons/duckbrain.git + pnpm install) and README.md:220. Test evidence: `npx vitest run src/ssh/client.test.ts` \u2192 'Test Files 1 passed (1), Tests 11 passed (11)'. Remaining npm+duckbrain co-occurrences are pnpm, the agent doc's explicit 'not published to npm' statement, or historical dogfood E404 notes \u2014 none are install instructions. [resolution 0.16; .opencode/agents/duckbrain-cli.md, README.md]\nThe fictional npm install/upgrade path is fully removed from docs and src (only excluded append-only/planning dirs retain it), and the agent doc's git-clone + pnpm install --frozen-lockfile path matches README.md.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md",
+                "status": "PASS",
+                "detail": "git grep for 'npm install -g duckbrain' and 'npmjs.org/package/duckbrain' excluding .gitreins/.coding-hermes/.planning returns ZERO matches in docs AND src (only hits are inside the excluded dirs: .gitreins/tasks.yaml:2271, .coding-hermes/board/*, .planning/phases/*). src fix 09b0dff removed the fictional 'sudo npm install -g duckbrain' line from src/ssh/client.ts (now src/ssh/client.ts:324-332 points to the GitHub release binary with note 'DuckBrain is not published to npm'). .opencode/agents/duckbrain-cli.md:15-16 documents 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with comment 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:96-101 (git clone https://github.com/wojons/duckbrain.git + pnpm install) and README.md:220. Test evidence: `npx vitest run src/ssh/client.test.ts` \u2192 'Test Files 1 passed (1), Tests 11 passed (11)'. Remaining npm+duckbrain co-occurrences are pnpm, the agent doc's explicit 'not published to npm' statement, or historical dogfood E404 notes \u2014 none are install instructions. [resolution 0.16; .opencode/agents/duckbrain-cli.md, README.md]",
+                "resolution_probability": 0.16,
+                "cited_path": ".opencode/agents/duckbrain-cli.md, README.md"
+              }
+            ],
+            "summary": "The fictional npm install/upgrade path is fully removed from docs and src (only excluded append-only/planning dirs retain it), and the agent doc's git-clone + pnpm install --frozen-lockfile path matches README.md."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-10\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep for 'npm install -g duckbrain' and 'npmjs.org/package/duckbrain' excluding .gitreins/.coding-hermes/.planning returns ZERO matches in docs AND src (only hits are inside the excluded dirs: .gitreins/tasks.yaml:2271, .coding-hermes/board/*, .planning/phases/*). src fix 09b0dff removed the fictional 'sudo npm install -g duckbrain' line from src/ssh/client.ts (now src/ssh/client.ts:324-332 points to the GitHub release binary with note 'DuckBrain is not published to npm'). .opencode/agents/duckbrain-cli.md:15-16 documents 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with comment 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:96-101 (git clone https://github.com/wojons/duckbrain.git + pnpm install) and README.md:220. Test evidence: `npx vitest run src/ssh/client.test.ts` \u2192 'Test Files 1 passed (1), Tests 11 passed (11)'. Remaining npm+duckbrain co-occurrences are pnpm, the agent doc's explicit 'not published to npm' statement, or historical dogfood E404 notes \u2014 none are install instructions. [resolution 0.16; .opencode/agents/duckbrain-cli.md, README.md]\nThe fictional npm install/upgrade path is fully removed from docs and src (only excluded append-only/planning dirs retain it), and the agent doc's git-clone + pnpm install --frozen-lockfile path matches README.md.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-03T03:22:28.445735",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-03T03:22:28.475243+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1572,
+        "truncated": false,
+        "source": "git show 09b0dfff9c01"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2101,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-10"
+  }
+}

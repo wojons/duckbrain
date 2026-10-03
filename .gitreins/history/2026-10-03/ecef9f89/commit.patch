@@ -1,0 +1,36 @@
+commit 09b0dfff9c016d5e900a84a20d078ad519192138
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Fri Oct 2 21:18:16 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Fri Oct 2 21:18:16 2026 -0500
+
+    fix(ssh): drop fictional npm install hint from remote-install failure output (DF-0924-10 judge a9ba39be)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/ssh/client.ts | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/ssh/client.ts b/src/ssh/client.ts
+index eaaa02a..41a6c99 100644
+--- a/src/ssh/client.ts
++++ b/src/ssh/client.ts
+@@ -321,13 +321,16 @@ export async function installRemote(host: string): Promise<boolean> {
+     }
+ 
+     // User-space install failed — print sudo command (D-21: never auto-escalate)
++    // DuckBrain is not published to npm — the release binary is the only
++    // remote-install path (DF-0924-10).
+     console.error("");
+     console.error("User-space installation failed. Run manually with sudo:");
+-    console.error(`  ssh ${host} "sudo npm install -g duckbrain"`);
+-    console.error("  OR:");
+     console.error(
+       `  ssh ${host} "sudo curl -fsSL https://github.com/wojons/duckbrain/releases/latest/download/duckbrain-linux-x64 -o /usr/local/bin/duckbrain && sudo chmod +x /usr/local/bin/duckbrain"`,
+     );
++    console.error(
++      "  (DuckBrain is not published to npm — install from the GitHub release binary.)",
++    );
+     return false;
+   } catch (error) {
+     console.error(

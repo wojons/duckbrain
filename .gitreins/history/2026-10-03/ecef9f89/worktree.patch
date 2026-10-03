@@ -1,0 +1,46 @@
+diff --git a/.gitreins/config.yaml b/.gitreins/config.yaml
+index dd9a5b2..dfedfff 100644
+--- a/.gitreins/config.yaml
++++ b/.gitreins/config.yaml
+@@ -8,7 +8,11 @@ guards:
+   tests: true
+   test_mode: diff
+   test_command: "npx vitest run"
+-  test_timeout: 300
++  # 300s starved tier1 twice under fleet load (loadavg 50-80: full suite
++  # needs 600-900s; judge aad2df37 + ad221990 both died on 'Command timed
++  # out' while CI on the same SHAs was green). 900s ALSO starved (9f08ab48,
++  # loadavg ~80 → suite >900s); 1800s covers the loaded-suite ceiling.
++  test_timeout: 1800
+   dead_code: false # Python-only
+   skylos: false
+   static_analysis: false
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d7aa08d..235c420 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2253,3 +2253,24 @@ tasks:
+   status: complete
+   created_at: '2026-10-02T07:48:17.808448+00:00'
+   completed_at: '2026-10-02T09:49:57.623253+00:00'
++- id: DF-0926-05
++  title: Rewrite examples/custom-storage to the real config schema and flags
++  criteria:
++  - example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts
++    zod schema; zero --verify-config or --config= occurrences; the documented invocation
++    was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f)
++  status: complete
++  created_at: '2026-10-03T02:48:20.922740+00:00'
++  completed_at: '2026-10-03T02:48:28.400620+00:00'
++- id: DF-0924-10
++  title: Remove fictional npm install/upgrade path from agent-facing docs (re-judge
++    after src fix 09b0dff)
++  criteria:
++  - grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/)
++    and historical planning (.planning/) shows zero 'npm install -g duckbrain' or
++    npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md
++    documents the git-clone + pnpm install --frozen-lockfile source path consistent
++    with README.md
++  status: complete
++  created_at: '2026-10-03T02:18:38.984962+00:00'
++  completed_at: '2026-10-03T03:01:32.934574+00:00'
