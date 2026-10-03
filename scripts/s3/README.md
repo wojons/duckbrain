@@ -26,10 +26,22 @@ workflow on the origin host.
 
 | File | Deployed as | Role |
 |------|-------------|------|
-| `duckbrain-s3-push.sh` | cron (daily/weekly) | full git-history push of every namespace repo (S3-GIT-002 backoff/state, S3-GIT-003 forced full pass) |
-| `duckbrain-s3-unified.sh` | cron (15 min) | merged native-sync + raw-sync pass |
+| `duckbrain-s3-unified.sh` | cron (15 min) | the wrapper: one cron for all layers, internal cadence via markers; holds the flock |
+| `duckbrain-s3-native-sync.sh` | called by the wrapper every run | native data-delta sync (`duckbrain.js s3 sync all push`) + the stale-`.s3state/.lock` recovery |
+| `duckbrain-s3-daily.sh` | called by the wrapper ≤ once/24h | git-history layer entry — `exec`s `duckbrain-s3-push.sh current/git s3daily` |
+| `duckbrain-s3-weekly.sh` | called by the wrapper ≤ once/7d | tar.xz snapshot of all namespace repos → `archives/weekly/`, keeps the newest 12, verifies remote size before deleting the local tarball |
+| `duckbrain-s3-push.sh` | called by `duckbrain-s3-daily.sh` | full git-history push of every namespace repo (S3-GIT-002 backoff/state, S3-GIT-003 forced full pass) |
 | `test-push-backoff.sh` | — | hermetic harness for backoff/state (S3-GIT-002) and the forced full pass (S3-GIT-003): 11 runs, real `file://` pushes, no mocks |
 | `test-duplicate-bundle-repair.sh` | — | hermetic harness for the duplicate-bundle repair (stub `aws` + stub remote helper) |
+| `test-fd-inheritance.sh` | — | hermetic harness for the S3-GIT-006 flock-fd fix (the child must not inherit the lock fd) |
+
+**Completeness invariant:** every script the wrapper invokes must exist in
+`$SCRIPTS_DIR` **and** be tracked here. The wrapper resolves
+`$SCRIPTS_DIR/${name}.sh` for `native`, `git`, and `weekly`; a component that
+lives only in the deployed directory is unversioned, untestable, and cannot be
+rolled back — which is exactly how the S3-GIT-007 stall hid (2026-10-03: the
+native layer, deployed 2026-09-30, was never committed).
+
 
 ## Remote-side loss: the periodic forced full pass (S3-GIT-003)
 
