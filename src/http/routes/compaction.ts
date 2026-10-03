@@ -24,9 +24,7 @@ const requestedNamespace = (req: Request): string | undefined =>
   (req.body && typeof req.body.namespace === "string"
     ? req.body.namespace
     : undefined) ??
-  (typeof req.query.namespace === "string"
-    ? req.query.namespace
-    : undefined);
+  (typeof req.query.namespace === "string" ? req.query.namespace : undefined);
 
 /**
  * DB-GAP-062: the resolved namespace, shared by the grant gate and both route

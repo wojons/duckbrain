@@ -83,7 +83,11 @@ const AUTH_CONFIG = {
     { key: "unrestricted-key", name: "unrestricted-agent" },
     { key: "scoped-a-key", name: "scoped-agent", namespaces: ["a"] },
     { key: "scoped-ab-key", name: "scoped-ab-agent", namespaces: ["a", "b"] },
-    { key: "scoped-default-key", name: "default-agent", namespaces: ["default"] },
+    {
+      key: "scoped-default-key",
+      name: "default-agent",
+      namespaces: ["default"],
+    },
   ],
 };
 
@@ -109,17 +113,18 @@ function mountApp(
   app.use(authMiddleware(authConfig));
   app.use(express.json());
   app.use(mountPath, router);
-  app.use(
-    (err: any, _req: Request, res: Response, _next: NextFunction) =>
-      res.status(err.status || 500).json({
-        error: err.message || "Internal server error",
-        ...(err.code ? { code: err.code } : {}),
-      }),
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) =>
+    res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+      ...(err.code ? { code: err.code } : {}),
+    }),
   );
   return app;
 }
 
-function startServer(app: express.Express): Promise<{ server: Server; port: number }> {
+function startServer(
+  app: express.Express,
+): Promise<{ server: Server; port: number }> {
   const server = createServer(app);
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => {
@@ -242,9 +247,14 @@ describe("DB-GAP-062: /api/keys enforces namespace grants", () => {
   });
 
   it("refuses a scoped token reading an ungranted namespace (403 + audited namespace_scope)", async () => {
-    const { status, body } = await httpRequest(port, "GET", "/api/keys?namespace=b", {
-      headers: { "X-API-Key": "scoped-a-key" },
-    });
+    const { status, body } = await httpRequest(
+      port,
+      "GET",
+      "/api/keys?namespace=b",
+      {
+        headers: { "X-API-Key": "scoped-a-key" },
+      },
+    );
     expect(status).toBe(403);
     expect(body.error).toContain("'b'");
     expect(mockedListKeysTool).not.toHaveBeenCalled();
@@ -260,9 +270,14 @@ describe("DB-GAP-062: /api/keys enforces namespace grants", () => {
   });
 
   it("refuses a scoped token on /api/keys/flat too (router-level mount)", async () => {
-    const { status } = await httpRequest(port, "GET", "/api/keys/flat?namespace=b", {
-      headers: { "X-API-Key": "scoped-a-key" },
-    });
+    const { status } = await httpRequest(
+      port,
+      "GET",
+      "/api/keys/flat?namespace=b",
+      {
+        headers: { "X-API-Key": "scoped-a-key" },
+      },
+    );
     expect(status).toBe(403);
     expect(mockedListKeysTool).not.toHaveBeenCalled();
   });
@@ -392,10 +407,15 @@ describe("DB-GAP-062: /api/compaction enforces namespace grants", () => {
   });
 
   it("refuses a scoped token squashing an ungranted namespace named in the BODY", async () => {
-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
-      headers: { "X-API-Key": "scoped-a-key" },
-      body: { namespace: "b", dryRun: true },
-    });
+    const { status } = await httpRequest(
+      port,
+      "POST",
+      "/api/compaction/squash",
+      {
+        headers: { "X-API-Key": "scoped-a-key" },
+        body: { namespace: "b", dryRun: true },
+      },
+    );
     expect(status).toBe(403);
     expect(mockedSquashTool).not.toHaveBeenCalled();
   });
@@ -412,10 +432,15 @@ describe("DB-GAP-062: /api/compaction enforces namespace grants", () => {
   });
 
   it("lets a scoped token squash inside its grants", async () => {
-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
-      headers: { "X-API-Key": "scoped-a-key" },
-      body: { namespace: "a", dryRun: true },
-    });
+    const { status } = await httpRequest(
+      port,
+      "POST",
+      "/api/compaction/squash",
+      {
+        headers: { "X-API-Key": "scoped-a-key" },
+        body: { namespace: "a", dryRun: true },
+      },
+    );
     expect(status).toBe(200);
     expect(mockedSquashTool).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: "a", dryRun: true }),
@@ -459,9 +484,14 @@ describe("DB-GAP-062: /api/compaction under auth=none", () => {
   it("squashes with no token and no principal (unchanged)", async () => {
     AUDIT.mockClear();
     mockedSquashTool.mockResolvedValue({ success: true, message: "ok" } as any);
-    const { status } = await httpRequest(port, "POST", "/api/compaction/squash", {
-      body: { namespace: "b", dryRun: true },
-    });
+    const { status } = await httpRequest(
+      port,
+      "POST",
+      "/api/compaction/squash",
+      {
+        body: { namespace: "b", dryRun: true },
+      },
+    );
     expect(status).toBe(200);
     expect(AUDIT).not.toHaveBeenCalled();
   });

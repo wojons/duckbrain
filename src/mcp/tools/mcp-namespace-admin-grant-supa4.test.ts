@@ -46,7 +46,12 @@ import {
   listNamespacesTool,
   switchNamespaceTool,
 } from "./namespace";
-import { getConfig, resolveDuckbrainRoot, resolveNamespacesPath, updateConfig } from "../../config/index";
+import {
+  getConfig,
+  resolveDuckbrainRoot,
+  resolveNamespacesPath,
+  updateConfig,
+} from "../../config/index";
 import { lifecycleLogPath } from "../../namespaces/lifecycle";
 import { drainAsyncCommits } from "../../git/autocommit";
 import type { AuthPrincipal, DenialAuditEvent } from "../../auth/middleware";
@@ -250,9 +255,12 @@ describe("card t_369581ef: list_namespaces does not leak the grant", () => {
     expect(scoped.currentNamespace).toBeUndefined();
 
     // Unrestricted tokens keep the full listing unchanged.
-    const unrestricted = await listNamespacesTool({}, {
-      principal: UNRESTRICTED,
-    });
+    const unrestricted = await listNamespacesTool(
+      {},
+      {
+        principal: UNRESTRICTED,
+      },
+    );
     expect(unrestricted.namespaces.map((ns) => ns.name)).toContain("infra");
     expect(unrestricted.currentNamespace).toBe("infra");
   });
@@ -301,10 +309,13 @@ describe("card t_369581ef: SUPA-4 denial audit on the MCP path", () => {
       { name: "writable", setDefault: false },
       { principal: SCOPED, auditDenial: sink.auditDenial },
     );
-    await listNamespacesTool({}, {
-      principal: SCOPED,
-      auditDenial: sink.auditDenial,
-    });
+    await listNamespacesTool(
+      {},
+      {
+        principal: SCOPED,
+        auditDenial: sink.auditDenial,
+      },
+    );
     created.push("admin-ns");
     await createNamespaceTool(
       { name: "admin-ns", setDefault: false },

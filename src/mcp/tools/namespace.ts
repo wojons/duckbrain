@@ -336,7 +336,9 @@ export async function listNamespacesTool(
       ? namespaceList.filter((ns) => grant.includes(ns.name))
       : namespaceList;
     const visibleCurrentNamespace =
-      grant && currentNamespace !== undefined && !grant.includes(currentNamespace)
+      grant &&
+      currentNamespace !== undefined &&
+      !grant.includes(currentNamespace)
         ? undefined
         : currentNamespace;
 

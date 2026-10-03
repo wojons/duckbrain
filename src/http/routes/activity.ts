@@ -342,10 +342,7 @@ router.get(
       200,
     );
 
-    const activities = await queryRecentActivity(
-      limit,
-      visibleNamespaces(req),
-    );
+    const activities = await queryRecentActivity(limit, visibleNamespaces(req));
 
     res.json({
       activities,

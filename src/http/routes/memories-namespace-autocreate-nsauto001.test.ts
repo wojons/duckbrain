@@ -236,8 +236,7 @@ async function findFreePort(): Promise<number> {
   // 1. Private window: the kernel never auto-assigns these to anyone else.
   const span = PORT_WINDOW_MAX - PORT_WINDOW_MIN + 1;
   for (let attempt = 0; attempt < 200; attempt++) {
-    const candidate =
-      PORT_WINDOW_MIN + Math.floor(Math.random() * span);
+    const candidate = PORT_WINDOW_MIN + Math.floor(Math.random() * span);
     if (await bindCandidate(candidate)) return candidate;
   }
 
@@ -695,11 +694,9 @@ describe("NAMESPACE-AUTOCREATE-001: scratch-daemon rig rejects a foreign listene
       // left behind on CI just before the foreign app was handed the port.
       forcedPortForNextSpawn = foreignPort;
 
-      daemon = await spawnScratchDaemon(
-        "duckbrain-nsauto-racetest-",
-        true,
-        [EXISTING_NS],
-      );
+      daemon = await spawnScratchDaemon("duckbrain-nsauto-racetest-", true, [
+        EXISTING_NS,
+      ]);
 
       // It re-rolled instead of trusting the squatter.
       expect(daemon.port).not.toBe(foreignPort);
