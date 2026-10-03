@@ -16,7 +16,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.12.0
+version: 1.13.0
 category: software-development
 ---
 
@@ -526,6 +526,23 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     writes its own pid into it, and exits 0 on EADDRINUSE. Always pass an
     explicit scratch `--port`, and check the pidfile after any port-conflict
     boot (prod pid 4066723 had to be restored twice during the 09-26 run).
+
+28. **As-of at prod scale is 7.2s p50 warm (PERF-011).** On the prod daemon
+    (`:3000`, default ns, 245k rows) `GET /api/memories?namespace=default&as_of=…`
+    takes 7.2–8.2s warm vs 177ms on a 2-memory scratch ns. If an as-of call
+    "hangs", it is this, not a dead server — set client timeouts ≥15s and
+    prefer `?contains=` (0.46s) when semantic precision is not needed.
+29. **Namespace auto-create is invisible on writes (DF-1003-03).** POSTing a
+    memory to a namespace that does not exist 201s into `default` (or the
+    configured default); the response body does not name the effective
+    namespace and the only trace is a server-side WARN. ALWAYS
+    `POST /api/namespaces {"name":…}` first (this also git-inits the ns, so
+    as-of works), then write.
+30. **Scripting as-of? Stamp T1 AFTER the write + after the 30s autocommit
+    batch.** The git batching window (`gitBatching.maxSeconds=30`) means a
+    commit for a just-written memory does not exist yet; an as_of at/before
+    your write instant correctly 400s "No commit found at or before".
+    Wait ≥32s after the write before freezing the timestamp you will query.
 
 ## HTTP examples quickstart (the working path, 2026-09-26)
 
