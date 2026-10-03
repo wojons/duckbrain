@@ -1,20 +1,31 @@
 {
+  "defaultNamespace": "personal",
+  "authorEmail": "you@example.com",
   "storage": {
-    "dataDir": "./custom-data",
-    "namespace": "production",
-    "git": {
-      "enabled": true,
-      "remote": "origin",
-      "autoCommit": true
+    "maxLinesPerChunk": 2000,
+    "maxBytesPerChunk": 2097152
+  },
+  "durability": {
+    "defaultMode": "fsync",
+    "overrides": {
+      "bulk-import": "buffered"
     }
   },
-  "api": {
-    "port": 3000,
-    "auth": {
-      "enabled": true
-    }
+  "gitBatching": {
+    "maxLines": 250,
+    "maxSeconds": 60,
+    "enabled": true
   },
-  "ui": {
-    "port": 8080
+  "squash": {
+    "maxAgeDays": 14,
+    "thresholdRecords": 5000,
+    "autoCompact": true,
+    "squashGitHistory": true,
+    "compressionLevel": 6
+  },
+  "realtime": {
+    "enabled": true,
+    "pollIntervalMs": 1000,
+    "heartbeatMs": 15000
   }
 }
