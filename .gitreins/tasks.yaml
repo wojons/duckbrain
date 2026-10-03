@@ -2295,3 +2295,23 @@ tasks:
   status: complete
   created_at: '2026-10-03T09:12:06.875946+00:00'
   completed_at: '2026-10-03T09:20:16.816970+00:00'
+- id: DB-GAP-063
+  title: Harden remaining scratch-daemon test rigs against port-race/foreign-daemon
+    identity (rollout of the nsauto001 pattern)
+  criteria:
+  - One shared race-safe scratch-daemon helper (private port window + per-spawn identity
+    probe of a sentinel namespace via GET /api/namespaces + bounded spawn retry +
+    early death rejection + best-effort teardown) is either created and adopted by
+    the remaining CLI-server-spawning test files listed in the row's affected_files_remaining,
+    or each file is hardened the same way; vitest run over the touched suites is green;
+    tsc --noEmit clean
+  status: in_progress
+  created_at: '2026-10-03T12:14:11.325869+00:00'
+- id: BOARD-INTEGRITY-001
+  title: Prevent concurrent JSONL board corruption
+  criteria:
+  - Enhanced board_append.py uses flock() advisory locking + JSON validation; board_validate.py
+    detects corruption; stress test proves 10 concurrent writers x 20 rows = 200/200
+    lines, zero corruption
+  status: in_progress
+  created_at: '2026-10-03T15:33:34.757228+00:00'
