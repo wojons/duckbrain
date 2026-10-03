@@ -1,0 +1,95 @@
+commit cd76fe24510fd176eb9184a731206cac11d14348
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Oct 3 01:54:42 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Oct 3 01:54:42 2026 -0500
+
+    fix(DF-0926-06): validate key format before rememberTool, return 400 not 500
+    
+    POST /api/memories with a key missing the leading slash (e.g.
+    "examples/http/test") was falling through to rememberTool which threw
+    a 500. Add an explicit validation check that throws ValidationError
+    (mapped to 400) before the rememberTool call.
+    
+    Add integration test http-key-validation.int.test.ts asserting 400
+    for missing-slash keys and 201 for valid keys.
+    
+    ch:trace row=DF-0926-06 evidence=tests/http-key-validation.int.test.ts witness=live:integration-test-2/2-green commit=$(git rev-parse HEAD)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/http/routes/memories.ts           |  7 ++++++
+ tests/http-key-validation.int.test.ts | 47 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 54 insertions(+)
+
+diff --git a/src/http/routes/memories.ts b/src/http/routes/memories.ts
+index b6162f7..40fa508 100644
+--- a/src/http/routes/memories.ts
++++ b/src/http/routes/memories.ts
+@@ -689,6 +689,13 @@ router.post(
+       );
+     }
+ 
++    // DF-0926-06: validate key format before it reaches rememberTool
++    if (!body.key.startsWith("/")) {
++      throw new ValidationError(
++        `Invalid key '${body.key}': key must be a filesystem-style path starting with / (e.g., /projects/mcp)`,
++      );
++    }
++
+     // Call rememberTool to create memory
+     // DB-GAP-031: an authenticated principal stamps the record — a
+     // client-supplied ?author= or body author is never honored on writes.
+diff --git a/tests/http-key-validation.int.test.ts b/tests/http-key-validation.int.test.ts
+new file mode 100644
+index 0000000..532a3e0
+--- /dev/null
++++ b/tests/http-key-validation.int.test.ts
+@@ -0,0 +1,47 @@
++/**
++ * DF-0926-06: key-path validation returns 400 instead of 500
++ */
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import { ChildProcess } from "child_process";
++import {
++  getRandomPort,
++  startDuckbrainHttp,
++  killProcess,
++  waitForUrl,
++  curl,
++  DAEMON_READY_TIMEOUT_MS,
++} from "./helpers";
++
++const port = getRandomPort();
++let server: ChildProcess;
++
++describe("DF-0926-06: key-path validation", () => {
++  beforeAll(async () => {
++    server = await startDuckbrainHttp({ port, authType: "none" });
++    await waitForUrl(
++      `http://127.0.0.1:${port}/health`,
++      DAEMON_READY_TIMEOUT_MS,
++      server,
++    );
++  }, 120000);
++
++  afterAll(() => {
++    killProcess(server);
++  });
++
++  it("returns 400 for key missing leading slash", async () => {
++    const res = await curl(
++      `-X POST -H "Content-Type: application/json" -d '{"key":"examples/http/test","domain":"concept","content":"test content"}' http://127.0.0.1:${port}/api/memories`,
++    );
++    expect(res.status).toBe(400);
++    const body = JSON.parse(res.body);
++    expect(body.error).toContain("key must be a filesystem-style path");
++  });
++
++  it("returns 201 for key with leading slash", async () => {
++    const res = await curl(
++      `-X POST -H "Content-Type: application/json" -d '{"key":"/examples/http/test","domain":"concept","content":"test content"}' http://127.0.0.1:${port}/api/memories`,
++    );
++    expect(res.status).toBe(201);
++  });
++});

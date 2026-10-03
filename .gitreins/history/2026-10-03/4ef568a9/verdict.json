@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0926-06",
+  "task_title": "Fix key-path validation HTTP status",
+  "task_criteria": [
+    "POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style path'"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "cd76fe24510fd176eb9184a731206cac11d14348",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:56AM INF scanned ~14427176 bytes (14.43 MB) in 3.94s\n1:56AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 397570 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\nstderr | src/search/search-retr001.test.ts > RETR-001: recallTool contains path > filters by keyword with snippets, offline\n[recall] Tool called with input: {\"contains\":\"GAP-020\",\"namespace\":\"search-retr001\",\"limit\":10}\n[recall] Validated input: {\n  contains: 'GAP-020',\n  limit: 10,\n  offset: 0,\n  namespace: 'search-retr001'\n}\n\nstderr | src/search/search-retr001.test.ts > RETR-001: recallTool contains path > honors limit=0 as count-only (GAP-024 parity)\n[recall] Tool called with input: {\"contains\":\"GAP-020\",\"namespace\":\"search-retr001\",\"limit\":0}\n[recall] Validated input: {\n  contains: 'GAP-020',\n  limit: 0,\n  offset: 0,\n  namespace: 'search-retr001'\n}\n\n \u276f src/search/search-retr001.test.ts (19 tests | 10 failed) 138676ms\n   \u276f RETR-001: search index rebuild (3)\n     \u00d7 builds a gitignored sidecar with live rows only 60009ms\n     \u00d7 is idempotent \u2014 a second rebuild produces the same index 23281ms\n   \u276f RETR-001: keyword search (7)\n     \u00d7 finds GAP-020 with the exact-token memory first and a snippet 238ms\n     \u00d7 finds digit-only and hex tokens the stock tokenizer would drop 9ms\n     \u00d7 supports trailing-* prefix queries 10ms\n     \u00d7 excludes tombstones and dedupes by id (latest wins) 10ms\n     \u00d7 respects limit and count-only (limit=0) 13ms\n   \u276f RETR-001: searchTool surface (2)\n     \u00d7 returns ranked hits with snippets 27ms\n   \u276f RETR-001: recallTool contains path (4)\n     \u00d7 filters by keyword with snippets, offline 14ms\n     \u00d7 honors limit=0 as count-only (GAP-024 parity) 12ms\n \u276f src/search/hooks.test.ts (7 tests | 2 failed) 146576ms\n   \u276f search-index cache doctrine (Q-7) (2)\n     \u00d7 rebuild is idempotent \u2014 two runs both succeed with identical row counts 62712ms\n     \u00d7 git status stays clean after rebuild (sidecar is gitignored) 65139ms\nstderr | src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > failed push leaves lastPushedHead null \u2192 retry allowed at next gate-open\n[Git] Push warning for /mnt/bulk/scratch/duckbrain-pushgate-xqTxyP/ns: Command failed: git push --set-upstream s3daily master\nfatal: '/mnt/bulk/scratch/duckbrain-pushgate-xqTxyP/not-a-repo' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\n\n\u2026 [31101 chars omitted \u2014 601 line(s)] \u2026\n    282|       \"GET\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[37/42]\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= with a valid query still returns ranked results when embeddings are available\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/routes/memories-dogfood010.test.ts:302:3\n    300|   });\n    301|\n    302|   it(\"?q= with a valid query still returns ranked results when embeddi\u2026\n       |   ^\n    303|     const { status, body } = await httpRequest(\n    304|       \"GET\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[38/42]\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: createNamespaceTool never blocks the event loop on git init > keeps a heartbeat firing and still inits the repo\nAssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 1149 to be less than 900\n \u276f src/http/routes/serving-paths-ops007.test.ts:461:7\n    459|       Math.max(...servedGaps),\n    460|       `max served heartbeat gap vs load-aware budget (control max ${co\u2026\n    461|     ).toBeLessThan(heartbeatBudgetMs);\n       |       ^\n    462|     expect(heartbeatBudgetMs).toBeLessThan(SYNC_STALL_MS);\n    463|\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[39/42]\u23af\n\n\n Test Files  22 failed | 177 passed (199)\n      Tests  35 failed | 1530 passed | 39 skipped (1604)\n   Start at  01:56:35\n   Duration  731.40s (tests 98%, import 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style path': Fix at src/http/routes/memories.ts:692-697 throws ValidationError('Invalid key ...: key must be a filesystem-style path starting with / ...') before the rememberTool call; ValidationError (src/http/middleware/errorHandler.ts:43-50) maps to status 400 / code VALIDATION_ERROR, and errorHandler:118-127 emits err.message into body.error. Test tests/http-key-validation.int.test.ts:33-40 asserts res.status===400 and body.error contains 'key must be a filesystem-style path' (plus a 201 case for valid keys). Fresh run: `npx vitest run --config vitest.integration.config.ts tests/http-key-validation.int.test.ts --reporter=verbose` exit_code 0, 'Test Files 1 passed (1) / Tests 2 passed (2)' with both named tests \u2713. Independently reproduced against a live daemon: POST {\"key\":\"examples/http/test\"} \u2192 STATUS=400 body {\"error\":\"Invalid key 'examples/http/test': key must be a filesystem-style path starting with / (e.g., /projects/mcp)\",\"code\":\"VALIDATION_ERROR\"}; POST {\"key\":\"/examples/http/test\"} \u2192 STATUS=201. Test file is committed and matched by vitest.integration.config.ts include glob 'tests/**/*.int.test.ts'.\nKey-path validation now returns 400 VALIDATION_ERROR with the required message for keys missing a leading slash, verified by a passing integration test and an independent live-daemon reproduction.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style path': Fix at src/http/routes/memories.ts:692-697 throws ValidationError('Invalid key ...: key must be a filesystem-style path starting with / ...') before the rememberTool call; ValidationError (src/http/middleware/errorHandler.ts:43-50) maps to status 400 / code VALIDATION_ERROR, and errorHandler:118-127 emits err.message into body.error. Test tests/http-key-validation.int.test.ts:33-40 asserts res.status===400 and body.error contains 'key must be a filesystem-style path' (plus a 201 case for valid keys). Fresh run: `npx vitest run --config vitest.integration.config.ts tests/http-key-validation.int.test.ts --reporter=verbose` exit_code 0, 'Test Files 1 passed (1) / Tests 2 passed (2)' with both named tests \u2713. Independently reproduced against a live daemon: POST {\"key\":\"examples/http/test\"} \u2192 STATUS=400 body {\"error\":\"Invalid key 'examples/http/test': key must be a filesystem-style path starting with / (e.g., /projects/mcp)\",\"code\":\"VALIDATION_ERROR\"}; POST {\"key\":\"/examples/http/test\"} \u2192 STATUS=201. Test file is committed and matched by vitest.integration.config.ts include glob 'tests/**/*.int.test.ts'.\nKey-path validation now returns 400 VALIDATION_ERROR with the required message for keys missing a leading slash, verified by a passing integration test and an independent live-daemon reproduction.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style path'",
+                "status": "PASS",
+                "detail": "Fix at src/http/routes/memories.ts:692-697 throws ValidationError('Invalid key ...: key must be a filesystem-style path starting with / ...') before the rememberTool call; ValidationError (src/http/middleware/errorHandler.ts:43-50) maps to status 400 / code VALIDATION_ERROR, and errorHandler:118-127 emits err.message into body.error. Test tests/http-key-validation.int.test.ts:33-40 asserts res.status===400 and body.error contains 'key must be a filesystem-style path' (plus a 201 case for valid keys). Fresh run: `npx vitest run --config vitest.integration.config.ts tests/http-key-validation.int.test.ts --reporter=verbose` exit_code 0, 'Test Files 1 passed (1) / Tests 2 passed (2)' with both named tests \u2713. Independently reproduced against a live daemon: POST {\"key\":\"examples/http/test\"} \u2192 STATUS=400 body {\"error\":\"Invalid key 'examples/http/test': key must be a filesystem-style path starting with / (e.g., /projects/mcp)\",\"code\":\"VALIDATION_ERROR\"}; POST {\"key\":\"/examples/http/test\"} \u2192 STATUS=201. Test file is committed and matched by vitest.integration.config.ts include glob 'tests/**/*.int.test.ts'.",
+                "resolution_probability": 0.14
+              }
+            ],
+            "summary": "Key-path validation now returns 400 VALIDATION_ERROR with the required message for keys missing a leading slash, verified by a passing integration test and an independent live-daemon reproduction."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-06\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style path': Fix at src/http/routes/memories.ts:692-697 throws ValidationError('Invalid key ...: key must be a filesystem-style path starting with / ...') before the rememberTool call; ValidationError (src/http/middleware/errorHandler.ts:43-50) maps to status 400 / code VALIDATION_ERROR, and errorHandler:118-127 emits err.message into body.error. Test tests/http-key-validation.int.test.ts:33-40 asserts res.status===400 and body.error contains 'key must be a filesystem-style path' (plus a 201 case for valid keys). Fresh run: `npx vitest run --config vitest.integration.config.ts tests/http-key-validation.int.test.ts --reporter=verbose` exit_code 0, 'Test Files 1 passed (1) / Tests 2 passed (2)' with both named tests \u2713. Independently reproduced against a live daemon: POST {\"key\":\"examples/http/test\"} \u2192 STATUS=400 body {\"error\":\"Invalid key 'examples/http/test': key must be a filesystem-style path starting with / (e.g., /projects/mcp)\",\"code\":\"VALIDATION_ERROR\"}; POST {\"key\":\"/examples/http/test\"} \u2192 STATUS=201. Test file is committed and matched by vitest.integration.config.ts include glob 'tests/**/*.int.test.ts'.\nKey-path validation now returns 400 VALIDATION_ERROR with the required message for keys missing a leading slash, verified by a passing integration test and an independent live-daemon reproduction.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-03T07:09:32.916257",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-03T07:09:32.935024+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3512,
+        "truncated": false,
+        "source": "git show cd76fe24510f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3393,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-06"
+  }
+}
