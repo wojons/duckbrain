@@ -12,13 +12,10 @@ Teaches the DuckBrain CLI usage for AI agents and human operators.
 ### Install DuckBrain
 
 ```bash
-# Using npm
-npm install -g duckbrain
+# Install from source (DuckBrain is not published to npm — this is the only path)
+git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile
 
-# Using bun
-bun install -g duckbrain
-
-# Or link from source
+# Or expose a source checkout as a global command
 cd /path/to/duckbrain
 bun link
 ```
@@ -392,16 +389,13 @@ git clone https://<token>@github.com/user/repo.git
 
 ### "Command not found: duckbrain"
 
-**Cause:** Global installation failed or PATH not updated.
+**Cause:** Install not completed from source, the checkout not linked onto PATH, or PATH not updated.
 
 **Solution:**
 
 ```bash
-# Reinstall globally
-npm install -g duckbrain
-
-# Or use bun
-bun install -g duckbrain
+# Reinstall from source (DuckBrain is not published to npm)
+git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile
 
 # Verify installation
 which duckbrain
