@@ -38,7 +38,7 @@
   },
   "homepage": "https://github.com/wojons/duckbrain#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1142.0",
+    "@aws-sdk/client-s3": "3.1145.0",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "@smithy/node-http-handler": "4.12.1",
     "async-mutex": "^0.5.0",
@@ -52,11 +52,11 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.3",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
     "concurrently": "^10.0.5",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.3"
   },
   "engines": {
     "node": ">=22"
