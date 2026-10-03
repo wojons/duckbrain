@@ -18,10 +18,22 @@ Design rules
 
 Usage (on the agent):
     python3 e2e-gate.py [--port 10310] [--ns e2egate] [--s3-prefix <p>]
+                        [--s3-endpoint URL] [--s3-profile NAME]
 Exit code = number of failed legs (0 = all green).
+
+The S3 legs (LEG 5) need a reachable object store. `--s3-endpoint` defaults to
+the origin host's Hetzner bucket, which is only reachable with that host's
+`AWS_PROFILE=duckbrain` credentials - so on any OTHER host the gate's S3 legs
+fail with `s3=None` and cannot be distinguished from a real write-path break.
+Point it at any S3-compatible endpoint (e.g. a local MinIO:
+`--s3-endpoint http://127.0.0.1:9100` with AWS_ACCESS_KEY_ID/SECRET in the
+environment) to exercise the same legs off-origin. `--s3-profile ""` drops the
+AWS_PROFILE requirement so explicit keys in the environment are used.
 """
 import argparse, json, os, shutil, signal, subprocess, sys, time
 import urllib.request, urllib.error
+
+DEFAULT_S3_ENDPOINT = "https://hel1.your-objectstorage.com"
 
 AP = argparse.ArgumentParser()
 AP.add_argument("--port", type=int, default=10310)
@@ -29,7 +41,14 @@ AP.add_argument("--ns", default="e2egate")
 AP.add_argument("--s3-prefix", default="e2e-gate-20260926")
 AP.add_argument("--repo", default=os.path.expanduser("~/duckbrain"))
 AP.add_argument("--root", default=os.path.expanduser("~/e2e-gate"))
+# Endpoint/profile are parameters, not constants: the gate must be runnable on a
+# host that is not the origin (that is the whole point of running it on a bunker).
+AP.add_argument("--s3-endpoint", default=os.environ.get("DUCKBRAIN_E2E_S3_ENDPOINT", DEFAULT_S3_ENDPOINT),
+                help=f"S3-compatible endpoint for the LEG 5 object-store legs (default: {DEFAULT_S3_ENDPOINT})")
+AP.add_argument("--s3-profile", default=os.environ.get("DUCKBRAIN_E2E_S3_PROFILE", "duckbrain"),
+                help='AWS profile for the S3 legs; pass "" to use explicit env credentials instead')
 A = AP.parse_args()
+
 
 BASE = f"http://127.0.0.1:{A.port}"
 REPO, ROOT, NS = A.repo, A.root, A.ns
@@ -124,7 +143,7 @@ cfg["namespacesPath"] = os.path.join(ROOT, "namespaces")
 cfg["defaultNamespace"] = NS
 cfg["namespaceMappings"] = {}
 cfg["embedding"] = dict(cfg.get("embedding", {})); cfg["embedding"]["provider"] = "none"
-cfg["s3"] = {"enabled": True, "endpoint": "https://hel1.your-objectstorage.com",
+cfg["s3"] = {"enabled": True, "endpoint": A.s3_endpoint,
              "region": "us-east-1", "bucket": "duckbrain", "prefix": A.s3_prefix,
              "forcePathStyle": True, "pushOnCommit": True, "intervalSec": 30}
 CFG = os.path.join(ROOT, "duckbrain.config.json")
@@ -133,9 +152,17 @@ json.dump(cfg, open(CFG, "w"), indent=2)
 env = dict(os.environ)
 env.update({"DUCKBRAIN_CONFIG_PATH": CFG,
             "DUCKBRAIN_NAMESPACES_PATH": cfg["namespacesPath"],
-            "AWS_PROFILE": "duckbrain",
-            "AWS_ENDPOINT_URL": "https://hel1.your-objectstorage.com",
+            "AWS_ENDPOINT_URL": A.s3_endpoint,
             "AWS_DEFAULT_REGION": "us-east-1"})
+# Only pin a profile when one was asked for: off-origin runs supply explicit
+# AWS_ACCESS_KEY_ID/SECRET instead, and an unresolved profile name would make
+# every S3 call fail for a reason that has nothing to do with the write path.
+if A.s3_profile:
+    env["AWS_PROFILE"] = A.s3_profile
+else:
+    env.pop("AWS_PROFILE", None)
+print(f"  s3-endpoint={A.s3_endpoint}  s3-profile={A.s3_profile or '(explicit env creds)'}")
+
 
 AUTH = os.path.join(ROOT, "auth.json")
 open(AUTH, "w").write('{"users":[],"apiKeys":[]}')
