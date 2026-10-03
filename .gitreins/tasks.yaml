@@ -2313,5 +2313,6 @@ tasks:
   - Enhanced board_append.py uses flock() advisory locking + JSON validation; board_validate.py
     detects corruption; stress test proves 10 concurrent writers x 20 rows = 200/200
     lines, zero corruption
-  status: in_progress
+  status: complete
   created_at: '2026-10-03T15:33:34.757228+00:00'
+  completed_at: '2026-10-03T15:41:41.488615+00:00'
