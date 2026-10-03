@@ -63,12 +63,36 @@ export interface S3QueryDeps {
   credentialProvider?: CredentialProvider;
 }
 
-/** Host (no scheme) for DuckDB's s3_endpoint setting. */
+/**
+ * Host (no scheme) for DuckDB's s3_endpoint setting.
+ *
+ * The SCHEME is deliberately dropped here (DuckDB wants a bare host) but is
+ * NOT discarded: S3-QUERY-SCHEME-001 — httpfs defaults s3_use_ssl=true and
+ * ignores the endpoint URL's scheme (unlike the AWS SDK push path, which
+ * honours it), so an http:// endpoint was queried over TLS and failed with
+ * "SSL connection failed". endpointUseSsl carries the scheme out instead.
+ */
 function endpointHost(endpoint: string): string {
   try {
     return new URL(endpoint).host;
   } catch {
     return endpoint;
+  }
+}
+
+/**
+ * Whether httpfs must use TLS for this endpoint (S3-QUERY-SCHEME-001).
+ *
+ * Only an explicit `http:` protocol is plaintext; everything else — https,
+ * schemeless host strings, unparseable endpoints — keeps httpfs' own default
+ * (s3_use_ssl=true), so behaviour is unchanged wherever the scheme carries
+ * no information.
+ */
+export function endpointUseSsl(endpoint: string): boolean {
+  try {
+    return new URL(endpoint).protocol !== "http:";
+  } catch {
+    return true;
   }
 }
 
@@ -181,6 +205,10 @@ export async function runS3Query(
 
     if (cfg.endpoint) {
       db.exec(`SET s3_endpoint='${endpointHost(cfg.endpoint)}';`);
+      // S3-QUERY-SCHEME-001: httpfs defaults s3_use_ssl=true and ignores the
+      // endpoint's scheme — carry it out explicitly so http:// endpoints are
+      // queried in plaintext, matching the SDK push path to the same endpoint.
+      db.exec(`SET s3_use_ssl='${endpointUseSsl(cfg.endpoint)}';`);
     }
     db.exec(`SET s3_region='${cfg.region}';`);
     if (cfg.forcePathStyle) {
