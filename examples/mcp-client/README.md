@@ -50,8 +50,9 @@ for good, use the `switch_namespace` tool or
 
 `DUCKBRAIN_NAMESPACES_PATH` is the separate "where is memory stored" knob: it
 is the directory that holds the namespace repositories (default
-`<duckbrain root>/namespaces`). Note that `DUCKBRAIN_DATA_DIR` is **not** the
-memory store — it only sets the directory for the HTTP server's PID file.
+`<duckbrain root>/namespaces`). It is a runtime-only override and is never
+persisted into the config. `DUCKBRAIN_HOME_ROOT` overrides the install root
+itself — that is the other isolation knob.
 
 ## Usage
 

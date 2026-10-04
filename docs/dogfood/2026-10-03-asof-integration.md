@@ -49,7 +49,9 @@ row.
 
 ## Findings → board rows
 
-- **DF-1003-01 (P1)** — `DUCKBRAIN_DATA_DIR` is still dead at HEAD (`f463832`),
+- **DF-1003-01 (P1)** — (resolved 2026-10-04: docs purged, see the board row)
+  the PID-file-only env var that the docs wrongly sold as an isolation knob was
+  still dead at HEAD (`f463832`),
   7 days after DF-0926-04: daemon started with it set still wrote to
   `<repo>/namespaces/` (my first scratch namespace landed in prod paths; prod
   pollution cleaned, `namespaces/df-asof` removed). `src/config/index.ts`

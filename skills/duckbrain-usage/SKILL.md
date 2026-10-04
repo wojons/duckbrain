@@ -504,8 +504,9 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     rebuild (rowCount 2) and the commit debounce. Cross-check any
     "not found" against `?q=` (its keyword fallback DID match "hello") or the
     raw JSONL before trusting a negative.
-26. **`DUCKBRAIN_NAMESPACE` IS honored (fixed in DF-0926-04); `DUCKBRAIN_DATA_DIR`
-    is still PID-only.** The namespace env var had ZERO readers in `src/` while
+26. **`DUCKBRAIN_NAMESPACE` IS honored (fixed in DF-0926-04); there is NO
+    data-dir env knob (DF-1003-01: purged from the docs 2026-10-04 —
+    it was PID-file-only and never the memory store).** The namespace env var had ZERO readers in `src/` while
     the mcp-client example and the config blocks in
     `docs/guide/ai-configure.md` recommended it — every agent so configured
     silently shared namespace `default`. It is now read by the config layer
@@ -515,9 +516,9 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     write surfaces. It is a RUNTIME override and is never written back into
     `duckbrain.config.json` (GAP-007 invariant), which makes it the right knob
     on a shared box: a sibling's `switch_namespace` (which DOES persist into the
-    config, see pitfall 4) cannot move an env-pinned agent. `DUCKBRAIN_DATA_DIR`
-    remains the HTTP PID-file directory only — the memory-store root is
-    `DUCKBRAIN_NAMESPACES_PATH`.
+    config, see pitfall 4) cannot move an env-pinned agent. For memory storage
+    isolation use `DUCKBRAIN_NAMESPACES_PATH` (namespaces dir, runtime-only,
+    never persisted) or `DUCKBRAIN_HOME_ROOT` (install-root override).
 27. **Default port is 3000 and a failed bind still "succeeds" (DF-0926-01).**
     `duckbrain http` without `--port` binds 3000 — the prod daemon's port on
     this box. When the port is taken the boot log prints

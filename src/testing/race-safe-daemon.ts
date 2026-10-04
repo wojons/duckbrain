@@ -231,7 +231,7 @@ async function probeNamespaces(
  * GET /api/namespaces; for those we fall back to the pidfile — our child
  * writes `<dataDir>/duckbrain-http-<port>.pid` only AFTER a successful bind,
  * so a matching pidfile proves our child owns the port. When even the pidfile
- * cannot exist (DUCKBRAIN_DATA_DIR is a regular file — the ENOTDIR shape),
+ * cannot exist (the pidfile env override names a regular file — the ENOTDIR shape),
  * the residual proof is liveness: our child is still running, so it bound the
  * port (EADDRINUSE would have killed it).
  */

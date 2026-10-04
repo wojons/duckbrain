@@ -34,7 +34,7 @@ second wall, then a 500. Once you know the real API (from `docs/api/http-api.md`
 | `GET /api/memories/key/:key` | documented | Works, returns the row. |
 | `?contains=hello` on content "Hello from HTTP API!" | keyword search | **0 results** — deterministic per-term FTS miss. `"zebra"`, `"API"`, `"content"` hit; `"Hello"`, `"from"`, `"different"` never hit even after the documented `search-index rebuild` (rowCount 2) and after the 30s commit debounce. Case-insensitive in both directions where it works (`zebra`/`Zebra`). |
 | `?q=hello` without an embedding provider | docs | **200 with ranked results** (keyword fallback) — graceful degradation works. Docs' 503 path applies to full semantic mode. |
-| MCP example env (`DUCKBRAIN_NAMESPACE`, `DUCKBRAIN_DATA_DIR`) | examples/mcp-client README + ai-configure.md (6 config blocks) | Real stdio MCP session: **both env vars are inert**. Writes landed in `default` with `DUCKBRAIN_NAMESPACE=dogfood-examples` set; recall echoed `"namespace":"default"`. `DUCKBRAIN_DATA_DIR` only relocates the PID file. Every agent configured per those docs shares namespace `default`. |
+| MCP example env (`DUCKBRAIN_NAMESPACE` + the PID-file-only data-dir var) | examples/mcp-client README + ai-configure.md (6 config blocks) | Real stdio MCP session: **both env vars are inert**. Writes landed in `default` with `DUCKBRAIN_NAMESPACE=dogfood-examples` set; recall echoed `"namespace":"default"`. The PID-file-only var only relocated the PID file. Every agent configured per those docs shares namespace `default`. (DF-1003-01 update 2026-10-04: the PID-only var has since been removed from the docs; `DUCKBRAIN_NAMESPACE` is honored since DF-0926-04.) |
 | MCP `remember {key, content}` (per example conversation) | — | 2× zod -32602: needs `domain` (enum) + `attributes` + `embedding_text`. Same schema drift as HTTP. |
 | Corrected MCP lifecycle | — | remember → `switch_namespace {name}` → remember in ns2 → recall back: all succeed; on-disk namespaces confirm per-ns partitioning. |
 | custom-storage example | `--verify-config` flag, `--config=<file>`, `storage.dataDir` | **None exist.** `--verify-config` → `Unknown command` (0 hits in src). `--config=` is silently ignored by the `http` parser (flags: port/bind-all/auth/auth-file/rate-limit/unix-socket*). The annotated `dataDir` never appeared on disk; the boot log even claimed `HTTP server started at http://127.0.0.1:3000` — the compiled-in default, prod's port. Config schema has `namespacesPath`, not `storage.dataDir`. |
@@ -55,6 +55,6 @@ second wall, then a 500. Once you know the real API (from `docs/api/http-api.md`
 DF-0926-01 (P0 example-launcher + import.meta + port-3000 default),
 DF-0926-02 (P1 silently-ignored `?key=`/`?query=`),
 DF-0926-03 (P1 FTS contains per-term misses),
-DF-0926-04 (P1 inert DUCKBRAIN_NAMESPACE/DUCKBRAIN_DATA_DIR),
+DF-0926-04 (P1 inert DUCKBRAIN_NAMESPACE + PID-only data-dir var; that var since purged from docs by DF-1003-01),
 DF-0926-05 (P2 custom-storage example fiction),
 DF-0926-06 (P3 500-on-validation). See `dogfood-log.md` and the board.

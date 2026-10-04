@@ -73,7 +73,7 @@ HTTP client ────────▶ Express server (port 3000) ── POST /
 7. **Per-instance pidfile + scratch cleanup** — `http` mode now writes a
    per-instance pidfile (`duckbrain-http-<port>.pid`, or
    `duckbrain-http-<socket-basename>.pid` for socket-only instances) to
-   `DUCKBRAIN_DATA_DIR` or `/tmp`. A second instance can no longer clobber the
+   the per-UID temp dir (`os.tmpdir()/duckbrain-<uid>`). A second instance can no longer clobber the
    first's pidfile, and `server_status` reads the file matching the queried
    port/socket. Per-process temp `duckbrain-<pid>-*.db` scratch files are
    cleaned up on exit (they were unlinked on clean close, but crash exits left
@@ -513,7 +513,8 @@ dependencies on main, `--frozen-lockfile` resolves only the peer edge);
 `?as_of=2026-09-01` (before any commit) with **200 + current-state rows** —
 the flagship parameter is accepted and silently lies (DF-0924-02, P0);
 (3) the stale pidfile is a hardcoded `/tmp/duckbrain-http.pid`: EACCES on a
-shared host, and ENOENT crash when DUCKBRAIN_DATA_DIR names a non-existent
+shared host, and ENOENT crash when the PID-file-only data-dir var (since
+removed from the docs — DF-1003-01) names a non-existent
 dir — both already fixed at HEAD (per-port pidfile + cleanupStalePidFile +
 stale removal). After `pnpm add express@5.2.1` + precreating the data dir, the
 README quickstart passed 4/4 on the stale main — the engine underneath was
@@ -780,8 +781,9 @@ or provider warm path, not JIT warm-up); the foreman profiling PERF-011
 should start there, node --cpu-prof on a prod-size copy.
 
 Lessons specific to this run:
-- DUCKBRAIN_DATA_DIR is STILL dead at HEAD (DF-1003-01; original DF-0926-04).
-  The supported isolation knobs are DUCKBRAIN_NAMESPACES_PATH (BUG-037) and
+- The PID-file-only data-dir var is NOT an isolation knob — RESOLVED
+  (DF-1003-01; original DF-0926-04): docs no longer teach it as one. The supported
+  isolation knobs are DUCKBRAIN_NAMESPACES_PATH (BUG-037) and
   DUCKBRAIN_HOME_ROOT. When a prior run's "docs teach env var X" finding
   survives two runs, stop teaching X in new artifacts — grep the config
   resolver (src/config/index.ts resolveDuckbrainRoot/resolveNamespacesPath)

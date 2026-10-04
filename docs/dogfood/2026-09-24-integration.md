@@ -84,8 +84,12 @@ erroring. See DF-0924-02.
    (probe hits 'undefined'); prod daemon shows null. Cosmetic-on-fresh,
    confusing at first boot.
 4. On stale-main (bunker): `EACCES /tmp/duckbrain-http.pid` (shared-host
-   killer) and `ENOENT` when `DUCKBRAIN_DATA_DIR` points at a non-existent dir
+   killer) and `ENOENT` when the (PID-file-only, since purged from the docs —
+   DF-1003-01) data-dir env var pointed at a non-existent dir
    — both already fixed at HEAD (per-port pidfile + cleanupStalePidFile).
+   (DF-1003-01 update, 2026-10-04: that env var has since been identified as
+   PID-file-only — never the memory store — and it has been removed from the
+   docs; use `DUCKBRAIN_NAMESPACES_PATH`.)
 
 ## What a new user needs that isn't written
 
