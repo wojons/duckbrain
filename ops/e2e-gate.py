@@ -18,10 +18,22 @@ Design rules
 
 Usage (on the agent):
     python3 e2e-gate.py [--port 10310] [--ns e2egate] [--s3-prefix <p>]
+                        [--s3-endpoint URL] [--s3-profile NAME]
 Exit code = number of failed legs (0 = all green).
+
+The S3 legs (LEG 5) need a reachable object store. `--s3-endpoint` defaults to
+the origin host's Hetzner bucket, which is only reachable with that host's
+`AWS_PROFILE=duckbrain` credentials - so on any OTHER host the gate's S3 legs
+fail with `s3=None` and cannot be distinguished from a real write-path break.
+Point it at any S3-compatible endpoint (e.g. a local MinIO:
+`--s3-endpoint http://127.0.0.1:9100` with AWS_ACCESS_KEY_ID/SECRET in the
+environment) to exercise the same legs off-origin. `--s3-profile ""` drops the
+AWS_PROFILE requirement so explicit keys in the environment are used.
 """
-import argparse, json, os, shutil, signal, subprocess, sys, time
+import argparse, datetime, json, os, shutil, signal, subprocess, sys, time
 import urllib.request, urllib.error
+
+DEFAULT_S3_ENDPOINT = "https://hel1.your-objectstorage.com"
 
 AP = argparse.ArgumentParser()
 AP.add_argument("--port", type=int, default=10310)
@@ -29,7 +41,19 @@ AP.add_argument("--ns", default="e2egate")
 AP.add_argument("--s3-prefix", default="e2e-gate-20260926")
 AP.add_argument("--repo", default=os.path.expanduser("~/duckbrain"))
 AP.add_argument("--root", default=os.path.expanduser("~/e2e-gate"))
+# Endpoint/profile are parameters, not constants: the gate must be runnable on a
+# host that is not the origin (that is the whole point of running it on a bunker).
+AP.add_argument("--s3-endpoint", default=os.environ.get("DUCKBRAIN_E2E_S3_ENDPOINT", DEFAULT_S3_ENDPOINT),
+                help=f"S3-compatible endpoint for the LEG 5 object-store legs (default: {DEFAULT_S3_ENDPOINT})")
+AP.add_argument("--s3-profile", default=os.environ.get("DUCKBRAIN_E2E_S3_PROFILE", "duckbrain"),
+                help='AWS profile for the S3 legs; pass "" to use explicit env credentials instead')
+# Partition month for the LEG 5 object path. Defaults to the current UTC month,
+# which is where a write performed now lands; override only to inspect an older
+# month deliberately.
+AP.add_argument("--s3-partition", default=os.environ.get("DUCKBRAIN_E2E_S3_PARTITION", ""),
+                help="Partition month (YYYY-MM) for the LEG 5 object path (default: current UTC month)")
 A = AP.parse_args()
+
 
 BASE = f"http://127.0.0.1:{A.port}"
 REPO, ROOT, NS = A.repo, A.root, A.ns
@@ -124,7 +148,7 @@ cfg["namespacesPath"] = os.path.join(ROOT, "namespaces")
 cfg["defaultNamespace"] = NS
 cfg["namespaceMappings"] = {}
 cfg["embedding"] = dict(cfg.get("embedding", {})); cfg["embedding"]["provider"] = "none"
-cfg["s3"] = {"enabled": True, "endpoint": "https://hel1.your-objectstorage.com",
+cfg["s3"] = {"enabled": True, "endpoint": A.s3_endpoint,
              "region": "us-east-1", "bucket": "duckbrain", "prefix": A.s3_prefix,
              "forcePathStyle": True, "pushOnCommit": True, "intervalSec": 30}
 CFG = os.path.join(ROOT, "duckbrain.config.json")
@@ -133,9 +157,17 @@ json.dump(cfg, open(CFG, "w"), indent=2)
 env = dict(os.environ)
 env.update({"DUCKBRAIN_CONFIG_PATH": CFG,
             "DUCKBRAIN_NAMESPACES_PATH": cfg["namespacesPath"],
-            "AWS_PROFILE": "duckbrain",
-            "AWS_ENDPOINT_URL": "https://hel1.your-objectstorage.com",
+            "AWS_ENDPOINT_URL": A.s3_endpoint,
             "AWS_DEFAULT_REGION": "us-east-1"})
+# Only pin a profile when one was asked for: off-origin runs supply explicit
+# AWS_ACCESS_KEY_ID/SECRET instead, and an unresolved profile name would make
+# every S3 call fail for a reason that has nothing to do with the write path.
+if A.s3_profile:
+    env["AWS_PROFILE"] = A.s3_profile
+else:
+    env.pop("AWS_PROFILE", None)
+print(f"  s3-endpoint={A.s3_endpoint}  s3-profile={A.s3_profile or '(explicit env creds)'}")
+
 
 AUTH = os.path.join(ROOT, "auth.json")
 open(AUTH, "w").write('{"users":[],"apiKeys":[]}')
@@ -296,24 +328,45 @@ record("L5 API total == disk rows", api_total == len(rows),
 
 pu = sh(f"cd {REPO} && node bin/duckbrain.js s3 sync {NS} push", env=env, timeout=180)
 time.sleep(3)
-obj = f"s3://duckbrain/{A.s3_prefix}/{NS}/raw_note/2026-09/current.jsonl"
+# GATE-PARTITION-001: derive the partition instead of hardcoding it. Rows are
+# partitioned by the month they are written in, so a literal '2026-09' stopped
+# naming a live object on 2026-10-01 and the leg failed on a correct deployment.
+PARTITION = A.s3_partition or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")
+obj = f"s3://duckbrain/{A.s3_prefix}/{NS}/raw_note/{PARTITION}/current.jsonl"
+
+
+def _count_from(stdout, stderr):
+    """Return (count|None, why). GATE-S3-AMBIG-001: never report a bare None - an
+    unreachable object store and a broken write path must not look identical."""
+    out = (stdout or "") + (stderr or "")
+    try:
+        return int([l for l in out.splitlines() if l.strip().startswith("{")][-1]
+                   .split(":")[1].split("}")[0]), None
+    except Exception:
+        err = ""
+        for l in out.splitlines():
+            if l.strip().lower().startswith("error") or "Error:" in l:
+                err = l.strip()[:120]
+                break
+        if not err:
+            err = (out.strip().splitlines() or ["(no output)"])[-1][:120]
+        return None, f"unreadable {obj}: {err}"
+
+
 q = sh(f"cd {REPO} && node bin/duckbrain.js s3 query "
        f"\"SELECT count(*) AS n FROM read_json_auto('{obj}')\"", env=env, timeout=180)
-out = (q.stdout or "") + (q.stderr or "")
-try:
-    s3n = int([l for l in out.splitlines() if l.strip().startswith("{")][-1].split(":")[1].split("}")[0])
-except Exception:
-    s3n = None
+s3n, s3err = _count_from(q.stdout, q.stderr)
 qj = sh(f"cd {REPO} && node bin/duckbrain.js s3 query "
         f"\"SELECT count(*) AS j FROM read_json_auto('{obj}') WHERE length(trim(coalesce(embedding_text,''))) = 0 "
         f"OR lower(trim(coalesce(embedding_text,''))) IN ('null','undefined','n/a')\"", env=env, timeout=180)
-outj = (qj.stdout or "") + (qj.stderr or "")
-try:
-    s3junk = int([l for l in outj.splitlines() if l.strip().startswith("{")][-1].split(":")[1].split("}")[0])
-except Exception:
-    s3junk = None
-record("L5 S3 rows == disk rows", s3n == len(rows), f"s3={s3n} disk={len(rows)}")
-record("L5 S3 contains zero junk", s3junk == 0, f"s3 junk={s3junk}")
+s3junk, s3junk_err = _count_from(qj.stdout, qj.stderr)
+if s3err:
+    print(f"  ! LEG 5 could not read the object store: {s3err}")
+record("L5 S3 rows == disk rows", s3n == len(rows),
+       f"s3={s3n} disk={len(rows)}" + (f" | {s3err}" if s3err else ""))
+record("L5 S3 contains zero junk", s3junk == 0,
+       f"s3 junk={s3junk}" + (f" | {s3junk_err}" if s3junk_err else ""))
+
 
 # ================================================================ LEG 6
 print("\n--- LEG 6: the agent's OWN claim vs the bytes")
