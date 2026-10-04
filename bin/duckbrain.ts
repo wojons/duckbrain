@@ -92,6 +92,7 @@ Service Commands:
 Options:
   --namespace=NAME   Select namespace (default: config defaultNamespace)
   --socket=NAME      Use remote connection via Unix socket
+  --version, -v      Print the CLI version and exit
   --help             Show this help
 
 Examples:
@@ -117,6 +118,40 @@ Examples:
   duckbrain query --template cost-series
 `.trim(),
   );
+}
+
+/**
+ * Resolve the CLI version from package.json at runtime.
+ *
+ * CLI-VERSION-001: the remote update check (src/ssh/client.ts
+ * checkRemoteInstall) runs `duckbrain --version` over SSH and parses
+ * /(\d+\.\d+\.\d+)/ from stdout; without a version command the remote exit
+ * status is non-zero and the check silently reports "up to date".
+ *
+ * The package is CommonJS and this file lives in bin/, which sits next to
+ * package.json, so __dirname is the correct anchor (never import.meta.url —
+ * that is undefined here). Falls back to "unknown" so --version never throws.
+ */
+function readVersion(): string {
+  try {
+    const pkgPath = path.join(__dirname, "..", "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+      version?: unknown;
+    };
+    return typeof pkg.version === "string" && pkg.version.length > 0
+      ? pkg.version
+      : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Print `duckbrain v<version>` — the exact shape the SSH update-check parser
+ * expects (version output like "duckbrain v1.0.0" or "1.0.0").
+ */
+function printVersion(): void {
+  console.log(`duckbrain v${readVersion()}`);
 }
 
 /**
@@ -218,6 +253,15 @@ async function main() {
       socketName = args[bareIdx + 1];
       args = [...args.slice(0, bareIdx), ...args.slice(bareIdx + 2)];
     }
+  }
+
+  // CLI-VERSION-001: `--version` / `-v` anywhere in the args prints the
+  // version and exits 0. Checked BEFORE socket routing so a `--socket=<name>`
+  // prefix can never swallow it (and before the help branch, which otherwise
+  // would treat it as a command name).
+  if (args.includes("--version") || args.includes("-v")) {
+    printVersion();
+    process.exit(0);
   }
 
   const command = args[0];
