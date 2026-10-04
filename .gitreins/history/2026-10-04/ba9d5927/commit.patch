@@ -1,0 +1,54 @@
+commit fbd0b6d666be0f08e34f48560b564a15e0cc4d2a
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Oct 3 23:54:01 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Oct 3 23:54:01 2026 -0500
+
+    test(durability): accept O_DIRECT capability, not assert it
+    
+    The test now verifies the contract (201 on capable hosts, 500 with
+    DURABILITY_UNSUPPORTED on incapable hosts) instead of encoding an
+    environmental assumption.
+    
+    Red-proved the new 500 arm by env-forcing a DurabilityError with a
+    wrong code and no O_DIRECT wording (mutation reverted, tree clean):
+    the test failed at the new code/error-text assertions while the other
+    5 tests stayed green.
+    
+    ch:trace row=TESTQ-DIRECT-ODIRECT-001 spec=none wave=none test=src/cli/http-durability.test.ts::direct-mode doc=none prompt=none evidence=none witness=none:local-test-run verdict=none commit=none memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http-durability.test.ts | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/src/cli/http-durability.test.ts b/src/cli/http-durability.test.ts
+index e0cccf7..65f2642 100644
+--- a/src/cli/http-durability.test.ts
++++ b/src/cli/http-durability.test.ts
+@@ -285,9 +285,22 @@ describe("SUPA-1/SUPA-2: direct mode is framed through the serializer", () => {
+ 
+     const res = await postMemory(DIRECT_NS, "/supa1/http/direct");
+ 
+-    expect(res.status).toBe(201);
+-    expect(res.headers["x-durability"]).toBe("direct");
+-    expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(1);
++    // Accept either outcome based on host O_DIRECT capability
++    if (res.status === 201) {
++      // Host supports O_DIRECT - happy path
++      expect(res.headers["x-durability"]).toBe("direct");
++      expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(1);
++    } else if (res.status === 500) {
++      // Host does not support O_DIRECT - verify the refusal is correct
++      expect(res.body?.code).toBe("DURABILITY_UNSUPPORTED");
++      expect(String(res.body?.error)).toContain("O_DIRECT");
++      // Verify no bytes were written (the refusal was clean)
++      expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(0);
++      // Verify no buffered fallback was taken (the refusal was loud)
++      expect(res.headers["x-durability"]).toBeUndefined();
++    } else {
++      throw new Error(`Unexpected status ${res.status} - expected 201 or 500`);
++    }
+   });
+ 
+   // QA-DUCKBRAIN-003 AC-3: a durability failure that surfaces through the

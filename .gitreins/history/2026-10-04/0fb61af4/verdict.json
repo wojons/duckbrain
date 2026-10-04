@@ -1,0 +1,75 @@
+{
+  "task_id": "CLI-VERSION-001",
+  "task_title": "Add duckbrain --version",
+  "task_criteria": [
+    "duckbrain --version and duckbrain -v print the CLI version (sourced from package.json) and exit 0; help text documents it; regression test asserts the flag short-circuits before command routing; full suite + tsc clean"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "3ec5ad5ceff53106bbcf1b60325504b8d307a8ec",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n7:49AM INF scanned ~14499095 bytes (14.50 MB) in 1.94s\n7:49AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 413981 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T114103.408995Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  203 passed (203)\n      Tests  1622 passed (1622)\n   Start at  07:49:10\n   Duration  52.18s (tests 76%, import 21%, transform 2%, worker 1%)\n\n    Isolate  203 workers spawned \u00b7 ~76ms startup each (spawn + environment, per file)\n             at least ~3.77s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T114103.408995Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: CLI-VERSION-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T12:50:03.248772",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T12:50:03.263643+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 8128,
+        "truncated": false,
+        "source": "git show 3ec5ad5ceff5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 718,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "CLI-VERSION-001"
+  }
+}

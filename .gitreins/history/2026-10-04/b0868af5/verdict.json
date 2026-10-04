@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-1003-01",
+  "task_title": "Purge dead DUCKBRAIN_DATA_DIR from docs; add resolver regression test",
+  "task_criteria": [
+    "grep docs/skills/README = 0 hits; new config test green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "efaeaedcbada58a244e10f544b991fc4e9e84ae0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:01AM INF scanned ~14524638 bytes (14.52 MB) in 2.19s\n6:01AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 412176 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  202 passed (202)\n      Tests  1618 passed (1618)\n   Start at  06:01:30\n   Duration  89.26s (tests 67%, import 29%, transform 2%, worker 1%, setup 1%)\n\n     Import  322 modules were evaluated 923 times \u00b7 93.67s total, 29% of tracked time\n             ~8.42s faster with isolate: false \u2014 shared modules are evaluated once per worker instead of once per file\n             learn more: https://vitest.dev/guide/improving-performance#test-isolation\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 grep docs/skills/README = 0 hits; new config test green: grep -rn DUCKBRAIN_DATA_DIR docs/ returned 0 hits (exit=1); also 0 hits in skills/ (skills/duckbrain-usage/SKILL.md), examples/, README.md, docs/guide/, docs/AI_CONFIGURE.md. New regression test src/config/df100301-data-dir-dead.test.ts is green: `npx vitest run src/config/df100301-data-dir-dead.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)'; full suite `npx vitest run src/config/` => 'Test Files 6 passed (6), Tests 37 passed (37)'. Test is substantive: it sets DUCKBRAIN_DATA_DIR to an unrelated scratch dir and asserts resolveDuckbrainRoot/resolveNamespacesPath ignore it, DUCKBRAIN_NAMESPACES_PATH wins, and bare data-dir-only resolution throws /duckbrain root/. Resolver src/config/index.ts (resolveDuckbrainRoot lines 481-530, resolveNamespacesPath 544-550) never reads DUCKBRAIN_DATA_DIR, confirming the variable is genuinely dead for namespace storage.\nDocs purge verified (0 grep hits across docs/, skills/, examples/, README.md) and the new resolver regression test passes (4/4, config suite 37/37).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 grep docs/skills/README = 0 hits; new config test green: grep -rn DUCKBRAIN_DATA_DIR docs/ returned 0 hits (exit=1); also 0 hits in skills/ (skills/duckbrain-usage/SKILL.md), examples/, README.md, docs/guide/, docs/AI_CONFIGURE.md. New regression test src/config/df100301-data-dir-dead.test.ts is green: `npx vitest run src/config/df100301-data-dir-dead.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)'; full suite `npx vitest run src/config/` => 'Test Files 6 passed (6), Tests 37 passed (37)'. Test is substantive: it sets DUCKBRAIN_DATA_DIR to an unrelated scratch dir and asserts resolveDuckbrainRoot/resolveNamespacesPath ignore it, DUCKBRAIN_NAMESPACES_PATH wins, and bare data-dir-only resolution throws /duckbrain root/. Resolver src/config/index.ts (resolveDuckbrainRoot lines 481-530, resolveNamespacesPath 544-550) never reads DUCKBRAIN_DATA_DIR, confirming the variable is genuinely dead for namespace storage.\nDocs purge verified (0 grep hits across docs/, skills/, examples/, README.md) and the new resolver regression test passes (4/4, config suite 37/37).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "grep docs/skills/README = 0 hits; new config test green",
+                "status": "PASS",
+                "detail": "grep -rn DUCKBRAIN_DATA_DIR docs/ returned 0 hits (exit=1); also 0 hits in skills/ (skills/duckbrain-usage/SKILL.md), examples/, README.md, docs/guide/, docs/AI_CONFIGURE.md. New regression test src/config/df100301-data-dir-dead.test.ts is green: `npx vitest run src/config/df100301-data-dir-dead.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)'; full suite `npx vitest run src/config/` => 'Test Files 6 passed (6), Tests 37 passed (37)'. Test is substantive: it sets DUCKBRAIN_DATA_DIR to an unrelated scratch dir and asserts resolveDuckbrainRoot/resolveNamespacesPath ignore it, DUCKBRAIN_NAMESPACES_PATH wins, and bare data-dir-only resolution throws /duckbrain root/. Resolver src/config/index.ts (resolveDuckbrainRoot lines 481-530, resolveNamespacesPath 544-550) never reads DUCKBRAIN_DATA_DIR, confirming the variable is genuinely dead for namespace storage.",
+                "resolution_probability": 0.3
+              }
+            ],
+            "summary": "Docs purge verified (0 grep hits across docs/, skills/, examples/, README.md) and the new resolver regression test passes (4/4, config suite 37/37)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1003-01\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 grep docs/skills/README = 0 hits; new config test green: grep -rn DUCKBRAIN_DATA_DIR docs/ returned 0 hits (exit=1); also 0 hits in skills/ (skills/duckbrain-usage/SKILL.md), examples/, README.md, docs/guide/, docs/AI_CONFIGURE.md. New regression test src/config/df100301-data-dir-dead.test.ts is green: `npx vitest run src/config/df100301-data-dir-dead.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)'; full suite `npx vitest run src/config/` => 'Test Files 6 passed (6), Tests 37 passed (37)'. Test is substantive: it sets DUCKBRAIN_DATA_DIR to an unrelated scratch dir and asserts resolveDuckbrainRoot/resolveNamespacesPath ignore it, DUCKBRAIN_NAMESPACES_PATH wins, and bare data-dir-only resolution throws /duckbrain root/. Resolver src/config/index.ts (resolveDuckbrainRoot lines 481-530, resolveNamespacesPath 544-550) never reads DUCKBRAIN_DATA_DIR, confirming the variable is genuinely dead for namespace storage.\nDocs purge verified (0 grep hits across docs/, skills/, examples/, README.md) and the new resolver regression test passes (4/4, config suite 37/37).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T11:04:11.283056",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T11:04:11.318713+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1263,
+        "truncated": false,
+        "source": "git show efaeaedcbada"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 899,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1003-01"
+  }
+}

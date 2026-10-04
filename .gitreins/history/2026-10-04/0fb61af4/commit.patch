@@ -1,0 +1,214 @@
+commit 3ec5ad5ceff53106bbcf1b60325504b8d307a8ec
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 4 06:34:35 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 4 06:34:35 2026 -0500
+
+    fix(cli): add --version flag so the remote update check works (CLI-VERSION-001)
+    
+    `duckbrain --version` did not exist, so the remote update check
+    (src/ssh/client.ts checkRemoteInstall) always saw versionResult.status !== 0
+    on its second SSH call and returned {installed:true, needsUpdate:false} —
+    silently reporting "up to date" forever. client.test.ts mocks the missing
+    command, so the defect stayed green.
+    
+    - bin/duckbrain.ts: print `duckbrain v<version>` and exit 0 for --version /
+      -v anywhere in the args. The version is read from package.json at runtime
+      via __dirname (the package is CommonJS; bin/ sits beside package.json).
+      The check runs before socket routing, so `--socket=<name> --version`
+      cannot be swallowed by runRemoteCLI.
+    - showHelp(): document `--version, -v`.
+    - src/cli/version-cli001.test.ts: spawn-based regression tests driving the
+      real bin/duckbrain.js entry (--version, -v, --socket=<name> --version,
+      and help lists --version), asserting the /(\d+\.\d+\.\d+)/ contract the
+      SSH parser consumes. RED-proven against the pre-fix blob (4/4 fail).
+    
+    src/ssh/client.ts is unchanged — the existing path starts working once the
+    command exists. The existing parsing test in client.test.ts already covers
+    `duckbrain v1.0.0` -> "1.0.0".
+    
+    ch:trace row=CLI-VERSION-001 commit=HEAD witness=path@origin:src/ssh/client.ts
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ bin/duckbrain.ts               |  44 ++++++++++++++++++
+ src/cli/version-cli001.test.ts | 102 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 146 insertions(+)
+
+diff --git a/bin/duckbrain.ts b/bin/duckbrain.ts
+index 971c135..c5ffc52 100755
+--- a/bin/duckbrain.ts
++++ b/bin/duckbrain.ts
+@@ -92,6 +92,7 @@ Service Commands:
+ Options:
+   --namespace=NAME   Select namespace (default: config defaultNamespace)
+   --socket=NAME      Use remote connection via Unix socket
++  --version, -v      Print the CLI version and exit
+   --help             Show this help
+ 
+ Examples:
+@@ -119,6 +120,40 @@ Examples:
+   );
+ }
+ 
++/**
++ * Resolve the CLI version from package.json at runtime.
++ *
++ * CLI-VERSION-001: the remote update check (src/ssh/client.ts
++ * checkRemoteInstall) runs `duckbrain --version` over SSH and parses
++ * /(\d+\.\d+\.\d+)/ from stdout; without a version command the remote exit
++ * status is non-zero and the check silently reports "up to date".
++ *
++ * The package is CommonJS and this file lives in bin/, which sits next to
++ * package.json, so __dirname is the correct anchor (never import.meta.url —
++ * that is undefined here). Falls back to "unknown" so --version never throws.
++ */
++function readVersion(): string {
++  try {
++    const pkgPath = path.join(__dirname, "..", "package.json");
++    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
++      version?: unknown;
++    };
++    return typeof pkg.version === "string" && pkg.version.length > 0
++      ? pkg.version
++      : "unknown";
++  } catch {
++    return "unknown";
++  }
++}
++
++/**
++ * Print `duckbrain v<version>` — the exact shape the SSH update-check parser
++ * expects (version output like "duckbrain v1.0.0" or "1.0.0").
++ */
++function printVersion(): void {
++  console.log(`duckbrain v${readVersion()}`);
++}
++
+ /**
+  * Run a command on a remote DuckBrain via Unix socket
+  */
+@@ -220,6 +255,15 @@ async function main() {
+     }
+   }
+ 
++  // CLI-VERSION-001: `--version` / `-v` anywhere in the args prints the
++  // version and exits 0. Checked BEFORE socket routing so a `--socket=<name>`
++  // prefix can never swallow it (and before the help branch, which otherwise
++  // would treat it as a command name).
++  if (args.includes("--version") || args.includes("-v")) {
++    printVersion();
++    process.exit(0);
++  }
++
+   const command = args[0];
+   const commandArgs = args.slice(1);
+ 
+diff --git a/src/cli/version-cli001.test.ts b/src/cli/version-cli001.test.ts
+new file mode 100644
+index 0000000..47c95b7
+--- /dev/null
++++ b/src/cli/version-cli001.test.ts
+@@ -0,0 +1,102 @@
++/**
++ * CLI-VERSION-001 regression suite.
++ *
++ * `duckbrain --version` did not exist: the CLI had no version command, so the
++ * remote update check (src/ssh/client.ts checkRemoteInstall) — which runs
++ * `duckbrain --version` over SSH and parses /(\d+\.\d+\.\d+)/ from stdout —
++ * always saw versionResult.status !== 0 and returned
++ * `{installed: true, needsUpdate: false}` (silently "up to date" forever).
++ * Its unit tests in src/ssh/client.test.ts mock the missing command, so they
++ * keep passing either way.
++ *
++ * These tests drive the REAL CLI entry (`node bin/duckbrain.js`, the same path
++ * the SSH check and the README use) and assert the output contract the parser
++ * depends on. No mocks: a mocked spawnSync cannot see the missing command.
++ */
++
++import { describe, it, expect, vi } from "vitest";
++import { spawn } from "child_process";
++import fs from "fs";
++import path from "path";
++
++vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
++
++const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
++
++/** The regex src/ssh/client.ts checkRemoteInstall uses to parse the version. */
++const SSH_VERSION_RE = /(\d+\.\d+\.\d+)/;
++
++function packageVersion(): string {
++  const pkg = JSON.parse(
++    fs.readFileSync(path.resolve(__dirname, "..", "..", "package.json"), "utf8"),
++  ) as { version: string };
++  return pkg.version;
++}
++
++function runCli(
++  args: string[],
++  timeoutMs = 45_000,
++): Promise<{ code: number | null; stdout: string; stderr: string }> {
++  return new Promise((resolve) => {
++    const child = spawn(process.execPath, [BIN_PATH, ...args], {
++      env: { ...process.env, NO_COLOR: "1" },
++      cwd: process.cwd(),
++      stdio: ["pipe", "pipe", "pipe"],
++    });
++    let stdout = "";
++    let stderr = "";
++    child.stdout.on("data", (d) => (stdout += d.toString()));
++    child.stderr.on("data", (d) => (stderr += d.toString()));
++    const timer = setTimeout(() => {
++      child.kill("SIGKILL");
++      resolve({ code: null, stdout, stderr });
++    }, timeoutMs);
++    child.on("close", (code) => {
++      clearTimeout(timer);
++      resolve({ code, stdout, stderr });
++    });
++  });
++}
++
++describe("CLI-VERSION-001: `duckbrain --version`", () => {
++  it("`--version` exits 0 and prints `duckbrain v<semver>`", async () => {
++    const { code, stdout } = await runCli(["--version"]);
++    expect(code).toBe(0);
++
++    const line = stdout.trim();
++    expect(line.startsWith("duckbrain v")).toBe(true);
++
++    // The exact shape the SSH parser needs — it must extract the version.
++    const match = line.match(SSH_VERSION_RE);
++    expect(match).not.toBeNull();
++    expect(match?.[1]).toBe(packageVersion());
++  });
++
++  it("`-v` behaves identically to `--version`", async () => {
++    const short = await runCli(["-v"]);
++    const long = await runCli(["--version"]);
++
++    expect(short.code).toBe(0);
++    expect(short.stdout.trim()).toBe(long.stdout.trim());
++    expect(short.stdout.trim().match(SSH_VERSION_RE)).not.toBeNull();
++  });
++
++  it("`--version` wins over `--socket=<name>` routing", async () => {
++    // Before the fix a socket prefix routed to runRemoteCLI and the missing
++    // socket aborted with exit 1 before any version output.
++    const { code, stdout, stderr } = await runCli([
++      "--socket=nonexistent-socket",
++      "--version",
++    ]);
++
++    expect(code).toBe(0);
++    expect(stdout.trim().match(SSH_VERSION_RE)?.[1]).toBe(packageVersion());
++    expect(stderr).not.toContain("Socket 'nonexistent-socket' not found");
++  });
++
++  it("help output documents `--version`", async () => {
++    const { code, stdout } = await runCli(["help"]);
++    expect(code).toBe(0);
++    expect(stdout).toContain("--version");
++  });
++});
