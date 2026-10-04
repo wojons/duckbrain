@@ -61,7 +61,10 @@ describe("startDuckbrainHttp identity verification (INT-CI-018 rework)", () => {
         expect(String((err as Error)?.message)).toMatch(/foreign|EADDRINUSE|exited|not serving this rig/i);
       } finally {
         squatter.close();
-        await new Promise((r) => squatter.closeAllConnections?.() ?? r());
+        await new Promise<void>((r) => {
+          squatter.closeAllConnections?.();
+          r();
+        });
         fs.rmSync(scratch, { recursive: true, force: true });
       }
     },
