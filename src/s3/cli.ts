@@ -18,7 +18,7 @@ import { loadManifest } from "./manifest";
 import {
   walkLocal,
   syncNamespace,
-  syncAllNamespaces,
+  syncAllNamespacesDetailed,
   listRemoteNamespaces,
 } from "./sync";
 import { runS3Query } from "./query";
@@ -144,11 +144,29 @@ export async function s3Sync(
   // if the remote prefix holds namespaces but nothing was restored (every
   // per-namespace sync failed), that is a failed restore — warn loudly and
   // exit nonzero. (DF-0925-07; the push summary stays as-is.)
-  const all = await syncAllNamespaces(s3, nsRoot, direction);
+  // S3-ALERT-002: failures are now collected per namespace and BOTH summaries
+  // name every failed namespace and exit nonzero — a pass where some (or all)
+  // namespaces failed must never print "complete" with rc=0 again (the
+  // all-locks-held run of 09-30 printed exactly that while backing up
+  // nothing).
+  const { stats: all, failures } = await syncAllNamespacesDetailed(
+    s3,
+    nsRoot,
+    direction,
+  );
   const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
   console.log(
     `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
   );
+  if (failures.length > 0) {
+    console.error(
+      `[S3] ${failures.length}/${all.length + failures.length} namespace(s) failed this pass:`,
+    );
+    for (const f of failures) {
+      console.error(`  [S3] FAILED ${f.ns}: ${f.error}`);
+    }
+    process.exitCode = 1;
+  }
   if (direction === "pull") {
     for (const s of all) {
       console.log(

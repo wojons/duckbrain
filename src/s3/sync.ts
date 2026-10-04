@@ -60,6 +60,27 @@ export interface SyncStats {
   durationMs: number;
 }
 
+/**
+ * Cooperative per-namespace deadline handed down by syncNamespace: the
+ * push/pull loops poll isAborted() BETWEEN file operations so an abandoned
+ * namespace stops cleanly (manifest saved, partial progress durable) instead
+ * of lingering as a zombie that keeps the process alive after the run.
+ */
+export interface NamespaceDeadline {
+  timeoutMs: number;
+  isAborted: () => boolean;
+}
+
+/** Error thrown when a namespace outlives its deadline (S3-ALERT-002). */
+export class NamespaceSyncDeadlineError extends Error {
+  constructor(ns: string, timeoutMs: number, done: number, total: number) {
+    super(
+      `[S3] ${ns} exceeded its ${Math.round(timeoutMs / 1000)}s deadline after ${done}/${total} files (partial progress saved; sync abandoned)`,
+    );
+    this.name = "NamespaceSyncDeadlineError";
+  }
+}
+
 export interface LocalFile {
   relPath: string;
   size: number;
@@ -239,6 +260,7 @@ export async function pushNamespace(
   cfg: S3Config,
   ns: string,
   namespacesPath: string,
+  deadline?: NamespaceDeadline,
 ): Promise<SyncStats> {
   const start = Date.now();
   const client = buildClient(cfg);
@@ -255,6 +277,18 @@ export async function pushNamespace(
   let uploaded = 0;
 
   for (const file of deltas.toUpload) {
+    if (deadline?.isAborted()) {
+      // S3-ALERT-002: stop BETWEEN files so the manifest below persists the
+      // partial progress and the namespace stops CLEANLY (no zombie uploads
+      // holding the process open after the pass moves on).
+      saveManifest(makeManifest(ns, manifestFromLocal(local)), namespacesPath);
+      throw new NamespaceSyncDeadlineError(
+        ns,
+        deadline.timeoutMs,
+        uploaded,
+        deltas.toUpload.length,
+      );
+    }
     let body: Buffer;
     try {
       body = fs.readFileSync(path.join(nsDir, file.relPath));
@@ -284,11 +318,7 @@ export async function pushNamespace(
     }
   }
 
-  const files: Record<string, FileMeta> = {};
-  for (const [relPath, f] of local) {
-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
-  }
-  saveManifest(makeManifest(ns, files), namespacesPath);
+  saveManifest(makeManifest(ns, manifestFromLocal(local)), namespacesPath);
 
   return {
     ns,
@@ -300,11 +330,23 @@ export async function pushNamespace(
   };
 }
 
+/** Build the manifest files-record from a walkLocal result. */
+function manifestFromLocal(
+  local: Map<string, LocalFile>,
+): Record<string, FileMeta> {
+  const files: Record<string, FileMeta> = {};
+  for (const [relPath, f] of local) {
+    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+  }
+  return files;
+}
+
 /** Pull a single namespace's missing/changed files from S3. */
 export async function pullNamespace(
   cfg: S3Config,
   ns: string,
   namespacesPath: string,
+  deadline?: NamespaceDeadline,
 ): Promise<SyncStats> {
   const start = Date.now();
   const client = buildClient(cfg);
@@ -319,6 +361,14 @@ export async function pullNamespace(
   let downloaded = 0;
 
   for (const item of deltas.toDownload) {
+    if (deadline?.isAborted()) {
+      throw new NamespaceSyncDeadlineError(
+        ns,
+        deadline.timeoutMs,
+        downloaded,
+        deltas.toDownload.length,
+      );
+    }
     try {
       const body = await getObject(client, cfg.bucket, item.key);
       const dest = path.join(nsDir, item.relPath);
@@ -334,11 +384,7 @@ export async function pullNamespace(
 
   // Refresh manifest from the post-pull local state
   const fresh = walkLocal(nsDir);
-  const files: Record<string, FileMeta> = {};
-  for (const [relPath, f] of fresh) {
-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
-  }
-  saveManifest(makeManifest(ns, files), namespacesPath);
+  saveManifest(makeManifest(ns, manifestFromLocal(fresh)), namespacesPath);
 
   return {
     ns,
@@ -356,6 +402,7 @@ export async function syncNamespace(
   ns: string,
   namespacesPath: string,
   direction: "push" | "pull" = "push",
+  opts?: { timeoutMs?: number },
 ): Promise<SyncStats | null> {
   if (!cfg.enabled) {
     console.warn("[S3] sync skipped: s3.enabled is false");
@@ -378,10 +425,51 @@ export async function syncNamespace(
   if (!lock) {
     throw new Error("[S3] another sync is in progress (lock held)");
   }
-  try {
+  const timeoutMs =
+    opts?.timeoutMs !== undefined ? opts.timeoutMs : namespaceDeadlineMs();
+  const body = async (): Promise<SyncStats> => {
+    // Cooperative deadline: the loops poll this between files, so an
+    // abandoned namespace stops cleanly (partial progress saved) instead of
+    // lingering as a zombie that keeps the process alive after the run.
+    const startMs = Date.now();
+    const deadline: NamespaceDeadline | undefined =
+      timeoutMs > 0
+        ? {
+            timeoutMs,
+            isAborted: () => Date.now() - startMs >= timeoutMs,
+          }
+        : undefined;
     return direction === "push"
-      ? await pushNamespace(cfg, ns, namespacesPath)
-      : await pullNamespace(cfg, ns, namespacesPath);
+      ? pushNamespace(cfg, ns, namespacesPath, deadline)
+      : pullNamespace(cfg, ns, namespacesPath, deadline);
+  };
+  try {
+    // S3-ALERT-002 backstop: the cooperative checks above abort BETWEEN file
+    // operations; this wall-clock race also bounds a stall INSIDE one
+    // operation (e.g. a request that ignores its socket timeout). The losing
+    // branch may still run to completion in the background — that is what
+    // the cooperative path is for.
+    if (timeoutMs > 0) {
+      let timer: NodeJS.Timeout | undefined;
+      const deadline = new Promise<never>(
+        (_, reject) =>
+          (timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `[S3] ${ns} exceeded its ${Math.round(timeoutMs / 1000)}s deadline (sync abandoned mid-flight)`,
+                ),
+              ),
+            timeoutMs,
+          )),
+      );
+      try {
+        return await Promise.race([body(), deadline]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return await body();
   } finally {
     releaseLock(lock);
   }
@@ -393,7 +481,58 @@ export async function syncAllNamespaces(
   namespacesPath: string,
   direction: "push" | "pull" = "push",
 ): Promise<SyncStats[]> {
+  const detailed = await syncAllNamespacesDetailed(
+    cfg,
+    namespacesPath,
+    direction,
+  );
+  return detailed.stats;
+}
+
+export interface SyncFailure {
+  ns: string;
+  error: string;
+}
+
+export interface SyncAllResult {
+  stats: SyncStats[];
+  failures: SyncFailure[];
+}
+
+/**
+ * Per-namespace deadline for `sync all`, in ms.
+ *
+ * Read once per run from S3_SYNC_ALL_DEADLINE_S (whole seconds; 0 disables).
+ * Same env knob the cron wrapper uses for its whole-run `timeout` — the
+ * per-namespace deadline keeps every run comfortably inside the wrapper's.
+ */
+export function namespaceDeadlineMs(): number {
+  const raw = process.env.S3_SYNC_ALL_DEADLINE_S;
+  if (raw === undefined || raw === "") return 1_800_000;
+  const s = Number.parseInt(raw, 10);
+  if (!Number.isInteger(s) || s < 0) return 1_800_000;
+  return s * 1000;
+}
+
+/**
+ * Sync every namespace dir under namespacesPath, reporting failures.
+ *
+ * S3-ALERT-002: the old loop awaited each namespace with NO per-namespace
+ * bound, so one huge/stuck namespace pinned the whole pass (measured: a
+ * ~46k-file `scheduler` delta outlived every 3600s wrapper run). Each
+ * namespace now races a per-ns wall-clock deadline; a namespace that
+ * exceeds it is abandoned (its lock is released in syncNamespace's
+ * finally), logged LOUDLY with its name, and the pass CONTINUES. Callers
+ * get every failed namespace by name + error so the exit can reflect them.
+ */
+export async function syncAllNamespacesDetailed(
+  cfg: S3Config,
+  namespacesPath: string,
+  direction: "push" | "pull" = "push",
+  opts?: { perNsTimeoutMs?: number },
+): Promise<SyncAllResult> {
   const out: SyncStats[] = [];
+  const failures: SyncFailure[] = [];
   let localEntries: string[] = [];
   try {
     localEntries = fs
@@ -420,11 +559,15 @@ export async function syncAllNamespaces(
 
   for (const ns of nsList) {
     try {
-      const stats = await syncNamespace(cfg, ns, namespacesPath, direction);
+      const stats = await syncNamespace(cfg, ns, namespacesPath, direction, {
+        timeoutMs: opts?.perNsTimeoutMs,
+      });
       if (stats) out.push(stats);
     } catch (err) {
-      console.warn(`[S3] sync ${ns} failed: ${(err as Error).message}`);
+      const message = (err as Error).message;
+      console.warn(`[S3] sync ${ns} failed: ${message}`);
+      failures.push({ ns, error: message });
     }
   }
-  return out;
+  return { stats: out, failures };
 }
