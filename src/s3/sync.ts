@@ -350,6 +350,42 @@ export async function pullNamespace(
   };
 }
 
+/**
+ * Per-namespace wall-clock deadline (seconds). Default 300s; override with
+ * S3_SYNC_NAMESPACE_DEADLINE_S. S3-GIT-007: a namespace whose push/pull never
+ * resolves (e.g. an SDK call stuck in epoll) used to hang the whole sync-all
+ * pass until the cron watchdog killed the process ~2h later, then the next
+ * run cleared the stale lock and repeated the hang.
+ */
+export function namespaceDeadlineSeconds(): number {
+  const raw = process.env.S3_SYNC_NAMESPACE_DEADLINE_S;
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+}
+
+/** Reject after `seconds` unless `p` settles first. */
+async function withDeadline<T>(
+  p: Promise<T>,
+  seconds: number,
+  onTimeout: (s: number) => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => {
+        onTimeout(seconds);
+        reject(new Error(`sync deadline exceeded after ${seconds}s`));
+      },
+      seconds * 1000,
+    );
+  });
+  try {
+    return await Promise.race([p, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Sync one namespace in the given direction (guarded by config + lock). */
 export async function syncNamespace(
   cfg: S3Config,
@@ -379,9 +415,16 @@ export async function syncNamespace(
     throw new Error("[S3] another sync is in progress (lock held)");
   }
   try {
-    return direction === "push"
-      ? await pushNamespace(cfg, ns, namespacesPath)
-      : await pullNamespace(cfg, ns, namespacesPath);
+    const deadlineS = namespaceDeadlineSeconds();
+    const inner =
+      direction === "push"
+        ? pushNamespace(cfg, ns, namespacesPath)
+        : pullNamespace(cfg, ns, namespacesPath);
+    return await withDeadline(inner, deadlineS, (s) => {
+      console.warn(
+        `[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`,
+      );
+    });
   } finally {
     releaseLock(lock);
   }
