@@ -33,8 +33,17 @@ if [ -f "$LOCKFILE" ]; then
   fi
 fi
 
-OUT=$(node bin/duckbrain.js s3 sync all push 2>&1)
+# S3-GIT-007: the sync wrapper had no per-run deadline — a hung node call made
+# the 15-min cron run ~2h, get SIGTERM'd at 7200s, then the next run cleared
+# the stale lock and repeated. Bound the whole call so failure is loud and fast.
+SYNC_ALL_DEADLINE_S="${S3_SYNC_ALL_DEADLINE_S:-3600}"
+OUT=$(timeout "$SYNC_ALL_DEADLINE_S" node bin/duckbrain.js s3 sync all push 2>&1)
 RC=$?
+if [ $RC -eq 124 ]; then
+  echo "FAIL sync-all-deadline rc=124 $(date -u +%F-%T)" >> "$LOG"
+  echo "duckbrain native s3 sync FAILED — sync-all exceeded ${SYNC_ALL_DEADLINE_S}s deadline (rc=124); see $LOG"
+  exit 1
+fi
 if [ $RC -ne 0 ]; then
   echo "FAIL rc=$RC $(date -u +%F-%T)" >> "$LOG"
   echo "$OUT" | tail -6 >> "$LOG"
