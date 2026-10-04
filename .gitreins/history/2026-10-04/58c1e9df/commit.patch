@@ -1,0 +1,763 @@
+commit bf3ac7c317e15007506280ecce80246fced6fbda
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 4 13:57:24 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 4 14:50:14 2026 -0500
+
+    fix(s3): per-namespace deadline keeps `sync all` terminating. Addresses S3-ALERT-002.
+    
+    `s3 sync all push` ran each namespace with NO per-namespace bound, so one
+    huge namespace pinned the whole pass: the `scheduler` namespace (210,692
+    tracked files, ~46k-file delta after the 09-30 backup) outlived every
+    3600s wrapper run — four consecutive "FAIL sync-all-deadline rc=124"
+    (13:30/15:15/16:30/17:45Z) and a lock handed to stale-clear every ~2h15m
+    since 10-04 05:45Z. Backup never advanced past 2026-09-30T12:46:44Z.
+    
+    Changes (src/s3/ + scripts/s3/ only; S3 protocol and bucket layout
+    untouched):
+    
+    - syncNamespace takes opts.timeoutMs (default from S3_SYNC_ALL_DEADLINE_S,
+      same env knob the wrapper uses for its whole-run timeout; 0 = legacy
+      unbounded). Two layers bound a namespace:
+      1. cooperative: push/pull loops poll the deadline BETWEEN file
+         operations and abort cleanly, saving the manifest first so partial
+         progress is durable (uploaded files skip on the next pass; files
+         with no remote object re-upload regardless of manifest).
+      2. backstop: a wall-clock Promise.race also bounds a stall INSIDE one
+         operation (measured live: scheduler burned its window in the
+         211-page listRemoteObjects phase, where no cooperative checkpoint
+         exists; the raced branch drains idempotently in the background and
+         releases the lock immediately).
+    - syncAllNamespacesDetailed returns {stats, failures}; the legacy
+      syncAllNamespaces wrapper keeps returning plain stats (src/s3/index.ts
+      autopush path unchanged).
+    - s3Sync reports every failed namespace BY NAME and sets exit code 1 —
+      a pass that backed up nothing can never print "complete" + rc=0 again
+      (the all-locks-held run of 09-30 did exactly that).
+    - scripts/s3/duckbrain-s3-native-sync.sh synced from the DEPLOYED copy
+      (the S3-GIT-007 deadline block existed only in ~/.hermes/scripts/;
+      repo copy predated it).
+    
+    Verification (all live, 2026-10-04 ~18:40-18:55Z):
+    - RED: sync-deadline-s3alert002.test.ts fails 8/11 on the pre-fix tree.
+    - GREEN: new suite 11/11; full `npx vitest run` 201 files / 1621 tests,
+      0 failures, rc=0; tsc --noEmit clean; prettier clean on touched files.
+    - LIVE (prod config, real endpoint): S3_SYNC_ALL_DEADLINE_S=300 run
+      TERMINATED in ~15 min with rc=1: "scheduler exceeded its 300s
+      deadline (sync abandoned mid-flight)", then "push complete: 547
+      namespaces, 24 files transferred", "1/548 namespace(s) failed this
+      pass: FAILED scheduler". Lock released, pass continued past it.
+    - The 18:45Z cron tick collided with the probe lock and failed LOUD
+      and fast (rc=1 "lock held") instead of hanging.
+    
+    ch:trace row=S3-ALERT-002 evidence=/tmp/s3alert002-live-a.log + src/s3/sync-deadline-s3alert002.test.ts witness=live:sync-run
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md                               |   4 +-
+ scripts/s3/duckbrain-s3-native-sync.sh  |  11 +-
+ src/s3/cli.ts                           |  22 ++-
+ src/s3/sync-deadline-s3alert002.test.ts | 340 ++++++++++++++++++++++++++++++++
+ src/s3/sync.ts                          | 175 ++++++++++++++--
+ 5 files changed, 531 insertions(+), 21 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 99ab0b6..2a343ec 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (200 suites, 1610 tests)
++- **Test Framework:** Vitest (201 suites, 1621 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1610 tests, 200 suites
++pnpm test          # 1621 tests, 201 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/scripts/s3/duckbrain-s3-native-sync.sh b/scripts/s3/duckbrain-s3-native-sync.sh
+index bb38f8b..26cd3a8 100755
+--- a/scripts/s3/duckbrain-s3-native-sync.sh
++++ b/scripts/s3/duckbrain-s3-native-sync.sh
+@@ -33,8 +33,17 @@ if [ -f "$LOCKFILE" ]; then
+   fi
+ fi
+ 
+-OUT=$(node bin/duckbrain.js s3 sync all push 2>&1)
++# S3-GIT-007: the sync wrapper had no per-run deadline — a hung node call made
++# the 15-min cron run ~2h, get SIGTERM'd at 7200s, then the next run cleared
++# the stale lock and repeated. Bound the whole call so failure is loud and fast.
++SYNC_ALL_DEADLINE_S="${S3_SYNC_ALL_DEADLINE_S:-3600}"
++OUT=$(timeout "$SYNC_ALL_DEADLINE_S" node bin/duckbrain.js s3 sync all push 2>&1)
+ RC=$?
++if [ $RC -eq 124 ]; then
++  echo "FAIL sync-all-deadline rc=124 $(date -u +%F-%T)" >> "$LOG"
++  echo "duckbrain native s3 sync FAILED — sync-all exceeded ${SYNC_ALL_DEADLINE_S}s deadline (rc=124); see $LOG"
++  exit 1
++fi
+ if [ $RC -ne 0 ]; then
+   echo "FAIL rc=$RC $(date -u +%F-%T)" >> "$LOG"
+   echo "$OUT" | tail -6 >> "$LOG"
+diff --git a/src/s3/cli.ts b/src/s3/cli.ts
+index 1ad291f..e7b07ff 100644
+--- a/src/s3/cli.ts
++++ b/src/s3/cli.ts
+@@ -18,7 +18,7 @@ import { loadManifest } from "./manifest";
+ import {
+   walkLocal,
+   syncNamespace,
+-  syncAllNamespaces,
++  syncAllNamespacesDetailed,
+   listRemoteNamespaces,
+ } from "./sync";
+ import { runS3Query } from "./query";
+@@ -144,11 +144,29 @@ export async function s3Sync(
+   // if the remote prefix holds namespaces but nothing was restored (every
+   // per-namespace sync failed), that is a failed restore — warn loudly and
+   // exit nonzero. (DF-0925-07; the push summary stays as-is.)
+-  const all = await syncAllNamespaces(s3, nsRoot, direction);
++  // S3-ALERT-002: failures are now collected per namespace and BOTH summaries
++  // name every failed namespace and exit nonzero — a pass where some (or all)
++  // namespaces failed must never print "complete" with rc=0 again (the
++  // all-locks-held run of 09-30 printed exactly that while backing up
++  // nothing).
++  const { stats: all, failures } = await syncAllNamespacesDetailed(
++    s3,
++    nsRoot,
++    direction,
++  );
+   const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
+   console.log(
+     `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
+   );
++  if (failures.length > 0) {
++    console.error(
++      `[S3] ${failures.length}/${all.length + failures.length} namespace(s) failed this pass:`,
++    );
++    for (const f of failures) {
++      console.error(`  [S3] FAILED ${f.ns}: ${f.error}`);
++    }
++    process.exitCode = 1;
++  }
+   if (direction === "pull") {
+     for (const s of all) {
+       console.log(
+diff --git a/src/s3/sync-deadline-s3alert002.test.ts b/src/s3/sync-deadline-s3alert002.test.ts
+new file mode 100644
+index 0000000..3fdcda6
+--- /dev/null
++++ b/src/s3/sync-deadline-s3alert002.test.ts
+@@ -0,0 +1,340 @@
++/**
++ * S3-ALERT-002 regression tests: `s3 sync all push` must TERMINATE even when
++ * one namespace's push cannot finish.
++ *
++ * Measured prod failure (2026-10-04): the `scheduler` namespace held a
++ * ~46k-file delta (next largest: ~2.4k); pushNamespace uploads strictly
++ * sequentially with NO per-namespace bound, so every 3600s wrapper run died
++ * mid-scheduler (rc=124 "FAIL sync-all-deadline") and the next run redid the
++ * identical delta — backup never advanced past 09-30 and the sync lock changed
++ * hands via stale-clear every ~2h15m. Now each namespace gets its own
++ * wall-clock deadline: a namespace that exceeds it is abandoned with a LOUD
++ * error, the pass CONTINUES with the remaining namespaces, the lock is
++ * released, every failed namespace is reported by name, and the CLI exits
++ * nonzero so the cron wrapper reports the failure.
++ *
++ * Isolation: the ./client module is mocked with an in-memory object store
++ * (same vi.mock pattern as cli-pull-df092507.test.ts) — no network, no AWS
++ * SDK. The "slow" namespace blocks on a 15s unref'd upload timer that the
++ * deadline race abandons; the short timer never pins the vitest event loop.
++ */
++
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import type { S3Client } from "@aws-sdk/client-s3";
++import type { RemoteObject } from "./client";
++import {
++  syncAllNamespacesDetailed,
++  syncAllNamespaces,
++  syncNamespace,
++  acquireLock,
++  releaseLock,
++  namespaceDeadlineMs,
++} from "./sync";
++import { s3Sync } from "./cli";
++import { DEFAULT_S3_CONFIG, type S3Config } from "./config";
++
++/** In-memory object store + controllable put delays (mutable per test). */
++const fake = vi.hoisted(() => {
++  const FAKE_CLIENT = { __fakeS3Client: true } as unknown;
++  const objects = new Map<string, { size: number; body: Buffer }>();
++  /** Key suffix → artificial putObject delay in ms (0 = immediate). */
++  const putDelays = new Map<string, number>();
++  return { FAKE_CLIENT, objects, putDelays };
++});
++
++vi.mock("./client", () => ({
++  buildClient: (): S3Client => fake.FAKE_CLIENT as S3Client,
++  listRemoteObjects: async (
++    _client: S3Client,
++    _bucket: string,
++    prefix: string,
++  ): Promise<Map<string, RemoteObject>> => {
++    const out = new Map<string, RemoteObject>();
++    for (const [key, obj] of fake.objects) {
++      if (key.startsWith(prefix)) out.set(key, { key, size: obj.size });
++    }
++    return out;
++  },
++  getObject: async (
++    _client: S3Client,
++    _bucket: string,
++    key: string,
++  ): Promise<Buffer> => {
++    const obj = fake.objects.get(key);
++    if (!obj) throw new Error(`NoSuchKey: ${key}`);
++    return obj.body;
++  },
++  putObject: async (
++    _client: S3Client,
++    _bucket: string,
++    key: string,
++    body: Buffer,
++  ): Promise<void> => {
++    const hit = [...fake.putDelays.entries()].find(([suffix]) =>
++      key.endsWith(suffix),
++    );
++    if (hit && hit[1] > 0) {
++      // AWAIT the timer: the upload must be genuinely in-flight (a promise
++      // that stays pending) so the deadline race has something to abandon.
++      // unref: an abandoned upload must never hold the vitest event loop
++      // open for the full artificial delay.
++      await new Promise<void>((resolve) => {
++        const t = setTimeout(resolve, hit[1]);
++        t.unref?.();
++      });
++    }
++    fake.objects.set(key, { size: body.length, body });
++  },
++  deleteObject: async (): Promise<void> => {},
++}));
++
++let tmp: string;
++let nsRoot: string;
++let envSnapshot: Record<string, string | undefined>;
++
++const ENV_KEYS = [
++  "DUCKBRAIN_CONFIG_PATH",
++  "DUCKBRAIN_NAMESPACES_PATH",
++  "S3_SYNC_ALL_DEADLINE_S",
++] as const;
++
++function cfg(): S3Config {
++  return {
++    ...DEFAULT_S3_CONFIG,
++    enabled: true,
++    bucket: "duckbrain",
++    prefix: "duckbrain",
++  };
++}
++
++function mkns(name: string, files: Record<string, string>): void {
++  for (const [rel, content] of Object.entries(files)) {
++    const p = path.join(nsRoot, name, rel);
++    fs.mkdirSync(path.dirname(p), { recursive: true });
++    fs.writeFileSync(p, content, "utf-8");
++  }
++}
++
++function captureConsole(): {
++  logs: string[];
++  errors: string[];
++  warnings: string[];
++} {
++  const logs: string[] = [];
++  const errors: string[] = [];
++  const warnings: string[] = [];
++  vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => {
++    logs.push(a.map((x) => String(x)).join(" "));
++  });
++  vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
++    errors.push(a.map((x) => String(x)).join(" "));
++  });
++  vi.spyOn(console, "warn").mockImplementation((...a: unknown[]) => {
++    warnings.push(a.map((x) => String(x)).join(" "));
++  });
++  return { logs, errors, warnings };
++}
++
++/** Write an enabled-s3 config file and point DUCKBRAIN_* env at this test's dirs. */
++function writeConfig(): void {
++  const cfgFile = path.join(tmp, "duckbrain.config.json");
++  fs.writeFileSync(
++    cfgFile,
++    JSON.stringify(
++      {
++        s3: {
++          ...DEFAULT_S3_CONFIG,
++          enabled: true,
++          bucket: "duckbrain",
++          prefix: "duckbrain",
++        },
++      },
++      null,
++      2,
++    ),
++    "utf-8",
++  );
++  process.env.DUCKBRAIN_CONFIG_PATH = cfgFile;
++  process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
++}
++
++beforeEach(() => {
++  envSnapshot = Object.fromEntries(
++    ENV_KEYS.map((k) => [k, process.env[k]]),
++  ) as Record<string, string | undefined>;
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "s3alert002-"));
++  nsRoot = path.join(tmp, "namespaces");
++  fs.mkdirSync(nsRoot, { recursive: true });
++  fake.objects.clear();
++  fake.putDelays.clear();
++  delete process.env.S3_SYNC_ALL_DEADLINE_S;
++});
++
++afterEach(() => {
++  for (const k of ENV_KEYS) {
++    const v = envSnapshot[k];
++    if (v === undefined) delete process.env[k];
++    else process.env[k] = v;
++  }
++  process.exitCode = 0; // CLI failure paths set this — never leak into the worker
++  fs.rmSync(tmp, { recursive: true, force: true });
++  vi.restoreAllMocks();
++});
++
++describe("namespaceDeadlineMs (env parsing)", () => {
++  it("defaults to 1800s when the env var is unset", () => {
++    delete process.env.S3_SYNC_ALL_DEADLINE_S;
++    expect(namespaceDeadlineMs()).toBe(1_800_000);
++  });
++
++  it("reads whole seconds and disables on 0", () => {
++    process.env.S3_SYNC_ALL_DEADLINE_S = "300";
++    expect(namespaceDeadlineMs()).toBe(300_000);
++    process.env.S3_SYNC_ALL_DEADLINE_S = "0";
++    expect(namespaceDeadlineMs()).toBe(0);
++  });
++
++  it("falls back to the default on garbage or negative input", () => {
++    process.env.S3_SYNC_ALL_DEADLINE_S = "banana";
++    expect(namespaceDeadlineMs()).toBe(1_800_000);
++    process.env.S3_SYNC_ALL_DEADLINE_S = "-5";
++    expect(namespaceDeadlineMs()).toBe(1_800_000);
++  });
++});
++
++describe("syncAllNamespacesDetailed (per-namespace deadline)", () => {
++  it("abandons a namespace past its deadline, continues with the rest, and terminates", async () => {
++    // Alphabetical iteration: the blocked namespace comes FIRST — the pass
++    // must continue PAST a failed namespace (the old code hung right here
++    // forever, so this ordering proves continuation, not just termination).
++    mkns("aaa-blocked", { "event/stuck.jsonl": "stuck\n" });
++    mkns("ok-later", { "event/current.jsonl": "fine\n" });
++    fake.putDelays.set("stuck.jsonl", 15_000); // unref'd; raced out at 2s
++
++    const cap = captureConsole();
++    const { stats, failures } = await syncAllNamespacesDetailed(
++      cfg(),
++      nsRoot,
++      "push",
++      { perNsTimeoutMs: 2_000 },
++    );
++
++    expect(failures).toHaveLength(1);
++    expect(failures[0].ns).toBe("aaa-blocked");
++    expect(failures[0].error).toContain("deadline");
++    expect(stats.map((s) => s.ns)).toEqual(["ok-later"]);
++    expect(stats[0].uploaded).toBe(1);
++    expect(cap.warnings.join("\n")).toContain(
++      "aaa-blocked exceeded its 2s deadline",
++    );
++  }, 20_000);
++
++  it("releases the sync lock when a namespace is abandoned", async () => {
++    mkns("aaa-blocked", { "event/stuck.jsonl": "stuck\n" });
++    fake.putDelays.set("stuck.jsonl", 15_000);
++
++    captureConsole();
++    await syncAllNamespacesDetailed(cfg(), nsRoot, "push", {
++      perNsTimeoutMs: 1_000,
++    });
++
++    // The abandoned namespace's lock MUST be gone — a held lock would make
++    // every later namespace (and the next pass) fail with "lock held".
++    const probe = acquireLock(nsRoot);
++    expect(probe).not.toBeNull();
++    releaseLock(probe);
++  }, 20_000);
++
++  it("timeoutMs=0 keeps the old unbounded behavior (off switch)", async () => {
++    mkns("slow-but-finite", { "event/current.jsonl": "eventually\n" });
++    fake.putDelays.set("eventually.jsonl", 1_500);
++
++    const stats = await syncNamespace(
++      cfg(),
++      "slow-but-finite",
++      nsRoot,
++      "push",
++      {
++        timeoutMs: 0,
++      },
++    );
++
++    expect(stats).not.toBeNull();
++    expect(stats!.uploaded).toBe(1);
++  }, 15_000);
++
++  it("a fully healthy pass reports zero failures", async () => {
++    mkns("alpha", { "event/current.jsonl": "a\n" });
++    mkns("beta", { "event/current.jsonl": "b\n" });
++
++    const { stats, failures } = await syncAllNamespacesDetailed(
++      cfg(),
++      nsRoot,
++      "push",
++      { perNsTimeoutMs: 5_000 },
++    );
++
++    expect(failures).toEqual([]);
++    expect(stats.map((s) => s.ns).sort()).toEqual(["alpha", "beta"]);
++  });
++
++  it("reads the deadline from S3_SYNC_ALL_DEADLINE_S when no explicit override", async () => {
++    process.env.S3_SYNC_ALL_DEADLINE_S = "1";
++    mkns("aaa-blocked", { "event/stuck.jsonl": "stuck\n" });
++    fake.putDelays.set("stuck.jsonl", 15_000);
++
++    const cap = captureConsole();
++    const { failures } = await syncAllNamespacesDetailed(cfg(), nsRoot, "push");
++
++    expect(failures).toHaveLength(1);
++    expect(cap.warnings.join("\n")).toContain(
++      "aaa-blocked exceeded its 1s deadline",
++    );
++  }, 20_000);
++});
++
++describe("s3Sync CLI exit code reflects namespace failures", () => {
++  it("reports failed namespaces by name and exits nonzero while healthy ones still push", async () => {
++    writeConfig();
++    mkns("aaa-blocked", { "event/stuck.jsonl": "stuck\n" });
++    mkns("ok-later", { "event/current.jsonl": "fine\n" });
++    fake.putDelays.set("stuck.jsonl", 15_000);
++    process.env.S3_SYNC_ALL_DEADLINE_S = "2";
++    const cap = captureConsole();
++
++    await s3Sync(".", "all", "push");
++
++    const joinedLogs = cap.logs.join("\n");
++    const joinedErrors = cap.errors.join("\n");
++    // The healthy namespace still transferred...
++    expect(joinedLogs).toContain(
++      "[S3] push complete: 1 namespaces, 1 files transferred",
++    );
++    // ...and the failures are named, counted, and reflected in the exit code.
++    expect(joinedErrors).toContain("aaa-blocked");
++    expect(joinedErrors).toContain("1/2 namespace(s) failed this pass");
++    expect(process.exitCode).toBe(1);
++  }, 20_000);
++
++  it("a clean pass exits zero", async () => {
++    writeConfig();
++    mkns("alpha", { "event/current.jsonl": "a\n" });
++    captureConsole();
++
++    await s3Sync(".", "all", "push");
++
++    expect(process.exitCode).toBe(0);
++  });
++
++  it("the legacy syncAllNamespaces wrapper still returns plain stats (compat)", async () => {
++    mkns("alpha", { "event/current.jsonl": "a\n" });
++    captureConsole();
++
++    const all = await syncAllNamespaces(cfg(), nsRoot, "push");
++
++    expect(all.map((s) => s.ns)).toEqual(["alpha"]);
++  });
++});
+diff --git a/src/s3/sync.ts b/src/s3/sync.ts
+index 1c07ab9..573ea9a 100644
+--- a/src/s3/sync.ts
++++ b/src/s3/sync.ts
+@@ -60,6 +60,27 @@ export interface SyncStats {
+   durationMs: number;
+ }
+ 
++/**
++ * Cooperative per-namespace deadline handed down by syncNamespace: the
++ * push/pull loops poll isAborted() BETWEEN file operations so an abandoned
++ * namespace stops cleanly (manifest saved, partial progress durable) instead
++ * of lingering as a zombie that keeps the process alive after the run.
++ */
++export interface NamespaceDeadline {
++  timeoutMs: number;
++  isAborted: () => boolean;
++}
++
++/** Error thrown when a namespace outlives its deadline (S3-ALERT-002). */
++export class NamespaceSyncDeadlineError extends Error {
++  constructor(ns: string, timeoutMs: number, done: number, total: number) {
++    super(
++      `[S3] ${ns} exceeded its ${Math.round(timeoutMs / 1000)}s deadline after ${done}/${total} files (partial progress saved; sync abandoned)`,
++    );
++    this.name = "NamespaceSyncDeadlineError";
++  }
++}
++
+ export interface LocalFile {
+   relPath: string;
+   size: number;
+@@ -239,6 +260,7 @@ export async function pushNamespace(
+   cfg: S3Config,
+   ns: string,
+   namespacesPath: string,
++  deadline?: NamespaceDeadline,
+ ): Promise<SyncStats> {
+   const start = Date.now();
+   const client = buildClient(cfg);
+@@ -255,6 +277,18 @@ export async function pushNamespace(
+   let uploaded = 0;
+ 
+   for (const file of deltas.toUpload) {
++    if (deadline?.isAborted()) {
++      // S3-ALERT-002: stop BETWEEN files so the manifest below persists the
++      // partial progress and the namespace stops CLEANLY (no zombie uploads
++      // holding the process open after the pass moves on).
++      saveManifest(makeManifest(ns, manifestFromLocal(local)), namespacesPath);
++      throw new NamespaceSyncDeadlineError(
++        ns,
++        deadline.timeoutMs,
++        uploaded,
++        deltas.toUpload.length,
++      );
++    }
+     let body: Buffer;
+     try {
+       body = fs.readFileSync(path.join(nsDir, file.relPath));
+@@ -284,11 +318,7 @@ export async function pushNamespace(
+     }
+   }
+ 
+-  const files: Record<string, FileMeta> = {};
+-  for (const [relPath, f] of local) {
+-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+-  }
+-  saveManifest(makeManifest(ns, files), namespacesPath);
++  saveManifest(makeManifest(ns, manifestFromLocal(local)), namespacesPath);
+ 
+   return {
+     ns,
+@@ -300,11 +330,23 @@ export async function pushNamespace(
+   };
+ }
+ 
++/** Build the manifest files-record from a walkLocal result. */
++function manifestFromLocal(
++  local: Map<string, LocalFile>,
++): Record<string, FileMeta> {
++  const files: Record<string, FileMeta> = {};
++  for (const [relPath, f] of local) {
++    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
++  }
++  return files;
++}
++
+ /** Pull a single namespace's missing/changed files from S3. */
+ export async function pullNamespace(
+   cfg: S3Config,
+   ns: string,
+   namespacesPath: string,
++  deadline?: NamespaceDeadline,
+ ): Promise<SyncStats> {
+   const start = Date.now();
+   const client = buildClient(cfg);
+@@ -319,6 +361,14 @@ export async function pullNamespace(
+   let downloaded = 0;
+ 
+   for (const item of deltas.toDownload) {
++    if (deadline?.isAborted()) {
++      throw new NamespaceSyncDeadlineError(
++        ns,
++        deadline.timeoutMs,
++        downloaded,
++        deltas.toDownload.length,
++      );
++    }
+     try {
+       const body = await getObject(client, cfg.bucket, item.key);
+       const dest = path.join(nsDir, item.relPath);
+@@ -334,11 +384,7 @@ export async function pullNamespace(
+ 
+   // Refresh manifest from the post-pull local state
+   const fresh = walkLocal(nsDir);
+-  const files: Record<string, FileMeta> = {};
+-  for (const [relPath, f] of fresh) {
+-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+-  }
+-  saveManifest(makeManifest(ns, files), namespacesPath);
++  saveManifest(makeManifest(ns, manifestFromLocal(fresh)), namespacesPath);
+ 
+   return {
+     ns,
+@@ -356,6 +402,7 @@ export async function syncNamespace(
+   ns: string,
+   namespacesPath: string,
+   direction: "push" | "pull" = "push",
++  opts?: { timeoutMs?: number },
+ ): Promise<SyncStats | null> {
+   if (!cfg.enabled) {
+     console.warn("[S3] sync skipped: s3.enabled is false");
+@@ -378,10 +425,51 @@ export async function syncNamespace(
+   if (!lock) {
+     throw new Error("[S3] another sync is in progress (lock held)");
+   }
+-  try {
++  const timeoutMs =
++    opts?.timeoutMs !== undefined ? opts.timeoutMs : namespaceDeadlineMs();
++  const body = async (): Promise<SyncStats> => {
++    // Cooperative deadline: the loops poll this between files, so an
++    // abandoned namespace stops cleanly (partial progress saved) instead of
++    // lingering as a zombie that keeps the process alive after the run.
++    const startMs = Date.now();
++    const deadline: NamespaceDeadline | undefined =
++      timeoutMs > 0
++        ? {
++            timeoutMs,
++            isAborted: () => Date.now() - startMs >= timeoutMs,
++          }
++        : undefined;
+     return direction === "push"
+-      ? await pushNamespace(cfg, ns, namespacesPath)
+-      : await pullNamespace(cfg, ns, namespacesPath);
++      ? pushNamespace(cfg, ns, namespacesPath, deadline)
++      : pullNamespace(cfg, ns, namespacesPath, deadline);
++  };
++  try {
++    // S3-ALERT-002 backstop: the cooperative checks above abort BETWEEN file
++    // operations; this wall-clock race also bounds a stall INSIDE one
++    // operation (e.g. a request that ignores its socket timeout). The losing
++    // branch may still run to completion in the background — that is what
++    // the cooperative path is for.
++    if (timeoutMs > 0) {
++      let timer: NodeJS.Timeout | undefined;
++      const deadline = new Promise<never>(
++        (_, reject) =>
++          (timer = setTimeout(
++            () =>
++              reject(
++                new Error(
++                  `[S3] ${ns} exceeded its ${Math.round(timeoutMs / 1000)}s deadline (sync abandoned mid-flight)`,
++                ),
++              ),
++            timeoutMs,
++          )),
++      );
++      try {
++        return await Promise.race([body(), deadline]);
++      } finally {
++        clearTimeout(timer);
++      }
++    }
++    return await body();
+   } finally {
+     releaseLock(lock);
+   }
+@@ -393,7 +481,58 @@ export async function syncAllNamespaces(
+   namespacesPath: string,
+   direction: "push" | "pull" = "push",
+ ): Promise<SyncStats[]> {
++  const detailed = await syncAllNamespacesDetailed(
++    cfg,
++    namespacesPath,
++    direction,
++  );
++  return detailed.stats;
++}
++
++export interface SyncFailure {
++  ns: string;
++  error: string;
++}
++
++export interface SyncAllResult {
++  stats: SyncStats[];
++  failures: SyncFailure[];
++}
++
++/**
++ * Per-namespace deadline for `sync all`, in ms.
++ *
++ * Read once per run from S3_SYNC_ALL_DEADLINE_S (whole seconds; 0 disables).
++ * Same env knob the cron wrapper uses for its whole-run `timeout` — the
++ * per-namespace deadline keeps every run comfortably inside the wrapper's.
++ */
++export function namespaceDeadlineMs(): number {
++  const raw = process.env.S3_SYNC_ALL_DEADLINE_S;
++  if (raw === undefined || raw === "") return 1_800_000;
++  const s = Number.parseInt(raw, 10);
++  if (!Number.isInteger(s) || s < 0) return 1_800_000;
++  return s * 1000;
++}
++
++/**
++ * Sync every namespace dir under namespacesPath, reporting failures.
++ *
++ * S3-ALERT-002: the old loop awaited each namespace with NO per-namespace
++ * bound, so one huge/stuck namespace pinned the whole pass (measured: a
++ * ~46k-file `scheduler` delta outlived every 3600s wrapper run). Each
++ * namespace now races a per-ns wall-clock deadline; a namespace that
++ * exceeds it is abandoned (its lock is released in syncNamespace's
++ * finally), logged LOUDLY with its name, and the pass CONTINUES. Callers
++ * get every failed namespace by name + error so the exit can reflect them.
++ */
++export async function syncAllNamespacesDetailed(
++  cfg: S3Config,
++  namespacesPath: string,
++  direction: "push" | "pull" = "push",
++  opts?: { perNsTimeoutMs?: number },
++): Promise<SyncAllResult> {
+   const out: SyncStats[] = [];
++  const failures: SyncFailure[] = [];
+   let localEntries: string[] = [];
+   try {
+     localEntries = fs
+@@ -420,11 +559,15 @@ export async function syncAllNamespaces(
+ 
+   for (const ns of nsList) {
+     try {
+-      const stats = await syncNamespace(cfg, ns, namespacesPath, direction);
++      const stats = await syncNamespace(cfg, ns, namespacesPath, direction, {
++        timeoutMs: opts?.perNsTimeoutMs,
++      });
+       if (stats) out.push(stats);
+     } catch (err) {
+-      console.warn(`[S3] sync ${ns} failed: ${(err as Error).message}`);
++      const message = (err as Error).message;
++      console.warn(`[S3] sync ${ns} failed: ${message}`);
++      failures.push({ ns, error: message });
+     }
+   }
+-  return out;
++  return { stats: out, failures };
+ }

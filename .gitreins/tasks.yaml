@@ -2322,5 +2322,6 @@ tasks:
   criteria:
   - s3 sync all push terminates with per-namespace failure reporting; blocking ns
     identified; tests green
-  status: in_progress
+  status: complete
   created_at: '2026-10-04T17:56:59.124434+00:00'
+  completed_at: '2026-10-04T20:02:08.534105+00:00'

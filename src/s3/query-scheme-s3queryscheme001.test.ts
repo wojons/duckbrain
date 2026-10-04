@@ -90,11 +90,15 @@ describe("runS3Query applies the endpoint scheme (S3-QUERY-SCHEME-001)", () => {
   });
 
   it("an http:// endpoint sets s3_use_ssl='false' beside s3_endpoint", async () => {
-    await runS3Query(cfgWithEndpoint("http://minio.internal:9000"), "SELECT 1", {
-      credentialProvider: vi.fn(async () => {
-        throw new Error("provider must not be called for these tests");
-      }),
-    });
+    await runS3Query(
+      cfgWithEndpoint("http://minio.internal:9000"),
+      "SELECT 1",
+      {
+        credentialProvider: vi.fn(async () => {
+          throw new Error("provider must not be called for these tests");
+        }),
+      },
+    );
 
     const applied = appliedSettings();
     expect(applied).toContain("SET s3_endpoint='minio.internal:9000';");
