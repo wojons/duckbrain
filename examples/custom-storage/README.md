@@ -111,8 +111,8 @@ DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json \
 
 The daemon binds `127.0.0.1` by default, requires API keys by default
 (`--auth=none` is an explicit opt-out; `/health` is always answerable), and
-writes a PID file under `DUCKBRAIN_DATA_DIR` (or a per-UID dir in the system
-temp directory). Stop it with Ctrl-C or by killing the PID from the PID file.
+writes a PID file under a per-UID dir in the system temp directory
+(`os.tmpdir()/duckbrain-<uid>`). Stop it with Ctrl-C or by killing the PID from the PID file.
 
 > Do not use the `--`-separator spelling (`pnpm start` + `--` + `http`) here:
 > under the repo's pinned pnpm the `--` separator is forwarded to the CLI
@@ -144,7 +144,6 @@ services:
       - duckbrain-data:/data
     environment:
       - NODE_ENV=production
-      - DUCKBRAIN_DATA_DIR=/data
     restart: unless-stopped
 ```
 
@@ -224,8 +223,8 @@ the process continues on defaults (except `durability`, which aborts).
 
 The daemon refuses to double-bind and no longer clobbers the running
 instance's PID file. Pick another `--port`, or stop the old daemon first
-(its PID file is `duckbrain-http-<port>.pid` under `DUCKBRAIN_DATA_DIR` or
-the per-UID temp dir).
+(its PID file is `duckbrain-http-<port>.pid` under the per-UID temp dir,
+`os.tmpdir()/duckbrain-<uid>`).
 
 ### Permission issues
 

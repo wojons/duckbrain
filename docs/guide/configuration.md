@@ -9,7 +9,6 @@ DuckBrain can be configured through environment variables and a JSON configurati
 | `DUCKBRAIN_HOME` | `~/.duckbrain` | Base directory for DuckBrain data, sockets, and configuration |
 | `DUCKBRAIN_NAMESPACE` | `default` | Active namespace for operations. Runtime override of the config file's `defaultNamespace` (never persisted). Precedence: explicit parameter > this env var > `defaultNamespace` > `default` |
 | `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories |
-| `DUCKBRAIN_DATA_DIR` | — | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`). NOT the memory store — use `DUCKBRAIN_NAMESPACES_PATH` for that |
 | `DUCKBRAIN_API_PORT` | `3000` | HTTP API server port |
 | `DUCKBRAIN_UI_PORT` | `8989` | Web UI server port |
 | `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |

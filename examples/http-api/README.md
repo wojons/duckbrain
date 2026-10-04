@@ -30,7 +30,6 @@ touch production data:
 ```bash
 export SCRATCH_DATA=$(mktemp -d)
 mkdir -p "$SCRATCH_DATA/namespaces/default"
-DUCKBRAIN_DATA_DIR="$SCRATCH_DATA" \
 DUCKBRAIN_NAMESPACES_PATH="$SCRATCH_DATA/namespaces" \
   node bin/duckbrain.js http --port=39471 &
 # wait for readiness

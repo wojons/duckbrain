@@ -546,7 +546,7 @@ duckbrain init [PROJECT_NAME] --data-dir ./memory
 |----------|-------------|---------|
 | `DUCKBRAIN_NAMESPACE` | Active namespace for this agent — overrides the config file's `defaultNamespace` (see below) | `default` |
 | `DUCKBRAIN_NAMESPACES_PATH` | Directory holding the namespace repositories — the "where is memory stored" knob | `./namespaces` |
-| `DUCKBRAIN_DATA_DIR` | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`) — **not** the memory store | system temp dir |
+| `DUCKBRAIN_HOME_ROOT` | Install-root override — the directory that owns `duckbrain.config.json` and its namespaces (see the Namespace Resolution Order below) | (none) |
 | `DUCKBRAIN_API_PORT` | HTTP API port | `3000` |
 | `DUCKBRAIN_UI_PORT` | Web UI port | `8989` |
 | `DUCKBRAIN_GIT_REMOTE` | Git remote for syncing | (none) |
