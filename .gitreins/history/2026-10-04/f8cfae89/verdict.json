@@ -1,0 +1,103 @@
+{
+  "task_id": "S3-QUERY-SCHEME-001",
+  "task_title": "s3 query honours endpoint scheme (s3_use_ssl)",
+  "task_criteria": [
+    "src/s3/query.ts sets s3_use_ssl from the endpoint scheme; http endpoints query over plain http; test suite src/s3/query-scheme-s3queryscheme001.test.ts covers http/https; fix commit d2db770 on origin/main"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "fe565b893db7e9606dad7adf440b56591780e530",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n12:25PM INF scanned ~14506527 bytes (14.51 MB) in 2.38s\n12:25PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 415783 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T114103.408995Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  203 passed (203)\n      Tests  1622 passed (1622)\n   Start at  12:25:37\n   Duration  67.86s (tests 77%, import 19%, transform 2%, setup 1%)\n\n    Isolate  203 workers spawned \u00b7 ~90ms startup each (spawn + environment, per file)\n             at least ~4.47s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T114103.408995Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/s3/query.ts sets s3_use_ssl from the endpoint scheme; http endpoints query over plain http; test suite src/s3/query-scheme-s3queryscheme001.test.ts covers http/https; fix commit d2db770 on origin/main: src/s3/query.ts:91-99 defines endpointUseSsl(endpoint) returning new URL(endpoint).protocol !== \"http:\" (false only for explicit http:, true for https/schemeless/unparseable); line 211 issues db.exec(`SET s3_use_ssl='${endpointUseSsl(cfg.endpoint)}';`) inside the `if (cfg.endpoint)` block, so http:// endpoints get s3_use_ssl='false' (plain http) and https get 'true'. Test src/s3/query-scheme-s3queryscheme001.test.ts covers both: 'an http:// endpoint sets s3_use_ssl='false' beside s3_endpoint' and 'an https:// endpoint sets s3_use_ssl='true''. Ran `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts` => 'Test Files 1 passed (1)', 'Tests 6 passed (6)', exit_code 0. Commit d2db770 ('fix(s3): honour endpoint scheme in `s3 query` \u2014 set s3_use_ssl from the endpoint') exists and `git merge-base --is-ancestor d2db770 origin/main` returned YES (also contained in origin/main, ghgitlab/main); its stat shows src/s3/query.ts (+30) and src/s3/query-scheme-s3queryscheme001.test.ts (+130). [resolution 0.54; src/s3/query.ts, src/s3/query-scheme-s3queryscheme001.test.ts]\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/s3/query.ts sets s3_use_ssl from the endpoint scheme; http endpoints query over plain http; test suite src/s3/query-scheme-s3queryscheme001.test.ts covers http/https; fix commit d2db770 on origin/main: src/s3/query.ts:91-99 defines endpointUseSsl(endpoint) returning new URL(endpoint).protocol !== \"http:\" (false only for explicit http:, true for https/schemeless/unparseable); line 211 issues db.exec(`SET s3_use_ssl='${endpointUseSsl(cfg.endpoint)}';`) inside the `if (cfg.endpoint)` block, so http:// endpoints get s3_use_ssl='false' (plain http) and https get 'true'. Test src/s3/query-scheme-s3queryscheme001.test.ts covers both: 'an http:// endpoint sets s3_use_ssl='false' beside s3_endpoint' and 'an https:// endpoint sets s3_use_ssl='true''. Ran `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts` => 'Test Files 1 passed (1)', 'Tests 6 passed (6)', exit_code 0. Commit d2db770 ('fix(s3): honour endpoint scheme in `s3 query` \u2014 set s3_use_ssl from the endpoint') exists and `git merge-base --is-ancestor d2db770 origin/main` returned YES (also contained in origin/main, ghgitlab/main); its stat shows src/s3/query.ts (+30) and src/s3/query-scheme-s3queryscheme001.test.ts (+130). [resolution 0.54; src/s3/query.ts, src/s3/query-scheme-s3queryscheme001.test.ts]\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/s3/query.ts sets s3_use_ssl from the endpoint scheme; http endpoints query over plain http; test suite src/s3/query-scheme-s3queryscheme001.test.ts covers http/https; fix commit d2db770 on origin/main",
+                "status": "PASS",
+                "detail": "src/s3/query.ts:91-99 defines endpointUseSsl(endpoint) returning new URL(endpoint).protocol !== \"http:\" (false only for explicit http:, true for https/schemeless/unparseable); line 211 issues db.exec(`SET s3_use_ssl='${endpointUseSsl(cfg.endpoint)}';`) inside the `if (cfg.endpoint)` block, so http:// endpoints get s3_use_ssl='false' (plain http) and https get 'true'. Test src/s3/query-scheme-s3queryscheme001.test.ts covers both: 'an http:// endpoint sets s3_use_ssl='false' beside s3_endpoint' and 'an https:// endpoint sets s3_use_ssl='true''. Ran `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts` => 'Test Files 1 passed (1)', 'Tests 6 passed (6)', exit_code 0. Commit d2db770 ('fix(s3): honour endpoint scheme in `s3 query` \u2014 set s3_use_ssl from the endpoint') exists and `git merge-base --is-ancestor d2db770 origin/main` returned YES (also contained in origin/main, ghgitlab/main); its stat shows src/s3/query.ts (+30) and src/s3/query-scheme-s3queryscheme001.test.ts (+130). [resolution 0.54; src/s3/query.ts, src/s3/query-scheme-s3queryscheme001.test.ts]",
+                "resolution_probability": 0.54,
+                "cited_path": "src/s3/query.ts, src/s3/query-scheme-s3queryscheme001.test.ts"
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-QUERY-SCHEME-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/s3/query.ts sets s3_use_ssl from the endpoint scheme; http endpoints query over plain http; test suite src/s3/query-scheme-s3queryscheme001.test.ts covers http/https; fix commit d2db770 on origin/main: src/s3/query.ts:91-99 defines endpointUseSsl(endpoint) returning new URL(endpoint).protocol !== \"http:\" (false only for explicit http:, true for https/schemeless/unparseable); line 211 issues db.exec(`SET s3_use_ssl='${endpointUseSsl(cfg.endpoint)}';`) inside the `if (cfg.endpoint)` block, so http:// endpoints get s3_use_ssl='false' (plain http) and https get 'true'. Test src/s3/query-scheme-s3queryscheme001.test.ts covers both: 'an http:// endpoint sets s3_use_ssl='false' beside s3_endpoint' and 'an https:// endpoint sets s3_use_ssl='true''. Ran `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts` => 'Test Files 1 passed (1)', 'Tests 6 passed (6)', exit_code 0. Commit d2db770 ('fix(s3): honour endpoint scheme in `s3 query` \u2014 set s3_use_ssl from the endpoint') exists and `git merge-base --is-ancestor d2db770 origin/main` returned YES (also contained in origin/main, ghgitlab/main); its stat shows src/s3/query.ts (+30) and src/s3/query-scheme-s3queryscheme001.test.ts (+130). [resolution 0.54; src/s3/query.ts, src/s3/query-scheme-s3queryscheme001.test.ts]\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T17:27:05.347090",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T17:27:05.419223+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4730,
+        "truncated": false,
+        "source": "git show fe565b893db7"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 11961,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "S3-QUERY-SCHEME-001"
+  }
+}
