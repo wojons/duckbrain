@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-018",
+  "task_title": "Fix CI integration-suite port-race (EADDRINUSE in http-auth)",
+  "task_criteria": [
+    "tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "cd9600dfad63aa358e213275b5c3a959d2e338ad",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n1:15PM INF scanned ~14591905 bytes (14.59 MB) in 2.03s\n1:15PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 416650 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  200 passed (200)\n      Tests  1610 passed (1610)\n   Start at  13:15:46\n   Duration  61.50s (tests 73%, import 24%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  200 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~4.86s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Two of three sub-requirements are met but 'daemon spawns are identity-verified' is NOT implemented. (1) Port range: PASS \u2014 getRandomPort() changed from `30000 + Math.random()*20000` (30000-49999, overlapping the Linux kernel ephemeral range 32768+) to `21000 + Math.floor(Math.random()*9000)` (21000-29999, outside it) at tests/helpers.ts:200-201 (commit cd9600d). (2) Bounded retry: PASS \u2014 MAX_SPAWN_ATTEMPTS=3, assertPortFree() probe-bind, and EADDRINUSE-shaped retry with portRemaps in startDuckbrainHttp (tests/helpers.ts:217-232, 400-425). (3) Identity verification: FAIL \u2014 the spawn health probe is `curl -sf ... http://127.0.0.1:${opts.port}/health` accepting any 200/401/503 (tests/helpers.ts:358-365); there is no check that the responder is the child just spawned (no sentinel/nonce/token/PID correlation \u2014 grep for identity/token/nonce/instance in tests/helpers.ts returns nothing). The commit message claims to mirror the DB-GAP-063/nsauto001 pattern, but that reference DOES identity-verify: memories-namespace-autocreate-nsauto001.test.ts:480-505 (assertDaemonIsOurs) creates a random sentinel namespace and asserts the daemon's /api/namespaces lists it, rejecting a foreign listener. INT-CI-018 has no equivalent, so a stray/leftover daemon squatting the port is accepted as 'healthy' \u2014 the exact race the criterion targets; worse, if a foreign listener answers, the loop breaks and returns the child as ready even if the child died. (4) Local suite: PASS \u2014 `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 10 passed (10)', 'Tests 64 passed (64)', Duration 41.15s; http-auth alone 6 passed (6). LSP diagnostics: 0.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Two of three sub-requirements are met but 'daemon spawns are identity-verified' is NOT implemented. (1) Port range: PASS \u2014 getRandomPort() changed from `30000 + Math.random()*20000` (30000-49999, overlapping the Linux kernel ephemeral range 32768+) to `21000 + Math.floor(Math.random()*9000)` (21000-29999, outside it) at tests/helpers.ts:200-201 (commit cd9600d). (2) Bounded retry: PASS \u2014 MAX_SPAWN_ATTEMPTS=3, assertPortFree() probe-bind, and EADDRINUSE-shaped retry with portRemaps in startDuckbrainHttp (tests/helpers.ts:217-232, 400-425). (3) Identity verification: FAIL \u2014 the spawn health probe is `curl -sf ... http://127.0.0.1:${opts.port}/health` accepting any 200/401/503 (tests/helpers.ts:358-365); there is no check that the responder is the child just spawned (no sentinel/nonce/token/PID correlation \u2014 grep for identity/token/nonce/instance in tests/helpers.ts returns nothing). The commit message claims to mirror the DB-GAP-063/nsauto001 pattern, but that reference DOES identity-verify: memories-namespace-autocreate-nsauto001.test.ts:480-505 (assertDaemonIsOurs) creates a random sentinel namespace and asserts the daemon's /api/namespaces lists it, rejecting a foreign listener. INT-CI-018 has no equivalent, so a stray/leftover daemon squatting the port is accepted as 'healthy' \u2014 the exact race the criterion targets; worse, if a foreign listener answers, the loop breaks and returns the child as ready even if the child died. (4) Local suite: PASS \u2014 `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 10 passed (10)', 'Tests 64 passed (64)', Duration 41.15s; http-auth alone 6 passed (6). LSP diagnostics: 0.\n",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally",
+                "status": "FAIL",
+                "detail": "Two of three sub-requirements are met but 'daemon spawns are identity-verified' is NOT implemented. (1) Port range: PASS \u2014 getRandomPort() changed from `30000 + Math.random()*20000` (30000-49999, overlapping the Linux kernel ephemeral range 32768+) to `21000 + Math.floor(Math.random()*9000)` (21000-29999, outside it) at tests/helpers.ts:200-201 (commit cd9600d). (2) Bounded retry: PASS \u2014 MAX_SPAWN_ATTEMPTS=3, assertPortFree() probe-bind, and EADDRINUSE-shaped retry with portRemaps in startDuckbrainHttp (tests/helpers.ts:217-232, 400-425). (3) Identity verification: FAIL \u2014 the spawn health probe is `curl -sf ... http://127.0.0.1:${opts.port}/health` accepting any 200/401/503 (tests/helpers.ts:358-365); there is no check that the responder is the child just spawned (no sentinel/nonce/token/PID correlation \u2014 grep for identity/token/nonce/instance in tests/helpers.ts returns nothing). The commit message claims to mirror the DB-GAP-063/nsauto001 pattern, but that reference DOES identity-verify: memories-namespace-autocreate-nsauto001.test.ts:480-505 (assertDaemonIsOurs) creates a random sentinel namespace and asserts the daemon's /api/namespaces lists it, rejecting a foreign listener. INT-CI-018 has no equivalent, so a stray/leftover daemon squatting the port is accepted as 'healthy' \u2014 the exact race the criterion targets; worse, if a foreign listener answers, the loop breaks and returns the child as ready even if the child died. (4) Local suite: PASS \u2014 `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 10 passed (10)', 'Tests 64 passed (64)', Duration 41.15s; http-auth alone 6 passed (6). LSP diagnostics: 0.",
+                "resolution_probability": 0.27,
+                "cited_path": "tests/http-auth.int.test.ts, tests/helpers.ts"
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-018\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Two of three sub-requirements are met but 'daemon spawns are identity-verified' is NOT implemented. (1) Port range: PASS \u2014 getRandomPort() changed from `30000 + Math.random()*20000` (30000-49999, overlapping the Linux kernel ephemeral range 32768+) to `21000 + Math.floor(Math.random()*9000)` (21000-29999, outside it) at tests/helpers.ts:200-201 (commit cd9600d). (2) Bounded retry: PASS \u2014 MAX_SPAWN_ATTEMPTS=3, assertPortFree() probe-bind, and EADDRINUSE-shaped retry with portRemaps in startDuckbrainHttp (tests/helpers.ts:217-232, 400-425). (3) Identity verification: FAIL \u2014 the spawn health probe is `curl -sf ... http://127.0.0.1:${opts.port}/health` accepting any 200/401/503 (tests/helpers.ts:358-365); there is no check that the responder is the child just spawned (no sentinel/nonce/token/PID correlation \u2014 grep for identity/token/nonce/instance in tests/helpers.ts returns nothing). The commit message claims to mirror the DB-GAP-063/nsauto001 pattern, but that reference DOES identity-verify: memories-namespace-autocreate-nsauto001.test.ts:480-505 (assertDaemonIsOurs) creates a random sentinel namespace and asserts the daemon's /api/namespaces lists it, rejecting a foreign listener. INT-CI-018 has no equivalent, so a stray/leftover daemon squatting the port is accepted as 'healthy' \u2014 the exact race the criterion targets; worse, if a foreign listener answers, the loop breaks and returns the child as ready even if the child died. (4) Local suite: PASS \u2014 `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 10 passed (10)', 'Tests 64 passed (64)', Duration 41.15s; http-auth alone 6 passed (6). LSP diagnostics: 0.\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-04T18:20:13.293346",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T18:20:13.316581+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 7564,
+        "truncated": false,
+        "source": "git show cd9600dfad63"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1115,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-018"
+  }
+}

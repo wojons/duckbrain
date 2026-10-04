@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-018",
+  "task_title": "Fix CI integration-suite port-race (EADDRINUSE in http-auth)",
+  "task_criteria": [
+    "tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "9a487c0a569be62c4117e04496309e2ff5b1c76b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n1:33PM INF scanned ~14257257 bytes (14.26 MB) in 5.26s\n1:33PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 416758 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  201 passed (201)\n      Tests  1621 passed (1621)\n   Start at  13:33:31\n   Duration  66.89s (tests 73%, import 23%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  201 workers spawned \u00b7 ~105ms startup each (spawn + environment, per file)\n             at least ~5.19s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Port allocation: tests/helpers.ts:229 getRandomPort() returns 21000 + floor(rand*9000) => [21000,29999]; kernel ephemeral range verified via /proc/sys/net/ipv4/ip_local_port_range = '32768 60999' \u2014 no overlap (also src/testing/race-safe-daemon.ts PORT_WINDOW_MIN=21000/MAX=29999). Identity verification: tests/helpers.ts:451-459 createSentinelNamespace + assertDaemonIsOurs (src/testing/race-safe-daemon.ts:240-290) census a sentinel namespace via GET /api/namespaces (pidfile fallback for fail-closed daemons), so a foreign listener is rejected. Bounded retry: MAX_SPAWN_ATTEMPTS=3 (tests/helpers.ts:254) in startDuckbrainHttp, retrying on addrInUse OR identity failure with port remap + child kill + sentinel cleanup. Test evidence: `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0; `tests/identity-verification-intci018.int.test.ts` => 1 passed; full suite `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 11 passed (11) / Tests 65 passed (65) / Duration 117.39s / SUITE_RC=0' with no EADDRINUSE/health/timeout/fail lines in the log. (Note: the prompt's working-tree diff showed unrelated S3 changes; the actual INT-CI-018 changes are commits cd9600d + 9a487c0, HEAD=9a487c0.) [resolution 0.22; tests/http-auth.int.test.ts, tests/helpers.ts]\nAll INT-CI-018 requirements are implemented and verified: ports drawn from 21000-29999 (outside the 32768-60999 ephemeral range), daemon spawns identity-verified via sentinel census with bounded 3-attempt retry, and the full integration suite (11 files / 65 tests) passes locally with no EADDRINUSE or health-timeout.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Port allocation: tests/helpers.ts:229 getRandomPort() returns 21000 + floor(rand*9000) => [21000,29999]; kernel ephemeral range verified via /proc/sys/net/ipv4/ip_local_port_range = '32768 60999' \u2014 no overlap (also src/testing/race-safe-daemon.ts PORT_WINDOW_MIN=21000/MAX=29999). Identity verification: tests/helpers.ts:451-459 createSentinelNamespace + assertDaemonIsOurs (src/testing/race-safe-daemon.ts:240-290) census a sentinel namespace via GET /api/namespaces (pidfile fallback for fail-closed daemons), so a foreign listener is rejected. Bounded retry: MAX_SPAWN_ATTEMPTS=3 (tests/helpers.ts:254) in startDuckbrainHttp, retrying on addrInUse OR identity failure with port remap + child kill + sentinel cleanup. Test evidence: `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0; `tests/identity-verification-intci018.int.test.ts` => 1 passed; full suite `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 11 passed (11) / Tests 65 passed (65) / Duration 117.39s / SUITE_RC=0' with no EADDRINUSE/health/timeout/fail lines in the log. (Note: the prompt's working-tree diff showed unrelated S3 changes; the actual INT-CI-018 changes are commits cd9600d + 9a487c0, HEAD=9a487c0.) [resolution 0.22; tests/http-auth.int.test.ts, tests/helpers.ts]\nAll INT-CI-018 requirements are implemented and verified: ports drawn from 21000-29999 (outside the 32768-60999 ephemeral range), daemon spawns identity-verified via sentinel census with bounded 3-attempt retry, and the full integration suite (11 files / 65 tests) passes locally with no EADDRINUSE or health-timeout.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally",
+                "status": "PASS",
+                "detail": "Port allocation: tests/helpers.ts:229 getRandomPort() returns 21000 + floor(rand*9000) => [21000,29999]; kernel ephemeral range verified via /proc/sys/net/ipv4/ip_local_port_range = '32768 60999' \u2014 no overlap (also src/testing/race-safe-daemon.ts PORT_WINDOW_MIN=21000/MAX=29999). Identity verification: tests/helpers.ts:451-459 createSentinelNamespace + assertDaemonIsOurs (src/testing/race-safe-daemon.ts:240-290) census a sentinel namespace via GET /api/namespaces (pidfile fallback for fail-closed daemons), so a foreign listener is rejected. Bounded retry: MAX_SPAWN_ATTEMPTS=3 (tests/helpers.ts:254) in startDuckbrainHttp, retrying on addrInUse OR identity failure with port remap + child kill + sentinel cleanup. Test evidence: `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0; `tests/identity-verification-intci018.int.test.ts` => 1 passed; full suite `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 11 passed (11) / Tests 65 passed (65) / Duration 117.39s / SUITE_RC=0' with no EADDRINUSE/health/timeout/fail lines in the log. (Note: the prompt's working-tree diff showed unrelated S3 changes; the actual INT-CI-018 changes are commits cd9600d + 9a487c0, HEAD=9a487c0.) [resolution 0.22; tests/http-auth.int.test.ts, tests/helpers.ts]",
+                "resolution_probability": 0.22,
+                "cited_path": "tests/http-auth.int.test.ts, tests/helpers.ts"
+              }
+            ],
+            "summary": "All INT-CI-018 requirements are implemented and verified: ports drawn from 21000-29999 (outside the 32768-60999 ephemeral range), daemon spawns identity-verified via sentinel census with bounded 3-attempt retry, and the full integration suite (11 files / 65 tests) passes locally with no EADDRINUSE or health-timeout."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-018\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral range and daemon spawns are identity-verified with bounded retry; integration suite passes locally: Port allocation: tests/helpers.ts:229 getRandomPort() returns 21000 + floor(rand*9000) => [21000,29999]; kernel ephemeral range verified via /proc/sys/net/ipv4/ip_local_port_range = '32768 60999' \u2014 no overlap (also src/testing/race-safe-daemon.ts PORT_WINDOW_MIN=21000/MAX=29999). Identity verification: tests/helpers.ts:451-459 createSentinelNamespace + assertDaemonIsOurs (src/testing/race-safe-daemon.ts:240-290) census a sentinel namespace via GET /api/namespaces (pidfile fallback for fail-closed daemons), so a foreign listener is rejected. Bounded retry: MAX_SPAWN_ATTEMPTS=3 (tests/helpers.ts:254) in startDuckbrainHttp, retrying on addrInUse OR identity failure with port remap + child kill + sentinel cleanup. Test evidence: `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0; `tests/identity-verification-intci018.int.test.ts` => 1 passed; full suite `npx vitest run --config vitest.integration.config.ts tests/` => 'Test Files 11 passed (11) / Tests 65 passed (65) / Duration 117.39s / SUITE_RC=0' with no EADDRINUSE/health/timeout/fail lines in the log. (Note: the prompt's working-tree diff showed unrelated S3 changes; the actual INT-CI-018 changes are commits cd9600d + 9a487c0, HEAD=9a487c0.) [resolution 0.22; tests/http-auth.int.test.ts, tests/helpers.ts]\nAll INT-CI-018 requirements are implemented and verified: ports drawn from 21000-29999 (outside the 32768-60999 ephemeral range), daemon spawns identity-verified via sentinel census with bounded 3-attempt retry, and the full integration suite (11 files / 65 tests) passes locally with no EADDRINUSE or health-timeout.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T18:41:44.207642",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T18:41:44.222613+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 9790,
+        "truncated": false,
+        "source": "git show 9a487c0a569b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 12818,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-018"
+  }
+}

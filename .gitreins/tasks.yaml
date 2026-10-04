@@ -2324,13 +2324,3 @@ tasks:
     identified; tests green
   status: in_progress
   created_at: '2026-10-04T17:56:59.124434+00:00'
-- id: INT-CI-018
-  title: Fix CI integration-suite port-race (EADDRINUSE in http-auth)
-  criteria:
-  - tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in
-    CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral
-    range and daemon spawns are identity-verified with bounded retry; integration
-    suite passes locally
-  status: complete
-  created_at: '2026-10-04T18:03:42.747364+00:00'
-  completed_at: '2026-10-04T18:33:30.285151+00:00'

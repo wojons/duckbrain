@@ -1,0 +1,26 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d611b10..225cedb 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2316,3 +2316,21 @@ tasks:
+   status: complete
+   created_at: '2026-10-03T15:33:34.757228+00:00'
+   completed_at: '2026-10-03T10:49:50.969262'
++- id: S3-ALERT-002
++  title: S3 sync all push still hangs past the 3600s wrapper deadline (hang moved
++    inside node sync-all)
++  criteria:
++  - s3 sync all push terminates with per-namespace failure reporting; blocking ns
++    identified; tests green
++  status: in_progress
++  created_at: '2026-10-04T17:56:59.124434+00:00'
++- id: INT-CI-018
++  title: Fix CI integration-suite port-race (EADDRINUSE in http-auth)
++  criteria:
++  - tests/http-auth.int.test.ts no longer fails with EADDRINUSE/health-timeout in
++    CI; tests/helpers.ts port allocation no longer draws from the kernel ephemeral
++    range and daemon spawns are identity-verified with bounded retry; integration
++    suite passes locally
++  status: complete
++  created_at: '2026-10-04T18:03:42.747364+00:00'
++  completed_at: '2026-10-04T18:15:45.643771+00:00'

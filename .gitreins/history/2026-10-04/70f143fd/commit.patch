@@ -1,0 +1,184 @@
+commit cd9600dfad63aa358e213275b5c3a959d2e338ad
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 4 13:11:03 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 4 13:11:26 2026 -0500
+
+    fix(tests): race-safe port allocation for integration daemons — INT-CI-018
+    
+    Use ports outside the kernel ephemeral range + fail-fast on child death +
+    bounded spawn retry, mirroring the DB-GAP-063 per-file pattern.
+    ch:trace row=INT-CI-018 spec=none wave=none test=tests/http-auth.int.test.ts::HTTP Auth Integration doc=none prompt=none evidence=local-int-suite-run witness=none:ci-rerun-pending verdict=none commit=737aa48a9273e054dc3079f729af10d77f357ac5
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ tests/helpers.ts | 129 ++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 127 insertions(+), 2 deletions(-)
+
+diff --git a/tests/helpers.ts b/tests/helpers.ts
+index f79cf08..447542c 100644
+--- a/tests/helpers.ts
++++ b/tests/helpers.ts
+@@ -70,6 +70,11 @@ export function createStderrTail(maxLines = 50): StderrTail {
+ /** A duckbrain daemon child that carries a rolling stderr tail. */
+ export type DuckbrainChild = ChildProcess & {
+   stderrTail: string;
++  /**
++   * INT-CI-018: the port the daemon actually listens on (differs from the
++   * caller's pick when the spawn helper remapped a busy port).
++   */
++  port?: number;
+   /**
+    * Effective DUCKBRAIN_DATA_DIR the daemon runs with (QA-DUCKBRAIN-002):
+    * a helper-created temp dir unless the caller supplied one via opts.env
+@@ -130,6 +135,13 @@ export async function waitForUrl(
+   timeoutMs = DAEMON_READY_TIMEOUT_MS,
+   child?: ChildProcess,
+ ): Promise<void> {
++  // INT-CI-018: if the spawn helper remapped a busy port, translate any
++  // URL still using the caller's original pick to the effective port.
++  const portMatch = /:(\d+)\//.exec(url);
++  if (portMatch) {
++    const remap = portRemaps.get(Number(portMatch[1]));
++    if (remap !== undefined) url = url.replace(`:${portMatch[1]}/`, `:${remap}/`);
++  }
+   const start = Date.now();
+   while (Date.now() - start < timeoutMs) {
+     try {
+@@ -173,11 +185,51 @@ export function sleep(ms: number): Promise<void> {
+   return new Promise((r) => setTimeout(r, ms));
+ }
+ 
++/**
++ * INT-CI-018: test ports MUST stay OUTSIDE the kernel ephemeral range
++ * (net.ipv4.ip_local_port_range, 32768+ on Linux). The old 30000-49999
++ * range overlapped it, so a sibling vitest worker or CI service could hold
++ * the randomly picked port; the spawned daemon then died with EADDRINUSE
++ * and /health never answered (60s timeout, CI run 37147924119). Ports are
++ * drawn from a private 21000-29999 window (same approach as the
++ * DB-GAP-063 / nsauto001 fix) and additionally probe-bound before use —
++ * do NOT "simplify" this back to a bare random pick.
++ */
+ export function getRandomPort(): number {
+-  return 30000 + Math.floor(Math.random() * 20000);
++  return 21000 + Math.floor(Math.random() * 9000);
+ }
+ 
+-export async function startDuckbrainHttp(opts: {
++/**
++ * Transient bind probe: verify the OS will actually hand out this port
++ * before spawning a daemon on it. Closes immediately — a small race window
++ * remains, which the bounded EADDRINUSE retry in startDuckbrainHttp covers.
++ */
++async function assertPortFree(port: number): Promise<void> {
++  const net = await import("net");
++  await new Promise<void>((resolve, reject) => {
++    const srv = net.createServer();
++    srv.once("error", reject);
++    srv.listen(port, "127.0.0.1", () => srv.close(() => resolve()));
++  });
++}
++
++/** EADDRINUSE-shaped failure (from a child's stderr or a bind probe). */
++function isAddrInUse(err: unknown): boolean {
++  const msg = String((err as Error)?.message ?? err);
++  return /EADDRINUSE|address already in use/i.test(msg);
++}
++
++/** INT-CI-018: max spawn attempts on an EADDRINUSE-shaped child death. */
++const MAX_SPAWN_ATTEMPTS = 3;
++
++/**
++ * Spawn a daemon and WAIT for it to answer /health before returning —
++ * INT-CI-018 fail-fast: if the child exits before /health responds, throw
++ * immediately with its stderr tail instead of leaving the caller stuck in
++ * a 60s waitForUrl. An EADDRINUSE-shaped death is retried on a fresh port
++ * by the public startDuckbrainHttp wrapper (MAX_SPAWN_ATTEMPTS).
++ */
++async function spawnDuckbrainHttp(opts: {
+   port: number;
+   authType?: string;
+   authFile?: string;
+@@ -295,9 +347,82 @@ export async function startDuckbrainHttp(opts: {
+     process.env.DUCKBRAIN_NAMESPACES_PATH;
+   if (tempRoot) helperTempRoots.set(child, tempRoot);
+ 
++  // INT-CI-018 fail-fast: if the child dies BEFORE /health answers, surface
++  // its stderr immediately (no 60s waitForUrl hang) and — for an
++  // EADDRINUSE-shaped death — retry the spawn on a fresh port (bounded),
++  // recording the original->effective remap so waitForUrl(url-with-orig)
++  // still reaches the live daemon.
++  const tailWaitMs = 60_000;
++  const healthStart = Date.now();
++  while (true) {
++    let healthy = false;
++    try {
++      const code = run(
++        `curl -sf -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:${opts.port}/health`,
++      );
++      if (code === "200" || code === "401" || code === "503") healthy = true;
++    } catch {}
++    if (healthy) break;
++    if (child.exitCode !== null || child.signalCode !== null) {
++      const stderrTail = getStderrTail(child);
++      const err = new Error(
++        `[duckbrain] child exited (code=${child.exitCode} signal=${child.signalCode}) before answering /health on port ${opts.port}\n--- child stderr tail ---\n${stderrTail}`,
++      );
++      if (isAddrInUse(stderrTail)) {
++        (err as Error & { addrInUse?: boolean }).addrInUse = true;
++      }
++      throw err;
++    }
++    if (Date.now() - healthStart > tailWaitMs) break; // let waitForUrl report
++    await sleep(200);
++  }
++
+   return child;
+ }
+ 
++/**
++ * INT-CI-018: ports remapped by the bounded spawn retry
++ * (original pick -> effective port of the live daemon). waitForUrl
++ * consults this so callers that captured the original port still reach
++ * the daemon after a remap.
++ */
++const portRemaps = new Map<number, number>();
++
++export async function startDuckbrainHttp(opts: {
++  port: number;
++  authType?: string;
++  authFile?: string;
++  rateLimit?: number;
++  bindAll?: boolean;
++  cwd?: string;
++  env?: NodeJS.ProcessEnv;
++}): Promise<DuckbrainChild> {
++  // Probe-bind the requested port before spawning: catch the common
++  // EADDRINUSE case up front and retry on a fresh pick (bounded), instead
++  // of burning a daemon spawn on a port we already know is taken.
++  let lastErr: unknown;
++  for (let attempt = 1; attempt <= MAX_SPAWN_ATTEMPTS; attempt++) {
++    try {
++      await assertPortFree(opts.port);
++      const child = await spawnDuckbrainHttp(opts);
++      // Expose the effective port; on a retry this differs from the caller's
++      // original pick (waitForUrl consults portRemaps for that).
++      child.port = opts.port;
++      return child;
++    } catch (err) {
++      lastErr = err;
++      if ((err as Error & { addrInUse?: boolean })?.addrInUse) {
++        const fresh = getRandomPort();
++        portRemaps.set(opts.port, fresh);
++        opts = { ...opts, port: fresh };
++        continue;
++      }
++      throw err;
++    }
++  }
++  throw lastErr;
++}
++
+ export function killProcess(child: ChildProcess): void {
+   try {
+     // Negative pid targets the process group (requires detached: true
