@@ -2,6 +2,10 @@ import { execSync, spawn, ChildProcess } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  assertDaemonIsOurs,
+  createSentinelNamespace,
+} from "../src/testing/race-safe-daemon";
 
 const CONTAINER_PREFIX = "duckbrain-test";
 
@@ -83,6 +87,12 @@ export type DuckbrainChild = ChildProcess & {
   dataDir?: string;
   /** Effective DUCKBRAIN_NAMESPACES_PATH the daemon runs with. */
   namespacesPath?: string;
+  /**
+   * INT-CI-018 (judge rework): identity witness for this spawn — the sentinel
+   * namespace created under the daemon's namespace root and where it lives.
+   * Callers should pass this to cleanupSentinel during teardown.
+   */
+  sentinel?: { nsPath: string; sentinel: string };
 };
 
 /**
@@ -105,6 +115,27 @@ export function cleanupDaemonDirs(child: ChildProcess): void {
     // Best-effort teardown — an already-removed dir is not a failure.
   }
   helperTempRoots.delete(child as DuckbrainChild);
+}
+
+/**
+ * INT-CI-018 (judge rework): best-effort removal of a daemon's sentinel
+ * namespace dir after a SUCCESSFUL spawn (teardown). The daemon may still
+ * be flushing git state inside the tree, so retry briefly, then leave the
+ * orphan (harmless — same policy as removeTempDirSafely).
+ */
+export async function cleanupSentinel(w: {
+  nsPath: string;
+  sentinel: string;
+}): Promise<void> {
+  const target = path.join(w.nsPath, w.sentinel);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+      return;
+    } catch {
+      await sleep(100 * (attempt + 1));
+    }
+  }
 }
 
 /** Last captured stderr tail of a child ("" when not captured). */
@@ -223,6 +254,28 @@ function isAddrInUse(err: unknown): boolean {
 const MAX_SPAWN_ATTEMPTS = 3;
 
 /**
+ * INT-CI-018: the most recently spawned child in the retry loop, so an
+ * identity-check failure can kill it before retrying on a fresh port.
+ */
+let lastChild: DuckbrainChild | undefined;
+
+/**
+ * INT-CI-018 (judge rework): identity-verification failures are thrown by
+ * assertDaemonIsOurs (or its probe chain) — distinguishable from a plain
+ * /health timeout by the "foreign listener owns the port" phrasing and the
+ * always-present port number. Only these are retried; a genuine timeout is
+ * still fatal.
+ */
+function isIdentityFailure(err: unknown): boolean {
+  const msg = String((err as Error)?.message ?? err);
+  return (
+    /foreign (listener|process)[^.]*owns the port|not serving this rig|is not ours/i.test(
+      msg,
+    ) && /port \d+/.test(msg)
+  );
+}
+
+/**
  * Spawn a daemon and WAIT for it to answer /health before returning —
  * INT-CI-018 fail-fast: if the child exits before /health responds, throw
  * immediately with its stderr tail instead of leaving the caller stuck in
@@ -326,6 +379,7 @@ async function spawnDuckbrainHttp(opts: {
     // grandchild (recurring stray-daemon leak, ticks #219/#220/#222).
     detached: true,
   }) as DuckbrainChild;
+  lastChild = child;
 
   // Keep the last ~50 lines of stderr so a waitForUrl timeout can report
   // WHY the daemon never came up (tsx compile error, EADDRINUSE from a
@@ -377,6 +431,33 @@ async function spawnDuckbrainHttp(opts: {
     await sleep(200);
   }
 
+  // INT-CI-018 (judge rework): /health answering is NOT identity — a stray
+  // daemon squatting the port would be accepted as "healthy". Verify the
+  // responder is OUR child via the DB-GAP-063 sentinel: a namespace dir
+  // pre-created under this daemon's own namespace root that only
+  // GET /api/namespaces against our daemon can list. A foreign listener
+  // (or a child that died and someone else took the port) fails here and
+  // the wrapper treats it like EADDRINUSE: kill + retry on a fresh port.
+  // The data dir the pidfile fallback reads is the daemon's EFFECTIVE
+  // DUCKBRAIN_DATA_DIR (caller-supplied wins over the helper's temp dir).
+  const effectiveDataDir =
+    child.dataDir ?? path.join(os.tmpdir(), `duckbrain-int-pid-${child.pid}`);
+  const nsRoot =
+    child.namespacesPath ??
+    (needsNsPath
+      ? namespacesPath!
+      : path.join(effectiveDataDir, "namespaces"));
+  fs.mkdirSync(path.join(nsRoot, "default"), { recursive: true });
+  const sentinel = createSentinelNamespace(nsRoot);
+  child.sentinel = { nsPath: nsRoot, sentinel };
+  await assertDaemonIsOurs({
+    port: opts.port,
+    child,
+    nsPath: nsRoot,
+    dataDir: effectiveDataDir,
+    sentinel,
+  });
+
   return child;
 }
 
@@ -411,7 +492,21 @@ export async function startDuckbrainHttp(opts: {
       return child;
     } catch (err) {
       lastErr = err;
-      if ((err as Error & { addrInUse?: boolean })?.addrInUse) {
+      // INT-CI-018 (judge rework): an identity-check failure is the same
+      // race the EADDRINUSE path covers — kill our child if it is still
+      // alive (so it never fights the squatter), then retry on a fresh
+      // port from the same bounded budget.
+      const identityFailed = isIdentityFailure(err);
+      if (identityFailed) {
+        const child = lastChild;
+        if (child && child.exitCode === null && child.signalCode === null) {
+          try {
+            await stopProcess(child);
+          } catch {}
+        }
+        if (child?.sentinel) cleanupSentinel(child.sentinel);
+      }
+      if (identityFailed || (err as Error & { addrInUse?: boolean })?.addrInUse) {
         const fresh = getRandomPort();
         portRemaps.set(opts.port, fresh);
         opts = { ...opts, port: fresh };
