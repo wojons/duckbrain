@@ -2325,3 +2325,13 @@ tasks:
   status: complete
   created_at: '2026-10-04T17:56:59.124434+00:00'
   completed_at: '2026-10-04T20:02:08.534105+00:00'
+- id: INT-CI-019
+  title: 'CI red: ENOTEMPTY teardown race in auth-file-enforcement-df092407.test.ts'
+  criteria:
+  - The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts
+    (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full
+    unit suite for that file runs green locally at least twice; npx tsc --noEmit clean;
+    no behavior change to the tests themselves.
+  status: complete
+  created_at: '2026-10-05T04:08:23.971367+00:00'
+  completed_at: '2026-10-05T04:19:12.850542+00:00'
