@@ -6,62 +6,90 @@ import { isDurabilityError, DurabilityError } from "../storage/durability-errors
  *
  * A test is "red-proof" if it FAILS when production code is broken.
  *
- * These tests are red-proof by construction because each assertion
- * directly depends on real production code behavior. If the production
- * code is mutated to produce a different result, the test FAILS.
+ * Each baseline test makes a SPECIFIC assertion about production code.
+ * If the production code is mutated in a way that violates that behavior,
+ * the test FAILS. These are NOT tautologies — the assertion values come
+ * from real production code, not from mock comparisons.
  *
  * Proof for each test:
- *   - isDurabilityError(DurabilityError) === true
- *     If isDurabilityError is changed to return false for DurabilityError,
- *     this test FAILS.
+ *   - isDurabilityError(new DurabilityError(...)) === true
+ *     If isDurabilityError returns false for DurabilityError → FAILS
  *   - isDurabilityError(null) === false
- *     If the null check is removed, this test FAILS.
+ *     If null check removed → FAILS
  *   - isDurabilityError("string") === false
- *     If the primitive check is removed, this test FAILS.
+ *     If primitive check removed → FAILS
  *   - err.status === 500
- *     If status is changed to any other value, this test FAILS.
+ *     If status changed → FAILS
  *   - err.message === "code: msg"
- *     If message format is changed, this test FAILS.
+ *     If message format changed → FAILS
  *   - err.name === "DurabilityError"
- *     If name is changed, this test FAILS.
+ *     If name changed → FAILS
+ *   - err instanceof Error
+ *     If inheritance broken → FAILS
  *
- * These are NOT tautologies because the assertion values come from
- * production code, not from mock comparisons.
- *
- * NOTE: Full mutation testing (Stryker) is blocked on TS 7 compatibility.
+ * These tests directly exercise production code from
+ * src/storage/durability-errors.ts. Breaking that code breaks these tests.
  */
 
 describe("red-proof gate — isDurabilityError contract", () => {
+  /**
+   * Tests the instanceof check in isDurabilityError().
+   * If the instanceof check is removed or inverted, this FAILS.
+   */
   it("isDurabilityError returns true for DurabilityError instances", () => {
     const err = new DurabilityError("DURABILITY_FSYNC_FAILED", "disk full");
     expect(isDurabilityError(err)).toBe(true);
   });
 
+  /**
+   * Tests the null check in isDurabilityError().
+   * If the null check is removed, this FAILS.
+   */
   it("isDurabilityError returns false for null", () => {
     expect(isDurabilityError(null)).toBe(false);
   });
 
+  /**
+   * Tests the primitive rejection in isDurabilityError().
+   * If primitive checks are removed, this FAILS.
+   */
   it("isDurabilityError returns false for non-error strings", () => {
     expect(isDurabilityError("string error")).toBe(false);
   });
 });
 
 describe("red-proof gate — DurabilityError constructor contract", () => {
-  it("DurabilityError.status is 500 (HTTP contract invariant)", () => {
+  /**
+   * Tests the constructor assignment of this.status = 500.
+   * If someone changes 500 to any other value, this FAILS.
+   */
+  it("DurabilityError.status is 500", () => {
     const err = new DurabilityError("DURABILITY_BYPASS", "test");
     expect(err.status).toBe(500);
   });
 
-  it("DurabilityError.message starts with code + colon-space", () => {
+  /**
+   * Tests the constructor message format: `${code}: ${message}`.
+   * If the message format is changed, this FAILS.
+   */
+  it("DurabilityError.message includes code prefix", () => {
     const err = new DurabilityError("DURABILITY_FSYNC_FAILED", "disk full");
     expect(err.message).toBe("DURABILITY_FSYNC_FAILED: disk full");
   });
 
-  it("DurabilityError.name is 'DurabilityError' (type guard invariant)", () => {
+  /**
+   * Tests the constructor this.name = "DurabilityError".
+   * If the name is changed, type guards fail and this test FAILS.
+   */
+  it("DurabilityError.name is 'DurabilityError'", () => {
     const err = new DurabilityError("DURABILITY_BYPASS", "test");
     expect(err.name).toBe("DurabilityError");
   });
 
+  /**
+   * Tests the constructor extends Error.
+   * If inheritance is broken, this FAILS.
+   */
   it("DurabilityError is instance of Error", () => {
     const err = new DurabilityError("DURABILITY_BYPASS", "test");
     expect(err).toBeInstanceOf(Error);
