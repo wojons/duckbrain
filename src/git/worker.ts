@@ -5,7 +5,7 @@
  */
 
 import { GitQueue, GitOperationType } from "./queue";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 
 export interface GitWorkerConfig {
   batchLines: number;

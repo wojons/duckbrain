@@ -38,14 +38,14 @@
   },
   "homepage": "https://github.com/wojons/duckbrain#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1145.0",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@aws-sdk/client-s3": "3.1146.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@smithy/node-http-handler": "4.12.1",
     "async-mutex": "^0.5.0",
     "bcryptjs": "^3.0.3",
     "duckdb": "1.4.4",
     "express": "^5.2.1",
-    "simple-git": "^3.36.0",
+    "simple-git": "^4.0.2",
     "tsx": "^4.23.15",
     "uuid": "^14.0.2",
     "zod": "^4.6.5"
