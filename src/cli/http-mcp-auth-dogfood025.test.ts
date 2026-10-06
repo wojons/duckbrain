@@ -70,7 +70,6 @@ function writeScratchAuthFile(dir: string): string {
 
 function spawnHttpServer(
   port: number,
-  dataDir: string,
   nsPath: string,
   authFile: string,
 ): ChildProcess {
@@ -175,7 +174,7 @@ describe("DOGFOOD-025: MCP-over-HTTP remember stamps the authenticated token aut
     const sentinel = createSentinelNamespace(nsPath);
     const authFile = writeScratchAuthFile(dataDir);
 
-    daemon = spawnHttpServer(port, dataDir, nsPath, authFile);
+    daemon = spawnHttpServer(port, nsPath, authFile);
     await waitForHealth(port, 30000, daemon);
     await assertDaemonIsOurs({
       port,

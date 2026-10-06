@@ -89,7 +89,6 @@ function writeScratchAuthFile(dir: string): string {
 
 function spawnHttpServer(
   port: number,
-  dataDir: string,
   nsPath: string,
   extraArgs: string[],
   extraEnv: Record<string, string> = {},
@@ -252,7 +251,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
     const authFile = writeScratchAuthFile(dataDir);
     const prodBefore = snapshotProdAuth();
 
-    const child = spawnHttpServer(port, dataDir, nsPath, [
+    const child = spawnHttpServer(port, nsPath, [
       "--auth=apikey",
       `--auth-file=${authFile}`,
     ]);
@@ -300,7 +299,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
     const authFile = writeScratchAuthFile(dataDir);
     const prodBefore = snapshotProdAuth();
 
-    const child = spawnHttpServer(port, dataDir, nsPath, ["--auth=apikey"], {
+    const child = spawnHttpServer(port, nsPath, ["--auth=apikey"], {
       DUCKBRAIN_AUTH_FILE: authFile,
     });
 
@@ -338,7 +337,7 @@ describe("DB-GAP-043 scratch daemon auth-store isolation", () => {
     const missing = path.join(dataDir, "does-not-exist.json");
     const prodBefore = snapshotProdAuth();
 
-    const child = spawnHttpServer(port, dataDir, nsPath, [
+    const child = spawnHttpServer(port, nsPath, [
       "--auth=apikey",
       `--auth-file=${missing}`,
     ]);
