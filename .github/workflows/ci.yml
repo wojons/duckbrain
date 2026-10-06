@@ -81,11 +81,14 @@ jobs:
         env:
           CI: true
 
-      # Red-proof gate: proves the test suite is NOT a phantom.
-      # Mutates production code, expects tests to FAIL.
-      # If tests pass after mutation → they're phantoms (fail the gate).
+      # Red-proof gate (TESTQ-001): proves the test suite is NOT a phantom.
+      # scripts/red-proof-gate.sh applies known mutations to production code
+      # (durability error contract), requires the pinned test file to FAIL
+      # over each mutant, then restores. A suite that passes over broken
+      # production code is a phantom suite and blocks CI here.
+      # (Stryker is dormant — incompatible with TS 7; see the gate script.)
       - name: Red-proof gate (mutation verification)
-        run: bash scripts/red-proof-gate.sh src/storage/durability-errors.ts 'return target instanceof DurabilityError' 'return false'
+        run: bash scripts/red-proof-gate.sh
         env:
           CI: true
 
