@@ -81,6 +81,12 @@ jobs:
         env:
           CI: true
 
+      - name: Run mutation (red-proof) gate
+        run: pnpm test:mutation 2>&1 | tee /tmp/stryker.out; exit ${PIPESTATUS[0]}
+        env:
+          CI: true
+        timeout-minutes: 30
+
   docker:
     runs-on: ubuntu-latest
     needs: test
