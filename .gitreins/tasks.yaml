@@ -2357,4 +2357,11 @@ tasks:
     to CI.
   status: complete
   created_at: '2026-10-06T19:13:05.024064+00:00'
-  completed_at: '2026-10-06T20:27:12.474783+00:00'
+  completed_at: '2026-10-06T20:37:09.142141+00:00'
+- id: TESTQ-002
+  title: Fix hardcoded dev path in red-proof gate so CI can run it
+  criteria:
+  - red-proof-gate.sh contains no absolute host path; gate passes on any checkout
+  status: complete
+  created_at: '2026-10-06T20:52:40.727023+00:00'
+  completed_at: '2026-10-06T20:53:27.636682+00:00'

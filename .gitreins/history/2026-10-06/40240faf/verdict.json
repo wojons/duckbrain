@@ -1,0 +1,102 @@
+{
+  "task_id": "TESTQ-001",
+  "task_title": "Add mutation/red-proof test gate to CI",
+  "task_criteria": [
+    "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "d9680dfaa13035e58db8adaac14d576948982d50",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:37PM INF scanned ~41105938 bytes (41.11 MB) in 6.61s\n3:37PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 995262 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/git/autocommit-ops006.test.ts (5 tests | 1 failed) 48325ms\n   \u276f OPS-006: short-lived CLI processes still commit and push (criterion 4) (1)\n     \u00d7 a `remember` run leaves the commit AND the pushed ref behind after exit 46459ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-ops006.test.ts > OPS-006: short-lived CLI processes still commit and push (criterion 4) > a `remember` run leaves the commit AND the pushed ref behind after exit\nAssertionError: expected null to be +0 // Object.is equality\n\n- Expected:\n0\n\n+ Received:\nnull\n\n \u276f src/git/autocommit-ops006.test.ts:482:25\n    480|       env,\n    481|     );\n    482|     expect(second.code).toBe(0);\n       |                         ^\n    483|\n    484|     // The implicit namespace was git-inited and committed by the time\u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 204 passed (205)\n      Tests  1 failed | 1657 passed (1658)\n   Start at  15:37:10\n   Duration  70.80s (tests 80%, import 17%, transform 2%)\n\n    Isolate  205 workers spawned \u00b7 ~88ms startup each (spawn + environment, per file)\n             at least ~4.41s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate added and verified. .github/workflows/ci.yml contains step 'Red-proof gate (mutation verification)' running `bash scripts/red-proof-gate.sh` (env CI: true). scripts/red-proof-gate.sh mutates production code src/storage/durability-errors.ts (isDurabilityError -> `return false`) and requires src/test/red-proof-gate.test.ts to FAIL. Ran it: exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' (mutant run: 'Tests 1 failed | 6 passed (7)'). Production file restored after run (grep 'return false;' = 0). Baseline `npx vitest run src/test/red-proof-gate.test.ts` = 7 passed. Negative path verified: making the test tautological (expect(true).toBe(true)) caused gate exit_code=1 'FAIL: Red-proof gate FAILED... tests are PHANTOMS', proving the gate blocks phantom suites. All files tracked in git (commits f70aad7, c26e060, cd80a77 reference TESTQ-001).\nA working red-proof mutation gate (scripts/red-proof-gate.sh) is wired into CI and verified to pass on a red-proof suite and block a phantom suite.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate added and verified. .github/workflows/ci.yml contains step 'Red-proof gate (mutation verification)' running `bash scripts/red-proof-gate.sh` (env CI: true). scripts/red-proof-gate.sh mutates production code src/storage/durability-errors.ts (isDurabilityError -> `return false`) and requires src/test/red-proof-gate.test.ts to FAIL. Ran it: exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' (mutant run: 'Tests 1 failed | 6 passed (7)'). Production file restored after run (grep 'return false;' = 0). Baseline `npx vitest run src/test/red-proof-gate.test.ts` = 7 passed. Negative path verified: making the test tautological (expect(true).toBe(true)) caused gate exit_code=1 'FAIL: Red-proof gate FAILED... tests are PHANTOMS', proving the gate blocks phantom suites. All files tracked in git (commits f70aad7, c26e060, cd80a77 reference TESTQ-001).\nA working red-proof mutation gate (scripts/red-proof-gate.sh) is wired into CI and verified to pass on a red-proof suite and block a phantom suite.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.",
+                "status": "PASS",
+                "detail": "CI gate added and verified. .github/workflows/ci.yml contains step 'Red-proof gate (mutation verification)' running `bash scripts/red-proof-gate.sh` (env CI: true). scripts/red-proof-gate.sh mutates production code src/storage/durability-errors.ts (isDurabilityError -> `return false`) and requires src/test/red-proof-gate.test.ts to FAIL. Ran it: exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' (mutant run: 'Tests 1 failed | 6 passed (7)'). Production file restored after run (grep 'return false;' = 0). Baseline `npx vitest run src/test/red-proof-gate.test.ts` = 7 passed. Negative path verified: making the test tautological (expect(true).toBe(true)) caused gate exit_code=1 'FAIL: Red-proof gate FAILED... tests are PHANTOMS', proving the gate blocks phantom suites. All files tracked in git (commits f70aad7, c26e060, cd80a77 reference TESTQ-001).",
+                "resolution_probability": 0.33
+              }
+            ],
+            "summary": "A working red-proof mutation gate (scripts/red-proof-gate.sh) is wired into CI and verified to pass on a red-proof suite and block a phantom suite."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate added and verified. .github/workflows/ci.yml contains step 'Red-proof gate (mutation verification)' running `bash scripts/red-proof-gate.sh` (env CI: true). scripts/red-proof-gate.sh mutates production code src/storage/durability-errors.ts (isDurabilityError -> `return false`) and requires src/test/red-proof-gate.test.ts to FAIL. Ran it: exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' (mutant run: 'Tests 1 failed | 6 passed (7)'). Production file restored after run (grep 'return false;' = 0). Baseline `npx vitest run src/test/red-proof-gate.test.ts` = 7 passed. Negative path verified: making the test tautological (expect(true).toBe(true)) caused gate exit_code=1 'FAIL: Red-proof gate FAILED... tests are PHANTOMS', proving the gate blocks phantom suites. All files tracked in git (commits f70aad7, c26e060, cd80a77 reference TESTQ-001).\nA working red-proof mutation gate (scripts/red-proof-gate.sh) is wired into CI and verified to pass on a red-proof suite and block a phantom suite.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T20:38:51.891846",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T20:38:51.962111+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1807,
+        "truncated": false,
+        "source": "git show d9680dfaa130"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 356,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-001"
+  }
+}
