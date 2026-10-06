@@ -17,7 +17,7 @@
     "start": "node bin/duckbrain.js",
     "start:http": "node bin/duckbrain.js http --port 3000",
     "dev:api": "node bin/duckbrain.js http --port 3000 --auth=none",
-    "start:ui": "pnpm --dir packages/ui dev",
+    "start:ui": "node scripts/start-ui.mjs",
     "dev": "concurrently \"pnpm dev:api\" \"pnpm start:ui\"",
     "dev:docker": "docker-compose -f docker-compose.dev.yml up",
     "build": "pnpm --dir packages/ui build",
