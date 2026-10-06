@@ -320,19 +320,19 @@ The daemon requires API keys **by default** (`--auth=apikey`), so clients must s
 
 ```bash
 # Key tree
-curl -H "X-API-Key: <key>" "http://localhost:3000/api/keys?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/keys?namespace=default"
 
 # Query memories (keyword filter ?contains= works offline)
-curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories?namespace=default&limit=10"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&limit=10"
 
 # Semantic search — needs a reachable embedding provider (see note below)
-curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
 
 # Latest memory for a key path
-curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
 
 # Single memory by ID
-curl -H "X-API-Key: <key>" "http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
 ```
 
 - Namespace-scoped routes default to `default` when `?namespace=` is omitted.
