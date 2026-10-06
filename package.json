@@ -40,8 +40,8 @@
   },
   "homepage": "https://github.com/wojons/duckbrain#readme",
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1145.0",
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@aws-sdk/client-s3": "3.1146.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@smithy/node-http-handler": "4.12.1",
     "async-mutex": "^0.5.0",
     "bcryptjs": "^3.0.3",
