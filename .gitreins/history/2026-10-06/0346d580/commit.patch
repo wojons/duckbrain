@@ -1,0 +1,95 @@
+commit 592e181fd2be58f9090df5c141e91a2749ce731d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 17:11:37 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 17:11:37 2026 -0500
+
+    deps: bump @aws-sdk/client-s3 3.1145.0 -> 3.1146.0, @modelcontextprotocol/sdk ^1.31.0 -> ^1.32.1
+    
+    simple-git 3.x -> 4.0.2 major deferred per DEPS-005 precedent (breaking 4.x API).
+    DEPS-DUCKBRAIN-2026-10-04. Verified: pnpm install clean, tsc --noEmit clean,
+    full vitest suite 205 files / 1658 tests green, pnpm build green.
+    
+    ch:trace row=DEPS-DUCKBRAIN-2026-10-04 spec=none:none wave=none:none test=npx-vitest-run-205-1658 doc=none:none prompt=none:none evidence=local-suite+build+tsc witness=none:foreman-direct-trivial-deps verdict=none:none commit=<this> memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ package.json   |  4 ++--
+ pnpm-lock.yaml | 20 ++++++++++----------
+ 2 files changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/package.json b/package.json
+index e4b74fe..fc7aec4 100644
+--- a/package.json
++++ b/package.json
+@@ -40,8 +40,8 @@
+   },
+   "homepage": "https://github.com/wojons/duckbrain#readme",
+   "dependencies": {
+-    "@aws-sdk/client-s3": "3.1145.0",
+-    "@modelcontextprotocol/sdk": "^1.31.0",
++    "@aws-sdk/client-s3": "3.1146.0",
++    "@modelcontextprotocol/sdk": "^1.32.1",
+     "@smithy/node-http-handler": "4.12.1",
+     "async-mutex": "^0.5.0",
+     "bcryptjs": "^3.0.3",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 08d3fcf..b96208e 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -167,11 +167,11 @@ importers:
+   .:
+     dependencies:
+       '@aws-sdk/client-s3':
+-        specifier: 3.1145.0
+-        version: 3.1145.0
++        specifier: 3.1146.0
++        version: 3.1146.0
+       '@modelcontextprotocol/sdk':
+-        specifier: ^1.31.0
+-        version: 1.31.0(supports-color@10.2.2)(zod@4.6.5)
++        specifier: ^1.32.1
++        version: 1.32.1(supports-color@10.2.2)(zod@4.6.5)
+       '@smithy/node-http-handler':
+         specifier: 4.12.1
+         version: 4.12.1
+@@ -328,8 +328,8 @@ packages:
+     resolution: {integrity: sha512-x12Q17KYlJAd3nKf8LV5LV0vt8sh8/6YfQLGPtrGnQf/tW4jqxPGq5GPpuVitpQYM3eUR4XB7CbxZf751NMbLw==}
+     engines: {node: '>=20.0.0'}
+ 
+-  '@aws-sdk/client-s3@3.1145.0':
+-    resolution: {integrity: sha512-MPKAQdx8qCZW1/ChDPILNehtAn/BMP4GNTnaH/xhGCWg3v50ADVq1K2WzxIrFfeANdWUyjwiY0CXDBhclsNWgQ==}
++  '@aws-sdk/client-s3@3.1146.0':
++    resolution: {integrity: sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==}
+     engines: {node: '>=20.0.0'}
+ 
+   '@aws-sdk/core@3.978.1':
+@@ -1215,8 +1215,8 @@ packages:
+     engines: {node: '>=18'}
+     hasBin: true
+ 
+-  '@modelcontextprotocol/sdk@1.31.0':
+-    resolution: {integrity: sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw==}
++  '@modelcontextprotocol/sdk@1.32.1':
++    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
+     engines: {node: '>=18'}
+     peerDependencies:
+       '@cfworker/json-schema': ^4.1.1
+@@ -3528,7 +3528,7 @@ snapshots:
+       '@smithy/types': 4.19.0
+       tslib: 2.8.1
+ 
+-  '@aws-sdk/client-s3@3.1145.0':
++  '@aws-sdk/client-s3@3.1146.0':
+     dependencies:
+       '@aws-sdk/checksums': 3.1001.1
+       '@aws-sdk/core': 3.978.1
+@@ -4389,7 +4389,7 @@ snapshots:
+       - encoding
+       - supports-color
+ 
+-  '@modelcontextprotocol/sdk@1.31.0(supports-color@10.2.2)(zod@4.6.5)':
++  '@modelcontextprotocol/sdk@1.32.1(supports-color@10.2.2)(zod@4.6.5)':
+     dependencies:
+       '@hono/node-server': 2.1.3(hono@4.13.12)
+       ajv: 8.20.0
