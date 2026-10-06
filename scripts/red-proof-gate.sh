@@ -19,9 +19,10 @@ fi
 
 # Save original and apply mutation using Python for precision
 cp "$PROD" /tmp/de-backup.ts
-python3 << 'PYEOF'
+python3 - "$PROD" << 'PYEOF'
 import sys
-with open("/home/kara/duckbrain/src/storage/durability-errors.ts") as f:
+path = sys.argv[1]
+with open(path) as f:
     content = f.read()
 
 old_func = """export function isDurabilityError(error: unknown): error is DurabilityError {
@@ -40,7 +41,7 @@ new_func = """export function isDurabilityError(error: unknown): error is Durabi
 
 if old_func in content:
     content = content.replace(old_func, new_func, 1)
-    with open("/home/kara/duckbrain/src/storage/durability-errors.ts", "w") as f:
+    with open(path, "w") as f:
         f.write(content)
     print("MUTATION applied successfully")
 else:
