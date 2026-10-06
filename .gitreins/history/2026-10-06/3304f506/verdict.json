@@ -1,0 +1,75 @@
+{
+  "task_id": "DF-0926-06",
+  "task_title": "key-path validation failure returns HTTP 500 instead of 400",
+  "task_criteria": [
+    "POST /api/memories with a key lacking a leading slash returns HTTP 400 VALIDATION_ERROR (not 500); live daemon on :3000 verified"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "bcd69f54daa9590abb2481a39b43fa879010abd4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:22PM INF scanned ~41073960 bytes (41.07 MB) in 3.79s\n4:22PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 996357 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\nstderr | src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive\n[recall] Tool called with input: {\"limit\":51,\"offset\":0,\"namespace\":\"repro\",\"query\":\"alpha\"}\n[recall] Validated input: {\n  keyPrefix: undefined,\n  domain: undefined,\n  query: 'alpha',\n  limit: 51,\n  offset: 0,\n  namespace: 'repro'\n}\n\n \u276f src/http/routes/memories-dogfood010.test.ts (3 tests | 1 failed) 19522ms\n   \u276f DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) (3)\n     \u00d7 ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive 15005ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/routes/memories-dogfood010.test.ts:280:3\n    278|   });\n    279|\n    280|   it(\"?q= over a duplicate-key namespace returns 200 or a clean error \u2026\n       |   ^\n    281|     const { status, body } = await httpRequest(\n    282|       \"GET\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 204 passed (205)\n      Tests  1 failed | 1657 passed (1658)\n   Start at  16:22:44\n   Duration  85.78s (tests 84%, import 13%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DF-0926-06\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T21:24:10.327544",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T21:24:10.349738+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 64761,
+        "truncated": false,
+        "source": "git show bcd69f54daa9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1114,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-06"
+  }
+}

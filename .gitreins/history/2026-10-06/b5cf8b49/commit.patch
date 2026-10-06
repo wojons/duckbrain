@@ -1,0 +1,648 @@
+commit bcd69f54daa9590abb2481a39b43fa879010abd4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 16:16:00 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 16:16:00 2026 -0500
+
+    gitreins: record README-7 verdict artifacts (tier2 INCOMPLETE: deepseek 402 billing, not work-fail)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/history/2026-10-06/0c5eaa38/commit.patch |  45 +++++++++
+ .gitreins/history/2026-10-06/0c5eaa38/summary.md   |  30 ++++++
+ .gitreins/history/2026-10-06/0c5eaa38/verdict.json | 103 +++++++++++++++++++++
+ .../history/2026-10-06/0c5eaa38/worktree.patch     |  17 ++++
+ .gitreins/history/2026-10-06/cf32e210/commit.patch |  36 +++++++
+ .gitreins/history/2026-10-06/cf32e210/summary.md   |  30 ++++++
+ .gitreins/history/2026-10-06/cf32e210/verdict.json |  95 +++++++++++++++++++
+ .../history/2026-10-06/cf32e210/worktree.patch     |  16 ++++
+ .gitreins/history/2026-10-06/d4ef5bed/commit.patch |  36 +++++++
+ .gitreins/history/2026-10-06/d4ef5bed/summary.md   |  30 ++++++
+ .gitreins/history/2026-10-06/d4ef5bed/verdict.json |  95 +++++++++++++++++++
+ .../history/2026-10-06/d4ef5bed/worktree.patch     |  16 ++++
+ 12 files changed, 549 insertions(+)
+
+diff --git a/.gitreins/history/2026-10-06/0c5eaa38/commit.patch b/.gitreins/history/2026-10-06/0c5eaa38/commit.patch
+new file mode 100644
+index 0000000..7b29c51
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/0c5eaa38/commit.patch
+@@ -0,0 +1,45 @@
++commit c587b59800af9ae092cce229d47d59fe5d43622d
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Tue Oct 6 15:52:50 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Tue Oct 6 15:52:50 2026 -0500
++
++    fix(ci): parametrize red-proof-gate.sh prod path — drop hardcoded /home/kara/duckbrain
++    
++    The mutation script read/wrote an absolute host path, so the gate could never
++    run on a CI runner (FileNotFoundError on every push since TESTQ-001 landed).
++    It now uses the REPO_ROOT-resolved $PROD argument.
++    
++    ch:trace row=TESTQ-002 spec=none:none wave=none:none test=scripts/red-proof-gate.sh doc=none:none prompt=none:none evidence=bash-scripts-red-proof-gate-pass-2026-10-06 witness=live:local-gate-run-mutation-applied-tests-went-red verdict=TESTQ-002 commit=838bc065e3174ff7416d9bbf9820b18ac7eb46dc memory=none
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ scripts/red-proof-gate.sh | 7 ++++---
++ 1 file changed, 4 insertions(+), 3 deletions(-)
++
++diff --git a/scripts/red-proof-gate.sh b/scripts/red-proof-gate.sh
++index a835752..3127546 100755
++--- a/scripts/red-proof-gate.sh
+++++ b/scripts/red-proof-gate.sh
++@@ -19,9 +19,10 @@ fi
++ 
++ # Save original and apply mutation using Python for precision
++ cp "$PROD" /tmp/de-backup.ts
++-python3 << 'PYEOF'
+++python3 - "$PROD" << 'PYEOF'
++ import sys
++-with open("/home/kara/duckbrain/src/storage/durability-errors.ts") as f:
+++path = sys.argv[1]
+++with open(path) as f:
++     content = f.read()
++ 
++ old_func = """export function isDurabilityError(error: unknown): error is DurabilityError {
++@@ -40,7 +41,7 @@ new_func = """export function isDurabilityError(error: unknown): error is Durabi
++ 
++ if old_func in content:
++     content = content.replace(old_func, new_func, 1)
++-    with open("/home/kara/duckbrain/src/storage/durability-errors.ts", "w") as f:
+++    with open(path, "w") as f:
++         f.write(content)
++     print("MUTATION applied successfully")
++ else:
+diff --git a/.gitreins/history/2026-10-06/0c5eaa38/summary.md b/.gitreins/history/2026-10-06/0c5eaa38/summary.md
+new file mode 100644
+index 0000000..f4f89cd
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/0c5eaa38/summary.md
+@@ -0,0 +1,30 @@
++# Verdict: TESTQ-002
++
++**Task:** Fix hardcoded dev path in red-proof gate so CI can run it
++**Evaluated:** 2026-10-06T20:55:08.417671
++**Result:** ✓ PASS
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++- ✓ **tier2**
++  - COMPLETE
++  ✓ red-proof-gate.sh contains no absolute host path; gate passes on any checkout: scripts/red-proof-gate.sh:22-24 now uses `python3 - "$PROD" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) — a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` → GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) → PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]
++The hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion.
++
++## Summary
++
++Judge Result: TESTQ-002
++
++Stage tier1: PASS
++    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++
++Stage tier2: PASS
++  COMPLETE
++  ✓ red-proof-gate.sh contains no absolute host path; gate passes on any checkout: scripts/red-proof-gate.sh:22-24 now uses `python3 - "$PROD" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) — a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` → GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) → PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]
++The hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion.
++
++Overall: PASS ✓
+diff --git a/.gitreins/history/2026-10-06/0c5eaa38/verdict.json b/.gitreins/history/2026-10-06/0c5eaa38/verdict.json
+new file mode 100644
+index 0000000..0ec3a3b
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/0c5eaa38/verdict.json
+@@ -0,0 +1,103 @@
++{
++  "task_id": "TESTQ-002",
++  "task_title": "Fix hardcoded dev path in red-proof gate so CI can run it",
++  "task_criteria": [
++    "red-proof-gate.sh contains no absolute host path; gate passes on any checkout"
++  ],
++  "passed": true,
++  "worktree": "/home/kara/duckbrain",
++  "branch": "main",
++  "commit": "c587b59800af9ae092cce229d47d59fe5d43622d",
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:53PM INF scanned ~41105959 bytes (41.11 MB) in 5.09s\n3:53PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 995611 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log",
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  15:53:28\n   Duration  70.08s (tests 74%, import 23%, transform 2%, worker 1%)\n\n    Isolate  205 workers spawned \u00b7 ~106ms startup each (spawn + environment, per file)\n             at least ~5.35s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log"
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": true,
++      "any_failed": false,
++      "summary": "COMPLETE\n  \u2713 red-proof-gate.sh contains no absolute host path; gate passes on any checkout: scripts/red-proof-gate.sh:22-24 now uses `python3 - \"$PROD\" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) \u2014 a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` \u2192 GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) \u2192 PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]\nThe hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion.",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": true,
++          "output": "COMPLETE\n  \u2713 red-proof-gate.sh contains no absolute host path; gate passes on any checkout: scripts/red-proof-gate.sh:22-24 now uses `python3 - \"$PROD\" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) \u2014 a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` \u2192 GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) \u2192 PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]\nThe hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion.",
++          "error": "",
++          "data": {
++            "verdict": "COMPLETE",
++            "items": [
++              {
++                "criterion": "red-proof-gate.sh contains no absolute host path; gate passes on any checkout",
++                "status": "PASS",
++                "detail": "scripts/red-proof-gate.sh:22-24 now uses `python3 - \"$PROD\" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) \u2014 a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` \u2192 GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) \u2192 PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]",
++                "resolution_probability": 0.01,
++                "cited_path": "red-proof-gate.sh"
++              }
++            ],
++            "summary": "The hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion."
++          }
++        }
++      ]
++    }
++  },
++  "summary": "Judge Result: TESTQ-002\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 red-proof-gate.sh contains no absolute host path; gate passes on any checkout: scripts/red-proof-gate.sh:22-24 now uses `python3 - \"$PROD\" << 'PYEOF'` with `path = sys.argv[1]`; the two hardcoded `/home/kara/duckbrain/src/storage/durability-errors.ts` literals were removed (commit c587b59). grep -nE '/home/|/Users/|/root/|/var/|/opt/' returns only /tmp/de-backup.ts (lines 21,62,69) \u2014 a portable temp file, not a host dev path. Gate executed: `bash scripts/red-proof-gate.sh` \u2192 GATE_EXIT=0, output 'PASS: Red-proof gate works correctly.' Also ran from a relocated checkout (/tmp/portable-checkout) \u2192 PORTABLE_GATE_EXIT=0, proving it passes on any checkout. Production file restored cleanly after run (git status empty, no leftover mutation). [resolution 0.01; red-proof-gate.sh]\nThe hardcoded /home/kara/duckbrain path was replaced with a script-relative $PROD argument, and the gate exits 0 both in-repo and from a relocated checkout, satisfying the criterion.\n\nOverall: PASS \u2713",
++  "evaluated_at": "2026-10-06T20:55:08.417671",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-10-06T20:55:08.436043+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 2014,
++        "truncated": false,
++        "source": "git show c587b59800af"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 660,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "TESTQ-002"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-10-06/0c5eaa38/worktree.patch b/.gitreins/history/2026-10-06/0c5eaa38/worktree.patch
+new file mode 100644
+index 0000000..2959a19
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/0c5eaa38/worktree.patch
+@@ -0,0 +1,17 @@
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 3e42383..9e6cc12 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -2357,4 +2357,11 @@ tasks:
++     to CI.
++   status: complete
++   created_at: '2026-10-06T19:13:05.024064+00:00'
++-  completed_at: '2026-10-06T20:27:12.474783+00:00'
+++  completed_at: '2026-10-06T20:37:09.142141+00:00'
+++- id: TESTQ-002
+++  title: Fix hardcoded dev path in red-proof gate so CI can run it
+++  criteria:
+++  - red-proof-gate.sh contains no absolute host path; gate passes on any checkout
+++  status: complete
+++  created_at: '2026-10-06T20:52:40.727023+00:00'
+++  completed_at: '2026-10-06T20:53:27.636682+00:00'
+diff --git a/.gitreins/history/2026-10-06/cf32e210/commit.patch b/.gitreins/history/2026-10-06/cf32e210/commit.patch
+new file mode 100644
+index 0000000..82383a5
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/cf32e210/commit.patch
+@@ -0,0 +1,36 @@
++commit 7a4a5614500b96b3e4aba1b44d88fb0191e15d21
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Tue Oct 6 16:11:38 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Tue Oct 6 16:11:38 2026 -0500
++
++    board(duckbrain): README-7 close — curl quote fix f29ac8b
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ .coding-hermes/board/events.jsonl | 1 +
++ .coding-hermes/board/tasks.jsonl  | 2 +-
++ 2 files changed, 2 insertions(+), 1 deletion(-)
++
++diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
++index 759a212..73472a2 100644
++--- a/.coding-hermes/board/events.jsonl
+++++ b/.coding-hermes/board/events.jsonl
++@@ -1364,3 +1364,4 @@
++ {"id":"CI-2026-10-06-RED-close","tick":"duckbrain-foreman-2026-10-06-17-06-01","event":"row closed complete","task_id":"CI-2026-10-06-RED","detail":"main CI red x2 (runs 37493625582, 37497008048, 37501427057, 37502128620) healed by three foreman-direct commits: f092728 AGENTS.md counts 204/1651 (GAP-012 drift); 2802094 orphan-daemon-reaper live /proc scanned-race tolerance; df58a67 getRandomPort moved below OS ephemeral range 21000-29999 (EADDRINUSE root cause). CI run 37503065734 SUCCESS at df58a67. ch:trace row=CI-2026-10-06-RED evidence=CI-run-37503065734 witness=http:200+github-wojons-duckbrain-runs-37503065734"}
++ {"id":"TESTQ-002-close","ts":"2026-10-06T21:05:00Z","type":"close","task_id":"TESTQ-002","tick":"duckbrain-foreman-2026-10-06-20-50-20","detail":"commit c587b59 on origin/main (ls-remote verified); gitreins TESTQ-002 verdict f53a1127 PASS; gate run exit 0 with mutation verified red"}
++ {"event": "TESTQ-2026-10-06-1-close", "ts": "2026-10-06T21:25:00Z", "tick": "duckbrain-foreman-2026-10-06-21-00-34", "event_type": "task_completed", "task_id": "TESTQ-2026-10-06-1", "detail": "Fix 300576e0 pre-landed on feat/native-s3; tsc --noEmit clean at main 14eb113; main CI SUCCESS on latest runs. ch:trace row=TESTQ-2026-10-06-1 spec=none:none wave=none:none test=npx tsc --noEmit doc=none:none prompt=none:none evidence=tsc-clean-main-14eb113 witness=live:tsc-exit-0-at-main verdict=none:no-gitreins-task-already-fixed commit=300576e0 memory=none"}
+++{"id":"README-7-close","type":"close","task_id":"README-7","ts":"2026-10-06T21:40:00Z","tick":"duckbrain-foreman-2026-10-06-21-09-27","detail":"Foreman-direct trivial doc fix: python line-replace of the 5 curl examples (L323/326/329/332/335) — <key>\" http (space, no stray quote). Verify: bash word-split of each line shows arg4=URL; sed bytes od-confirmed. Commit f29ac8b pushed origin/main (rev-list 0 ahead). ch:trace row=README-7 spec=none:none wave=none:none test=none:none doc=README.md prompt=none:none evidence=commit-f29ac8b+word-split-check witness=none:doc-syntax-verdict-shell verdict=none commit=f29ac8b memory=none"}
++diff --git a/.coding-hermes/board/tasks.jsonl b/.coding-hermes/board/tasks.jsonl
++index d5e9d72..8928913 100644
++--- a/.coding-hermes/board/tasks.jsonl
+++++ b/.coding-hermes/board/tasks.jsonl
++@@ -318,7 +318,7 @@
++ {"id": "DOC-10", "title": "P4 — DOCS AUDIT (tick duckbrain-docs 2026-10-04): the Host guard (--allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS) is documented nowhere a reader can find", "priority": "P4", "status": "pending", "complexity": 2, "created_at": "2026-10-04T00:30:00+00:00", "reasoning": "DOCS AUDIT (tick duckbrain-docs 2026-10-04, HEAD e8e9b2c). The Host guard is shipped (12ef5ff feat(http): add --allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS to the Host guard) and live in code: src/cli/http.ts:85 comment documents the env var; tests at src/cli/http-allowed-hosts.test.ts. Command run: grep -rn \"ALLOWED_HOSTS|allowed-hosts\" README.md docs skills .env.example -> 0 hits (verified 2026-10-04). An operator who exposes the daemon past loopback has no discoverable reference for the flag, the env override, or the empty-list behavior (empty/absent keeps the guard off per src/cli/http.ts:85). Artifact: docs/guide/deployment.md (exposure/auth section) + a DUCKBRAIN_ALLOWED_HOSTS row in docs/guide/configuration.md env table + one README line. Accept: grep -rn 'ALLOWED_HOSTS' docs README.md >= 2 hits describing flag + env + empty-list semantics, matching src/cli/http.ts behavior."}
++ {"id": "TESTQ-DIRECT-ODIRECT-001", "title": "P2 — http-durability.test.ts asserts 201 for a direct-mode append without checking O_DIRECT support, so it fails on any host whose filesystem rejects O_DIRECT writes", "priority": "P2", "status": "complete", "complexity": 2, "created_at": "2026-10-04T01:30:54.170360+00:00", "updated_at": "2026-10-04T01:30:54.170360+00:00", "created_by": null, "detail": {"fingerprint": "26ec2f62a0276d500f2f4eecd0f036781cfa12ec092c7a405af35364c7ee1c2a"}, "reasoning": "Found by running the suite on a fresh off-origin host (bunker agent db-ver-1003, dedi-2, Ubuntu 24.04, kernel 6.8). The suite failed exactly one test and it is not a product defect — the test asserts a filesystem CAPABILITY as if it were product behaviour.\n\nThe failing assertion (reproduced standalone at main@aa6cc80, 5 passed / 1 failed):\n  src/cli/http-durability.test.ts > 'SUPA-1/SUPA-2: direct mode is framed through the serializer'\n  > 'returns 201 for the serializer-framed append and writes one memory'\n  AssertionError: expected 500 to be 201  (line 288)\n\nWhat the 500 actually is (the test never prints the body):\n  POST /api/memories to a namespace with durability.overrides = 'direct' returns HTTP 500 with\n  {\"error\":\"DURABILITY_UNSUPPORTED: O_DIRECT write rejected on <path>/raw_note/2026-10/current.jsonl (EINVAL: EINVAL: invalid argument, write) — write NOT acknowledged, no buffered fallback taken\",\"code\":\"DURABILITY_UNSUPPORTED\"}\n  Control in the same run: the identical POST to a non-direct namespace returns HTTP 201.\n\nSo the product is behaving CORRECTLY and loudly: it refuses rather than silently degrading to a buffered write, names the filesystem, and returns a structured code. Nothing is lost and nothing is misreported. src/storage/durability.ts:417-434 is where this is decided, and the message is deliberate ('no buffered fallback taken').\n\nThe defect is in the test: it hardcodes `expect(res.status).toBe(201)` with no capability probe, so it encodes 'this host can do O_DIRECT' rather than the contract. Evidence that it is environment-dependent, not a regression: the same file is green on the developer host and in CI (ubuntu-latest), and red on this host — while 'Run tests' PASSES in CI at the same commit.\n\nSharp edge worth capturing for whoever fixes it: on this host O_DIRECT OPEN SUCCEEDS and the WRITE fails EINVAL. Probed directly — open with O_WRONLY|O_CREAT|O_DIRECT returns a valid fd, then writing a 4096-byte buffer at offset 0 raises EINVAL (22). Both /tmp (/dev/md2) and /home (/dev/md3) are ext4 and behave identically. So a capability check that only attempts to OPEN would wrongly conclude O_DIRECT is available; the probe must attempt a real aligned WRITE.\n\nSuggested fix: make the test assert the CONTRACT rather than the capability — accept 201 (host supports O_DIRECT) OR 500 carrying code DURABILITY_UNSUPPORTED (host does not), asserting in the second case that no bytes were written and no buffered fallback was taken. Skipping the test entirely when the capability is absent would lose the coverage of the refusal path, which is the more interesting branch. Keep the direct-mode happy path covered wherever the capability exists.\n\nRelated: TESTQ-001 (no mutation/red-proof gate in CI) is the same theme one level up — this is a concrete case where a green-on-CI test is green for an environmental reason.", "worker_status": "complete", "commit_hash": "fbd0b6d", "verdict": "5e86805e"}
++ {"id": "DEPS-DUCKBRAIN-2026-10-04", "title": "P2 — Review and update 9 outdated Node packages (supervisor scan 2026-10-04)", "priority": "P2", "status": "pending", "complexity": 2, "created_at": "2026-10-04T13:06:52.981524+00:00", "updated_at": "2026-10-04T13:06:52.981524+00:00", "created_by": null, "detail": {"fingerprint": "a2d489da4787c75668fd20a9d5a28eafd60839f9cf4833c44332a34ceec6e8ad"}, "reasoning": "Review compatibility before changing constraints. Notable updates: @aws-sdk/client-s3 3.1145.0→3.1146.0, @modelcontextprotocol/sdk 1.31.0→1.32.0, and simple-git 3.36.0→4.0.2. Update in coherent groups, run project tests/build, and record deferred changes.", "worker_status": "pending", "commit_hash": null}
++-{"id": "README-7", "title": "P4 — README HTTP API curl examples (L323-335) have the API-key header inside the quoted URL: -H \"X-API-Key: *** \"http://... — as written the header arg is consumed as part of one quoted token, so the documented commands do not run correctly", "priority": "P4", "status": "pending", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 1, "type": "accuracy", "reasoning": "README audit 2026-10-04 (readme lane tick duckbrain-readme-2026-10-04-15-09-42), truth check, README.md bbee2cc 2026-09-30. Lines 323, 326, 329, 332 and 335 all read: curl -H \"X-API-Key: *** \"http://localhost:3000/api/...\" — the closing double-quote after *** terminates the -H argument and the URL opens its own quote with no space before it, so the shell passes -H 'X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"' as ONE argument (verified byte-exact with cat -A). Net effect: no URL argument and a garbage header — curl errors out. FIX: close the header quote before the URL, e.g. curl -H \"X-API-Key: *** http://localhost:3000/api/keys?namespace=default\" (space between *** and URL) on all five lines 323/326/329/332/335. Note: doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme7-curl-quote-2026-10-04"}, "evidence": "sed -n '323p' README.md | cat -A -> curl -H \"X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"$ (same shape on 326/329/332/335). Control: README quickstart block (L113-131) executed live against port 3777 on 2026-10-04 — namespace create 200, memory write returned id 898bdef7, read-back returned content 'first memory from the quickstart' (quickstart itself is correct).", "files_changed": ["README.md"]}
+++{"id": "README-7", "title": "P4 — README HTTP API curl examples (L323-335) have the API-key header inside the quoted URL: -H \"X-API-Key: *** \"http://... — as written the header arg is consumed as part of one quoted token, so the documented commands do not run correctly", "priority": "P4", "status": "complete", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 1, "type": "accuracy", "reasoning": "README audit 2026-10-04 (readme lane tick duckbrain-readme-2026-10-04-15-09-42), truth check, README.md bbee2cc 2026-09-30. Lines 323, 326, 329, 332 and 335 all read: curl -H \"X-API-Key: *** \"http://localhost:3000/api/...\" — the closing double-quote after *** terminates the -H argument and the URL opens its own quote with no space before it, so the shell passes -H 'X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"' as ONE argument (verified byte-exact with cat -A). Net effect: no URL argument and a garbage header — curl errors out. FIX: close the header quote before the URL, e.g. curl -H \"X-API-Key: *** http://localhost:3000/api/keys?namespace=default\" (space between *** and URL) on all five lines 323/326/329/332/335. Note: doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme7-curl-quote-2026-10-04"}, "evidence": "sed -n '323p' README.md | cat -A -> curl -H \"X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"$ (same shape on 326/329/332/335). Control: README quickstart block (L113-131) executed live against port 3777 on 2026-10-04 — namespace create 200, memory write returned id 898bdef7, read-back returned content 'first memory from the quickstart' (quickstart itself is correct).", "files_changed": ["README.md"], "worker_status": "complete", "completed_at": "2026-10-06T21:40:00Z", "commit_hash": "f29ac8b", "foreman_note": "Tick duckbrain-foreman-2026-10-06-21-09-27: foreman-direct one-file fix. The row quoted *** as literal; actual bytes were <key>\" \"http — python replace to <key>\" http, 5 lines. Pushed f29ac8b, rev-list 0 ahead."}
++ {"id": "README-8", "title": "P4 — README's duckbrain CLI commands (consolidate/embeddings/s3/ssh-*) are never made runnable: the repo's install path (git clone + pnpm install) does NOT put a duckbrain binary on PATH or even in node_modules/.bin", "priority": "P4", "status": "pending", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 2, "type": "install-path", "reasoning": "README audit 2026-10-04, install-path check on README.md bbee2cc. The README Quick Start documents only pnpm install (L101) and pnpm start ..., but L173-174 (duckbrain consolidate), L356-361 (duckbrain embeddings status/rebuild/install-hooks/providers), L207-209 (duckbrain s3 status/sync/query) and L182-184 (duckbrain ssh-test/ssh-connect) all invoke a bare duckbrain command as if globally installed. Measured 2026-10-04 on this repo after pnpm install: which duckbrain -> not found; ls node_modules/.bin/duckbrain -> No such file or directory (package.json declares bin duckbrain->./bin/duckbrain.js but pnpm did not link it at the root); pnpm exec duckbrain --version -> ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL 'Command duckbrain not found'. A stranger who follows the README cannot run any of the documented CLI sections. FIX: add one line after the install block telling readers how to get the binary — e.g. pnpm link --global (or npm i -g .), or change the documented commands to pnpm exec duckbrain ... / node bin/duckbrain.js ..., whichever the maintainer prefers; verify the chosen form on a fresh clone. Doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme8-duckbrain-bin-2026-10-04"}, "evidence": "which duckbrain -> empty; ls node_modules/.bin/duckbrain -> 'No such file or directory'; pnpm exec duckbrain --version -> 'Command duckbrain not found' (all run 2026-10-04 in /home/kara/duckbrain @ bbee2cc, node_modules present). Control: node bin/duckbrain.js --help works and lists consolidate/embeddings/s3/ssh-test, so the commands exist — only the PATH story is missing.", "files_changed": ["README.md"]}
++ {"id": "TESTQ-2026-10-06-1", "title": "CI red: tsc TS6133 unused dataDir in 2 test rigs (run 37459118643)", "priority": "P2", "status": "complete", "created_at": "2026-10-06T14:00:00Z", "created_by": "duckbrain-ci-test-quality-audit cron", "complexity": "S", "detail": {"fingerprint": "tsc-ts6133-datadir-37459118643"}, "reasoning": "Repro: gh run view 37459118643 --log-failed. feat/native-s3 run failed at type check: src/cli/auth-file.test.ts(92,3) and src/cli/http-mcp-auth-dogfood025.test.ts(73,3) error TS6133 dataDir declared but never read (commit fix(tests): remove dead DUCKBRAIN_DATA_DIR env from test rigs DF-1003). Follow-up commit 300576e084 removed the param and is green (runs 37466395641+), so if that commit is on the branch this row is already fixed on disk — verify and close.", "updated_at": "2026-10-06T21:25:00Z", "commit_hash": "300576e0", "worker_status": "complete", "completed_at": "2026-10-06T21:25:00Z", "foreman_note": "Tick duckbrain-foreman-2026-10-06-21-00-34: fix commit 300576e0 already landed on feat/native-s3 (removes unused dataDir param in both files); verified on disk no TS6133 repro — npx tsc --noEmit clean at main 14eb113. Main CI green (runs at 20:53Z/20:57Z SUCCESS). Row closed as already-fixed upstream; no re-implementation needed."}
++ {"id": "TESTQ-002", "title": "P1 — red-proof gate (TESTQ-001) hardcodes /home/kara/duckbrain in its mutation script, so CI fails on every runner (FileNotFoundError) and the gate can never run anywhere but the dev box", "priority": "P1", "status": "complete", "complexity": "S", "created_at": "2026-10-06T21:00:00Z", "created_by": "duckbrain-foreman-2026-10-06-20-50-20", "detail": {"fingerprint": "redproof-hardcoded-path-2026-10-06"}, "reasoning": "CI runs 37459118643 through 37528959224 all failed at the 'Red-proof gate (mutation verification)' step with FileNotFoundError: /home/kara/duckbrain/src/storage/durability-errors.ts — scripts/red-proof-gate.sh's python heredoc opened the literal dev path instead of $PROD. Fix: pass PROD as argv[1] and read/write via path (commit c587b59). Verified live: bash scripts/red-proof-gate.sh exits 0, mutation applied, tests went red, prod restored; judge f53a1127 PASS (also re-ran from a relocated checkout, exit 0).", "worker_status": "complete", "completed_at": "2026-10-06T21:05:00Z", "commit_hash": "c587b59", "guard_result": "tier1 secrets clean (diff-mode tests n/a post-commit); live gate run is the verification", "foreman_note": "Foreman-direct one-file fix (trivial). Root cause of the 3-red CI streak on main; next push should show the green red-proof leg.", "ch_trace": "ch:trace row=TESTQ-002 spec=none:none wave=none:none test=scripts/red-proof-gate.sh doc=none:none prompt=none:none evidence=bash-scripts-red-proof-gate-pass+judge-f53a1127 witness=live:gate-run-mutation-applied-tests-went-red verdict=f53a1127 commit=c587b59 memory=none"}
+diff --git a/.gitreins/history/2026-10-06/cf32e210/summary.md b/.gitreins/history/2026-10-06/cf32e210/summary.md
+new file mode 100644
+index 0000000..349b4ef
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/cf32e210/summary.md
+@@ -0,0 +1,30 @@
++# Verdict: README-7
++
++**Task:** README curl example quote fix
++**Evaluated:** 2026-10-06T21:15:04.596685
++**Result:** ✗ FAIL
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++- ✗ **tier2**
++  - INCOMPLETE
++
++Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)
++
++## Summary
++
++Judge Result: README-7
++
++Stage tier1: PASS
++    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++
++Stage tier2: FAIL
++  INCOMPLETE
++
++Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)
++
++Overall: FAIL ✗
+diff --git a/.gitreins/history/2026-10-06/cf32e210/verdict.json b/.gitreins/history/2026-10-06/cf32e210/verdict.json
+new file mode 100644
+index 0000000..1ec4223
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/cf32e210/verdict.json
+@@ -0,0 +1,95 @@
++{
++  "task_id": "README-7",
++  "task_title": "README curl example quote fix",
++  "task_criteria": [
++    "README.md lines 323-335 curl commands word-split to a -H header arg and a URL arg"
++  ],
++  "passed": false,
++  "worktree": "/home/kara/duckbrain",
++  "branch": "main",
++  "commit": "7a4a5614500b96b3e4aba1b44d88fb0191e15d21",
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:13PM INF scanned ~41073960 bytes (41.07 MB) in 3.51s\n4:13PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 996062 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log",
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  16:13:52\n   Duration  63.50s (tests 77%, import 20%, transform 2%, worker 1%)\n\n    Isolate  205 workers spawned \u00b7 ~90ms startup each (spawn + environment, per file)\n             at least ~4.54s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log"
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": false,
++      "any_failed": true,
++      "summary": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": false,
++          "output": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
++          "error": "",
++          "data": {
++            "verdict": "INCOMPLETE",
++            "items": [],
++            "summary": "Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)"
++          }
++        }
++      ]
++    }
++  },
++  "summary": "Judge Result: README-7\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)\n\nOverall: FAIL \u2717",
++  "evaluated_at": "2026-10-06T21:15:04.596685",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-10-06T21:15:04.640305+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 17344,
++        "truncated": false,
++        "source": "git show 7a4a5614500b"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 576,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "README-7"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-10-06/cf32e210/worktree.patch b/.gitreins/history/2026-10-06/cf32e210/worktree.patch
+new file mode 100644
+index 0000000..b59ad60
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/cf32e210/worktree.patch
+@@ -0,0 +1,16 @@
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 9e6cc12..47311fe 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -2365,3 +2365,11 @@ tasks:
++   status: complete
++   created_at: '2026-10-06T20:52:40.727023+00:00'
++   completed_at: '2026-10-06T20:53:27.636682+00:00'
+++- id: README-7
+++  title: README curl example quote fix
+++  criteria:
+++  - README.md lines 323-335 curl commands word-split to a -H header arg and a URL
+++    arg
+++  status: complete
+++  created_at: '2026-10-06T21:12:00.117726+00:00'
+++  completed_at: '2026-10-06T21:12:01.214442+00:00'
+diff --git a/.gitreins/history/2026-10-06/d4ef5bed/commit.patch b/.gitreins/history/2026-10-06/d4ef5bed/commit.patch
+new file mode 100644
+index 0000000..82383a5
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/d4ef5bed/commit.patch
+@@ -0,0 +1,36 @@
++commit 7a4a5614500b96b3e4aba1b44d88fb0191e15d21
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Tue Oct 6 16:11:38 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Tue Oct 6 16:11:38 2026 -0500
++
++    board(duckbrain): README-7 close — curl quote fix f29ac8b
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ .coding-hermes/board/events.jsonl | 1 +
++ .coding-hermes/board/tasks.jsonl  | 2 +-
++ 2 files changed, 2 insertions(+), 1 deletion(-)
++
++diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
++index 759a212..73472a2 100644
++--- a/.coding-hermes/board/events.jsonl
+++++ b/.coding-hermes/board/events.jsonl
++@@ -1364,3 +1364,4 @@
++ {"id":"CI-2026-10-06-RED-close","tick":"duckbrain-foreman-2026-10-06-17-06-01","event":"row closed complete","task_id":"CI-2026-10-06-RED","detail":"main CI red x2 (runs 37493625582, 37497008048, 37501427057, 37502128620) healed by three foreman-direct commits: f092728 AGENTS.md counts 204/1651 (GAP-012 drift); 2802094 orphan-daemon-reaper live /proc scanned-race tolerance; df58a67 getRandomPort moved below OS ephemeral range 21000-29999 (EADDRINUSE root cause). CI run 37503065734 SUCCESS at df58a67. ch:trace row=CI-2026-10-06-RED evidence=CI-run-37503065734 witness=http:200+github-wojons-duckbrain-runs-37503065734"}
++ {"id":"TESTQ-002-close","ts":"2026-10-06T21:05:00Z","type":"close","task_id":"TESTQ-002","tick":"duckbrain-foreman-2026-10-06-20-50-20","detail":"commit c587b59 on origin/main (ls-remote verified); gitreins TESTQ-002 verdict f53a1127 PASS; gate run exit 0 with mutation verified red"}
++ {"event": "TESTQ-2026-10-06-1-close", "ts": "2026-10-06T21:25:00Z", "tick": "duckbrain-foreman-2026-10-06-21-00-34", "event_type": "task_completed", "task_id": "TESTQ-2026-10-06-1", "detail": "Fix 300576e0 pre-landed on feat/native-s3; tsc --noEmit clean at main 14eb113; main CI SUCCESS on latest runs. ch:trace row=TESTQ-2026-10-06-1 spec=none:none wave=none:none test=npx tsc --noEmit doc=none:none prompt=none:none evidence=tsc-clean-main-14eb113 witness=live:tsc-exit-0-at-main verdict=none:no-gitreins-task-already-fixed commit=300576e0 memory=none"}
+++{"id":"README-7-close","type":"close","task_id":"README-7","ts":"2026-10-06T21:40:00Z","tick":"duckbrain-foreman-2026-10-06-21-09-27","detail":"Foreman-direct trivial doc fix: python line-replace of the 5 curl examples (L323/326/329/332/335) — <key>\" http (space, no stray quote). Verify: bash word-split of each line shows arg4=URL; sed bytes od-confirmed. Commit f29ac8b pushed origin/main (rev-list 0 ahead). ch:trace row=README-7 spec=none:none wave=none:none test=none:none doc=README.md prompt=none:none evidence=commit-f29ac8b+word-split-check witness=none:doc-syntax-verdict-shell verdict=none commit=f29ac8b memory=none"}
++diff --git a/.coding-hermes/board/tasks.jsonl b/.coding-hermes/board/tasks.jsonl
++index d5e9d72..8928913 100644
++--- a/.coding-hermes/board/tasks.jsonl
+++++ b/.coding-hermes/board/tasks.jsonl
++@@ -318,7 +318,7 @@
++ {"id": "DOC-10", "title": "P4 — DOCS AUDIT (tick duckbrain-docs 2026-10-04): the Host guard (--allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS) is documented nowhere a reader can find", "priority": "P4", "status": "pending", "complexity": 2, "created_at": "2026-10-04T00:30:00+00:00", "reasoning": "DOCS AUDIT (tick duckbrain-docs 2026-10-04, HEAD e8e9b2c). The Host guard is shipped (12ef5ff feat(http): add --allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS to the Host guard) and live in code: src/cli/http.ts:85 comment documents the env var; tests at src/cli/http-allowed-hosts.test.ts. Command run: grep -rn \"ALLOWED_HOSTS|allowed-hosts\" README.md docs skills .env.example -> 0 hits (verified 2026-10-04). An operator who exposes the daemon past loopback has no discoverable reference for the flag, the env override, or the empty-list behavior (empty/absent keeps the guard off per src/cli/http.ts:85). Artifact: docs/guide/deployment.md (exposure/auth section) + a DUCKBRAIN_ALLOWED_HOSTS row in docs/guide/configuration.md env table + one README line. Accept: grep -rn 'ALLOWED_HOSTS' docs README.md >= 2 hits describing flag + env + empty-list semantics, matching src/cli/http.ts behavior."}
++ {"id": "TESTQ-DIRECT-ODIRECT-001", "title": "P2 — http-durability.test.ts asserts 201 for a direct-mode append without checking O_DIRECT support, so it fails on any host whose filesystem rejects O_DIRECT writes", "priority": "P2", "status": "complete", "complexity": 2, "created_at": "2026-10-04T01:30:54.170360+00:00", "updated_at": "2026-10-04T01:30:54.170360+00:00", "created_by": null, "detail": {"fingerprint": "26ec2f62a0276d500f2f4eecd0f036781cfa12ec092c7a405af35364c7ee1c2a"}, "reasoning": "Found by running the suite on a fresh off-origin host (bunker agent db-ver-1003, dedi-2, Ubuntu 24.04, kernel 6.8). The suite failed exactly one test and it is not a product defect — the test asserts a filesystem CAPABILITY as if it were product behaviour.\n\nThe failing assertion (reproduced standalone at main@aa6cc80, 5 passed / 1 failed):\n  src/cli/http-durability.test.ts > 'SUPA-1/SUPA-2: direct mode is framed through the serializer'\n  > 'returns 201 for the serializer-framed append and writes one memory'\n  AssertionError: expected 500 to be 201  (line 288)\n\nWhat the 500 actually is (the test never prints the body):\n  POST /api/memories to a namespace with durability.overrides = 'direct' returns HTTP 500 with\n  {\"error\":\"DURABILITY_UNSUPPORTED: O_DIRECT write rejected on <path>/raw_note/2026-10/current.jsonl (EINVAL: EINVAL: invalid argument, write) — write NOT acknowledged, no buffered fallback taken\",\"code\":\"DURABILITY_UNSUPPORTED\"}\n  Control in the same run: the identical POST to a non-direct namespace returns HTTP 201.\n\nSo the product is behaving CORRECTLY and loudly: it refuses rather than silently degrading to a buffered write, names the filesystem, and returns a structured code. Nothing is lost and nothing is misreported. src/storage/durability.ts:417-434 is where this is decided, and the message is deliberate ('no buffered fallback taken').\n\nThe defect is in the test: it hardcodes `expect(res.status).toBe(201)` with no capability probe, so it encodes 'this host can do O_DIRECT' rather than the contract. Evidence that it is environment-dependent, not a regression: the same file is green on the developer host and in CI (ubuntu-latest), and red on this host — while 'Run tests' PASSES in CI at the same commit.\n\nSharp edge worth capturing for whoever fixes it: on this host O_DIRECT OPEN SUCCEEDS and the WRITE fails EINVAL. Probed directly — open with O_WRONLY|O_CREAT|O_DIRECT returns a valid fd, then writing a 4096-byte buffer at offset 0 raises EINVAL (22). Both /tmp (/dev/md2) and /home (/dev/md3) are ext4 and behave identically. So a capability check that only attempts to OPEN would wrongly conclude O_DIRECT is available; the probe must attempt a real aligned WRITE.\n\nSuggested fix: make the test assert the CONTRACT rather than the capability — accept 201 (host supports O_DIRECT) OR 500 carrying code DURABILITY_UNSUPPORTED (host does not), asserting in the second case that no bytes were written and no buffered fallback was taken. Skipping the test entirely when the capability is absent would lose the coverage of the refusal path, which is the more interesting branch. Keep the direct-mode happy path covered wherever the capability exists.\n\nRelated: TESTQ-001 (no mutation/red-proof gate in CI) is the same theme one level up — this is a concrete case where a green-on-CI test is green for an environmental reason.", "worker_status": "complete", "commit_hash": "fbd0b6d", "verdict": "5e86805e"}
++ {"id": "DEPS-DUCKBRAIN-2026-10-04", "title": "P2 — Review and update 9 outdated Node packages (supervisor scan 2026-10-04)", "priority": "P2", "status": "pending", "complexity": 2, "created_at": "2026-10-04T13:06:52.981524+00:00", "updated_at": "2026-10-04T13:06:52.981524+00:00", "created_by": null, "detail": {"fingerprint": "a2d489da4787c75668fd20a9d5a28eafd60839f9cf4833c44332a34ceec6e8ad"}, "reasoning": "Review compatibility before changing constraints. Notable updates: @aws-sdk/client-s3 3.1145.0→3.1146.0, @modelcontextprotocol/sdk 1.31.0→1.32.0, and simple-git 3.36.0→4.0.2. Update in coherent groups, run project tests/build, and record deferred changes.", "worker_status": "pending", "commit_hash": null}
++-{"id": "README-7", "title": "P4 — README HTTP API curl examples (L323-335) have the API-key header inside the quoted URL: -H \"X-API-Key: *** \"http://... — as written the header arg is consumed as part of one quoted token, so the documented commands do not run correctly", "priority": "P4", "status": "pending", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 1, "type": "accuracy", "reasoning": "README audit 2026-10-04 (readme lane tick duckbrain-readme-2026-10-04-15-09-42), truth check, README.md bbee2cc 2026-09-30. Lines 323, 326, 329, 332 and 335 all read: curl -H \"X-API-Key: *** \"http://localhost:3000/api/...\" — the closing double-quote after *** terminates the -H argument and the URL opens its own quote with no space before it, so the shell passes -H 'X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"' as ONE argument (verified byte-exact with cat -A). Net effect: no URL argument and a garbage header — curl errors out. FIX: close the header quote before the URL, e.g. curl -H \"X-API-Key: *** http://localhost:3000/api/keys?namespace=default\" (space between *** and URL) on all five lines 323/326/329/332/335. Note: doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme7-curl-quote-2026-10-04"}, "evidence": "sed -n '323p' README.md | cat -A -> curl -H \"X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"$ (same shape on 326/329/332/335). Control: README quickstart block (L113-131) executed live against port 3777 on 2026-10-04 — namespace create 200, memory write returned id 898bdef7, read-back returned content 'first memory from the quickstart' (quickstart itself is correct).", "files_changed": ["README.md"]}
+++{"id": "README-7", "title": "P4 — README HTTP API curl examples (L323-335) have the API-key header inside the quoted URL: -H \"X-API-Key: *** \"http://... — as written the header arg is consumed as part of one quoted token, so the documented commands do not run correctly", "priority": "P4", "status": "complete", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 1, "type": "accuracy", "reasoning": "README audit 2026-10-04 (readme lane tick duckbrain-readme-2026-10-04-15-09-42), truth check, README.md bbee2cc 2026-09-30. Lines 323, 326, 329, 332 and 335 all read: curl -H \"X-API-Key: *** \"http://localhost:3000/api/...\" — the closing double-quote after *** terminates the -H argument and the URL opens its own quote with no space before it, so the shell passes -H 'X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"' as ONE argument (verified byte-exact with cat -A). Net effect: no URL argument and a garbage header — curl errors out. FIX: close the header quote before the URL, e.g. curl -H \"X-API-Key: *** http://localhost:3000/api/keys?namespace=default\" (space between *** and URL) on all five lines 323/326/329/332/335. Note: doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme7-curl-quote-2026-10-04"}, "evidence": "sed -n '323p' README.md | cat -A -> curl -H \"X-API-Key: *** \"http://localhost:3000/api/keys?namespace=default\"$ (same shape on 326/329/332/335). Control: README quickstart block (L113-131) executed live against port 3777 on 2026-10-04 — namespace create 200, memory write returned id 898bdef7, read-back returned content 'first memory from the quickstart' (quickstart itself is correct).", "files_changed": ["README.md"], "worker_status": "complete", "completed_at": "2026-10-06T21:40:00Z", "commit_hash": "f29ac8b", "foreman_note": "Tick duckbrain-foreman-2026-10-06-21-09-27: foreman-direct one-file fix. The row quoted *** as literal; actual bytes were <key>\" \"http — python replace to <key>\" http, 5 lines. Pushed f29ac8b, rev-list 0 ahead."}
++ {"id": "README-8", "title": "P4 — README's duckbrain CLI commands (consolidate/embeddings/s3/ssh-*) are never made runnable: the repo's install path (git clone + pnpm install) does NOT put a duckbrain binary on PATH or even in node_modules/.bin", "priority": "P4", "status": "pending", "created_at": "2026-10-04T15:20:00Z", "created_by": "duckbrain-readme lane 2026-10-04", "complexity": 2, "type": "install-path", "reasoning": "README audit 2026-10-04, install-path check on README.md bbee2cc. The README Quick Start documents only pnpm install (L101) and pnpm start ..., but L173-174 (duckbrain consolidate), L356-361 (duckbrain embeddings status/rebuild/install-hooks/providers), L207-209 (duckbrain s3 status/sync/query) and L182-184 (duckbrain ssh-test/ssh-connect) all invoke a bare duckbrain command as if globally installed. Measured 2026-10-04 on this repo after pnpm install: which duckbrain -> not found; ls node_modules/.bin/duckbrain -> No such file or directory (package.json declares bin duckbrain->./bin/duckbrain.js but pnpm did not link it at the root); pnpm exec duckbrain --version -> ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL 'Command duckbrain not found'. A stranger who follows the README cannot run any of the documented CLI sections. FIX: add one line after the install block telling readers how to get the binary — e.g. pnpm link --global (or npm i -g .), or change the documented commands to pnpm exec duckbrain ... / node bin/duckbrain.js ..., whichever the maintainer prefers; verify the chosen form on a fresh clone. Doc severity P4 by ruling 2026-09-30; do not re-raise.", "detail": {"fingerprint": "readme8-duckbrain-bin-2026-10-04"}, "evidence": "which duckbrain -> empty; ls node_modules/.bin/duckbrain -> 'No such file or directory'; pnpm exec duckbrain --version -> 'Command duckbrain not found' (all run 2026-10-04 in /home/kara/duckbrain @ bbee2cc, node_modules present). Control: node bin/duckbrain.js --help works and lists consolidate/embeddings/s3/ssh-test, so the commands exist — only the PATH story is missing.", "files_changed": ["README.md"]}
++ {"id": "TESTQ-2026-10-06-1", "title": "CI red: tsc TS6133 unused dataDir in 2 test rigs (run 37459118643)", "priority": "P2", "status": "complete", "created_at": "2026-10-06T14:00:00Z", "created_by": "duckbrain-ci-test-quality-audit cron", "complexity": "S", "detail": {"fingerprint": "tsc-ts6133-datadir-37459118643"}, "reasoning": "Repro: gh run view 37459118643 --log-failed. feat/native-s3 run failed at type check: src/cli/auth-file.test.ts(92,3) and src/cli/http-mcp-auth-dogfood025.test.ts(73,3) error TS6133 dataDir declared but never read (commit fix(tests): remove dead DUCKBRAIN_DATA_DIR env from test rigs DF-1003). Follow-up commit 300576e084 removed the param and is green (runs 37466395641+), so if that commit is on the branch this row is already fixed on disk — verify and close.", "updated_at": "2026-10-06T21:25:00Z", "commit_hash": "300576e0", "worker_status": "complete", "completed_at": "2026-10-06T21:25:00Z", "foreman_note": "Tick duckbrain-foreman-2026-10-06-21-00-34: fix commit 300576e0 already landed on feat/native-s3 (removes unused dataDir param in both files); verified on disk no TS6133 repro — npx tsc --noEmit clean at main 14eb113. Main CI green (runs at 20:53Z/20:57Z SUCCESS). Row closed as already-fixed upstream; no re-implementation needed."}
++ {"id": "TESTQ-002", "title": "P1 — red-proof gate (TESTQ-001) hardcodes /home/kara/duckbrain in its mutation script, so CI fails on every runner (FileNotFoundError) and the gate can never run anywhere but the dev box", "priority": "P1", "status": "complete", "complexity": "S", "created_at": "2026-10-06T21:00:00Z", "created_by": "duckbrain-foreman-2026-10-06-20-50-20", "detail": {"fingerprint": "redproof-hardcoded-path-2026-10-06"}, "reasoning": "CI runs 37459118643 through 37528959224 all failed at the 'Red-proof gate (mutation verification)' step with FileNotFoundError: /home/kara/duckbrain/src/storage/durability-errors.ts — scripts/red-proof-gate.sh's python heredoc opened the literal dev path instead of $PROD. Fix: pass PROD as argv[1] and read/write via path (commit c587b59). Verified live: bash scripts/red-proof-gate.sh exits 0, mutation applied, tests went red, prod restored; judge f53a1127 PASS (also re-ran from a relocated checkout, exit 0).", "worker_status": "complete", "completed_at": "2026-10-06T21:05:00Z", "commit_hash": "c587b59", "guard_result": "tier1 secrets clean (diff-mode tests n/a post-commit); live gate run is the verification", "foreman_note": "Foreman-direct one-file fix (trivial). Root cause of the 3-red CI streak on main; next push should show the green red-proof leg.", "ch_trace": "ch:trace row=TESTQ-002 spec=none:none wave=none:none test=scripts/red-proof-gate.sh doc=none:none prompt=none:none evidence=bash-scripts-red-proof-gate-pass+judge-f53a1127 witness=live:gate-run-mutation-applied-tests-went-red verdict=f53a1127 commit=c587b59 memory=none"}
+diff --git a/.gitreins/history/2026-10-06/d4ef5bed/summary.md b/.gitreins/history/2026-10-06/d4ef5bed/summary.md
+new file mode 100644
+index 0000000..8605d7f
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/d4ef5bed/summary.md
+@@ -0,0 +1,30 @@
++# Verdict: README-7
++
++**Task:** README curl example quote fix
++**Evaluated:** 2026-10-06T21:13:15.601550
++**Result:** ✗ FAIL
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++- ✗ **tier2**
++  - INCOMPLETE
++
++Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)
++
++## Summary
++
++Judge Result: README-7
++
++Stage tier1: PASS
++    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: scanners: nice=nice -n 10
++
++Stage tier2: FAIL
++  INCOMPLETE
++
++Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)
++
++Overall: FAIL ✗
+diff --git a/.gitreins/history/2026-10-06/d4ef5bed/verdict.json b/.gitreins/history/2026-10-06/d4ef5bed/verdict.json
+new file mode 100644
+index 0000000..8a7d7cb
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/d4ef5bed/verdict.json
+@@ -0,0 +1,95 @@
++{
++  "task_id": "README-7",
++  "task_title": "README curl example quote fix",
++  "task_criteria": [
++    "README.md lines 323-335 curl commands word-split to a -H header arg and a URL arg"
++  ],
++  "passed": false,
++  "worktree": "/home/kara/duckbrain",
++  "branch": "main",
++  "commit": "7a4a5614500b96b3e4aba1b44d88fb0191e15d21",
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:12PM INF scanned ~41073960 bytes (41.07 MB) in 4.99s\n4:12PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 995956 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log",
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  16:12:02\n   Duration  63.53s (tests 77%, import 20%, transform 2%)\n\n    Isolate  205 workers spawned \u00b7 ~88ms startup each (spawn + environment, per file)\n             at least ~4.42s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T205320.029418Z.log"
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": false,
++      "any_failed": true,
++      "summary": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": false,
++          "output": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
++          "error": "",
++          "data": {
++            "verdict": "INCOMPLETE",
++            "items": [],
++            "summary": "Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)"
++          }
++        }
++      ]
++    }
++  },
++  "summary": "Judge Result: README-7\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)\n\nOverall: FAIL \u2717",
++  "evaluated_at": "2026-10-06T21:13:15.601550",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-10-06T21:13:15.648747+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 17344,
++        "truncated": false,
++        "source": "git show 7a4a5614500b"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 576,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "README-7"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-10-06/d4ef5bed/worktree.patch b/.gitreins/history/2026-10-06/d4ef5bed/worktree.patch
+new file mode 100644
+index 0000000..b59ad60
+--- /dev/null
++++ b/.gitreins/history/2026-10-06/d4ef5bed/worktree.patch
+@@ -0,0 +1,16 @@
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 9e6cc12..47311fe 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -2365,3 +2365,11 @@ tasks:
++   status: complete
++   created_at: '2026-10-06T20:52:40.727023+00:00'
++   completed_at: '2026-10-06T20:53:27.636682+00:00'
+++- id: README-7
+++  title: README curl example quote fix
+++  criteria:
+++  - README.md lines 323-335 curl commands word-split to a -H header arg and a URL
+++    arg
+++  status: complete
+++  created_at: '2026-10-06T21:12:00.117726+00:00'
+++  completed_at: '2026-10-06T21:12:01.214442+00:00'

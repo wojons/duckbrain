@@ -2274,15 +2274,6 @@ tasks:
   status: complete
   created_at: '2026-10-03T02:18:38.984962+00:00'
   completed_at: '2026-10-03T03:01:32.934574+00:00'
-- id: DF-0926-06
-  title: Fix key-path validation HTTP status
-  criteria:
-  - POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR
-    instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style
-    path'
-  status: complete
-  created_at: '2026-10-03T06:54:15.844534+00:00'
-  completed_at: '2026-10-03T07:04:46.222190+00:00'
 - id: DEPS-005
   title: Sync 5 outdated Node deps (vitest 5.0.3, coverage-v8 5.0.3, @types/node 26.6.4,
     s3 SDK 3.1145, MCP SDK 1.31)
