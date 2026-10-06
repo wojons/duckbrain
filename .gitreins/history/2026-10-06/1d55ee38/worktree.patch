@@ -1,0 +1,219 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 355cfc4..5d1c41f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2357,4 +2357,4 @@ tasks:
+     to CI.
+   status: complete
+   created_at: '2026-10-06T19:13:05.024064+00:00'
+-  completed_at: '2026-10-06T20:00:08.664071+00:00'
++  completed_at: '2026-10-06T20:06:39.740995+00:00'
+diff --git a/src/test/red-proof-gate.test.ts b/src/test/red-proof-gate.test.ts
+index 5d3bb23..a1afd33 100644
+--- a/src/test/red-proof-gate.test.ts
++++ b/src/test/red-proof-gate.test.ts
+@@ -1,97 +1,139 @@
+-import { describe, it, expect } from "vitest";
+-import { isDurabilityError, DurabilityError } from "../storage/durability-errors.js";
++import { describe, expect, it } from "vitest";
++import { DurabilityError, isDurabilityError } from "../storage/durability-errors.js";
+ 
+ /**
+  * Red-proof gate for DuckBrain CI (TESTQ-001).
+  *
+- * A test is "red-proof" if it FAILS when production code is broken.
++ * A test suite is "red-proof" when it FAILS when production code is broken.
++ * This file contains two layers:
+  *
+- * Each baseline test makes a SPECIFIC assertion about production code.
+- * If the production code is mutated in a way that violates that behavior,
+- * the test FAILS. These are NOT tautologies — the assertion values come
+- * from real production code, not from mock comparisons.
++ *   1. Contract tests — pin the real behavior of durability-errors.ts.
++ *      Any mutation of that behavior turns them red.
+  *
+- * Proof for each test:
+- *   - isDurabilityError(new DurabilityError(...)) === true
+- *     If isDurabilityError returns false for DurabilityError → FAILS
+- *   - isDurabilityError(null) === false
+- *     If null check removed → FAILS
+- *   - isDurabilityError("string") === false
+- *     If primitive check removed → FAILS
+- *   - err.status === 500
+- *     If status changed → FAILS
+- *   - err.message === "code: msg"
+- *     If message format changed → FAILS
+- *   - err.name === "DurabilityError"
+- *     If name changed → FAILS
+- *   - err instanceof Error
+- *     If inheritance broken → FAILS
++ *   2. Proof tests — demonstrate the discrimination power of layer 1 by
++ *      running its assertions against deliberately broken implementations
++ *      (mutants) and requiring them to THROW. If a baseline assertion set
++ *      survives a mutant, the assertions are phantoms and this gate fails.
+  *
+- * These tests directly exercise production code from
+- * src/storage/durability-errors.ts. Breaking that code breaks these tests.
++ * Why not Stryker? Verified incompatible with this stack on 2026-10-06:
++ *   - Stryker 10 ts-config-preprocessor calls ts.parseConfigFileTextToJson,
++ *     removed in TypeScript 7 (crash: "ts.parseConfigFileTextToJson is not
++ *     a function"); ignoring tsconfig.json gets past that, but the vitest
++ *     runner plugin then fails to load inside Stryker's child processes
++ *     ("no TestRunner plugins were loaded") under pnpm's layout.
++ * The dormant re-enable path is kept in stryker.config.mjs and
++ * `pnpm test:mutation:stryker`; until TS 7 support lands upstream, the
++ * blocking CI gate is this suite (`pnpm test:mutation`).
+  */
+ 
++/** The baseline assertion set under proof: how a correct isDurabilityError must behave. */
++function baselineAssertions(isErr: (error: unknown) => boolean): void {
++  expect(isErr(new DurabilityError("DURABILITY_BYPASS", "x"))).toBe(true);
++  expect(isErr({ name: "DurabilityError", code: "DURABILITY_FSYNC_FAILED" })).toBe(true);
++  expect(isErr(null)).toBe(false);
++  expect(isErr(undefined)).toBe(false);
++  expect(isErr("string error")).toBe(false);
++  expect(isErr(new Error("connection reset"))).toBe(false);
++  expect(isErr(new TypeError("bad type"))).toBe(false);
++}
++
+ describe("red-proof gate — isDurabilityError contract", () => {
+-  /**
+-   * Tests the instanceof check in isDurabilityError().
+-   * If the instanceof check is removed or inverted, this FAILS.
+-   */
+-  it("isDurabilityError returns true for DurabilityError instances", () => {
++  it("returns true for DurabilityError instances", () => {
+     const err = new DurabilityError("DURABILITY_FSYNC_FAILED", "disk full");
+     expect(isDurabilityError(err)).toBe(true);
+   });
+ 
+-  /**
+-   * Tests the null check in isDurabilityError().
+-   * If the null check is removed, this FAILS.
+-   */
+-  it("isDurabilityError returns false for null", () => {
+-    expect(isDurabilityError(null)).toBe(false);
++  it("returns true for duck-typed DurabilityError shapes", () => {
++    const errLike = { name: "DurabilityError", code: "DURABILITY_UNSUPPORTED" };
++    expect(isDurabilityError(errLike)).toBe(true);
+   });
+ 
+-  /**
+-   * Tests the primitive rejection in isDurabilityError().
+-   * If primitive checks are removed, this FAILS.
+-   */
+-  it("isDurabilityError returns false for non-error strings", () => {
++  it("returns false for null, primitives, and plain Errors", () => {
++    expect(isDurabilityError(null)).toBe(false);
++    expect(isDurabilityError(undefined)).toBe(false);
+     expect(isDurabilityError("string error")).toBe(false);
++    expect(isDurabilityError(new Error("connection reset"))).toBe(false);
++    // duck-typed shape requires BOTH name and code
++    expect(isDurabilityError({ name: "DurabilityError" })).toBe(false);
++    expect(isDurabilityError({ name: "OtherError", code: "X" })).toBe(false);
+   });
+ });
+ 
+ describe("red-proof gate — DurabilityError constructor contract", () => {
+-  /**
+-   * Tests the constructor assignment of this.status = 500.
+-   * If someone changes 500 to any other value, this FAILS.
+-   */
+-  it("DurabilityError.status is 500", () => {
++  it("status is always 500 (HTTP contract invariant)", () => {
+     const err = new DurabilityError("DURABILITY_BYPASS", "test");
+     expect(err.status).toBe(500);
+   });
+ 
+-  /**
+-   * Tests the constructor message format: `${code}: ${message}`.
+-   * If the message format is changed, this FAILS.
+-   */
+-  it("DurabilityError.message includes code prefix", () => {
+-    const err = new DurabilityError("DURABILITY_FSYNC_FAILED", "disk full");
+-    expect(err.message).toBe("DURABILITY_FSYNC_FAILED: disk full");
++  it("message starts with code + colon-space (log/API invariant)", () => {
++    const err = new DurabilityError("DURABILITY_DIRECT_FRAME_ERROR", "NFS mount");
++    expect(err.message).toBe("DURABILITY_DIRECT_FRAME_ERROR: NFS mount");
++    expect(err.message.startsWith(`${err.code}: `)).toBe(true);
+   });
+ 
+-  /**
+-   * Tests the constructor this.name = "DurabilityError".
+-   * If the name is changed, type guards fail and this test FAILS.
+-   */
+-  it("DurabilityError.name is 'DurabilityError'", () => {
+-    const err = new DurabilityError("DURABILITY_BYPASS", "test");
++  it("name is 'DurabilityError' and inherits Error", () => {
++    const err = new DurabilityError("DURABILITY_FSYNC_FAILED", "test");
+     expect(err.name).toBe("DurabilityError");
++    expect(err).toBeInstanceOf(Error);
++    expect(err.code).toBe("DURABILITY_FSYNC_FAILED");
+   });
++});
+ 
+-  /**
+-   * Tests the constructor extends Error.
+-   * If inheritance is broken, this FAILS.
+-   */
+-  it("DurabilityError is instance of Error", () => {
+-    const err = new DurabilityError("DURABILITY_BYPASS", "test");
+-    expect(err).toBeInstanceOf(Error);
++describe("red-proof gate — the gate catches mutations", () => {
++  it("positive control: baseline assertions PASS against the real function", () => {
++    expect(() => baselineAssertions(isDurabilityError)).not.toThrow();
++  });
++
++  it("baseline assertions FAIL against an always-true mutant", () => {
++    const mutant = () => true;
++    expect(() => baselineAssertions(mutant)).toThrow();
++  });
++
++  it("baseline assertions FAIL against an always-false mutant", () => {
++    const mutant = () => false;
++    expect(() => baselineAssertions(mutant)).toThrow();
++  });
++
++  it("baseline assertions FAIL against an inverted mutant", () => {
++    const mutant = (error: unknown): boolean => !isDurabilityError(error);
++    expect(() => baselineAssertions(mutant)).toThrow();
++  });
++
++  it("baseline assertions FAIL against a mutant that drops the code requirement", () => {
++    // name check only — lets { name: "DurabilityError" } (no code) through
++    const mutant = (error: unknown): boolean =>
++      error instanceof DurabilityError ||
++      (typeof error === "object" &&
++        error !== null &&
++        (error as { name?: string }).name === "DurabilityError");
++    expect(() => baselineAssertions(mutant)).toThrow();
++  });
++
++  it("contract assertions FAIL against a mutated error shape", () => {
++    function assertContract(err: DurabilityError): void {
++      expect(err.status).toBe(500);
++      expect(err.name).toBe("DurabilityError");
++      expect(err.message.startsWith(`${err.code}: `)).toBe(true);
++    }
++    const real = new DurabilityError("DURABILITY_BYPASS", "m");
++    expect(() => assertContract(real)).not.toThrow();
++
++    // mutant: status downgraded to 200 (silent-success bug class)
++    const statusMutant = {
++      name: "DurabilityError",
++      code: "DURABILITY_BYPASS",
++      status: 200,
++      message: "DURABILITY_BYPASS: m",
++    } as unknown as DurabilityError;
++    expect(() => assertContract(statusMutant)).toThrow();
++
++    // mutant: message format broken (code stripped from logs)
++    const messageMutant = {
++      name: "DurabilityError",
++      code: "DURABILITY_BYPASS",
++      status: 500,
++      message: "silent failure",
++    } as unknown as DurabilityError;
++    expect(() => assertContract(messageMutant)).toThrow();
+   });
+ });

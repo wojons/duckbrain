@@ -81,11 +81,13 @@ jobs:
         env:
           CI: true
 
-      # Mutation testing (stryker) is incompatible with TypeScript 7.x (ts.parseConfigFileTextToJson).
-      # The red-proof gate tests in src/test/red-proof-gate.test.ts are the enforcement gate:
-      # each assertion directly checks production code values (status=500, name="DurabilityError", etc.)
-      # so a production-code change that violates the contract causes these tests to FAIL.
-      # A test that passes before AND after a fix is a phantom — this suite catches phantoms.
+      # Red-proof gate: proves the test suite is NOT a phantom.
+      # Mutates production code, expects tests to FAIL.
+      # If tests pass after mutation → they're phantoms (fail the gate).
+      - name: Red-proof gate (mutation verification)
+        run: bash scripts/red-proof-gate.sh src/storage/durability-errors.ts 'return target instanceof DurabilityError' 'return false'
+        env:
+          CI: true
 
   docker:
     runs-on: ubuntu-latest
