@@ -66,6 +66,15 @@ describe("HTTP Server E2E Integration", () => {
   });
 
   it("should respond to /users with authors array", async () => {
+    // DB-GAP-059: THIS is the call site that hung the suite forever. The
+    // daemon walked the host config's 227-namespace registry, opening a fresh
+    // DuckDB scratch file per recycle until the event loop starved, and the
+    // unbounded `curl -s -D -` probe waited on it until the whole run was
+    // hard-killed — orphaning the daemon. curl() now carries --max-time 10
+    // (CURL_MAX_TIME_S), so a stalled daemon fails THIS test and lets
+    // afterAll reap it; the bound itself is pinned by the unit suite
+    // (src/testing/orphan-daemon-reaper.test.ts) and the isolated namespace
+    // root by tests/orphan-reaper.int.test.ts.
     const res = await curl(`http://127.0.0.1:${port}/users`);
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body);

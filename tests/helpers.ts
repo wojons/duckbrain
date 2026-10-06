@@ -404,11 +404,25 @@ export function sshExec(containerName: string, cmd: string): string {
   return run(`docker exec ${containerName} sh -c ${JSON.stringify(cmd)}`);
 }
 
+/**
+ * Bound on a single `curl()` probe (DB-GAP-059).
+ *
+ * The incident: `curl -s -D - <args>` had NO time bound, so a stalled daemon
+ * (a starved event loop in a DuckDB scratch-file churn loop) pinned the whole
+ * integration file forever instead of failing the test and letting `afterAll`
+ * reap the daemon. This mirrors INT-CI-003's `--max-time 10` in `waitForUrl`.
+ *
+ * A caller that KNOWS its probe is legitimately slow may pass its own
+ * `--max-time N`: curl honours the LAST occurrence and this bound is emitted
+ * first, so a caller-supplied value wins.
+ */
+export const CURL_MAX_TIME_S = 10;
+
 export async function curl(
   args: string,
 ): Promise<{ status: number; body: string; headers: string }> {
   try {
-    const output = run(`curl -s -D - ${args}`);
+    const output = run(`curl -s -D - --max-time ${CURL_MAX_TIME_S} ${args}`);
     const headerEnd = output.indexOf("\r\n\r\n");
     if (headerEnd === -1) {
       return { status: 0, body: output, headers: output };
@@ -419,6 +433,23 @@ export async function curl(
     const status = statusMatch ? parseInt(statusMatch[1]) : 0;
     return { status, body, headers };
   } catch (e: any) {
+    // A probe that hit the time bound must FAIL, never be reported as a
+    // (truncated) success: curl exit 28 can arrive with the response headers
+    // already emitted, and parsing a half-body as JSON would surface as a
+    // confusing assertion error instead of the real cause. curl's exit code
+    // is the signal — the command text itself contains "--max-time", so it
+    // must never be matched.
+    const timedOut =
+      e?.status === 28 ||
+      /Operation timed out|Resolving timed out|Connection timed out/i.test(
+        String(e?.message ?? ""),
+      );
+    if (timedOut) {
+      throw new Error(
+        `curl probe exceeded --max-time ${CURL_MAX_TIME_S}s (DB-GAP-059) — ` +
+          `a stalled daemon must fail the test, not hang the suite. args: ${args}`,
+      );
+    }
     if (e.stdout) {
       const output = e.stdout as string;
       const headerEnd = output.indexOf("\r\n\r\n");
@@ -436,3 +467,11 @@ export async function curl(
     throw e;
   }
 }
+
+/**
+ * DB-GAP-059: re-exported so integration files can reap in their own
+ * teardown without reaching into src/testing directly. The suite's
+ * globalSetup already runs a startup + teardown sweep; this is the manual /
+ * per-file handle.
+ */
+export { reapOrphanDaemons, formatReapReport } from "../src/testing/orphan-daemon-reaper.js";
