@@ -9,6 +9,39 @@ import {
 
 const CONTAINER_PREFIX = "duckbrain-test";
 
+/**
+ * DB-GAP-059: track spawned daemons so a process-level reaper can kill them
+ * on exit. Without this, a hard-killed test run (SIGKILL, OOM, CI timeout)
+ * leaves detached daemons reparented to systemd --user, burning CPU/RSS/FDs
+ * forever (the exact failure mode this task addresses).
+ */
+const spawnedDaemons = new Set<ChildProcess>();
+
+/**
+ * DB-GAP-059: process-level reaper. On exit/beforeExit, kill any tracked
+ * daemons that are still alive. This catches the case where afterAll
+ * teardown never runs (hard-kill, uncaught exception, CI timeout).
+ */
+process.on("beforeExit", () => {
+  for (const child of spawnedDaemons) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM");
+      } catch {}
+    }
+  }
+});
+
+process.on("exit", () => {
+  for (const child of spawnedDaemons) {
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      } catch {}
+    }
+  }
+});
+
 export function uniqueId(): string {
   return Math.random().toString(36).slice(2, 8);
 }
@@ -380,6 +413,11 @@ async function spawnDuckbrainHttp(opts: {
     detached: true,
   }) as DuckbrainChild;
   lastChild = child;
+  
+  // DB-GAP-059: track this daemon so the process-level reaper can kill it
+  // on exit if teardown never runs (hard-kill, uncaught exception, CI timeout).
+  spawnedDaemons.add(child);
+  child.once("exit", () => spawnedDaemons.delete(child));
 
   // Keep the last ~50 lines of stderr so a waitForUrl timeout can report
   // WHY the daemon never came up (tsx compile error, EADDRINUSE from a
@@ -628,7 +666,11 @@ export async function curl(
   args: string,
 ): Promise<{ status: number; body: string; headers: string }> {
   try {
-    const output = run(`curl -s -D - ${args}`);
+    // DB-GAP-059: bound test probes with --max-time so a stalled daemon fails
+    // the test instead of hanging the suite forever (mirror INT-CI-003
+    // waitForUrl pattern). Without this, a daemon that accepts TCP but never
+    // answers pins the curl process and its parent vitest worker indefinitely.
+    const output = run(`curl -s -D - --max-time 10 ${args}`);
     const headerEnd = output.indexOf("\r\n\r\n");
     if (headerEnd === -1) {
       return { status: 0, body: output, headers: output };
