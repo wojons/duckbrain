@@ -1,0 +1,102 @@
+{
+  "task_id": "TESTQ-001",
+  "task_title": "Add mutation/red-proof test gate to CI",
+  "task_criteria": [
+    "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "706d806c14687e93c6c1fa0a227b1b0088ac6198",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:00PM INF scanned ~41103136 bytes (41.10 MB) in 3.97s\n3:00PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 994777 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  15:00:09\n   Duration  68.27s (tests 78%, import 20%, transform 2%, setup 1%)\n\n    Isolate  205 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~4.61s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI step at .github/workflows/ci.yml:84-89 ('Run mutation (red-proof) gate') cannot fail the build: line 85 ends with `|| echo \"Stryker skipped (TS7 incompatibility)...\"` (swallows any non-zero exit) AND line 89 sets `continue-on-error: true`. Stryker does not run at all \u2014 `node node_modules/@stryker-mutator/core/bin/stryker.js run` exits with `TypeError: ts.parseConfigFileTextToJson is not a function` (Stryker 10.0.0 vs TypeScript 7.0.2), and stryker.config.mjs's own header admits 'Stryker 10.x is currently incompatible with TypeScript 7.x ... This config is a working template'. `pnpm exec stryker` returns 'Command stryker not found'. The substitute src/test/red-proof-gate.test.ts is an ordinary unit test asserting durability-errors.ts behavior (7 tests pass via `npx vitest run src/test/red-proof-gate.test.ts`); it runs as part of the normal suite and does not verify that any test fails on a pre-fix tree, so it is not a mutation/red-proof verification gate. Net: no enforcing gate exists \u2014 a test that passes before and after a fix can still be filed.\nThe CI 'red-proof' step is a no-op: Stryker crashes on TS7 and the step is wrapped in `|| echo` plus `continue-on-error: true`, so no gate actually enforces that tests fail on the pre-fix tree.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI step at .github/workflows/ci.yml:84-89 ('Run mutation (red-proof) gate') cannot fail the build: line 85 ends with `|| echo \"Stryker skipped (TS7 incompatibility)...\"` (swallows any non-zero exit) AND line 89 sets `continue-on-error: true`. Stryker does not run at all \u2014 `node node_modules/@stryker-mutator/core/bin/stryker.js run` exits with `TypeError: ts.parseConfigFileTextToJson is not a function` (Stryker 10.0.0 vs TypeScript 7.0.2), and stryker.config.mjs's own header admits 'Stryker 10.x is currently incompatible with TypeScript 7.x ... This config is a working template'. `pnpm exec stryker` returns 'Command stryker not found'. The substitute src/test/red-proof-gate.test.ts is an ordinary unit test asserting durability-errors.ts behavior (7 tests pass via `npx vitest run src/test/red-proof-gate.test.ts`); it runs as part of the normal suite and does not verify that any test fails on a pre-fix tree, so it is not a mutation/red-proof verification gate. Net: no enforcing gate exists \u2014 a test that passes before and after a fix can still be filed.\nThe CI 'red-proof' step is a no-op: Stryker crashes on TS7 and the step is wrapped in `|| echo` plus `continue-on-error: true`, so no gate actually enforces that tests fail on the pre-fix tree.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.",
+                "status": "FAIL",
+                "detail": "The CI step at .github/workflows/ci.yml:84-89 ('Run mutation (red-proof) gate') cannot fail the build: line 85 ends with `|| echo \"Stryker skipped (TS7 incompatibility)...\"` (swallows any non-zero exit) AND line 89 sets `continue-on-error: true`. Stryker does not run at all \u2014 `node node_modules/@stryker-mutator/core/bin/stryker.js run` exits with `TypeError: ts.parseConfigFileTextToJson is not a function` (Stryker 10.0.0 vs TypeScript 7.0.2), and stryker.config.mjs's own header admits 'Stryker 10.x is currently incompatible with TypeScript 7.x ... This config is a working template'. `pnpm exec stryker` returns 'Command stryker not found'. The substitute src/test/red-proof-gate.test.ts is an ordinary unit test asserting durability-errors.ts behavior (7 tests pass via `npx vitest run src/test/red-proof-gate.test.ts`); it runs as part of the normal suite and does not verify that any test fails on a pre-fix tree, so it is not a mutation/red-proof verification gate. Net: no enforcing gate exists \u2014 a test that passes before and after a fix can still be filed.",
+                "resolution_probability": 0.34
+              }
+            ],
+            "summary": "The CI 'red-proof' step is a no-op: Stryker crashes on TS7 and the step is wrapped in `|| echo` plus `continue-on-error: true`, so no gate actually enforces that tests fail on the pre-fix tree."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI step at .github/workflows/ci.yml:84-89 ('Run mutation (red-proof) gate') cannot fail the build: line 85 ends with `|| echo \"Stryker skipped (TS7 incompatibility)...\"` (swallows any non-zero exit) AND line 89 sets `continue-on-error: true`. Stryker does not run at all \u2014 `node node_modules/@stryker-mutator/core/bin/stryker.js run` exits with `TypeError: ts.parseConfigFileTextToJson is not a function` (Stryker 10.0.0 vs TypeScript 7.0.2), and stryker.config.mjs's own header admits 'Stryker 10.x is currently incompatible with TypeScript 7.x ... This config is a working template'. `pnpm exec stryker` returns 'Command stryker not found'. The substitute src/test/red-proof-gate.test.ts is an ordinary unit test asserting durability-errors.ts behavior (7 tests pass via `npx vitest run src/test/red-proof-gate.test.ts`); it runs as part of the normal suite and does not verify that any test fails on a pre-fix tree, so it is not a mutation/red-proof verification gate. Net: no enforcing gate exists \u2014 a test that passes before and after a fix can still be filed.\nThe CI 'red-proof' step is a no-op: Stryker crashes on TS7 and the step is wrapped in `|| echo` plus `continue-on-error: true`, so no gate actually enforces that tests fail on the pre-fix tree.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T20:04:50.765587",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T20:04:50.780912+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5270,
+        "truncated": false,
+        "source": "git show 706d806c1468"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 356,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-001"
+  }
+}
