@@ -1,0 +1,59 @@
+commit fced749ea2d6d2ab95fcfc0a26f6961ded8882d7
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 17:18:07 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 17:18:07 2026 -0500
+
+    fix(deps): sync package-lock.json with 592e181 bumps (s3 3.1146.0, MCP SDK 1.32.1)
+    
+    Docker build npm ci failed on CI: lock file's s3@3.1145.0 / sdk@1.32.0 did
+    not satisfy package.json pins from 592e181. Lockfile-only regeneration.
+    
+    ch:trace row=INT-CI-020 spec=none:none wave=none:none test=tests/docker-build.int.test.ts doc=none:none prompt=none:none evidence=gh-run-37539228167-npm-EUSAGE-logs witness=none:CI-runner-docker-context verdict=none:tier1-commit-gate commit=HEAD memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ package-lock.json | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/package-lock.json b/package-lock.json
+index 6ee634e..5f63615 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,8 +9,8 @@
+       "version": "1.0.0",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@aws-sdk/client-s3": "3.1145.0",
+-        "@modelcontextprotocol/sdk": "^1.31.0",
++        "@aws-sdk/client-s3": "3.1146.0",
++        "@modelcontextprotocol/sdk": "^1.32.1",
+         "@smithy/node-http-handler": "4.12.1",
+         "async-mutex": "^0.5.0",
+         "bcryptjs": "^3.0.3",
+@@ -55,9 +55,9 @@
+       }
+     },
+     "node_modules/@aws-sdk/client-s3": {
+-      "version": "3.1145.0",
+-      "resolved": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1145.0.tgz",
+-      "integrity": "sha512-MPKAQdx8qCZW1/ChDPILNehtAn/BMP4GNTnaH/xhGCWg3v50ADVq1K2WzxIrFfeANdWUyjwiY0CXDBhclsNWgQ==",
++      "version": "3.1146.0",
++      "resolved": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1146.0.tgz",
++      "integrity": "sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==",
+       "license": "Apache-2.0",
+       "dependencies": {
+         "@aws-sdk/checksums": "^3.1001.1",
+@@ -2295,9 +2295,9 @@
+       }
+     },
+     "node_modules/@modelcontextprotocol/sdk": {
+-      "version": "1.32.0",
+-      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.0.tgz",
+-      "integrity": "sha512-8BviX/hK4Gd2eL1KdTwm0gfl4d3wdoErW0Jd00h6nomUAtk6IJk5vwQJc6kfWtJTzN5OEV/lgIiJKI8fiDGAlA==",
++      "version": "1.32.1",
++      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.1.tgz",
++      "integrity": "sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==",
+       "license": "MIT",
+       "dependencies": {
+         "@hono/node-server": "^1.19.9 || ^2.0.5",

@@ -2364,3 +2364,11 @@ tasks:
   status: complete
   created_at: '2026-10-06T22:11:24.828960+00:00'
   completed_at: '2026-10-06T22:11:43.230400+00:00'
+- id: INT-CI-020
+  title: 'CI red: Docker build npm ci lockfile out of sync after 592e181'
+  criteria:
+  - package-lock.json satisfies package.json pins (s3 3.1146.0, MCP SDK 1.32.1) and
+    the docker-build integration suite can run npm ci successfully
+  status: complete
+  created_at: '2026-10-06T22:18:22.719715+00:00'
+  completed_at: '2026-10-06T22:18:31.701390+00:00'
