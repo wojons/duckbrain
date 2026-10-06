@@ -15,13 +15,13 @@
 
 import fs from "fs";
 import path from "path";
-import {
-  buildClient,
-  listRemoteObjects,
-  putObject,
-  getObject,
-  type RemoteObject,
-} from "./client";
+// PERF-004 — lazy ./client: it pulls in @aws-sdk/client-s3. This module is
+// loaded statically by lifecycle (which the CLI + MCP namespace tools load),
+// so the client (SDK) is deferred to the sync functions that need it.
+async function loadClient(): Promise<typeof import("./client.js")> {
+  return (await import("./client.js")) as typeof import("./client.js");
+}
+import type { RemoteObject } from "./client.js";
 import type { S3Client } from "@aws-sdk/client-s3";
 import {
   loadManifest,
@@ -221,6 +221,7 @@ export async function listRemoteNamespaces(
   client: S3Client,
   cfg: S3Config,
 ): Promise<string[]> {
+  const { listRemoteObjects } = await loadClient();
   const objects = await listRemoteObjects(client, cfg.bucket, `${cfg.prefix}/`);
   const names = new Set<string>();
   for (const key of objects.keys()) {
@@ -241,6 +242,7 @@ export async function pushNamespace(
   namespacesPath: string,
 ): Promise<SyncStats> {
   const start = Date.now();
+  const { buildClient, listRemoteObjects, putObject } = await loadClient();
   const client = buildClient(cfg);
   const nsDir = namespacePath(namespacesPath, ns);
   const prefix = `${cfg.prefix}/${ns}/`;
@@ -307,6 +309,7 @@ export async function pullNamespace(
   namespacesPath: string,
 ): Promise<SyncStats> {
   const start = Date.now();
+  const { buildClient, listRemoteObjects, getObject } = await loadClient();
   const client = buildClient(cfg);
   const nsDir = namespacePath(namespacesPath, ns);
   const prefix = `${cfg.prefix}/${ns}/`;
@@ -456,6 +459,7 @@ export async function syncAllNamespaces(
     // iterate — the old local-only walk reported "0 namespaces" while
     // restoring nothing) and unions with local ones so an `all pull` also
     // refreshes namespaces that exist on both sides.
+    const { buildClient } = await loadClient();
     const client = buildClient(cfg);
     const remoteNames = await listRemoteNamespaces(client, cfg);
     nsList = [...new Set([...remoteNames, ...localEntries])].sort();

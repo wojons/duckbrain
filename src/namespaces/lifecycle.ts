@@ -33,7 +33,13 @@ import {
 } from "../config/index";
 import type { S3Config } from "../s3/config";
 import { resolveEffectiveEndpoint } from "../s3/config";
-import { buildClient, listRemoteObjects, deleteObject } from "../s3/client";
+// PERF-004 — lazy s3/client: it pulls in @aws-sdk/client-s3 (~91ms), and this
+// module is loaded statically by the CLI + MCP namespace tools, so read-only
+// paths (recall/list-keys/status) must never touch the SDK. Only the clear-s3
+// functions below need a client; s3/config and s3/manifest are SDK-free leaves.
+async function loadS3Client(): Promise<typeof import("../s3/client.js")> {
+  return (await import("../s3/client.js")) as typeof import("../s3/client.js");
+}
 import { stateDir, loadManifest, pruneSyncManifest } from "../s3/manifest";
 import { namespacePath } from "../s3/sync";
 import { hasInFlightPush } from "./inflight-push";
@@ -215,6 +221,7 @@ export async function planS3Clear(
   if (!ns || ns.includes("/") || ns === "." || ns === "..") {
     throw new Error(`Invalid namespace name: '${ns}'`);
   }
+  const { buildClient, listRemoteObjects } = await loadS3Client();
   const client = buildClient(s3);
   const prefix = `${s3.prefix}/${ns}/`;
   const remote = await listRemoteObjects(client, s3.bucket, prefix);
@@ -302,6 +309,7 @@ export async function clearNamespaceFromS3(
 
   // Re-list at execution time (TOCTOU-safe: destroys what exists NOW).
   const plan = await planS3Clear(s3, ns, opts);
+  const { buildClient, deleteObject } = await loadS3Client();
   const client = buildClient(s3);
   let deleted = 0;
   let failed = 0;

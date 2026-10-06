@@ -128,19 +128,33 @@ Examples:
  * /(\d+\.\d+\.\d+)/ from stdout; without a version command the remote exit
  * status is non-zero and the check silently reports "up to date".
  *
- * The package is CommonJS and this file lives in bin/, which sits next to
- * package.json, so __dirname is the correct anchor (never import.meta.url —
- * that is undefined here). Falls back to "unknown" so --version never throws.
+ * The package is CommonJS, so __dirname is the correct anchor (never
+ * import.meta.url — that is undefined here). PERF-004: the compiled dist/bin
+ * entry is two levels below the package root (dist/bin/), while the tsx dev
+ * path is one level below (bin/), so walk upward until the duckbrain
+ * package.json is found. Falls back to "unknown" so --version never throws.
  */
 function readVersion(): string {
   try {
-    const pkgPath = path.join(__dirname, "..", "package.json");
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
-      version?: unknown;
-    };
-    return typeof pkg.version === "string" && pkg.version.length > 0
-      ? pkg.version
-      : "unknown";
+    let dir = __dirname;
+    for (let level = 0; level < 5; level++) {
+      try {
+        const pkgPath = path.join(dir, "package.json");
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+          version?: unknown;
+          name?: unknown;
+        };
+        if (pkg?.name === "duckbrain") {
+          return typeof pkg.version === "string" && pkg.version.length > 0
+            ? pkg.version
+            : "unknown";
+        }
+      } catch {
+        // No readable package.json at this level — keep walking.
+      }
+      dir = path.dirname(dir);
+    }
+    return "unknown";
   } catch {
     return "unknown";
   }

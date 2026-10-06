@@ -14,6 +14,7 @@
     "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/http-ratelimit.int.test.ts",
     "test:mutation": "bash scripts/red-proof-gate.sh",
     "test:mutation:stryker": "stryker run",
+    "build:cli": "tsc -p tsconfig.build.json",
     "start": "node bin/duckbrain.js",
     "start:http": "node bin/duckbrain.js http --port 3000",
     "dev:api": "node bin/duckbrain.js http --port 3000 --auth=none",

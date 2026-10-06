@@ -28,12 +28,21 @@ import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import { executeSegmentConsolidation } from "../storage/segment-consolidation";
 import { getConfig, setConfig, registerNamespace } from "../config/index";
-import { s3Command } from "../s3/cli";
 import {
   deleteNamespaceFromDisk,
-  clearNamespaceFromS3,
-  planS3Clear,
 } from "../namespaces/lifecycle";
+// PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
+// @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
+// so read-only CLI paths (recall/list-keys/status) never load the SDK.
+async function loadLifecycleS3(): Promise<
+  typeof import("../namespaces/lifecycle.js")
+> {
+  return (await import("../namespaces/lifecycle.js")) as typeof import("../namespaces/lifecycle.js");
+}
+// PERF-004 — lazy s3 CLI subtree (s3/cli imports s3/client → AWS SDK).
+async function loadS3Cli(): Promise<typeof import("../s3/cli.js")> {
+  return (await import("../s3/cli.js")) as typeof import("../s3/cli.js");
+}
 import { queryCommand } from "./query";
 import { consolidateCommand } from "./consolidate";
 import {
@@ -1042,6 +1051,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
     }
 
     if (dryRun) {
+      const { planS3Clear } = await loadLifecycleS3();
       const plan = await planS3Clear(config.s3, name);
       console.log(`DRY-RUN — clearing ${name} from S3 would destroy:`);
       console.log(`  bucket: ${plan.bucket}  prefix: ${plan.prefix}`);
@@ -1060,6 +1070,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
         "Re-run with --yes --requested-by=<who> --reason=<why> to destroy them.",
       );
     } else {
+      const { clearNamespaceFromS3 } = await loadLifecycleS3();
       const result = await clearNamespaceFromS3(config.s3, name, {
         confirm: true,
         requestedBy,
@@ -2231,7 +2242,7 @@ export async function runHumanCLI(
     push: pushCommand,
     remote: remoteCommand,
     query: queryCommand,
-    s3: (args: string[]) => s3Command(args),
+    s3: async (args: string[]) => (await loadS3Cli()).s3Command(args),
     consolidate: consolidateCommand,
     help: async () => showHelp(),
   };

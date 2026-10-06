@@ -60,14 +60,43 @@ import { execFile, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
-import { maybeSyncOnCommit } from "../s3";
-import { buildClient } from "../s3/client";
 import type { S3Config } from "../s3/config";
-import {
-  isDuplicateRefPushError,
-  parseS3RemoteUrl,
-  repairAndRetryPushOnDuplicate,
-} from "./s3-repair";
+
+// PERF-004 — lazy S3 loading. The AWS SDK (@aws-sdk/client-s3, ~91ms measured)
+// must never load on read-only paths: recall/list-keys/status transitively
+// import this module, so every s3-module import is deferred into the function
+// that needs it (the autopush / commit paths). Type-only imports are erased
+// at compile time and stay static. NOTE: a bare require() here breaks under
+// vitest (its transform pipeline does not hook CJS require of TS sources —
+// "Cannot find module '../s3'"), so loadS3 uses a dynamic import with a
+// require() fallback for the compiled dist/ CJS path.
+let s3ModulePromise: Promise<typeof import("../s3/index.js")> | null = null;
+function loadS3(): Promise<typeof import("../s3/index.js")> {
+  if (!s3ModulePromise) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const m = require("../s3") as typeof import("../s3/index.js");
+      s3ModulePromise = Promise.resolve(m);
+    } catch {
+      s3ModulePromise = import("../s3/index.js");
+    }
+  }
+  return s3ModulePromise;
+}
+let s3RepairPromise: Promise<typeof import("./s3-repair.js")> | null = null;
+async function loadS3Repair(): Promise<typeof import("./s3-repair.js")> {
+  if (!s3RepairPromise) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      s3RepairPromise = Promise.resolve(
+        require("./s3-repair") as typeof import("./s3-repair.js"),
+      );
+    } catch {
+      s3RepairPromise = import("./s3-repair.js");
+    }
+  }
+  return s3RepairPromise;
+}
 import { Mutex } from "async-mutex";
 import {
   acquireNamespaceWriteLock,
@@ -503,8 +532,7 @@ async function asyncCommit(
     // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
     // default config = zero pushes), interval-coalesced and single-flight.
     // Fire-and-forget: never blocks or fails the write path.
-    maybeSyncOnCommit(namespacePath);
-    // AUTOPUSH-001: push the namespace repo to the s3daily remote after each
+    await loadS3().then((s3) => s3.maybeSyncOnCommit(namespacePath));
     // commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>), gated
     // by the PUSH-001 config checks, never holding the event loop for the
     // bundle + pack-objects duration.
@@ -675,7 +703,9 @@ function immediateCommit(namespacePath: string, message: string): void {
     // the 03:47 daily cron. Shares the gate state with the serving path.
     // Outside the lock (DF-0925-02): the push is history transport, not part
     // of the data+audit pairing guarantee.
-    maybeSyncOnCommit(namespacePath);
+    void loadS3()
+      .then((s3) => s3.maybeSyncOnCommit(namespacePath))
+      .catch(() => undefined);
     pushNamespace(namespacePath);
   } catch (error) {
     // Log but don't fail the tool — git is best-effort.
@@ -953,14 +983,21 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
       // once. Best-effort and bounded: any repair failure logs and falls
       // through to the standard warning below. Happy path: zero added S3
       // calls, zero behavior change.
-      if (s3 && remote && branch && isDuplicateRefPushError(message)) {
+      if (
+        s3 &&
+        remote &&
+        branch &&
+        (await loadS3Repair()).isDuplicateRefPushError(message)
+      ) {
         try {
           const remoteUrl = (
             await gitAsync(["remote", "get-url", remote], namespacePath)
           ).trim();
-          const parsed = parseS3RemoteUrl(remoteUrl);
+          const s3Repair = await loadS3Repair();
+          const parsed = s3Repair.parseS3RemoteUrl(remoteUrl);
           if (parsed) {
-            recovered = await repairAndRetryPushOnDuplicate({
+            const { buildClient } = await loadS3();
+            recovered = await s3Repair.repairAndRetryPushOnDuplicate({
               client: buildClient(s3),
               bucket: parsed.bucket,
               keyPrefix: parsed.keyPrefix,
@@ -979,7 +1016,7 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
                     },
                   },
                 ),
-              log: (line) => console.warn(`[Git] ${line}`),
+              log: (line: string) => console.warn(`[Git] ${line}`),
             });
             if (recovered) gateState.lastPushedHead = head;
           }
