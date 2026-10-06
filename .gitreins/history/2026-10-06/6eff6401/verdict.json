@@ -1,0 +1,102 @@
+{
+  "task_id": "TESTQ-001",
+  "task_title": "Add mutation/red-proof test gate to CI",
+  "task_criteria": [
+    "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "c26e06047371db83a938edf278a3ec2f191c1bb2",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:22PM INF scanned ~41104899 bytes (41.10 MB) in 3.74s\n3:22PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 995029 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  15:21:57\n   Duration  57.47s (tests 76%, import 21%, transform 2%, worker 1%)\n\n    Isolate  205 workers spawned \u00b7 ~85ms startup each (spawn + environment, per file)\n             at least ~4.26s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: A gate exists and is wired into CI (.github/workflows/ci.yml:90-91 runs `bash scripts/red-proof-gate.sh`; package.json has \"test:mutation\": \"bash scripts/red-proof-gate.sh\"), but it is BROKEN and does not achieve red-proof verification. (1) The mutation is a no-op: scripts/red-proof-gate.sh:23 runs `sed -i 's/return target instanceof DurabilityError/return false/g' \"$PROD\"`, but src/storage/durability-errors.ts:61 actually reads `error instanceof DurabilityError ||` (variable is `error`, not `target`, and there is no `return` prefix). Verified by diffing the sed output against the source: NO CHANGE. (2) Running the gate reproducibly exits 1: `bash scripts/red-proof-gate.sh` \u2192 exit code 1, output 'FAIL: tests passed on broken code \u2014 phantom suite detected' (7 tests passed because production code was never actually mutated). The gate therefore fails CI unconditionally while proving nothing. (3) Even applying a REAL mutation manually (`error instanceof DurabilityError ||` \u2192 `false ||`) leaves the pinned test file src/test/red-proof-gate.test.ts passing 7/7, because isDurabilityError's fallback branch (`name === \"DurabilityError\" && typeof code === \"string\"`) still returns true for real DurabilityError instances \u2014 so the test 'isDurabilityError returns true for DurabilityError instances' passes via the fallback even with instanceof removed. The test file is not red-proof for the mutation it claims to guard. (4) Stryker is explicitly dormant (stryker.config.mjs notes TS 7 incompatibility), so no working alternative gate exists. The criterion's requirement \u2014 tests must FAIL on the broken/pre-fix tree and a working mutation/verification gate must be in CI \u2014 is not met.\nThe red-proof gate is wired into CI but is non-functional: its sed mutation never matches the source (no-op), it exits 1 unconditionally, and even a real mutation leaves the pinned tests green \u2014 so it provides no red-proof guarantee.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: A gate exists and is wired into CI (.github/workflows/ci.yml:90-91 runs `bash scripts/red-proof-gate.sh`; package.json has \"test:mutation\": \"bash scripts/red-proof-gate.sh\"), but it is BROKEN and does not achieve red-proof verification. (1) The mutation is a no-op: scripts/red-proof-gate.sh:23 runs `sed -i 's/return target instanceof DurabilityError/return false/g' \"$PROD\"`, but src/storage/durability-errors.ts:61 actually reads `error instanceof DurabilityError ||` (variable is `error`, not `target`, and there is no `return` prefix). Verified by diffing the sed output against the source: NO CHANGE. (2) Running the gate reproducibly exits 1: `bash scripts/red-proof-gate.sh` \u2192 exit code 1, output 'FAIL: tests passed on broken code \u2014 phantom suite detected' (7 tests passed because production code was never actually mutated). The gate therefore fails CI unconditionally while proving nothing. (3) Even applying a REAL mutation manually (`error instanceof DurabilityError ||` \u2192 `false ||`) leaves the pinned test file src/test/red-proof-gate.test.ts passing 7/7, because isDurabilityError's fallback branch (`name === \"DurabilityError\" && typeof code === \"string\"`) still returns true for real DurabilityError instances \u2014 so the test 'isDurabilityError returns true for DurabilityError instances' passes via the fallback even with instanceof removed. The test file is not red-proof for the mutation it claims to guard. (4) Stryker is explicitly dormant (stryker.config.mjs notes TS 7 incompatibility), so no working alternative gate exists. The criterion's requirement \u2014 tests must FAIL on the broken/pre-fix tree and a working mutation/verification gate must be in CI \u2014 is not met.\nThe red-proof gate is wired into CI but is non-functional: its sed mutation never matches the source (no-op), it exits 1 unconditionally, and even a real mutation leaves the pinned tests green \u2014 so it provides no red-proof guarantee.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.",
+                "status": "FAIL",
+                "detail": "A gate exists and is wired into CI (.github/workflows/ci.yml:90-91 runs `bash scripts/red-proof-gate.sh`; package.json has \"test:mutation\": \"bash scripts/red-proof-gate.sh\"), but it is BROKEN and does not achieve red-proof verification. (1) The mutation is a no-op: scripts/red-proof-gate.sh:23 runs `sed -i 's/return target instanceof DurabilityError/return false/g' \"$PROD\"`, but src/storage/durability-errors.ts:61 actually reads `error instanceof DurabilityError ||` (variable is `error`, not `target`, and there is no `return` prefix). Verified by diffing the sed output against the source: NO CHANGE. (2) Running the gate reproducibly exits 1: `bash scripts/red-proof-gate.sh` \u2192 exit code 1, output 'FAIL: tests passed on broken code \u2014 phantom suite detected' (7 tests passed because production code was never actually mutated). The gate therefore fails CI unconditionally while proving nothing. (3) Even applying a REAL mutation manually (`error instanceof DurabilityError ||` \u2192 `false ||`) leaves the pinned test file src/test/red-proof-gate.test.ts passing 7/7, because isDurabilityError's fallback branch (`name === \"DurabilityError\" && typeof code === \"string\"`) still returns true for real DurabilityError instances \u2014 so the test 'isDurabilityError returns true for DurabilityError instances' passes via the fallback even with instanceof removed. The test file is not red-proof for the mutation it claims to guard. (4) Stryker is explicitly dormant (stryker.config.mjs notes TS 7 incompatibility), so no working alternative gate exists. The criterion's requirement \u2014 tests must FAIL on the broken/pre-fix tree and a working mutation/verification gate must be in CI \u2014 is not met.",
+                "resolution_probability": 0.35
+              }
+            ],
+            "summary": "The red-proof gate is wired into CI but is non-functional: its sed mutation never matches the source (no-op), it exits 1 unconditionally, and even a real mutation leaves the pinned tests green \u2014 so it provides no red-proof guarantee."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: A gate exists and is wired into CI (.github/workflows/ci.yml:90-91 runs `bash scripts/red-proof-gate.sh`; package.json has \"test:mutation\": \"bash scripts/red-proof-gate.sh\"), but it is BROKEN and does not achieve red-proof verification. (1) The mutation is a no-op: scripts/red-proof-gate.sh:23 runs `sed -i 's/return target instanceof DurabilityError/return false/g' \"$PROD\"`, but src/storage/durability-errors.ts:61 actually reads `error instanceof DurabilityError ||` (variable is `error`, not `target`, and there is no `return` prefix). Verified by diffing the sed output against the source: NO CHANGE. (2) Running the gate reproducibly exits 1: `bash scripts/red-proof-gate.sh` \u2192 exit code 1, output 'FAIL: tests passed on broken code \u2014 phantom suite detected' (7 tests passed because production code was never actually mutated). The gate therefore fails CI unconditionally while proving nothing. (3) Even applying a REAL mutation manually (`error instanceof DurabilityError ||` \u2192 `false ||`) leaves the pinned test file src/test/red-proof-gate.test.ts passing 7/7, because isDurabilityError's fallback branch (`name === \"DurabilityError\" && typeof code === \"string\"`) still returns true for real DurabilityError instances \u2014 so the test 'isDurabilityError returns true for DurabilityError instances' passes via the fallback even with instanceof removed. The test file is not red-proof for the mutation it claims to guard. (4) Stryker is explicitly dormant (stryker.config.mjs notes TS 7 incompatibility), so no working alternative gate exists. The criterion's requirement \u2014 tests must FAIL on the broken/pre-fix tree and a working mutation/verification gate must be in CI \u2014 is not met.\nThe red-proof gate is wired into CI but is non-functional: its sed mutation never matches the source (no-op), it exits 1 unconditionally, and even a real mutation leaves the pinned tests green \u2014 so it provides no red-proof guarantee.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T20:24:12.417788",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T20:24:12.434091+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 9255,
+        "truncated": false,
+        "source": "git show c26e06047371"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 356,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-001"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "task_id": "TESTQ-001",
+  "task_title": "Add mutation/red-proof test gate to CI",
+  "task_criteria": [
+    "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "f70aad77e3887c5f0f73cc81bc8f6aace37d2735",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:27PM INF scanned ~41105325 bytes (41.11 MB) in 5.12s\n3:27PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 995050 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts (4 tests) 157ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-pagination-gap024.test.ts > GAP-024: pagination response correctness \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"infra\",\\n  \u2026' to be '{\\n  \"defaultNamespace\": \"infra\",\\n  \u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -15098,12 +15098,11 @@\n      \"auger-pytest-97bcd4eba095\": \"/home/kara/duckbrain/namespaces/auger-pytest-97bcd4eba095\",\n      \"auger-pytest-44f28ab41692\": \"/home/kara/duckbrain/namespaces/auger-pytest-44f28ab41692\",\n      \"auger-pytest-89bec79bb09a\": \"/home/kara/duckbrain/namespaces/auger-pytest-89bec79bb09a\",\n      \"auger-pytest-f93a8acee29a\": \"/home/kara/duckbrain/namespaces/auger-pytest-f93a8acee29a\",\n      \"auger-pytest-a7e25dd3cf04\": \"/home/kara/duckbrain/namespaces/auger-pytest-a7e25dd3cf04\",\n-     \"auger-pytest-ad4ac25df050\": \"/home/kara/duckbrain/namespaces/auger-pytest-ad4ac25df050\",\n-     \"auger-pytest-333257794be8\": \"/home/kara/duckbrain/namespaces/auger-pytest-333257794be8\"\n+     \"auger-pytest-ad4ac25df050\": \"/home/kara/duckbrain/namespaces/auger-pytest-ad4ac25df050\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts:136:30\n    134|     server.close();\n    135|     // GAP-022 AC1: config file must be byte-identical after the test \u2026\n    136|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    137|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    138|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 204 passed (205)\n      Tests  1658 passed (1658)\n   Start at  15:27:13\n   Duration  57.33s (tests 76%, import 21%, transform 2%, worker 1%)\n\n    Isolate  205 workers spawned \u00b7 ~84ms startup each (spawn + environment, per file)\n             at least ~4.24s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate wired in .github/workflows/ci.yml (committed HEAD): step 'Red-proof gate (mutation verification)' runs `bash scripts/red-proof-gate.sh` (env CI:true). scripts/red-proof-gate.sh mutates src/storage/durability-errors.ts (isDurabilityError -> return false), runs pinned test src/test/red-proof-gate.test.ts, and requires it to FAIL. Verified by execution: positive run exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' and vitest 'Tests 1 failed | 6 passed (7)'. Negative run (replaced test with tautological expect(true).toBe(true)) exit_code=1 with 'FAIL: Red-proof gate FAILED. Tests PASSED even after production code was broken. This means the tests are PHANTOMS.' \u2014 proving a test that passes before and after a fix is blocked. Production file restored after run (git status src/ clean; 'error instanceof DurabilityError' present). Pinned test passes normally: `npx vitest run src/test/red-proof-gate.test.ts` -> 7 passed (7). package.json exposes 'test:mutation': 'bash scripts/red-proof-gate.sh' and @stryker-mutator deps.\nA working red-proof mutation gate is committed and wired into CI; it fails on the mutated (pre-fix) tree and blocks phantom tests that pass regardless of production breakage.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate wired in .github/workflows/ci.yml (committed HEAD): step 'Red-proof gate (mutation verification)' runs `bash scripts/red-proof-gate.sh` (env CI:true). scripts/red-proof-gate.sh mutates src/storage/durability-errors.ts (isDurabilityError -> return false), runs pinned test src/test/red-proof-gate.test.ts, and requires it to FAIL. Verified by execution: positive run exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' and vitest 'Tests 1 failed | 6 passed (7)'. Negative run (replaced test with tautological expect(true).toBe(true)) exit_code=1 with 'FAIL: Red-proof gate FAILED. Tests PASSED even after production code was broken. This means the tests are PHANTOMS.' \u2014 proving a test that passes before and after a fix is blocked. Production file restored after run (git status src/ clean; 'error instanceof DurabilityError' present). Pinned test passes normally: `npx vitest run src/test/red-proof-gate.test.ts` -> 7 passed (7). package.json exposes 'test:mutation': 'bash scripts/red-proof-gate.sh' and @stryker-mutator deps.\nA working red-proof mutation gate is committed and wired into CI; it fails on the mutated (pre-fix) tree and blocks phantom tests that pass regardless of production breakage.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.",
+                "status": "PASS",
+                "detail": "CI gate wired in .github/workflows/ci.yml (committed HEAD): step 'Red-proof gate (mutation verification)' runs `bash scripts/red-proof-gate.sh` (env CI:true). scripts/red-proof-gate.sh mutates src/storage/durability-errors.ts (isDurabilityError -> return false), runs pinned test src/test/red-proof-gate.test.ts, and requires it to FAIL. Verified by execution: positive run exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' and vitest 'Tests 1 failed | 6 passed (7)'. Negative run (replaced test with tautological expect(true).toBe(true)) exit_code=1 with 'FAIL: Red-proof gate FAILED. Tests PASSED even after production code was broken. This means the tests are PHANTOMS.' \u2014 proving a test that passes before and after a fix is blocked. Production file restored after run (git status src/ clean; 'error instanceof DurabilityError' present). Pinned test passes normally: `npx vitest run src/test/red-proof-gate.test.ts` -> 7 passed (7). package.json exposes 'test:mutation': 'bash scripts/red-proof-gate.sh' and @stryker-mutator deps.",
+                "resolution_probability": 0.32
+              }
+            ],
+            "summary": "A working red-proof mutation gate is committed and wired into CI; it fails on the mutated (pre-fix) tree and blocks phantom tests that pass regardless of production breakage."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: CI gate wired in .github/workflows/ci.yml (committed HEAD): step 'Red-proof gate (mutation verification)' runs `bash scripts/red-proof-gate.sh` (env CI:true). scripts/red-proof-gate.sh mutates src/storage/durability-errors.ts (isDurabilityError -> return false), runs pinned test src/test/red-proof-gate.test.ts, and requires it to FAIL. Verified by execution: positive run exit_code=0 with output 'PASS: Red-proof gate works correctly. Tests correctly FAIL when isDurabilityError is broken.' and vitest 'Tests 1 failed | 6 passed (7)'. Negative run (replaced test with tautological expect(true).toBe(true)) exit_code=1 with 'FAIL: Red-proof gate FAILED. Tests PASSED even after production code was broken. This means the tests are PHANTOMS.' \u2014 proving a test that passes before and after a fix is blocked. Production file restored after run (git status src/ clean; 'error instanceof DurabilityError' present). Pinned test passes normally: `npx vitest run src/test/red-proof-gate.test.ts` -> 7 passed (7). package.json exposes 'test:mutation': 'bash scripts/red-proof-gate.sh' and @stryker-mutator deps.\nA working red-proof mutation gate is committed and wired into CI; it fails on the mutated (pre-fix) tree and blocks phantom tests that pass regardless of production breakage.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T20:28:39.626234",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T20:28:39.642275+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2872,
+        "truncated": false,
+        "source": "git show f70aad77e388"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 356,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-001"
+  }
+}
