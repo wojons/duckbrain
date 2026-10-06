@@ -1,0 +1,45 @@
+commit c587b59800af9ae092cce229d47d59fe5d43622d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 15:52:50 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 15:52:50 2026 -0500
+
+    fix(ci): parametrize red-proof-gate.sh prod path — drop hardcoded /home/kara/duckbrain
+    
+    The mutation script read/wrote an absolute host path, so the gate could never
+    run on a CI runner (FileNotFoundError on every push since TESTQ-001 landed).
+    It now uses the REPO_ROOT-resolved $PROD argument.
+    
+    ch:trace row=TESTQ-002 spec=none:none wave=none:none test=scripts/red-proof-gate.sh doc=none:none prompt=none:none evidence=bash-scripts-red-proof-gate-pass-2026-10-06 witness=live:local-gate-run-mutation-applied-tests-went-red verdict=TESTQ-002 commit=838bc065e3174ff7416d9bbf9820b18ac7eb46dc memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ scripts/red-proof-gate.sh | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/red-proof-gate.sh b/scripts/red-proof-gate.sh
+index a835752..3127546 100755
+--- a/scripts/red-proof-gate.sh
++++ b/scripts/red-proof-gate.sh
+@@ -19,9 +19,10 @@ fi
+ 
+ # Save original and apply mutation using Python for precision
+ cp "$PROD" /tmp/de-backup.ts
+-python3 << 'PYEOF'
++python3 - "$PROD" << 'PYEOF'
+ import sys
+-with open("/home/kara/duckbrain/src/storage/durability-errors.ts") as f:
++path = sys.argv[1]
++with open(path) as f:
+     content = f.read()
+ 
+ old_func = """export function isDurabilityError(error: unknown): error is DurabilityError {
+@@ -40,7 +41,7 @@ new_func = """export function isDurabilityError(error: unknown): error is Durabi
+ 
+ if old_func in content:
+     content = content.replace(old_func, new_func, 1)
+-    with open("/home/kara/duckbrain/src/storage/durability-errors.ts", "w") as f:
++    with open(path, "w") as f:
+         f.write(content)
+     print("MUTATION applied successfully")
+ else:
