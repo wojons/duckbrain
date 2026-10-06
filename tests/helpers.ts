@@ -174,7 +174,9 @@ export function sleep(ms: number): Promise<void> {
 }
 
 export function getRandomPort(): number {
-  return 30000 + Math.floor(Math.random() * 20000);
+  // 21000-29999: below the OS ephemeral range (32768-60999). Drawing from
+  // 30000+ raced runner connections into EADDRINUSE (CI run 37502128620).
+  return 21000 + Math.floor(Math.random() * 9000);
 }
 
 export async function startDuckbrainHttp(opts: {
