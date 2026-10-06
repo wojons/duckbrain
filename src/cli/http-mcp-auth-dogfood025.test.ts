@@ -21,7 +21,7 @@
  *  4. The /mcp route itself is behind auth (no key -> 401), proving the
  *     stamping came from a genuinely authenticated request.
  *
- * Hermeticity: the daemon runs with DUCKBRAIN_DATA_DIR /
+ * Hermeticity: the daemon runs with DUCKBRAIN_NAMESPACES_PATH /
  * DUCKBRAIN_NAMESPACES_PATH / --auth-file all in temp dirs — the real
  * ~/.duckbrain/auth.json and the repo's ./namespaces are never touched.
  */
@@ -86,7 +86,6 @@ function spawnHttpServer(
     {
       env: {
         ...process.env,
-        DUCKBRAIN_DATA_DIR: dataDir,
         DUCKBRAIN_NAMESPACES_PATH: nsPath,
         NO_COLOR: "1",
         // Fast-fail embedding probe so /health answers promptly
@@ -193,7 +192,6 @@ describe("DOGFOOD-025: MCP-over-HTTP remember stamps the authenticated token aut
       cwd: dataDir,
       env: {
         ...process.env,
-        DUCKBRAIN_DATA_DIR: dataDir,
         DUCKBRAIN_NAMESPACES_PATH: nsPath,
         NO_COLOR: "1",
       },
@@ -300,7 +298,6 @@ describe("DOGFOOD-025: MCP-over-HTTP remember stamps the authenticated token aut
       cwd: dataDir,
       env: {
         ...process.env,
-        DUCKBRAIN_DATA_DIR: dataDir,
         DUCKBRAIN_NAMESPACES_PATH: nsPath,
         NO_COLOR: "1",
       },

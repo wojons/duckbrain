@@ -19,7 +19,7 @@
  *  4. A missing DUCKBRAIN_AUTH_FILE path is CREATED on first mint (the env
  *     override is a write-target redirect for scratch workflows).
  *
- * Hermeticity: spawned CLI runs use DUCKBRAIN_DATA_DIR / DUCKBRAIN_NAMESPACES_PATH
+ * Hermeticity: spawned CLI runs use DUCKBRAIN_NAMESPACES_PATH
  * in temp dirs (auth-file.test.ts pattern); nothing here ever writes to the
  * real ~/.duckbrain/auth.json — the prod file is only READ for the unchanged
  * assertion, and only its sha256 is compared so a failure can never print
@@ -73,7 +73,6 @@ function runTokenCli(
     const { dataDir, nsPath } = prepareDataDir("duckbrain-dogfood026-");
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      DUCKBRAIN_DATA_DIR: dataDir,
       DUCKBRAIN_NAMESPACES_PATH: nsPath,
       NO_COLOR: "1",
       ...extraEnv,

@@ -15,7 +15,7 @@
  *     temp file (401 without key, 200 with the temp file's key) and leaves
  *     the REAL ~/.duckbrain/auth.json byte-identical (content hash + mtime).
  *
- * Hermeticity: daemons run with DUCKBRAIN_DATA_DIR / DUCKBRAIN_NAMESPACES_PATH
+ * Hermeticity: daemons run with DUCKBRAIN_NAMESPACES_PATH
  * in temp dirs (http.test.ts pattern); nothing here ever writes to the real
  * ~/.duckbrain/auth.json — the prod file is only READ for the unchanged
  * assertion, and only its sha256 is compared so a failure can never print
@@ -96,7 +96,6 @@ function spawnHttpServer(
 ): ChildProcess {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    DUCKBRAIN_DATA_DIR: dataDir,
     DUCKBRAIN_NAMESPACES_PATH: nsPath,
     NO_COLOR: "1",
     // Fast-fail embedding probe so /health answers promptly (tests/helpers.ts

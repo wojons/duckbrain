@@ -442,7 +442,6 @@ describe("OPS-006: short-lived CLI processes still commit and push (criterion 4)
       ...process.env,
       DUCKBRAIN_CONFIG_PATH: configPath,
       DUCKBRAIN_NAMESPACES_PATH: nsRoot,
-      DUCKBRAIN_DATA_DIR: root,
       NO_COLOR: "1",
     };
     delete env.DUCKBRAIN_DURABILITY_MODE;
