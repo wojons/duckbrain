@@ -116,15 +116,40 @@ function addExternalPartition() {
   );
 }
 
+// Bounded-retry removal: the async git autocommitter can still be flushing
+// <ns>/.git right after drainAsyncCommits() resolves (sigterm flush window),
+// so a plain rmSync can hit ENOTEMPTY (class: node-vitest-temp-git-enotempty-
+// cleanup-race — DB-GAP-063 third flake). Retry with backoff instead of
+// weakening assertions or touching product code.
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function rmNamespaceDir(): void {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      fs.rmSync(nsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 25 });
+      return;
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") throw err;
+      lastErr = err;
+      sleepSync(50 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 beforeEach(() => {
-  fs.rmSync(nsPath, { recursive: true, force: true });
+  rmNamespaceDir();
   fs.mkdirSync(nsPath, { recursive: true });
   process.env.DUCKBRAIN_KEYS_CACHE = "on";
 });
 
 afterEach(async () => {
   await drainAsyncCommits();
-  fs.rmSync(nsPath, { recursive: true, force: true });
+  rmNamespaceDir();
   delete process.env.DUCKBRAIN_KEYS_CACHE;
 });
 
