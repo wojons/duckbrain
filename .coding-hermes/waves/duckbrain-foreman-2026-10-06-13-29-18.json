@@ -7,7 +7,7 @@
       "id": "S3-GIT-007",
       "worktree": "/home/kara/worktrees/duckbrain-S3-GIT-007",
       "branch": "wt/S3-GIT-007",
-      "status": "existing_branch",
+      "status": "merged",
       "commit": "2467c2e",
       "worker_model": "glm-5.3-flash@zai-glm",
       "dispatched_at": "2026-10-04T05:51:58-05:00"
@@ -16,7 +16,7 @@
       "id": "DF-1003-01",
       "worktree": "/home/kara/worktrees/duckbrain-DF-1003-01",
       "branch": "wt/DF-1003-01",
-      "status": "existing_branch",
+      "status": "merged",
       "commit": "4560fe4",
       "worker_model": "glm-5.3-flash@zai-glm",
       "dispatched_at": "2026-10-04T05:53:56-05:00"
@@ -25,31 +25,40 @@
       "id": "GATE-PARTITION-001",
       "worktree": "/home/kara/worktrees/duckbrain-GATE-PARTITION-001",
       "branch": "wt/GATE-PARTITION-001",
-      "status": "dispatching",
+      "status": "merged",
       "worker_model": "glm-5.3-flash@zai-glm"
     },
     {
       "id": "CLI-VERSION-001",
       "worktree": "/home/kara/worktrees/duckbrain-CLI-VERSION-001",
       "branch": "wt/CLI-VERSION-001",
-      "status": "dispatching",
+      "status": "merged",
       "worker_model": "glm-5.3-flash@zai-glm"
     },
     {
       "id": "S3-QUERY-SCHEME-001",
       "worktree": "/home/kara/worktrees/duckbrain-S3-QUERY-SCHEME-001",
       "branch": "wt/S3-QUERY-SCHEME-001",
-      "status": "dispatching",
+      "status": "merged",
       "worker_model": "glm-5.3-flash@zai-glm"
     },
     {
       "id": "DF-0924-09",
       "worktree": "/home/kara/worktrees/duckbrain-DF-0924-09",
       "branch": "wt/DF-0924-09",
-      "status": "dispatching",
+      "status": "not_dispatched",
       "worker_model": "glm-5.3-flash@zai-glm"
     }
   ],
-  "merge_order": ["S3-GIT-007", "DF-1003-01", "GATE-PARTITION-001", "CLI-VERSION-001", "S3-QUERY-SCHEME-001", "DF-0924-09"],
-  "created_at": "2026-10-06T13:29:18-05:00"
+  "merge_order": [
+    "S3-GIT-007",
+    "DF-1003-01",
+    "GATE-PARTITION-001",
+    "CLI-VERSION-001",
+    "S3-QUERY-SCHEME-001",
+    "DF-0924-09"
+  ],
+  "created_at": "2026-10-06T13:29:18-05:00",
+  "finished_at": "2026-10-06T14:35:00-05:00",
+  "recovery_note": "All 6 tasks complete; branch content already on origin/main (git cherry vs a74b40b = 0 unique each; fixes reachable from a74b40b). Worktrees+branches reaped 2026-10-06. DF-0924-09 was never dispatched (row pending); worktree reaped as no-op."
 }
