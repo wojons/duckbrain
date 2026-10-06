@@ -1,0 +1,692 @@
+/**
+ * DuckBrain Squash/Compaction Module
+ *
+ * Reduces repository bloat by:
+ * - Converting old JSONL partitions to Parquet format
+ * - Removing tombstoned records during compaction
+ * - Optionally squashing git history for compacted partitions
+ *
+ * Configurable aggressiveness: from manual-only to continuous background compaction.
+ */
+// @ts-nocheck
+
+
+import * as fs from "fs";
+import * as path from "path";
+import { safeJsonStringify } from "../utils/serialize";
+import { getManifest, type Manifest } from "../storage/manifest";
+import { getDuckDBConnection } from "../duckdb/connection";
+import { READ_JSON_COLUMNS } from "../duckdb/queries";
+import { execSync } from "child_process";
+import { compareChunkNames } from "../storage/jsonl";
+import {
+  invalidateKeysCache,
+  namespacePathForPartition,
+} from "../keys/keyListCache";
+
+/**
+ * Squash operation options
+ */
+export interface SquashOptions {
+  /** Specific partition path to squash (default: all old partitions) */
+  partition?: string;
+  /** Preview changes without modifying files */
+  dryRun?: boolean;
+  /** Squash git history for compacted partitions */
+  squashCommits?: boolean;
+  /** Compression level for Parquet (1-9, default: 6) */
+  compressionLevel?: number;
+}
+
+/**
+ * Compaction statistics
+ */
+export interface CompactionStats {
+  /** Total repository size in bytes */
+  totalSize: number;
+  /** Total number of partitions */
+  totalPartitions: number;
+  /** Number of Parquet partitions */
+  parquetPartitions: number;
+  /** Number of JSONL partitions */
+  jsonlPartitions: number;
+  /** Total records across all partitions */
+  totalRecords: number;
+  /** Number of tombstone records */
+  tombstoneRecords: number;
+  /** Percentage of tombstones */
+  tombstonePercent: number;
+  /** Percentage of Parquet partitions */
+  parquetRatio: number;
+  /** Partitions older than 30 days */
+  oldPartitions: string[];
+  /** Partitions exceeding size threshold */
+  largePartitions: Array<{ path: string; size: number; records: number }>;
+}
+
+/**
+ * Squash a single partition
+ *
+ * Converts JSONL to Parquet, removes tombstones, optionally squashes git history.
+ *
+ * @param partitionPath - Absolute path to partition directory
+ * @param options - Squash options
+ * @returns Statistics about the squash operation
+ */
+export async function squashPartition(
+  partitionPath: string,
+  options: SquashOptions = {},
+): Promise<{
+  success: boolean;
+  recordsKept: number;
+  recordsRemoved: number;
+  parquetPath?: string;
+  error?: string;
+}> {
+  const {
+    dryRun = false,
+    squashCommits = true,
+    compressionLevel = 6,
+  } = options;
+
+  try {
+    // Check partition exists
+    if (!fs.existsSync(partitionPath)) {
+      return {
+        success: false,
+        recordsKept: 0,
+        recordsRemoved: 0,
+        error: `Partition not found: ${partitionPath}`,
+      };
+    }
+
+    // Find all JSONL files in partition
+    const jsonlFiles = fs
+      .readdirSync(partitionPath)
+      .filter((f: string) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames)
+      .map((f: string) => path.join(partitionPath, f));
+
+    if (jsonlFiles.length === 0) {
+      return {
+        success: false,
+        recordsKept: 0,
+        recordsRemoved: 0,
+        error: "No JSONL files found in partition",
+      };
+    }
+
+    // Read all records from JSONL files (jsonlFiles are absolute paths)
+    const allRecords: Array<Record<string, any>> = [];
+    for (const jsonlFile of jsonlFiles) {
+      const content = fs.readFileSync(jsonlFile, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim() !== "");
+      for (const line of lines) {
+        try {
+          const record = JSON.parse(line) as Record<string, any>;
+          allRecords.push(record);
+        } catch (err) {
+          console.warn(
+            `Warning: Could not parse line in ${jsonlFile}: ${line}`,
+          );
+        }
+      }
+    }
+
+    // Filter out tombstoned records (action === 'tombstone' or action === 'forget')
+    const liveRecords = allRecords.filter(
+      (r) => r.action !== "tombstone" && r.action !== "forget",
+    );
+    const tombstoneCount = allRecords.length - liveRecords.length;
+
+    if (dryRun) {
+      return {
+        success: true,
+        recordsKept: liveRecords.length,
+        recordsRemoved: tombstoneCount,
+        parquetPath: undefined,
+      };
+    }
+
+    // Convert to Parquet using DuckDB
+    // Use singleton mode with partition path as namespace identifier
+    const db = getDuckDBConnection("singleton", partitionPath);
+    const parquetFileName = `data-${Date.now()}.parquet`;
+    const parquetPath = path.join(partitionPath, parquetFileName);
+
+    // Create temporary table with records
+    // Note: DuckDB Node.js bindings - use run() for DDL, all() for queries
+    // DOGFOOD-019: the previous read_json_auto call auto-inferred a
+    // heterogeneous `attributes` object as MAP(...); duplicate keys inside a
+    // stored attributes object (valid per RFC 8259, produced by external
+    // writers — JSON.parse in-process silently collapses them) then fail MAP
+    // conversion with `duckdb::InvalidInputException: Map keys must be
+    // unique.` — a native throw that escapes the libuv worker thread →
+    // std::terminate → SIGABRT → the whole daemon dies. Same crash class as
+    // DOGFOOD-010/018; the explicit all-VARCHAR schema (shared with
+    // src/duckdb/queries.ts) makes `attributes` arrive as RAW JSON TEXT, so
+    // no MAP/STRUCT is ever built and duplicate keys become harmless.
+    // ignore_errors=true converts any remaining per-record conversion error
+    // into an all-NULL row, which the `action NOT IN ('tombstone', 'forget')`
+    // filter below drops instead of a native throw.
+    const fileList = jsonlFiles
+      .map((f: string) => f.replace(/\\/g, "/"))
+      .map((f: string) => `'${f}'`)
+      .join(", ");
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `CREATE TEMP TABLE records AS SELECT * FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})`,
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    // Filter out tombstones and write to Parquet.
+    // DB-GAP-053: the compacted artifact must be deterministic. Without an
+    // ORDER BY the row order inside the Parquet is whatever the read_json
+    // scan produced (file list order, potentially parallel,
+    // version-dependent). Order by the PARSED timestamp — the same doctrine
+    // as the RETR-005 read path (DEFAULT_ORDER_BY in src/duckdb/queries.ts):
+    // a text ORDER BY on the timestamp column misorders the mixed corpus
+    // formats ('.749Z' vs '.676525+00:00', RETR-003). NULLS LAST pins
+    // unparseable/missing timestamps at the bottom deterministically (the
+    // COPY must not crash on them), and `id ASC` is the stable tiebreaker
+    // for equal parsed instants — ids are unique per record, so the
+    // (parsed timestamp, id) tuple is a total order and repeated squashes
+    // of identical input produce byte-identical artifacts.
+    await new Promise<void>((resolve, reject) => {
+      db.run(
+        `COPY (SELECT * FROM records WHERE action NOT IN ('tombstone', 'forget') ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC) TO '${parquetPath.replace(/\\/g, "/")}' (FORMAT PARQUET, COMPRESSION 'ZSTD', COMPRESSION_LEVEL ${compressionLevel})`,
+        (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    // Remove old JSONL files after successful Parquet write
+    for (const jsonlFile of jsonlFiles) {
+      fs.unlinkSync(jsonlFile);
+    }
+
+    // PERF-001: a compaction rewrite removes keys — invalidate the key-list
+    // cache so the next list_keys rebuilds (best-effort, never throws).
+    const perfNsPath = findNamespacePath(partitionPath);
+    if (perfNsPath) invalidateKeysCache(perfNsPath);
+
+    // Update manifest to reflect Parquet format
+    const namespacePath = findNamespacePath(partitionPath);
+    if (namespacePath) {
+      const manifest = getManifest(namespacePath);
+      // Mark partition as compacted (could add a flag or metadata)
+      manifest.lastUpdated = new Date().toISOString();
+      writeManifestAtomic(namespacePath, manifest);
+    }
+
+    // Optionally squash git history
+    if (squashCommits) {
+      try {
+        squashGitHistory(partitionPath);
+      } catch (gitErr) {
+        console.warn(
+          `Warning: Git history squash failed: ${gitErr instanceof Error ? gitErr.message : gitErr}`,
+        );
+        // Continue anyway - Parquet conversion succeeded
+      }
+    }
+
+    return {
+      success: true,
+      recordsKept: liveRecords.length,
+      recordsRemoved: tombstoneCount,
+      parquetPath,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      recordsKept: 0,
+      recordsRemoved: 0,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Compact history for partitions older than specified age
+ *
+ * @param options - Compaction options
+ * @returns Compaction results
+ */
+export async function compactHistory(options: {
+  /** Max age in days (default: 30) */
+  maxAge?: number;
+  /** Minimum records threshold (default: 1000) */
+  threshold?: number;
+  /** Dry run mode */
+  dryRun?: boolean;
+  /** Squash git history */
+  squashCommits?: boolean;
+  /** Namespace path to compact — resolved by the caller from config
+   *  (DOGFOOD-014: previously hardcoded to cwd/.duckbrain/namespaces/
+   *  default, which never exists in configured deployments) */
+  namespacePath: string;
+}): Promise<{
+  success: boolean;
+  partitionsCompacted: number;
+  totalRecordsKept: number;
+  totalRecordsRemoved: number;
+  errors?: string[];
+}> {
+  const {
+    maxAge = 30,
+    threshold = 1000,
+    dryRun = false,
+    squashCommits = true,
+  } = options;
+
+  const errors: string[] = [];
+  let partitionsCompacted = 0;
+  let totalRecordsKept = 0;
+  let totalRecordsRemoved = 0;
+
+  // Namespace path is resolved by the caller (config namespacesPath +
+  // defaultNamespace) — never assume a legacy layout (DOGFOOD-014).
+  const namespacePath = options.namespacePath;
+  if (!fs.existsSync(namespacePath)) {
+    return {
+      success: false,
+      partitionsCompacted: 0,
+      totalRecordsKept: 0,
+      totalRecordsRemoved: 0,
+      errors: [`Namespace not found: ${namespacePath}`],
+    };
+  }
+
+  const manifest = getManifest(namespacePath);
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - maxAge);
+
+  // Find old partitions
+  for (const partitionRelPath of manifest.partitions) {
+    const partitionPath = path.join(namespacePath, partitionRelPath);
+
+    if (!fs.existsSync(partitionPath)) {
+      continue;
+    }
+
+    // Check partition age (based on directory modification time)
+    try {
+      const stats = fs.statSync(partitionPath);
+      const partitionDate = new Date(stats.mtime);
+
+      if (partitionDate < cutoffDate) {
+        // Count records first
+        const jsonlFiles = fs
+          .readdirSync(partitionPath)
+          .filter((f) => f.endsWith(".jsonl"))
+          .sort(compareChunkNames);
+
+        let recordCount = 0;
+        for (const file of jsonlFiles) {
+          const content = fs.readFileSync(
+            path.join(partitionPath, file),
+            "utf-8",
+          );
+          const lines = content
+            .split("\n")
+            .filter((line: string) => line.trim() !== "");
+          recordCount += lines.length;
+        }
+
+        // Skip if below threshold
+        if (recordCount < threshold) {
+          continue;
+        }
+
+        // Squash partition
+        const result = await squashPartition(partitionPath, {
+          dryRun,
+          squashCommits,
+          partition: partitionRelPath,
+        });
+
+        if (result.success) {
+          partitionsCompacted++;
+          totalRecordsKept += result.recordsKept;
+          totalRecordsRemoved += result.recordsRemoved;
+        } else if (result.error) {
+          errors.push(`${partitionRelPath}: ${result.error}`);
+        }
+      }
+    } catch (err) {
+      errors.push(
+        `${partitionRelPath}: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  return {
+    success: errors.length === 0,
+    partitionsCompacted,
+    totalRecordsKept,
+    totalRecordsRemoved,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * Remove tombstones from a partition without converting to Parquet
+ *
+ * @param partitionPath - Absolute path to partition directory
+ * @returns Number of tombstones removed
+ */
+export async function removeTombstones(partitionPath: string): Promise<{
+  removed: number;
+  totalRecords: number;
+  error?: string;
+}> {
+  try {
+    if (!fs.existsSync(partitionPath)) {
+      return {
+        removed: 0,
+        totalRecords: 0,
+        error: `Partition not found: ${partitionPath}`,
+      };
+    }
+
+    // Find all JSONL files
+    // Sorted numerically: past segment 9999 the names are not fixed-width, so
+    // an unsorted listing merges and renames non-deterministically.
+    const jsonlFiles = fs
+      .readdirSync(partitionPath)
+      .filter((f: string) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames);
+
+    if (jsonlFiles.length === 0) {
+      return {
+        removed: 0,
+        totalRecords: 0,
+        error: "No JSONL files found",
+      };
+    }
+
+    let totalRecords = 0;
+    let tombstoneCount = 0;
+    const liveRecords: Array<Record<string, any>> = [];
+
+    // Read and filter records. jsonlFiles are BASENAMES from readdirSync, so
+    // they must be joined — reading them bare resolves against the process CWD
+    // and throws ENOENT (this function was dead on arrival for that reason).
+    for (const jsonlFile of jsonlFiles) {
+      const content = fs.readFileSync(
+        path.join(partitionPath, jsonlFile),
+        "utf-8",
+      );
+      const lines = content
+        .split("\n")
+        .filter((line: string) => line.trim() !== "");
+
+      for (const line of lines) {
+        try {
+          const record = JSON.parse(line) as Record<string, any>;
+          totalRecords++;
+
+          if (record.action === "tombstone" || record.action === "forget") {
+            tombstoneCount++;
+          } else {
+            liveRecords.push(record);
+          }
+        } catch (err) {
+          console.warn(`Warning: Could not parse line in ${jsonlFile}`);
+        }
+      }
+    }
+
+    // Rewrite JSONL without tombstones
+    const newChunkPath = path.join(
+      partitionPath,
+      `cleaned-${Date.now()}.jsonl`,
+    );
+    const content =
+      liveRecords.map((r) => safeJsonStringify(r)).join("\n") + "\n";
+    fs.writeFileSync(newChunkPath, content, "utf-8");
+
+    // Remove old files
+    for (const jsonlFile of jsonlFiles) {
+      fs.unlinkSync(path.join(partitionPath, jsonlFile));
+    }
+
+    // Name the merged output after the LOWEST numeric segment it replaces, so
+    // the partition keeps numeric contiguous naming and repeat runs are
+    // idempotent. The previous "<first>-cleaned.jsonl" name took jsonlFiles[0]
+    // from an UNSORTED listing (arbitrary segment) and appended another
+    // "-cleaned" segment name on every subsequent run.
+    const numericBases = jsonlFiles
+      .map((f) => path.basename(f).replace(/\.jsonl$/, ""))
+      .filter((base) => /^\d+$/.test(base));
+    const targetBase = numericBases.length > 0 ? numericBases[0] : "0001";
+    const finalPath = path.join(partitionPath, `${targetBase}.jsonl`);
+    fs.renameSync(newChunkPath, finalPath);
+
+    // PERF-001: the rewrite may remove tombstoned keys — invalidate the
+    // key-list cache so the next list_keys rebuilds (best-effort).
+    const perfNsPath = namespacePathForPartition(partitionPath);
+    if (perfNsPath) invalidateKeysCache(perfNsPath);
+
+    return {
+      removed: tombstoneCount,
+      totalRecords,
+    };
+  } catch (error) {
+    return {
+      removed: 0,
+      totalRecords: 0,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Get compaction statistics for repository
+ *
+ * @param namespacePath - Namespace path to scan (default: default namespace)
+ * @returns Compaction statistics
+ */
+export async function getCompactionStats(
+  namespacePath?: string,
+): Promise<CompactionStats> {
+  if (!namespacePath) {
+    namespacePath = path.join(
+      process.cwd(),
+      ".duckbrain",
+      "namespaces",
+      "default",
+    );
+  }
+
+  const stats: CompactionStats = {
+    totalSize: 0,
+    totalPartitions: 0,
+    parquetPartitions: 0,
+    jsonlPartitions: 0,
+    totalRecords: 0,
+    tombstoneRecords: 0,
+    tombstonePercent: 0,
+    parquetRatio: 0,
+    oldPartitions: [],
+    largePartitions: [],
+  };
+
+  if (!fs.existsSync(namespacePath)) {
+    return stats;
+  }
+
+  const manifest = getManifest(namespacePath);
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - 30);
+
+  for (const partitionRelPath of manifest.partitions) {
+    const partitionPath = path.join(namespacePath, partitionRelPath);
+
+    if (!fs.existsSync(partitionPath)) {
+      continue;
+    }
+
+    stats.totalPartitions++;
+
+    // Check partition size
+    let partitionSize = 0;
+    let recordCount = 0;
+    let tombstoneCount = 0;
+
+    const files = fs.readdirSync(partitionPath);
+    const jsonlFiles = files
+      .filter((f) => f.endsWith(".jsonl"))
+      .sort(compareChunkNames);
+    const parquetFiles = files.filter((f) => f.endsWith(".parquet"));
+
+    if (parquetFiles.length > 0) {
+      stats.parquetPartitions++;
+    } else {
+      stats.jsonlPartitions++;
+    }
+
+    // Scan JSONL files
+    for (const file of jsonlFiles) {
+      const filePath = path.join(partitionPath, file);
+      const fileStats = fs.statSync(filePath);
+      partitionSize += fileStats.size;
+
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim() !== "");
+      recordCount += lines.length;
+
+      for (const line of lines) {
+        try {
+          const record = JSON.parse(line);
+          if (record.action === "tombstone" || record.action === "forget") {
+            tombstoneCount++;
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    }
+
+    // Scan Parquet files (approximate size)
+    for (const file of parquetFiles) {
+      const filePath = path.join(partitionPath, file);
+      const fileStats = fs.statSync(filePath);
+      partitionSize += fileStats.size;
+    }
+
+    stats.totalSize += partitionSize;
+    stats.totalRecords += recordCount;
+    stats.tombstoneRecords += tombstoneCount;
+
+    // Check if partition is old
+    try {
+      const partitionStats = fs.statSync(partitionPath);
+      if (new Date(partitionStats.mtime) < cutoffDate) {
+        stats.oldPartitions.push(partitionRelPath);
+      }
+    } catch {
+      // Ignore stat errors
+    }
+
+    // Check if partition is large
+    if (recordCount > 1000) {
+      stats.largePartitions.push({
+        path: partitionRelPath,
+        size: partitionSize,
+        records: recordCount,
+      });
+    }
+  }
+
+  // Calculate percentages
+  if (stats.totalRecords > 0) {
+    stats.tombstonePercent = Math.round(
+      (stats.tombstoneRecords / stats.totalRecords) * 100,
+    );
+  }
+  if (stats.totalPartitions > 0) {
+    stats.parquetRatio = Math.round(
+      (stats.parquetPartitions / stats.totalPartitions) * 100,
+    );
+  }
+
+  return stats;
+}
+
+/**
+ * Squash git history for a partition directory
+ *
+ * Uses git filter-branch or git rebase to compact old commits.
+ * This is an aggressive operation that rewrites history.
+ *
+ * @param partitionPath - Partition directory path
+ */
+function squashGitHistory(partitionPath: string): void {
+  try {
+    // Check if we're in a git repository
+    execSync("git rev-parse --git-dir", { stdio: "pipe" });
+
+    // Get relative path from git root
+    const gitRoot = execSync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+    }).trim();
+    const relativePath = path.relative(gitRoot, partitionPath);
+
+    // Squash commits touching this path into a single commit
+    // Using git rebase with --autosquash
+    const commitCount = execSync(
+      `git log --oneline --follow -- "${relativePath}" | wc -l`,
+      { encoding: "utf-8" },
+    ).trim();
+
+    if (parseInt(commitCount) > 1) {
+      // Could use interactive rebase, but that's complex
+      // For now, just log that squashing would be beneficial
+      console.log(
+        `Partition ${relativePath}: ${commitCount} commits could be squashed`,
+      );
+    }
+  } catch (error) {
+    // Not in git repo or other error - ignore
+    console.warn("Git history squash skipped (not in git repo or error)");
+  }
+}
+
+/**
+ * Find namespace path from partition path
+ */
+function findNamespacePath(partitionPath: string): string | null {
+  // Walk up directory tree looking for manifest.json
+  let current = partitionPath;
+  while (current !== path.dirname(current)) {
+    const manifestPath = path.join(current, "manifest.json");
+    if (fs.existsSync(manifestPath)) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  return null;
+}
+
+/**
+ * Write manifest atomically (copied from manifest.ts to avoid circular dependency)
+ */
+function writeManifestAtomic(namespacePath: string, manifest: Manifest): void {
+  const manifestPath = path.join(namespacePath, "manifest.json");
+  const tmpPath = path.join(namespacePath, "manifest.json.tmp");
+
+  if (!fs.existsSync(namespacePath)) {
+    fs.mkdirSync(namespacePath, { recursive: true });
+  }
+
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+  fs.renameSync(tmpPath, manifestPath);
+}

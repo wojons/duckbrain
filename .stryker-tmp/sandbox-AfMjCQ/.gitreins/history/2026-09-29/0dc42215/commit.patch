@@ -1,0 +1,41 @@
+commit 92f987b6c649ef607c963476cc239a912e5c355a
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Sep 28 21:41:27 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Sep 28 21:41:27 2026 -0500
+
+    docs(DF-0924-03): document MCP recall asOf parameter (RETR-004)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/mcp-tools.md | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/docs/api/mcp-tools.md b/docs/api/mcp-tools.md
+index 36797bb..b9daf31 100644
+--- a/docs/api/mcp-tools.md
++++ b/docs/api/mcp-tools.md
+@@ -111,6 +111,7 @@ Query memories with flexible filtering.
+   query?: string;       // Semantic search query (uses DuckDB VSS extension)
+   limit?: number;       // Max results (default: 10)
+   namespace?: string;   // Namespace to query (default: current active namespace)
++  asOf?: string;        // RETR-004: ISO-8601 date or git ref (commit/branch/tag) — read namespace state as it existed at that point in git history. Cannot combine with query/contains (semantic/keyword search has no historical state).
+ }
+ ```
+ 
+@@ -147,6 +148,15 @@ Query memories with flexible filtering.
+ }
+ ```
+ 
++**Time travel (RETR-004):**
++```json
++{
++  "keyPrefix": "/projects/myapp/",
++  "asOf": "2026-08-10"
++}
++```
++Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state.
++
+ **Returns:**
+ 
+ ```typescript

@@ -1,0 +1,57 @@
+{
+  "task_id": "RETR-002",
+  "task_title": "Hybrid fusion BM25+semantic+RRF (Q-2)",
+  "task_criteria": [
+    "Hybrid recall: fuse RETR-001 keyword hits with embedding-cache cosine scores via Reciprocal Rank Fusion (rrf_k=60, per-retriever top-k=20), recency tiebreak; shared rankFused() in search layer; recall ?q= becomes hybrid by default. PASS: hybrid beats semantic-only and keyword-only on a 20-query fixture set; ?q= still returns items[].score; 0.25 floor preserved for semantic-only mode; full suite green."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m2:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11561947 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m2:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11561947 bytes (11.56 MB) in 3.09s\u001b[0m\n\u001b[90m2:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1061\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1140\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 785\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/remember-recall-namespace-dogfood017.test",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Hybrid recall: fuse RETR-001 keyword hits with embedding-cache cosine scores via Reciprocal Rank Fusion (rrf_k=60, per-retriever top-k=20), recency tiebreak; shared rankFused() in search layer; recall ?q= becomes hybrid by default. PASS: hybrid beats semantic-only and keyword-only on a 20-query fixture set; ?q= still returns items[].score; 0.25 floor preserved for semantic-only mode; full suite green.: src/search/fusion.ts exports shared rankFused() with RRF_K=60 and FUSION_TOP_K=20, capping each retriever at its top 20 and sorting by RRF sum desc, then timestamp desc (recency tiebreak), then id asc (verified in 13/13 unit tests in fusion-retr002.test.ts). src/mcp/tools/recall.ts imports { rankFused, FUSION_TOP_K } and makes ?q= hybrid by default: both legs available -> RRF fusion; FTS missing -> semantic-only with unchanged cosine scores; embeddings unavailable -> keyword-only; both fail -> legacy semantic error. E2E memories-hybrid-retr002.test.ts (9/9 passed) proves hybrid MRR 1.0 > semantic 0.75 / keyword 0.75 on the 20-query fixture (10 dual-leg + 5 keyword-only + 5 stopword), asserts ?q= returns items[].score (a1.score===1, fused 61/124 and 61/126, snippet rides along), and confirms the 0.25 floor (DEFAULT_MIN_SCORE=0.25, src/embedding/search.ts:35) still filters in semantic-only/hybrid modes (garbage query -> []). Full suite green: npx vitest run -> 63 files / 487 tests passed; tsc --noEmit exit 0; prettier --check clean; LSP diagnostics empty.\nAll RETR-002 requirements verified against code and green test runs: RRF fusion (k=60, top-k=20, recency tiebreak) via shared rankFused() in src/search/fusion.ts, ?q= hybrid by default in recall.ts, hybrid MRR 1.0 beating single-retriever 0.75 on the 20-query fixture, items[].score preserved, 0.25 floor intact, full suite (487 tests) green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Hybrid recall: fuse RETR-001 keyword hits with embedding-cache cosine scores via Reciprocal Rank Fusion (rrf_k=60, per-retriever top-k=20), recency tiebreak; shared rankFused() in search layer; recall ?q= becomes hybrid by default. PASS: hybrid beats semantic-only and keyword-only on a 20-query fixture set; ?q= still returns items[].score; 0.25 floor preserved for semantic-only mode; full suite green.: src/search/fusion.ts exports shared rankFused() with RRF_K=60 and FUSION_TOP_K=20",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-002\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m2:08PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11561947 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Hybrid recall: fuse RETR-001 keyword hits with embedding-cache cosine scores via Reciprocal Rank Fusion (rrf_k=60, per-retriever top-k=20), recency tiebreak; shared rankFused() in search layer; recall ?q= becomes hybrid by default. PASS: hybrid beats semantic-only and keyword-only on a 20-query fixture set; ?q= still returns items[].score; 0.25 floor preserved for semantic-only mode; full suite green.: src/search/fusion.ts exports shared rankFused() with RRF_K=60 and FUSION_TOP_K=20, capping each retriever at its top 20 and sorting by RRF sum desc, then timestamp desc (recency tiebreak), then id asc (verified in 13/13 unit tests in fusion-retr002.test.ts). src/mcp/tools/recall.ts imports { rankFused, FUSION_TOP_K } and makes ?q= hybrid by default: both legs available -> RRF fusion; FTS missing -> semantic-only with unchanged cosine scores; embeddings unavailable -> keyword-only; both fail -> legacy semantic error. E2E memories-hybrid-retr002.test.ts (9/9 passed) proves hybrid MRR 1.0 > semantic 0.75 / keyword 0.75 on the 20-query fixture (10 dual-leg + 5 keyword-only + 5 stopword), asserts ?q= returns items[].score (a1.score===1, fused 61/124 and 61/126, snippet rides along), and confirms the 0.25 floor (DEFAULT_MIN_SCORE=0.25, src/embedding/search.ts:35) still filters in semantic-only/hybrid modes (garbage query -> []). Full suite green: npx vitest run -> 63 files / 487 tests passed; tsc --noEmit exit 0; prettier --check clean; LSP diagnostics empty.\nAll RETR-002 requirements verified against code and green test runs: RRF fusion (k=60, top-k=20, recency tiebreak) via shared rankFused() in src/search/fusion.ts, ?q= hybrid by default in recall.ts, hybrid MRR 1.0 beating single-retriever 0.75 on the 20-query fixture, items[].score preserved, 0.25 floor intact, full suite (487 tests) green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-18T19:11:02.318175"
+}

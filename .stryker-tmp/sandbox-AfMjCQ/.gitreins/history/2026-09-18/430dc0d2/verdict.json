@@ -1,0 +1,70 @@
+{
+  "task_id": "S3-GIT-003",
+  "task_title": "Periodic forced full pass for S3 git-history",
+  "task_criteria": [
+    "A healthy namespace whose state is older than the configured full-pass threshold is pushed again after its remote is deleted; normal unchanged runs remain skipped; weekly/unified wiring emits observable forced-pass evidence; harness and existing S3 tests pass."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "559aeebb58df7eae0e5f9174431cb354c2371b8b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m4:06PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9978276 bytes (9.98 MB) in 2.32s\u001b[0m\n\u001b[90m4:06PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m4:06PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9978276 bytes (9.98 MB) in 2.32s\u001b[0m\n\u001b[90m4:06PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  16:06:35\n   Duration  62.05s (transform 3.68s, setup 1.25s, import 50.80s, tests 171.10s, environment 18ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A healthy namespace whose state is older than the configured full-pass threshold is pushed again after its remote is deleted; normal unchanged runs remain skipped; weekly/unified wiring emits observable forced-pass evidence; harness and existing S3 tests pass.: (A) Age rule: scripts/s3/duckbrain-s3-push.sh:379-388 forces a re-push when FULL_PASS_INTERVAL>0, fail_count==0, last_refs==refs_now and (now-last_success)>=FULL_PASS_INTERVAL; harness RUN 8 (test-push-backoff.sh:273-296) wipes the ns-one remote, sets last_success=1, and asserts 'run8 the aged namespace is force-pushed with an age reason' + 'run8 the wipe was repaired by the age-based force alone' (remote sha == local sha). (B) Skip preserved: push.sh:401-406 skips when no force_reason and refs unchanged; harness RUN 2/6/9 assert 'pushed=0 skipped=3 ... forced=0' and 'run9 made no push attempt at all (no 15-minute re-push regression)'; RUN 10 proves DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age force. (C) Observable evidence: push.sh:396 per-ns 'force-push <ns> (<reason>)', :472 'forced-full:' roll-up, :475 'forced-full-age:' line, :485 'forced=N' summary, :488/:493 PARTIAL + FORCED-FULL PARTIAL, :500 NOTICE; unified wrapper (duckbrain-s3-unified.sh:26-34,78-105) runs the git layer <=once/24h and inherits the env knobs unchanged \u2014 harness RUN 7 drives it through the unified wrapper and asserts the forced decision is logged with namespace AND reason, the roll-up reports 'env=2 age=0', and stdout says the pass was partial (not a bare green line). (D) Tests: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 85 passed, 0 failed' EXIT=0; `bash scripts/s3/test-duplicate-bundle-repair.sh` -> 'harness: 51 passed, 0 failed' EXIT=0; `npx vitest run` -> 'Test Files 149 passed (149) / Tests 1168 passed (1168)' EXIT=0. RED check: the same harness against pre-fix ffc66d3 -> 'harness: 57 passed, 28 failed', proving the tests genuinely exercise the new behavior.\nAll four sub-claims verified: the age-based forced full pass repairs a wiped remote for an aged healthy namespace, unchanged runs stay skipped, the unified/weekly wiring emits observable forced-pass evidence, and the harness (85/85), duplicate-bundle harness (51/51) and vitest suite (1168/1168) all pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A healthy namespace whose state is older than the configured full-pass threshold is pushed again after its remote is deleted; normal unchanged runs remain skipped; weekly/unified wiring emits observable forced-pass evidence; harness and existing S3 tests pass.: (A) Age rule: scripts/s3/duckbrain-s3-push.sh:379-388 forces a re-push when FULL_PASS_INTERVAL>0, fail_count==0, last_refs==refs_now and (now-last_success)>=FULL_PASS_INTERVAL; harness RUN 8 (test-push-backoff.sh:273-296) wipes the ns-one remote, sets last_success=1, and asserts 'run8 the aged namespace is force-pushed with an age reason' + 'run8 the wipe was repaired by the age-based force alone' (remote sha == local sha). (B) Skip preserved: push.sh:401-406 skips when no force_reason and refs unchanged; harness RUN 2/6/9 assert 'pushed=0 skipped=3 ... forced=0' and 'run9 made no push attempt at all (no 15-minute re-push regression)'; RUN 10 proves DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age force. (C) Observable evidence: push.sh:396 per-ns 'force-push <ns> (<reason>)', :472 'forced-full:' roll-up, :475 'forced-full-age:' line, :485 'forced=N' summary, :488/:493 PARTIAL + FORCED-FULL PARTIAL, :500 NOTICE; unified wrapper (duckbrain-s3-unified.sh:26-34,78-105) runs the git layer <=once/24h and inherits the env knobs unchanged \u2014 harness RUN 7 drives it through the unified wrapper and asserts the forced decision is logged with namespace AND reason, the roll-up reports 'env=2 age=0', and stdout says the pass was partial (not a bare green line). (D) Tests: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 85 passed, 0 failed' EXIT=0; `bash scripts/s3/test-duplicate-bundle-repair.sh` -> 'harness: 51 passed, 0 failed' EXIT=0; `npx vitest run` -> 'Test Files 149 passed (149) / Tests 1168 passed (1168)' EXIT=0. RED check: the same harness against pre-fix ffc66d3 -> 'harness: 57 passed, 28 failed', proving the tests genuinely exercise the new behavior.\nAll four sub-claims verified: the age-based forced full pass repairs a wiped remote for an aged healthy namespace, unchanged runs stay skipped, the unified/weekly wiring emits observable forced-pass evidence, and the harness (85/85), duplicate-bundle harness (51/51) and vitest suite (1168/1168) all pass.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A healthy namespace whose state is older than the configured full-pass threshold is pushed again after its remote is deleted; normal unchanged runs remain skipped; weekly/unified wiring emits observable forced-pass evidence; harness and existing S3 tests pass.",
+                "status": "PASS",
+                "detail": "(A) Age rule: scripts/s3/duckbrain-s3-push.sh:379-388 forces a re-push when FULL_PASS_INTERVAL>0, fail_count==0, last_refs==refs_now and (now-last_success)>=FULL_PASS_INTERVAL; harness RUN 8 (test-push-backoff.sh:273-296) wipes the ns-one remote, sets last_success=1, and asserts 'run8 the aged namespace is force-pushed with an age reason' + 'run8 the wipe was repaired by the age-based force alone' (remote sha == local sha). (B) Skip preserved: push.sh:401-406 skips when no force_reason and refs unchanged; harness RUN 2/6/9 assert 'pushed=0 skipped=3 ... forced=0' and 'run9 made no push attempt at all (no 15-minute re-push regression)'; RUN 10 proves DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age force. (C) Observable evidence: push.sh:396 per-ns 'force-push <ns> (<reason>)', :472 'forced-full:' roll-up, :475 'forced-full-age:' line, :485 'forced=N' summary, :488/:493 PARTIAL + FORCED-FULL PARTIAL, :500 NOTICE; unified wrapper (duckbrain-s3-unified.sh:26-34,78-105) runs the git layer <=once/24h and inherits the env knobs unchanged \u2014 harness RUN 7 drives it through the unified wrapper and asserts the forced decision is logged with namespace AND reason, the roll-up reports 'env=2 age=0', and stdout says the pass was partial (not a bare green line). (D) Tests: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 85 passed, 0 failed' EXIT=0; `bash scripts/s3/test-duplicate-bundle-repair.sh` -> 'harness: 51 passed, 0 failed' EXIT=0; `npx vitest run` -> 'Test Files 149 passed (149) / Tests 1168 passed (1168)' EXIT=0. RED check: the same harness against pre-fix ffc66d3 -> 'harness: 57 passed, 28 failed', proving the tests genuinely exercise the new behavior."
+              }
+            ],
+            "summary": "All four sub-claims verified: the age-based forced full pass repairs a wiped remote for an aged healthy namespace, unchanged runs stay skipped, the unified/weekly wiring emits observable forced-pass evidence, and the harness (85/85), duplicate-bundle harness (51/51) and vitest suite (1168/1168) all pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-GIT-003\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m4:06PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9978276 bytes (9.98 MB) in 2.32s\u001b[0m\n\u001b[90m4:06PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A healthy namespace whose state is older than the configured full-pass threshold is pushed again after its remote is deleted; normal unchanged runs remain skipped; weekly/unified wiring emits observable forced-pass evidence; harness and existing S3 tests pass.: (A) Age rule: scripts/s3/duckbrain-s3-push.sh:379-388 forces a re-push when FULL_PASS_INTERVAL>0, fail_count==0, last_refs==refs_now and (now-last_success)>=FULL_PASS_INTERVAL; harness RUN 8 (test-push-backoff.sh:273-296) wipes the ns-one remote, sets last_success=1, and asserts 'run8 the aged namespace is force-pushed with an age reason' + 'run8 the wipe was repaired by the age-based force alone' (remote sha == local sha). (B) Skip preserved: push.sh:401-406 skips when no force_reason and refs unchanged; harness RUN 2/6/9 assert 'pushed=0 skipped=3 ... forced=0' and 'run9 made no push attempt at all (no 15-minute re-push regression)'; RUN 10 proves DUCKBRAIN_S3_FULL_PASS_INTERVAL_S=0 disables the age force. (C) Observable evidence: push.sh:396 per-ns 'force-push <ns> (<reason>)', :472 'forced-full:' roll-up, :475 'forced-full-age:' line, :485 'forced=N' summary, :488/:493 PARTIAL + FORCED-FULL PARTIAL, :500 NOTICE; unified wrapper (duckbrain-s3-unified.sh:26-34,78-105) runs the git layer <=once/24h and inherits the env knobs unchanged \u2014 harness RUN 7 drives it through the unified wrapper and asserts the forced decision is logged with namespace AND reason, the roll-up reports 'env=2 age=0', and stdout says the pass was partial (not a bare green line). (D) Tests: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 85 passed, 0 failed' EXIT=0; `bash scripts/s3/test-duplicate-bundle-repair.sh` -> 'harness: 51 passed, 0 failed' EXIT=0; `npx vitest run` -> 'Test Files 149 passed (149) / Tests 1168 passed (1168)' EXIT=0. RED check: the same harness against pre-fix ffc66d3 -> 'harness: 57 passed, 28 failed', proving the tests genuinely exercise the new behavior.\nAll four sub-claims verified: the age-based forced full pass repairs a wiped remote for an aged healthy namespace, unchanged runs stay skipped, the unified/weekly wiring emits observable forced-pass evidence, and the harness (85/85), duplicate-bundle harness (51/51) and vitest suite (1168/1168) all pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T21:11:12.245054"
+}

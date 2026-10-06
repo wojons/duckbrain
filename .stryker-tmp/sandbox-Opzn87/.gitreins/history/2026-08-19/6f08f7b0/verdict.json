@@ -1,0 +1,67 @@
+{
+  "task_id": "RETR-010",
+  "task_title": "P2 \u2014 Search-index-as-cache doctrine (Q-7): search-index rebuild + git hooks installer",
+  "task_criteria": [
+    "Index module + hooks installer so RETR-001 search index is rebuilt on clone and after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild idempotent; suite green"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m5:33AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12344481 bytes (12.34 MB) in 3.1s\u001b[0m\n\u001b[90m5:33AM\u001b[0m \u001b[32\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m5:33AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12344481 bytes (12.34 MB) in 3.1s\u001b[0m\n\u001b[90m5:33AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 944\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1388\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1491\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr008.test.ts \u001b[2m(\u001b[22m\u001b[2m12 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Index module + hooks installer so RETR-001 search index is rebuilt on clone and after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild idempotent; suite green: Commit dc4ef03 adds src/search/hooks.ts (installSearchHooks/searchHooksInstalled/SEARCH_SKIP_ENV; post-checkout/post-merge/post-rewrite hooks firing detached `search-index rebuild --detached --log`), src/cli/search-index.ts (install-hooks subcommand + --detached/--log flags + detached respawn with SEARCH_SKIP_ENV), and src/search/hooks.test.ts (7 tests). Verified: `npx vitest run` -> 86 files passed, 748 tests passed (exit 0); hooks.test.ts 7/7 passed covering exec-bit install, detached rebuild invocation, idempotent install, non-git throw, idempotent rebuild (2 runs same rowCount), and git status clean after rebuild. LSP diagnostics: none.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Index module + hooks installer so RETR-001 search index is rebuilt on clone and after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild idempotent; suite green: Commit dc4ef03 adds src/search/hooks.ts (installSearchHooks/searchHooksInstalled/SEARCH_SKIP_ENV; post-checkout/post-merge/post-rewrite hooks firing detached `search-index rebuild --detached --log`), src/cli/search-index.ts (install-hooks subcommand + --detached/--log flags + detached respawn with S",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Index module + hooks installer so RETR-001 search index is rebuilt on clone and after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild idempotent; suite green",
+                "status": "PASS",
+                "detail": "Commit dc4ef03 adds src/search/hooks.ts (installSearchHooks/searchHooksInstalled/SEARCH_SKIP_ENV; post-checkout/post-merge/post-rewrite hooks firing detached `search-index rebuild --detached --log`), src/cli/search-index.ts (install-hooks subcommand + --detached/--log flags + detached respawn with SEARCH_SKIP_ENV), and src/search/hooks.test.ts (7 tests). Verified: `npx vitest run` -> 86 files passed, 748 tests passed (exit 0); hooks.test.ts 7/7 passed covering exec-bit install, detached rebuild invocation, idempotent install, non-git throw, idempotent rebuild (2 runs same rowCount), and git status clean after rebuild. LSP diagnostics: none."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-010\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m5:33AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12344481 bytes (12.34 MB) in 3.1s\u001b[0m\n\u001b[90m5:33AM\u001b[0m \u001b[32\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Index module + hooks installer so RETR-001 search index is rebuilt on clone and after git hooks; PASS: clone -> hooks -> index rebuilt; git status clean; rebuild idempotent; suite green: Commit dc4ef03 adds src/search/hooks.ts (installSearchHooks/searchHooksInstalled/SEARCH_SKIP_ENV; post-checkout/post-merge/post-rewrite hooks firing detached `search-index rebuild --detached --log`), src/cli/search-index.ts (install-hooks subcommand + --detached/--log flags + detached respawn with SEARCH_SKIP_ENV), and src/search/hooks.test.ts (7 tests). Verified: `npx vitest run` -> 86 files passed, 748 tests passed (exit 0); hooks.test.ts 7/7 passed covering exec-bit install, detached rebuild invocation, idempotent install, non-git throw, idempotent rebuild (2 runs same rowCount), and git status clean after rebuild. LSP diagnostics: none.\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T10:34:47.900536"
+}

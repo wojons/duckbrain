@@ -1,0 +1,1319 @@
+commit eade2cb6e994c670a61e6ca5940d611df4974ae2
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Sep 28 17:20:58 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Sep 28 17:20:58 2026 -0500
+
+    fix(config): DUCKBRAIN_NAMESPACE now selects the namespace (DF-0926-04)
+    
+    The documented per-agent isolation variable had ZERO readers in src/: every
+    agent configured per docs/guide/ai-configure.md or the mcp-client example
+    silently wrote to the config's defaultNamespace. Reproduced live first —
+    `node bin/duckbrain.js stdio` with DUCKBRAIN_NAMESPACE=dogfood-examples and
+    `remember` answered `"namespace":"cfg-default"` (the config's default).
+    
+    PATH A (honor the variable), not Path B (delete the docs). The promise is the
+    useful one — one DuckBrain instance, one namespace per agent — and honoring it
+    is strictly additive: with the variable unset every surface resolves exactly as
+    before, so no existing deployment changes behaviour. Path B would leave the
+    users who already set the variable in the same silent shared-`default` state,
+    just without a doc claiming otherwise.
+    
+    One resolution point:
+    - src/config/index.ts applyEnvOverrides() reads DUCKBRAIN_NAMESPACE (trimmed;
+      blank/whitespace = unset) and overrides the file's defaultNamespace for THIS
+      process only. Never persisted: updateConfig() merges against readFileConfig()
+      (GAP-007), so an env-pinned agent cannot rewrite a shared config — asserted
+      by a test and observed live (a 3-run CLI probe left the file byte-identical).
+    - Every consumer that already resolves through the config inherits it:
+      mcp/tools/shared.ts resolveNamespaceName (remember/recall/forget/search/
+      squash/list_keys), the CLI (getDefaultNamespace), query/search-index/
+      embeddings, git/remote.
+    - src/http/routes/memories.ts: the six per-route `?namespace= || "default"`
+      fallbacks AND the DB-GAP-031 grant resolver now share ONE
+      resolveRequestNamespace() built on resolveNamespaceName. HTTP previously
+      ignored both the env var and the config's defaultNamespace; sharing the
+      resolver also removes the risk of the grant check grading a different
+      namespace than the route touches.
+    - src/http/routes/keys.ts: same resolver for /api/keys and /api/keys/flat.
+    
+    Effective order: explicit param (MCP arg / --namespace= / ?namespace=) >
+    DUCKBRAIN_NAMESPACE > config defaultNamespace > "default".
+    
+    Docs: the order is now documented in docs/guide/ai-configure.md (+ its
+    byte-identical twin docs/AI_CONFIGURE.md, kept in sync as they were at HEAD),
+    examples/mcp-client/README.md, docs/guide/configuration.md,
+    docs/guide/getting-started.md and the duckbrain-usage skill (pitfall 26
+    rewritten — it recorded the old bug; version 1.11.0 -> 1.12.0).
+    DUCKBRAIN_DATA_DIR: the docs called it "where to store memory files" and it is
+    only the HTTP PID-file directory (src/utils/pidfile.ts); the store root is
+    DUCKBRAIN_NAMESPACES_PATH. Corrected in the docs instead of overloading the
+    variable here, because docker-compose.yml already sets DUCKBRAIN_DATA_DIR=/data
+    — treating it as a store root would silently relocate storage for existing
+    deployments. Also flagged in the env table (documented, not fixed, outside this
+    row): DUCKBRAIN_UI_PORT / _GIT_REMOTE / _LOG_LEVEL have no readers either.
+    
+    Tests (14 new, all green):
+    - src/config/namespace-env-df092604.test.ts (8): env overrides the file, blank
+      is ignored, whitespace trimmed, never persisted across updateConfig(), and the
+      full precedence chain through resolveNamespaceName.
+    - src/cli/namespace-env-df092604.test.ts (6): REAL subprocesses — stdio MCP via
+      the SDK client (the response echoes the env namespace and the row is on disk
+      under it), explicit-argument precedence, the CLI (`remember --wait`) with the
+      env var set AND unset (config fallback control), and a scratch HTTP daemon on
+      an ephemeral port with --auth=none whose POST without ?namespace= lands in the
+      env namespace while an un-parameterized GET reads it back (the 404 from the
+      config namespace is the discriminator).
+    - RED proof: with src/config/index.ts + the two route files restored from HEAD,
+      8 of the 14 fail (the env-ignored assertions) and the 6 controls still pass;
+      the fixed files were restored with a sha256 check.
+    
+    Gates:
+    - npx tsc --noEmit: exit 0
+    - npx vitest run src/http/: 45 files / 296 tests passed (route change)
+    - npx vitest run: 181 files, 1444/1444 TESTS PASSED. 0-2 files report a failure
+      ONLY inside a pre-existing afterAll assertion that the repo-root
+      duckbrain.config.json is byte-identical across the run (retr003+retr011 in one
+      run, gap024 in the next, all passing 19/19 in isolation). That file is
+      GITIGNORED and owned by the LIVE daemon (systemd WorkingDirectory=
+      /home/kara/duckbrain), which keeps registering new namespace mappings into it
+      on a 1s-hash watcher: 34 changes during a single 72s suite run and 9 during a
+      75s idle window with no tests running — so the assertion is racy on this box
+      by construction, and the failing file varies per run. Verified independent of
+      this change: the same suites' functional assertions pass everywhere, they pass
+      19/19 in isolation, and no df092604 namespace was ever registered into the
+      live config.
+    - prettier: every touched src/ and examples/ file is clean. The three touched
+      docs (and ~30 other docs files) were ALREADY prettier-dirty at HEAD (verified
+      against HEAD blobs) and were left unformatted rather than sweeping unrelated
+      content into this commit.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .env.example                              |  10 +-
+ docs/AI_CONFIGURE.md                      |  65 ++++-
+ docs/guide/ai-configure.md                |  65 ++++-
+ docs/guide/configuration.md               |   4 +-
+ docs/guide/getting-started.md             |   9 +-
+ examples/mcp-client/README.md             |  24 +-
+ skills/duckbrain-usage/SKILL.md           |  30 +-
+ src/cli/namespace-env-df092604.test.ts    | 441 ++++++++++++++++++++++++++++++
+ src/config/index.ts                       |  18 ++
+ src/config/namespace-env-df092604.test.ts | 138 ++++++++++
+ src/http/routes/keys.ts                   |  11 +-
+ src/http/routes/memories.ts               |  40 ++-
+ 12 files changed, 797 insertions(+), 58 deletions(-)
+
+diff --git a/.env.example b/.env.example
+index ce9bbfd..ed26b1e 100644
+--- a/.env.example
++++ b/.env.example
+@@ -13,9 +13,13 @@ DUCKBRAIN_NAMESPACE=default
+ # Optional Configuration
+ # =============================================================================
+ 
+-# Data directory for memory storage
+-# Default: ./memory (relative to working directory)
+-DUCKBRAIN_DATA_DIR=./memory
++# Where the namespace git repositories live — this is the memory store root
++# Default: ./namespaces (relative to the duckbrain root)
++DUCKBRAIN_NAMESPACES_PATH=./namespaces
++
++# Runtime directory for the HTTP server's PID file. NOT the memory store.
++# Default: the system temp dir
++# DUCKBRAIN_DATA_DIR=/tmp
+ 
+ # API Server Configuration
+ DUCKBRAIN_API_PORT=3000
+diff --git a/docs/AI_CONFIGURE.md b/docs/AI_CONFIGURE.md
+index e8b2d43..a2360ad 100644
+--- a/docs/AI_CONFIGURE.md
++++ b/docs/AI_CONFIGURE.md
+@@ -107,7 +107,7 @@ Set up DuckBrain MCP for Claude:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -151,7 +151,7 @@ Set up DuckBrain MCP for Claude:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -180,7 +180,7 @@ Set up DuckBrain MCP for Cursor:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -209,7 +209,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ 
+ # Optional: Set DuckBrain as default memory system
+ memory:
+@@ -232,7 +232,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ ```
+ 
+ 2. OpenCode will auto-discover MCP tools.
+@@ -264,7 +264,7 @@ Add to VS Code settings.json:
+         ],
+         "env": {
+           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+         }
+       }
+     }
+@@ -292,7 +292,7 @@ Set up DuckBrain MCP for GitHub Copilot in VS Code:
+         ],
+         "env": {
+           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+         }
+       }
+     }
+@@ -322,7 +322,7 @@ Windsurf uses the same MCP config format as Cursor:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -347,7 +347,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ 
+ # Enable MCP tools
+ use_mcp: true
+@@ -544,13 +544,56 @@ duckbrain init [PROJECT_NAME] --data-dir ./memory
+ 
+ | Variable | Description | Default |
+ |----------|-------------|---------|
+-| `DUCKBRAIN_NAMESPACE` | Current project namespace | `default` |
+-| `DUCKBRAIN_DATA_DIR` | Where to store memory files | `./memory` |
++| `DUCKBRAIN_NAMESPACE` | Active namespace for this agent — overrides the config file's `defaultNamespace` (see below) | `default` |
++| `DUCKBRAIN_NAMESPACES_PATH` | Directory holding the namespace repositories — the "where is memory stored" knob | `./namespaces` |
++| `DUCKBRAIN_DATA_DIR` | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`) — **not** the memory store | system temp dir |
+ | `DUCKBRAIN_API_PORT` | HTTP API port | `3000` |
+ | `DUCKBRAIN_UI_PORT` | Web UI port | `8989` |
+ | `DUCKBRAIN_GIT_REMOTE` | Git remote for syncing | (none) |
+ | `DUCKBRAIN_LOG_LEVEL` | Logging verbosity | `info` |
+ 
++> **Not implemented yet:** `DUCKBRAIN_UI_PORT`, `DUCKBRAIN_GIT_REMOTE` and
++> `DUCKBRAIN_LOG_LEVEL` have no readers in the current code — setting them has
++> no effect. The HTTP port is the `duckbrain http --port=…` flag, and a
++> namespace's git remote is configured with `duckbrain remote`.
++
++### 🎯 Namespace Resolution Order
++
++The namespace an operation writes to (or reads from) is resolved in exactly
++this order — the first one that is set wins:
++
++1. **Explicit parameter** — `remember`'s `namespace` argument, the CLI's
++   `--namespace=<name>`, or the HTTP API's `?namespace=<name>` / `"namespace"`
++   body field.
++2. **`DUCKBRAIN_NAMESPACE`** — the environment variable, set per agent.
++3. **`defaultNamespace`** in `duckbrain.config.json`.
++4. **`default`** — the last resort.
++
++```bash
++# One shared DuckBrain, one namespace per agent: set the env var in the
++# agent's MCP `env` block (see the per-agent configs above)…
++"env": { "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]" }
++
++# …and every remember/recall/list_keys that does not name a namespace lands in
++# "[PROJECT_NAME]" instead of the shared `default`.
++```
++
++`DUCKBRAIN_NAMESPACE` is a **runtime** override: it is never written back to
++`duckbrain.config.json`, so an agent started with it cannot rewrite the shared
++config. Two other ways to pin the active namespace persistently:
++
++- `switch_namespace` (MCP tool) persists `defaultNamespace` into
++  `duckbrain.config.json` — sticky across processes. **If `DUCKBRAIN_NAMESPACE`
++  is set it still wins**, so a persisted switch cannot move an env-pinned
++  agent (unset the variable to let the switch take effect).
++- `duckbrain config set defaultNamespace <name>` (CLI).
++
++**Where memory actually lives:** all namespaces are directories under
++`DUCKBRAIN_NAMESPACES_PATH` (default `./namespaces`, i.e. `<duckbrain
++root>/namespaces`). Use it when you want an agent's whole store somewhere else
++(a separate project directory, a mount); use `DUCKBRAIN_NAMESPACE` when agents
++should share one store but stay isolated inside it.
++
+ ---
+ 
+ ## 🚀 Advanced: HTTP Mode
+diff --git a/docs/guide/ai-configure.md b/docs/guide/ai-configure.md
+index e8b2d43..a2360ad 100644
+--- a/docs/guide/ai-configure.md
++++ b/docs/guide/ai-configure.md
+@@ -107,7 +107,7 @@ Set up DuckBrain MCP for Claude:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -151,7 +151,7 @@ Set up DuckBrain MCP for Claude:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -180,7 +180,7 @@ Set up DuckBrain MCP for Cursor:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -209,7 +209,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ 
+ # Optional: Set DuckBrain as default memory system
+ memory:
+@@ -232,7 +232,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ ```
+ 
+ 2. OpenCode will auto-discover MCP tools.
+@@ -264,7 +264,7 @@ Add to VS Code settings.json:
+         ],
+         "env": {
+           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+         }
+       }
+     }
+@@ -292,7 +292,7 @@ Set up DuckBrain MCP for GitHub Copilot in VS Code:
+         ],
+         "env": {
+           "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-          "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++          "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+         }
+       }
+     }
+@@ -322,7 +322,7 @@ Windsurf uses the same MCP config format as Cursor:
+       ],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]",
+-        "DUCKBRAIN_DATA_DIR": "[PROJECT_PATH]/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "[PROJECT_PATH]/memory"
+       }
+     }
+   }
+@@ -347,7 +347,7 @@ mcp_servers:
+       - stdio
+     env:
+       DUCKBRAIN_NAMESPACE: "[PROJECT_NAME]"
+-      DUCKBRAIN_DATA_DIR: "[PROJECT_PATH]/memory"
++      DUCKBRAIN_NAMESPACES_PATH: "[PROJECT_PATH]/memory"
+ 
+ # Enable MCP tools
+ use_mcp: true
+@@ -544,13 +544,56 @@ duckbrain init [PROJECT_NAME] --data-dir ./memory
+ 
+ | Variable | Description | Default |
+ |----------|-------------|---------|
+-| `DUCKBRAIN_NAMESPACE` | Current project namespace | `default` |
+-| `DUCKBRAIN_DATA_DIR` | Where to store memory files | `./memory` |
++| `DUCKBRAIN_NAMESPACE` | Active namespace for this agent — overrides the config file's `defaultNamespace` (see below) | `default` |
++| `DUCKBRAIN_NAMESPACES_PATH` | Directory holding the namespace repositories — the "where is memory stored" knob | `./namespaces` |
++| `DUCKBRAIN_DATA_DIR` | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`) — **not** the memory store | system temp dir |
+ | `DUCKBRAIN_API_PORT` | HTTP API port | `3000` |
+ | `DUCKBRAIN_UI_PORT` | Web UI port | `8989` |
+ | `DUCKBRAIN_GIT_REMOTE` | Git remote for syncing | (none) |
+ | `DUCKBRAIN_LOG_LEVEL` | Logging verbosity | `info` |
+ 
++> **Not implemented yet:** `DUCKBRAIN_UI_PORT`, `DUCKBRAIN_GIT_REMOTE` and
++> `DUCKBRAIN_LOG_LEVEL` have no readers in the current code — setting them has
++> no effect. The HTTP port is the `duckbrain http --port=…` flag, and a
++> namespace's git remote is configured with `duckbrain remote`.
++
++### 🎯 Namespace Resolution Order
++
++The namespace an operation writes to (or reads from) is resolved in exactly
++this order — the first one that is set wins:
++
++1. **Explicit parameter** — `remember`'s `namespace` argument, the CLI's
++   `--namespace=<name>`, or the HTTP API's `?namespace=<name>` / `"namespace"`
++   body field.
++2. **`DUCKBRAIN_NAMESPACE`** — the environment variable, set per agent.
++3. **`defaultNamespace`** in `duckbrain.config.json`.
++4. **`default`** — the last resort.
++
++```bash
++# One shared DuckBrain, one namespace per agent: set the env var in the
++# agent's MCP `env` block (see the per-agent configs above)…
++"env": { "DUCKBRAIN_NAMESPACE": "[PROJECT_NAME]" }
++
++# …and every remember/recall/list_keys that does not name a namespace lands in
++# "[PROJECT_NAME]" instead of the shared `default`.
++```
++
++`DUCKBRAIN_NAMESPACE` is a **runtime** override: it is never written back to
++`duckbrain.config.json`, so an agent started with it cannot rewrite the shared
++config. Two other ways to pin the active namespace persistently:
++
++- `switch_namespace` (MCP tool) persists `defaultNamespace` into
++  `duckbrain.config.json` — sticky across processes. **If `DUCKBRAIN_NAMESPACE`
++  is set it still wins**, so a persisted switch cannot move an env-pinned
++  agent (unset the variable to let the switch take effect).
++- `duckbrain config set defaultNamespace <name>` (CLI).
++
++**Where memory actually lives:** all namespaces are directories under
++`DUCKBRAIN_NAMESPACES_PATH` (default `./namespaces`, i.e. `<duckbrain
++root>/namespaces`). Use it when you want an agent's whole store somewhere else
++(a separate project directory, a mount); use `DUCKBRAIN_NAMESPACE` when agents
++should share one store but stay isolated inside it.
++
+ ---
+ 
+ ## 🚀 Advanced: HTTP Mode
+diff --git a/docs/guide/configuration.md b/docs/guide/configuration.md
+index 99ba3bd..ca7c148 100644
+--- a/docs/guide/configuration.md
++++ b/docs/guide/configuration.md
+@@ -7,9 +7,9 @@ DuckBrain can be configured through environment variables and a JSON configurati
+ | Variable | Default | Description |
+ |----------|---------|-------------|
+ | `DUCKBRAIN_HOME` | `~/.duckbrain` | Base directory for DuckBrain data, sockets, and configuration |
+-| `DUCKBRAIN_NAMESPACE` | `default` | Active namespace for operations |
++| `DUCKBRAIN_NAMESPACE` | `default` | Active namespace for operations. Runtime override of the config file's `defaultNamespace` (never persisted). Precedence: explicit parameter > this env var > `defaultNamespace` > `default` |
+ | `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories |
+-| `DUCKBRAIN_DATA_DIR` | — | Override data directory (used for PID file location) |
++| `DUCKBRAIN_DATA_DIR` | — | Runtime directory for the HTTP server's PID file (`duckbrain-http-<port>.pid`). NOT the memory store — use `DUCKBRAIN_NAMESPACES_PATH` for that |
+ | `DUCKBRAIN_API_PORT` | `3000` | HTTP API server port |
+ | `DUCKBRAIN_UI_PORT` | `8989` | Web UI server port |
+ | `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |
+diff --git a/docs/guide/getting-started.md b/docs/guide/getting-started.md
+index dda9f42..971e118 100644
+--- a/docs/guide/getting-started.md
++++ b/docs/guide/getting-started.md
+@@ -153,16 +153,21 @@ pnpm test:integration    # integration suites — needs sshpass
+ Create a `.env` file in your project root:
+ 
+ ```bash
+-# Required
++# Required — isolates this agent's memory from every other agent's
+ DUCKBRAIN_NAMESPACE=my-project
+ 
+ # Optional
+-DUCKBRAIN_DATA_DIR=./memory
++DUCKBRAIN_NAMESPACES_PATH=./namespaces   # where the namespace repos live
+ DUCKBRAIN_API_PORT=3000
+ DUCKBRAIN_UI_PORT=8989
+ DUCKBRAIN_LOG_LEVEL=info
+ ```
+ 
++`DUCKBRAIN_NAMESPACE` is resolved as: explicit parameter (`--namespace=`,
++`?namespace=`, the `remember` tool's `namespace` argument) >
++`DUCKBRAIN_NAMESPACE` > the config file's `defaultNamespace` > `default`. It is
++a runtime override and is never written back into `duckbrain.config.json`.
++
+ See [Configuration Reference](configuration) for all options.
+ 
+ ## Configure Your AI Agent
+diff --git a/examples/mcp-client/README.md b/examples/mcp-client/README.md
+index 9392c6f..751fb65 100644
+--- a/examples/mcp-client/README.md
++++ b/examples/mcp-client/README.md
+@@ -22,7 +22,7 @@ pnpm install --frozen-lockfile
+       "args": ["/path/to/duckbrain/bin/duckbrain.js", "stdio"],
+       "env": {
+         "DUCKBRAIN_NAMESPACE": "claude",
+-        "DUCKBRAIN_DATA_DIR": "/path/to/duckbrain/memory"
++        "DUCKBRAIN_NAMESPACES_PATH": "/path/to/duckbrain/namespaces"
+       }
+     }
+   }
+@@ -31,6 +31,28 @@ pnpm install --frozen-lockfile
+ 
+ 3. Restart Claude Desktop
+ 
++## Namespace Resolution
++
++`DUCKBRAIN_NAMESPACE` is what isolates one agent's memory from another's. The
++namespace an operation uses is resolved in this order (first one set wins):
++
++1. an explicit parameter — the `remember` tool's `namespace` argument, the
++   CLI's `--namespace=<name>`, or the HTTP API's `?namespace=<name>`
++2. `DUCKBRAIN_NAMESPACE` from the agent's `env` block
++3. `defaultNamespace` in `duckbrain.config.json`
++4. `default`
++
++So the config above makes every `remember`/`recall`/`list_keys` call that does
++not name a namespace land in `claude`. The env var is applied at runtime only —
++it is never written back into `duckbrain.config.json`. To change the namespace
++for good, use the `switch_namespace` tool or
++`duckbrain config set defaultNamespace <name>`.
++
++`DUCKBRAIN_NAMESPACES_PATH` is the separate "where is memory stored" knob: it
++is the directory that holds the namespace repositories (default
++`<duckbrain root>/namespaces`). Note that `DUCKBRAIN_DATA_DIR` is **not** the
++memory store — it only sets the directory for the HTTP server's PID file.
++
+ ## Usage
+ 
+ Once configured, DuckBrain provides these tools to Claude:
+diff --git a/skills/duckbrain-usage/SKILL.md b/skills/duckbrain-usage/SKILL.md
+index 77352ae..a4a256c 100644
+--- a/skills/duckbrain-usage/SKILL.md
++++ b/skills/duckbrain-usage/SKILL.md
+@@ -7,15 +7,16 @@ description: >-
+   ranks with a 0.25 score floor, MCP remember needs embedding_text + attributes,
+   forget takes a UUID, delete_namespace needs {name, confirm:true}, sticky
+   active namespace — remember/recall echo it now, compaction stats/status
+-  still instance-blind, HTTP omitted-?namespace= means the literal 'default'
+-  namespace while the CLI defaults to config defaultNamespace, CLI `forget`
++  still instance-blind, namespace resolution is explicit param >
++  DUCKBRAIN_NAMESPACE > config `defaultNamespace` > 'default' on all three
++  write surfaces (HTTP included, since DF-0926-04), CLI `forget`
+   hardcodes namespace 'default' so it fails for every other namespace — use
+   MCP forget; as-of time travel verified on all three surfaces 2026-09-24 but
+   ABSENT from the stale origin/main, whose server silently answers ?as_of=
+   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
+   'default' + sends zero credentials, DF-0924-05). Load this
+   before integrating DuckBrain into anything or answering "does DuckBrain work?".
+-version: 1.11.0
++version: 1.12.0
+ category: software-development
+ ---
+ 
+@@ -34,6 +35,7 @@ REST API, CLI, Web UI**.
+ | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
+ | CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate |
+ | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
++| Env override | `DUCKBRAIN_NAMESPACE=<ns>` | the per-agent active namespace; wins over the config's `defaultNamespace`, loses to an explicit param, never persisted (DF-0926-04) |
+ | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |
+ | Env override | `DUCKBRAIN_CONFIG_PATH=/path` | redirect the config FILE location (GAP-022); env overrides are never persisted back into the file |
+ 
+@@ -499,14 +501,20 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
+     rebuild (rowCount 2) and the commit debounce. Cross-check any
+     "not found" against `?q=` (its keyword fallback DID match "hello") or the
+     raw JSONL before trusting a negative.
+-26. **`DUCKBRAIN_NAMESPACE` and `DUCKBRAIN_DATA_DIR` are INERT (DF-0926-04).**
+-    Neither is read by the memory path (`DUCKBRAIN_DATA_DIR` only relocates
+-    the PID file). The mcp-client example and six config blocks in
+-    docs/guide/ai-configure.md recommend them — every agent so configured
+-    silently shares namespace `default`. Per-process namespace comes from
+-    `--namespace` (human CLI), the config's `defaultNamespace`, or MCP
+-    `switch_namespace {name}` — which PERSISTS into duckbrain.config.json
+-    (see pitfall 4). On a shared box, never rely on env for isolation.
++26. **`DUCKBRAIN_NAMESPACE` IS honored (fixed in DF-0926-04); `DUCKBRAIN_DATA_DIR`
++    is still PID-only.** The namespace env var had ZERO readers in `src/` while
++    the mcp-client example and the config blocks in
++    `docs/guide/ai-configure.md` recommended it — every agent so configured
++    silently shared namespace `default`. It is now read by the config layer
++    (`applyEnvOverrides`), so the resolved order is **explicit param
++    (`--namespace=`, `?namespace=`, the `remember` tool's `namespace` arg) >
++    `DUCKBRAIN_NAMESPACE` > config `defaultNamespace` > `default`** on all three
++    write surfaces. It is a RUNTIME override and is never written back into
++    `duckbrain.config.json` (GAP-007 invariant), which makes it the right knob
++    on a shared box: a sibling's `switch_namespace` (which DOES persist into the
++    config, see pitfall 4) cannot move an env-pinned agent. `DUCKBRAIN_DATA_DIR`
++    remains the HTTP PID-file directory only — the memory-store root is
++    `DUCKBRAIN_NAMESPACES_PATH`.
+ 27. **Default port is 3000 and a failed bind still "succeeds" (DF-0926-01).**
+     `duckbrain http` without `--port` binds 3000 — the prod daemon's port on
+     this box. When the port is taken the boot log prints
+diff --git a/src/cli/namespace-env-df092604.test.ts b/src/cli/namespace-env-df092604.test.ts
+new file mode 100644
+index 0000000..1eb05e4
+--- /dev/null
++++ b/src/cli/namespace-env-df092604.test.ts
+@@ -0,0 +1,441 @@
++/**
++ * DF-0926-04 (end-to-end half): with DUCKBRAIN_NAMESPACE set, writes made by
++ * the REAL entry points land in that namespace — stdio MCP, the HTTP daemon
++ * and the CLI.
++ *
++ * The docs (docs/guide/ai-configure.md, examples/mcp-client/README.md) sell
++ * DUCKBRAIN_NAMESPACE as the per-agent isolation knob, and the task's live
++ * reproduction was:
++ *
++ *   spawn `node bin/duckbrain.js stdio` with DUCKBRAIN_NAMESPACE=dogfood-examples,
++ *   call remember, read the response -> "namespace":"default"
++ *
++ * Every client below runs as a real subprocess with a scratch namespace root
++ * and a scratch config whose defaultNamespace is deliberately NOT the env
++ * value, so a namespace that "matches the docs" can only have come from the
++ * env var. Each arm also asserts the negative (nothing landed in the config
++ * namespace) and the precedence rule (an explicit parameter still wins).
++ *
++ * Hermeticity: scratch root for DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_CONFIG_PATH,
++ * an ephemeral port for the daemon (never :3000), the real duckbrain.config.json
++ * and ./namespaces are untouched, and the embedding provider is pinned to the
++ * fast-failing openai/empty-key pair so no network call decides the outcome.
++ */
++
++import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
++import { spawn, ChildProcess } from "child_process";
++import net from "net";
++import http from "http";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { Client } from "@modelcontextprotocol/sdk/client/index.js";
++import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
++
++// Process-spawning suite: file-scoped budgets (same convention as
++// src/cli/http-mcp-auth-dogfood025.test.ts).
++vi.setConfig({ hookTimeout: 120_000, testTimeout: 120_000 });
++
++const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
++
++const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), "df092604-e2e-"));
++const NS_ROOT = path.join(SCRATCH, "namespaces");
++const CONFIG_PATH = path.join(SCRATCH, "duckbrain.config.json");
++
++/** The config file's own defaultNamespace — what the BUG wrote to. */
++const CFG_DEFAULT = "df092604-cfg-default";
++const ENV_STDIO = "df092604-env-stdio";
++const ENV_HTTP = "df092604-env-http";
++const ENV_CLI = "df092604-env-cli";
++const EXPLICIT_NS = "df092604-explicit";
++
++/* ------------------------------------------------------------- helpers */
++
++function findFreePort(): Promise<number> {
++  return new Promise((resolve, reject) => {
++    const server = net.createServer();
++    server.listen(0, "127.0.0.1", () => {
++      const addr = server.address() as net.AddressInfo;
++      const port = addr.port;
++      server.close(() => resolve(port));
++    });
++    server.on("error", reject);
++  });
++}
++
++function waitForHealth(port: number, timeout = 60_000): Promise<void> {
++  return new Promise((resolve, reject) => {
++    const start = Date.now();
++    const attempt = () => {
++      const req = http.get(
++        { host: "127.0.0.1", port, path: "/health", timeout: 1000 },
++        (res) => {
++          // The embedding probe is deliberately degraded here, so /health
++          // answers 503 while the API is live — accept both.
++          if (res.statusCode === 200 || res.statusCode === 503) {
++            res.resume();
++            resolve();
++            return;
++          }
++          res.resume();
++          retry();
++        },
++      );
++      req.on("error", retry);
++      req.on("timeout", () => {
++        req.destroy();
++        retry();
++      });
++    };
++    const retry = () => {
++      if (Date.now() - start > timeout) {
++        reject(new Error(`server did not become healthy on port ${port}`));
++        return;
++      }
++      setTimeout(attempt, 100);
++    };
++    attempt();
++  });
++}
++
++function waitForClose(child: ChildProcess, timeout = 30_000): Promise<void> {
++  return new Promise((resolve) => {
++    if (child.exitCode !== null) {
++      resolve();
++      return;
++    }
++    const timer = setTimeout(() => {
++      try {
++        child.kill("SIGKILL");
++      } catch {
++        // already gone
++      }
++      resolve();
++    }, timeout);
++    child.on("close", () => {
++      clearTimeout(timer);
++      resolve();
++    });
++  });
++}
++
++/**
++ * Env for a child: scratch store + scratch config + the namespace under test.
++ *
++ * `degradeEmbeddings` is for the HTTP daemon only — it pins the embedding
++ * provider to the fast-failing openai/empty-key pair so /health answers
++ * promptly instead of probing for a local model server (dogfood025 pattern).
++ */
++function childEnv(
++  namespace: string | undefined,
++  { degradeEmbeddings = false }: { degradeEmbeddings?: boolean } = {},
++): Record<string, string> {
++  // MCP SDK's StdioClientTransport types `env` as Record<string, string>, so
++  // drop the undefined-valued keys NodeJS.ProcessEnv allows.
++  const env: Record<string, string> = {};
++  for (const [key, value] of Object.entries(process.env)) {
++    if (value !== undefined) env[key] = value;
++  }
++  env.DUCKBRAIN_NAMESPACES_PATH = NS_ROOT;
++  env.DUCKBRAIN_CONFIG_PATH = CONFIG_PATH;
++  env.NO_COLOR = "1";
++  if (degradeEmbeddings) {
++    env.DUCKBRAIN_EMBEDDING_PROVIDER = "openai";
++    env.DUCKBRAIN_EMBEDDING_API_KEY = "";
++  }
++  if (namespace === undefined) delete env.DUCKBRAIN_NAMESPACE;
++  else env.DUCKBRAIN_NAMESPACE = namespace;
++  return env;
++}
++
++/**
++ * True when `key` appears in any JSONL row stored under <NS_ROOT>/<namespace>.
++ * Walks every chunk file so the assertion holds regardless of rotation.
++ */
++function keyUnder(namespace: string, key: string): boolean {
++  const root = path.join(NS_ROOT, namespace);
++  if (!fs.existsSync(root)) return false;
++  let found = false;
++  const walk = (dir: string): void => {
++    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
++      const p = path.join(dir, entry.name);
++      if (entry.isDirectory()) walk(p);
++      else if (entry.name.endsWith(".jsonl")) {
++        if (fs.readFileSync(p, "utf-8").includes(key)) found = true;
++      }
++    }
++  };
++  walk(root);
++  return found;
++}
++
++/** Namespace directories that exist on disk under the scratch root. */
++function namespaceDirs(): string[] {
++  if (!fs.existsSync(NS_ROOT)) return [];
++  return fs
++    .readdirSync(NS_ROOT, { withFileTypes: true })
++    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
++    .map((e) => e.name)
++    .sort();
++}
++
++function runCli(
++  args: string[],
++  env: Record<string, string>,
++  timeoutMs = 90_000,
++): Promise<{ code: number | null; stdout: string; stderr: string }> {
++  return new Promise((resolve) => {
++    const child = spawn(process.execPath, [BIN_PATH, ...args], {
++      cwd: SCRATCH,
++      env,
++    });
++    let stdout = "";
++    let stderr = "";
++    child.stdout.on("data", (d) => (stdout += String(d)));
++    child.stderr.on("data", (d) => (stderr += String(d)));
++    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
++    child.on("close", (code) => {
++      clearTimeout(timer);
++      resolve({ code, stdout, stderr });
++    });
++  });
++}
++
++/* --------------------------------------------------------------- suite */
++
++beforeAll(() => {
++  fs.mkdirSync(NS_ROOT, { recursive: true });
++  fs.writeFileSync(
++    CONFIG_PATH,
++    JSON.stringify({ defaultNamespace: CFG_DEFAULT }, null, 2),
++    "utf-8",
++  );
++});
++
++afterAll(() => {
++  fs.rmSync(SCRATCH, { recursive: true, force: true });
++});
++
++describe("DF-0926-04: DUCKBRAIN_NAMESPACE selects the namespace for real clients", () => {
++  it("stdio MCP: remember without a namespace argument lands in DUCKBRAIN_NAMESPACE", async () => {
++    const key = "/df092604/stdio-env";
++    const transport = new StdioClientTransport({
++      command: process.execPath,
++      args: [BIN_PATH, "stdio"],
++      cwd: SCRATCH,
++      env: childEnv(ENV_STDIO),
++      stderr: "pipe",
++    });
++    const client = new Client({ name: "df092604-stdio", version: "1.0.0" });
++    await client.connect(transport);
++
++    try {
++      const result = await client.callTool({
++        name: "remember",
++        arguments: {
++          key,
++          domain: "concept",
++          attributes: {},
++          embedding_text: "DF-0926-04 stdio env proof",
++        },
++      });
++      const parsed = JSON.parse(
++        (result as { content: Array<{ type: string; text: string }> })
++          .content[0].text,
++      );
++
++      expect(parsed.success).toBe(true);
++      // The live reproduction of the bug read "namespace":"default" right here.
++      expect(parsed.namespace).toBe(ENV_STDIO);
++      expect(parsed.namespace).not.toBe(CFG_DEFAULT);
++
++      expect(keyUnder(ENV_STDIO, key)).toBe(true);
++      expect(keyUnder(CFG_DEFAULT, key)).toBe(false);
++    } finally {
++      await transport.close();
++    }
++  });
++
++  it("stdio MCP: an explicit namespace argument still beats the env var", async () => {
++    const key = "/df092604/stdio-explicit";
++    const transport = new StdioClientTransport({
++      command: process.execPath,
++      args: [BIN_PATH, "stdio"],
++      cwd: SCRATCH,
++      env: childEnv(ENV_STDIO),
++      stderr: "pipe",
++    });
++    const client = new Client({
++      name: "df092604-stdio-explicit",
++      version: "1.0.0",
++    });
++    await client.connect(transport);
++
++    try {
++      const result = await client.callTool({
++        name: "remember",
++        arguments: {
++          key,
++          domain: "concept",
++          attributes: {},
++          embedding_text: "DF-0926-04 explicit-arg precedence",
++          namespace: EXPLICIT_NS,
++        },
++      });
++      const parsed = JSON.parse(
++        (result as { content: Array<{ type: string; text: string }> })
++          .content[0].text,
++      );
++
++      expect(parsed.success).toBe(true);
++      expect(parsed.namespace).toBe(EXPLICIT_NS);
++
++      expect(keyUnder(EXPLICIT_NS, key)).toBe(true);
++      expect(keyUnder(ENV_STDIO, key)).toBe(false);
++    } finally {
++      await transport.close();
++    }
++  });
++
++  it("CLI: remember (no --namespace) lands in DUCKBRAIN_NAMESPACE, and the config default when the var is unset", async () => {
++    const envKey = "/df092604/cli-env";
++    const withEnv = await runCli(
++      [
++        "remember",
++        envKey,
++        "--domain=raw_note",
++        "--content=DF-0926-04 cli env proof",
++        "--wait",
++      ],
++      childEnv(ENV_CLI),
++    );
++
++    expect(withEnv.code).toBe(0);
++    expect(keyUnder(ENV_CLI, envKey)).toBe(true);
++    expect(keyUnder(CFG_DEFAULT, envKey)).toBe(false);
++
++    // Control: the same command with the env var REMOVED keeps the legacy
++    // resolution (config defaultNamespace), proving the env var is additive.
++    const cfgKey = "/df092604/cli-cfg";
++    const withoutEnv = await runCli(
++      [
++        "remember",
++        cfgKey,
++        "--domain=raw_note",
++        "--content=DF-0926-04 cli config-fallback control",
++        "--wait",
++      ],
++      childEnv(undefined),
++    );
++
++    expect(withoutEnv.code).toBe(0);
++    expect(keyUnder(CFG_DEFAULT, cfgKey)).toBe(true);
++  });
++});
++
++describe("DF-0926-04: the HTTP API resolves the same namespace as the config/env", () => {
++  let port: number;
++  let daemon: ChildProcess;
++
++  beforeAll(async () => {
++    port = await findFreePort();
++    daemon = spawn(
++      process.execPath,
++      // --auth=none is the documented explicit local/test opt-out; this suite
++      // is about namespace resolution, not authentication (the grant path has
++      // its own suites), and it must never touch the production auth store.
++      [BIN_PATH, "http", `--port=${port}`, "--auth=none"],
++      {
++        cwd: SCRATCH,
++        env: childEnv(ENV_HTTP, { degradeEmbeddings: true }),
++        stdio: "pipe",
++      },
++    );
++    await waitForHealth(port);
++  }, 120_000);
++
++  afterAll(async () => {
++    if (daemon) {
++      try {
++        daemon.kill("SIGTERM");
++      } catch {
++        // already gone
++      }
++      await waitForClose(daemon);
++    }
++  });
++
++  it("POST /api/memories with no namespace parameter writes to DUCKBRAIN_NAMESPACE, and the un-parameterized GET reads it back", async () => {
++    const key = "/df092604/http-env";
++
++    const post = await fetch(`http://127.0.0.1:${port}/api/memories`, {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({
++        key,
++        domain: "concept",
++        content: "DF-0926-04 http env proof",
++      }),
++    });
++    expect(post.status).toBe(201);
++    await post.json();
++
++    expect(keyUnder(ENV_HTTP, key)).toBe(true);
++    expect(keyUnder(CFG_DEFAULT, key)).toBe(false);
++
++    // Read path: no ?namespace= at all, so it must resolve the same way.
++    const get = await fetch(
++      `http://127.0.0.1:${port}/api/memories/key${encodeURI(key)}`,
++      { headers: { Accept: "application/json" } },
++    );
++    expect(get.status).toBe(200);
++    const memory = (await get.json()) as { key?: string };
++    expect(memory.key).toBe(key);
++
++    // The same route WITHOUT the env var's namespace cannot see it — the
++    // discriminator that makes the assertion above meaningful.
++    const elsewhere = await fetch(
++      `http://127.0.0.1:${port}/api/memories/key${encodeURI(key)}?namespace=${CFG_DEFAULT}`,
++    );
++    expect(elsewhere.status).toBe(404);
++  });
++
++  it("an explicit ?namespace= still wins over DUCKBRAIN_NAMESPACE", async () => {
++    const key = "/df092604/http-explicit";
++
++    const post = await fetch(
++      `http://127.0.0.1:${port}/api/memories?namespace=${EXPLICIT_NS}`,
++      {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({
++          key,
++          domain: "concept",
++          content: "DF-0926-04 http explicit precedence",
++        }),
++      },
++    );
++    expect(post.status).toBe(201);
++    await post.json();
++
++    expect(keyUnder(EXPLICIT_NS, key)).toBe(true);
++    expect(keyUnder(ENV_HTTP, key)).toBe(false);
++  });
++
++  it("no write from any client leaked into the config's own namespace", () => {
++    // The bug's signature: every documented per-agent write landed in the
++    // config defaultNamespace. Only the deliberate unset-env control may.
++    expect(keyUnder(CFG_DEFAULT, "/df092604/stdio-env")).toBe(false);
++    expect(keyUnder(CFG_DEFAULT, "/df092604/stdio-explicit")).toBe(false);
++    expect(keyUnder(CFG_DEFAULT, "/df092604/cli-env")).toBe(false);
++    expect(keyUnder(CFG_DEFAULT, "/df092604/http-env")).toBe(false);
++    expect(keyUnder(CFG_DEFAULT, "/df092604/http-explicit")).toBe(false);
++
++    const dirs = namespaceDirs();
++    expect(dirs).toContain(ENV_STDIO);
++    expect(dirs).toContain(ENV_HTTP);
++    expect(dirs).toContain(ENV_CLI);
++    expect(dirs).toContain(EXPLICIT_NS);
++    expect(dirs).toContain(CFG_DEFAULT);
++  });
++});
+diff --git a/src/config/index.ts b/src/config/index.ts
+index 5170e60..21a04cf 100644
+--- a/src/config/index.ts
++++ b/src/config/index.ts
+@@ -551,6 +551,24 @@ function applyEnvOverrides(config: DuckBrainConfig): DuckBrainConfig {
+     next = { ...next, namespacesPath: nsPathOverride };
+   }
+ 
++  // DF-0926-04: DUCKBRAIN_NAMESPACE selects the ACTIVE namespace at runtime —
++  // the documented per-agent isolation knob (docs/guide/ai-configure.md,
++  // examples/mcp-client/README.md). Historically the variable had ZERO readers
++  // in src/, so every agent configured per those docs silently wrote to the
++  // config's defaultNamespace instead of its own namespace.
++  //
++  // Runtime-only, exactly like DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_CONFIG_PATH:
++  // it overrides the file's defaultNamespace for THIS process but is never
++  // persisted (updateConfig merges against readFileConfig, GAP-007), so an agent
++  // started with the env var can never rewrite a shared duckbrain.config.json.
++  //
++  // Effective precedence: explicit param (MCP arg / CLI --namespace / HTTP
++  // ?namespace=) > DUCKBRAIN_NAMESPACE > config defaultNamespace > "default".
++  const nsNameOverride = process.env.DUCKBRAIN_NAMESPACE?.trim();
++  if (nsNameOverride) {
++    next = { ...next, defaultNamespace: nsNameOverride };
++  }
++
+   // SUPA-1: DUCKBRAIN_DURABILITY_MODE overrides the runtime DEFAULT write mode
+   // (never persisted — same convention as DUCKBRAIN_NAMESPACES_PATH). A
+   // malformed value fails config load through the zod enum: no silent fallback
+diff --git a/src/config/namespace-env-df092604.test.ts b/src/config/namespace-env-df092604.test.ts
+new file mode 100644
+index 0000000..ba00f22
+--- /dev/null
++++ b/src/config/namespace-env-df092604.test.ts
+@@ -0,0 +1,138 @@
++/**
++ * DF-0926-04 (unit half): DUCKBRAIN_NAMESPACE is honored, and it is honored
++ * as a RUNTIME override — never persisted into duckbrain.config.json.
++ *
++ * Before the fix the variable had ZERO readers in src/: the docs
++ * (docs/guide/ai-configure.md, examples/mcp-client/README.md) sold it as the
++ * per-agent isolation knob, but every agent configured that way silently wrote
++ * to the config's defaultNamespace instead.
++ *
++ * The single enforcement point is `applyEnvOverrides()` in this directory, so
++ * every consumer that resolves a namespace through the config
++ * (mcp/tools/shared.ts `resolveNamespaceName`, the CLI's getDefaultNamespace,
++ * the HTTP routes) inherits the same precedence:
++ *
++ *   explicit param > DUCKBRAIN_NAMESPACE > config defaultNamespace > "default"
++ *
++ * Hermeticity: this suite owns its own config file (DUCKBRAIN_CONFIG_PATH) and
++ * DUCKBRAIN_NAMESPACE, both saved/restored around the file. The repo's tracked
++ * duckbrain.config.json is never read or written.
++ */
++
++import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { getConfig, updateConfig, CONFIG_FILENAME } from "./index";
++import { resolveNamespaceName } from "../mcp/tools/shared";
++
++const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), "df092604-config-"));
++const CONFIG_PATH = path.join(SCRATCH, CONFIG_FILENAME);
++const FILE_NS = "df092604-cfg-default";
++const ENV_NS = "df092604-env-ns";
++
++const PREV_CONFIG_PATH = process.env.DUCKBRAIN_CONFIG_PATH;
++const PREV_NAMESPACE = process.env.DUCKBRAIN_NAMESPACE;
++
++/** Write a config file carrying a non-default defaultNamespace. */
++function writeConfigFile(defaultNamespace = FILE_NS): void {
++  fs.writeFileSync(
++    CONFIG_PATH,
++    JSON.stringify({ defaultNamespace }, null, 2),
++    "utf-8",
++  );
++}
++
++function rawFileConfig(): { defaultNamespace?: string } {
++  return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
++}
++
++beforeEach(() => {
++  fs.rmSync(CONFIG_PATH, { force: true });
++  writeConfigFile();
++  // resolveDuckbrainRoot() treats DUCKBRAIN_CONFIG_PATH's directory as the
++  // instance root, so resolveNamespaceName() reads THIS file.
++  process.env.DUCKBRAIN_CONFIG_PATH = CONFIG_PATH;
++  delete process.env.DUCKBRAIN_NAMESPACE;
++});
++
++afterEach(() => {
++  delete process.env.DUCKBRAIN_NAMESPACE;
++});
++
++describe("DF-0926-04: DUCKBRAIN_NAMESPACE is read by the config layer", () => {
++  it("overrides the file's defaultNamespace for this process", () => {
++    process.env.DUCKBRAIN_NAMESPACE = ENV_NS;
++
++    expect(getConfig(SCRATCH).defaultNamespace).toBe(ENV_NS);
++    // The file itself is untouched by a read.
++    expect(rawFileConfig().defaultNamespace).toBe(FILE_NS);
++  });
++
++  it("falls back to the file's defaultNamespace when unset or blank", () => {
++    expect(getConfig(SCRATCH).defaultNamespace).toBe(FILE_NS);
++
++    process.env.DUCKBRAIN_NAMESPACE = "";
++    expect(getConfig(SCRATCH).defaultNamespace).toBe(FILE_NS);
++
++    process.env.DUCKBRAIN_NAMESPACE = "   ";
++    expect(getConfig(SCRATCH).defaultNamespace).toBe(FILE_NS);
++  });
++
++  it("trims surrounding whitespace (a stray newline in an env file must not create a phantom namespace)", () => {
++    process.env.DUCKBRAIN_NAMESPACE = `  ${ENV_NS}\n`;
++
++    expect(getConfig(SCRATCH).defaultNamespace).toBe(ENV_NS);
++  });
++
++  it("is never persisted: an updateConfig() write keeps the file's own defaultNamespace (GAP-007 invariant)", () => {
++    process.env.DUCKBRAIN_NAMESPACE = ENV_NS;
++
++    const returned = updateConfig(SCRATCH, {
++      authorEmail: "df092604@example.com",
++    });
++
++    // The caller sees the effective runtime config...
++    expect(returned.defaultNamespace).toBe(ENV_NS);
++    // ...but the on-disk file keeps its own value, so an agent started with the
++    // env var can never rewrite a shared duckbrain.config.json.
++    expect(rawFileConfig().defaultNamespace).toBe(FILE_NS);
++  });
++
++  it("reports 'default' when neither env nor file supplies a value", () => {
++    fs.rmSync(CONFIG_PATH, { force: true });
++
++    expect(getConfig(SCRATCH).defaultNamespace).toBe("default");
++  });
++});
++
++describe("DF-0926-04: resolved precedence is explicit > env > config > 'default'", () => {
++  it("an explicit namespace argument always wins over the env var", () => {
++    process.env.DUCKBRAIN_NAMESPACE = ENV_NS;
++
++    expect(resolveNamespaceName("df092604-explicit")).toBe("df092604-explicit");
++  });
++
++  it("with no explicit argument the env var wins over the config file", () => {
++    process.env.DUCKBRAIN_NAMESPACE = ENV_NS;
++
++    expect(resolveNamespaceName()).toBe(ENV_NS);
++    expect(resolveNamespaceName(undefined)).toBe(ENV_NS);
++  });
++
++  it("with the env var unset the config file wins, and 'default' is the last resort", () => {
++    expect(resolveNamespaceName()).toBe(FILE_NS);
++
++    fs.rmSync(CONFIG_PATH, { force: true });
++    expect(resolveNamespaceName()).toBe("default");
++  });
++});
++
++// Restore the ambient config path for any sibling suite in this worker.
++afterAll(() => {
++  if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
++  else process.env.DUCKBRAIN_CONFIG_PATH = PREV_CONFIG_PATH;
++  if (PREV_NAMESPACE === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
++  else process.env.DUCKBRAIN_NAMESPACE = PREV_NAMESPACE;
++  fs.rmSync(SCRATCH, { recursive: true, force: true });
++});
+diff --git a/src/http/routes/keys.ts b/src/http/routes/keys.ts
+index 8d7f98e..841faa0 100644
+--- a/src/http/routes/keys.ts
++++ b/src/http/routes/keys.ts
+@@ -10,6 +10,7 @@ import { listKeysTool } from "../../mcp/tools/list_keys";
+ import { asyncHandler, ApiError } from "../middleware/errorHandler";
+ import { KeyTreeResponse } from "../types/api";
+ import { buildKeyTree } from "../../utils/keyTree";
++import { resolveNamespaceName } from "../../mcp/tools/shared";
+ 
+ const router: Router = Router();
+ 
+@@ -32,7 +33,10 @@ router.get(
+     const limit = req.query.limit
+       ? parseInt(req.query.limit as string, 10)
+       : 100;
+-    const namespace = (req.query.namespace as string) || "default";
++    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
++    // > config defaultNamespace > "default" (the old `|| "default"` ignored
++    // both the documented env var and the configured default).
++    const namespace = resolveNamespaceName(req.query.namespace as string);
+ 
+     // Call listKeysTool to get flat key list
+     const result = await listKeysTool({
+@@ -78,7 +82,10 @@ router.get(
+     const offset = req.query.offset
+       ? parseInt(req.query.offset as string, 10)
+       : 0;
+-    const namespace = (req.query.namespace as string) || "default";
++    // DF-0926-04: the canonical resolver, so ?namespace= > DUCKBRAIN_NAMESPACE
++    // > config defaultNamespace > "default" (the old `|| "default"` ignored
++    // both the documented env var and the configured default).
++    const namespace = resolveNamespaceName(req.query.namespace as string);
+ 
+     const result = await listKeysTool({
+       prefix,
+diff --git a/src/http/routes/memories.ts b/src/http/routes/memories.ts
+index 5f9cbd4..ba97085 100644
+--- a/src/http/routes/memories.ts
++++ b/src/http/routes/memories.ts
+@@ -29,7 +29,10 @@ import {
+   type NormalizedTimeRange,
+ } from "../../utils/timerange";
+ import { resolveAsOfRef } from "../../git/asof";
+-import { resolveNamespacePath } from "../../mcp/tools/shared";
++import {
++  resolveNamespaceName,
++  resolveNamespacePath,
++} from "../../mcp/tools/shared";
+ import { durabilityHeaderFor } from "../../storage/durability";
+ import {
+   auditRequestDenial,
+@@ -106,14 +109,22 @@ function throwWriteError(
+ const router: Router = Router();
+ 
+ // DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
+-// memory route (read, write, update, delete). The namespace resolution
+-// mirrors each route's own (query param, falling back to body.namespace for
+-// writes, else "default"). Passes through untouched in auth=none mode and
+-// for unrestricted tokens.
++// memory route (read, write, update, delete). Passes through untouched in
++// auth=none mode and for unrestricted tokens.
++//
++// DF-0926-04: the namespace comes from the ONE canonical resolver
++// (`resolveNamespaceName`: explicit param > DUCKBRAIN_NAMESPACE > config
++// defaultNamespace > "default"), and the routes below call THIS function
++// rather than re-deriving it. The previous per-route `|| "default"` fallback
++// ignored both the documented env var and the config's defaultNamespace, and
++// duplicating the expression risked the grant check grading a different
++// namespace than the route actually touched.
+ const resolveRequestNamespace = (req: Request): string =>
+-  (req.query.namespace as string) ||
+-  (req.body as { namespace?: string } | undefined)?.namespace ||
+-  "default";
++  resolveNamespaceName(
++    (req.query.namespace as string) ||
++      (req.body as { namespace?: string } | undefined)?.namespace ||
++      undefined,
++  );
+ 
+ router.use(requireNamespaceGrant(resolveRequestNamespace));
+ 
+@@ -275,7 +286,7 @@ router.get(
+       // RETR-011: view selector — ?historical=true includes expired /
+       // not-yet-valid rows (the current view is the default).
+       historical: req.query.historical === "true",
+-      namespace: (req.query.namespace as string) || "default",
++      namespace: resolveRequestNamespace(req),
+     };
+ 
+     // RETR-006: attribute filters — every ?attr.<name>=<value> query param
+@@ -458,7 +469,7 @@ router.get(
+     const key = Array.isArray(keyParam)
+       ? keyParam.join("/")
+       : String(keyParam ?? "");
+-    const namespace = (req.query.namespace as string) || "default";
++    const namespace = resolveRequestNamespace(req);
+ 
+     // Normalize key to start with /
+     const normalizedKey = key.startsWith("/") ? key : `/${key}`;
+@@ -495,7 +506,7 @@ router.get(
+   "/:id",
+   asyncHandler(async (req: Request, res: Response) => {
+     const { id } = req.params as { id: string };
+-    const namespace = (req.query.namespace as string) || "default";
++    const namespace = resolveRequestNamespace(req);
+ 
+     // Use exact ID lookup in DuckDB — no in-memory scan
+     const result = await recallTool({
+@@ -579,8 +590,7 @@ router.post(
+     // DB-GAP-031: an authenticated principal stamps the record — a
+     // client-supplied ?author= or body author is never honored on writes.
+     const principal = getPrincipal(req);
+-    const writtenNamespace =
+-      (req.query.namespace as string) || body.namespace || "default";
++    const writtenNamespace = resolveRequestNamespace(req);
+     const result = await rememberTool(
+       {
+         key: body.key,
+@@ -646,7 +656,7 @@ router.put(
+   asyncHandler(async (req: Request, res: Response) => {
+     const { id } = req.params as { id: string };
+     const body = req.body as UpdateMemoryRequest;
+-    const namespace = (req.query.namespace as string) || "default";
++    const namespace = resolveRequestNamespace(req);
+     // DB-GAP-031: authenticated principal stamps both the tombstone and the
+     // new version — client-supplied author values are never honored.
+     const principal = getPrincipal(req);
+@@ -768,7 +778,7 @@ router.delete(
+   "/:id",
+   asyncHandler(async (req: Request, res: Response) => {
+     const { id } = req.params as { id: string };
+-    const namespace = (req.query.namespace as string) || "default";
++    const namespace = resolveRequestNamespace(req);
+     // DB-GAP-031: authenticated principal stamps the tombstone — a
+     // client-supplied author value is never honored.
+     const principal = getPrincipal(req);

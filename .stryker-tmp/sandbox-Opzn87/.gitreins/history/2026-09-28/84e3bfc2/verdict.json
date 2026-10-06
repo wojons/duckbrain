@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0924-01",
+  "task_title": "Verify default-branch fresh install",
+  "task_criteria": [
+    "A clean frozen install of the default branch must link express directly and boot the documented HTTP quickstart without manual package fixes; verify the exact default-branch acceptance criteria."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "5726da095c37c41f9a518ce670e989222a91da34",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:10PM INF scanned ~9630659 bytes (9.63 MB) in 2.28s\n10:10PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 328933 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 986ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14829,12 +14829,11 @@\n      \"auger-pytest-ee222bbe2aa4\": \"/home/kara/duckbrain/namespaces/auger-pytest-ee222bbe2aa4\",\n      \"auger-pytest-1e8259ad2287\": \"/home/kara/duckbrain/namespaces/auger-pytest-1e8259ad2287\",\n      \"auger-pytest-73fb1a11c700\": \"/home/kara/duckbrain/namespaces/auger-pytest-73fb1a11c700\",\n      \"auger-pytest-f6f38747efd4\": \"/home/kara/duckbrain/namespaces/auger-pytest-f6f38747efd4\",\n      \"auger-pytest-224b1413b731\": \"/home/kara/duckbrain/namespaces/auger-pytest-224b1413b731\",\n-     \"auger-pytest-c3a93d8680ed\": \"/home/kara/duckbrain/namespaces/auger-pytest-c3a93d8680ed\",\n-     \"auger-pytest-b24521ce881c\": \"/home/kara/duckbrain/namespaces/auger-pytest-b24521ce881c\"\n+     \"auger-pytest-c3a93d8680ed\": \"/home/kara/duckbrain/namespaces/auger-pytest-c3a93d8680ed\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:154:30\n    152|   afterAll(() => {\n    153|     server.close();\n    154|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    155|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    156|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 POST /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14829,11 +14829,12 @@\n      \"auger-pytest-ee222bbe2aa4\": \"/home/kara/duckbrain/namespaces/auger-pytest-ee222bbe2aa4\",\n      \"auger-pytest-1e8259ad2287\": \"/home/kara/duckbrain/namespaces/auger-pytest-1e8259ad2287\",\n      \"auger-pytest-73fb1a11c700\": \"/home/kara/duckbrain/namespaces/auger-pytest-73fb1a11c700\",\n      \"auger-pytest-f6f38747efd4\": \"/home/kara/duckbrain/namespaces/auger-pytest-f6f38747efd4\",\n      \"auger-pytest-224b1413b731\": \"/home/kara/duckbrain/namespaces/auger-pytest-224b1413b731\",\n-     \"auger-pytest-c3a93d8680ed\": \"/home/kara/duckbrain/namespaces/auger-pytest-c3a93d8680ed\"\n+     \"auger-pytest-c3a93d8680ed\": \"/home/kara/duckbrain/namespaces/auger-pytest-c3a93d8680ed\",\n+     \"auger-pytest-90c4093d3aba\": \"/home/kara/duckbrain/namespaces/auger-pytest-90c4093d3aba\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:244:30\n    242|   afterAll(() => {\n    243|     server.close();\n    244|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    245|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    246|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  1 failed | 178 passed (179)\n      Tests  1430 passed (1430)\n   Start at  22:10:11\n   Duration  112.11s (tests 85%, import 12%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A clean frozen install of the default branch must link express directly and boot the documented HTTP quickstart without manual package fixes; verify the exact default-branch acceptance criteria.: package.json:45 declares \"express\": \"^5.2.1\" as a DIRECT dependency; pnpm-lock.yaml:184-186 root importer declares express specifier ^5.2.1 -> 5.2.1(supports-color@10.2.2) and package-lock.json root deps express ^5.2.1 / node_modules/express 5.2.1. `pnpm install --frozen-lockfile --lockfile-only` -> 'Lockfile passes supply-chain policies ... Done' exit 0. Genuine clean frozen install in isolated copy (/tmp/freshinstall from `git archive HEAD`): `pnpm install --frozen-lockfile` -> 'dependencies: + express 5.2.1' (top-level link), exit 0, no manual fixes; `require.resolve('express')` -> /tmp/freshinstall/node_modules/.pnpm/express@5.2.1.../express/index.js. Documented quickstart booted from that fresh install: `node bin/duckbrain.js http --port=3996 --auth=none` -> '[duckbrain] HTTP server ready'; README steps 3-5 returned {\"name\":\"quickstart\"}, write -> {\"key\":\"/quickstart/hello\",\"content\":\"first memory from the quickstart\"}, read-back identical \u2014 matching README:132 success criteria exactly. Regression guard src/utils/dependency-declaration.test.ts (DOGFOOD-0904-02) asserts express is in dependencies (not devDependencies), resolves from repo root, major 5: `npx vitest run src/utils/dependency-declaration.test.ts` -> Test Files 1 passed (1), Tests 4 passed (4), exit 0; combined run with namespaces.test.ts -> 2 files / 19 tests passed, exit 0. src/cli/http.ts:19 and src/http/routes/*.ts import express directly, satisfied by the direct link.\nA clean frozen install of the default branch links express 5.2.1 directly and boots the documented HTTP quickstart end-to-end with no manual package fixes, guarded by a passing regression test.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A clean frozen install of the default branch must link express directly and boot the documented HTTP quickstart without manual package fixes; verify the exact default-branch acceptance criteria.: package.json:45 declares \"express\": \"^5.2.1\" as a DIRECT dependency; pnpm-lock.yaml:184-186 root importer declares express specifier ^5.2.1 -> 5.2.1(supports-color@10.2.2) and package-lock.json root deps express ^5.2.1 / node_modules/express 5.2.1. `pnpm install --frozen-lockfile --lockfile-only` -> 'Lockfile passes supply-chain policies ... Done' exit 0. Genuine clean frozen install in isolated copy (/tmp/freshinstall from `git archive HEAD`): `pnpm install --frozen-lockfile` -> 'dependencies: + express 5.2.1' (top-level link), exit 0, no manual fixes; `require.resolve('express')` -> /tmp/freshinstall/node_modules/.pnpm/express@5.2.1.../express/index.js. Documented quickstart booted from that fresh install: `node bin/duckbrain.js http --port=3996 --auth=none` -> '[duckbrain] HTTP server ready'; README steps 3-5 returned {\"name\":\"quickstart\"}, write -> {\"key\":\"/quickstart/hello\",\"content\":\"first memory from the quickstart\"}, read-back identical \u2014 matching README:132 success criteria exactly. Regression guard src/utils/dependency-declaration.test.ts (DOGFOOD-0904-02) asserts express is in dependencies (not devDependencies), resolves from repo root, major 5: `npx vitest run src/utils/dependency-declaration.test.ts` -> Test Files 1 passed (1), Tests 4 passed (4), exit 0; combined run with namespaces.test.ts -> 2 files / 19 tests passed, exit 0. src/cli/http.ts:19 and src/http/routes/*.ts import express directly, satisfied by the direct link.\nA clean frozen install of the default branch links express 5.2.1 directly and boots the documented HTTP quickstart end-to-end with no manual package fixes, guarded by a passing regression test.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A clean frozen install of the default branch must link express directly and boot the documented HTTP quickstart without manual package fixes; verify the exact default-branch acceptance criteria.",
+                "status": "PASS",
+                "detail": "package.json:45 declares \"express\": \"^5.2.1\" as a DIRECT dependency; pnpm-lock.yaml:184-186 root importer declares express specifier ^5.2.1 -> 5.2.1(supports-color@10.2.2) and package-lock.json root deps express ^5.2.1 / node_modules/express 5.2.1. `pnpm install --frozen-lockfile --lockfile-only` -> 'Lockfile passes supply-chain policies ... Done' exit 0. Genuine clean frozen install in isolated copy (/tmp/freshinstall from `git archive HEAD`): `pnpm install --frozen-lockfile` -> 'dependencies: + express 5.2.1' (top-level link), exit 0, no manual fixes; `require.resolve('express')` -> /tmp/freshinstall/node_modules/.pnpm/express@5.2.1.../express/index.js. Documented quickstart booted from that fresh install: `node bin/duckbrain.js http --port=3996 --auth=none` -> '[duckbrain] HTTP server ready'; README steps 3-5 returned {\"name\":\"quickstart\"}, write -> {\"key\":\"/quickstart/hello\",\"content\":\"first memory from the quickstart\"}, read-back identical \u2014 matching README:132 success criteria exactly. Regression guard src/utils/dependency-declaration.test.ts (DOGFOOD-0904-02) asserts express is in dependencies (not devDependencies), resolves from repo root, major 5: `npx vitest run src/utils/dependency-declaration.test.ts` -> Test Files 1 passed (1), Tests 4 passed (4), exit 0; combined run with namespaces.test.ts -> 2 files / 19 tests passed, exit 0. src/cli/http.ts:19 and src/http/routes/*.ts import express directly, satisfied by the direct link.",
+                "resolution_probability": 0.11
+              }
+            ],
+            "summary": "A clean frozen install of the default branch links express 5.2.1 directly and boots the documented HTTP quickstart end-to-end with no manual package fixes, guarded by a passing regression test."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-01\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A clean frozen install of the default branch must link express directly and boot the documented HTTP quickstart without manual package fixes; verify the exact default-branch acceptance criteria.: package.json:45 declares \"express\": \"^5.2.1\" as a DIRECT dependency; pnpm-lock.yaml:184-186 root importer declares express specifier ^5.2.1 -> 5.2.1(supports-color@10.2.2) and package-lock.json root deps express ^5.2.1 / node_modules/express 5.2.1. `pnpm install --frozen-lockfile --lockfile-only` -> 'Lockfile passes supply-chain policies ... Done' exit 0. Genuine clean frozen install in isolated copy (/tmp/freshinstall from `git archive HEAD`): `pnpm install --frozen-lockfile` -> 'dependencies: + express 5.2.1' (top-level link), exit 0, no manual fixes; `require.resolve('express')` -> /tmp/freshinstall/node_modules/.pnpm/express@5.2.1.../express/index.js. Documented quickstart booted from that fresh install: `node bin/duckbrain.js http --port=3996 --auth=none` -> '[duckbrain] HTTP server ready'; README steps 3-5 returned {\"name\":\"quickstart\"}, write -> {\"key\":\"/quickstart/hello\",\"content\":\"first memory from the quickstart\"}, read-back identical \u2014 matching README:132 success criteria exactly. Regression guard src/utils/dependency-declaration.test.ts (DOGFOOD-0904-02) asserts express is in dependencies (not devDependencies), resolves from repo root, major 5: `npx vitest run src/utils/dependency-declaration.test.ts` -> Test Files 1 passed (1), Tests 4 passed (4), exit 0; combined run with namespaces.test.ts -> 2 files / 19 tests passed, exit 0. src/cli/http.ts:19 and src/http/routes/*.ts import express directly, satisfied by the direct link.\nA clean frozen install of the default branch links express 5.2.1 directly and boots the documented HTTP quickstart end-to-end with no manual package fixes, guarded by a passing regression test.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-28T03:15:05.744760",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-28T03:15:05.771735+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 983,
+        "truncated": false,
+        "source": "git show 5726da095c37"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 14435,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-01"
+  }
+}

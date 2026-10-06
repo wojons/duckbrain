@@ -1,0 +1,32 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d611b10..ba35c30 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2316,3 +2316,27 @@ tasks:
+   status: complete
+   created_at: '2026-10-03T15:33:34.757228+00:00'
+   completed_at: '2026-10-03T10:49:50.969262'
++- id: S3-QUERY-SCHEME-001
++  title: 's3 query ignores endpoint scheme: s3_use_ssl never set'
++  criteria:
++  - src/s3/query.ts must SET s3_use_ssl=false when the configured endpoint is http://
++    (true for https), carried from the endpoint scheme; a test proves an http endpoint
++    yields s3_use_ssl=false; pnpm tsc --noEmit and targeted vitest suite green
++  status: complete
++  created_at: '2026-10-03T19:18:02.958171+00:00'
++  completed_at: '2026-10-03T19:27:00.870537+00:00'
++- id: AUG-045
++  title: Require declared primary key on HTTP table POST
++  criteria:
++  - POST /api/ns/<ns>/tables/<t> must reject rows missing or emptying the table's
++    declared primary key with HTTP 400 VALIDATION_ERROR (schema.json tables only);
++    legacy declarations unchanged; vitest suite green; tsc clean
++  status: in_progress
++  created_at: '2026-10-03T19:26:50.208399+00:00'
++- id: INT-CI-018
++  title: 'CI red on main: AGENTS.md test-count drift after 200th test file'
++  criteria:
++  - CI test job green on the published tip; AGENTS.md counts match live suite
++  status: complete
++  created_at: '2026-10-04T04:25:13.180458+00:00'
++  completed_at: '2026-10-04T04:28:36.141999+00:00'

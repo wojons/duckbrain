@@ -1,0 +1,927 @@
+/**
+ * Memory API Routes
+ *
+ * Express routes that wrap MCP tool functions (recallTool, rememberTool, forgetTool)
+ * per the centralized architecture pattern. All data flows through existing MCP tools.
+ */
+// @ts-nocheck
+
+
+import { Router, Request, Response } from "express";
+import { recallTool } from "../../mcp/tools/recall";
+import { rememberTool } from "../../mcp/tools/remember";
+import { forgetTool } from "../../mcp/tools/forget";
+import {
+  asyncHandler,
+  ApiError,
+  NotFoundError,
+  ValidationError,
+} from "../middleware/errorHandler";
+import { DomainEnum, writeContentViolation } from "../../schema/memory";
+import { normalizeAttributes } from "../../utils/serialize";
+import {
+  MemoryResponse,
+  MemoryListResponse,
+  CreateMemoryRequest,
+  UpdateMemoryRequest,
+  QueryParams,
+} from "../types/api";
+import {
+  parseTimeRange,
+  type NormalizedTimeRange,
+} from "../../utils/timerange";
+import { resolveAsOfRef } from "../../git/asof";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+} from "../../mcp/tools/shared";
+import { durabilityHeaderFor } from "../../storage/durability";
+import {
+  auditRequestDenial,
+  getPrincipal,
+  principalAuthorEmail,
+  requireNamespaceGrant,
+  requireTableGrant,
+} from "../../auth/middleware";
+
+/**
+ * DB-GAP-036: detect the embeddings-down recall error so semantic endpoints
+ * answer 503 (operator-actionable, client-visible) instead of 500. recallTool
+ * (src/mcp/tools/recall.ts) surfaces exactly two embeddings-down shapes —
+ * no provider configured, and every configured provider failing to embed —
+ * distinguished here by prefix. Every other recall error (DuckDB failure,
+ * missing keyword index, invalid query combinations) keeps its 500 status.
+ */
+function isEmbeddingsDownError(message: string): boolean {
+  return (
+    message.startsWith("Semantic search requires an embedding provider") ||
+    message.startsWith("Embedding generation failed")
+  );
+}
+
+/**
+ * DB-GAP-036: map a recallTool error to the right HTTP status. When
+ * embeddings are down the request cannot be served until an embedding
+ * provider is reachable (start LM Studio/Ollama, set DUCKBRAIN_EMBEDDING_PROVIDER,
+ * or set DUCKBRAIN_EMBEDDING_API_KEY), so the failure is surfaced as 503
+ * EMBEDDINGS_UNAVAILABLE with recall.ts's existing operator guidance verbatim
+ * — never a silent unfiltered list. All other recall errors stay 500.
+ */
+function throwRecallError(error: string): never {
+  if (isEmbeddingsDownError(error)) {
+    throw new ApiError(error, 503, "EMBEDDINGS_UNAVAILABLE");
+  }
+  // DF-0924-04: as_of + q/contains is a client validation error, not a server fault.
+  if (error.includes("as_of cannot be combined")) {
+    throw new ValidationError(error);
+  }
+  throw new ApiError(error, 500);
+}
+
+interface ToolWriteFailure {
+  error?: string;
+  code?: string;
+  fields?: Record<string, string>;
+  retryAfter?: number;
+}
+
+/** Map serializer backpressure/fencing honestly onto the REST envelope. */
+function throwWriteError(
+  res: Response,
+  result: ToolWriteFailure,
+  fallback: string,
+): never {
+  const message = result.error || fallback;
+  if (result.code === "SERIALIZER_QUEUE_FULL") {
+    res.setHeader("Retry-After", String(result.retryAfter ?? 1));
+  }
+  if (result.code === "VALIDATION_ERROR") {
+    throw new ValidationError(message, result.fields);
+  }
+  const status =
+    result.code === "FORBIDDEN"
+      ? 403
+      : // NAMESPACE-AUTOCREATE-001: strict-mode write into a namespace that
+        // does not exist (namespaces.autoCreate=false refused it) — same wire
+        // status as the read-side GAP-025 404s. The code stays more specific
+        // than the legacy NOT_FOUND so clients can tell the two apart.
+        result.code === "NOT_FOUND" || result.code === "NAMESPACE_NOT_FOUND"
+        ? 404
+        : result.code === "SERIALIZER_QUEUE_FULL" ||
+            result.code === "SERIALIZER_LOCKED" ||
+            result.code === "SERIALIZER_FENCED" ||
+            result.code === "SERVER_SHUTTING_DOWN"
+          ? 503
+          : 500;
+  throw new ApiError(message, status, result.code);
+}
+
+const router: Router = Router();
+
+// DB-GAP-031: enforce per-token namespace grants on every namespace-scoped
+// memory route (read, write, update, delete). Passes through untouched in
+// auth=none mode and for unrestricted tokens.
+//
+// DF-0926-04: the namespace comes from the ONE canonical resolver
+// (`resolveNamespaceName`: explicit param > DUCKBRAIN_NAMESPACE > config
+// defaultNamespace > "default"), and the routes below call THIS function
+// rather than re-deriving it. The previous per-route `|| "default"` fallback
+// ignored both the documented env var and the config's defaultNamespace, and
+// duplicating the expression risked the grant check grading a different
+// namespace than the route actually touched.
+const resolveRequestNamespace = (req: Request): string =>
+  resolveNamespaceName(
+    (req.query.namespace as string) ||
+      (req.body as { namespace?: string } | undefined)?.namespace ||
+      undefined,
+  );
+
+router.use(requireNamespaceGrant(resolveRequestNamespace));
+
+// SUPA-4: the current memory routes are the existing table surface. Legacy
+// principals and auth=none pass through; role-aware principals are checked
+// before any MCP tool or serializer work begins.
+const requireMemoryRead = requireTableGrant(
+  resolveRequestNamespace,
+  () => "memories",
+  "read",
+);
+const requireMemoryWrite = requireTableGrant(
+  resolveRequestNamespace,
+  () => "memories",
+  "write",
+);
+router.use((req, res, next) =>
+  req.method === "GET" || req.method === "HEAD"
+    ? requireMemoryRead(req, res, next)
+    : requireMemoryWrite(req, res, next),
+);
+
+// GAP-023: upper bound on a single page so one request can never force a
+// multi-hundred-MB response, regardless of how many rows match.
+const MAX_LIMIT = 1000;
+
+/**
+ * Parse and validate the ?limit= query parameter (GAP-023).
+ *
+ * Rejects negative and non-numeric values with 400 VALIDATION_ERROR, caps
+ * positive values at MAX_LIMIT, treats 0 as a valid empty-page request, and
+ * keeps the default of 50 when the parameter is absent.
+ */
+function parseLimit(raw: unknown): number {
+  if (raw === undefined) {
+    return 50;
+  }
+  const parsed = parseInt(raw as string, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new ValidationError("limit must be a non-negative integer");
+  }
+  return Math.min(parsed, MAX_LIMIT);
+}
+
+/**
+ * Parse and validate the ?offset= query parameter (DB-GAP-046).
+ *
+ * Rejects negative and non-numeric values with 400 VALIDATION_ERROR (the same
+ * contract as ?limit=), defaults to 0 when absent. The offset is a window
+ * selector forwarded to the query layer — a negative value would reach SQL as
+ * an invalid OFFSET and silently return an empty page.
+ */
+function parseOffset(raw: unknown): number {
+  if (raw === undefined) {
+    return 0;
+  }
+  const parsed = parseInt(raw as string, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    throw new ValidationError("offset must be a non-negative integer");
+  }
+  return parsed;
+}
+
+/**
+ * DF-0926-02: the complete query-parameter surface of GET /api/memories.
+ *
+ * The handler builds its filters from a fixed set of names and used to let
+ * anything else pass unread — so a client that sent `?key=` or `?query=`
+ * (both taught by examples/http-api/client.js at the time of the dogfood
+ * run) got HTTP 200 with the UNFILTERED list and believed its filter had
+ * been applied. A silent wrong result is worse than an error: the caller
+ * has no signal that the filter was dropped. Every param the route reads
+ * is named here, and anything else is refused with 400 VALIDATION_ERROR
+ * listing this list, so the same class cannot come back with a new
+ * spelling. `docs/api/http-api.md` must advertise exactly this set — the
+ * DF-0926-02 test parses both and fails on drift in either direction.
+ */
+const LIST_QUERY_PARAMS = [
+  "prefix",
+  "domain",
+  "author",
+  "q",
+  "contains",
+  "after",
+  "before",
+  "between",
+  "as_of",
+  "historical",
+  "limit",
+  "offset",
+  "namespace",
+  // RETR-007: cross-namespace keyword search (read below via
+  // params.allNamespaces).
+  "allNamespaces",
+] as const;
+
+/** RETR-006: attribute filters are a documented PREFIX, not a fixed name. */
+const ATTRIBUTE_PARAM_PREFIX = "attr.";
+const ATTRIBUTE_PARAM_FORM = `${ATTRIBUTE_PARAM_PREFIX}<name>`;
+
+const LIST_QUERY_PARAM_LIST = [...LIST_QUERY_PARAMS, ATTRIBUTE_PARAM_FORM].join(
+  ", ",
+);
+
+/**
+ * DF-0926-02: hints for the two undocumented spellings the repo's own HTTP
+ * example taught. Naming the replacement turns "you sent something I do not
+ * understand" into a fixable message.
+ */
+const LIST_QUERY_PARAM_HINTS: Record<string, string> = {
+  key: "read one exact key with GET /api/memories/key/:key, or filter the list with ?prefix=",
+  query: "use ?q= (semantic search) or ?contains= (offline keyword search)",
+};
+
+/**
+ * DF-0926-02: is this query-param name part of the documented surface?
+ * `attr.` with no attribute name is NOT — it would be read as a filter on
+ * an empty attribute name.
+ */
+function isListQueryParam(name: string): boolean {
+  if ((LIST_QUERY_PARAMS as readonly string[]).includes(name)) {
+    return true;
+  }
+  return (
+    name.startsWith(ATTRIBUTE_PARAM_PREFIX) &&
+    name.length > ATTRIBUTE_PARAM_PREFIX.length
+  );
+}
+
+/**
+ * DF-0926-02: reject any query parameter this route does not read, instead
+ * of silently ignoring it. Runs BEFORE any filter is built or any tool is
+ * called, so an unhonourable request can never be answered with a 200 list.
+ */
+function rejectUnknownListQueryParams(query: unknown): void {
+  const unknown = Object.keys((query ?? {}) as Record<string, unknown>).filter(
+    (name) => !isListQueryParam(name),
+  );
+  if (unknown.length === 0) {
+    return;
+  }
+  const offenders = unknown
+    .map((name) =>
+      LIST_QUERY_PARAM_HINTS[name]
+        ? `'${name}' (${LIST_QUERY_PARAM_HINTS[name]})`
+        : `'${name}'`,
+    )
+    .join(", ");
+  throw new ValidationError(
+    `Unknown query parameter(s): ${offenders}. Valid parameters: ${LIST_QUERY_PARAM_LIST}.`,
+  );
+}
+
+/**
+ * Transform MCP memory to API response format
+ */
+function transformMemory(memory: any): MemoryResponse {
+  return {
+    id: memory.id,
+    key: memory.key,
+    domain: memory.domain,
+    content: memory.embedding_text,
+    attributes: memory.attributes || {},
+    timestamp: memory.timestamp,
+    // RETR-011: optional validity window — echoed from the stored row when
+    // present (absent on pre-RETR-011 memories).
+    ...(typeof memory.valid_from === "string"
+      ? { valid_from: memory.valid_from }
+      : {}),
+    ...(typeof memory.valid_until === "string"
+      ? { valid_until: memory.valid_until }
+      : {}),
+    author: memory.author,
+    isTombstone: memory.action === "tombstone",
+    action: memory.action,
+    // DOGFOOD-011: semantic ?q= results carry their similarity score; the
+    // plain list path has no score and must not fabricate one.
+    ...(typeof memory.score === "number" ? { score: memory.score } : {}),
+    // RETR-001: keyword ?contains= results carry a snippet around the
+    // first matched token; other paths have none.
+    ...(typeof memory.snippet === "string" ? { snippet: memory.snippet } : {}),
+    // RETR-008: the highlighted display form rides alongside the raw
+    // snippet on keyword ?contains= responses.
+    ...(typeof memory.highlightedSnippet === "string"
+      ? { highlightedSnippet: memory.highlightedSnippet }
+      : {}),
+    // RETR-007: keyword hits carry their source namespace (single-namespace
+    // requests: the searched namespace; ?allNamespaces=true unions: each
+    // hit's own).
+    ...(typeof memory.namespace === "string"
+      ? { namespace: memory.namespace }
+      : {}),
+  };
+}
+
+/**
+ * DF-0919-05: collapse the request's validity window onto its canonical
+ * snake_case fields. Both spellings are accepted; when both are present the
+ * snake_case value WINS. The snake_case pair is what reaches rememberTool
+ * and what the 201 response echoes — the wire format stays snake_case.
+ */
+function normalizeValidityWindow(
+  body: CreateMemoryRequest,
+  camel: { validFrom?: string; validUntil?: string },
+): { valid_from?: string; valid_until?: string } {
+  // Per-field precedence: the snake_case value wins when both spellings of
+  // a field are present; the camelCase value fills an otherwise-empty slot.
+  return {
+    ...(body.valid_from !== undefined || camel.validFrom !== undefined
+      ? { valid_from: body.valid_from ?? camel.validFrom }
+      : {}),
+    ...(body.valid_until !== undefined || camel.validUntil !== undefined
+      ? { valid_until: body.valid_until ?? camel.validUntil }
+      : {}),
+  };
+}
+
+/**
+ * GET /api/memories
+ * Query memories with filters
+ */
+router.get(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
+    // DF-0926-02: refuse query params this route cannot honour BEFORE any
+    // filter is built — an unrecognized param must never be silently dropped
+    // and answered with the unfiltered list.
+    rejectUnknownListQueryParams(req.query);
+
+    const params: QueryParams = {
+      prefix: req.query.prefix as string | undefined,
+      // GAP-023: validated — rejects negative/non-numeric with 400
+      // VALIDATION_ERROR, caps at MAX_LIMIT, 0 = valid empty page.
+      limit: parseLimit(req.query.limit),
+      // DB-GAP-046: validated like limit — negative/non-numeric → 400.
+      offset: parseOffset(req.query.offset),
+      domain: req.query.domain as string | undefined,
+      author: req.query.author as string | undefined,
+      query: req.query.q as string | undefined,
+      // RETR-001: keyword filter — full-text search over content/key/
+      // attributes via the rebuilt FTS sidecar (offline).
+      contains: req.query.contains as string | undefined,
+      // RETR-007: cross-namespace keyword search — ?allNamespaces=true unions
+      // keyword hits over every manifest namespace.
+      allNamespaces: req.query.allNamespaces === "true",
+      // RETR-003: time-scoped recall — ISO-8601 bounds (validated below so
+      // invalid dates surface as a clean 400, not a recallTool 500).
+      after: req.query.after as string | undefined,
+      before: req.query.before as string | undefined,
+      between: req.query.between as string | undefined,
+      // RETR-004: memory-as-of — git ref or ISO-8601 date (validated below
+      // so invalid values surface as a clean 400, not a recallTool 500).
+      as_of: req.query.as_of as string | undefined,
+      // RETR-011: view selector — ?historical=true includes expired /
+      // not-yet-valid rows (the current view is the default).
+      historical: req.query.historical === "true",
+      namespace: resolveRequestNamespace(req),
+    };
+
+    // RETR-006: attribute filters — every ?attr.<name>=<value> query param
+    // (prefix-stripped) becomes one name→value filter. Only string-valued
+    // params are forwarded; non-string (array/object) values are dropped.
+    const attr: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.query)) {
+      if (key.startsWith("attr.") && typeof value === "string") {
+        attr[key.slice("attr.".length)] = value;
+      }
+    }
+
+    // RETR-007: ?allNamespaces=true spans EVERY manifest namespace — a
+    // scoped token's per-namespace grant cannot cover that, so only
+    // unrestricted principals may use the flag (auth=none passes through).
+    if (params.allNamespaces) {
+      const principal = getPrincipal(req);
+      if (principal && principal.namespaces !== undefined) {
+        auditRequestDenial(req, {
+          op: "memories.search_all_namespaces",
+          principal: principal.name,
+          reason: "namespace_scope",
+        });
+        throw new ApiError(
+          `Forbidden: token '${principal.name}' has no grant for cross-namespace search — ?allNamespaces=true requires an unrestricted token`,
+          403,
+        );
+      }
+    }
+
+    // RETR-003: validate + normalize the time-range params BEFORE the tool
+    // call — parseTimeRange throws on invalid ISO-8601 values, between=
+    // combined with after/before, or an empty window (after > before), and
+    // the ValidationError maps to a 400 VALIDATION_ERROR response.
+    let timeRange: NormalizedTimeRange;
+    try {
+      timeRange = parseTimeRange({
+        after: params.after,
+        before: params.before,
+        between: params.between,
+      });
+    } catch (error) {
+      throw new ValidationError(
+        error instanceof Error ? error.message : "Invalid time filter",
+      );
+    }
+
+    // RETR-004: resolve ?as_of= to a concrete commit BEFORE the tool call —
+    // an invalid ref maps to a clean 400 VALIDATION_ERROR, mirroring the
+    // time-range validation above. The RESOLVED commit is forwarded so the
+    // tool never re-resolves against a different HEAD mid-request.
+    let asOfRef: string | undefined;
+    if (params.as_of !== undefined) {
+      try {
+        asOfRef = resolveAsOfRef(
+          params.as_of,
+          resolveNamespacePath(params.namespace),
+        );
+      } catch (error) {
+        throw new ValidationError(
+          error instanceof Error ? error.message : "Invalid as_of value",
+        );
+      }
+    }
+
+    // Call recallTool with filters
+    const result = await recallTool({
+      keyPrefix: params.prefix,
+      // Fetch one extra to detect hasMore. limit=0 is an explicit empty page
+      // — recallTool short-circuits to a count-only result (GAP-024).
+      limit: params.limit! > 0 ? params.limit! + 1 : 0,
+      // DB-GAP-046: the offset is forwarded so the QUERY LAYER applies the
+      // window (SQL LIMIT/OFFSET on the list path). Slicing the returned
+      // page by offset instead — what this route used to do — can only ever
+      // reach rows the LIMIT already fetched, so every offset >= limit
+      // returned an empty page while 15+ matching rows sat on disk.
+      offset: params.offset || 0,
+      domain: params.domain,
+      // RETR-007: ?allNamespaces=true unions over every manifest namespace
+      // — recallTool rejects namespace+allNamespaces together, so the
+      // scoped param is omitted when the union flag is set.
+      ...(params.allNamespaces
+        ? { allNamespaces: true }
+        : { namespace: params.namespace }),
+      // Author is applied in SQL (via recallTool) so the true total
+      // reflects it (GAP-024).
+      ...(params.author ? { author: params.author } : {}),
+      // DOGFOOD-001: forward ?q= to semantic search (was silently dropped).
+      // When q= is set but no embedding provider is configured, recallTool
+      // returns an error string which the result.error → ApiError(500) path
+      // below surfaces instead of silently returning the unfiltered list.
+      ...(params.query ? { query: params.query } : {}),
+      // RETR-001: forward ?contains= to keyword search (offline FTS —
+      // no embedding provider involved). q= and contains= together are
+      // rejected by recallTool (hybrid fusion is RETR-002) and surface
+      // as an ApiError(500) here.
+      ...(params.contains ? { contains: params.contains } : {}),
+      // RETR-003: forward the NORMALIZED window (between= already expanded
+      // by parseTimeRange) so the tool never sees raw params again.
+      ...(timeRange.after ? { after: timeRange.after } : {}),
+      ...(timeRange.before ? { before: timeRange.before } : {}),
+      // RETR-004: forward the RESOLVED commit ref (date inputs already
+      // resolved to a SHA above).
+      ...(asOfRef ? { asOf: asOfRef } : {}),
+      // RETR-006: forward the prefix-stripped attribute filters
+      // (?attr.domain=config → attr: {domain: "config"}).
+      ...(Object.keys(attr).length > 0 ? { attr } : {}),
+      // RETR-011: forward the view selector (absent = current view).
+      ...(params.historical ? { historical: true } : {}),
+    });
+
+    if (result.error) {
+      // DB-GAP-036: embeddings down → 503 EMBEDDINGS_UNAVAILABLE with the
+      // recall.ts operator message; any other recall error stays 500.
+      throwRecallError(result.error);
+    }
+
+    const memories = result.memories.map(transformMemory);
+
+    // Filter by author if specified
+    const filteredMemories = params.author
+      ? memories.filter((m) => m.author === params.author)
+      : memories;
+
+    // Check if there are more results. limit=0 is an explicit empty page —
+    // hasMore must be false even when rows exist (GAP-024).
+    // DB-GAP-046: the query layer already returned the requested page — rows
+    // [offset, offset+limit) plus the one extra hasMore probe — so the extra
+    // item is dropped here and the result is NEVER re-sliced by offset.
+    const hasMore =
+      params.limit! > 0 && filteredMemories.length > params.limit!;
+    if (hasMore) {
+      filteredMemories.pop(); // Remove the extra item
+    }
+
+    const offset = params.offset || 0;
+
+    // Defensive slice: a stubbed/ranked path that ignores limit still
+    // yields at most one page.
+    const page = filteredMemories.slice(0, params.limit!);
+    // GAP-024: true COUNT(*) of all rows matching the active filters,
+    // unlimited by limit/offset. Falls back to the fetched-page length for
+    // callers that stub recallTool without a total.
+    const total = result.total ?? filteredMemories.length;
+
+    const response: MemoryListResponse = {
+      items: page,
+      total,
+      offset,
+      limit: params.limit!,
+      hasMore,
+      nextOffset: hasMore ? offset + params.limit! : null,
+      // API-CONTRACT-001: additive aliases. `count` and `memories` were simply
+      // absent, so a client reading either spelling got `undefined`/0 and
+      // reported "no memories" while the server had returned a full page — a
+      // silent-empty instead of a loud error. Both are now always present and
+      // always agree with the canonical `total`/`items`; nothing about the
+      // existing fields changes shape or meaning.
+      count: total,
+      memories: page,
+    };
+
+    res.json(response);
+  }),
+);
+
+/**
+ * GET /api/memories/key/:key
+ * Get single memory by key path
+ * Must be defined BEFORE /:id route to avoid conflicts
+ */
+router.get(
+  "/key/*key",
+  asyncHandler(async (req: Request, res: Response) => {
+    // Express 5 (path-to-regexp v8): a named wildcard (*key) captures an
+    // ARRAY of path segments, not a string. Joining restores the key path.
+    // The old `as string` cast hid this — key.startsWith threw a TypeError
+    // on the array, surfacing as the generic 500 INTERNAL_ERROR (GAP-002).
+    const keyParam: unknown = req.params.key;
+    const key = Array.isArray(keyParam)
+      ? keyParam.join("/")
+      : String(keyParam ?? "");
+    const namespace = resolveRequestNamespace(req);
+
+    // Normalize key to start with /
+    const normalizedKey = key.startsWith("/") ? key : `/${key}`;
+
+    // Use exact key lookup in DuckDB — no in-memory scan
+    const result = await recallTool({
+      key: normalizedKey,
+      limit: 10,
+      namespace,
+    });
+
+    if (result.error) {
+      throw new ApiError(result.error, 500);
+    }
+
+    if (result.memories.length === 0) {
+      throw new NotFoundError("Memory", key);
+    }
+
+    // Return the most recent non-tombstoned memory, or the most recent
+    const memory =
+      result.memories.find((m) => m.action !== "tombstone") ||
+      result.memories[0];
+
+    res.json(transformMemory(memory));
+  }),
+);
+
+/**
+ * GET /api/memories/:id
+ * Get single memory by ID
+ */
+router.get(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+    const namespace = resolveRequestNamespace(req);
+
+    // Use exact ID lookup in DuckDB — no in-memory scan
+    const result = await recallTool({
+      id,
+      limit: 1,
+      namespace,
+    });
+
+    if (result.error) {
+      throw new ApiError(result.error, 500);
+    }
+
+    // DuckDB WHERE clause already filtered to this ID — use first result
+    const memory = result.memories[0];
+
+    if (!memory) {
+      throw new NotFoundError("Memory", id);
+    }
+
+    res.json(transformMemory(memory));
+  }),
+);
+
+/**
+ * POST /api/memories
+ * Create a new memory
+ */
+router.post(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = req.body as CreateMemoryRequest;
+    // DF-0919-05: camelCase validity aliases (API-spec-adjacent spellings
+    // some callers send). Mapped below; snake_case wins on collision.
+    const camel = {
+      validFrom: (body as { validFrom?: string }).validFrom,
+      validUntil: (body as { validUntil?: string }).validUntil,
+    };
+
+    // Validate required fields.
+    // DB-GAP-058: "missing" and "blank" are now distinct concerns. This
+    // truthiness test used to be the ONLY body gate here, so `""` was caught
+    // while `"   "`, `"\t\n  "` and the placeholder `"null"` sailed straight
+    // through — and those rows were stored and replicated to S3. A missing
+    // field keeps its original message (callers match on that string); a
+    // present-but-unusable body is called out explicitly instead. The blank/
+    // placeholder decision itself lives in ONE shared policy
+    // (`writeContentViolation`) so this route, the MCP tool and the CLI
+    // cannot drift apart about what may be stored.
+    const contentAbsent =
+      body.content === undefined ||
+      body.content === null ||
+      body.content === "";
+    if (!body.key || !body.domain || contentAbsent) {
+      throw new ApiError(
+        "Missing required fields: key, domain, content",
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    if (typeof body.content !== "string") {
+      throw new ApiError("content must be a string", 400, "VALIDATION_ERROR");
+    }
+    const contentViolation = writeContentViolation({
+      action: "add",
+      embedding_text: body.content,
+    });
+    if (contentViolation) {
+      throw new ApiError(contentViolation, 400, "VALIDATION_ERROR");
+    }
+
+    // Validate domain is a valid value (BUG-029)
+    if (!DomainEnum.safeParse(body.domain).success) {
+      throw new ApiError(
+        `Invalid domain '${body.domain}'. Must be one of: ${DomainEnum.options.join(", ")}`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+
+    // DF-0926-06: validate key format before it reaches rememberTool
+    if (!body.key.startsWith("/")) {
+      throw new ValidationError(
+        `Invalid key '${body.key}': key must be a filesystem-style path starting with / (e.g., /projects/mcp)`,
+      );
+    }
+
+    // Call rememberTool to create memory
+    // DB-GAP-031: an authenticated principal stamps the record — a
+    // client-supplied ?author= or body author is never honored on writes.
+    const principal = getPrincipal(req);
+    const writtenNamespace = resolveRequestNamespace(req);
+    const result = await rememberTool(
+      {
+        key: body.key,
+        domain: body.domain as any,
+        // DOGFOOD-010: canonicalize before it reaches the tool AND before the
+        // response echoes it — the stored row and the response must agree.
+        attributes: normalizeAttributes(body.attributes),
+        embedding_text: body.content,
+        // RETR-011: optional validity window — passthrough; omitted fields
+        // keep the legacy always-current behavior.
+        // DF-0919-05: camelCase validFrom/validUntil are accepted and mapped
+        // onto the canonical snake_case fields (snake_case wins on collision) —
+        // zod previously stripped them silently on this path too.
+        ...normalizeValidityWindow(body, camel),
+        namespace: writtenNamespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
+
+    if (!result.success) {
+      throwWriteError(res, result, "Failed to create memory");
+    }
+
+    // Return the created memory
+    // RETR-011: echo the validity window exactly as stored — snake_case in,
+    // snake_case out. DF-0919-05: a camelCase-sourced value is echoed under
+    // its canonical snake_case name too (same memory row).
+    const validity = normalizeValidityWindow(body, camel);
+    const memory: MemoryResponse = {
+      id: result.id!,
+      key: result.key!,
+      domain: body.domain,
+      content: body.content,
+      attributes: normalizeAttributes(body.attributes),
+      // DB-GAP-045: echo the persisted write timestamp of the stored version
+      // when the tool reports it — the response-time stamp stays only as a
+      // backwards-compatible fallback.
+      timestamp: result.timestamp ?? new Date().toISOString(),
+      ...validity,
+      author: result.author!,
+      isTombstone: false,
+      action: "add",
+      // NAMESPACE-AUTOCREATE-001: additive — present (true) only when THIS
+      // write created the namespace (it did not exist before); absent when
+      // the namespace already existed, so existing clients see no change.
+      ...(result.namespace_autocreated
+        ? { namespace_autocreated: true as const }
+        : {}),
+    };
+
+    // SUPA-1 (AC-6): every 2xx write response advertises the durability mode
+    // of the namespace actually written, resolved from config.
+    res.setHeader(
+      "X-Durability",
+      durabilityHeaderFor(result.namespace ?? writtenNamespace),
+    );
+
+    res.status(201).json(memory);
+  }),
+);
+
+/**
+ * PUT /api/memories/:id
+ * Update a memory (forget + remember = new version)
+ */
+router.put(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+    const body = req.body as UpdateMemoryRequest;
+    const namespace = resolveRequestNamespace(req);
+    // DB-GAP-031: authenticated principal stamps both the tombstone and the
+    // new version — client-supplied author values are never honored.
+    const principal = getPrincipal(req);
+
+    if (!body.content && !body.attributes) {
+      throw new ApiError("No update data provided", 400, "VALIDATION_ERROR");
+    }
+
+    // DB-GAP-058: content, WHEN SUPPLIED, must be real content. An empty
+    // string is deliberately left alone here — on this route it is not a
+    // body, it is "keep the existing body" (see the `newContent` fallback
+    // below), so rejecting it would break attribute-only updates. A
+    // whitespace-only or placeholder string, by contrast, is an explicit
+    // attempt to overwrite a real memory with junk, and is refused.
+    if (typeof body.content === "string" && body.content.length > 0) {
+      const putViolation = writeContentViolation({
+        action: "add",
+        embedding_text: body.content,
+      });
+      if (putViolation) {
+        throw new ApiError(putViolation, 400, "VALIDATION_ERROR");
+      }
+    } else if (body.content !== undefined && typeof body.content !== "string") {
+      throw new ApiError("content must be a string", 400, "VALIDATION_ERROR");
+    }
+
+    // Step 1: Find existing memory by ID directly in DuckDB
+    const findResult = await recallTool({
+      id,
+      limit: 1,
+      namespace,
+    });
+
+    if (findResult.error) {
+      throw new ApiError(findResult.error, 500);
+    }
+
+    // DuckDB WHERE clause already filtered to this ID — use first result
+    const existingMemory = findResult.memories[0];
+
+    if (!existingMemory) {
+      throw new NotFoundError("Memory", id);
+    }
+
+    // Step 2: Forget the old version (create tombstone)
+    const forgetResult = await forgetTool(
+      {
+        id,
+        reason: "Updated via API",
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
+
+    if (!forgetResult.success) {
+      throwWriteError(res, forgetResult, "Failed to update memory");
+    }
+
+    // Step 3: Remember the new version
+    const newContent = body.content || existingMemory.embedding_text;
+    // DOGFOOD-010: canonicalize the merged attributes before persisting.
+    const newAttributes = body.attributes
+      ? {
+          ...existingMemory.attributes,
+          ...normalizeAttributes(body.attributes),
+        }
+      : existingMemory.attributes;
+
+    const rememberResult = await rememberTool(
+      {
+        key: existingMemory.key,
+        domain: existingMemory.domain as any,
+        attributes: newAttributes,
+        embedding_text: newContent,
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
+
+    if (!rememberResult.success) {
+      throwWriteError(
+        res,
+        rememberResult,
+        "Failed to create new memory version",
+      );
+    }
+
+    // Return updated memory
+    const memory: MemoryResponse = {
+      id: rememberResult.id!,
+      key: existingMemory.key,
+      domain: existingMemory.domain,
+      content: newContent,
+      attributes: newAttributes,
+      timestamp: new Date().toISOString(),
+      author: rememberResult.author!,
+      isTombstone: false,
+      action: "update",
+    };
+
+    // SUPA-1/SUPA-2: both the tombstone and new version were serialized
+    // through the same namespace writer; advertise the effective mode.
+    res.setHeader(
+      "X-Durability",
+      durabilityHeaderFor(rememberResult.namespace ?? namespace),
+    );
+
+    res.json(memory);
+  }),
+);
+
+/**
+ * DELETE /api/memories/:id
+ * Delete a memory (create tombstone)
+ */
+router.delete(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+    const namespace = resolveRequestNamespace(req);
+    // DB-GAP-031: authenticated principal stamps the tombstone — a
+    // client-supplied author value is never honored.
+    const principal = getPrincipal(req);
+
+    const result = await forgetTool(
+      {
+        id,
+        reason: "Deleted via API",
+        namespace,
+        ...(principal ? { author: principalAuthorEmail(principal) } : {}),
+      },
+      principal ? { principal } : {},
+    );
+
+    if (!result.success) {
+      if (result.error?.includes("not found")) {
+        throw new NotFoundError("Memory", id);
+      }
+      throwWriteError(res, result, "Failed to delete memory");
+    }
+
+    res.setHeader("X-Durability", durabilityHeaderFor(namespace));
+    res.status(204).send();
+  }),
+);
+
+export { router as createMemoryRoutes };
+export default router;

@@ -1,0 +1,103 @@
+{
+  "task_id": "QA-DUCKBRAIN-006",
+  "task_title": "package-lock.json stale after DEPS-004 (docker npm ci dead)",
+  "task_criteria": [
+    "npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches package.json"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "1ac89d46f734091cc3da0636c8665021019bb2db",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:05AM INF scanned ~13981860 bytes (13.98 MB) in 2.22s\n9:05AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 366624 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\n\n Test Files  191 passed (191)\n      Tests  1524 passed (1524)\n   Start at  09:05:11\n   Duration  75.00s (tests 81%, import 16%, transform 2%)\n\n    Isolate  191 workers spawned \u00b7 ~98ms startup each (spawn + environment, per file)\n             at least ~4.58s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches package.json: Repo /home/kara/duckbrain, HEAD=1ac89d4 'fix(QA-DUCKBRAIN-006): regenerate package-lock.json after DEPS-004 refresh' (only package-lock.json changed, 136+/154-). (1) `npm ci --dry-run` at HEAD -> EXIT=0, output 'added 68 packages, removed 2 packages, and changed 28 packages in 461ms'. (2) Fresh clone `git clone /home/kara/duckbrain /tmp/qa006-fresh` (HEAD 1ac89d4) then `npm ci` -> EXIT=0, 'added 327 packages, and audited 328 packages in 5s'. (3) Lockfile/package.json sync check via node: lockfileVersion 3, name match true (duckbrain), version match true (1.0.0), dependencies MATCH, devDependencies MATCH, optionalDependencies MATCH, peerDependencies MATCH. Non-vacuous: pre-fix commit 1ac89d4~1 (dce18c4) `npm ci --dry-run` -> EXIT=1 with 'npm error code EUSAGE ... lock file's @aws-sdk/client-s3@3.1137.0 does not satisfy @aws-sdk/client-s3@3.1142.0' plus 5+ more mismatches (@modelcontextprotocol/sdk, @types/node, @vitest/coverage-v8, vitest, vite, std-env, rolldown, @oxc-project/types, @rolldown/binding-*). Dockerfile:8 uses `RUN npm ci`, confirming the Docker deploy path was genuinely dead and is now fixed. Working tree lockfile is identical to HEAD (git status clean for package-lock.json/package.json). [resolution 0.08; package.json]\npackage-lock.json was regenerated to match package.json; npm ci --dry-run exits 0 at HEAD, a real fresh-clone npm ci succeeds (327 packages), and the pre-fix commit demonstrably failed with EUSAGE, so the Docker npm ci path is restored.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches package.json: Repo /home/kara/duckbrain, HEAD=1ac89d4 'fix(QA-DUCKBRAIN-006): regenerate package-lock.json after DEPS-004 refresh' (only package-lock.json changed, 136+/154-). (1) `npm ci --dry-run` at HEAD -> EXIT=0, output 'added 68 packages, removed 2 packages, and changed 28 packages in 461ms'. (2) Fresh clone `git clone /home/kara/duckbrain /tmp/qa006-fresh` (HEAD 1ac89d4) then `npm ci` -> EXIT=0, 'added 327 packages, and audited 328 packages in 5s'. (3) Lockfile/package.json sync check via node: lockfileVersion 3, name match true (duckbrain), version match true (1.0.0), dependencies MATCH, devDependencies MATCH, optionalDependencies MATCH, peerDependencies MATCH. Non-vacuous: pre-fix commit 1ac89d4~1 (dce18c4) `npm ci --dry-run` -> EXIT=1 with 'npm error code EUSAGE ... lock file's @aws-sdk/client-s3@3.1137.0 does not satisfy @aws-sdk/client-s3@3.1142.0' plus 5+ more mismatches (@modelcontextprotocol/sdk, @types/node, @vitest/coverage-v8, vitest, vite, std-env, rolldown, @oxc-project/types, @rolldown/binding-*). Dockerfile:8 uses `RUN npm ci`, confirming the Docker deploy path was genuinely dead and is now fixed. Working tree lockfile is identical to HEAD (git status clean for package-lock.json/package.json). [resolution 0.08; package.json]\npackage-lock.json was regenerated to match package.json; npm ci --dry-run exits 0 at HEAD, a real fresh-clone npm ci succeeds (327 packages), and the pre-fix commit demonstrably failed with EUSAGE, so the Docker npm ci path is restored.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches package.json",
+                "status": "PASS",
+                "detail": "Repo /home/kara/duckbrain, HEAD=1ac89d4 'fix(QA-DUCKBRAIN-006): regenerate package-lock.json after DEPS-004 refresh' (only package-lock.json changed, 136+/154-). (1) `npm ci --dry-run` at HEAD -> EXIT=0, output 'added 68 packages, removed 2 packages, and changed 28 packages in 461ms'. (2) Fresh clone `git clone /home/kara/duckbrain /tmp/qa006-fresh` (HEAD 1ac89d4) then `npm ci` -> EXIT=0, 'added 327 packages, and audited 328 packages in 5s'. (3) Lockfile/package.json sync check via node: lockfileVersion 3, name match true (duckbrain), version match true (1.0.0), dependencies MATCH, devDependencies MATCH, optionalDependencies MATCH, peerDependencies MATCH. Non-vacuous: pre-fix commit 1ac89d4~1 (dce18c4) `npm ci --dry-run` -> EXIT=1 with 'npm error code EUSAGE ... lock file's @aws-sdk/client-s3@3.1137.0 does not satisfy @aws-sdk/client-s3@3.1142.0' plus 5+ more mismatches (@modelcontextprotocol/sdk, @types/node, @vitest/coverage-v8, vitest, vite, std-env, rolldown, @oxc-project/types, @rolldown/binding-*). Dockerfile:8 uses `RUN npm ci`, confirming the Docker deploy path was genuinely dead and is now fixed. Working tree lockfile is identical to HEAD (git status clean for package-lock.json/package.json). [resolution 0.08; package.json]",
+                "resolution_probability": 0.08,
+                "cited_path": "package.json"
+              }
+            ],
+            "summary": "package-lock.json was regenerated to match package.json; npm ci --dry-run exits 0 at HEAD, a real fresh-clone npm ci succeeds (327 packages), and the pre-fix commit demonstrably failed with EUSAGE, so the Docker npm ci path is restored."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-006\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches package.json: Repo /home/kara/duckbrain, HEAD=1ac89d4 'fix(QA-DUCKBRAIN-006): regenerate package-lock.json after DEPS-004 refresh' (only package-lock.json changed, 136+/154-). (1) `npm ci --dry-run` at HEAD -> EXIT=0, output 'added 68 packages, removed 2 packages, and changed 28 packages in 461ms'. (2) Fresh clone `git clone /home/kara/duckbrain /tmp/qa006-fresh` (HEAD 1ac89d4) then `npm ci` -> EXIT=0, 'added 327 packages, and audited 328 packages in 5s'. (3) Lockfile/package.json sync check via node: lockfileVersion 3, name match true (duckbrain), version match true (1.0.0), dependencies MATCH, devDependencies MATCH, optionalDependencies MATCH, peerDependencies MATCH. Non-vacuous: pre-fix commit 1ac89d4~1 (dce18c4) `npm ci --dry-run` -> EXIT=1 with 'npm error code EUSAGE ... lock file's @aws-sdk/client-s3@3.1137.0 does not satisfy @aws-sdk/client-s3@3.1142.0' plus 5+ more mismatches (@modelcontextprotocol/sdk, @types/node, @vitest/coverage-v8, vitest, vite, std-env, rolldown, @oxc-project/types, @rolldown/binding-*). Dockerfile:8 uses `RUN npm ci`, confirming the Docker deploy path was genuinely dead and is now fixed. Working tree lockfile is identical to HEAD (git status clean for package-lock.json/package.json). [resolution 0.08; package.json]\npackage-lock.json was regenerated to match package.json; npm ci --dry-run exits 0 at HEAD, a real fresh-clone npm ci succeeds (327 packages), and the pre-fix commit demonstrably failed with EUSAGE, so the Docker npm ci path is restored.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-30T14:07:20.404825",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T14:07:20.423744+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 27351,
+        "truncated": false,
+        "source": "git show 1ac89d46f734"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 7444,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-006"
+  }
+}

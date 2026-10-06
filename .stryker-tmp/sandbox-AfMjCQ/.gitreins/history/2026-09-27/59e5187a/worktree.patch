@@ -1,0 +1,117 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 8554b3f..f8e7902 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1916,3 +1916,25 @@ tasks:
+   status: complete
+   created_at: '2026-09-26T14:18:35.025085+00:00'
+   completed_at: '2026-09-26T22:37:18.827353+00:00'
++- id: DF-0926-01
++  title: Complete the examples on-ramp + bind-conflict lifecycle fix
++  criteria:
++  - 'AC1: no ''pnpm start --'' invocation anywhere in README.md/docs/examples, and
++    the documented forms run. AC2: ''node examples/http-api/client.js'' executes its
++    full step list against a live scratch daemon and exits 0. AC3: a second duckbrain
++    http on an occupied port exits nonzero, prints no started banner, and leaves the
++    live occupant''s pidfile byte-identical. AC4: the pidfile is written only after
++    a successful bind. Gates: prettier src/+examples/ clean, tsc --noEmit exit 0,
++    vitest run green, AGENTS.md counts synced.'
++  status: complete
++  created_at: '2026-09-27T11:43:10.414575+00:00'
++  completed_at: '2026-09-27T11:43:15.524258+00:00'
++- id: INT-CI-014
++  title: Fix CI integration teardown race in examples on-ramp test
++  criteria:
++  - Reproduce and fix the ENOTEMPTY teardown failure in tests/examples-onramp-df092601.int.test.ts;
++    exact CI integration command passes on pushed successor and run 36317691978 plus
++    successor are recorded
++  status: complete
++  created_at: '2026-09-27T12:26:20.732351+00:00'
++  completed_at: '2026-09-27T13:32:05.181880+00:00'
+diff --git a/tests/examples-onramp-df092601.int.test.ts b/tests/examples-onramp-df092601.int.test.ts
+index 65f8070..7990b40 100644
+--- a/tests/examples-onramp-df092601.int.test.ts
++++ b/tests/examples-onramp-df092601.int.test.ts
+@@ -21,7 +21,7 @@ import os from "os";
+ import path from "path";
+ import {
+   startDuckbrainHttp,
+-  killProcess,
++  stopProcess,
+   waitForUrl,
+   getRandomPort,
+   DAEMON_READY_TIMEOUT_MS,
+@@ -55,8 +55,8 @@ describe("DF-0926-01: examples on-ramp runs against a live scratch daemon", () =
+     );
+   }, 120000);
+ 
+-  afterAll(() => {
+-    killProcess(server);
++  afterAll(async () => {
++    await stopProcess(server);
+     if (savedDataDir === undefined) {
+       delete process.env.DUCKBRAIN_DATA_DIR;
+     } else {
+diff --git a/tests/helpers.ts b/tests/helpers.ts
+index d50d320..10e7a59 100644
+--- a/tests/helpers.ts
++++ b/tests/helpers.ts
+@@ -222,6 +222,58 @@ export function killProcess(child: ChildProcess): void {
+   }
+ }
+ 
++/**
++ * Stop a detached test process and wait for its child/descendants to finish.
++ * Teardown must join the process before deleting its data directory: a
++ * fire-and-forget SIGTERM can leave git/DuckDB writers racing recursive rm.
++ */
++export async function stopProcess(
++  child: ChildProcess,
++  timeoutMs = 15_000,
++): Promise<void> {
++  if (child.exitCode !== null || child.signalCode !== null) return;
++
++  let settled = false;
++  let resolveClose: (() => void) | undefined;
++  const closed = new Promise<void>((resolve) => {
++    resolveClose = resolve;
++  });
++  const onClose = () => {
++    settled = true;
++    resolveClose?.();
++  };
++  child.once("close", onClose);
++  killProcess(child);
++
++  const timeout = new Promise<"timeout">((resolve) =>
++    setTimeout(() => resolve("timeout"), timeoutMs),
++  );
++  const result = await Promise.race([
++    closed.then(() => "closed" as const),
++    timeout,
++  ]);
++  if (result === "timeout" && !settled) {
++    try {
++      if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
++      else child.kill("SIGKILL");
++    } catch {}
++    const killTimeout = new Promise<"timeout">((resolve) =>
++      setTimeout(() => resolve("timeout"), 5_000),
++    );
++    const killed = await Promise.race([
++      closed.then(() => "closed" as const),
++      killTimeout,
++    ]);
++    if (killed === "timeout") {
++      child.removeListener("close", onClose);
++      throw new Error(
++        `stopProcess: child ${child.pid ?? "unknown"} still alive after SIGTERM+SIGKILL`,
++      );
++    }
++  }
++  child.removeListener("close", onClose);
++}
++
+ export async function startSshContainer(
+   id: string,
+   sshPort: number,

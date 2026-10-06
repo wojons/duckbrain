@@ -1,0 +1,41 @@
+# GitReins config — DuckBrain
+# v0.3.0+ individual cap keys
+# TypeScript project using vitest
+
+guards:
+  secrets: true
+  lint: false # eslint config not wired yet
+  tests: true
+  test_mode: diff
+  test_command: "npx vitest run"
+  # 300s starved tier1 twice under fleet load (loadavg 50-80: full suite
+  # needs 600-900s; judge aad2df37 + ad221990 both died on 'Command timed
+  # out' while CI on the same SHAs was green). 900s ALSO starved (9f08ab48,
+  # loadavg ~80 → suite >900s); 1800s covers the loaded-suite ceiling.
+  test_timeout: 1800
+  dead_code: false # Python-only
+  skylos: false
+  static_analysis: false
+  lsp: false
+
+evaluator:
+  max_iterations: 250
+  # 45m starved CI-005's tier-2 on 2026-09-24: tier1 PASS + INCOMPLETE "Time cap
+  # (45m) exceeded" after the judge queued ~40m behind 12 concurrent fleet
+  # workers. 60m rung: cap now covers queue wait, not just evaluation.
+  # 90m rung (same day): 60m starved DF-0924-05's re-judge under 3 concurrent
+  # fleet judges (load ~10) — tier1 PASS + INCOMPLETE "Time cap (1h) exceeded".
+  max_time: "90m"
+  # 4M starved DF-0919-01's tier-2 (the judge's clean-install reproduce needs
+  # a wide exploration loop on this repo). 10M = the gitreins default.
+  max_input_tokens: "10M"
+  max_output_tokens: "0.05M"
+  tool_call_weight: 0.1
+
+defaults:
+  model: deepseek-v4-flash
+
+history:
+  enabled: true
+  storage: git
+  max_verdicts: 500

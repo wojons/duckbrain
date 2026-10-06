@@ -1,0 +1,293 @@
+commit a2198a2f404cc5737eec34d5620cf83c48dff3a4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 10:45:49 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 10:45:49 2026 -0500
+
+    chore(deps): update outdated Node packages (DEPS-DUCKBRAIN-2026-10-04)
+    
+    Direct-range `pnpm outdated` before: @aws-sdk/client-s3 3.1145.0->3.1146.0,
+    @modelcontextprotocol/sdk 1.31.0->1.32.1, simple-git 3.36.0->4.0.2. The row's
+    "9" is the supervisor's transitive-inclusive count; after this change both
+    `pnpm outdated` and `npm outdated` report none.
+    
+    Group A (patch/minor, no breaking notes):
+    - @aws-sdk/client-s3 3.1146.0 — upstream changelog: "Version bump only for
+      package @aws-sdk/client-s3".
+    - @modelcontextprotocol/sdk ^1.32.1 — 1.32.1 is docs + version only; 1.32.0
+      added an OPTIONAL `expectedResource` to requireBearerAuth (off by default).
+      Dependency set is identical to 1.31.0.
+    
+    Group B (major, GO): simple-git ^4.0.2. v4 removed the default export, so
+    src/git/worker.ts now uses `import { simpleGit } from "simple-git"`. The tree
+    has no gitP / simple-git/promise / raw() abbreviated-option / unsafe-env usage,
+    and worker.ts is the only simple-git call site. v4 still ships a CJS build
+    (dist/index.cjs), so the commonjs project can require it. Verified at runtime:
+    a scratch-repo probe (init/add/commit/log) passes on 4.0.2, and a negative
+    control confirms the removed default-import shape is not callable.
+    
+    Verification:
+    - npx tsc --noEmit: rc=0 (both groups).
+    - Targeted git/ s3/ mcp/ http/: 89 files / 641 tests passed.
+    - Full suite `npx vitest run`: 201 files / 1621 tests passed.
+    - scripts/sync-agents-md-counts.sh --check: counts unchanged (201/1621).
+    - npm ci --dry-run: rc=0 (the Dockerfile job's `npm ci` stays in sync).
+    - Both lockfiles refreshed: pnpm-lock.yaml (CI `--frozen-lockfile`) and
+      package-lock.json (root Dockerfile `npm ci`); diffs limited to the three
+      packages plus simple-git's transitive deps.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ package-lock.json | 42 +++++++++++++++++++++---------------------
+ package.json      |  6 +++---
+ pnpm-lock.yaml    | 38 +++++++++++++++++++-------------------
+ src/git/worker.ts |  2 +-
+ 4 files changed, 44 insertions(+), 44 deletions(-)
+
+diff --git a/package-lock.json b/package-lock.json
+index 285c97f..eca0a86 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,14 +9,14 @@
+       "version": "1.0.0",
+       "license": "Apache-2.0",
+       "dependencies": {
+-        "@aws-sdk/client-s3": "3.1145.0",
+-        "@modelcontextprotocol/sdk": "^1.31.0",
++        "@aws-sdk/client-s3": "3.1146.0",
++        "@modelcontextprotocol/sdk": "^1.32.1",
+         "@smithy/node-http-handler": "4.12.1",
+         "async-mutex": "^0.5.0",
+         "bcryptjs": "^3.0.3",
+         "duckdb": "1.4.4",
+         "express": "^5.2.1",
+-        "simple-git": "^3.36.0",
++        "simple-git": "^4.0.2",
+         "tsx": "^4.23.15",
+         "uuid": "^14.0.2",
+         "zod": "^4.6.5"
+@@ -53,9 +53,9 @@
+       }
+     },
+     "node_modules/@aws-sdk/client-s3": {
+-      "version": "3.1145.0",
+-      "resolved": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1145.0.tgz",
+-      "integrity": "sha512-MPKAQdx8qCZW1/ChDPILNehtAn/BMP4GNTnaH/xhGCWg3v50ADVq1K2WzxIrFfeANdWUyjwiY0CXDBhclsNWgQ==",
++      "version": "3.1146.0",
++      "resolved": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1146.0.tgz",
++      "integrity": "sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==",
+       "license": "Apache-2.0",
+       "dependencies": {
+         "@aws-sdk/checksums": "^3.1001.1",
+@@ -924,9 +924,9 @@
+       }
+     },
+     "node_modules/@modelcontextprotocol/sdk": {
+-      "version": "1.32.0",
+-      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.0.tgz",
+-      "integrity": "sha512-8BviX/hK4Gd2eL1KdTwm0gfl4d3wdoErW0Jd00h6nomUAtk6IJk5vwQJc6kfWtJTzN5OEV/lgIiJKI8fiDGAlA==",
++      "version": "1.32.1",
++      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.1.tgz",
++      "integrity": "sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==",
+       "license": "MIT",
+       "dependencies": {
+         "@hono/node-server": "^1.19.9 || ^2.0.5",
+@@ -1280,18 +1280,18 @@
+       "peer": true
+     },
+     "node_modules/@simple-git/args-pathspec": {
+-      "version": "1.0.3",
+-      "resolved": "https://registry.npmjs.org/@simple-git/args-pathspec/-/args-pathspec-1.0.3.tgz",
+-      "integrity": "sha512-ngJMaHlsWDTfjyq9F3VIQ8b7NXbBLq5j9i5bJ6XLYtD6qlDXT7fdKY2KscWWUF8t18xx052Y/PUO1K1TRc9yKA==",
++      "version": "1.0.4",
++      "resolved": "https://registry.npmjs.org/@simple-git/args-pathspec/-/args-pathspec-1.0.4.tgz",
++      "integrity": "sha512-EtMX6XjRWSastG2SdkmSQByPtJ9dx/NIjnHbpQPCYt62j4RmSx5rgLTGpw0YCjF5h191gZOmBfheOT23cRSFdw==",
+       "license": "MIT"
+     },
+     "node_modules/@simple-git/argv-parser": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/@simple-git/argv-parser/-/argv-parser-1.1.1.tgz",
+-      "integrity": "sha512-Q9lBcfQ+VQCpQqGJFHe5yooOS5hGdLFFbJ5R+R5aDsnkPCahtn1hSkMcORX65J2Z5lxSkD0lQorMsncuBQxYUw==",
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/@simple-git/argv-parser/-/argv-parser-2.0.1.tgz",
++      "integrity": "sha512-M++IaVWrN+vYalilOHfwvT2IL3wYZtVEBQpmX6DLSOJLtxbZ+SUeIDE3IiPogzhPACLajwtxfa5rp+ZX1FczzQ==",
+       "license": "MIT",
+       "dependencies": {
+-        "@simple-git/args-pathspec": "^1.0.3"
++        "@simple-git/args-pathspec": "^1.0.4"
+       }
+     },
+     "node_modules/@smithy/core": {
+@@ -4630,15 +4630,15 @@
+       "license": "ISC"
+     },
+     "node_modules/simple-git": {
+-      "version": "3.36.0",
+-      "resolved": "https://registry.npmjs.org/simple-git/-/simple-git-3.36.0.tgz",
+-      "integrity": "sha512-cGQjLjK8bxJw4QuYT7gxHw3/IouVESbhahSsHrX97MzCL1gu2u7oy38W6L2ZIGECEfIBG4BabsWDPjBxJENv9Q==",
++      "version": "4.0.2",
++      "resolved": "https://registry.npmjs.org/simple-git/-/simple-git-4.0.2.tgz",
++      "integrity": "sha512-l0sIsv9VrPwovKELFDBOj/lhmIcbMvxBk2B+hRhsMM4/VL3gKtuZvYnBNixVo+N/0HnqQx2cBdLvxnAbygHpqA==",
+       "license": "MIT",
+       "dependencies": {
+         "@kwsites/file-exists": "^1.1.1",
+         "@kwsites/promise-deferred": "^1.1.1",
+-        "@simple-git/args-pathspec": "^1.0.3",
+-        "@simple-git/argv-parser": "^1.1.0",
++        "@simple-git/args-pathspec": "1.0.4",
++        "@simple-git/argv-parser": "2.0.1",
+         "debug": "^4.4.0"
+       },
+       "funding": {
+diff --git a/package.json b/package.json
+index f45d065..b496142 100644
+--- a/package.json
++++ b/package.json
+@@ -38,14 +38,14 @@
+   },
+   "homepage": "https://github.com/wojons/duckbrain#readme",
+   "dependencies": {
+-    "@aws-sdk/client-s3": "3.1145.0",
+-    "@modelcontextprotocol/sdk": "^1.31.0",
++    "@aws-sdk/client-s3": "3.1146.0",
++    "@modelcontextprotocol/sdk": "^1.32.1",
+     "@smithy/node-http-handler": "4.12.1",
+     "async-mutex": "^0.5.0",
+     "bcryptjs": "^3.0.3",
+     "duckdb": "1.4.4",
+     "express": "^5.2.1",
+-    "simple-git": "^3.36.0",
++    "simple-git": "^4.0.2",
+     "tsx": "^4.23.15",
+     "uuid": "^14.0.2",
+     "zod": "^4.6.5"
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 251ffd2..4f11372 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -167,11 +167,11 @@ importers:
+   .:
+     dependencies:
+       '@aws-sdk/client-s3':
+-        specifier: 3.1145.0
+-        version: 3.1145.0
++        specifier: 3.1146.0
++        version: 3.1146.0
+       '@modelcontextprotocol/sdk':
+-        specifier: ^1.31.0
+-        version: 1.31.0(supports-color@10.2.2)(zod@4.6.5)
++        specifier: ^1.32.1
++        version: 1.32.1(supports-color@10.2.2)(zod@4.6.5)
+       '@smithy/node-http-handler':
+         specifier: 4.12.1
+         version: 4.12.1
+@@ -188,8 +188,8 @@ importers:
+         specifier: ^5.2.1
+         version: 5.2.1(supports-color@10.2.2)
+       simple-git:
+-        specifier: ^3.36.0
+-        version: 3.36.0(supports-color@10.2.2)
++        specifier: ^4.0.2
++        version: 4.0.2(supports-color@10.2.2)
+       tsx:
+         specifier: ^4.23.15
+         version: 4.23.15
+@@ -322,8 +322,8 @@ packages:
+     resolution: {integrity: sha512-x12Q17KYlJAd3nKf8LV5LV0vt8sh8/6YfQLGPtrGnQf/tW4jqxPGq5GPpuVitpQYM3eUR4XB7CbxZf751NMbLw==}
+     engines: {node: '>=20.0.0'}
+ 
+-  '@aws-sdk/client-s3@3.1145.0':
+-    resolution: {integrity: sha512-MPKAQdx8qCZW1/ChDPILNehtAn/BMP4GNTnaH/xhGCWg3v50ADVq1K2WzxIrFfeANdWUyjwiY0CXDBhclsNWgQ==}
++  '@aws-sdk/client-s3@3.1146.0':
++    resolution: {integrity: sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==}
+     engines: {node: '>=20.0.0'}
+ 
+   '@aws-sdk/core@3.978.1':
+@@ -887,8 +887,8 @@ packages:
+     engines: {node: '>=18'}
+     hasBin: true
+ 
+-  '@modelcontextprotocol/sdk@1.31.0':
+-    resolution: {integrity: sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw==}
++  '@modelcontextprotocol/sdk@1.32.1':
++    resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
+     engines: {node: '>=18'}
+     peerDependencies:
+       '@cfworker/json-schema': ^4.1.1
+@@ -1057,8 +1057,8 @@ packages:
+   '@simple-git/args-pathspec@1.0.4':
+     resolution: {integrity: sha512-EtMX6XjRWSastG2SdkmSQByPtJ9dx/NIjnHbpQPCYt62j4RmSx5rgLTGpw0YCjF5h191gZOmBfheOT23cRSFdw==}
+ 
+-  '@simple-git/argv-parser@1.1.1':
+-    resolution: {integrity: sha512-Q9lBcfQ+VQCpQqGJFHe5yooOS5hGdLFFbJ5R+R5aDsnkPCahtn1hSkMcORX65J2Z5lxSkD0lQorMsncuBQxYUw==}
++  '@simple-git/argv-parser@2.0.1':
++    resolution: {integrity: sha512-M++IaVWrN+vYalilOHfwvT2IL3wYZtVEBQpmX6DLSOJLtxbZ+SUeIDE3IiPogzhPACLajwtxfa5rp+ZX1FczzQ==}
+ 
+   '@smithy/core@3.35.1':
+     resolution: {integrity: sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w==}
+@@ -2546,8 +2546,8 @@ packages:
+   signal-exit@3.0.7:
+     resolution: {integrity: sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==}
+ 
+-  simple-git@3.36.0:
+-    resolution: {integrity: sha512-cGQjLjK8bxJw4QuYT7gxHw3/IouVESbhahSsHrX97MzCL1gu2u7oy38W6L2ZIGECEfIBG4BabsWDPjBxJENv9Q==}
++  simple-git@4.0.2:
++    resolution: {integrity: sha512-l0sIsv9VrPwovKELFDBOj/lhmIcbMvxBk2B+hRhsMM4/VL3gKtuZvYnBNixVo+N/0HnqQx2cBdLvxnAbygHpqA==}
+ 
+   smart-buffer@4.2.0:
+     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
+@@ -2988,7 +2988,7 @@ snapshots:
+       '@smithy/types': 4.19.0
+       tslib: 2.8.1
+ 
+-  '@aws-sdk/client-s3@3.1145.0':
++  '@aws-sdk/client-s3@3.1146.0':
+     dependencies:
+       '@aws-sdk/checksums': 3.1001.1
+       '@aws-sdk/core': 3.978.1
+@@ -3501,7 +3501,7 @@ snapshots:
+       - encoding
+       - supports-color
+ 
+-  '@modelcontextprotocol/sdk@1.31.0(supports-color@10.2.2)(zod@4.6.5)':
++  '@modelcontextprotocol/sdk@1.32.1(supports-color@10.2.2)(zod@4.6.5)':
+     dependencies:
+       '@hono/node-server': 2.1.3(hono@4.13.12)
+       ajv: 8.20.0
+@@ -3615,7 +3615,7 @@ snapshots:
+ 
+   '@simple-git/args-pathspec@1.0.4': {}
+ 
+-  '@simple-git/argv-parser@1.1.1':
++  '@simple-git/argv-parser@2.0.1':
+     dependencies:
+       '@simple-git/args-pathspec': 1.0.4
+ 
+@@ -5115,12 +5115,12 @@ snapshots:
+ 
+   signal-exit@3.0.7: {}
+ 
+-  simple-git@3.36.0(supports-color@10.2.2):
++  simple-git@4.0.2(supports-color@10.2.2):
+     dependencies:
+       '@kwsites/file-exists': 1.1.1(supports-color@10.2.2)
+       '@kwsites/promise-deferred': 1.1.1
+       '@simple-git/args-pathspec': 1.0.4
+-      '@simple-git/argv-parser': 1.1.1
++      '@simple-git/argv-parser': 2.0.1
+       debug: 4.4.3(supports-color@10.2.2)
+     transitivePeerDependencies:
+       - supports-color
+diff --git a/src/git/worker.ts b/src/git/worker.ts
+index 1ae093a..3a01f43 100644
+--- a/src/git/worker.ts
++++ b/src/git/worker.ts
+@@ -5,7 +5,7 @@
+  */
+ 
+ import { GitQueue, GitOperationType } from "./queue";
+-import simpleGit from "simple-git";
++import { simpleGit } from "simple-git";
+ 
+ export interface GitWorkerConfig {
+   batchLines: number;

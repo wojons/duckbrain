@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-035",
+  "task_title": "Fix /api/keys HTTP 500 from corrupt keys store line",
+  "task_criteria": [
+    "PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced in /health; full suite pnpm test + tsc --noEmit green"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:49PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11697574 bytes (11.70 MB) in 3.45s\u001b[0m\n\u001b[90m12:49PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:49PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11697574 bytes (11.70 MB) in 3.45s\u001b[0m\n\u001b[90m12:49PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1037\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1056\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1382\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-validuntil-retr011.test.ts \u001b[2m(\u001b[22m",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced in /health; full suite pnpm test + tsc --noEmit green: (1) curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns HTTP 200 with JSON key tree (folders /fleet/projects/...). (2) Line 16777 of namespaces/coding-hermes/event/2026-08/10000.jsonl now parses as valid JSON (id 6853a05e-7f31-4f32-bcb2-70cedf177d70); file mtime Aug 21 12:48 matches fix commit 04ce0cf. (3) Resilient read: src/mcp/tools/list_keys.ts:147 uses read_json(..., ignore_errors=true); list-keys-dbgap035.test.ts verifies survival of a torn line. (4) keys_error surfaced: src/cli/http.ts:157 emits keys_error in /health; http-health-dbgap035.test.ts (4 tests) verifies; curl /health shows keys_error field. (5) npx vitest run: 92 files/788 tests passed; npx tsc --noEmit exit 0.\nAll DB-GAP-035 criteria verified: /api/keys returns 200 with key tree, torn line 16777 repaired, resilient read via ignore_errors, keys_error in /health, and full test suite + tsc green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced in /health; full suite pnpm test + tsc --noEmit green: (1) curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns HTTP 200 with JSON key tree (folders /fleet/projects/...). (2) Line 16777 of namespaces/c",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced in /health; full suite pnpm test + tsc --noEmit green",
+                "status": "PASS",
+                "detail": "(1) curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns HTTP 200 with JSON key tree (folders /fleet/projects/...). (2) Line 16777 of namespaces/coding-hermes/event/2026-08/10000.jsonl now parses as valid JSON (id 6853a05e-7f31-4f32-bcb2-70cedf177d70); file mtime Aug 21 12:48 matches fix commit 04ce0cf. (3) Resilient read: src/mcp/tools/list_keys.ts:147 uses read_json(..., ignore_errors=true); list-keys-dbgap035.test.ts verifies survival of a torn line. (4) keys_error surfaced: src/cli/http.ts:157 emits keys_error in /health; http-health-dbgap035.test.ts (4 tests) verifies; curl /health shows keys_error field. (5) npx vitest run: 92 files/788 tests passed; npx tsc --noEmit exit 0."
+              }
+            ],
+            "summary": "All DB-GAP-035 criteria verified: /api/keys returns 200 with key tree, torn line 16777 repaired, resilient read via ignore_errors, keys_error in /health, and full test suite + tsc green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-035\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:49PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11697574 bytes (11.70 MB) in 3.45s\u001b[0m\n\u001b[90m12:49PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 PASS: curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns 200 with key tree; torn JSONL line 16777 in namespaces/coding-hermes/event/2026-08/10000.jsonl repaired; read path resilient to malformed lines (ignore_errors); keys_error surfaced in /health; full suite pnpm test + tsc --noEmit green: (1) curl http://localhost:3000/api/keys?namespace=coding-hermes&limit=3 returns HTTP 200 with JSON key tree (folders /fleet/projects/...). (2) Line 16777 of namespaces/coding-hermes/event/2026-08/10000.jsonl now parses as valid JSON (id 6853a05e-7f31-4f32-bcb2-70cedf177d70); file mtime Aug 21 12:48 matches fix commit 04ce0cf. (3) Resilient read: src/mcp/tools/list_keys.ts:147 uses read_json(..., ignore_errors=true); list-keys-dbgap035.test.ts verifies survival of a torn line. (4) keys_error surfaced: src/cli/http.ts:157 emits keys_error in /health; http-health-dbgap035.test.ts (4 tests) verifies; curl /health shows keys_error field. (5) npx vitest run: 92 files/788 tests passed; npx tsc --noEmit exit 0.\nAll DB-GAP-035 criteria verified: /api/keys returns 200 with key tree, torn line 16777 repaired, resilient read via ignore_errors, keys_error in /health, and full test suite + tsc green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-21T17:51:30.399969"
+}

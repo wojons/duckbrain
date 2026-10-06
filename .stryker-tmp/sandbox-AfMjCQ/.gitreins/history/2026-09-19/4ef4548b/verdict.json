@@ -1,0 +1,97 @@
+{
+  "task_id": "DB-GAP-053",
+  "task_title": "squashPartition ORDER BY deterministic compaction",
+  "task_criteria": [
+    "squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP) + stable tiebreaker) or a documented ordering contract; a regression test pins compaction row order; full suite green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "8bc3709fe2e57154282ac096acf6eed6f35a75a4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:44PM INF scanned ~9196545 bytes (9.20 MB) in 1.86s\n4:44PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193667 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  16:44:34\n   Duration  109.32s (transform 6.44s, setup 7.42s, import 49.62s, tests 358.24s, environment 16ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP) + stable tiebreaker) or a documented ordering contract; a regression test pins compaction row order; full suite green: src/git/squash.ts:195 COPY now includes `ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC` (parsed-timestamp sort + id tiebreaker), matching the documented DEFAULT_ORDER_BY doctrine at src/duckdb/queries.ts:304-305, with an inline ordering-contract comment at squash.ts ~180-194. Regression test src/git/squash-dbgap053.test.ts:185 pins exact order `expect(ids.map(idNum)).toEqual([1, 2, 7, 3, 5, 4, 9, 10])` plus a byte-identical-artifact test; mutation check (removing the ORDER BY) makes 2/3 tests FAIL, proving the test is order-sensitive (file restored, git diff empty). `npx vitest run src/git/squash-dbgap053.test.ts` -> Test Files 1 passed (1), Tests 3 passed (3). Full suite `npx vitest run` -> Test Files 155 passed (155), Tests 1212 passed (1212), Duration 96.45s, no failures.\nsquashPartition's COPY has a deterministic try_cast(timestamp)+id ORDER BY with a documented contract, a mutation-verified regression test pins row order, and the full 1212-test suite is green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP) + stable tiebreaker) or a documented ordering contract; a regression test pins compaction row order; full suite green: src/git/squash.ts:195 COPY now includes `ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC` (parsed-timestamp sort + id tiebreaker), matching the documented DEFAULT_ORDER_BY doctrine at src/duckdb/queries.ts:304-305, with an inline ordering-contract comment at squash.ts ~180-194. Regression test src/git/squash-dbgap053.test.ts:185 pins exact order `expect(ids.map(idNum)).toEqual([1, 2, 7, 3, 5, 4, 9, 10])` plus a byte-identical-artifact test; mutation check (removing the ORDER BY) makes 2/3 tests FAIL, proving the test is order-sensitive (file restored, git diff empty). `npx vitest run src/git/squash-dbgap053.test.ts` -> Test Files 1 passed (1), Tests 3 passed (3). Full suite `npx vitest run` -> Test Files 155 passed (155), Tests 1212 passed (1212), Duration 96.45s, no failures.\nsquashPartition's COPY has a deterministic try_cast(timestamp)+id ORDER BY with a documented contract, a mutation-verified regression test pins row order, and the full 1212-test suite is green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP) + stable tiebreaker) or a documented ordering contract; a regression test pins compaction row order; full suite green",
+                "status": "PASS",
+                "detail": "src/git/squash.ts:195 COPY now includes `ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC` (parsed-timestamp sort + id tiebreaker), matching the documented DEFAULT_ORDER_BY doctrine at src/duckdb/queries.ts:304-305, with an inline ordering-contract comment at squash.ts ~180-194. Regression test src/git/squash-dbgap053.test.ts:185 pins exact order `expect(ids.map(idNum)).toEqual([1, 2, 7, 3, 5, 4, 9, 10])` plus a byte-identical-artifact test; mutation check (removing the ORDER BY) makes 2/3 tests FAIL, proving the test is order-sensitive (file restored, git diff empty). `npx vitest run src/git/squash-dbgap053.test.ts` -> Test Files 1 passed (1), Tests 3 passed (3). Full suite `npx vitest run` -> Test Files 155 passed (155), Tests 1212 passed (1212), Duration 96.45s, no failures."
+              }
+            ],
+            "summary": "squashPartition's COPY has a deterministic try_cast(timestamp)+id ORDER BY with a documented contract, a mutation-verified regression test pins row order, and the full 1212-test suite is green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-053\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 squashPartition's COPY adds a deterministic ORDER BY (try_cast(timestamp AS TIMESTAMP) + stable tiebreaker) or a documented ordering contract; a regression test pins compaction row order; full suite green: src/git/squash.ts:195 COPY now includes `ORDER BY try_cast(timestamp AS TIMESTAMP) ASC NULLS LAST, id ASC` (parsed-timestamp sort + id tiebreaker), matching the documented DEFAULT_ORDER_BY doctrine at src/duckdb/queries.ts:304-305, with an inline ordering-contract comment at squash.ts ~180-194. Regression test src/git/squash-dbgap053.test.ts:185 pins exact order `expect(ids.map(idNum)).toEqual([1, 2, 7, 3, 5, 4, 9, 10])` plus a byte-identical-artifact test; mutation check (removing the ORDER BY) makes 2/3 tests FAIL, proving the test is order-sensitive (file restored, git diff empty). `npx vitest run src/git/squash-dbgap053.test.ts` -> Test Files 1 passed (1), Tests 3 passed (3). Full suite `npx vitest run` -> Test Files 155 passed (155), Tests 1212 passed (1212), Duration 96.45s, no failures.\nsquashPartition's COPY has a deterministic try_cast(timestamp)+id ORDER BY with a documented contract, a mutation-verified regression test pins row order, and the full 1212-test suite is green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T21:51:31.860557",
+  "evidence": {
+    "collected_at": "2026-09-19T21:51:31.880112+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4134,
+        "truncated": false,
+        "source": "git show 8bc3709fe2e5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 5159,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-053"
+  }
+}

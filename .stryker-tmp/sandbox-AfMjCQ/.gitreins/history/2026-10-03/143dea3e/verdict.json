@@ -1,0 +1,100 @@
+{
+  "task_id": "DF-0924-10",
+  "task_title": "Remove fictional npm install/upgrade path from agent-facing docs (re-judge after src fix 09b0dff)",
+  "task_criteria": [
+    "grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "09b0dfff9c016d5e900a84a20d078ad519192138",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:18PM INF scanned ~14113549 bytes (14.11 MB) in 3.32s\n9:18PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 395787 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "",
+          "error": "Command timed out",
+          "data": {}
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep -n 'npm install -g duckbrain' -- . ':(exclude).gitreins' ':(exclude).coding-hermes' ':(exclude).planning' returned EXIT:1 (zero matches); same for 'npmjs.org/package/duckbrain' (EXIT:1). Untracked-file grep (excluding node_modules/.git/etc.) also returned EXIT:1. src has no such refs (only src/utils/dependency-declaration.test.ts:9 mentions 'pnpm install --frozen-lockfile'). .opencode/agents/duckbrain-cli.md:15-16 and :397-398 document 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (same placeholder) and docs/guide/getting-started.md:52. The only 'npm install -g' hit is a generic template line in .opencode/get-shit-done/templates/codebase/stack.md:149, not duckbrain-specific. [resolution 0.15; .opencode/agents/duckbrain-cli.md, README.md]\nBoth forbidden npm patterns are absent repo-wide (excluding the three dirs) and the agent doc documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep -n 'npm install -g duckbrain' -- . ':(exclude).gitreins' ':(exclude).coding-hermes' ':(exclude).planning' returned EXIT:1 (zero matches); same for 'npmjs.org/package/duckbrain' (EXIT:1). Untracked-file grep (excluding node_modules/.git/etc.) also returned EXIT:1. src has no such refs (only src/utils/dependency-declaration.test.ts:9 mentions 'pnpm install --frozen-lockfile'). .opencode/agents/duckbrain-cli.md:15-16 and :397-398 document 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (same placeholder) and docs/guide/getting-started.md:52. The only 'npm install -g' hit is a generic template line in .opencode/get-shit-done/templates/codebase/stack.md:149, not duckbrain-specific. [resolution 0.15; .opencode/agents/duckbrain-cli.md, README.md]\nBoth forbidden npm patterns are absent repo-wide (excluding the three dirs) and the agent doc documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md",
+                "status": "PASS",
+                "detail": "git grep -n 'npm install -g duckbrain' -- . ':(exclude).gitreins' ':(exclude).coding-hermes' ':(exclude).planning' returned EXIT:1 (zero matches); same for 'npmjs.org/package/duckbrain' (EXIT:1). Untracked-file grep (excluding node_modules/.git/etc.) also returned EXIT:1. src has no such refs (only src/utils/dependency-declaration.test.ts:9 mentions 'pnpm install --frozen-lockfile'). .opencode/agents/duckbrain-cli.md:15-16 and :397-398 document 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (same placeholder) and docs/guide/getting-started.md:52. The only 'npm install -g' hit is a generic template line in .opencode/get-shit-done/templates/codebase/stack.md:149, not duckbrain-specific. [resolution 0.15; .opencode/agents/duckbrain-cli.md, README.md]",
+                "resolution_probability": 0.15,
+                "cited_path": ".opencode/agents/duckbrain-cli.md, README.md"
+              }
+            ],
+            "summary": "Both forbidden npm patterns are absent repo-wide (excluding the three dirs) and the agent doc documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-10\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 grep across the repo EXCLUDING append-only records (.gitreins/ and .coding-hermes/) and historical planning (.planning/) shows zero 'npm install -g duckbrain' or npmjs.org/package/duckbrain references in docs AND src; .opencode/agents/duckbrain-cli.md documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md: git grep -n 'npm install -g duckbrain' -- . ':(exclude).gitreins' ':(exclude).coding-hermes' ':(exclude).planning' returned EXIT:1 (zero matches); same for 'npmjs.org/package/duckbrain' (EXIT:1). Untracked-file grep (excluding node_modules/.git/etc.) also returned EXIT:1. src has no such refs (only src/utils/dependency-declaration.test.ts:9 mentions 'pnpm install --frozen-lockfile'). .opencode/agents/duckbrain-cli.md:15-16 and :397-398 document 'git clone <your-duckbrain-fork-or-release> && cd duckbrain && pnpm install --frozen-lockfile' with the note 'DuckBrain is not published to npm \u2014 this is the only path', consistent with README.md:220 (same placeholder) and docs/guide/getting-started.md:52. The only 'npm install -g' hit is a generic template line in .opencode/get-shit-done/templates/codebase/stack.md:149, not duckbrain-specific. [resolution 0.15; .opencode/agents/duckbrain-cli.md, README.md]\nBoth forbidden npm patterns are absent repo-wide (excluding the three dirs) and the agent doc documents the git-clone + pnpm install --frozen-lockfile source path consistent with README.md.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-03T02:27:23.332626",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-03T02:27:23.349562+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1572,
+        "truncated": false,
+        "source": "git show 09b0dfff9c01"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1362,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-10"
+  }
+}

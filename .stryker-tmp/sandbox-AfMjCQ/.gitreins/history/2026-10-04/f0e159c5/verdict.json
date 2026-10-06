@@ -1,0 +1,94 @@
+{
+  "task_id": "INT-CI-018",
+  "task_title": "CI red on main since d2db770 (s3 endpoint-scheme commit)",
+  "task_criteria": [
+    "Full vitest suite green at or beyond d2db770, or a concrete fix commit merged making the failing test pass"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e1b9fcd9034cd265b26aa7ce8a652a045216b771",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:21PM INF scanned ~14466756 bytes (14.47 MB) in 3.69s\n11:21PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 410025 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  200 passed (200)\n      Tests  1610 passed (1610)\n   Start at  23:21:11\n   Duration  68.24s (tests 72%, import 24%, transform 3%, worker 1%)\n\n    Isolate  200 workers spawned \u00b7 ~110ms startup each (spawn + environment, per file)\n             at least ~5.39s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Full vitest suite green at or beyond d2db770, or a concrete fix commit merged making the failing test pass: Ran the configured test_command `npx vitest run` at HEAD e1b9fcd (descendant of d2db770 and fix 5f0fb68): output 'Test Files 200 passed (200) / Tests 1610 passed (1610)', EXIT=0. Fix commit 5f0fb68 ('chore(ci): INT-CI-018 sync AGENTS.md test counts to live suite (200/1610)') is an ancestor of HEAD and on main; it corrected the GAP-012 AGENTS.md count drift that was the real CI failure (step 'Assert AGENTS.md test counts match live suite'). `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (200 suites, 1610 tests)' exit 0. The s3 endpoint-scheme test added at d2db770 (src/s3/query-scheme-s3queryscheme001.test.ts) passes 6/6.\nFull vitest suite is green (200 files / 1610 tests, exit 0) at HEAD beyond d2db770, and fix commit 5f0fb68 (AGENTS.md count sync) is merged on main resolving the CI red.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Full vitest suite green at or beyond d2db770, or a concrete fix commit merged making the failing test pass: Ran the configured test_command `npx vitest run` at HEAD e1b9fcd (descendant of d2db770 and fix 5f0fb68): output 'Test Files 200 passed (200) / Tests 1610 passed (1610)', EXIT=0. Fix commit 5f0fb68 ('chore(ci): INT-CI-018 sync AGENTS.md test counts to live suite (200/1610)') is an ancestor of HEAD and on main; it corrected the GAP-012 AGENTS.md count drift that was the real CI failure (step 'Assert AGENTS.md test counts match live suite'). `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (200 suites, 1610 tests)' exit 0. The s3 endpoint-scheme test added at d2db770 (src/s3/query-scheme-s3queryscheme001.test.ts) passes 6/6.\nFull vitest suite is green (200 files / 1610 tests, exit 0) at HEAD beyond d2db770, and fix commit 5f0fb68 (AGENTS.md count sync) is merged on main resolving the CI red.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Full vitest suite green at or beyond d2db770, or a concrete fix commit merged making the failing test pass",
+                "status": "PASS",
+                "detail": "Ran the configured test_command `npx vitest run` at HEAD e1b9fcd (descendant of d2db770 and fix 5f0fb68): output 'Test Files 200 passed (200) / Tests 1610 passed (1610)', EXIT=0. Fix commit 5f0fb68 ('chore(ci): INT-CI-018 sync AGENTS.md test counts to live suite (200/1610)') is an ancestor of HEAD and on main; it corrected the GAP-012 AGENTS.md count drift that was the real CI failure (step 'Assert AGENTS.md test counts match live suite'). `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (200 suites, 1610 tests)' exit 0. The s3 endpoint-scheme test added at d2db770 (src/s3/query-scheme-s3queryscheme001.test.ts) passes 6/6.",
+                "resolution_probability": 0.28
+              }
+            ],
+            "summary": "Full vitest suite is green (200 files / 1610 tests, exit 0) at HEAD beyond d2db770, and fix commit 5f0fb68 (AGENTS.md count sync) is merged on main resolving the CI red."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-018\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Full vitest suite green at or beyond d2db770, or a concrete fix commit merged making the failing test pass: Ran the configured test_command `npx vitest run` at HEAD e1b9fcd (descendant of d2db770 and fix 5f0fb68): output 'Test Files 200 passed (200) / Tests 1610 passed (1610)', EXIT=0. Fix commit 5f0fb68 ('chore(ci): INT-CI-018 sync AGENTS.md test counts to live suite (200/1610)') is an ancestor of HEAD and on main; it corrected the GAP-012 AGENTS.md count drift that was the real CI failure (step 'Assert AGENTS.md test counts match live suite'). `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval2.out` -> 'AGENTS.md test counts match live suite (200 suites, 1610 tests)' exit 0. The s3 endpoint-scheme test added at d2db770 (src/s3/query-scheme-s3queryscheme001.test.ts) passes 6/6.\nFull vitest suite is green (200 files / 1610 tests, exit 0) at HEAD beyond d2db770, and fix commit 5f0fb68 (AGENTS.md count sync) is merged on main resolving the CI red.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T04:32:55.594044",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T04:32:55.616085+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 262176,
+        "truncated": true,
+        "source": "git show e1b9fcd9034c"
+      }
+    ],
+    "task_id": "INT-CI-018"
+  }
+}

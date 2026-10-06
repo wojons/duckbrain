@@ -1,0 +1,97 @@
+{
+  "task_id": "CLI-TRUNC-001",
+  "task_title": "CLI remember truncates values at the first '=' inside them",
+  "task_criteria": [
+    "A duckbrain remember whose --content/--embedding-text value contains '=' stores the full string byte-for-byte (length + tail assertable), and a regression test fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits at the FIRST '=' only, value tail preserved; (2) live round-trip on a scratch namespace stores a value containing '=' intact; (3) negative control: pre-fix parser file truncates; (4) full unit suite green + AGENTS.md counts synced."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "76a1bd25fbc7c910c6d8dc8d019b1f33f56d7228",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 190557 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n5:09AM INF scanned ~8478343 bytes (8.48 MB) in 1.77s\n5:09AM INF no leaks found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  148 passed (148)\n      Tests  1164 passed (1164)\n   Start at  05:09:50\n   Duration  72.96s (transform 4.68s, setup 1.65s, import 70.68s, tests 187.42s, environment 30ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A duckbrain remember whose --content/--embedding-text value contains '=' stores the full string byte-for-byte (length + tail assertable), and a regression test fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits at the FIRST '=' only, value tail preserved; (2) live round-trip on a scratch namespace stores a value containing '=' intact; (3) negative control: pre-fix parser file truncates; (4) full unit suite green + AGENTS.md counts synced.: (1) src/cli/human.ts:69-77: `const eq = body.indexOf(\"=\"); const key = eq === -1 ? body : body.slice(0, eq); const value = eq === -1 ? undefined : body.slice(eq + 1);` \u2014 splits at FIRST '=' only, full tail preserved. (2) Live round-trip reproduced independently: `DUCKBRAIN_NAMESPACES_PATH=<scratch> node bin/duckbrain.js remember /eval/eq --domain=concept --namespace=evaltrunc --content=\"alpha rc=1 omega dims=4096 tail=END\" --embedding-text=\"...\" --wait` -> JSONL row stored 'alpha rc=1 omega dims=4096 tail=END', len=35 (expected 35), tail ok=True. (3) Negative control: patched human.ts back to pre-fix `const [key, value] = arg.slice(2).split(\"=\"); flags[key] = value || \"true\";` -> `npx vitest run src/cli/remember-eq-value-clitrunc001.test.ts` => 'Tests 3 failed | 1 passed (4)', incl. 'Error: --attr must be valid JSON' and truncated-prefix assertions; file restored afterward (git diff clean). (4) `npx vitest run` => 'Test Files 148 passed (148)', 'Tests 1164 passed (1164)', exit 0; AGENTS.md:14 'Vitest (148 suites, 1164 tests)' and AGENTS.md:33 'pnpm test # 1164 tests, 148 suites' match the actual run. LSP diagnostics: 0 findings.\nThe parseArgs fix splits at the first '=' only, the regression test passes on the fix and fails 3/4 against the pre-fix parser, the live scratch-namespace round-trip stores the 35-char value with tail intact, and the full suite is green (148 files/1164 tests) with AGENTS.md counts synced.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A duckbrain remember whose --content/--embedding-text value contains '=' stores the full string byte-for-byte (length + tail assertable), and a regression test fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits at the FIRST '=' only, value tail preserved; (2) live round-trip on a scratch namespace stores a value containing '=' intact; (3) negative control: pre-fix parser file truncates; (4) full unit suite green + AGENTS.md counts synced.: (1) src/cli/human.ts:69-77: `const eq = body.indexOf(\"=\"); const key = eq === -1 ? body : body.slice(0, eq); const value = eq === -1 ? undefined : body.slice(eq + 1);` \u2014 splits at FIRST '=' only, full tail preserved. (2) Live round-trip reproduced independently: `DUCKBRAIN_NAMESPACES_PATH=<scratch> node bin/duckbrain.js remember /eval/eq --domain=concept --namespace=evaltrunc --content=\"alpha rc=1 omega dims=4096 tail=END\" --embedding-text=\"...\" --wait` -> JSONL row stored 'alpha rc=1 omega dims=4096 tail=END', len=35 (expected 35), tail ok=True. (3) Negative control: patched human.ts back to pre-fix `const [key, value] = arg.slice(2).split(\"=\"); flags[key] = value || \"true\";` -> `npx vitest run src/cli/remember-eq-value-clitrunc001.test.ts` => 'Tests 3 failed | 1 passed (4)', incl. 'Error: --attr must be valid JSON' and truncated-prefix assertions; file restored afterward (git diff clean). (4) `npx vitest run` => 'Test Files 148 passed (148)', 'Tests 1164 passed (1164)', exit 0; AGENTS.md:14 'Vitest (148 suites, 1164 tests)' and AGENTS.md:33 'pnpm test # 1164 tests, 148 suites' match the actual run. LSP diagnostics: 0 findings.\nThe parseArgs fix splits at the first '=' only, the regression test passes on the fix and fails 3/4 against the pre-fix parser, the live scratch-namespace round-trip stores the 35-char value with tail intact, and the full suite is green (148 files/1164 tests) with AGENTS.md counts synced.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A duckbrain remember whose --content/--embedding-text value contains '=' stores the full string byte-for-byte (length + tail assertable), and a regression test fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits at the FIRST '=' only, value tail preserved; (2) live round-trip on a scratch namespace stores a value containing '=' intact; (3) negative control: pre-fix parser file truncates; (4) full unit suite green + AGENTS.md counts synced.",
+                "status": "PASS",
+                "detail": "(1) src/cli/human.ts:69-77: `const eq = body.indexOf(\"=\"); const key = eq === -1 ? body : body.slice(0, eq); const value = eq === -1 ? undefined : body.slice(eq + 1);` \u2014 splits at FIRST '=' only, full tail preserved. (2) Live round-trip reproduced independently: `DUCKBRAIN_NAMESPACES_PATH=<scratch> node bin/duckbrain.js remember /eval/eq --domain=concept --namespace=evaltrunc --content=\"alpha rc=1 omega dims=4096 tail=END\" --embedding-text=\"...\" --wait` -> JSONL row stored 'alpha rc=1 omega dims=4096 tail=END', len=35 (expected 35), tail ok=True. (3) Negative control: patched human.ts back to pre-fix `const [key, value] = arg.slice(2).split(\"=\"); flags[key] = value || \"true\";` -> `npx vitest run src/cli/remember-eq-value-clitrunc001.test.ts` => 'Tests 3 failed | 1 passed (4)', incl. 'Error: --attr must be valid JSON' and truncated-prefix assertions; file restored afterward (git diff clean). (4) `npx vitest run` => 'Test Files 148 passed (148)', 'Tests 1164 passed (1164)', exit 0; AGENTS.md:14 'Vitest (148 suites, 1164 tests)' and AGENTS.md:33 'pnpm test # 1164 tests, 148 suites' match the actual run. LSP diagnostics: 0 findings."
+              }
+            ],
+            "summary": "The parseArgs fix splits at the first '=' only, the regression test passes on the fix and fails 3/4 against the pre-fix parser, the live scratch-namespace round-trip stores the 35-char value with tail intact, and the full suite is green (148 files/1164 tests) with AGENTS.md counts synced."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: CLI-TRUNC-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A duckbrain remember whose --content/--embedding-text value contains '=' stores the full string byte-for-byte (length + tail assertable), and a regression test fails against the pre-fix parser. Acceptance: (1) src/cli/human.ts parseArgs splits at the FIRST '=' only, value tail preserved; (2) live round-trip on a scratch namespace stores a value containing '=' intact; (3) negative control: pre-fix parser file truncates; (4) full unit suite green + AGENTS.md counts synced.: (1) src/cli/human.ts:69-77: `const eq = body.indexOf(\"=\"); const key = eq === -1 ? body : body.slice(0, eq); const value = eq === -1 ? undefined : body.slice(eq + 1);` \u2014 splits at FIRST '=' only, full tail preserved. (2) Live round-trip reproduced independently: `DUCKBRAIN_NAMESPACES_PATH=<scratch> node bin/duckbrain.js remember /eval/eq --domain=concept --namespace=evaltrunc --content=\"alpha rc=1 omega dims=4096 tail=END\" --embedding-text=\"...\" --wait` -> JSONL row stored 'alpha rc=1 omega dims=4096 tail=END', len=35 (expected 35), tail ok=True. (3) Negative control: patched human.ts back to pre-fix `const [key, value] = arg.slice(2).split(\"=\"); flags[key] = value || \"true\";` -> `npx vitest run src/cli/remember-eq-value-clitrunc001.test.ts` => 'Tests 3 failed | 1 passed (4)', incl. 'Error: --attr must be valid JSON' and truncated-prefix assertions; file restored afterward (git diff clean). (4) `npx vitest run` => 'Test Files 148 passed (148)', 'Tests 1164 passed (1164)', exit 0; AGENTS.md:14 'Vitest (148 suites, 1164 tests)' and AGENTS.md:33 'pnpm test # 1164 tests, 148 suites' match the actual run. LSP diagnostics: 0 findings.\nThe parseArgs fix splits at the first '=' only, the regression test passes on the fix and fails 3/4 against the pre-fix parser, the live scratch-namespace round-trip stores the 35-char value with tail intact, and the full suite is green (148 files/1164 tests) with AGENTS.md counts synced.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T10:14:38.847780",
+  "evidence": {
+    "collected_at": "2026-09-18T10:14:38.869207+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 11660,
+        "truncated": false,
+        "source": "git show 76a1bd25fbc7"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1032,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "CLI-TRUNC-001"
+  }
+}

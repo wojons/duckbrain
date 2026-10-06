@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0926-05",
+  "task_title": "Rewrite examples/custom-storage to the real config schema and flags",
+  "task_criteria": [
+    "example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts zod schema; zero --verify-config or --config= occurrences; the documented invocation was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f)"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "09b0dfff9c016d5e900a84a20d078ad519192138",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:48PM INF scanned ~14113549 bytes (14.11 MB) in 2.28s\n9:48PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 395888 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\nstderr | src/cli/http-durability.test.ts > SUPA-1/SUPA-2: direct mode is framed through the serializer > returns 201 for the serializer-framed append and writes one memory\n[namespace-autocreate] WARN: namespace 'nsC' did not exist and was auto-created by this write (mkdir -p + git init). If this namespace is unexpected (e.g. a typo in ?namespace=), inspect /mnt/bulk/scratch/duckbrain-test-ns-HPpjNz/nsC. Set namespaces.autoCreate=false / DUCKBRAIN_NAMESPACES_AUTOCREATE=false to reject such writes instead.\n\nstderr | src/cli/http-durability.test.ts > SUPA-1/SUPA-2: direct mode is framed through the serializer > returns 201 for the serializer-framed append and writes one memory\n[API Error] {\n  path: '/api/memories',\n  method: 'POST',\n  error: 'DURABILITY_UNSUPPORTED: O_DIRECT write rejected on /mnt/bulk/scratch/duckbrain-test-ns-HPpjNz/nsC/concept/2026-10/current.jsonl (EINVAL: EINVAL: invalid argument, write) \u2014 write NOT acknowledged, no buffered fallback taken',\n  stack: [\n    'ApiError: DURABILITY_UNSUPPORTED: O_DIRECT write rejected on /mnt/bulk/scratch/duckbrain-test-ns-HPpjNz/nsC/concept/2026-10/current.jsonl (EINVAL: EINVAL: invalid argument, write) \u2014 write NOT acknowledged, no buffered fallback taken',\n    '    at throwWriteError (/home/kara/duckbrain/src/http/routes/memories.ts:114:9)',\n    '    at /home/kara/duckbrain/src/http/routes/memories.ts:718:7'\n  ]\n}\n\n \u276f src/cli/http-durability.test.ts (6 tests | 2 failed) 31105ms\n   \u276f SUPA-1/SUPA-2: direct mode is framed through the serializer (2)\n     \u00d7 returns 201 for the serializer-framed append and writes one memory 1604ms\n   \u276f SUPA-1 AC-3: buffered mode honesty (1)\n     \u00d7 issues no fdatasync/fsync and leaves the git commit debounced 6395ms\n \u276f src/search/search-retr008.test.ts (12 tests | 2 failed) 113915ms\n   \u276f RETR-008: chat-archive namespace indexing (3)\n     \u00d7 rebuildAllNamespaces enumerates and indexes the chat-archive namespace 60010ms\n   \u276f RETR-008: single-namespace and union behavior unchanged (2)\n     \u00d7 the all-namespaces union includes chat-archive hits with highlight and facet 49ms\n \u276f src/search/search-retr001.test.ts (19 tests | 1 failed) 186765ms\n   \u276f RETR-001: search index rebuild (3)\n     \u00d7 is idempotent \u2014 a second rebuild produces the same index 60032ms\n\n\u2026 [16882 chars omitted \u2014 338 line(s)] \u2026\n    132|     const root = makeRoot();\n    133|     await createTable(\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[19/21]\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= over a duplicate-key namespace returns 200 or a clean error and the server stays alive\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/routes/memories-dogfood010.test.ts:280:3\n    278|   });\n    279|\n    280|   it(\"?q= over a duplicate-key namespace returns 200 or a clean error \u2026\n       |   ^\n    281|     const { status, body } = await httpRequest(\n    282|       \"GET\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[20/21]\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort) > ?q= with a valid query still returns ranked results when embeddings are available\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/routes/memories-dogfood010.test.ts:302:3\n    300|   });\n    301|\n    302|   it(\"?q= with a valid query still returns ranked results when embeddi\u2026\n       |   ^\n    303|     const { status, body } = await httpRequest(\n    304|       \"GET\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[21/21]\u23af\n\n\n Test Files  16 failed | 183 passed (199)\n      Tests  17 failed | 1570 passed | 17 skipped (1604)\n   Start at  21:48:29\n   Duration  614.41s (tests 98%, import 2%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts zod schema; zero --verify-config or --config= occurrences; the documented invocation was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f): All three sub-requirements verified. (1) Schema keys: every key in examples/custom-storage/duckbrain.config.json and README exists in src/config/index.ts zod schema \u2014 defaultNamespace(L49), authorEmail(L52), namespacesPath(L55), gitBatching{maxLines L61,maxSeconds L63,enabled L65}, storage{maxLinesPerChunk L73,maxBytesPerChunk L75}, durability{defaultMode L37,overrides L39}, namespaces{autoCreate L96}, serialization{maxPendingRows L103,maxPendingBytes L104}, realtime{enabled L126,pollIntervalMs L128,heartbeatMs L130}, squash{maxAgeDays L203,thresholdRecords L205,autoCompact L207,squashGitHistory L209,compressionLevel L211}, embedding.cacheDir(L238). (2) Forbidden flags: `grep -rn -- \"--verify-config\\|--config=\" examples/custom-storage/` => exit=1, zero occurrences. (3) Live invocation: ran `DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json node bin/duckbrain.js http --port=39472`; `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:39472/health` => 200; daemon log shows 'HTTP server started at http://127.0.0.1:39472' and 'HTTP server ready'. `config show` with the custom path resolved all keys correctly. Tests: `npx vitest run src/config` => 'Test Files 5 passed (5), Tests 33 passed (33)' across 3 consecutive runs (one transient failure in config-pollution-gap007.test.ts was a race with the concurrently-running daemon snapshotting repo duckbrain.config.json; passes cleanly in isolation). [resolution 0.35; duckbrain.config.json, src/config/index.ts]\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts zod schema; zero --verify-config or --config= occurrences; the documented invocation was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f): All three sub-requirements verified. (1) Schema keys: every key in examples/custom-storage/duckbrain.config.json and README exists in src/config/index.ts zod schema \u2014 defaultNamespace(L49), authorEmail(L52), namespacesPath(L55), gitBatching{maxLines L61,maxSeconds L63,enabled L65}, storage{maxLinesPerChunk L73,maxBytesPerChunk L75}, durability{defaultMode L37,overrides L39}, namespaces{autoCreate L96}, serialization{maxPendingRows L103,maxPendingBytes L104}, realtime{enabled L126,pollIntervalMs L128,heartbeatMs L130}, squash{maxAgeDays L203,thresholdRecords L205,autoCompact L207,squashGitHistory L209,compressionLevel L211}, embedding.cacheDir(L238). (2) Forbidden flags: `grep -rn -- \"--verify-config\\|--config=\" examples/custom-storage/` => exit=1, zero occurrences. (3) Live invocation: ran `DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json node bin/duckbrain.js http --port=39472`; `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:39472/health` => 200; daemon log shows 'HTTP server started at http://127.0.0.1:39472' and 'HTTP server ready'. `config show` with the custom path resolved all keys correctly. Tests: `npx vitest run src/config` => 'Test Files 5 passed (5), Tests 33 passed (33)' across 3 consecutive runs (one transient failure in config-pollution-gap007.test.ts was a race with the concurrently-running daemon snapshotting repo duckbrain.config.json; passes cleanly in isolation). [resolution 0.35; duckbrain.config.json, src/config/index.ts]\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts zod schema; zero --verify-config or --config= occurrences; the documented invocation was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f)",
+                "status": "PASS",
+                "detail": "All three sub-requirements verified. (1) Schema keys: every key in examples/custom-storage/duckbrain.config.json and README exists in src/config/index.ts zod schema \u2014 defaultNamespace(L49), authorEmail(L52), namespacesPath(L55), gitBatching{maxLines L61,maxSeconds L63,enabled L65}, storage{maxLinesPerChunk L73,maxBytesPerChunk L75}, durability{defaultMode L37,overrides L39}, namespaces{autoCreate L96}, serialization{maxPendingRows L103,maxPendingBytes L104}, realtime{enabled L126,pollIntervalMs L128,heartbeatMs L130}, squash{maxAgeDays L203,thresholdRecords L205,autoCompact L207,squashGitHistory L209,compressionLevel L211}, embedding.cacheDir(L238). (2) Forbidden flags: `grep -rn -- \"--verify-config\\|--config=\" examples/custom-storage/` => exit=1, zero occurrences. (3) Live invocation: ran `DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json node bin/duckbrain.js http --port=39472`; `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:39472/health` => 200; daemon log shows 'HTTP server started at http://127.0.0.1:39472' and 'HTTP server ready'. `config show` with the custom path resolved all keys correctly. Tests: `npx vitest run src/config` => 'Test Files 5 passed (5), Tests 33 passed (33)' across 3 consecutive runs (one transient failure in config-pollution-gap007.test.ts was a race with the concurrently-running daemon snapshotting repo duckbrain.config.json; passes cleanly in isolation). [resolution 0.35; duckbrain.config.json, src/config/index.ts]",
+                "resolution_probability": 0.35,
+                "cited_path": "duckbrain.config.json, src/config/index.ts"
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0926-05\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 example README + duckbrain.config.json contain only keys that exist in the src/config/index.ts zod schema; zero --verify-config or --config= occurrences; the documented invocation was executed live and a scratch daemon answered /health 200 (worker evidence b156d6f): All three sub-requirements verified. (1) Schema keys: every key in examples/custom-storage/duckbrain.config.json and README exists in src/config/index.ts zod schema \u2014 defaultNamespace(L49), authorEmail(L52), namespacesPath(L55), gitBatching{maxLines L61,maxSeconds L63,enabled L65}, storage{maxLinesPerChunk L73,maxBytesPerChunk L75}, durability{defaultMode L37,overrides L39}, namespaces{autoCreate L96}, serialization{maxPendingRows L103,maxPendingBytes L104}, realtime{enabled L126,pollIntervalMs L128,heartbeatMs L130}, squash{maxAgeDays L203,thresholdRecords L205,autoCompact L207,squashGitHistory L209,compressionLevel L211}, embedding.cacheDir(L238). (2) Forbidden flags: `grep -rn -- \"--verify-config\\|--config=\" examples/custom-storage/` => exit=1, zero occurrences. (3) Live invocation: ran `DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json node bin/duckbrain.js http --port=39472`; `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:39472/health` => 200; daemon log shows 'HTTP server started at http://127.0.0.1:39472' and 'HTTP server ready'. `config show` with the custom path resolved all keys correctly. Tests: `npx vitest run src/config` => 'Test Files 5 passed (5), Tests 33 passed (33)' across 3 consecutive runs (one transient failure in config-pollution-gap007.test.ts was a race with the concurrently-running daemon snapshotting repo duckbrain.config.json; passes cleanly in isolation). [resolution 0.35; duckbrain.config.json, src/config/index.ts]\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-03T03:01:14.923882",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-03T03:01:14.941321+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1572,
+        "truncated": false,
+        "source": "git show 09b0dfff9c01"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2101,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0926-05"
+  }
+}

@@ -1,0 +1,25 @@
+commit efaeaedcbada58a244e10f544b991fc4e9e84ae0
+Merge: aa9bb79 4560fe4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 4 05:58:01 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 4 05:58:01 2026 -0500
+
+    Merge wt/DF-1003-01: purge dead DUCKBRAIN_DATA_DIR (DF-1003-01)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ docs/AI_CONFIGURE.md                            |   2 +-
+ docs/dogfood/2026-09-24-integration.md          |   6 +-
+ docs/dogfood/2026-09-26-examples-integration.md |   4 +-
+ docs/dogfood/2026-10-03-asof-integration.md     |   4 +-
+ docs/dogfood/diagnostics.md                     |  10 +-
+ docs/guide/ai-configure.md                      |   2 +-
+ docs/guide/configuration.md                     |   1 -
+ examples/custom-storage/README.md               |   9 +-
+ examples/http-api/README.md                     |   1 -
+ examples/mcp-client/README.md                   |   5 +-
+ skills/duckbrain-usage/SKILL.md                 |  11 ++-
+ src/config/df100301-data-dir-dead.test.ts       | 118 ++++++++++++++++++++++++
+ src/testing/race-safe-daemon.ts                 |   2 +-
+ 13 files changed, 150 insertions(+), 25 deletions(-)

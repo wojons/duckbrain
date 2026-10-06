@@ -1,0 +1,102 @@
+{
+  "task_id": "PERF-002",
+  "task_title": "PERF-002 \u2014 fuse recall double read_json scan into one query",
+  "task_criteria": [
+    "Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes limit=5 warm <3.0s; total/empty-page semantics verified"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "ae51667dac4a810f93768c7c96e06b5e5443e132",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n7:13AM INF scanned ~14176526 bytes (14.18 MB) in 2.26s\n7:13AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 351141 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  185 passed (185)\n      Tests  1479 passed (1479)\n   Start at  07:13:13\n   Duration  71.99s (tests 80%, import 17%, transform 2%, setup 1%)\n\n    Isolate  185 workers spawned \u00b7 ~108ms startup each (spawn + environment, per file)\n             at least ~4.88s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes limit=5 warm <3.0s; total/empty-page semantics verified: Two of three conjuncts fail. (1) NOT the live path: the fused fn exists in source (src/duckdb/queries.ts:673, called at src/mcp/tools/recall.ts:998,1010) but the live daemon PID 294709 started 'Mon Sep 28 00:51:06 2026', BEFORE the PERF-003 fusion commit 0b5be05 (2026-09-29 03:37:27). The dist build it serves has NO queryMemoriesWithTotal export (grep count 0 in dist/src/duckdb/queries.js; only exports.queryMemories:18 and exports.countMemories:19) and its list path dist/src/mcp/tools/recall.js:827,835 still calls countMemories back-to-back (old two-scan); dist mtime 2026-09-28 11:53. (2) Warm latency FAILS <3.0s: curl localhost:3000/api/memories?namespace=coding-hermes&limit=5 (X-API-Key auth) gave warmup 3.787s and warm runs 3.436, 3.092, 3.028, 3.020, 2.765, 2.978, 3.013, 3.825, 2.795, 2.797, 5.806, 5.280s \u2014 many exceed 3.0s (up to 5.8s). (3) total/empty-page semantics DO pass: limit=5 -> count=240644/total=240644/5 rows; offset=999999 -> count=240645/total=240645/0 rows (true total carried on empty page). Fused unit test src/duckdb/queries-fused-total-perf003.test.ts passes 6/6 (npx vitest run, exit 0), but that only proves the source, not the live daemon path. The task's only change was a bookkeeping entry in .gitreins/tasks.yaml; no code was changed to make the fused query the live path or to meet the latency bar.\nThe fused queryMemoriesWithTotal exists in source and its unit tests pass, but the live daemon runs a stale pre-fusion dist build (still doing the double countMemories scan) and warm coding-hermes limit=5 latency exceeds 3.0s, so the criterion fails.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes limit=5 warm <3.0s; total/empty-page semantics verified: Two of three conjuncts fail. (1) NOT the live path: the fused fn exists in source (src/duckdb/queries.ts:673, called at src/mcp/tools/recall.ts:998,1010) but the live daemon PID 294709 started 'Mon Sep 28 00:51:06 2026', BEFORE the PERF-003 fusion commit 0b5be05 (2026-09-29 03:37:27). The dist build it serves has NO queryMemoriesWithTotal export (grep count 0 in dist/src/duckdb/queries.js; only exports.queryMemories:18 and exports.countMemories:19) and its list path dist/src/mcp/tools/recall.js:827,835 still calls countMemories back-to-back (old two-scan); dist mtime 2026-09-28 11:53. (2) Warm latency FAILS <3.0s: curl localhost:3000/api/memories?namespace=coding-hermes&limit=5 (X-API-Key auth) gave warmup 3.787s and warm runs 3.436, 3.092, 3.028, 3.020, 2.765, 2.978, 3.013, 3.825, 2.795, 2.797, 5.806, 5.280s \u2014 many exceed 3.0s (up to 5.8s). (3) total/empty-page semantics DO pass: limit=5 -> count=240644/total=240644/5 rows; offset=999999 -> count=240645/total=240645/0 rows (true total carried on empty page). Fused unit test src/duckdb/queries-fused-total-perf003.test.ts passes 6/6 (npx vitest run, exit 0), but that only proves the source, not the live daemon path. The task's only change was a bookkeeping entry in .gitreins/tasks.yaml; no code was changed to make the fused query the live path or to meet the latency bar.\nThe fused queryMemoriesWithTotal exists in source and its unit tests pass, but the live daemon runs a stale pre-fusion dist build (still doing the double countMemories scan) and warm coding-hermes limit=5 latency exceeds 3.0s, so the criterion fails.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes limit=5 warm <3.0s; total/empty-page semantics verified",
+                "status": "FAIL",
+                "detail": "Two of three conjuncts fail. (1) NOT the live path: the fused fn exists in source (src/duckdb/queries.ts:673, called at src/mcp/tools/recall.ts:998,1010) but the live daemon PID 294709 started 'Mon Sep 28 00:51:06 2026', BEFORE the PERF-003 fusion commit 0b5be05 (2026-09-29 03:37:27). The dist build it serves has NO queryMemoriesWithTotal export (grep count 0 in dist/src/duckdb/queries.js; only exports.queryMemories:18 and exports.countMemories:19) and its list path dist/src/mcp/tools/recall.js:827,835 still calls countMemories back-to-back (old two-scan); dist mtime 2026-09-28 11:53. (2) Warm latency FAILS <3.0s: curl localhost:3000/api/memories?namespace=coding-hermes&limit=5 (X-API-Key auth) gave warmup 3.787s and warm runs 3.436, 3.092, 3.028, 3.020, 2.765, 2.978, 3.013, 3.825, 2.795, 2.797, 5.806, 5.280s \u2014 many exceed 3.0s (up to 5.8s). (3) total/empty-page semantics DO pass: limit=5 -> count=240644/total=240644/5 rows; offset=999999 -> count=240645/total=240645/0 rows (true total carried on empty page). Fused unit test src/duckdb/queries-fused-total-perf003.test.ts passes 6/6 (npx vitest run, exit 0), but that only proves the source, not the live daemon path. The task's only change was a bookkeeping entry in .gitreins/tasks.yaml; no code was changed to make the fused query the live path or to meet the latency bar.",
+                "resolution_probability": 0.04
+              }
+            ],
+            "summary": "The fused queryMemoriesWithTotal exists in source and its unit tests pass, but the live daemon runs a stale pre-fusion dist build (still doing the double countMemories scan) and warm coding-hermes limit=5 latency exceeds 3.0s, so the criterion fails."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: PERF-002\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Fused queryMemoriesWithTotal is the live recall path; live daemon coding-hermes limit=5 warm <3.0s; total/empty-page semantics verified: Two of three conjuncts fail. (1) NOT the live path: the fused fn exists in source (src/duckdb/queries.ts:673, called at src/mcp/tools/recall.ts:998,1010) but the live daemon PID 294709 started 'Mon Sep 28 00:51:06 2026', BEFORE the PERF-003 fusion commit 0b5be05 (2026-09-29 03:37:27). The dist build it serves has NO queryMemoriesWithTotal export (grep count 0 in dist/src/duckdb/queries.js; only exports.queryMemories:18 and exports.countMemories:19) and its list path dist/src/mcp/tools/recall.js:827,835 still calls countMemories back-to-back (old two-scan); dist mtime 2026-09-28 11:53. (2) Warm latency FAILS <3.0s: curl localhost:3000/api/memories?namespace=coding-hermes&limit=5 (X-API-Key auth) gave warmup 3.787s and warm runs 3.436, 3.092, 3.028, 3.020, 2.765, 2.978, 3.013, 3.825, 2.795, 2.797, 5.806, 5.280s \u2014 many exceed 3.0s (up to 5.8s). (3) total/empty-page semantics DO pass: limit=5 -> count=240644/total=240644/5 rows; offset=999999 -> count=240645/total=240645/0 rows (true total carried on empty page). Fused unit test src/duckdb/queries-fused-total-perf003.test.ts passes 6/6 (npx vitest run, exit 0), but that only proves the source, not the live daemon path. The task's only change was a bookkeeping entry in .gitreins/tasks.yaml; no code was changed to make the fused query the live path or to meet the latency bar.\nThe fused queryMemoriesWithTotal exists in source and its unit tests pass, but the live daemon runs a stale pre-fusion dist build (still doing the double countMemories scan) and warm coding-hermes limit=5 latency exceeds 3.0s, so the criterion fails.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T12:22:42.956747",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T12:22:43.393309+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 20980,
+        "truncated": false,
+        "source": "git show ae51667dac4a"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 667,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-002"
+  }
+}

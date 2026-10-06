@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-1",
+  "task_title": "Sync AGENTS.md test counts to live (191/1524)",
+  "task_criteria": [
+    "AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest run; CI GAP-012 assert step passes"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "971e9901c91784b1eda6a79a2811ba7e7ea5f75f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:33AM INF scanned ~13985462 bytes (13.99 MB) in 1.78s\n9:33AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 366823 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\n\n Test Files  191 passed (191)\n      Tests  1524 passed (1524)\n   Start at  09:33:40\n   Duration  73.44s (tests 81%, import 17%, transform 1%)\n\n    Isolate  191 workers spawned \u00b7 ~100ms startup each (spawn + environment, per file)\n             at least ~4.65s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest run; CI GAP-012 assert step passes: AGENTS.md:14 reads 'Vitest (191 suites, 1524 tests)' and AGENTS.md:33 reads 'pnpm test          # 1524 tests, 191 suites'. Live `npx vitest run` (exit 0) summary: 'Test Files  191 passed (191)' and 'Tests  1524 passed (1524)'. CI GAP-012 assert `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out` output: 'AGENTS.md test counts match live suite (191 suites, 1524 tests)' with EXIT=0. [resolution 0.34; AGENTS.md]\nAGENTS.md lines 14 and 33 state 191 suites / 1524 tests, exactly matching the live vitest run, and the CI GAP-012 assert step passes (exit 0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest run; CI GAP-012 assert step passes: AGENTS.md:14 reads 'Vitest (191 suites, 1524 tests)' and AGENTS.md:33 reads 'pnpm test          # 1524 tests, 191 suites'. Live `npx vitest run` (exit 0) summary: 'Test Files  191 passed (191)' and 'Tests  1524 passed (1524)'. CI GAP-012 assert `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out` output: 'AGENTS.md test counts match live suite (191 suites, 1524 tests)' with EXIT=0. [resolution 0.34; AGENTS.md]\nAGENTS.md lines 14 and 33 state 191 suites / 1524 tests, exactly matching the live vitest run, and the CI GAP-012 assert step passes (exit 0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest run; CI GAP-012 assert step passes",
+                "status": "PASS",
+                "detail": "AGENTS.md:14 reads 'Vitest (191 suites, 1524 tests)' and AGENTS.md:33 reads 'pnpm test          # 1524 tests, 191 suites'. Live `npx vitest run` (exit 0) summary: 'Test Files  191 passed (191)' and 'Tests  1524 passed (1524)'. CI GAP-012 assert `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out` output: 'AGENTS.md test counts match live suite (191 suites, 1524 tests)' with EXIT=0. [resolution 0.34; AGENTS.md]",
+                "resolution_probability": 0.34,
+                "cited_path": "AGENTS.md"
+              }
+            ],
+            "summary": "AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, exactly matching the live vitest run, and the CI GAP-012 assert step passes (exit 0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-1\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AGENTS.md lines 14 and 33 state 191 suites / 1524 tests, matching live vitest run; CI GAP-012 assert step passes: AGENTS.md:14 reads 'Vitest (191 suites, 1524 tests)' and AGENTS.md:33 reads 'pnpm test          # 1524 tests, 191 suites'. Live `npx vitest run` (exit 0) summary: 'Test Files  191 passed (191)' and 'Tests  1524 passed (1524)'. CI GAP-012 assert `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out` output: 'AGENTS.md test counts match live suite (191 suites, 1524 tests)' with EXIT=0. [resolution 0.34; AGENTS.md]\nAGENTS.md lines 14 and 33 state 191 suites / 1524 tests, exactly matching the live vitest run, and the CI GAP-012 assert step passes (exit 0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-30T14:48:19.811208",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T14:48:19.828073+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2271,
+        "truncated": false,
+        "source": "git show 971e9901c917"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 451,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-1"
+  }
+}

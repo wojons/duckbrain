@@ -1,0 +1,107 @@
+{
+  "task_id": "DOGFOOD-006",
+  "task_title": "Fix docs/examples drift + friendlier zod errors + help text",
+  "task_criteria": [
+    "docs/api/http-api.md contains no 'architecture' domain value in any JSON example (valid domains: person, event, concept, message, config, raw_note)",
+    "docs/api/mcp-tools.md documents MCP remember attributes as REQUIRED (no optional wording)",
+    "MCP remember with attributes omitted returns a friendly error containing 'attributes' and 'required' (not raw 'expected record, received undefined')",
+    "duckbrain --help shows corrected --namespace default wording (not hardcoded 'default')",
+    "duckbrain recall --help prints usage without running a query",
+    "npx vitest run passes (315 baseline + new regression tests) and npx tsc --noEmit clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10025731 bytes (10.03 MB) in 1.82s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[3\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10025731 bytes (10.03 MB) in 1.82s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/namespace-delete-dogfood004.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 136\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 194\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 97\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/http-api.md contains no 'architecture' domain value in any JSON example (valid domains: person, event, concept, message, config, raw_note): grep 'architecture' docs/api/http-api.md returns no matches (exit 1); all JSON example domain values are 'concept' (lines 217, 237, 277, 294, 309, 331)\n  \u2713 docs/api/mcp-tools.md documents MCP remember attributes as REQUIRED (no optional wording): docs/api/mcp-tools.md:33 'REQUIRED: object of arbitrary key/value metadata (pass {} if none)' and :40 'attributes is **required** ... it is NOT optional'\n  \u2713 MCP remember with attributes omitted returns a friendly error containing 'attributes' and 'required' (not raw 'expected record, received undefined'): src/mcp/tools/remember.ts:40 zod error 'attributes is required (object of arbitrary key/value metadata, e.g. {\"author\": \"alice\"})'; remember-attributes-dogfood006.test.ts (4 tests) pass asserting /attributes/ and /required/\n  \u2713 duckbrain --help shows corrected --namespace default wording (not hardcoded 'default'): bin/duckbrain.ts:86, src/cli/human.ts:276,1405 all show 'config defaultNamespace'; grep 'default: default' returns no matches (exit 1)\n  \u2713 duckbrain recall --help prints usage without running a query: src/cli/human.ts:261 handles --help/-h before running any query, prints usage at :263; recall-help-dogfood006.test.ts (3 tests) pass asserting no query output\n  \u2713 npx vitest run passes (315 baseline + new regression tests) and npx tsc --noEmit clean: npx vitest run: 322 tests passed (43 files) = 315 baseline + 7 new regression tests; npx tsc --noEmit exit 0; LSP diagnostics 0\nAll 6 DOGFOOD-006 criteria verified: docs drift fixed, friendly zod error added, help text corrected, and all 322 tests + tsc pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/http-api.md contains no 'architecture' domain value in any JSON example (valid domains: person, event, concept, message, config, raw_note): grep 'architecture' docs/api/http-api.md returns no matches (exit 1); all JSON example domain values are 'concept' (lines 217, 237, 277, 294, 309, 331)\n  \u2713 docs/api/mcp-tools.md documents MCP remember attributes as REQUIRED (no optional wording): docs/api/mcp-tools.md:33 'REQUIRED: object of arbitrary key/value metadata (pass {} if none",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/http-api.md contains no 'architecture' domain value in any JSON example (valid domains: person, event, concept, message, config, raw_note)",
+                "status": "PASS",
+                "detail": "grep 'architecture' docs/api/http-api.md returns no matches (exit 1); all JSON example domain values are 'concept' (lines 217, 237, 277, 294, 309, 331)"
+              },
+              {
+                "criterion": "docs/api/mcp-tools.md documents MCP remember attributes as REQUIRED (no optional wording)",
+                "status": "PASS",
+                "detail": "docs/api/mcp-tools.md:33 'REQUIRED: object of arbitrary key/value metadata (pass {} if none)' and :40 'attributes is **required** ... it is NOT optional'"
+              },
+              {
+                "criterion": "MCP remember with attributes omitted returns a friendly error containing 'attributes' and 'required' (not raw 'expected record, received undefined')",
+                "status": "PASS",
+                "detail": "src/mcp/tools/remember.ts:40 zod error 'attributes is required (object of arbitrary key/value metadata, e.g. {\"author\": \"alice\"})'; remember-attributes-dogfood006.test.ts (4 tests) pass asserting /attributes/ and /required/"
+              },
+              {
+                "criterion": "duckbrain --help shows corrected --namespace default wording (not hardcoded 'default')",
+                "status": "PASS",
+                "detail": "bin/duckbrain.ts:86, src/cli/human.ts:276,1405 all show 'config defaultNamespace'; grep 'default: default' returns no matches (exit 1)"
+              },
+              {
+                "criterion": "duckbrain recall --help prints usage without running a query",
+                "status": "PASS",
+                "detail": "src/cli/human.ts:261 handles --help/-h before running any query, prints usage at :263; recall-help-dogfood006.test.ts (3 tests) pass asserting no query output"
+              },
+              {
+                "criterion": "npx vitest run passes (315 baseline + new regression tests) and npx tsc --noEmit clean",
+                "status": "PASS",
+                "detail": "npx vitest run: 322 tests passed (43 files) = 315 baseline + 7 new regression tests; npx tsc --noEmit exit 0; LSP diagnostics 0"
+              }
+            ],
+            "summary": "All 6 DOGFOOD-006 criteria verified: docs drift fixed, friendly zod error added, help text corrected, and all 322 tests + tsc pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-006\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10025731 bytes (10.03 MB) in 1.82s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[3\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/http-api.md contains no 'architecture' domain value in any JSON example (valid domains: person, event, concept, message, config, raw_note): grep 'architecture' docs/api/http-api.md returns no matches (exit 1); all JSON example domain values are 'concept' (lines 217, 237, 277, 294, 309, 331)\n  \u2713 docs/api/mcp-tools.md documents MCP remember attributes as REQUIRED (no optional wording): docs/api/mcp-tools.md:33 'REQUIRED: object of arbitrary key/value metadata (pass {} if none)' and :40 'attributes is **required** ... it is NOT optional'\n  \u2713 MCP remember with attributes omitted returns a friendly error containing 'attributes' and 'required' (not raw 'expected record, received undefined'): src/mcp/tools/remember.ts:40 zod error 'attributes is required (object of arbitrary key/value metadata, e.g. {\"author\": \"alice\"})'; remember-attributes-dogfood006.test.ts (4 tests) pass asserting /attributes/ and /required/\n  \u2713 duckbrain --help shows corrected --namespace default wording (not hardcoded 'default'): bin/duckbrain.ts:86, src/cli/human.ts:276,1405 all show 'config defaultNamespace'; grep 'default: default' returns no matches (exit 1)\n  \u2713 duckbrain recall --help prints usage without running a query: src/cli/human.ts:261 handles --help/-h before running any query, prints usage at :263; recall-help-dogfood006.test.ts (3 tests) pass asserting no query output\n  \u2713 npx vitest run passes (315 baseline + new regression tests) and npx tsc --noEmit clean: npx vitest run: 322 tests passed (43 files) = 315 baseline + 7 new regression tests; npx tsc --noEmit exit 0; LSP diagnostics 0\nAll 6 DOGFOOD-006 criteria verified: docs drift fixed, friendly zod error added, help text corrected, and all 322 tests + tsc pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-08T12:17:34.189345"
+}

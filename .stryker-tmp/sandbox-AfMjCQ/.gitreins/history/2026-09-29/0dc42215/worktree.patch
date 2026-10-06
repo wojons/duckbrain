@@ -1,0 +1,20 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 1fc4f98..6beaf64 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2030,5 +2030,14 @@ tasks:
+   title: P3 as_of + q= combination returns 500 instead of 400
+   criteria:
+   - HTTP status 400 when as_of combined with q= or contains=
+-  status: in_progress
++  status: complete
+   created_at: '2026-09-29T02:19:31.316198+00:00'
++  completed_at: '2026-09-29T02:20:58.451851+00:00'
++- id: DF-0924-03
++  title: Document MCP recall asOf parameter
++  criteria:
++  - docs/api/mcp-tools.md documents asOf parameter with type, description, and usage
++    example
++  status: complete
++  created_at: '2026-09-29T02:41:09.876787+00:00'
++  completed_at: '2026-09-29T02:42:05.174628+00:00'

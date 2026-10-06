@@ -1,0 +1,70 @@
+{
+  "task_id": "DB-SUPA-7-528",
+  "task_title": "SUPA storage modes research note",
+  "task_criteria": [
+    "Deliver a reproducible benchmark note comparing buffered append, fsync append, O_DIRECT/direct mode feasibility, and mmap on the actual host; report latency/throughput/torn-line observations and recommendations without changing product code."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "0968fceced638047ca59a0e749f17b8ffb623edc",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m9:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9829563 bytes (9.83 MB) in 2.57s\u001b[0m\n\u001b[90m9:32AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9829563 bytes (9.83 MB) in 2.57s\u001b[0m\n\u001b[90m9:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  09:32:26\n   Duration  80.99s (transform 7.57s, setup 2.05s, import 73.51s, tests 215.44s, environment 28ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Deliver a reproducible benchmark note comparing buffered append, fsync append, O_DIRECT/direct mode feasibility, and mmap on the actual host; report latency/throughput/torn-line observations and recommendations without changing product code.: Deliverable in commit 0968fce: docs/specs/SUPA-7-storage-modes.md (506 lines) with checked-in harness scripts/benchmarks/storage-modes.ts (1083 lines) and scripts/benchmarks/mmap-append-probe.c (181 lines). All four modes compared: buffered (\u00a73.1 sys-buffered, \u00a73.2 prod-buffered), fsync (\u00a73.1 sys-fsync + sys-fsync-batch100, \u00a73.2 prod-fsync), O_DIRECT/direct feasibility (\u00a74.1 support matrix on ext4/tmpfs/overlayfs, \u00a74.2 documents that SUPA-1 AC-4's tmpfs/overlayfs rejection assumption does NOT hold on this kernel, \u00a74.3 Node buffer-alignment caveats), mmap (\u00a75 real mmap(MAP_SHARED) via compiled C probe, msync every 100). Latency/throughput reported as p50/p95/p99/max + rec/s in \u00a73.1, \u00a73.2, \u00a73.3 (3 runs incl. 256B size sensitivity). Torn-line: \u00a76 crash battery, 72 SIGKILLs across 3 modes, 0 malformed / 0 checksum mismatch / 0 partial tail / 0 acked-but-missing. Recommendations: \u00a79 per-profile table (agent-cron, API acks, high-rate ingest, direct, mmap). Reproducibility verified by me: ran `npx tsx scripts/benchmarks/storage-modes.ts --records 40 --warmup 4 --kill-runs 2` \u2192 EXIT=0, reproduced mode ordering, O_DIRECT accepted on tmpfs, 0 torn lines; C probe compiled with `cc -O2` and ran OK ({\"ok\":true,...}). No product code changed: `git show --stat 0968fce` touches only .gitreins/tasks.yaml, docs/specs/SUPA-1-write-durability.md (1-line cross-link), docs/specs/SUPA-7-storage-modes.md, and the two scripts/benchmarks/ files \u2014 no src/ or packages/ files.\nThe DB-SUPA-7 research note and its reproducible harness are delivered, cover all four storage modes with latency/throughput/torn-line data and recommendations, run successfully on this host, and change no product code.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Deliver a reproducible benchmark note comparing buffered append, fsync append, O_DIRECT/direct mode feasibility, and mmap on the actual host; report latency/throughput/torn-line observations and recommendations without changing product code.: Deliverable in commit 0968fce: docs/specs/SUPA-7-storage-modes.md (506 lines) with checked-in harness scripts/benchmarks/storage-modes.ts (1083 lines) and scripts/benchmarks/mmap-append-probe.c (181 lines). All four modes compared: buffered (\u00a73.1 sys-buffered, \u00a73.2 prod-buffered), fsync (\u00a73.1 sys-fsync + sys-fsync-batch100, \u00a73.2 prod-fsync), O_DIRECT/direct feasibility (\u00a74.1 support matrix on ext4/tmpfs/overlayfs, \u00a74.2 documents that SUPA-1 AC-4's tmpfs/overlayfs rejection assumption does NOT hold on this kernel, \u00a74.3 Node buffer-alignment caveats), mmap (\u00a75 real mmap(MAP_SHARED) via compiled C probe, msync every 100). Latency/throughput reported as p50/p95/p99/max + rec/s in \u00a73.1, \u00a73.2, \u00a73.3 (3 runs incl. 256B size sensitivity). Torn-line: \u00a76 crash battery, 72 SIGKILLs across 3 modes, 0 malformed / 0 checksum mismatch / 0 partial tail / 0 acked-but-missing. Recommendations: \u00a79 per-profile table (agent-cron, API acks, high-rate ingest, direct, mmap). Reproducibility verified by me: ran `npx tsx scripts/benchmarks/storage-modes.ts --records 40 --warmup 4 --kill-runs 2` \u2192 EXIT=0, reproduced mode ordering, O_DIRECT accepted on tmpfs, 0 torn lines; C probe compiled with `cc -O2` and ran OK ({\"ok\":true,...}). No product code changed: `git show --stat 0968fce` touches only .gitreins/tasks.yaml, docs/specs/SUPA-1-write-durability.md (1-line cross-link), docs/specs/SUPA-7-storage-modes.md, and the two scripts/benchmarks/ files \u2014 no src/ or packages/ files.\nThe DB-SUPA-7 research note and its reproducible harness are delivered, cover all four storage modes with latency/throughput/torn-line data and recommendations, run successfully on this host, and change no product code.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Deliver a reproducible benchmark note comparing buffered append, fsync append, O_DIRECT/direct mode feasibility, and mmap on the actual host; report latency/throughput/torn-line observations and recommendations without changing product code.",
+                "status": "PASS",
+                "detail": "Deliverable in commit 0968fce: docs/specs/SUPA-7-storage-modes.md (506 lines) with checked-in harness scripts/benchmarks/storage-modes.ts (1083 lines) and scripts/benchmarks/mmap-append-probe.c (181 lines). All four modes compared: buffered (\u00a73.1 sys-buffered, \u00a73.2 prod-buffered), fsync (\u00a73.1 sys-fsync + sys-fsync-batch100, \u00a73.2 prod-fsync), O_DIRECT/direct feasibility (\u00a74.1 support matrix on ext4/tmpfs/overlayfs, \u00a74.2 documents that SUPA-1 AC-4's tmpfs/overlayfs rejection assumption does NOT hold on this kernel, \u00a74.3 Node buffer-alignment caveats), mmap (\u00a75 real mmap(MAP_SHARED) via compiled C probe, msync every 100). Latency/throughput reported as p50/p95/p99/max + rec/s in \u00a73.1, \u00a73.2, \u00a73.3 (3 runs incl. 256B size sensitivity). Torn-line: \u00a76 crash battery, 72 SIGKILLs across 3 modes, 0 malformed / 0 checksum mismatch / 0 partial tail / 0 acked-but-missing. Recommendations: \u00a79 per-profile table (agent-cron, API acks, high-rate ingest, direct, mmap). Reproducibility verified by me: ran `npx tsx scripts/benchmarks/storage-modes.ts --records 40 --warmup 4 --kill-runs 2` \u2192 EXIT=0, reproduced mode ordering, O_DIRECT accepted on tmpfs, 0 torn lines; C probe compiled with `cc -O2` and ran OK ({\"ok\":true,...}). No product code changed: `git show --stat 0968fce` touches only .gitreins/tasks.yaml, docs/specs/SUPA-1-write-durability.md (1-line cross-link), docs/specs/SUPA-7-storage-modes.md, and the two scripts/benchmarks/ files \u2014 no src/ or packages/ files."
+              }
+            ],
+            "summary": "The DB-SUPA-7 research note and its reproducible harness are delivered, cover all four storage modes with latency/throughput/torn-line data and recommendations, run successfully on this host, and change no product code."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-SUPA-7-528\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m9:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9829563 bytes (9.83 MB) in 2.57s\u001b[0m\n\u001b[90m9:32AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Deliver a reproducible benchmark note comparing buffered append, fsync append, O_DIRECT/direct mode feasibility, and mmap on the actual host; report latency/throughput/torn-line observations and recommendations without changing product code.: Deliverable in commit 0968fce: docs/specs/SUPA-7-storage-modes.md (506 lines) with checked-in harness scripts/benchmarks/storage-modes.ts (1083 lines) and scripts/benchmarks/mmap-append-probe.c (181 lines). All four modes compared: buffered (\u00a73.1 sys-buffered, \u00a73.2 prod-buffered), fsync (\u00a73.1 sys-fsync + sys-fsync-batch100, \u00a73.2 prod-fsync), O_DIRECT/direct feasibility (\u00a74.1 support matrix on ext4/tmpfs/overlayfs, \u00a74.2 documents that SUPA-1 AC-4's tmpfs/overlayfs rejection assumption does NOT hold on this kernel, \u00a74.3 Node buffer-alignment caveats), mmap (\u00a75 real mmap(MAP_SHARED) via compiled C probe, msync every 100). Latency/throughput reported as p50/p95/p99/max + rec/s in \u00a73.1, \u00a73.2, \u00a73.3 (3 runs incl. 256B size sensitivity). Torn-line: \u00a76 crash battery, 72 SIGKILLs across 3 modes, 0 malformed / 0 checksum mismatch / 0 partial tail / 0 acked-but-missing. Recommendations: \u00a79 per-profile table (agent-cron, API acks, high-rate ingest, direct, mmap). Reproducibility verified by me: ran `npx tsx scripts/benchmarks/storage-modes.ts --records 40 --warmup 4 --kill-runs 2` \u2192 EXIT=0, reproduced mode ordering, O_DIRECT accepted on tmpfs, 0 torn lines; C probe compiled with `cc -O2` and ran OK ({\"ok\":true,...}). No product code changed: `git show --stat 0968fce` touches only .gitreins/tasks.yaml, docs/specs/SUPA-1-write-durability.md (1-line cross-link), docs/specs/SUPA-7-storage-modes.md, and the two scripts/benchmarks/ files \u2014 no src/ or packages/ files.\nThe DB-SUPA-7 research note and its reproducible harness are delivered, cover all four storage modes with latency/throughput/torn-line data and recommendations, run successfully on this host, and change no product code.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T14:34:31.681046"
+}

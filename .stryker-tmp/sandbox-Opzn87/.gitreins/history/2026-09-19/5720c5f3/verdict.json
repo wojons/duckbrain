@@ -1,0 +1,97 @@
+{
+  "task_id": "DF-0919-03",
+  "task_title": "Align README prerequisites with supported pnpm",
+  "task_criteria": [
+    "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "c693f256406193d8fb6e86d688d17bb8fb5ad56b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n2:30PM INF scanned ~9119741 bytes (9.12 MB) in 3.37s\n2:30PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 192610 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\nstderr | src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\n[duckbrain] Removed 1 orphaned scratch db file(s) from /tmp\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 2626ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 2095ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 1806 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 152 passed (153)\n      Tests  1 failed | 1199 passed (1200)\n   Start at  14:30:42\n   Duration  140.05s (transform 10.26s, setup 4.78s, import 113.05s, tests 392.62s, environment 26ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0: \"README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.\"\n\nSub-findings:\n(a) README states verified pnpm major: README.md:74 \"You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`.\" package.json:4 \"packageManager\": \"pnpm@12.4.2\". pnpm-lock.yaml lockfileVersion 9.0 with @pnpm/exe.*@12.4.2 entries. PASS.\n(b) Non-root corepack enable: README.md:82-87:\n  mkdir -p ~/.local/bin\n  corepack enable pnpm --install-directory ~/.local/bin\n  export PATH=\"$HOME/.local/bin:$PATH\"\n  corepack prepare pnpm@12.4.2 --activate\n  pnpm --version  # expect 12.4.2\n  Verified locally: corepack 0.34.6 on node v22.22.3 accepts `enable pnpm --install-directory <dir>` (no sudo, writes to user dir). Simulated run with stub corepack printed \"corepack called: enable pnpm --install-directory /home/kara/.local/bin\" and \"prepare pnpm@12.4.2 --activate\"; pnpm --version -> 12.4.2. PASS.\n(c) Documentation remains accurate: FAIL. Stale pnpm 11 references remain:\n  - docs/guide/getting-started.md:26 \"**pnpm** 11.13.1 ... only pnpm major exercised by the clean-install CI smoke\"; :30 \"corepack prepare pnpm@11.13.1 --activate\"; :33 \"Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.\" \u2014 directly contradicts README/package.json (pnpm 12.4.2).\n  - CONTRIBUTING.md:11 \"- pnpm 11.13.1 (pinned by `package.json`)\" \u2014 false, package.json pins 12.4.2.\n  - AGENTS.md:16 \"- **Package Manager:** pnpm 11+\".\n  - .github/workflows/ci.yml:31 `test \"$(pnpm --version)\" = \"11.13.1\"` \u2014 CI smoke asserts pnpm 11.13.1 while pnpm/action-setup@v4 reads packageManager pin 12.4.2 => CI install step fails.\n(d) Relevant checks: see test run evidence.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0: \"README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.\"\n\nSub-findings:\n(a) README states verified pnpm major: README.md:74 \"You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`.\" package.json:4 \"packageManager\": \"pnpm@12.4.2\". pnpm-lock.yaml lockfileVersion 9.0 with @pnpm/exe.*@12.4.2 entries. PASS.\n(b) Non-root corepack enable: README.md:82-87:\n  mkdir -p ~/.local/bin\n  corepack enable pnpm --install-directory ~/.local/bin\n  export PATH=\"$HOME/.local/bin:$PATH\"\n  corepack prepare pnpm@12.4.2 --activate\n  pnpm --version  # expect 12.4.2\n  Verified locally: corepack 0.34.6 on node v22.22.3 accepts `enable pnpm --install-directory <dir>` (no sudo, writes to user dir). Simulated run with stub corepack printed \"corepack called: enable pnpm --install-directory /home/kara/.local/bin\" and \"prepare pnpm@12.4.2 --activate\"; pnpm --version -> 12.4.2. PASS.\n(c) Documentation remains accurate: FAIL. Stale pnpm 11 references remain:\n  - docs/guide/getting-started.md:26 \"**pnpm** 11.13.1 ... only pnpm major exercised by the clean-install CI smoke\"; :30 \"corepack prepare pnpm@11.13.1 --activate\"; :33 \"Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.\" \u2014 directly contradicts README/package.json (pnpm 12.4.2).\n  - CONTRIBUTING.md:11 \"- pnpm 11.13.1 (pinned by `package.json`)\" \u2014 false, package.json pins 12.4.2.\n  - AGENTS.md:16 \"- **Package Manager:** pnpm 11+\".\n  - .github/workflows/ci.yml:31 `test \"$(pnpm --version)\" = \"11.13.1\"` \u2014 CI smoke asserts pnpm 11.13.1 while pnpm/action-setup@v4 reads packageManager pin 12.4.2 => CI install step fails.\n(d) Relevant checks: see test run evidence.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.",
+                "status": "FAIL",
+                "detail": "Criterion 0: \"README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.\"\n\nSub-findings:\n(a) README states verified pnpm major: README.md:74 \"You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`.\" package.json:4 \"packageManager\": \"pnpm@12.4.2\". pnpm-lock.yaml lockfileVersion 9.0 with @pnpm/exe.*@12.4.2 entries. PASS.\n(b) Non-root corepack enable: README.md:82-87:\n  mkdir -p ~/.local/bin\n  corepack enable pnpm --install-directory ~/.local/bin\n  export PATH=\"$HOME/.local/bin:$PATH\"\n  corepack prepare pnpm@12.4.2 --activate\n  pnpm --version  # expect 12.4.2\n  Verified locally: corepack 0.34.6 on node v22.22.3 accepts `enable pnpm --install-directory <dir>` (no sudo, writes to user dir). Simulated run with stub corepack printed \"corepack called: enable pnpm --install-directory /home/kara/.local/bin\" and \"prepare pnpm@12.4.2 --activate\"; pnpm --version -> 12.4.2. PASS.\n(c) Documentation remains accurate: FAIL. Stale pnpm 11 references remain:\n  - docs/guide/getting-started.md:26 \"**pnpm** 11.13.1 ... only pnpm major exercised by the clean-install CI smoke\"; :30 \"corepack prepare pnpm@11.13.1 --activate\"; :33 \"Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.\" \u2014 directly contradicts README/package.json (pnpm 12.4.2).\n  - CONTRIBUTING.md:11 \"- pnpm 11.13.1 (pinned by `package.json`)\" \u2014 false, package.json pins 12.4.2.\n  - AGENTS.md:16 \"- **Package Manager:** pnpm 11+\".\n  - .github/workflows/ci.yml:31 `test \"$(pnpm --version)\" = \"11.13.1\"` \u2014 CI smoke asserts pnpm 11.13.1 while pnpm/action-setup@v4 reads packageManager pin 12.4.2 => CI install step fails.\n(d) Relevant checks: see test run evidence.\n"
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-03\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0: \"README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.\"\n\nSub-findings:\n(a) README states verified pnpm major: README.md:74 \"You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`.\" package.json:4 \"packageManager\": \"pnpm@12.4.2\". pnpm-lock.yaml lockfileVersion 9.0 with @pnpm/exe.*@12.4.2 entries. PASS.\n(b) Non-root corepack enable: README.md:82-87:\n  mkdir -p ~/.local/bin\n  corepack enable pnpm --install-directory ~/.local/bin\n  export PATH=\"$HOME/.local/bin:$PATH\"\n  corepack prepare pnpm@12.4.2 --activate\n  pnpm --version  # expect 12.4.2\n  Verified locally: corepack 0.34.6 on node v22.22.3 accepts `enable pnpm --install-directory <dir>` (no sudo, writes to user dir). Simulated run with stub corepack printed \"corepack called: enable pnpm --install-directory /home/kara/.local/bin\" and \"prepare pnpm@12.4.2 --activate\"; pnpm --version -> 12.4.2. PASS.\n(c) Documentation remains accurate: FAIL. Stale pnpm 11 references remain:\n  - docs/guide/getting-started.md:26 \"**pnpm** 11.13.1 ... only pnpm major exercised by the clean-install CI smoke\"; :30 \"corepack prepare pnpm@11.13.1 --activate\"; :33 \"Do not use pnpm 12 to refresh this repository's pnpm 11 lockfile.\" \u2014 directly contradicts README/package.json (pnpm 12.4.2).\n  - CONTRIBUTING.md:11 \"- pnpm 11.13.1 (pinned by `package.json`)\" \u2014 false, package.json pins 12.4.2.\n  - AGENTS.md:16 \"- **Package Manager:** pnpm 11+\".\n  - .github/workflows/ci.yml:31 `test \"$(pnpm --version)\" = \"11.13.1\"` \u2014 CI smoke asserts pnpm 11.13.1 while pnpm/action-setup@v4 reads packageManager pin 12.4.2 => CI install step fails.\n(d) Relevant checks: see test run evidence.\n\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T19:58:07.507824",
+  "evidence": {
+    "collected_at": "2026-09-19T19:58:08.157734+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2782,
+        "truncated": false,
+        "source": "git show c693f2564061"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1060,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-03"
+  }
+}

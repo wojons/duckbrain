@@ -1,0 +1,256 @@
+commit 89836526920ffddca7edd0b5b59d3f094cdd3563
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 14:14:24 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 14:30:05 2026 -0500
+
+    docs: pin pnpm 12 non-root install. Addresses DF-0919-03
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md      |  28 ++++------
+ package.json   |   2 +-
+ pnpm-lock.yaml | 158 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 170 insertions(+), 18 deletions(-)
+
+diff --git a/README.md b/README.md
+index 5839452..ed4a1d0 100644
+--- a/README.md
++++ b/README.md
+@@ -71,7 +71,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
+ 
+ #### Prerequisites
+ 
+-You need **git**, **Node.js 22+** and **pnpm 11.13.1**. The repository pins that pnpm version in `package.json` so fresh installs use the same linker and lockfile behavior as CI. On a fresh Debian/Ubuntu box that only has git:
++You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`. On a fresh Debian/Ubuntu box that only has git:
+ 
+ ```bash
+ # Node.js 22+ via nvm (~11s on a fresh box), or install from nodejs.org / your distro's packages
+@@ -79,13 +79,15 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
+ . ~/.nvm/nvm.sh   # or open a new shell
+ nvm install 22 && nvm use 22
+ 
+-# Activate the repository's pinned pnpm version via Corepack (bundled with Node 22).
+-# Fallback when Corepack is unavailable: npm i -g pnpm@11.13.1
+-corepack enable
+-corepack prepare pnpm@11.13.1 --activate
++# pnpm 12.4.2 via corepack, installed without writing to root-owned /usr/bin
++mkdir -p ~/.local/bin
++corepack enable pnpm --install-directory ~/.local/bin
++export PATH="$HOME/.local/bin:$PATH"
++corepack prepare pnpm@12.4.2 --activate
++pnpm --version  # expect 12.4.2
+ ```
+ 
+-Do not substitute a different pnpm major when refreshing the lockfile; pnpm 12 is outside this repository's tested install contract.
++Add `$HOME/.local/bin` to your shell profile so `pnpm` remains on `PATH` in new shells.
+ 
+ `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
+ 
+@@ -96,8 +98,8 @@ Do not substitute a different pnpm major when refreshing the lockfile; pnpm 12 i
+ git clone https://github.com/wojons/duckbrain.git
+ cd duckbrain
+ 
+-# Install exactly what the committed pnpm lockfile specifies
+-pnpm install --frozen-lockfile
++# Install dependencies
++pnpm install
+ 
+ # Start the development server
+ pnpm run dev
+@@ -105,15 +107,7 @@ pnpm run dev
+ 
+ ### Verify the install
+ 
+-First, verify that the frozen install linked every runtime dependency needed by the CLI:
+-
+-```bash
+-node bin/duckbrain.js help
+-```
+-
+-The command must print `DuckBrain v1.0.0 - AI Memory System` without a `Cannot find module` error.
+-
+-Then paste the full HTTP smoke in order; the last command must print the memory you stored:
++Paste in order; the last command must print the memory you stored:
+ 
+ ```bash
+ # 1. start the HTTP daemon in the background
+diff --git a/package.json b/package.json
+index 547c5bb..8380728 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "duckbrain",
+   "version": "1.0.0",
+-  "packageManager": "pnpm@11.13.1",
++  "packageManager": "pnpm@12.4.2",
+   "description": "AI Memory System - MCP server with persistent, version-controlled memory",
+   "main": "index.js",
+   "bin": {
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index fc207cb..6e7e6c5 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -1,3 +1,161 @@
++---
++lockfileVersion: '9.0'
++
++importers:
++
++  .:
++    configDependencies: {}
++    packageManagerDependencies:
++      pnpm:
++        specifier: 12.4.2
++        version: 12.4.2
++
++packages:
++
++  '@pnpm/exe.android-arm64@12.4.2':
++    resolution: {integrity: sha512-E255MbcQ0V1577M2BV0ajWuP7KmTPYA0jqZnk3rK6Lq3kTvZWulMMb7iqRmnLsQbyWTkMEB2CfyM70loVDA8xg==}
++    cpu: [arm64]
++    os: [android]
++
++  '@pnpm/exe.android-x64@12.4.2':
++    resolution: {integrity: sha512-J1pSeCUwuKxMG70ZzpWn8JzElxiEa8NN/3N0SlZRtU2xbztChaJCKF3HaBNIj9yPfeofWzJo/lwNvDDjraQuZw==}
++    cpu: [x64]
++    os: [android]
++
++  '@pnpm/exe.darwin-arm64@12.4.2':
++    resolution: {integrity: sha512-A0WDo8iErfZBXgrLseQxw8i8Y9ctUpOEl/Uu+cubnTzpD8tT9ykIB548L8YTM2WD4OS+ZOHSxy8aGZcvKq8PaQ==}
++    cpu: [arm64]
++    os: [darwin]
++
++  '@pnpm/exe.darwin-x64@12.4.2':
++    resolution: {integrity: sha512-MSgJdovBWHcb5DEOvfPH9yNi/T5O1Xa4ess+E1ESGo/5yuty7S4JoiIjami+fsNXfnoQMlwsMUqYU4zAvBcNCw==}
++    cpu: [x64]
++    os: [darwin]
++
++  '@pnpm/exe.freebsd-x64@12.4.2':
++    resolution: {integrity: sha512-h2YumlQSNvgbRPv+RXwABohX65f9bOBZn+jMIt7bFDISZPCzQ+Nvpt6Awbp4ip5PwQgYxbu5iREJ1fHE39Fm8A==}
++    cpu: [x64]
++    os: [freebsd]
++
++  '@pnpm/exe.linux-arm64-musl@12.4.2':
++    resolution: {integrity: sha512-LwSEtSEDTv6S51YLs3YvSkPyun/QmfMic1UGICUkPWFu6ByP43RdMlkKvmVkfGhAYCpnxO057vrmyJqtfZrPCA==}
++    cpu: [arm64]
++    os: [linux]
++    libc: [musl]
++
++  '@pnpm/exe.linux-arm64@12.4.2':
++    resolution: {integrity: sha512-2dSiDXyhx+RTHsewxex8f/jVjqQXWJ2oow4kCVHEWdZKeBpgMxvZ6fHkTAUBJXgqhbKIDHvuNlZBP7gJfUWL5A==}
++    cpu: [arm64]
++    os: [linux]
++    libc: [glibc]
++
++  '@pnpm/exe.linux-ppc64@12.4.2':
++    resolution: {integrity: sha512-8Itc+jQk+MTz04LS9D1RcH+VctAWmzM4l1cJQ+Sx7pAJNo7EKHdRMbC0Tok1jyQ7eEHNJZD5EleYneZqWfZM+g==}
++    cpu: [ppc64]
++    os: [linux]
++    libc: [glibc]
++
++  '@pnpm/exe.linux-riscv64@12.4.2':
++    resolution: {integrity: sha512-hleOeqhTVpH+z9RVMGnxvU4ZnrkBUClWjCbHD9u6kwyqhGSpevoU1wTGish+CBRhmIgMAy9pAfFpqhbAKOKNfw==}
++    cpu: [riscv64]
++    os: [linux]
++    libc: [glibc]
++
++  '@pnpm/exe.linux-s390x@12.4.2':
++    resolution: {integrity: sha512-LAsQRRdP9aToENR6dtcIJ9l+e1zMYOX0tQcLGpRyLPVBQcYRLlvAPcmDshsiIHQjp05SDa9FI0czX1ZQ1a7a/A==}
++    cpu: [s390x]
++    os: [linux]
++    libc: [glibc]
++
++  '@pnpm/exe.linux-x64-musl@12.4.2':
++    resolution: {integrity: sha512-kzfzH2/0BWdTABK14Yj5a1xsdkTEQUp2eXEPNakaD9jKL025lq3hyaKHIz/gIZaPDMe/1bFFK/En4ztFlbBJxw==}
++    cpu: [x64]
++    os: [linux]
++    libc: [musl]
++
++  '@pnpm/exe.linux-x64@12.4.2':
++    resolution: {integrity: sha512-/pbt0UVTa8NMDhzOWLQRfZ6G9ROKXlJPZtx845BqyWfc7hCrWXhTLBd70yO2y8+E+IWN3oHM1s/JsIQNGk1yvg==}
++    cpu: [x64]
++    os: [linux]
++    libc: [glibc]
++
++  '@pnpm/exe.win32-arm64@12.4.2':
++    resolution: {integrity: sha512-PsW19e4dAUNpZ0cS9flaxFuAmpt2dKlH/Vvi8TZ4qyJjjQzue/CEsWm+6wKVP4CJ7IT8RdL4qh+soOPWIgF2Zw==}
++    cpu: [arm64]
++    os: [win32]
++
++  '@pnpm/exe.win32-x64@12.4.2':
++    resolution: {integrity: sha512-+xGoeE0g55ztWvl8i5QqdmNfW3nIrTVcoQrNshEOwxthm9Ag48oXton3uxOA3/SANyz5AXexEjj2KO20NnOrEw==}
++    cpu: [x64]
++    os: [win32]
++
++  pnpm@12.4.2:
++    resolution: {integrity: sha512-CK3GYTGAJ1x8ntraOdzwjJxhrU5+rzMKTzRh8QKw+QdCNFTRF/mOctR/7wYWBwZE17/8lzpqV/UJCm18NosHyQ==}
++    engines: {node: '>=18.*'}
++    hasBin: true
++
++snapshots:
++
++  '@pnpm/exe.android-arm64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.android-x64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.darwin-arm64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.darwin-x64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.freebsd-x64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-arm64-musl@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-arm64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-ppc64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-riscv64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-s390x@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-x64-musl@12.4.2':
++    optional: true
++
++  '@pnpm/exe.linux-x64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.win32-arm64@12.4.2':
++    optional: true
++
++  '@pnpm/exe.win32-x64@12.4.2':
++    optional: true
++
++  pnpm@12.4.2:
++    optionalDependencies:
++      '@pnpm/exe.android-arm64': 12.4.2
++      '@pnpm/exe.android-x64': 12.4.2
++      '@pnpm/exe.darwin-arm64': 12.4.2
++      '@pnpm/exe.darwin-x64': 12.4.2
++      '@pnpm/exe.freebsd-x64': 12.4.2
++      '@pnpm/exe.linux-arm64': 12.4.2
++      '@pnpm/exe.linux-arm64-musl': 12.4.2
++      '@pnpm/exe.linux-ppc64': 12.4.2
++      '@pnpm/exe.linux-riscv64': 12.4.2
++      '@pnpm/exe.linux-s390x': 12.4.2
++      '@pnpm/exe.linux-x64': 12.4.2
++      '@pnpm/exe.linux-x64-musl': 12.4.2
++      '@pnpm/exe.win32-arm64': 12.4.2
++      '@pnpm/exe.win32-x64': 12.4.2
++
++---
+ lockfileVersion: '9.0'
+ 
+ settings:

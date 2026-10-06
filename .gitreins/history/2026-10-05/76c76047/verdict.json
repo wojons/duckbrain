@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-019",
+  "task_title": "CI red: ENOTEMPTY teardown race in auth-file-enforcement-df092407.test.ts",
+  "task_criteria": [
+    "The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "0dabaa73c5657be947065812771651cf6f52df12",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:43PM INF scanned ~14233587 bytes (14.23 MB) in 1.99s\n11:43PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 420793 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  201 passed (201)\n      Tests  1621 passed (1621)\n   Start at  23:43:00\n   Duration  79.17s (tests 78%, import 20%, transform 2%)\n\n    Isolate  201 workers spawned \u00b7 ~104ms startup each (spawn + environment, per file)\n             at least ~5.12s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: src/cli/auth-file-enforcement-df092407.test.ts:40-47 imports removeTempDirSafely from ../testing/race-safe-daemon; grep for 'fs.rmSync|rmSync' returns NO matches (exit 1). All 8 teardown sites (lines 287,336,386,436,488,560,587,619) now `await removeTempDirSafely(...)`. src/testing/race-safe-daemon.ts removeTempDirSafely() retries fs.rmSync up to 5x with 100ms*(attempt+1) backoff and never throws from cleanup \u2014 the retry-on-ENOTEMPTY pattern required. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` -> 'Test Files 1 passed (1) / Tests 8 passed (8)' at 23:44:41 AND again at 23:44:49, exit 0 both runs. `npx tsc --noEmit` -> exit 0, no output (clean). Behavior unchanged: `git diff e182b49^ e182b49` on the test file shows exactly 3 changed lines, each `-fs.rmSync(dir, { recursive: true, force: true });` -> `+await removeTempDirSafely(dir);` \u2014 no assertions, spawn logic, or test bodies altered. [resolution 0.37; src/testing/race-safe-daemon.ts]\nThe auth-file-enforcement test file now uses the retry-on-ENOTEMPTY removeTempDirSafely helper at all teardown sites with no bare fs.rmSync remaining; the file's suite passed 8/8 twice and tsc --noEmit is clean, with the diff limited to the 3 teardown lines.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: src/cli/auth-file-enforcement-df092407.test.ts:40-47 imports removeTempDirSafely from ../testing/race-safe-daemon; grep for 'fs.rmSync|rmSync' returns NO matches (exit 1). All 8 teardown sites (lines 287,336,386,436,488,560,587,619) now `await removeTempDirSafely(...)`. src/testing/race-safe-daemon.ts removeTempDirSafely() retries fs.rmSync up to 5x with 100ms*(attempt+1) backoff and never throws from cleanup \u2014 the retry-on-ENOTEMPTY pattern required. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` -> 'Test Files 1 passed (1) / Tests 8 passed (8)' at 23:44:41 AND again at 23:44:49, exit 0 both runs. `npx tsc --noEmit` -> exit 0, no output (clean). Behavior unchanged: `git diff e182b49^ e182b49` on the test file shows exactly 3 changed lines, each `-fs.rmSync(dir, { recursive: true, force: true });` -> `+await removeTempDirSafely(dir);` \u2014 no assertions, spawn logic, or test bodies altered. [resolution 0.37; src/testing/race-safe-daemon.ts]\nThe auth-file-enforcement test file now uses the retry-on-ENOTEMPTY removeTempDirSafely helper at all teardown sites with no bare fs.rmSync remaining; the file's suite passed 8/8 twice and tsc --noEmit is clean, with the diff limited to the 3 teardown lines.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.",
+                "status": "PASS",
+                "detail": "src/cli/auth-file-enforcement-df092407.test.ts:40-47 imports removeTempDirSafely from ../testing/race-safe-daemon; grep for 'fs.rmSync|rmSync' returns NO matches (exit 1). All 8 teardown sites (lines 287,336,386,436,488,560,587,619) now `await removeTempDirSafely(...)`. src/testing/race-safe-daemon.ts removeTempDirSafely() retries fs.rmSync up to 5x with 100ms*(attempt+1) backoff and never throws from cleanup \u2014 the retry-on-ENOTEMPTY pattern required. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` -> 'Test Files 1 passed (1) / Tests 8 passed (8)' at 23:44:41 AND again at 23:44:49, exit 0 both runs. `npx tsc --noEmit` -> exit 0, no output (clean). Behavior unchanged: `git diff e182b49^ e182b49` on the test file shows exactly 3 changed lines, each `-fs.rmSync(dir, { recursive: true, force: true });` -> `+await removeTempDirSafely(dir);` \u2014 no assertions, spawn logic, or test bodies altered. [resolution 0.37; src/testing/race-safe-daemon.ts]",
+                "resolution_probability": 0.37,
+                "cited_path": "src/testing/race-safe-daemon.ts"
+              }
+            ],
+            "summary": "The auth-file-enforcement test file now uses the retry-on-ENOTEMPTY removeTempDirSafely helper at all teardown sites with no bare fs.rmSync remaining; the file's suite passed 8/8 twice and tsc --noEmit is clean, with the diff limited to the 3 teardown lines."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-019\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: src/cli/auth-file-enforcement-df092407.test.ts:40-47 imports removeTempDirSafely from ../testing/race-safe-daemon; grep for 'fs.rmSync|rmSync' returns NO matches (exit 1). All 8 teardown sites (lines 287,336,386,436,488,560,587,619) now `await removeTempDirSafely(...)`. src/testing/race-safe-daemon.ts removeTempDirSafely() retries fs.rmSync up to 5x with 100ms*(attempt+1) backoff and never throws from cleanup \u2014 the retry-on-ENOTEMPTY pattern required. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` -> 'Test Files 1 passed (1) / Tests 8 passed (8)' at 23:44:41 AND again at 23:44:49, exit 0 both runs. `npx tsc --noEmit` -> exit 0, no output (clean). Behavior unchanged: `git diff e182b49^ e182b49` on the test file shows exactly 3 changed lines, each `-fs.rmSync(dir, { recursive: true, force: true });` -> `+await removeTempDirSafely(dir);` \u2014 no assertions, spawn logic, or test bodies altered. [resolution 0.37; src/testing/race-safe-daemon.ts]\nThe auth-file-enforcement test file now uses the retry-on-ENOTEMPTY removeTempDirSafely helper at all teardown sites with no bare fs.rmSync remaining; the file's suite passed 8/8 twice and tsc --noEmit is clean, with the diff limited to the 3 teardown lines.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-05T04:45:00.980182",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-05T04:45:00.998710+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2957,
+        "truncated": false,
+        "source": "git show 0dabaa73c565"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1002,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-019"
+  }
+}

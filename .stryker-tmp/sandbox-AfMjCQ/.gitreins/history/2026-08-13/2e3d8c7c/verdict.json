@@ -1,0 +1,72 @@
+{
+  "task_id": "GAP-027",
+  "task_title": "Unify Node minimum: README 22+, engines gate >=22",
+  "task_criteria": [
+    "README.md states Node.js 22+ (same as AGENTS.md)",
+    "package.json has engines: {node: '>=22'}"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m8:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10815361 bytes (10.82 MB) in 2.6s\u001b[0m\n\u001b[90m8:39AM\u001b[0m \u001b[32\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10815361 bytes (10.82 MB) in 2.6s\u001b[0m\n\u001b[90m8:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 748\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/memories-limit-gap023.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 58\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/namespace-not-found-gap025.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 73\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n\n(auto-parsed from non-JSON response) Both criteria verified:\n\n1. **README.md states Node.js 22+**: README.md line 163 contains `- Node.js 22+`, and AGENTS.md line 12 contains `- **Runtime:** Node.js 22+`. They match.\n\n2. **package.json has engines: {node: '>=22'}**: package.json lines 55-57 contain `\"engines\": { \"node\": \">=22\" }`.\n\nBot",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n\n(auto-parsed from non-JSON response) Both criteria verified:\n\n1. **README.md states Node.js 22+**: README.md line 163 contains `- Node.js 22+`, and AGENTS.md line 12 contains `- **Runtime:** Node.js 22+`. They match.\n\n2. **package.json has engines: {node: '>=22'}**: package.json lines 55-57 contain `\"engines\": { \"node\": \">=22\" }`.\n\nBot",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [],
+            "summary": "(auto-parsed from non-JSON response) Both criteria verified:\n\n1. **README.md states Node.js 22+**: README.md line 163 contains `- Node.js 22+`, and AGENTS.md line 12 contains `- **Runtime:** Node.js 22+`. They match.\n\n2. **package.json has engines: {node: '>=22'}**: package.json lines 55-57 contain `\"engines\": { \"node\": \">=22\" }`.\n\nBot"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-027\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m8:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10815361 bytes (10.82 MB) in 2.6s\u001b[0m\n\u001b[90m8:39AM\u001b[0m \u001b[32\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n\n(auto-parsed from non-JSON response) Both criteria verified:\n\n1. **README.md states Node.js 22+**: README.md line 163 contains `- Node.js 22+`, and AGENTS.md line 12 contains `- **Runtime:** Node.js 22+`. They match.\n\n2. **package.json has engines: {node: '>=22'}**: package.json lines 55-57 contain `\"engines\": { \"node\": \">=22\" }`.\n\nBot\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-13T13:39:58.345426"
+}

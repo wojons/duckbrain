@@ -1,0 +1,102 @@
+{
+  "task_id": "RATE-LIMIT-001",
+  "task_title": "Log HTTP rate-limit refusals",
+  "task_criteria": [
+    "Every HTTP 429 refusal emits a WARN structured event with IP, configured limit, remaining=0, retryAfter; status/body/headers remain compatible and tests prove sensitive data is absent."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "85ab9003e0fcd7123fb7ae7892b430b3c45a8c7f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:14PM INF scanned ~9609339 bytes (9.61 MB) in 2.83s\n5:14PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 324444 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  179 passed (179)\n      Tests  1430 passed (1430)\n   Start at  17:14:54\n   Duration  147.82s (tests 79%, import 17%, transform 2%, setup 1%)\n\n    Isolate  179 workers spawned \u00b7 ~213ms startup each (spawn + environment, per file)\n             at least ~9.31s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Every HTTP 429 refusal emits a WARN structured event with IP, configured limit, remaining=0, retryAfter; status/body/headers remain compatible and tests prove sensitive data is absent.: src/auth/ratelimit.ts:120-140: the refusal branch (entry.tokens < 1) emits console.warn(JSON.stringify({level:\"warn\", event:\"rate_limit_refused\", ip, limit: config.requestsPerMinute, remaining: 0, retryAfter: retryAfterSecs})) before responding; it is inside the else branch so every 429 logs (no once-guard). Compatibility preserved: headers X-RateLimit-Limit=config.requestsPerMinute, X-RateLimit-Remaining=0, Retry-After=retryAfterSecs (lines 133-135) and body res.status(429).json({error:\"Rate limit exceeded\", retryAfter: retryAfterSecs}) (lines 141-143) are unchanged from the pre-existing contract; middleware still wired at src/cli/http.ts:393. Tests: src/auth/ratelimit.test.ts:168-260 \u2014 'should emit a structured WARN log with refusal fields on 429' asserts level/event/ip/limit/remaining and that logged retryAfter equals the Retry-After header; 'should log every refused request, not just the first refusal' asserts 2 refusals => 2 WARN calls; 'should never log credentials, auth headers, or request bodies' is non-vacuous (asserts status 429 and warnSpy called once) then asserts the raw log contains neither 'super-secret-token-abc123', 'Bearer', 'authorization', 'body-secret-value', nor 'body'. Command evidence: `npx vitest run src/auth/ratelimit.test.ts --reporter=verbose` exit_code=0, output 'Test Files 1 passed (1) / Tests 9 passed (9)', with real emitted stderr lines e.g. {\"level\":\"warn\",\"event\":\"rate_limit_refused\",\"ip\":\"10.0.0.2\",\"limit\":2,\"remaining\":0,\"retryAfter\":30}.\nThe 429 refusal path emits a structured WARN event with IP, configured limit, remaining=0 and retryAfter while keeping status/body/headers compatible, and 9/9 tests (including non-vacuous sensitive-data-absence assertions) pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Every HTTP 429 refusal emits a WARN structured event with IP, configured limit, remaining=0, retryAfter; status/body/headers remain compatible and tests prove sensitive data is absent.: src/auth/ratelimit.ts:120-140: the refusal branch (entry.tokens < 1) emits console.warn(JSON.stringify({level:\"warn\", event:\"rate_limit_refused\", ip, limit: config.requestsPerMinute, remaining: 0, retryAfter: retryAfterSecs})) before responding; it is inside the else branch so every 429 logs (no once-guard). Compatibility preserved: headers X-RateLimit-Limit=config.requestsPerMinute, X-RateLimit-Remaining=0, Retry-After=retryAfterSecs (lines 133-135) and body res.status(429).json({error:\"Rate limit exceeded\", retryAfter: retryAfterSecs}) (lines 141-143) are unchanged from the pre-existing contract; middleware still wired at src/cli/http.ts:393. Tests: src/auth/ratelimit.test.ts:168-260 \u2014 'should emit a structured WARN log with refusal fields on 429' asserts level/event/ip/limit/remaining and that logged retryAfter equals the Retry-After header; 'should log every refused request, not just the first refusal' asserts 2 refusals => 2 WARN calls; 'should never log credentials, auth headers, or request bodies' is non-vacuous (asserts status 429 and warnSpy called once) then asserts the raw log contains neither 'super-secret-token-abc123', 'Bearer', 'authorization', 'body-secret-value', nor 'body'. Command evidence: `npx vitest run src/auth/ratelimit.test.ts --reporter=verbose` exit_code=0, output 'Test Files 1 passed (1) / Tests 9 passed (9)', with real emitted stderr lines e.g. {\"level\":\"warn\",\"event\":\"rate_limit_refused\",\"ip\":\"10.0.0.2\",\"limit\":2,\"remaining\":0,\"retryAfter\":30}.\nThe 429 refusal path emits a structured WARN event with IP, configured limit, remaining=0 and retryAfter while keeping status/body/headers compatible, and 9/9 tests (including non-vacuous sensitive-data-absence assertions) pass.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Every HTTP 429 refusal emits a WARN structured event with IP, configured limit, remaining=0, retryAfter; status/body/headers remain compatible and tests prove sensitive data is absent.",
+                "status": "PASS",
+                "detail": "src/auth/ratelimit.ts:120-140: the refusal branch (entry.tokens < 1) emits console.warn(JSON.stringify({level:\"warn\", event:\"rate_limit_refused\", ip, limit: config.requestsPerMinute, remaining: 0, retryAfter: retryAfterSecs})) before responding; it is inside the else branch so every 429 logs (no once-guard). Compatibility preserved: headers X-RateLimit-Limit=config.requestsPerMinute, X-RateLimit-Remaining=0, Retry-After=retryAfterSecs (lines 133-135) and body res.status(429).json({error:\"Rate limit exceeded\", retryAfter: retryAfterSecs}) (lines 141-143) are unchanged from the pre-existing contract; middleware still wired at src/cli/http.ts:393. Tests: src/auth/ratelimit.test.ts:168-260 \u2014 'should emit a structured WARN log with refusal fields on 429' asserts level/event/ip/limit/remaining and that logged retryAfter equals the Retry-After header; 'should log every refused request, not just the first refusal' asserts 2 refusals => 2 WARN calls; 'should never log credentials, auth headers, or request bodies' is non-vacuous (asserts status 429 and warnSpy called once) then asserts the raw log contains neither 'super-secret-token-abc123', 'Bearer', 'authorization', 'body-secret-value', nor 'body'. Command evidence: `npx vitest run src/auth/ratelimit.test.ts --reporter=verbose` exit_code=0, output 'Test Files 1 passed (1) / Tests 9 passed (9)', with real emitted stderr lines e.g. {\"level\":\"warn\",\"event\":\"rate_limit_refused\",\"ip\":\"10.0.0.2\",\"limit\":2,\"remaining\":0,\"retryAfter\":30}.",
+                "resolution_probability": 0.15
+              }
+            ],
+            "summary": "The 429 refusal path emits a structured WARN event with IP, configured limit, remaining=0 and retryAfter while keeping status/body/headers compatible, and 9/9 tests (including non-vacuous sensitive-data-absence assertions) pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RATE-LIMIT-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Every HTTP 429 refusal emits a WARN structured event with IP, configured limit, remaining=0, retryAfter; status/body/headers remain compatible and tests prove sensitive data is absent.: src/auth/ratelimit.ts:120-140: the refusal branch (entry.tokens < 1) emits console.warn(JSON.stringify({level:\"warn\", event:\"rate_limit_refused\", ip, limit: config.requestsPerMinute, remaining: 0, retryAfter: retryAfterSecs})) before responding; it is inside the else branch so every 429 logs (no once-guard). Compatibility preserved: headers X-RateLimit-Limit=config.requestsPerMinute, X-RateLimit-Remaining=0, Retry-After=retryAfterSecs (lines 133-135) and body res.status(429).json({error:\"Rate limit exceeded\", retryAfter: retryAfterSecs}) (lines 141-143) are unchanged from the pre-existing contract; middleware still wired at src/cli/http.ts:393. Tests: src/auth/ratelimit.test.ts:168-260 \u2014 'should emit a structured WARN log with refusal fields on 429' asserts level/event/ip/limit/remaining and that logged retryAfter equals the Retry-After header; 'should log every refused request, not just the first refusal' asserts 2 refusals => 2 WARN calls; 'should never log credentials, auth headers, or request bodies' is non-vacuous (asserts status 429 and warnSpy called once) then asserts the raw log contains neither 'super-secret-token-abc123', 'Bearer', 'authorization', 'body-secret-value', nor 'body'. Command evidence: `npx vitest run src/auth/ratelimit.test.ts --reporter=verbose` exit_code=0, output 'Test Files 1 passed (1) / Tests 9 passed (9)', with real emitted stderr lines e.g. {\"level\":\"warn\",\"event\":\"rate_limit_refused\",\"ip\":\"10.0.0.2\",\"limit\":2,\"remaining\":0,\"retryAfter\":30}.\nThe 429 refusal path emits a structured WARN event with IP, configured limit, remaining=0 and retryAfter while keeping status/body/headers compatible, and 9/9 tests (including non-vacuous sensitive-data-absence assertions) pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-27T22:17:56.366261",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-27T22:17:56.394809+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6362,
+        "truncated": false,
+        "source": "git show 85ab9003e0fc"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 689,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "RATE-LIMIT-001"
+  }
+}

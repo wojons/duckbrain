@@ -1,0 +1,67 @@
+{
+  "task_id": "OPS-001",
+  "task_title": "Harden DuckBrain daemon lifecycle and scoped shutdown",
+  "task_criteria": [
+    "Restart policy self-recovers after graceful SIGTERM; repo stop path terminates only the intended HTTP instance; scratch-server isolation and dark-port monitoring are documented and tested; full TypeScript, unit, integration, and live systemd verification pass"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7453756 bytes (7.45 MB) in 1.38s\u001b[0m\n\u001b[90m7:32AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  117 passed (117)\n      Tests  987 passed (987)\n  ",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7453756 bytes (7.45 MB) in 1.38s\u001b[0m\n\u001b[90m7:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  117 passed (117)\n      Tests  987 passed (987)\n   Start at  07:32:53\n   Duration  33.59s (transform 1.45s, setup 657ms, import 24.48s, tests 94.96s, environment 10ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Restart policy self-recovers after graceful SIGTERM; repo stop path terminates only the intended HTTP instance; scratch-server isolation and dark-port monitoring are documented and tested; full TypeScript, unit, integration, and live systemd verification pass: All sub-parts verified with live evidence. (1) Restart self-recovery: sent SIGTERM to live MainPID 3894280 -> NRestarts 1->2, new MainPID 3953919, ActiveState=active, curl /health HTTP 200; drop-in ~/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf sets Restart=always (overrides base on-failure), and ops/systemd/duckbrain-http.service ships Restart=always + RestartSec=3 + StartLimitBurst=10 + TimeoutStopSec=30. (2) Scoped stop: package.json scripts.stop='node scripts/scoped-stop.js' (no pkill); LIVE started scratch :4777 (pidfile /tmp/ops001test/duckbrain-http-4777.pid), `node scripts/scoped-stop.js --port=4777 --json` -> {\"status\":\"stopped\",\"pid\":3979200} exit 0, pidfile removed, while prod :3000 MainPID stayed alive and /health 200; src/cli/scoped-stop.ts is pidfile-proven, SIGTERM-only, refuses stale/malformed/identity/wrong-port; `node scripts/check-no-pattern-kill.js` exit 0. (3) Docs: docs/guide/deployment.md sections 'Hardened Lifecycle Assets (OPS-001)' and 'Scratch / judge servers: isolation and cleanup contract (OPS-001)'; docs/dogfood/diagnostics.md \u00a77 per-instance pidfile + scratch cleanup. (4) Dark-port monitoring tested: src/cli/health-check.ts (200/503 alive, else dark) + src/cli/health-check.test.ts; LIVE health-check.js :3000 -> alive exit 0, dead port -> dark exit 1; systemd duckbrain-http-health.timer active (waiting) and .service ran status=0/SUCCESS. (5) TypeScript: `npx tsc --noEmit` exit 0. (6) Unit: `npx vitest run` -> 'Test Files 117 passed (117), Tests 987 passed (987)'. (7) Integration: `npx vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6), Tests 44 passed (44)'. (8) Targeted new tests: `npx vitest run src/cli/scoped-stop.test.ts src/cli/health-check.test.ts` -> 43 passed. (9) Live systemd: unit installed with Restart=always, health timer/service installed and active, graceful-SIGTERM self-recovery demonstrated.\nAll OPS-001 sub-parts pass: live systemd restart self-recovery after graceful SIGTERM, pidfile-scoped stop that leaves prod untouched, documented+tested scratch isolation and dark-port monitoring, and green TypeScript (exit 0), unit (987), and integration (44) suites.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Restart policy self-recovers after graceful SIGTERM; repo stop path terminates only the intended HTTP instance; scratch-server isolation and dark-port monitoring are documented and tested; full TypeScript, unit, integration, and live systemd verification pass: All sub-parts verified with live evidence. (1) Restart self-recovery: sent SIGTERM to live MainPID 3894280 -> NRestarts 1->2, new MainPID 3953919, ActiveState=active, curl /health HTTP 200; drop-in ~/.config/systemd/user/duckb",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Restart policy self-recovers after graceful SIGTERM; repo stop path terminates only the intended HTTP instance; scratch-server isolation and dark-port monitoring are documented and tested; full TypeScript, unit, integration, and live systemd verification pass",
+                "status": "PASS",
+                "detail": "All sub-parts verified with live evidence. (1) Restart self-recovery: sent SIGTERM to live MainPID 3894280 -> NRestarts 1->2, new MainPID 3953919, ActiveState=active, curl /health HTTP 200; drop-in ~/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf sets Restart=always (overrides base on-failure), and ops/systemd/duckbrain-http.service ships Restart=always + RestartSec=3 + StartLimitBurst=10 + TimeoutStopSec=30. (2) Scoped stop: package.json scripts.stop='node scripts/scoped-stop.js' (no pkill); LIVE started scratch :4777 (pidfile /tmp/ops001test/duckbrain-http-4777.pid), `node scripts/scoped-stop.js --port=4777 --json` -> {\"status\":\"stopped\",\"pid\":3979200} exit 0, pidfile removed, while prod :3000 MainPID stayed alive and /health 200; src/cli/scoped-stop.ts is pidfile-proven, SIGTERM-only, refuses stale/malformed/identity/wrong-port; `node scripts/check-no-pattern-kill.js` exit 0. (3) Docs: docs/guide/deployment.md sections 'Hardened Lifecycle Assets (OPS-001)' and 'Scratch / judge servers: isolation and cleanup contract (OPS-001)'; docs/dogfood/diagnostics.md \u00a77 per-instance pidfile + scratch cleanup. (4) Dark-port monitoring tested: src/cli/health-check.ts (200/503 alive, else dark) + src/cli/health-check.test.ts; LIVE health-check.js :3000 -> alive exit 0, dead port -> dark exit 1; systemd duckbrain-http-health.timer active (waiting) and .service ran status=0/SUCCESS. (5) TypeScript: `npx tsc --noEmit` exit 0. (6) Unit: `npx vitest run` -> 'Test Files 117 passed (117), Tests 987 passed (987)'. (7) Integration: `npx vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6), Tests 44 passed (44)'. (8) Targeted new tests: `npx vitest run src/cli/scoped-stop.test.ts src/cli/health-check.test.ts` -> 43 passed. (9) Live systemd: unit installed with Restart=always, health timer/service installed and active, graceful-SIGTERM self-recovery demonstrated."
+              }
+            ],
+            "summary": "All OPS-001 sub-parts pass: live systemd restart self-recovery after graceful SIGTERM, pidfile-scoped stop that leaves prod untouched, documented+tested scratch isolation and dark-port monitoring, and green TypeScript (exit 0), unit (987), and integration (44) suites."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:32AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7453756 bytes (7.45 MB) in 1.38s\u001b[0m\n\u001b[90m7:32AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  117 passed (117)\n      Tests  987 passed (987)\n  \n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Restart policy self-recovers after graceful SIGTERM; repo stop path terminates only the intended HTTP instance; scratch-server isolation and dark-port monitoring are documented and tested; full TypeScript, unit, integration, and live systemd verification pass: All sub-parts verified with live evidence. (1) Restart self-recovery: sent SIGTERM to live MainPID 3894280 -> NRestarts 1->2, new MainPID 3953919, ActiveState=active, curl /health HTTP 200; drop-in ~/.config/systemd/user/duckbrain-http.service.d/10-restart-always.conf sets Restart=always (overrides base on-failure), and ops/systemd/duckbrain-http.service ships Restart=always + RestartSec=3 + StartLimitBurst=10 + TimeoutStopSec=30. (2) Scoped stop: package.json scripts.stop='node scripts/scoped-stop.js' (no pkill); LIVE started scratch :4777 (pidfile /tmp/ops001test/duckbrain-http-4777.pid), `node scripts/scoped-stop.js --port=4777 --json` -> {\"status\":\"stopped\",\"pid\":3979200} exit 0, pidfile removed, while prod :3000 MainPID stayed alive and /health 200; src/cli/scoped-stop.ts is pidfile-proven, SIGTERM-only, refuses stale/malformed/identity/wrong-port; `node scripts/check-no-pattern-kill.js` exit 0. (3) Docs: docs/guide/deployment.md sections 'Hardened Lifecycle Assets (OPS-001)' and 'Scratch / judge servers: isolation and cleanup contract (OPS-001)'; docs/dogfood/diagnostics.md \u00a77 per-instance pidfile + scratch cleanup. (4) Dark-port monitoring tested: src/cli/health-check.ts (200/503 alive, else dark) + src/cli/health-check.test.ts; LIVE health-check.js :3000 -> alive exit 0, dead port -> dark exit 1; systemd duckbrain-http-health.timer active (waiting) and .service ran status=0/SUCCESS. (5) TypeScript: `npx tsc --noEmit` exit 0. (6) Unit: `npx vitest run` -> 'Test Files 117 passed (117), Tests 987 passed (987)'. (7) Integration: `npx vitest run --config vitest.integration.config.ts tests/` -> 'Test Files 6 passed (6), Tests 44 passed (44)'. (8) Targeted new tests: `npx vitest run src/cli/scoped-stop.test.ts src/cli/health-check.test.ts` -> 43 passed. (9) Live systemd: unit installed with Restart=always, health timer/service installed and active, graceful-SIGTERM self-recovery demonstrated.\nAll OPS-001 sub-parts pass: live systemd restart self-recovery after graceful SIGTERM, pidfile-scoped stop that leaves prod untouched, documented+tested scratch isolation and dark-port monitoring, and green TypeScript (exit 0), unit (987), and integration (44) suites.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-12T12:37:01.552624"
+}

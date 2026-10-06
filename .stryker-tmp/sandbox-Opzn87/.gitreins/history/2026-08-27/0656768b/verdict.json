@@ -1,0 +1,67 @@
+{
+  "task_id": "duckbrain-484-consolidate001",
+  "task_title": "Daily consolidate CLI (CONSOLIDATE-001)",
+  "task_criteria": [
+    "duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean."
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12475006 bytes (12.48 MB) in 6.26s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12475006 bytes (12.48 MB) in 6.26s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 984\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1111\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 2011\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/storage/jsonl.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 2",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: All sub-criteria verified with actual command output. npx vitest run: exit 0, '97 passed (97)' files / '833 passed (833)' tests. npx tsc --noEmit: exit 0. npx prettier --check src/: exit 0, 'All matched files use Prettier code style!'. consolidate.test.ts (14 tests pass) verifies collectNamespaceDeltas filters to target day (ns-d no-manifest skipped, ns-c empty), per-namespace 'rows: 3 | unique: 2 | duplicates: 1' dedup via content-hash collapse, capped previews (PREVIEW_LINE_CAP + budget), final 'total delta rows: 5 (3 unique, 2 duplicates)' digest block, and DUCKBRAIN_API_KEY write path posting to namespace=duckbrain with 'digest posted: 201' (postDigest test asserts URL /api/memories?namespace=duckbrain, X-API-Key header, 201 ok). AGENTS.md states '97 suites, 833 tests' matching the actual run. git diff shows only .gitreins/tasks.yaml, src/cli/consolidate.test.ts, src/cli/recall-space-form-dogfood027.test.ts changed \u2014 no chat extractor file touched (recall-space-form change is pure prettier reformatting).\nThe consolidate CLI task is complete: all functional behaviors (delta scan, dedup stats, capped previews, digest block, 201 write to ns duckbrain) are covered by passing tests, chat extractor untouched, AGENTS.md counts match, and vitest/tsc/prettier all run clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: All sub-criteria verified with actual command out",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.",
+                "status": "PASS",
+                "detail": "All sub-criteria verified with actual command output. npx vitest run: exit 0, '97 passed (97)' files / '833 passed (833)' tests. npx tsc --noEmit: exit 0. npx prettier --check src/: exit 0, 'All matched files use Prettier code style!'. consolidate.test.ts (14 tests pass) verifies collectNamespaceDeltas filters to target day (ns-d no-manifest skipped, ns-c empty), per-namespace 'rows: 3 | unique: 2 | duplicates: 1' dedup via content-hash collapse, capped previews (PREVIEW_LINE_CAP + budget), final 'total delta rows: 5 (3 unique, 2 duplicates)' digest block, and DUCKBRAIN_API_KEY write path posting to namespace=duckbrain with 'digest posted: 201' (postDigest test asserts URL /api/memories?namespace=duckbrain, X-API-Key header, 201 ok). AGENTS.md states '97 suites, 833 tests' matching the actual run. git diff shows only .gitreins/tasks.yaml, src/cli/consolidate.test.ts, src/cli/recall-space-form-dogfood027.test.ts changed \u2014 no chat extractor file touched (recall-space-form change is pure prettier reformatting)."
+              }
+            ],
+            "summary": "The consolidate CLI task is complete: all functional behaviors (delta scan, dedup stats, capped previews, digest block, 201 write to ns duckbrain) are covered by passing tests, chat extractor untouched, AGENTS.md counts match, and vitest/tsc/prettier all run clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: duckbrain-484-consolidate001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m9:05PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12475006 bytes (12.48 MB) in 6.26s\u001b[0m\n\u001b[90m9:05PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: All sub-criteria verified with actual command output. npx vitest run: exit 0, '97 passed (97)' files / '833 passed (833)' tests. npx tsc --noEmit: exit 0. npx prettier --check src/: exit 0, 'All matched files use Prettier code style!'. consolidate.test.ts (14 tests pass) verifies collectNamespaceDeltas filters to target day (ns-d no-manifest skipped, ns-c empty), per-namespace 'rows: 3 | unique: 2 | duplicates: 1' dedup via content-hash collapse, capped previews (PREVIEW_LINE_CAP + budget), final 'total delta rows: 5 (3 unique, 2 duplicates)' digest block, and DUCKBRAIN_API_KEY write path posting to namespace=duckbrain with 'digest posted: 201' (postDigest test asserts URL /api/memories?namespace=duckbrain, X-API-Key header, 201 ok). AGENTS.md states '97 suites, 833 tests' matching the actual run. git diff shows only .gitreins/tasks.yaml, src/cli/consolidate.test.ts, src/cli/recall-space-form-dogfood027.test.ts changed \u2014 no chat extractor file touched (recall-space-form change is pure prettier reformatting).\nThe consolidate CLI task is complete: all functional behaviors (delta scan, dedup stats, capped previews, digest block, 201 write to ns duckbrain) are covered by passing tests, chat extractor untouched, AGENTS.md counts match, and vitest/tsc/prettier all run clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-27T02:06:45.084411"
+}

@@ -1,0 +1,16 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 835a47c..67ba3d0 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2074,3 +2074,11 @@ tasks:
+   status: complete
+   created_at: '2026-09-29T09:06:50.981232+00:00'
+   completed_at: '2026-09-29T11:08:05.578597+00:00'
++- id: README-2
++  title: Remove stale not-available claim for SUPA-5 change feed in README
++  criteria:
++  - README.md no longer lists SUPA-5 SSE change feed under the Roadmap (not available
++    now) section; commit touches only README.md
++  status: complete
++  created_at: '2026-09-29T11:45:00.360541+00:00'
++  completed_at: '2026-09-29T11:46:26.412139+00:00'

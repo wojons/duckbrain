@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+Dockerfile
+Dockerfile.dev
+.dockerignore
+.git
+.planning
+*.md
+!package.json
+dist
+.DS_Store
+data
+namespaces
+*.db
+*.db.wal

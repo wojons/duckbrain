@@ -1,0 +1,99 @@
+{
+  "task_id": "DF-0919-03",
+  "task_title": "Align README prerequisites with supported pnpm",
+  "task_criteria": [
+    "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "fd23b3c2bd9b9aa8eefa8e57af0b9ad3a3e110d1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n6:08PM INF scanned ~8110911 bytes (8.11 MB) in 2.39s\n6:08PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193721 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  18:08:56\n   Duration  146.23s (transform 12.13s, setup 12.55s, import 53.07s, tests 497.49s, environment 15ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: README.md:74 states 'pnpm 12' and pins the tested release '12.4.2', matching package.json:4 \"packageManager\": \"pnpm@12.4.2\". README.md:82-87 provides the non-root command sequence: `mkdir -p ~/.local/bin` / `corepack enable pnpm --install-directory ~/.local/bin` / `export PATH=\"$HOME/.local/bin:$PATH\"` / `corepack prepare pnpm@12.4.2 --activate` / `pnpm --version  # expect 12.4.2`. LIVE VERIFIED on fresh user 'kara': /usr/bin is root-owned and NOT writable, yet `corepack enable pnpm --install-directory /tmp/cptest` returned exit=0 and created a user-owned shim (pnpm -> corepack/dist/pnpm.js); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` printed 12.4.2. Docs consistent: docs/guide/getting-started.md:26-35 updated to pnpm 12.4.2 with the same non-root corepack command; CI .github/workflows/ci.yml:31 asserts `pnpm --version` = 12.4.2. Relevant checks pass: `npx vitest run` -> 'Test Files 155 passed (155)', 'Tests 1212 passed (1212)', EXIT=0. Only residual nit: AGENTS.md:16 still reads 'pnpm 11+' (a loose range in the agent guide, not the README and not among this task's changed files), which does not contradict the README's stated major.\nREADME states pnpm 12 / pinned 12.4.2 matching package.json, the non-root corepack enable command was verified live to work for a non-root user, docs are consistent, and the full vitest suite passes (155 files / 1212 tests, EXIT=0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: README.md:74 states 'pnpm 12' and pins the tested release '12.4.2', matching package.json:4 \"packageManager\": \"pnpm@12.4.2\". README.md:82-87 provides the non-root command sequence: `mkdir -p ~/.local/bin` / `corepack enable pnpm --install-directory ~/.local/bin` / `export PATH=\"$HOME/.local/bin:$PATH\"` / `corepack prepare pnpm@12.4.2 --activate` / `pnpm --version  # expect 12.4.2`. LIVE VERIFIED on fresh user 'kara': /usr/bin is root-owned and NOT writable, yet `corepack enable pnpm --install-directory /tmp/cptest` returned exit=0 and created a user-owned shim (pnpm -> corepack/dist/pnpm.js); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` printed 12.4.2. Docs consistent: docs/guide/getting-started.md:26-35 updated to pnpm 12.4.2 with the same non-root corepack command; CI .github/workflows/ci.yml:31 asserts `pnpm --version` = 12.4.2. Relevant checks pass: `npx vitest run` -> 'Test Files 155 passed (155)', 'Tests 1212 passed (1212)', EXIT=0. Only residual nit: AGENTS.md:16 still reads 'pnpm 11+' (a loose range in the agent guide, not the README and not among this task's changed files), which does not contradict the README's stated major.\nREADME states pnpm 12 / pinned 12.4.2 matching package.json, the non-root corepack enable command was verified live to work for a non-root user, docs are consistent, and the full vitest suite passes (155 files / 1212 tests, EXIT=0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.",
+                "status": "PASS",
+                "detail": "README.md:74 states 'pnpm 12' and pins the tested release '12.4.2', matching package.json:4 \"packageManager\": \"pnpm@12.4.2\". README.md:82-87 provides the non-root command sequence: `mkdir -p ~/.local/bin` / `corepack enable pnpm --install-directory ~/.local/bin` / `export PATH=\"$HOME/.local/bin:$PATH\"` / `corepack prepare pnpm@12.4.2 --activate` / `pnpm --version  # expect 12.4.2`. LIVE VERIFIED on fresh user 'kara': /usr/bin is root-owned and NOT writable, yet `corepack enable pnpm --install-directory /tmp/cptest` returned exit=0 and created a user-owned shim (pnpm -> corepack/dist/pnpm.js); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` printed 12.4.2. Docs consistent: docs/guide/getting-started.md:26-35 updated to pnpm 12.4.2 with the same non-root corepack command; CI .github/workflows/ci.yml:31 asserts `pnpm --version` = 12.4.2. Relevant checks pass: `npx vitest run` -> 'Test Files 155 passed (155)', 'Tests 1212 passed (1212)', EXIT=0. Only residual nit: AGENTS.md:16 still reads 'pnpm 11+' (a loose range in the agent guide, not the README and not among this task's changed files), which does not contradict the README's stated major."
+              }
+            ],
+            "summary": "README states pnpm 12 / pinned 12.4.2 matching package.json, the non-root corepack enable command was verified live to work for a non-root user, docs are consistent, and the full vitest suite passes (155 files / 1212 tests, EXIT=0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-03\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: README.md:74 states 'pnpm 12' and pins the tested release '12.4.2', matching package.json:4 \"packageManager\": \"pnpm@12.4.2\". README.md:82-87 provides the non-root command sequence: `mkdir -p ~/.local/bin` / `corepack enable pnpm --install-directory ~/.local/bin` / `export PATH=\"$HOME/.local/bin:$PATH\"` / `corepack prepare pnpm@12.4.2 --activate` / `pnpm --version  # expect 12.4.2`. LIVE VERIFIED on fresh user 'kara': /usr/bin is root-owned and NOT writable, yet `corepack enable pnpm --install-directory /tmp/cptest` returned exit=0 and created a user-owned shim (pnpm -> corepack/dist/pnpm.js); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` printed 12.4.2. Docs consistent: docs/guide/getting-started.md:26-35 updated to pnpm 12.4.2 with the same non-root corepack command; CI .github/workflows/ci.yml:31 asserts `pnpm --version` = 12.4.2. Relevant checks pass: `npx vitest run` -> 'Test Files 155 passed (155)', 'Tests 1212 passed (1212)', EXIT=0. Only residual nit: AGENTS.md:16 still reads 'pnpm 11+' (a loose range in the agent guide, not the README and not among this task's changed files), which does not contradict the README's stated major.\nREADME states pnpm 12 / pinned 12.4.2 matching package.json, the non-root corepack enable command was verified live to work for a non-root user, docs are consistent, and the full vitest suite passes (155 files / 1212 tests, EXIT=0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T23:17:54.813852",
+  "evidence": {
+    "collected_at": "2026-09-19T23:17:54.839685+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4632,
+        "truncated": false,
+        "source": "git show fd23b3c2bd9b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 482,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-03"
+  }
+}

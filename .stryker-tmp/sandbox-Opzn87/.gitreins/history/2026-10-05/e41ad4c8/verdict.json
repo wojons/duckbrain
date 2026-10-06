@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-019",
+  "task_title": "CI red: ENOTEMPTY teardown race in auth-file-enforcement-df092407.test.ts",
+  "task_criteria": [
+    "The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e182b4959e0aba65dd4a145a9e3cfca31b04ec06",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:19PM INF scanned ~14265474 bytes (14.27 MB) in 3.16s\n11:19PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 420270 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  201 passed (201)\n      Tests  1621 passed (1621)\n   Start at  23:19:14\n   Duration  69.12s (tests 69%, import 27%, transform 2%, worker 1%, setup 1%)\n\n     Import  321 modules were evaluated 824 times \u00b7 68.21s total, 27% of tracked time\n             ~5.01s faster with isolate: false \u2014 shared modules are evaluated once per worker instead of once per file\n             learn more: https://vitest.dev/guide/improving-performance#test-isolation\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261004T173735.703314Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: Commit e182b49 replaced all 3 bare `fs.rmSync(dir,{recursive,force})` calls in src/cli/auth-file-enforcement-df092407.test.ts (lines 560, 587, 619, all inside async finally blocks) with `await removeTempDirSafely(dir)`. Helper src/testing/race-safe-daemon.ts:309 retries fs.rmSync 5x with 100ms*(attempt+1) backoff and never throws (retry-on-ENOTEMPTY). Helper already imported at test line 46; grep confirms no bare fs.rmSync remains. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` run twice -> both 'Test Files 1 passed (1) / Tests 8 passed (8)', exit 0. `npx tsc --noEmit` -> exit 0, no output. LSP diagnostics: 0 findings. No behavior change: diff is exactly 3 insertions/3 deletions, only teardown calls; no assertions or spawn logic touched. [resolution 0.38; src/testing/race-safe-daemon.ts]\nThe ENOTEMPTY teardown race is fixed by routing all 3 teardown sites through the retry-on-ENOTEMPTY removeTempDirSafely helper; tests green twice (8/8), tsc clean, no test behavior changed.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: Commit e182b49 replaced all 3 bare `fs.rmSync(dir,{recursive,force})` calls in src/cli/auth-file-enforcement-df092407.test.ts (lines 560, 587, 619, all inside async finally blocks) with `await removeTempDirSafely(dir)`. Helper src/testing/race-safe-daemon.ts:309 retries fs.rmSync 5x with 100ms*(attempt+1) backoff and never throws (retry-on-ENOTEMPTY). Helper already imported at test line 46; grep confirms no bare fs.rmSync remains. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` run twice -> both 'Test Files 1 passed (1) / Tests 8 passed (8)', exit 0. `npx tsc --noEmit` -> exit 0, no output. LSP diagnostics: 0 findings. No behavior change: diff is exactly 3 insertions/3 deletions, only teardown calls; no assertions or spawn logic touched. [resolution 0.38; src/testing/race-safe-daemon.ts]\nThe ENOTEMPTY teardown race is fixed by routing all 3 teardown sites through the retry-on-ENOTEMPTY removeTempDirSafely helper; tests green twice (8/8), tsc clean, no test behavior changed.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.",
+                "status": "PASS",
+                "detail": "Commit e182b49 replaced all 3 bare `fs.rmSync(dir,{recursive,force})` calls in src/cli/auth-file-enforcement-df092407.test.ts (lines 560, 587, 619, all inside async finally blocks) with `await removeTempDirSafely(dir)`. Helper src/testing/race-safe-daemon.ts:309 retries fs.rmSync 5x with 100ms*(attempt+1) backoff and never throws (retry-on-ENOTEMPTY). Helper already imported at test line 46; grep confirms no bare fs.rmSync remains. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` run twice -> both 'Test Files 1 passed (1) / Tests 8 passed (8)', exit 0. `npx tsc --noEmit` -> exit 0, no output. LSP diagnostics: 0 findings. No behavior change: diff is exactly 3 insertions/3 deletions, only teardown calls; no assertions or spawn logic touched. [resolution 0.38; src/testing/race-safe-daemon.ts]",
+                "resolution_probability": 0.38,
+                "cited_path": "src/testing/race-safe-daemon.ts"
+              }
+            ],
+            "summary": "The ENOTEMPTY teardown race is fixed by routing all 3 teardown sites through the retry-on-ENOTEMPTY removeTempDirSafely helper; tests green twice (8/8), tsc clean, no test behavior changed."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-019\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The failing file uses the race-safe teardown from src/testing/race-safe-daemon.ts (or an equivalent retry-on-ENOTEMPTY cleanup) instead of bare fs.rmSync; the full unit suite for that file runs green locally at least twice; npx tsc --noEmit clean; no behavior change to the tests themselves.: Commit e182b49 replaced all 3 bare `fs.rmSync(dir,{recursive,force})` calls in src/cli/auth-file-enforcement-df092407.test.ts (lines 560, 587, 619, all inside async finally blocks) with `await removeTempDirSafely(dir)`. Helper src/testing/race-safe-daemon.ts:309 retries fs.rmSync 5x with 100ms*(attempt+1) backoff and never throws (retry-on-ENOTEMPTY). Helper already imported at test line 46; grep confirms no bare fs.rmSync remains. Tests: `npx vitest run src/cli/auth-file-enforcement-df092407.test.ts` run twice -> both 'Test Files 1 passed (1) / Tests 8 passed (8)', exit 0. `npx tsc --noEmit` -> exit 0, no output. LSP diagnostics: 0 findings. No behavior change: diff is exactly 3 insertions/3 deletions, only teardown calls; no assertions or spawn logic touched. [resolution 0.38; src/testing/race-safe-daemon.ts]\nThe ENOTEMPTY teardown race is fixed by routing all 3 teardown sites through the retry-on-ENOTEMPTY removeTempDirSafely helper; tests green twice (8/8), tsc clean, no test behavior changed.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-05T04:21:04.646529",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-05T04:21:04.660583+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3712,
+        "truncated": false,
+        "source": "git show e182b4959e0a"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 844,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-019"
+  }
+}

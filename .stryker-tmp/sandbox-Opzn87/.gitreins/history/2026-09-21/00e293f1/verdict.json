@@ -1,0 +1,99 @@
+{
+  "task_id": "EMB-001-FLAKE",
+  "task_title": "Fix EMB-001 embedding-hook marker create-write race (CI red on f2f3b91)",
+  "task_criteria": [
+    "src/embedding/hooks.test.ts contains a waitForMarkerContent() helper that polls the marker for non-empty CONTENT (not mere existence) and the idempotence test calls it instead of the existsSync waiter (verifiable by reading the file); the RED/GREEN two-proof evidence (OLD waiter plus an injected create-then-write window reproduces the exact CI failure message, NEW waiter passes 8/8 against the same window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable by grep); the tier1 suite on this host passes 162 files / 1300 tests"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "51c0551c9d7a80c62122242fb97a2a0e1c396fe9",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:20AM INF scanned ~8018357 bytes (8.02 MB) in 1.71s\n5:20AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 209109 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  162 passed (162)\n      Tests  1300 passed (1300)\n   Start at  05:20:52\n   Duration  55.33s (tests 74%, import 23%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  162 workers spawned \u00b7 ~121ms startup each (spawn + environment, per file)\n             at least ~4.77s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/embedding/hooks.test.ts contains a waitForMarkerContent() helper that polls the marker for non-empty CONTENT (not mere existence) and the idempotence test calls it instead of the existsSync waiter (verifiable by reading the file); the RED/GREEN two-proof evidence (OLD waiter plus an injected create-then-write window reproduces the exact CI failure message, NEW waiter passes 8/8 against the same window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable by grep); the tier1 suite on this host passes 162 files / 1300 tests: Helper at src/embedding/hooks.test.ts:142 `function waitForMarkerContent(marker, timeoutMs=5000)` polls `fs.readFileSync(marker,'utf8').trim().length > 0` (non-empty CONTENT, not existence); idempotence test line 222 calls `waitForMarkerContent(marker)` replacing the old `waitFor(() => fs.existsSync(marker))` (diff: -1/+15). RED/GREEN verbatim in commit e497126 message: \"OLD waiter + an injected 0.4s create-then-write window in the stub = 1 failed with the exact CI message ('expected' '' 'to be /tmp/embed-hooks-*/duckbrain-root'); NEW waiter + the same injected window = 8/8.\" tasks.jsonl row 190 (EMB-001-FLAKE) foreman_note: \"OLD waiter + injected 0.4s create-write window = 1 failed with the exact CI message ... NEW waiter + same window = 8/8\". events.jsonl line 1159 tick 582 audit: \"EMB-001 CI-load flake: hooks.test.ts read an empty marker; 1 failed / 1299 passed) -> fixed this tick in e497126\". Tier1 suite run on host: `npx vitest run` -> \"Test Files 162 passed (162)\" / \"Tests 1300 passed (1300)\", EXIT=0.\nAll sub-claims verified: waitForMarkerContent() polls non-empty content and is used by the idempotence test, RED/GREEN two-proof evidence is verbatim in commit e497126, tasks.jsonl row 190, and the tick-582 audit event, and the tier1 suite passes 162 files / 1300 tests (EXIT=0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/embedding/hooks.test.ts contains a waitForMarkerContent() helper that polls the marker for non-empty CONTENT (not mere existence) and the idempotence test calls it instead of the existsSync waiter (verifiable by reading the file); the RED/GREEN two-proof evidence (OLD waiter plus an injected create-then-write window reproduces the exact CI failure message, NEW waiter passes 8/8 against the same window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable by grep); the tier1 suite on this host passes 162 files / 1300 tests: Helper at src/embedding/hooks.test.ts:142 `function waitForMarkerContent(marker, timeoutMs=5000)` polls `fs.readFileSync(marker,'utf8').trim().length > 0` (non-empty CONTENT, not existence); idempotence test line 222 calls `waitForMarkerContent(marker)` replacing the old `waitFor(() => fs.existsSync(marker))` (diff: -1/+15). RED/GREEN verbatim in commit e497126 message: \"OLD waiter + an injected 0.4s create-then-write window in the stub = 1 failed with the exact CI message ('expected' '' 'to be /tmp/embed-hooks-*/duckbrain-root'); NEW waiter + the same injected window = 8/8.\" tasks.jsonl row 190 (EMB-001-FLAKE) foreman_note: \"OLD waiter + injected 0.4s create-write window = 1 failed with the exact CI message ... NEW waiter + same window = 8/8\". events.jsonl line 1159 tick 582 audit: \"EMB-001 CI-load flake: hooks.test.ts read an empty marker; 1 failed / 1299 passed) -> fixed this tick in e497126\". Tier1 suite run on host: `npx vitest run` -> \"Test Files 162 passed (162)\" / \"Tests 1300 passed (1300)\", EXIT=0.\nAll sub-claims verified: waitForMarkerContent() polls non-empty content and is used by the idempotence test, RED/GREEN two-proof evidence is verbatim in commit e497126, tasks.jsonl row 190, and the tick-582 audit event, and the tier1 suite passes 162 files / 1300 tests (EXIT=0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/embedding/hooks.test.ts contains a waitForMarkerContent() helper that polls the marker for non-empty CONTENT (not mere existence) and the idempotence test calls it instead of the existsSync waiter (verifiable by reading the file); the RED/GREEN two-proof evidence (OLD waiter plus an injected create-then-write window reproduces the exact CI failure message, NEW waiter passes 8/8 against the same window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable by grep); the tier1 suite on this host passes 162 files / 1300 tests",
+                "status": "PASS",
+                "detail": "Helper at src/embedding/hooks.test.ts:142 `function waitForMarkerContent(marker, timeoutMs=5000)` polls `fs.readFileSync(marker,'utf8').trim().length > 0` (non-empty CONTENT, not existence); idempotence test line 222 calls `waitForMarkerContent(marker)` replacing the old `waitFor(() => fs.existsSync(marker))` (diff: -1/+15). RED/GREEN verbatim in commit e497126 message: \"OLD waiter + an injected 0.4s create-then-write window in the stub = 1 failed with the exact CI message ('expected' '' 'to be /tmp/embed-hooks-*/duckbrain-root'); NEW waiter + the same injected window = 8/8.\" tasks.jsonl row 190 (EMB-001-FLAKE) foreman_note: \"OLD waiter + injected 0.4s create-write window = 1 failed with the exact CI message ... NEW waiter + same window = 8/8\". events.jsonl line 1159 tick 582 audit: \"EMB-001 CI-load flake: hooks.test.ts read an empty marker; 1 failed / 1299 passed) -> fixed this tick in e497126\". Tier1 suite run on host: `npx vitest run` -> \"Test Files 162 passed (162)\" / \"Tests 1300 passed (1300)\", EXIT=0."
+              }
+            ],
+            "summary": "All sub-claims verified: waitForMarkerContent() polls non-empty content and is used by the idempotence test, RED/GREEN two-proof evidence is verbatim in commit e497126, tasks.jsonl row 190, and the tick-582 audit event, and the tier1 suite passes 162 files / 1300 tests (EXIT=0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: EMB-001-FLAKE\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/embedding/hooks.test.ts contains a waitForMarkerContent() helper that polls the marker for non-empty CONTENT (not mere existence) and the idempotence test calls it instead of the existsSync waiter (verifiable by reading the file); the RED/GREEN two-proof evidence (OLD waiter plus an injected create-then-write window reproduces the exact CI failure message, NEW waiter passes 8/8 against the same window) is recorded verbatim in commit e497126's message, the EMB-001-FLAKE row in .coding-hermes/board/tasks.jsonl, and the tick-582 audit event (verifiable by grep); the tier1 suite on this host passes 162 files / 1300 tests: Helper at src/embedding/hooks.test.ts:142 `function waitForMarkerContent(marker, timeoutMs=5000)` polls `fs.readFileSync(marker,'utf8').trim().length > 0` (non-empty CONTENT, not existence); idempotence test line 222 calls `waitForMarkerContent(marker)` replacing the old `waitFor(() => fs.existsSync(marker))` (diff: -1/+15). RED/GREEN verbatim in commit e497126 message: \"OLD waiter + an injected 0.4s create-then-write window in the stub = 1 failed with the exact CI message ('expected' '' 'to be /tmp/embed-hooks-*/duckbrain-root'); NEW waiter + the same injected window = 8/8.\" tasks.jsonl row 190 (EMB-001-FLAKE) foreman_note: \"OLD waiter + injected 0.4s create-write window = 1 failed with the exact CI message ... NEW waiter + same window = 8/8\". events.jsonl line 1159 tick 582 audit: \"EMB-001 CI-load flake: hooks.test.ts read an empty marker; 1 failed / 1299 passed) -> fixed this tick in e497126\". Tier1 suite run on host: `npx vitest run` -> \"Test Files 162 passed (162)\" / \"Tests 1300 passed (1300)\", EXIT=0.\nAll sub-claims verified: waitForMarkerContent() polls non-empty content and is used by the idempotence test, RED/GREEN two-proof evidence is verbatim in commit e497126, tasks.jsonl row 190, and the tick-582 audit event, and the tier1 suite passes 162 files / 1300 tests (EXIT=0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-21T10:29:52.131382",
+  "evidence": {
+    "collected_at": "2026-09-21T10:29:52.161721+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 24043,
+        "truncated": false,
+        "source": "git show 51c0551c9d7a"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1520,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "EMB-001-FLAKE"
+  }
+}

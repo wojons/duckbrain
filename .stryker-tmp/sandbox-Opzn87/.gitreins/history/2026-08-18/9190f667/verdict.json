@@ -1,0 +1,57 @@
+{
+  "task_id": "INT-CI-004",
+  "task_title": "CI red: duckdb fts extension missing on GH runner",
+  "task_criteria": [
+    "CI (run 32160011179-class) goes green: src/search/search-retr001.test.ts 18/18 passes on a fresh runner; rebuildNamespaceIndex explicitly INSTALLs fts before LOAD (idempotent, mirrors src/duckdb/vss.ts); .github/workflows/ci.yml pre-installs + caches ~/.duckdb/extensions; local suite unchanged 465/465; tsc --noEmit clean; no test-count drift in AGENTS.md"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12325039\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12325039 bytes (12.33 MB) in 4.78s\u001b[0m\n\u001b[90m12:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-dogfood016.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1220\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m removes scratch db files whose embedded pid is dead, keeps live-pid files \u001b[33m 307\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m cleans this process's scratch files on SIGTERM and dies by the signal \u001b[33m 879\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m sr",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 CI (run 32160011179-class) goes green: src/search/search-retr001.test.ts 18/18 passes on a fresh runner; rebuildNamespaceIndex explicitly INSTALLs fts before LOAD (idempotent, mirrors src/duckdb/vss.ts); .github/workflows/ci.yml pre-installs + caches ~/.duckdb/extensions; local suite unchanged 465/465; tsc --noEmit clean; no test-count drift in AGENTS.md: Fix commit d5b1efb (HEAD). (1) src/search/search-retr001.test.ts has exactly 18 it() tests (lines 141-376) and `npx vitest run src/search/search-retr001.test.ts` reports 18/18 passed; cold-start failure eliminated by explicit INSTALL (commit msg: 10 failures on run 32160011179 resolved). (2) src/search/index.ts:276-292 rebuildNamespaceIndex runs execAsync(db,'INSTALL fts;') before 'LOAD fts;' with fallback retry-LOAD and descriptive error \u2014 mirrors loadVSSExtension in src/duckdb/vss.ts (INSTALL vss/LOAD vss pattern); INSTALL is idempotent. (3) .github/workflows/ci.yml:34-42 adds 'Cache DuckDB extensions' (path ~/.duckdb/extensions, key duckdb-extensions-1.4.4) and 'Pre-install DuckDB fts extension' node step. (4) `npx vitest run` \u2192 61 files / 465 tests passed, suite unchanged. (5) `npx tsc --noEmit` exit 0, clean. (6) AGENTS.md:14 '61 suites, 465 tests' and :33 '465 tests, 61 suites' match actual run \u2014 no count drift.\nAll criteria verified: 18/18 FTS tests pass, rebuildNamespaceIndex explicitly INSTALLs fts before LOAD mirroring vss.ts, ci.yml pre-installs+caches ~/.duckdb/extensions, full suite 465/465, tsc clean, AGENTS.md count unchanged.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 CI (run 32160011179-class) goes green: src/search/search-retr001.test.ts 18/18 passes on a fresh runner; rebuildNamespaceIndex explicitly INSTALLs fts before LOAD (idempotent, mirrors src/duckdb/vss.ts); .github/workflows/ci.yml pre-installs + caches ~/.duckdb/extensions; local suite unchanged 465/465; tsc --noEmit clean; no test-count drift in AGENTS.md: Fix commit d5b1efb (HEAD). (1) src/search/search-retr001.test.ts has exactly 18 it() tests (lines 141-376) and `npx vitest run sr",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-004\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12325039\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 CI (run 32160011179-class) goes green: src/search/search-retr001.test.ts 18/18 passes on a fresh runner; rebuildNamespaceIndex explicitly INSTALLs fts before LOAD (idempotent, mirrors src/duckdb/vss.ts); .github/workflows/ci.yml pre-installs + caches ~/.duckdb/extensions; local suite unchanged 465/465; tsc --noEmit clean; no test-count drift in AGENTS.md: Fix commit d5b1efb (HEAD). (1) src/search/search-retr001.test.ts has exactly 18 it() tests (lines 141-376) and `npx vitest run src/search/search-retr001.test.ts` reports 18/18 passed; cold-start failure eliminated by explicit INSTALL (commit msg: 10 failures on run 32160011179 resolved). (2) src/search/index.ts:276-292 rebuildNamespaceIndex runs execAsync(db,'INSTALL fts;') before 'LOAD fts;' with fallback retry-LOAD and descriptive error \u2014 mirrors loadVSSExtension in src/duckdb/vss.ts (INSTALL vss/LOAD vss pattern); INSTALL is idempotent. (3) .github/workflows/ci.yml:34-42 adds 'Cache DuckDB extensions' (path ~/.duckdb/extensions, key duckdb-extensions-1.4.4) and 'Pre-install DuckDB fts extension' node step. (4) `npx vitest run` \u2192 61 files / 465 tests passed, suite unchanged. (5) `npx tsc --noEmit` exit 0, clean. (6) AGENTS.md:14 '61 suites, 465 tests' and :33 '465 tests, 61 suites' match actual run \u2014 no count drift.\nAll criteria verified: 18/18 FTS tests pass, rebuildNamespaceIndex explicitly INSTALLs fts before LOAD mirroring vss.ts, ci.yml pre-installs+caches ~/.duckdb/extensions, full suite 465/465, tsc clean, AGENTS.md count unchanged.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-18T17:38:55.239851"
+}

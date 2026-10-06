@@ -1,0 +1,102 @@
+{
+  "task_id": "AUTH-DEFAULT-001",
+  "task_title": "Make the HTTP front door authenticated by default",
+  "task_criteria": [
+    "Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "1787bf71e53db6dd1ff998433b45a88adbea2c06",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n3:12PM INF scanned ~9615129 bytes (9.62 MB) in 5.09s\n3:12PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 321052 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  179 passed (179)\n      Tests  1424 passed (1424)\n   Start at  15:12:17\n   Duration  184.65s (tests 84%, import 14%, transform 2%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass",
+                "status": "FAIL",
+                "detail": "No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.",
+                "resolution_probability": 0.18
+              }
+            ],
+            "summary": "The task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: AUTH-DEFAULT-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-27T20:16:00.635054",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-27T20:16:00.671506+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6071,
+        "truncated": false,
+        "source": "git show 1787bf71e53d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 8250,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "AUTH-DEFAULT-001"
+  }
+}

@@ -1,0 +1,34 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index 073f099..b429fca 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1321,3 +1321,4 @@
+ {"event_type":"qa_recurrence","actor":"qa-cron","id":8037,"tick":"duckbrain-qa-2026-10-01-00-19-27","ts":"2026-10-01T00:55:00Z","task_id":"QA-DUCKBRAIN-003","note":"REPRODUCED on clean-machine battery (agent 2b5b693e @ dedi-2, HEAD 387e7ac) AND on the dev box at the same HEAD: src/storage/durability.test.ts:352 'expected true to be false' (empty target file left behind when fs rejects O_DIRECT) and src/cli/http-durability.test.ts:288 'expected 500 to be 201'. Environment-conditional: hosted CI is GREEN on the exact battery HEAD (run 36751048097, commit 387e7ac) while both agent and dev box fail — consistent with this row's filesystem-conditional root cause. ci-pass graded FAIL on this face; recurred under the same root cause as the open row, not refiled. Evidence: qa-logs-3362837/ci.log + native.log."}
+ {"event_type":"audit","task_id":"README-1","actor":"foreman","detail":"{\"tick\":\"duckbrain-2026-10-01-02-57-11\",\"note\":\"hygiene: row status was pending but worker_status=complete + foreman_note recorded stale-resolved close at tick 616. Flipped status→complete. No code change.\"}","tick_number":null}
+ {"event_type": "task_completed", "task_id": "AUTOCOMMIT-ENOENT-001", "actor": "foreman", "commit_hash": "094157a", "detail": "Worker deepseek-v4-flash/deepseek-foreman 094157a (+274/-7): pre-spawn existsSync guard at both commit sites, distinct namespace-removed info message, resolveGitBinary + cwd-enriched warning; 4 regression tests. Judge 60af3b6f tier2 PASS COMPLETE (independent live verification incl. parent-commit flake attribution); tier1 tests leg = full-suite timeout under host load (env, not diff). AGENTS.md counts synced 1531->1535 (13a8833). Tick also repaired 157-commit detached-HEAD backlog: main was 157 behind local work since Sep 25 — restored branch and fast-forwarded origin/main to ba814d2 before dispatch.", "tick": "duckbrain-2026-10-01-03-05-22"}
++{"event_type": "task_created", "task_id": "S3-GIT-006", "actor": "foreman", "commit_hash": null, "detail": "{\"id\":\"S3-GIT-006\",\"status\":\"pending\"}", "tick": null, "id": 8038, "timestamp": "2026-10-01T05:11:33.762135+00:00"}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 31828f6..b81b41d 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2223,3 +2223,20 @@ tasks:
+   status: complete
+   created_at: '2026-10-01T03:09:13.297252+00:00'
+   completed_at: '2026-10-01T04:48:41.122125+00:00'
++- id: S3-GIT-006
++  title: Bound S3 sync request legs + stop fd-9 lock inheritance in unified cron
++  criteria:
++  - A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the
++    unified cron's child processes do not inherit the flock fd (hermetic /proc test)
++  status: complete
++  created_at: '2026-10-01T13:54:50.476235+00:00'
++  completed_at: '2026-10-01T15:26:51.342398+00:00'
++- id: QA-DUCKBRAIN-007
++  title: Declare @smithy/node-http-handler in package.json (fresh-install import failure
++    at HEAD c504336)
++  criteria:
++  - package.json lists @smithy/node-http-handler; fresh-store pnpm install + s3-importing
++    vitest suite green
++  status: complete
++  created_at: '2026-10-01T21:58:19.104086+00:00'
++  completed_at: '2026-10-01T22:35:44.373372+00:00'

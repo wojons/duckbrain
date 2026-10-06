@@ -1,0 +1,67 @@
+{
+  "task_id": "DOGFOOD-0904-01",
+  "task_title": "CLI forget honors --namespace",
+  "task_criteria": [
+    "duckbrain forget parses --namespace (space and = forms) with config defaultNamespace fallback, documents it in usage text, and forgets the memory in the named namespace (regression test proves tombstone lands in a non-default namespace via CLI)"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m6:02AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8163557 bytes (8.16 MB) in 1.7s\u001b[0m\n\u001b[90m6:02AM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  119 passed (119)\n      Tests  1036 passed (1036)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m6:02AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8163557 bytes (8.16 MB) in 1.7s\u001b[0m\n\u001b[90m6:02AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  119 passed (119)\n      Tests  1036 passed (1036)\n   Start at  06:02:38\n   Duration  40.28s (transform 2.97s, setup 958ms, import 35.86s, tests 105.90s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 duckbrain forget parses --namespace (space and = forms) with config defaultNamespace fallback, documents it in usage text, and forgets the memory in the named namespace (regression test proves tombstone lands in a non-default namespace via CLI): src/cli/human.ts:625-645 forgetCommand now wraps args in normalizeSpaceFormFlags(args,[\"--namespace\"]) (space form) and parseArgs handles = form; namespace = flags.namespace || getDefaultNamespace() (human.ts:52-54, config defaultNamespace fallback) replacing the old hardcoded namespace:\"default\". Usage documented at human.ts:632, 1751, 1793. Regression test src/cli/forget-namespace-dogfood0904.test.ts (committed in d3f7c3e) mocks forgetTool and asserts call args for = form, space form (both orders), config-default fallback (mocked to non-'default' 'config-default-ns'), --reason, failure path, and usage text. `npx vitest run src/cli/forget-namespace-dogfood0904.test.ts` \u2192 exit 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. Full suite `npx vitest run` \u2192 exit 0, 'Test Files 119 passed (119), Tests 1036 passed (1036)'.\nCLI forget now parses --namespace in both forms with config defaultNamespace fallback, documents it in usage, and the committed regression test (9 passing) proves the tombstone request carries a non-default namespace.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 duckbrain forget parses --namespace (space and = forms) with config defaultNamespace fallback, documents it in usage text, and forgets the memory in the named namespace (regression test proves tombstone lands in a non-default namespace via CLI): src/cli/human.ts:625-645 forgetCommand now wraps args in normalizeSpaceFormFlags(args,[\"--namespace\"]) (space form) and parseArgs handles = form; namespace = flags.namespace || getDefaultNamespace() (human.ts:52-54, config defaultNamespace f",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "duckbrain forget parses --namespace (space and = forms) with config defaultNamespace fallback, documents it in usage text, and forgets the memory in the named namespace (regression test proves tombstone lands in a non-default namespace via CLI)",
+                "status": "PASS",
+                "detail": "src/cli/human.ts:625-645 forgetCommand now wraps args in normalizeSpaceFormFlags(args,[\"--namespace\"]) (space form) and parseArgs handles = form; namespace = flags.namespace || getDefaultNamespace() (human.ts:52-54, config defaultNamespace fallback) replacing the old hardcoded namespace:\"default\". Usage documented at human.ts:632, 1751, 1793. Regression test src/cli/forget-namespace-dogfood0904.test.ts (committed in d3f7c3e) mocks forgetTool and asserts call args for = form, space form (both orders), config-default fallback (mocked to non-'default' 'config-default-ns'), --reason, failure path, and usage text. `npx vitest run src/cli/forget-namespace-dogfood0904.test.ts` \u2192 exit 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. Full suite `npx vitest run` \u2192 exit 0, 'Test Files 119 passed (119), Tests 1036 passed (1036)'."
+              }
+            ],
+            "summary": "CLI forget now parses --namespace in both forms with config defaultNamespace fallback, documents it in usage, and the committed regression test (9 passing) proves the tombstone request carries a non-default namespace."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-0904-01\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m6:02AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8163557 bytes (8.16 MB) in 1.7s\u001b[0m\n\u001b[90m6:02AM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  119 passed (119)\n      Tests  1036 passed (1036)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 duckbrain forget parses --namespace (space and = forms) with config defaultNamespace fallback, documents it in usage text, and forgets the memory in the named namespace (regression test proves tombstone lands in a non-default namespace via CLI): src/cli/human.ts:625-645 forgetCommand now wraps args in normalizeSpaceFormFlags(args,[\"--namespace\"]) (space form) and parseArgs handles = form; namespace = flags.namespace || getDefaultNamespace() (human.ts:52-54, config defaultNamespace fallback) replacing the old hardcoded namespace:\"default\". Usage documented at human.ts:632, 1751, 1793. Regression test src/cli/forget-namespace-dogfood0904.test.ts (committed in d3f7c3e) mocks forgetTool and asserts call args for = form, space form (both orders), config-default fallback (mocked to non-'default' 'config-default-ns'), --reason, failure path, and usage text. `npx vitest run src/cli/forget-namespace-dogfood0904.test.ts` \u2192 exit 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. Full suite `npx vitest run` \u2192 exit 0, 'Test Files 119 passed (119), Tests 1036 passed (1036)'.\nCLI forget now parses --namespace in both forms with config defaultNamespace fallback, documents it in usage, and the committed regression test (9 passing) proves the tombstone request carries a non-default namespace.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-13T11:05:54.302226"
+}

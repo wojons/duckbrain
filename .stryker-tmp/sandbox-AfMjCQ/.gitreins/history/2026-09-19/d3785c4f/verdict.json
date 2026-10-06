@@ -1,0 +1,89 @@
+{
+  "task_id": "DF-0919-01",
+  "task_title": "Fix fresh install missing root package links",
+  "task_criteria": [
+    "A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "2eb0bbdad15b1e9f3ebe5f0f1847fb6dda932cd1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:04PM INF scanned ~9154302 bytes (9.15 MB) in 1.66s\n5:04PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193694 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/duckdb/queries-recency-retr005.test.ts (8 tests | 4 failed) 1236ms\n     \u00d7 exact-key listing returns newest first (was oldest-first) 15ms\n     \u00d7 glob/keyPrefix listing returns newest first 34ms\n     \u00d7 equal timestamps fall back to id ascending (deterministic) 48ms\n     \u00d7 dedup + tombstone semantics survive: latest non-tombstone record decides 34ms\nstderr | src/duckdb/queries-attr-retr006.test.ts > RETR-006: attribute filters \u2014 queryMemories/countMemories > multiple attr pairs AND together\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory-attr/current.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory-attr/current...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\nstderr | src/duckdb/queries-attr-retr006.test.ts > RETR-006: attribute filters \u2014 queryMemories/countMemories > attribute names and values containing quotes/backslashes neither break SQL nor mis-match\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory-attr/current.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory-attr/current...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\n \u276f src/duckdb/queries-attr-retr006.test.ts (8 tests | 4 failed) 1438ms\n     \u00d7 combines with keyPrefix and domain filters \u2014 intersection semantics 227ms\n     \u00d7 multiple attr pairs AND together 133ms\n     \u00d7 attribute names and values containing quotes/backslashes neither break SQL nor mis-match 124ms\n     \u00d7 empty attr record is a no-op 191ms\nstderr | src/duckdb/queries.test.ts > DuckDB Queries > queryMemories > should filter by key\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory/current.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory/current.jsonl...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\n \u276f src/duckdb/queries.test.ts (11 tests | 2 failed) 2809ms\n       \u00d7 should create tombstone record for existing memory 387ms\n       \u00d7 should filter by key 221ms\n\n\u2026 [10116 chars omitted \u2014 276 line(s)] \u2026\n+ []\n\n \u276f src/duckdb/queries-timerange-retr003.test.ts:264:54\n    262|       limit: 10,\n    263|     });\n    264|     expect(rows.map((r) => r.attributes.fixture_id)).toEqual([\"p2\"]);\n       |                                                      ^\n    265|   });\n    266| });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[14/16]\u23af\n\n FAIL  src/duckdb/queries.test.ts > DuckDB Queries > tombstoneMemory > should create tombstone record for existing memory\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/duckdb/queries.test.ts:100:33\n     98|       }\n     99|       const tombstones = allRecords.filter((m) => m.action === \"tombst\u2026\n    100|       expect(tombstones.length).toBe(1);\n       |                                 ^\n    101|       expect(tombstones[0].id).toBe(originalMemory.id);\n    102|     });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[15/16]\u23af\n\n FAIL  src/duckdb/queries.test.ts > DuckDB Queries > queryMemories > should filter by key\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/duckdb/queries.test.ts:175:30\n    173|         key: \"/test/specific\",\n    174|       });\n    175|       expect(results.length).toBe(1);\n       |                              ^\n    176|       expect(results[0].key).toBe(\"/test/specific\");\n    177|     });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[16/16]\u23af\n\n\n Test Files  4 failed | 151 passed (155)\n      Tests  15 failed | 1197 passed (1212)\n   Start at  17:04:54\n   Duration  162.74s (transform 10.18s, setup 8.38s, import 84.72s, tests 520.28s, environment 26ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass.: Reproduced on empty install state: cloned repo to /tmp/df0919-repro/app (no node_modules) and ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> 'Done in 11.2s using pnpm v12.4.2'; all root deps linked (express, duckdb, simple-git, tsx, zod) plus packages/ui/node_modules/react. Daemon boot: `node bin/duckbrain.js http --port 3999` logged 'HTTP server started at http://127.0.0.1:3999' / 'HTTP server ready', ss shows LISTEN 127.0.0.1:3999, curl /health -> 200 {\"status\":\"degraded\",...} (degraded expected fresh per DF-0919-04); `node bin/duckbrain.js help` -> 'DuckBrain v1.0.0 - AI Memory System' EXIT=0. Durable fix in commit e9a839c (ancestor of HEAD): package.json adds \"packageManager\":\"pnpm@12.4.2\"; pnpm-workspace.yaml adds explicit `packages: - \"packages/*\"` (pre-fix had none); ci.yml/release.yml aligned on pnpm+Node 22. CI coverage: .github/workflows/ci.yml lines 29-47 'Install from a clean store and smoke-test the CLI' asserts pnpm version 12.4.2, no node_modules, fresh store, frozen-lockfile install, root dep symlinks, workspace react link, and CLI boot banner (valid YAML). Tests: `npx vitest run` -> 'Test Files 155 passed (155) / Tests 1212 passed (1212)' Duration 146.23s, matching AGENTS.md. Build: `pnpm build` EXIT=0 ('\u2713 built in 2.35s') in main repo and EXIT=0 on the fresh clone ('\u2713 built in 3.16s'). Type check `pnpm tsc --noEmit` EXIT=0; LSP diagnostics 0.\nClean frozen install links all root/workspace deps and boots the daemon successfully, with a durable pnpm-workspace/packageManager fix, CI clean-install smoke coverage, and passing tests (1212/1212), build, and type check.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass.: Reproduced on empty install state: cloned repo to /tmp/df0919-repro/app (no node_modules) and ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> 'Done in 11.2s using pnpm v12.4.2'; all root deps linked (express, duckdb, simple-git, tsx, zod) plus packages/ui/node_modules/react. Daemon boot: `node bin/duckbrain.js http --port 3999` logged 'HTTP server started at http://127.0.0.1:3999' / 'HTTP server ready', ss shows LISTEN 127.0.0.1:3999, curl /health -> 200 {\"status\":\"degraded\",...} (degraded expected fresh per DF-0919-04); `node bin/duckbrain.js help` -> 'DuckBrain v1.0.0 - AI Memory System' EXIT=0. Durable fix in commit e9a839c (ancestor of HEAD): package.json adds \"packageManager\":\"pnpm@12.4.2\"; pnpm-workspace.yaml adds explicit `packages: - \"packages/*\"` (pre-fix had none); ci.yml/release.yml aligned on pnpm+Node 22. CI coverage: .github/workflows/ci.yml lines 29-47 'Install from a clean store and smoke-test the CLI' asserts pnpm version 12.4.2, no node_modules, fresh store, frozen-lockfile install, root dep symlinks, workspace react link, and CLI boot banner (valid YAML). Tests: `npx vitest run` -> 'Test Files 155 passed (155) / Tests 1212 passed (1212)' Duration 146.23s, matching AGENTS.md. Build: `pnpm build` EXIT=0 ('\u2713 built in 2.35s') in main repo and EXIT=0 on the fresh clone ('\u2713 built in 3.16s'). Type check `pnpm tsc --noEmit` EXIT=0; LSP diagnostics 0.\nClean frozen install links all root/workspace deps and boots the daemon successfully, with a durable pnpm-workspace/packageManager fix, CI clean-install smoke coverage, and passing tests (1212/1212), build, and type check.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass.",
+                "status": "PASS",
+                "detail": "Reproduced on empty install state: cloned repo to /tmp/df0919-repro/app (no node_modules) and ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> 'Done in 11.2s using pnpm v12.4.2'; all root deps linked (express, duckdb, simple-git, tsx, zod) plus packages/ui/node_modules/react. Daemon boot: `node bin/duckbrain.js http --port 3999` logged 'HTTP server started at http://127.0.0.1:3999' / 'HTTP server ready', ss shows LISTEN 127.0.0.1:3999, curl /health -> 200 {\"status\":\"degraded\",...} (degraded expected fresh per DF-0919-04); `node bin/duckbrain.js help` -> 'DuckBrain v1.0.0 - AI Memory System' EXIT=0. Durable fix in commit e9a839c (ancestor of HEAD): package.json adds \"packageManager\":\"pnpm@12.4.2\"; pnpm-workspace.yaml adds explicit `packages: - \"packages/*\"` (pre-fix had none); ci.yml/release.yml aligned on pnpm+Node 22. CI coverage: .github/workflows/ci.yml lines 29-47 'Install from a clean store and smoke-test the CLI' asserts pnpm version 12.4.2, no node_modules, fresh store, frozen-lockfile install, root dep symlinks, workspace react link, and CLI boot banner (valid YAML). Tests: `npx vitest run` -> 'Test Files 155 passed (155) / Tests 1212 passed (1212)' Duration 146.23s, matching AGENTS.md. Build: `pnpm build` EXIT=0 ('\u2713 built in 2.35s') in main repo and EXIT=0 on the fresh clone ('\u2713 built in 3.16s'). Type check `pnpm tsc --noEmit` EXIT=0; LSP diagnostics 0."
+              }
+            ],
+            "summary": "Clean frozen install links all root/workspace deps and boots the daemon successfully, with a durable pnpm-workspace/packageManager fix, CI clean-install smoke coverage, and passing tests (1212/1212), build, and type check."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-01\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A clean frozen install must make the daemon boot successfully; reproduce on an empty install state, implement a durable fix, and add or update CI coverage; tests and build pass.: Reproduced on empty install state: cloned repo to /tmp/df0919-repro/app (no node_modules) and ran `pnpm install --frozen-lockfile --store-dir <fresh>` -> 'Done in 11.2s using pnpm v12.4.2'; all root deps linked (express, duckdb, simple-git, tsx, zod) plus packages/ui/node_modules/react. Daemon boot: `node bin/duckbrain.js http --port 3999` logged 'HTTP server started at http://127.0.0.1:3999' / 'HTTP server ready', ss shows LISTEN 127.0.0.1:3999, curl /health -> 200 {\"status\":\"degraded\",...} (degraded expected fresh per DF-0919-04); `node bin/duckbrain.js help` -> 'DuckBrain v1.0.0 - AI Memory System' EXIT=0. Durable fix in commit e9a839c (ancestor of HEAD): package.json adds \"packageManager\":\"pnpm@12.4.2\"; pnpm-workspace.yaml adds explicit `packages: - \"packages/*\"` (pre-fix had none); ci.yml/release.yml aligned on pnpm+Node 22. CI coverage: .github/workflows/ci.yml lines 29-47 'Install from a clean store and smoke-test the CLI' asserts pnpm version 12.4.2, no node_modules, fresh store, frozen-lockfile install, root dep symlinks, workspace react link, and CLI boot banner (valid YAML). Tests: `npx vitest run` -> 'Test Files 155 passed (155) / Tests 1212 passed (1212)' Duration 146.23s, matching AGENTS.md. Build: `pnpm build` EXIT=0 ('\u2713 built in 2.35s') in main repo and EXIT=0 on the fresh clone ('\u2713 built in 3.16s'). Type check `pnpm tsc --noEmit` EXIT=0; LSP diagnostics 0.\nClean frozen install links all root/workspace deps and boots the daemon successfully, with a durable pnpm-workspace/packageManager fix, CI clean-install smoke coverage, and passing tests (1212/1212), build, and type check.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T22:14:54.886503",
+  "evidence": {
+    "collected_at": "2026-09-19T22:14:54.898102+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2815,
+        "truncated": false,
+        "source": "git show 2eb0bbdad15b"
+      }
+    ],
+    "task_id": "DF-0919-01"
+  }
+}

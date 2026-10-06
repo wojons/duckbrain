@@ -1,0 +1,10 @@
+{
+  "tick": "duckbrain-foreman-2026-10-04-10-42-04",
+  "budget": 2,
+  "workers": [
+    {"task": "S3-GIT-007", "worktree": "~/duckbrain-wt-s3git007", "branch": "wt/s3git007", "scope": ["src/s3/", "scripts/s3/", "src/s3/*.test.ts"]},
+    {"task": "DF-1003-01", "worktree": "~/duckbrain-wt-df100301", "branch": "wt/df100301", "scope": ["src/config/", "docs/", "skills/", "README.md"]}
+  ],
+  "merge_order": ["S3-GIT-007", "DF-1003-01"],
+  "independence_note": "Disjoint file scopes: s3 sync/client vs config resolver/docs. No shared files."
+}

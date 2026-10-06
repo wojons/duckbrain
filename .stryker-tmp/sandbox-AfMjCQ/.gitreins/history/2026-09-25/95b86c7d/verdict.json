@@ -1,0 +1,75 @@
+{
+  "task_id": "DF-0924-07",
+  "task_title": "auth-file without --auth=apikey serves everything unauthenticated",
+  "task_criteria": [
+    "A scratch daemon started with only --auth-file (or DUCKBRAIN_AUTH_FILE) and NO --auth flag must reject keyless API calls with 401: GET /api/memories without X-API-Key returns 401, with a valid key from the store returns 200; boot prints a loud banner that the auth file auto-enabled apikey auth; default (no flag/env) behavior unchanged; new regression test file green; full vitest unit suite green; tsc clean; AGENTS.md suite/test counts synced to live"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "9a994a939a2f665e9d1b6de7bf82d58f1a19befd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:55AM INF scanned ~13554357 bytes (13.55 MB) in 2.22s\n1:55AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 262585 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/mcp/tools/serialization-wiring.test.ts (2 tests | 1 failed) 400ms\n   \u276f SUPA-2 memory write-path wiring (2)\n     \u00d7 routes remember and forget/tombstone through the namespace serializer 397ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/mcp/tools/serialization-wiring.test.ts > SUPA-2 memory write-path wiring > routes remember and forget/tombstone through the namespace serializer\nError: ENOTEMPTY: directory not empty, rmdir '/tmp/duckbrain-supa2-wiring-rlcYTa/wired/.git'\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 169 passed (170)\n      Tests  1 failed | 1365 passed (1366)\n   Start at  01:55:32\n   Duration  52.76s (tests 79%, import 18%, transform 1%, setup 1%)\n\n    Isolate  170 workers spawned \u00b7 ~89ms startup each (spawn + environment, per file)\n             at least ~3.68s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DF-0924-07\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-25T06:56:25.755465",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-25T06:56:25.789003+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 25753,
+        "truncated": false,
+        "source": "git show 9a994a939a2f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1151,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-07"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "task_id": "S3-GIT-004",
+  "task_title": "S3 git layer self-heals duplicate-bundle ref collisions (quarantine + prune)",
+  "task_criteria": [
+    "scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines the stale bundle(s) outside the ref tree with size verification, deletes them from the ref path, never deletes a bundle whose sha is missing locally, skips the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing test-push-backoff.sh stays green."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "aff56d2260fdefaf37d8c4624940a6e3a5a40d1f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:42PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9908133 bytes (9.91 MB) in 1.63s\u001b[0m\n\u001b[90m12:42PM\u001b[0m \u001b[3\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:42PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9908133 bytes (9.91 MB) in 1.63s\u001b[0m\n\u001b[90m12:42PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  12:42:51\n   Duration  57.09s (transform 2.83s, setup 1.25s, import 49.45s, tests 152.66s, environment 17ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines the stale bundle(s) outside the ref tree with size verification, deletes them from the ref path, never deletes a bundle whose sha is missing locally, skips the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing test-push-backoff.sh stays green.: Detection: repair_duplicate_bundles counts bundles from _s3_list_ref_bundles and only repairs when n>1 (duckbrain-s3-push.sh:145-155). Quarantine+size verify: `aws s3 cp` to quarantine/git/<ns>/<branch>/<sha>.bundle then `s3api head-object --query ContentLength` compared to source Size; mismatch => 'original NOT deleted' (lines ~180-195). Delete from ref path: `aws s3 rm` of stale key only after verified copy. Missing-local-sha guard: `git -C \"$nsdir\" cat-file -e \"${sha}^{commit}\"` else 'repair-skip ... NOT in the local repo \u2014 left alone' (line ~172). Non-s3 skip: repair_ns_refs returns 0 for non-s3:// (line 281) and caller guards `[[ \"$url\" == s3://* ]]` (line 339) => zero aws calls. S3-GIT-002 contract: `git show HEAD -- scripts/s3/duckbrain-s3-push.sh | grep -cE '^-[^-]'` = 0 removed lines (purely additive), exit-code/backoff/stamp logic untouched. Harness: `bash scripts/s3/test-duplicate-bundle-repair.sh` exit_code=0, output 'harness: 51 passed, 0 failed' covering cases A-G (duplicate detect+quarantine/delete, missing-local-sha refusal, single-bundle no-op, non-s3 skip, helper-running skip, aws-failure swallow, truncated-copy survival) with stub aws + stub git-remote-s3 + scratch HOME (hermetic). Existing: `bash scripts/s3/test-push-backoff.sh` exit_code=0, 'harness: 38 passed, 0 failed'.\nAll S3-GIT-004 sub-requirements are implemented and proven by two green hermetic harnesses (51/0 and 38/0) with a purely additive diff preserving the S3-GIT-002 contract.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines the stale bundle(s) outside the ref tree with size verification, deletes them from the ref path, never deletes a bundle whose sha is missing locally, skips the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing test-push-backoff.sh stays green.: Detection: repair_duplicate_bundles counts bundles from _s3_list_ref_bundles and only repairs when n>1 (duckbrain-s3-push.sh:145-155). Quarantine+size verify: `aws s3 cp` to quarantine/git/<ns>/<branch>/<sha>.bundle then `s3api head-object --query ContentLength` compared to source Size; mismatch => 'original NOT deleted' (lines ~180-195). Delete from ref path: `aws s3 rm` of stale key only after verified copy. Missing-local-sha guard: `git -C \"$nsdir\" cat-file -e \"${sha}^{commit}\"` else 'repair-skip ... NOT in the local repo \u2014 left alone' (line ~172). Non-s3 skip: repair_ns_refs returns 0 for non-s3:// (line 281) and caller guards `[[ \"$url\" == s3://* ]]` (line 339) => zero aws calls. S3-GIT-002 contract: `git show HEAD -- scripts/s3/duckbrain-s3-push.sh | grep -cE '^-[^-]'` = 0 removed lines (purely additive), exit-code/backoff/stamp logic untouched. Harness: `bash scripts/s3/test-duplicate-bundle-repair.sh` exit_code=0, output 'harness: 51 passed, 0 failed' covering cases A-G (duplicate detect+quarantine/delete, missing-local-sha refusal, single-bundle no-op, non-s3 skip, helper-running skip, aws-failure swallow, truncated-copy survival) with stub aws + stub git-remote-s3 + scratch HOME (hermetic). Existing: `bash scripts/s3/test-push-backoff.sh` exit_code=0, 'harness: 38 passed, 0 failed'.\nAll S3-GIT-004 sub-requirements are implemented and proven by two green hermetic harnesses (51/0 and 38/0) with a purely additive diff preserving the S3-GIT-002 contract.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines the stale bundle(s) outside the ref tree with size verification, deletes them from the ref path, never deletes a bundle whose sha is missing locally, skips the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing test-push-backoff.sh stays green.",
+                "status": "PASS",
+                "detail": "Detection: repair_duplicate_bundles counts bundles from _s3_list_ref_bundles and only repairs when n>1 (duckbrain-s3-push.sh:145-155). Quarantine+size verify: `aws s3 cp` to quarantine/git/<ns>/<branch>/<sha>.bundle then `s3api head-object --query ContentLength` compared to source Size; mismatch => 'original NOT deleted' (lines ~180-195). Delete from ref path: `aws s3 rm` of stale key only after verified copy. Missing-local-sha guard: `git -C \"$nsdir\" cat-file -e \"${sha}^{commit}\"` else 'repair-skip ... NOT in the local repo \u2014 left alone' (line ~172). Non-s3 skip: repair_ns_refs returns 0 for non-s3:// (line 281) and caller guards `[[ \"$url\" == s3://* ]]` (line 339) => zero aws calls. S3-GIT-002 contract: `git show HEAD -- scripts/s3/duckbrain-s3-push.sh | grep -cE '^-[^-]'` = 0 removed lines (purely additive), exit-code/backoff/stamp logic untouched. Harness: `bash scripts/s3/test-duplicate-bundle-repair.sh` exit_code=0, output 'harness: 51 passed, 0 failed' covering cases A-G (duplicate detect+quarantine/delete, missing-local-sha refusal, single-bundle no-op, non-s3 skip, helper-running skip, aws-failure swallow, truncated-copy survival) with stub aws + stub git-remote-s3 + scratch HOME (hermetic). Existing: `bash scripts/s3/test-push-backoff.sh` exit_code=0, 'harness: 38 passed, 0 failed'."
+              }
+            ],
+            "summary": "All S3-GIT-004 sub-requirements are implemented and proven by two green hermetic harnesses (51/0 and 38/0) with a purely additive diff preserving the S3-GIT-002 contract."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-GIT-004\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:42PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9908133 bytes (9.91 MB) in 1.63s\u001b[0m\n\u001b[90m12:42PM\u001b[0m \u001b[3\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 scripts/s3/duckbrain-s3-push.sh detects >1 bundle under a pushed ref, quarantines the stale bundle(s) outside the ref tree with size verification, deletes them from the ref path, never deletes a bundle whose sha is missing locally, skips the guard entirely for non-s3 URLs, and does not alter the S3-GIT-002 exit-code/backoff/stamp contract; a hermetic harness with a stub aws proves cases (a)-(d) and the existing test-push-backoff.sh stays green.: Detection: repair_duplicate_bundles counts bundles from _s3_list_ref_bundles and only repairs when n>1 (duckbrain-s3-push.sh:145-155). Quarantine+size verify: `aws s3 cp` to quarantine/git/<ns>/<branch>/<sha>.bundle then `s3api head-object --query ContentLength` compared to source Size; mismatch => 'original NOT deleted' (lines ~180-195). Delete from ref path: `aws s3 rm` of stale key only after verified copy. Missing-local-sha guard: `git -C \"$nsdir\" cat-file -e \"${sha}^{commit}\"` else 'repair-skip ... NOT in the local repo \u2014 left alone' (line ~172). Non-s3 skip: repair_ns_refs returns 0 for non-s3:// (line 281) and caller guards `[[ \"$url\" == s3://* ]]` (line 339) => zero aws calls. S3-GIT-002 contract: `git show HEAD -- scripts/s3/duckbrain-s3-push.sh | grep -cE '^-[^-]'` = 0 removed lines (purely additive), exit-code/backoff/stamp logic untouched. Harness: `bash scripts/s3/test-duplicate-bundle-repair.sh` exit_code=0, output 'harness: 51 passed, 0 failed' covering cases A-G (duplicate detect+quarantine/delete, missing-local-sha refusal, single-bundle no-op, non-s3 skip, helper-running skip, aws-failure swallow, truncated-copy survival) with stub aws + stub git-remote-s3 + scratch HOME (hermetic). Existing: `bash scripts/s3/test-push-backoff.sh` exit_code=0, 'harness: 38 passed, 0 failed'.\nAll S3-GIT-004 sub-requirements are implemented and proven by two green hermetic harnesses (51/0 and 38/0) with a purely additive diff preserving the S3-GIT-002 contract.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T17:44:21.187929"
+}

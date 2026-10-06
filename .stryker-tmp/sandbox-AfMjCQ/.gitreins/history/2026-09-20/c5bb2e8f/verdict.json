@@ -1,0 +1,99 @@
+{
+  "task_id": "DOC-2",
+  "task_title": "Document s3-native auto-push to canonical s3daily remote",
+  "task_criteria": [
+    "docs/s3-native.md documents the in-daemon auto-push (RPO ~30s), the selectPushRemote/buildPushCommand mechanism quoted from source, branch-aware upstream push, root-scoped boundary for sandbox namespaces, and the live state of the pushOnCommit gate; docs-only (no src/ or test changes)"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e6075ca202cdc25ae30c6c5006b6ea81dc2ed8e8",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:05AM INF scanned ~8207728 bytes (8.21 MB) in 1.79s\n4:05AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 197976 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  157 passed (157)\n      Tests  1247 passed (1247)\n   Start at  04:04:59\n   Duration  61.23s (tests 78%, import 20%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  157 workers spawned \u00b7 ~111ms startup each (spawn + environment, per file)\n             at least ~4.25s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/s3-native.md documents the in-daemon auto-push (RPO ~30s), the selectPushRemote/buildPushCommand mechanism quoted from source, branch-aware upstream push, root-scoped boundary for sandbox namespaces, and the live state of the pushOnCommit gate; docs-only (no src/ or test changes): docs/s3-native.md (merged in fcc73ce, 99 insertions) covers all required elements: (1) '## In-daemon auto-push to the canonical s3daily remote' section states 'RPO of ~30s' piggybacking gitBatching maxSeconds:30 (lines 43-50); (2) mechanism quoted verbatim from source \u2014 `return list.includes(\"s3daily\") ? \"s3daily\" : list[0];` matches src/git/autocommit.ts:534 and `return \\`git push --set-upstream ${remote} ${branch}\\`;` matches src/git/autocommit.ts:543; (3) branch-aware upstream push explained (lines 85-92, --set-upstream s3daily <branch>); (4) '### Root-scoped by design (S3-SCOPE-001)' section documents namespacesPath root boundary excluding sandbox/temp namespaces; (5) live gate state documented as 's3.enabled: true with pushOnCommit: false' (lines 133-137) which matches duckbrain.config.json:163/169. Docs-only verified: `git diff --stat fcc73ce^1 fcc73ce` shows only docs/s3-native.md (1 file, 99 insertions), no src/ or test changes. No test run required \u2014 criterion is documentation content and scope, not test execution.\ndocs/s3-native.md fully documents the s3daily auto-push mechanism with source-accurate quotes and live gate state, and the DOC-2 commit is strictly docs-only.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/s3-native.md documents the in-daemon auto-push (RPO ~30s), the selectPushRemote/buildPushCommand mechanism quoted from source, branch-aware upstream push, root-scoped boundary for sandbox namespaces, and the live state of the pushOnCommit gate; docs-only (no src/ or test changes): docs/s3-native.md (merged in fcc73ce, 99 insertions) covers all required elements: (1) '## In-daemon auto-push to the canonical s3daily remote' section states 'RPO of ~30s' piggybacking gitBatching maxSeconds:30 (lines 43-50); (2) mechanism quoted verbatim from source \u2014 `return list.includes(\"s3daily\") ? \"s3daily\" : list[0];` matches src/git/autocommit.ts:534 and `return \\`git push --set-upstream ${remote} ${branch}\\`;` matches src/git/autocommit.ts:543; (3) branch-aware upstream push explained (lines 85-92, --set-upstream s3daily <branch>); (4) '### Root-scoped by design (S3-SCOPE-001)' section documents namespacesPath root boundary excluding sandbox/temp namespaces; (5) live gate state documented as 's3.enabled: true with pushOnCommit: false' (lines 133-137) which matches duckbrain.config.json:163/169. Docs-only verified: `git diff --stat fcc73ce^1 fcc73ce` shows only docs/s3-native.md (1 file, 99 insertions), no src/ or test changes. No test run required \u2014 criterion is documentation content and scope, not test execution.\ndocs/s3-native.md fully documents the s3daily auto-push mechanism with source-accurate quotes and live gate state, and the DOC-2 commit is strictly docs-only.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/s3-native.md documents the in-daemon auto-push (RPO ~30s), the selectPushRemote/buildPushCommand mechanism quoted from source, branch-aware upstream push, root-scoped boundary for sandbox namespaces, and the live state of the pushOnCommit gate; docs-only (no src/ or test changes)",
+                "status": "PASS",
+                "detail": "docs/s3-native.md (merged in fcc73ce, 99 insertions) covers all required elements: (1) '## In-daemon auto-push to the canonical s3daily remote' section states 'RPO of ~30s' piggybacking gitBatching maxSeconds:30 (lines 43-50); (2) mechanism quoted verbatim from source \u2014 `return list.includes(\"s3daily\") ? \"s3daily\" : list[0];` matches src/git/autocommit.ts:534 and `return \\`git push --set-upstream ${remote} ${branch}\\`;` matches src/git/autocommit.ts:543; (3) branch-aware upstream push explained (lines 85-92, --set-upstream s3daily <branch>); (4) '### Root-scoped by design (S3-SCOPE-001)' section documents namespacesPath root boundary excluding sandbox/temp namespaces; (5) live gate state documented as 's3.enabled: true with pushOnCommit: false' (lines 133-137) which matches duckbrain.config.json:163/169. Docs-only verified: `git diff --stat fcc73ce^1 fcc73ce` shows only docs/s3-native.md (1 file, 99 insertions), no src/ or test changes. No test run required \u2014 criterion is documentation content and scope, not test execution."
+              }
+            ],
+            "summary": "docs/s3-native.md fully documents the s3daily auto-push mechanism with source-accurate quotes and live gate state, and the DOC-2 commit is strictly docs-only."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-2\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/s3-native.md documents the in-daemon auto-push (RPO ~30s), the selectPushRemote/buildPushCommand mechanism quoted from source, branch-aware upstream push, root-scoped boundary for sandbox namespaces, and the live state of the pushOnCommit gate; docs-only (no src/ or test changes): docs/s3-native.md (merged in fcc73ce, 99 insertions) covers all required elements: (1) '## In-daemon auto-push to the canonical s3daily remote' section states 'RPO of ~30s' piggybacking gitBatching maxSeconds:30 (lines 43-50); (2) mechanism quoted verbatim from source \u2014 `return list.includes(\"s3daily\") ? \"s3daily\" : list[0];` matches src/git/autocommit.ts:534 and `return \\`git push --set-upstream ${remote} ${branch}\\`;` matches src/git/autocommit.ts:543; (3) branch-aware upstream push explained (lines 85-92, --set-upstream s3daily <branch>); (4) '### Root-scoped by design (S3-SCOPE-001)' section documents namespacesPath root boundary excluding sandbox/temp namespaces; (5) live gate state documented as 's3.enabled: true with pushOnCommit: false' (lines 133-137) which matches duckbrain.config.json:163/169. Docs-only verified: `git diff --stat fcc73ce^1 fcc73ce` shows only docs/s3-native.md (1 file, 99 insertions), no src/ or test changes. No test run required \u2014 criterion is documentation content and scope, not test execution.\ndocs/s3-native.md fully documents the s3daily auto-push mechanism with source-accurate quotes and live gate state, and the DOC-2 commit is strictly docs-only.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T09:06:26.772394",
+  "evidence": {
+    "collected_at": "2026-09-20T09:06:26.795091+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 108123,
+        "truncated": false,
+        "source": "git show e6075ca202cd"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2165,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-2"
+  }
+}

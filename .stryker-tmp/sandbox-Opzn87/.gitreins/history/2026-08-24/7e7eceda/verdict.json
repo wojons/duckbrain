@@ -1,0 +1,67 @@
+{
+  "task_id": "AUTOPUSH-001",
+  "task_title": "Wire auto-push of namespace git repos after debounced commit flush",
+  "task_criteria": [
+    "A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT the daily cron; second write is idempotent (no duplicate bundles); full suite green + tsc --noEmit clean; gitBatching semantics unchanged"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m6:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12299675 bytes (12.30 MB) in 6.28s\u001b[0m\n\u001b[90m6:16AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m6:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12299675 bytes (12.30 MB) in 6.28s\u001b[0m\n\u001b[90m6:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 984\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1058\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m rebuild is idempotent \u2014 two runs both succeed with identical row counts \u001b[33m 623\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m git status stays clean after rebuild (sidecar ",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT the daily cron; second write is idempotent (no duplicate bundles); full suite green + tsc --noEmit clean; gitBatching semantics unchanged: (1) \u226460s push: pushNamespace() called synchronously in immediateCommit (src/git/autocommit.ts:117) after every commit flush; debounce maxSeconds=30 (duckbrain.config.json:5-8) so push fires \u226430s; CLI exit flush (process.on exit -> flushAllCommits -> immediateCommit -> pushNamespace) pushes immediately. selectPushRemote prefers s3daily remote which maps to s3://duckbrain/current/git/<ns> (verified live: namespaces/9router/.git remote s3daily -> s3://duckbrain/current/git/9router). (2) Idempotent: git push --set-upstream is inherently idempotent (no-op when up-to-date), no duplicate bundles. (3) Suite green: `npx vitest run` -> 92 files/792 tests passed, exit 0; `npx tsc --noEmit` -> exit 0 clean; autocommit.test.ts 8 tests pass incl. 4 new push tests. (4) gitBatching semantics unchanged: commitNamespaceWithParams debounce/line-cap/first-write/exit-flush logic untouched; only added pushNamespace call in immediateCommit.\nAUTOPUSH-001 fully implemented: auto-push wired into commit flush path targeting s3daily remote (s3://duckbrain/current/git/<ns>) within \u226460s, idempotent git push, full suite green (92/792) + tsc clean, gitBatching semantics unchanged.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT the daily cron; second write is idempotent (no duplicate bundles); full suite green + tsc --noEmit clean; gitBatching semantics unchanged: (1) \u226460s push: pushNamespace() called synchronously in immediateCommit (src/git/autocommit.ts:117) after every commit flush; debounce maxSeconds=30 (duckbrain.config.json:5-8) so push fires \u226430s; CLI exit flush (process.on exit -> flushAllCommits -> immediateCommit -> p",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT the daily cron; second write is idempotent (no duplicate bundles); full suite green + tsc --noEmit clean; gitBatching semantics unchanged",
+                "status": "PASS",
+                "detail": "(1) \u226460s push: pushNamespace() called synchronously in immediateCommit (src/git/autocommit.ts:117) after every commit flush; debounce maxSeconds=30 (duckbrain.config.json:5-8) so push fires \u226430s; CLI exit flush (process.on exit -> flushAllCommits -> immediateCommit -> pushNamespace) pushes immediately. selectPushRemote prefers s3daily remote which maps to s3://duckbrain/current/git/<ns> (verified live: namespaces/9router/.git remote s3daily -> s3://duckbrain/current/git/9router). (2) Idempotent: git push --set-upstream is inherently idempotent (no-op when up-to-date), no duplicate bundles. (3) Suite green: `npx vitest run` -> 92 files/792 tests passed, exit 0; `npx tsc --noEmit` -> exit 0 clean; autocommit.test.ts 8 tests pass incl. 4 new push tests. (4) gitBatching semantics unchanged: commitNamespaceWithParams debounce/line-cap/first-write/exit-flush logic untouched; only added pushNamespace call in immediateCommit."
+              }
+            ],
+            "summary": "AUTOPUSH-001 fully implemented: auto-push wired into commit flush path targeting s3daily remote (s3://duckbrain/current/git/<ns>) within \u226460s, idempotent git push, full suite green (92/792) + tsc clean, gitBatching semantics unchanged."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: AUTOPUSH-001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m6:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12299675 bytes (12.30 MB) in 6.28s\u001b[0m\n\u001b[90m6:16AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A remember write lands on s3://duckbrain/current/git/<ns> within \u226460s WITHOUT the daily cron; second write is idempotent (no duplicate bundles); full suite green + tsc --noEmit clean; gitBatching semantics unchanged: (1) \u226460s push: pushNamespace() called synchronously in immediateCommit (src/git/autocommit.ts:117) after every commit flush; debounce maxSeconds=30 (duckbrain.config.json:5-8) so push fires \u226430s; CLI exit flush (process.on exit -> flushAllCommits -> immediateCommit -> pushNamespace) pushes immediately. selectPushRemote prefers s3daily remote which maps to s3://duckbrain/current/git/<ns> (verified live: namespaces/9router/.git remote s3daily -> s3://duckbrain/current/git/9router). (2) Idempotent: git push --set-upstream is inherently idempotent (no-op when up-to-date), no duplicate bundles. (3) Suite green: `npx vitest run` -> 92 files/792 tests passed, exit 0; `npx tsc --noEmit` -> exit 0 clean; autocommit.test.ts 8 tests pass incl. 4 new push tests. (4) gitBatching semantics unchanged: commitNamespaceWithParams debounce/line-cap/first-write/exit-flush logic untouched; only added pushNamespace call in immediateCommit.\nAUTOPUSH-001 fully implemented: auto-push wired into commit flush path targeting s3daily remote (s3://duckbrain/current/git/<ns>) within \u226460s, idempotent git push, full suite green (92/792) + tsc clean, gitBatching semantics unchanged.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-24T11:17:57.916778"
+}

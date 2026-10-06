@@ -1,0 +1,88 @@
+/**
+ * Native S3 configuration for DuckBrain.
+ *
+ * DISABLED BY DEFAULT (2026-08-07, prepared but not activated — see docs/s3-native.md).
+ * All S3 features are inert while `s3.enabled` is false.
+ *
+ * SECRETS POLICY: never store access keys in duckbrain.config.json (it is
+ * git-tracked). The AWS SDK v3 default credential chain is used instead:
+ *   - env AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or
+ *   - env AWS_PROFILE pointing at ~/.aws/credentials, or
+ *   - the default profile in ~/.aws/credentials.
+ * The DuckDB httpfs query path (src/s3/query.ts) honors the same sources:
+ * direct AWS_* env keys win, else a named profile (env AWS_PROFILE or the
+ * `s3.profile` value below) is resolved through this same SDK chain and
+ * injected into the httpfs session for the query (DB-GAP-048).
+ */
+// @ts-nocheck
+
+
+import { z } from "zod";
+
+/** Zod schema for the `s3` config block (mirrors the gitBatching style). */
+export const S3ConfigSchema = z
+  .object({
+    /** Master switch — all S3 features inert while false */
+    enabled: z.boolean().default(false),
+    /**
+     * S3-compatible endpoint URL (e.g. "https://s3.provider.com").
+     * Omit (undefined) for real AWS S3.
+     */
+    endpoint: z.string().url().optional(),
+    /** AWS region; ignored by most S3-compatible providers (Hetzner: hel1/us-east-1 both work) */
+    region: z.string().default("us-east-1"),
+    /** Bucket name (required when enabled) */
+    bucket: z.string().default("duckbrain"),
+    /** Top-level key prefix under the bucket, e.g. "duckbrain" → s3://bucket/duckbrain/<ns>/... */
+    prefix: z.string().default("duckbrain"),
+    /** ~/.aws/credentials profile name (optional; env AWS_PROFILE is also honored) */
+    profile: z.string().optional(),
+    /**
+     * Path-style addressing (bucket in path, not virtual-host). REQUIRED by
+     * Hetzner / MinIO-style endpoints; harmless on AWS.
+     */
+    forcePathStyle: z.boolean().default(true),
+    /**
+     * PUSH-001: push namespace deltas to S3 after each autocommit batch
+     * flush. Honored by the git commit-flush autopush (src/git/autocommit.ts)
+     * in addition to the object-store hook; false (default) = zero pushes.
+     */
+    pushOnCommit: z.boolean().default(false),
+    /**
+     * PUSH-001: per-namespace minimum seconds between autopush attempts
+     * (coalescing floor; <= 0 disables the floor). Honored by the git
+     * commit-flush autopush alongside pushOnCommit.
+     */
+    intervalSec: z.number().default(300),
+  })
+  .default({
+    enabled: false,
+    region: "us-east-1",
+    bucket: "duckbrain",
+    prefix: "duckbrain",
+    forcePathStyle: true,
+    pushOnCommit: false,
+    intervalSec: 300,
+  });
+
+export type S3Config = z.infer<typeof S3ConfigSchema>;
+
+/** Default S3 config (disabled). */
+export const DEFAULT_S3_CONFIG = S3ConfigSchema.parse({});
+
+/**
+ * Resolve the EFFECTIVE S3 endpoint with env-override precedence:
+ *   AWS_ENDPOINT_URL_S3 → AWS_ENDPOINT_URL → cfg.endpoint → undefined (AWS default).
+ *
+ * The ecosystem controls the endpoint via AWS_ENDPOINT_URL env (the
+ * git-remote-s3 push path in src/git/autocommit.ts and duckbrain-s3-push.sh
+ * both export it), so the CLI display and the client must agree on what is
+ * actually in use — the config value alone is not authoritative. (DOGFOOD-030)
+ */
+export function resolveEffectiveEndpoint(cfg: S3Config): string | undefined {
+  const s3Url = process.env.AWS_ENDPOINT_URL_S3;
+  if (s3Url) return s3Url;
+  const url = process.env.AWS_ENDPOINT_URL;
+  if (url) return url;
+  return cfg.endpoint;
+}

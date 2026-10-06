@@ -1,0 +1,67 @@
+{
+  "task_id": "duckbrain-483-dogfood028",
+  "task_title": "Update skills/duckbrain-usage/SKILL.md v1.4.0",
+  "task_criteria": [
+    "skills/duckbrain-usage/SKILL.md: (1) no claim that scratch daemons lack an auth-file override remains; --auth-file flag + DUCKBRAIN_AUTH_FILE env documented in Testing-your-changes-safely; (2) RETR suite surface documented: search (highlighted snippets), search-index, query SQL view semantics, token, --all-namespaces, valid_from/valid_until + --historical, --attr filters; (3) pitfall #10 distinguishes HTTP (omitted ?namespace= = literal 'default') vs CLI (config defaultNamespace); (4) version bumped past 1.3.0; curl recipes carry X-API-Key"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:48PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11911317 bytes (11.91 MB) in 5.66s\u001b[0m\n\u001b[90m7:48PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:48PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11911317 bytes (11.91 MB) in 5.66s\u001b[0m\n\u001b[90m7:48PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1333\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-validuntil-retr011.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1122\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1920\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m honors limit=0 as count-only on the union \u001b[33m 324\u001b[2m",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md: (1) no claim that scratch daemons lack an auth-file override remains; --auth-file flag + DUCKBRAIN_AUTH_FILE env documented in Testing-your-changes-safely; (2) RETR suite surface documented: search (highlighted snippets), search-index, query SQL view semantics, token, --all-namespaces, valid_from/valid_until + --historical, --attr filters; (3) pitfall #10 distinguishes HTTP (omitted ?namespace= = literal 'default') vs CLI (config defaultNamespace); (4) version bumped past 1.3.0; curl recipes carry X-API-Key: (1) No 'no --auth-file' claim remains (search returned 0 matches); --auth-file + DUCKBRAIN_AUTH_FILE documented in Testing-your-changes-safely (SKILL.md:207-214) and Auth-store override section (SKILL.md:74-82). (2) RETR query surface section (SKILL.md:90-118) documents search w/ highlightedSnippet, search-index, query SQL view semantics (no validity window applied), token, --all-namespaces, valid_from/valid_until + --historical, --attr filters. (3) Pitfall #10 (SKILL.md:178-190) distinguishes HTTP omitted ?namespace= = literal 'default' vs CLI config defaultNamespace. (4) Version bumped to 1.4.0 (SKILL.md:15, past 1.3.0); all curl recipes carry -H 'X-API-Key: <token>' (lines 39,43-44,48-51,54-55); only health-check curl at line 201 lacks it (non-auth context). Documentation-only task \u2014 no test suite applicable.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md: (1) no claim that scratch daemons lack an auth-file override remains; --auth-file flag + DUCKBRAIN_AUTH_FILE env documented in Testing-your-changes-safely; (2) RETR suite surface documented: search (highlighted snippets), search-index, query SQL view semantics, token, --all-namespaces, valid_from/valid_until + --historical, --attr filters; (3) pitfall #10 distinguishes HTTP (omitted ?namespace= = literal 'default') vs CLI (config defaultNamespace); (",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "skills/duckbrain-usage/SKILL.md: (1) no claim that scratch daemons lack an auth-file override remains; --auth-file flag + DUCKBRAIN_AUTH_FILE env documented in Testing-your-changes-safely; (2) RETR suite surface documented: search (highlighted snippets), search-index, query SQL view semantics, token, --all-namespaces, valid_from/valid_until + --historical, --attr filters; (3) pitfall #10 distinguishes HTTP (omitted ?namespace= = literal 'default') vs CLI (config defaultNamespace); (4) version bumped past 1.3.0; curl recipes carry X-API-Key",
+                "status": "PASS",
+                "detail": "(1) No 'no --auth-file' claim remains (search returned 0 matches); --auth-file + DUCKBRAIN_AUTH_FILE documented in Testing-your-changes-safely (SKILL.md:207-214) and Auth-store override section (SKILL.md:74-82). (2) RETR query surface section (SKILL.md:90-118) documents search w/ highlightedSnippet, search-index, query SQL view semantics (no validity window applied), token, --all-namespaces, valid_from/valid_until + --historical, --attr filters. (3) Pitfall #10 (SKILL.md:178-190) distinguishes HTTP omitted ?namespace= = literal 'default' vs CLI config defaultNamespace. (4) Version bumped to 1.4.0 (SKILL.md:15, past 1.3.0); all curl recipes carry -H 'X-API-Key: <token>' (lines 39,43-44,48-51,54-55); only health-check curl at line 201 lacks it (non-auth context). Documentation-only task \u2014 no test suite applicable."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: duckbrain-483-dogfood028\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:48PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11911317 bytes (11.91 MB) in 5.66s\u001b[0m\n\u001b[90m7:48PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 skills/duckbrain-usage/SKILL.md: (1) no claim that scratch daemons lack an auth-file override remains; --auth-file flag + DUCKBRAIN_AUTH_FILE env documented in Testing-your-changes-safely; (2) RETR suite surface documented: search (highlighted snippets), search-index, query SQL view semantics, token, --all-namespaces, valid_from/valid_until + --historical, --attr filters; (3) pitfall #10 distinguishes HTTP (omitted ?namespace= = literal 'default') vs CLI (config defaultNamespace); (4) version bumped past 1.3.0; curl recipes carry X-API-Key: (1) No 'no --auth-file' claim remains (search returned 0 matches); --auth-file + DUCKBRAIN_AUTH_FILE documented in Testing-your-changes-safely (SKILL.md:207-214) and Auth-store override section (SKILL.md:74-82). (2) RETR query surface section (SKILL.md:90-118) documents search w/ highlightedSnippet, search-index, query SQL view semantics (no validity window applied), token, --all-namespaces, valid_from/valid_until + --historical, --attr filters. (3) Pitfall #10 (SKILL.md:178-190) distinguishes HTTP omitted ?namespace= = literal 'default' vs CLI config defaultNamespace. (4) Version bumped to 1.4.0 (SKILL.md:15, past 1.3.0); all curl recipes carry -H 'X-API-Key: <token>' (lines 39,43-44,48-51,54-55); only health-check curl at line 201 lacks it (non-auth context). Documentation-only task \u2014 no test suite applicable.\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-27T00:49:14.936649"
+}

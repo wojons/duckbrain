@@ -1,0 +1,57 @@
+{
+  "task_id": "RETR-011",
+  "task_title": "Fact versioning convention (T-4): valid_from/valid_until write-side attributes",
+  "task_criteria": [
+    "Memory with valid_until in the past excluded from current recall view, visible in historical view; schema docs updated; test suite green"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 lint: \n  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m9:50AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11079357 \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m9:50AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11079357 bytes (11.08 MB) in 2.5s\u001b[0m\n\u001b[90m9:50AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 712\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1394\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1438\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Memory with valid_until in the past excluded from current recall view, visible in historical view; schema docs updated; test suite green: Current-view exclusion: src/duckdb/queries.ts buildValidityConditions (added in HEAD 9f3d806) emits `(valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= now)` + `(valid_from IS NULL OR ... <= now)` when historical!==true and now is set (recallTool sets one fixed `now` per request); HTTP test src/http/routes/memories-validuntil-retr011.test.ts:248-253 asserts expired row absent from current GET, MCP test recall-validuntil-retr011.test.ts:216-217 likewise. Historical view: historical===true makes buildValidityConditions return [] (no filter); HTTP test :258-267 proves the expired row IS visible via ?historical=true with valid_until intact; MCP test :115,:226-234. Schema docs updated: docs/api/http-api.md adds `historical` param, valid_from/valid_until in GET/POST examples + explanatory notes; src/schema/memory.ts adds optional valid_from/valid_until (z.string().datetime()); docs/agentic-memory-roadmap.md marks T-4 SHIPPED; AGENTS.md updated to 90 suites/779 tests. Test suite green: pnpm test:run -> 90 files / 779 tests passed (incl. 22 RETR-011 tests); pnpm tsc --noEmit exit 0; LSP diagnostics empty.\nRETR-011 fully implemented: past valid_until rows are filtered from the current recall view (list, keyword, semantic, count paths) while historical=true includes them, schema docs updated, and the full 779-test suite plus tsc pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Memory with valid_until in the past excluded from current recall view, visible in historical view; schema docs updated; test suite green: Current-view exclusion: src/duckdb/queries.ts buildValidityConditions (added in HEAD 9f3d806) emits `(valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= now)` + `(valid_from IS NULL OR ... <= now)` when historical!==true and now is set (recallTool sets one fixed `now` per request); HTTP test src/http/routes/memories-validuntil-retr011.te",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-011\n\nStage tier1: PASS\n    \u2713 lint: \n  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m9:50AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11079357 \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Memory with valid_until in the past excluded from current recall view, visible in historical view; schema docs updated; test suite green: Current-view exclusion: src/duckdb/queries.ts buildValidityConditions (added in HEAD 9f3d806) emits `(valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= now)` + `(valid_from IS NULL OR ... <= now)` when historical!==true and now is set (recallTool sets one fixed `now` per request); HTTP test src/http/routes/memories-validuntil-retr011.test.ts:248-253 asserts expired row absent from current GET, MCP test recall-validuntil-retr011.test.ts:216-217 likewise. Historical view: historical===true makes buildValidityConditions return [] (no filter); HTTP test :258-267 proves the expired row IS visible via ?historical=true with valid_until intact; MCP test :115,:226-234. Schema docs updated: docs/api/http-api.md adds `historical` param, valid_from/valid_until in GET/POST examples + explanatory notes; src/schema/memory.ts adds optional valid_from/valid_until (z.string().datetime()); docs/agentic-memory-roadmap.md marks T-4 SHIPPED; AGENTS.md updated to 90 suites/779 tests. Test suite green: pnpm test:run -> 90 files / 779 tests passed (incl. 22 RETR-011 tests); pnpm tsc --noEmit exit 0; LSP diagnostics empty.\nRETR-011 fully implemented: past valid_until rows are filtered from the current recall view (list, keyword, semantic, count paths) while historical=true includes them, schema docs updated, and the full 779-test suite plus tsc pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T14:52:00.290866"
+}

@@ -1,0 +1,101 @@
+{
+  "task_id": "HTTP-HELP-001",
+  "task_title": "duckbrain http --help prints options, exits 0",
+  "task_criteria": [
+    "http --help prints the HTTP option list and exits 0 without binding a port"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "b43aa0c4606d50a1d06aec915cbb34fe87854b6b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:13AM INF scanned ~13945342 bytes (13.95 MB) in 7.12s\n10:13AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 353181 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/cli/http.test.ts (8 tests | 1 failed) 34658ms\n   \u276f DF-0926-01 bind-conflict lifecycle (2)\n     \u00d7 bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent 13617ms\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 819ms\n \u276f src/http/routes/memories-pagination-gap024.test.ts (4 tests) 855ms\n \u276f src/http/routes/memories-timerange-retr003.test.ts (9 tests) 668ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 3 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-pagination-gap024.test.ts > GAP-024: pagination response correctness \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' to be '{\\n  \"defaultNamespace\": \"default\",\\n\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -14894,11 +14894,12 @@\n      \"auger-pytest-dfa995ed97af\": \"/home/kara/duckbrain/namespaces/auger-pytest-dfa995ed97af\",\n      \"auger-aug059-710b2b4d\": \"/home/kara/duckbrain/namespaces/auger-aug059-710b2b4d\",\n      \"auger-pytest-2f0f11073c34\": \"/home/kara/duckbrain/namespaces/auger-pytest-2f0f11073c34\",\n      \"auger-pytest-467a40544e1c\": \"/home/kara/duckbrain/namespaces/auger-pytest-467a40544e1c\",\n      \"auger-pytest-44affdccfed5\": \"/home/kara/duckbrain/namespaces/auger-pytest-44affdccfed5\",\n-     \"auger-pytest-7768e67d33e7\": \"/home/kara/duckbrain/namespaces/auger-pytest-7768e67d33e7\"\n+     \"auger-pytest-7768e67d33e7\": \"/home/kara/duckbrain/namespaces/auger-pytest-7768e67d33e7\",\n+     \"auger-pytest-345549d486fd\": \"/home/kara/duckbrain/namespaces/auger-pytest-345549d486fd\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts:136:30\n    134|     server.close();\n    135|     // GAP-022 AC1: config file must be byte-identical after the test \u2026\n    136|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    137|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    138|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/4]\u23af\n\n FAIL  src/http/routes/memories-timerange-retr003.test.ts > RETR-003: time-scoped recall \u2014 GET /api/memories\n\n\u2026 [2494 chars omitted \u2014 45 line(s)] \u2026\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:154:30\n    152|   afterAll(() => {\n    153|     server.close();\n    154|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    155|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    156|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[3/4]\u23af\n\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/cli/http.test.ts > DF-0926-01 bind-conflict lifecycle > bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent\nError: server did not become healthy on port 44445\n \u276f retry src/cli/http.test.ts:55:16\n     53|     const retry = () => {\n     54|       if (Date.now() - start > timeout) {\n     55|         reject(new Error(`server did not become healthy on port ${port\u2026\n       |                ^\n     56|         return;\n     57|       }\n \u276f ClientRequest.<anonymous> src/cli/http.test.ts:44:11\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[4/4]\u23af\n\n\n Test Files  4 failed | 184 passed (188)\n      Tests  1 failed | 1500 passed (1501)\n   Start at  10:13:17\n   Duration  167.15s (tests 73%, import 22%, transform 3%, setup 1%, worker 1%)\n\n    Isolate  188 workers spawned \u00b7 ~303ms startup each (spawn + environment, per file)\n             at least ~13.93s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 http --help prints the HTTP option list and exits 0 without binding a port: Live CLI run: `node bin/duckbrain.js http --help` printed the full options block (Usage: duckbrain http [options]; --port, --bind-all, --auth, --auth-file, --rate-limit, --unix-socket, --unix-socket-mode, --unix-socket-group, --help/-h) and returned EXIT_CODE=0; `-h` also exits 0. No-bind proof: port 3000 was already LISTENing (pid 294709) before and after the run, yet no EADDRINUSE occurred and stderr carried no 'HTTP server started'/'PID written' banner (startHttpMode prints those only after a successful bind). Implementation: src/cli/http.ts handleHttpCommand() short-circuits on args.includes('--help')||args.includes('-h') -> printHttpHelp() -> return {helped:true} before any flag parsing/start(); bin/duckbrain.ts case 'http' delegates to handleHttpCommand and process.exit(0) when helped. Tests: `npx vitest run src/cli/http-help-httphelp001.test.ts src/cli/http-help-e2e-httphelp001.test.ts` => 2 files passed, 9 tests passed; regression suites http.test.ts/http-auth.test.ts/cli-executable.test.ts => 3 files, 21 tests passed.\n`duckbrain http --help` prints the HTTP option list and exits 0 without binding a port, confirmed by live CLI run (exit 0, no bind banner, port 3000 already occupied) and 9/9 dedicated tests passing.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 http --help prints the HTTP option list and exits 0 without binding a port: Live CLI run: `node bin/duckbrain.js http --help` printed the full options block (Usage: duckbrain http [options]; --port, --bind-all, --auth, --auth-file, --rate-limit, --unix-socket, --unix-socket-mode, --unix-socket-group, --help/-h) and returned EXIT_CODE=0; `-h` also exits 0. No-bind proof: port 3000 was already LISTENing (pid 294709) before and after the run, yet no EADDRINUSE occurred and stderr carried no 'HTTP server started'/'PID written' banner (startHttpMode prints those only after a successful bind). Implementation: src/cli/http.ts handleHttpCommand() short-circuits on args.includes('--help')||args.includes('-h') -> printHttpHelp() -> return {helped:true} before any flag parsing/start(); bin/duckbrain.ts case 'http' delegates to handleHttpCommand and process.exit(0) when helped. Tests: `npx vitest run src/cli/http-help-httphelp001.test.ts src/cli/http-help-e2e-httphelp001.test.ts` => 2 files passed, 9 tests passed; regression suites http.test.ts/http-auth.test.ts/cli-executable.test.ts => 3 files, 21 tests passed.\n`duckbrain http --help` prints the HTTP option list and exits 0 without binding a port, confirmed by live CLI run (exit 0, no bind banner, port 3000 already occupied) and 9/9 dedicated tests passing.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "http --help prints the HTTP option list and exits 0 without binding a port",
+                "status": "PASS",
+                "detail": "Live CLI run: `node bin/duckbrain.js http --help` printed the full options block (Usage: duckbrain http [options]; --port, --bind-all, --auth, --auth-file, --rate-limit, --unix-socket, --unix-socket-mode, --unix-socket-group, --help/-h) and returned EXIT_CODE=0; `-h` also exits 0. No-bind proof: port 3000 was already LISTENing (pid 294709) before and after the run, yet no EADDRINUSE occurred and stderr carried no 'HTTP server started'/'PID written' banner (startHttpMode prints those only after a successful bind). Implementation: src/cli/http.ts handleHttpCommand() short-circuits on args.includes('--help')||args.includes('-h') -> printHttpHelp() -> return {helped:true} before any flag parsing/start(); bin/duckbrain.ts case 'http' delegates to handleHttpCommand and process.exit(0) when helped. Tests: `npx vitest run src/cli/http-help-httphelp001.test.ts src/cli/http-help-e2e-httphelp001.test.ts` => 2 files passed, 9 tests passed; regression suites http.test.ts/http-auth.test.ts/cli-executable.test.ts => 3 files, 21 tests passed."
+              }
+            ],
+            "summary": "`duckbrain http --help` prints the HTTP option list and exits 0 without binding a port, confirmed by live CLI run (exit 0, no bind banner, port 3000 already occupied) and 9/9 dedicated tests passing."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: HTTP-HELP-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 http --help prints the HTTP option list and exits 0 without binding a port: Live CLI run: `node bin/duckbrain.js http --help` printed the full options block (Usage: duckbrain http [options]; --port, --bind-all, --auth, --auth-file, --rate-limit, --unix-socket, --unix-socket-mode, --unix-socket-group, --help/-h) and returned EXIT_CODE=0; `-h` also exits 0. No-bind proof: port 3000 was already LISTENing (pid 294709) before and after the run, yet no EADDRINUSE occurred and stderr carried no 'HTTP server started'/'PID written' banner (startHttpMode prints those only after a successful bind). Implementation: src/cli/http.ts handleHttpCommand() short-circuits on args.includes('--help')||args.includes('-h') -> printHttpHelp() -> return {helped:true} before any flag parsing/start(); bin/duckbrain.ts case 'http' delegates to handleHttpCommand and process.exit(0) when helped. Tests: `npx vitest run src/cli/http-help-httphelp001.test.ts src/cli/http-help-e2e-httphelp001.test.ts` => 2 files passed, 9 tests passed; regression suites http.test.ts/http-auth.test.ts/cli-executable.test.ts => 3 files, 21 tests passed.\n`duckbrain http --help` prints the HTTP option list and exits 0 without binding a port, confirmed by live CLI run (exit 0, no bind banner, port 3000 already occupied) and 9/9 dedicated tests passing.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T15:17:06.046257",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T15:17:06.071570+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1277,
+        "truncated": false,
+        "source": "git show b43aa0c4606d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1315,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "HTTP-HELP-001"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "task_id": "OPS-008",
+  "task_title": "OPS-008 semantic recall latency: bound on-the-fly embedding concurrency so a cache-miss ?q= stays inside the 30s budget",
+  "task_criteria": [
+    "Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "d5447763141fda18b00e31fa5924ff5625f405ed",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:00AM INF scanned ~9330233 bytes (9.33 MB) in 1.72s\n9:00AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 200315 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  160 passed (160)\n      Tests  1275 passed (1275)\n   Start at  09:00:12\n   Duration  61.51s (tests 78%, import 19%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  160 workers spawned \u00b7 ~111ms startup each (spawn + environment, per file)\n             at least ~4.31s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1 PASS: src/embedding/search.ts:131-154 implements the rebuild.ts worker-pool shape (shared nextIdx, N workers, Promise.all) \u2014 identical to src/embedding/rebuild.ts:122-156; Pass 1 (search.ts:141-166) resolves cache hits and collects deduped misses instead of the old serial `await provider.embed(text)` in the scan loop (old code confirmed via `git show d544776^:src/embedding/search.ts`). AC2 PASS: warm-cache test at src/embedding/search-concurrency.test.ts:243-268 asserts unchanged scores/order; minScore floor preserved at search.ts:205-214 (same inclusive `score >= minScore`). AC3 PASS: 10-test suite; RED control independently reproduced \u2014 reverting search.ts to d544776^ makes 3 tests fail (`expected 1 to be greater than 1` at test:136, and `expected 804 to be less than 500` at test:291 = serial 8x100ms), while the new code passes 10/10; failure isolation asserted at test:207-229. AC4 PASS: `npx vitest run` => 160 files / 1275 tests passed, exit 0; `npx tsc --noEmit` exit 0; `npx prettier --check` on the 3 changed files => 'All matched files use Prettier code style!', exit 0. AC5 FAIL: no tick event documents a post-fix live re-measure. HEAD is d544776 (2026-09-20 08:59:55) and `git log d544776..HEAD -- .coding-hermes/` is empty; the last board event is id 580 @ 08:05 and board.jsonl last_tick is 578 @ 07:58 \u2014 i.e. the fix commit has no accompanying tick event. The commit message contains only the BASELINE numbers (32.6/39.5/32.7s, 27.7s repeat), not a post-fix wall time, and .coding-hermes/board/tasks.jsonl OPS-008 still records the semantic ?q= re-measure as 'still pending'. No post-fix daemon ?q= measurement exists anywhere in .gitreins/ or .coding-hermes/.\nAC1-AC4 are fully met with hard evidence (pooled embeds, unchanged warm-cache behaviour, RED-verified regression suite, 1275 tests + tsc + prettier clean), but AC5 fails: no post-fix live re-measure of the authed ?q= endpoint is documented in any tick event.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1 PASS: src/embedding/search.ts:131-154 implements the rebuild.ts worker-pool shape (shared nextIdx, N workers, Promise.all) \u2014 identical to src/embedding/rebuild.ts:122-156; Pass 1 (search.ts:141-166) resolves cache hits and collects deduped misses instead of the old serial `await provider.embed(text)` in the scan loop (old code confirmed via `git show d544776^:src/embedding/search.ts`). AC2 PASS: warm-cache test at src/embedding/search-concurrency.test.ts:243-268 asserts unchanged scores/order; minScore floor preserved at search.ts:205-214 (same inclusive `score >= minScore`). AC3 PASS: 10-test suite; RED control independently reproduced \u2014 reverting search.ts to d544776^ makes 3 tests fail (`expected 1 to be greater than 1` at test:136, and `expected 804 to be less than 500` at test:291 = serial 8x100ms), while the new code passes 10/10; failure isolation asserted at test:207-229. AC4 PASS: `npx vitest run` => 160 files / 1275 tests passed, exit 0; `npx tsc --noEmit` exit 0; `npx prettier --check` on the 3 changed files => 'All matched files use Prettier code style!', exit 0. AC5 FAIL: no tick event documents a post-fix live re-measure. HEAD is d544776 (2026-09-20 08:59:55) and `git log d544776..HEAD -- .coding-hermes/` is empty; the last board event is id 580 @ 08:05 and board.jsonl last_tick is 578 @ 07:58 \u2014 i.e. the fix commit has no accompanying tick event. The commit message contains only the BASELINE numbers (32.6/39.5/32.7s, 27.7s repeat), not a post-fix wall time, and .coding-hermes/board/tasks.jsonl OPS-008 still records the semantic ?q= re-measure as 'still pending'. No post-fix daemon ?q= measurement exists anywhere in .gitreins/ or .coding-hermes/.\nAC1-AC4 are fully met with hard evidence (pooled embeds, unchanged warm-cache behaviour, RED-verified regression suite, 1275 tests + tsc + prettier clean), but AC5 fails: no post-fix live re-measure of the authed ?q= endpoint is documented in any tick event.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.",
+                "status": "FAIL",
+                "detail": "AC1 PASS: src/embedding/search.ts:131-154 implements the rebuild.ts worker-pool shape (shared nextIdx, N workers, Promise.all) \u2014 identical to src/embedding/rebuild.ts:122-156; Pass 1 (search.ts:141-166) resolves cache hits and collects deduped misses instead of the old serial `await provider.embed(text)` in the scan loop (old code confirmed via `git show d544776^:src/embedding/search.ts`). AC2 PASS: warm-cache test at src/embedding/search-concurrency.test.ts:243-268 asserts unchanged scores/order; minScore floor preserved at search.ts:205-214 (same inclusive `score >= minScore`). AC3 PASS: 10-test suite; RED control independently reproduced \u2014 reverting search.ts to d544776^ makes 3 tests fail (`expected 1 to be greater than 1` at test:136, and `expected 804 to be less than 500` at test:291 = serial 8x100ms), while the new code passes 10/10; failure isolation asserted at test:207-229. AC4 PASS: `npx vitest run` => 160 files / 1275 tests passed, exit 0; `npx tsc --noEmit` exit 0; `npx prettier --check` on the 3 changed files => 'All matched files use Prettier code style!', exit 0. AC5 FAIL: no tick event documents a post-fix live re-measure. HEAD is d544776 (2026-09-20 08:59:55) and `git log d544776..HEAD -- .coding-hermes/` is empty; the last board event is id 580 @ 08:05 and board.jsonl last_tick is 578 @ 07:58 \u2014 i.e. the fix commit has no accompanying tick event. The commit message contains only the BASELINE numbers (32.6/39.5/32.7s, 27.7s repeat), not a post-fix wall time, and .coding-hermes/board/tasks.jsonl OPS-008 still records the semantic ?q= re-measure as 'still pending'. No post-fix daemon ?q= measurement exists anywhere in .gitreins/ or .coding-hermes/."
+              }
+            ],
+            "summary": "AC1-AC4 are fully met with hard evidence (pooled embeds, unchanged warm-cache behaviour, RED-verified regression suite, 1275 tests + tsc + prettier clean), but AC5 fails: no post-fix live re-measure of the authed ?q= endpoint is documented in any tick event."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-008\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Measured: provider round-trip 2.3-7.6s (healthy), daemon ?q= 28-40s consistent incl. repeat query; attribution = serial on-the-fly embeds capped at 10 in recall.ts:371 x provider RTT. AC1: search.ts batches missing-vector embeds with bounded concurrency (reuse rebuild.ts worker-pool pattern) instead of a serial await in the scan loop. AC2: a warm-cache query is unchanged in behaviour (same ranking, same minScore floor). AC3: regression test asserts N cache-miss candidates are embedded with concurrency>1 (no serial 10x RTT wall) and that a single failing embed no longer stalls the rest of the batch. AC4: unit suite + tsc + prettier clean. AC5: live re-measure of authed GET /api/memories?namespace=duckbrain&q=... shows a materially lower wall time than the 28-40s baseline, documented in the tick event.: AC1 PASS: src/embedding/search.ts:131-154 implements the rebuild.ts worker-pool shape (shared nextIdx, N workers, Promise.all) \u2014 identical to src/embedding/rebuild.ts:122-156; Pass 1 (search.ts:141-166) resolves cache hits and collects deduped misses instead of the old serial `await provider.embed(text)` in the scan loop (old code confirmed via `git show d544776^:src/embedding/search.ts`). AC2 PASS: warm-cache test at src/embedding/search-concurrency.test.ts:243-268 asserts unchanged scores/order; minScore floor preserved at search.ts:205-214 (same inclusive `score >= minScore`). AC3 PASS: 10-test suite; RED control independently reproduced \u2014 reverting search.ts to d544776^ makes 3 tests fail (`expected 1 to be greater than 1` at test:136, and `expected 804 to be less than 500` at test:291 = serial 8x100ms), while the new code passes 10/10; failure isolation asserted at test:207-229. AC4 PASS: `npx vitest run` => 160 files / 1275 tests passed, exit 0; `npx tsc --noEmit` exit 0; `npx prettier --check` on the 3 changed files => 'All matched files use Prettier code style!', exit 0. AC5 FAIL: no tick event documents a post-fix live re-measure. HEAD is d544776 (2026-09-20 08:59:55) and `git log d544776..HEAD -- .coding-hermes/` is empty; the last board event is id 580 @ 08:05 and board.jsonl last_tick is 578 @ 07:58 \u2014 i.e. the fix commit has no accompanying tick event. The commit message contains only the BASELINE numbers (32.6/39.5/32.7s, 27.7s repeat), not a post-fix wall time, and .coding-hermes/board/tasks.jsonl OPS-008 still records the semantic ?q= re-measure as 'still pending'. No post-fix daemon ?q= measurement exists anywhere in .gitreins/ or .coding-hermes/.\nAC1-AC4 are fully met with hard evidence (pooled embeds, unchanged warm-cache behaviour, RED-verified regression suite, 1275 tests + tsc + prettier clean), but AC5 fails: no post-fix live re-measure of the authed ?q= endpoint is documented in any tick event.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T14:05:59.714806",
+  "evidence": {
+    "collected_at": "2026-09-20T14:05:59.730369+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 23129,
+        "truncated": false,
+        "source": "git show d5447763141f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 567,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "OPS-008"
+  }
+}

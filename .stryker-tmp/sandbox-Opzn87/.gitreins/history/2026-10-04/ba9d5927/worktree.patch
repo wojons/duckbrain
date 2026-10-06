@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index ba35c30..3a709db 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2340,3 +2340,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-04T04:25:13.180458+00:00'
+   completed_at: '2026-10-04T04:28:36.141999+00:00'
++- id: TESTQ-DIRECT-ODIRECT-001
++  title: Fix http-durability.test.ts to accept O_DIRECT capability, not assert it
++  criteria:
++  - Test accepts 201 (host supports O_DIRECT) OR 500 with code DURABILITY_UNSUPPORTED
++    (host does not); verifies no bytes written and no buffered fallback in the 500
++    case
++  status: complete
++  created_at: '2026-10-04T04:39:41.854462+00:00'
++  completed_at: '2026-10-04T04:57:26.297528+00:00'

@@ -1,0 +1,30 @@
+[Unit]
+Description=Recover duckbrain-http after N consecutive DARK probes (GAP-059)
+
+[Service]
+Type=oneshot
+# GAP-059: recovery teeth for the dark-port watchdog. duckbrain-http.service
+# already has Restart=always (crash AND graceful-stop recovery), so the only
+# dark state left is an explicit stop/disable/mask — which the static
+# duckbrain-http-health oneshot can DETECT (exit 1) but never FIX. On
+# 2026-09-19 a maintenance stop left :3000 dark for ~18 minutes until an
+# operator started it by hand; this unit is the missing action.
+#
+# Contract: DARK (connection failure or any non-200/503 status) increments a
+# consecutive-dark counter; at --confirm-probes the helper runs
+# `systemctl --user start duckbrain-http.service`, records the attempt and
+# re-probes /health once. ALIVE clears the counter. HUNG (exit 3 in the health
+# watchdog) is NOT dark: a stuck handler is not a dead daemon, so this unit
+# never restarts a daemon that is still serving traffic (OPS-002).
+#
+# --cooldown-s=600 is the anti-storm window: a second restart is suppressed
+# for 10 minutes after an attempt, so a unit that keeps failing cannot be
+# restarted once a minute forever. Intentional long downtime therefore needs
+# `systemctl --user stop duckbrain-http-recover.timer` FIRST (see
+# docs/guide/deployment.md § maintenance contract).
+#
+# Exit 1 = started but /health is still not alive (systemd may still be
+# bringing it up; the next timer fire retries after the cooldown) — the
+# failure is visible in `systemctl --user status` and the journal.
+# /health is auth-exempt: no API keys here, ever.
+ExecStart=node %h/duckbrain/scripts/watchdog-recover.js --confirm-probes=1 --cooldown-s=600

@@ -1,0 +1,107 @@
+{
+  "task_id": "DOGFOOD-003",
+  "task_title": "DOGFOOD-003 \u2014 CLI remember stores real content (--content/--text/stdin), rejects unknown flags loudly",
+  "task_criteria": [
+    "src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags; the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody in src/cli/human.ts and verify precedence explicit > stdin > key)",
+    "A piped stdin body (non-TTY) is used as content when no flag is given (grep readStdinBody in src/cli/human.ts; empty pipe falls back to key)",
+    "Unknown flags to remember are rejected loudly with stderr error + usage hint + non-zero exit, scoped to remember only (grep REMEMBER_FLAGS in src/cli/human.ts; parseArgs unchanged for other commands)",
+    "--help and top-level help document --content=, --text=, and stdin body (grep 'remember <key>' in bin/duckbrain.ts and src/cli/human.ts showHelp)",
+    "Regression tests exist and pass: src/cli/remember-dogfood003.test.ts covers content flag, text alias, stdin body, unknown-flag rejection, and key fallback (run: pnpm vitest run src/cli/remember-dogfood003.test.ts)",
+    "Full suite passes: pnpm test:run reports 294/294 (38 files) and tsc --noEmit is clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 139\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 128\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/keys.test.ts \u001b[2m(\u001b[22m\u001b[2m13 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 106\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/events.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 251\u001b[2m",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags; the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody in src/cli/human.ts and verify precedence explicit > stdin > key): src/cli/human.ts:176-186 resolveRememberBody returns flags.content || flags.text || flags['embedding-text'] first (explicit), then readStdinBody, then key fallback; rememberCommand line 221 uses it for embeddingText. Precedence explicit > stdin > key confirmed.\n  \u2713 A piped stdin body (non-TTY) is used as content when no flag is given (grep readStdinBody in src/cli/human.ts; empty pipe falls back to key): src/cli/human.ts:140-174 readStdinBody returns '' if reader.isTTY, otherwise reads piped data; resolveRememberBody line 185-186 does body.trim() || key so empty/whitespace pipe falls back to key.\n  \u2713 Unknown flags to remember are rejected loudly with stderr error + usage hint + non-zero exit, scoped to remember only (grep REMEMBER_FLAGS in src/cli/human.ts; parseArgs unchanged for other commands): src/cli/human.ts:107-115 REMEMBER_FLAGS set; lines 197-207 loop over flags and console.error unknown flag + valid flags + usage, then process.exit(1). Scoped to rememberCommand only; parseArgs function (line 51) unchanged in commit 89510ac diff.\n  \u2713 --help and top-level help document --content=, --text=, and stdin body (grep 'remember <key>' in bin/duckbrain.ts and src/cli/human.ts showHelp): bin/duckbrain.ts:50 and src/cli/human.ts:1365 both show 'remember <key> Remember a memory (body via --content=, --text=, or stdin)'; bin/duckbrain.ts examples include --content= and stdin pipe.\n  \u2713 Regression tests exist and pass: src/cli/remember-dogfood003.test.ts covers content flag, text alias, stdin body, unknown-flag rejection, and key fallback (run: pnpm vitest run src/cli/remember-dogfood003.test.ts): src/cli/remember-dogfood003.test.ts has 8 tests covering (a) content flag, (b) text alias, (c) stdin body, (d) unknown-flag rejection, (e) key fallback. pnpm vitest run src/cli/remember-dogfood003.test.ts => 8 passed.\n  \u2713 Full suite passes: pnpm test:run reports 294/294 (38 files) and tsc --noEmit is clean: pnpm test:run => 38 files passed, 294 tests passed. npx tsc --noEmit => exit 0, clean.\nAll 6 DOGFOOD-003 criteria verified: remember accepts --content/--text/stdin body with explicit>stdin>key precedence, rejects unknown flags loudly scoped to remember, help documents the new flags, regression tests pass (8/8), and full suite passes 294/294 with clean tsc.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags; the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody in src/cli/human.ts and verify precedence explicit > stdin > key): src/cli/human.ts:176-186 resolveRememberBody returns flags.content || flags.text || flags['embedding-text'] first (explicit), then readStdinBody, then key fallback; rememberCommand line 221 uses it for embeddingText. Precedence explicit > stdin",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags; the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody in src/cli/human.ts and verify precedence explicit > stdin > key)",
+                "status": "PASS",
+                "detail": "src/cli/human.ts:176-186 resolveRememberBody returns flags.content || flags.text || flags['embedding-text'] first (explicit), then readStdinBody, then key fallback; rememberCommand line 221 uses it for embeddingText. Precedence explicit > stdin > key confirmed."
+              },
+              {
+                "criterion": "A piped stdin body (non-TTY) is used as content when no flag is given (grep readStdinBody in src/cli/human.ts; empty pipe falls back to key)",
+                "status": "PASS",
+                "detail": "src/cli/human.ts:140-174 readStdinBody returns '' if reader.isTTY, otherwise reads piped data; resolveRememberBody line 185-186 does body.trim() || key so empty/whitespace pipe falls back to key."
+              },
+              {
+                "criterion": "Unknown flags to remember are rejected loudly with stderr error + usage hint + non-zero exit, scoped to remember only (grep REMEMBER_FLAGS in src/cli/human.ts; parseArgs unchanged for other commands)",
+                "status": "PASS",
+                "detail": "src/cli/human.ts:107-115 REMEMBER_FLAGS set; lines 197-207 loop over flags and console.error unknown flag + valid flags + usage, then process.exit(1). Scoped to rememberCommand only; parseArgs function (line 51) unchanged in commit 89510ac diff."
+              },
+              {
+                "criterion": "--help and top-level help document --content=, --text=, and stdin body (grep 'remember <key>' in bin/duckbrain.ts and src/cli/human.ts showHelp)",
+                "status": "PASS",
+                "detail": "bin/duckbrain.ts:50 and src/cli/human.ts:1365 both show 'remember <key> Remember a memory (body via --content=, --text=, or stdin)'; bin/duckbrain.ts examples include --content= and stdin pipe."
+              },
+              {
+                "criterion": "Regression tests exist and pass: src/cli/remember-dogfood003.test.ts covers content flag, text alias, stdin body, unknown-flag rejection, and key fallback (run: pnpm vitest run src/cli/remember-dogfood003.test.ts)",
+                "status": "PASS",
+                "detail": "src/cli/remember-dogfood003.test.ts has 8 tests covering (a) content flag, (b) text alias, (c) stdin body, (d) unknown-flag rejection, (e) key fallback. pnpm vitest run src/cli/remember-dogfood003.test.ts => 8 passed."
+              },
+              {
+                "criterion": "Full suite passes: pnpm test:run reports 294/294 (38 files) and tsc --noEmit is clean",
+                "status": "PASS",
+                "detail": "pnpm test:run => 38 files passed, 294 tests passed. npx tsc --noEmit => exit 0, clean."
+              }
+            ],
+            "summary": "All 6 DOGFOOD-003 criteria verified: remember accepts --content/--text/stdin body with explicit>stdin>key precedence, rejects unknown flags loudly scoped to remember, help documents the new flags, regression tests pass (8/8), and full suite passes 294/294 with clean tsc."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-003\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/cli/human.ts rememberCommand accepts --content=<text> and --text=<text> flags; the record's embedding_text/content is the flag value, not the key (grep resolveRememberBody in src/cli/human.ts and verify precedence explicit > stdin > key): src/cli/human.ts:176-186 resolveRememberBody returns flags.content || flags.text || flags['embedding-text'] first (explicit), then readStdinBody, then key fallback; rememberCommand line 221 uses it for embeddingText. Precedence explicit > stdin > key confirmed.\n  \u2713 A piped stdin body (non-TTY) is used as content when no flag is given (grep readStdinBody in src/cli/human.ts; empty pipe falls back to key): src/cli/human.ts:140-174 readStdinBody returns '' if reader.isTTY, otherwise reads piped data; resolveRememberBody line 185-186 does body.trim() || key so empty/whitespace pipe falls back to key.\n  \u2713 Unknown flags to remember are rejected loudly with stderr error + usage hint + non-zero exit, scoped to remember only (grep REMEMBER_FLAGS in src/cli/human.ts; parseArgs unchanged for other commands): src/cli/human.ts:107-115 REMEMBER_FLAGS set; lines 197-207 loop over flags and console.error unknown flag + valid flags + usage, then process.exit(1). Scoped to rememberCommand only; parseArgs function (line 51) unchanged in commit 89510ac diff.\n  \u2713 --help and top-level help document --content=, --text=, and stdin body (grep 'remember <key>' in bin/duckbrain.ts and src/cli/human.ts showHelp): bin/duckbrain.ts:50 and src/cli/human.ts:1365 both show 'remember <key> Remember a memory (body via --content=, --text=, or stdin)'; bin/duckbrain.ts examples include --content= and stdin pipe.\n  \u2713 Regression tests exist and pass: src/cli/remember-dogfood003.test.ts covers content flag, text alias, stdin body, unknown-flag rejection, and key fallback (run: pnpm vitest run src/cli/remember-dogfood003.test.ts): src/cli/remember-dogfood003.test.ts has 8 tests covering (a) content flag, (b) text alias, (c) stdin body, (d) unknown-flag rejection, (e) key fallback. pnpm vitest run src/cli/remember-dogfood003.test.ts => 8 passed.\n  \u2713 Full suite passes: pnpm test:run reports 294/294 (38 files) and tsc --noEmit is clean: pnpm test:run => 38 files passed, 294 tests passed. npx tsc --noEmit => exit 0, clean.\nAll 6 DOGFOOD-003 criteria verified: remember accepts --content/--text/stdin body with explicit>stdin>key precedence, rejects unknown flags loudly scoped to remember, help documents the new flags, regression tests pass (8/8), and full suite passes 294/294 with clean tsc.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-07T19:24:09.681685"
+}

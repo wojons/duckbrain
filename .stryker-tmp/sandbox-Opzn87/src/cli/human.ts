@@ -1,0 +1,2250 @@
+/**
+ * Human Operator CLI Commands
+ *
+ * Provides human-readable CLI commands for managing memories.
+ * These commands call the underlying MCP tools internally.
+ *
+ * Commands:
+ * - remember <key> --domain=<domain> [--content=<text>|--text=<text>|stdin] --attr=<json> [--namespace=<name>]
+ * - recall [options]
+ * - list-keys [options]
+ * - forget <id> [--namespace=<name>] [--reason=<reason>]
+ * - config show|set
+ * - namespaces list|add
+ * - status [--namespace=<name>]
+ * - ssh-test --host=<user@server>
+ */
+// @ts-nocheck
+
+
+import { recallTool } from "../mcp/tools/recall";
+import { resolveNamespacePath } from "../mcp/tools/shared";
+import { resolveAsOfRef } from "../git/asof";
+import { searchTool } from "../mcp/tools/search";
+import { listKeysTool } from "../mcp/tools/list_keys";
+import { rememberTool } from "../mcp/tools/remember";
+import { safeJsonStringify } from "../utils/serialize";
+import { parseTimeRange } from "../utils/timerange";
+import { buildKeyTree, renderKeyTreeText } from "../utils/keyTree";
+import { forgetTool } from "../mcp/tools/forget";
+import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
+import { executeSegmentConsolidation } from "../storage/segment-consolidation";
+import { getConfig, setConfig, registerNamespace } from "../config/index";
+import { s3Command } from "../s3/cli";
+import {
+  deleteNamespaceFromDisk,
+  clearNamespaceFromS3,
+  planS3Clear,
+} from "../namespaces/lifecycle";
+import { queryCommand } from "./query";
+import { consolidateCommand } from "./consolidate";
+import {
+  connectToRemote,
+  checkRemoteInstall,
+  installRemote,
+} from "../ssh/client";
+import { createTunnel, listTunnels } from "../ssh/tunnel";
+import { resolveAuthStorePath } from "./http";
+import { hashApiKey } from "../auth/storeSchema";
+import { waitForNamespaceCommit } from "../git/autocommit";
+import { execSync } from "child_process";
+import http from "http";
+import fs from "fs";
+import path from "path";
+import os from "os";
+
+function getDefaultNamespace(): string {
+  return getConfig().defaultNamespace || "default";
+}
+
+/**
+ * Parse command-line arguments
+ * Returns object with positional args and named flags
+ */
+function parseArgs(args: string[]): {
+  positional: string[];
+  flags: Record<string, string>;
+} {
+  const positional: string[] = [];
+  const flags: Record<string, string> = {};
+
+  for (const arg of args) {
+    if (arg.startsWith("--")) {
+      // CLI-TRUNC-001: split at the FIRST "=" only. `split("=")` returned
+      // every segment and the destructure kept the first two, so any value
+      // containing "=" (an assignment, a URL query string, base64 padding)
+      // was silently truncated at the first "=" (`--content="rc=1 dims=4096"`
+      // stored "rc"). indexOf keeps the whole remainder.
+      const body = arg.slice(2);
+      const eq = body.indexOf("=");
+      const key = eq === -1 ? body : body.slice(0, eq);
+      const value = eq === -1 ? undefined : body.slice(eq + 1);
+      flags[key] = value === undefined || value === "" ? "true" : value;
+    } else if (arg.startsWith("-")) {
+      // Short flags
+      flags[arg.slice(1)] = "true";
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  return { positional, flags };
+}
+
+/**
+ * Format memory output for human readability
+ * Handles BigInt serialization that DuckDB may return
+ */
+function formatMemory(memory: any): string {
+  return safeJsonStringify(memory, 2);
+}
+
+/**
+ * Format key list as an indented plain-text tree for human readability.
+ *
+ * Reuses the same hierarchical builder as the REST /api/keys route so the CLI
+ * tree and the API tree never drift apart. Keys carry a leading slash
+ * ("/projects/duckbrain/status"); the builder filters empty path segments, so
+ * no `""` root node is produced (DOGFOOD-009).
+ */
+function formatKeyTree(keys: string[], depth: number = 2): string {
+  return renderKeyTreeText(buildKeyTree(keys, depth));
+}
+
+/**
+ * Allowed flags for the `remember` command. Any flag outside this set is a
+ * typo (e.g. `--conent`) and must be rejected loudly rather than silently
+ * ignored — the old parseArgs dropped unknown flags, which let bad invocations
+ * store the key as the record body instead of the intended content.
+ */
+const REMEMBER_FLAGS = new Set([
+  "domain",
+  "attr",
+  "namespace",
+  "wait",
+  "embedding-text",
+  "content",
+  "text",
+  "valid-from",
+  "valid-until",
+]);
+
+/**
+ * Minimal reader surface readStdinBody needs from a Readable stream. Defined as
+ * a structural interface so tests can inject a fake reader without touching the
+ * real process.stdin fd (which hangs under vitest).
+ */
+interface StdinLike {
+  isTTY?: boolean;
+  once(
+    event: "data" | "end" | "close" | "error",
+    listener: (...a: any[]) => void,
+  ): unknown;
+}
+
+/**
+ * Read a body from stdin when content is piped (non-TTY). Returns the trimmed
+ * body, or empty string when stdin is a terminal or produces no data.
+ *
+ * DOGFOOD-003: the previous implementation stored the KEY as embedding_text by
+ * default; the CLI had no way to provide a real memory body. We now prefer an
+ * explicit --content/--text flag, and fall back to a piped stdin body when no
+ * flag is given. If stdin is a terminal (no pipe) we keep the legacy behaviour
+ * of defaulting the body to the key.
+ */
+async function readStdinBody(
+  reader: StdinLike,
+  timeoutMs: number = 1000,
+): Promise<string> {
+  // A real terminal has no piped body to read.
+  if (reader.isTTY) return "";
+  return new Promise<string>((resolve) => {
+    let data = "";
+    let settled = false;
+    const done = (value: string) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+    // Guard against a non-emitting stream (vitest stdin never fires 'end').
+    const timer = setTimeout(() => done(data), timeoutMs);
+    reader.once("end", () => {
+      clearTimeout(timer);
+      done(data);
+    });
+    reader.once("data", (chunk: any) => {
+      data += typeof chunk === "string" ? chunk : chunk.toString();
+    });
+    reader.once("error", () => {
+      clearTimeout(timer);
+      done("");
+    });
+    reader.once("close", () => {
+      clearTimeout(timer);
+      done(data);
+    });
+  });
+}
+
+/** Exported for testing: resolves the body text for a remember invocation. */
+export async function resolveRememberBody(
+  flags: Record<string, string>,
+  key: string,
+  reader?: StdinLike,
+): Promise<string> {
+  // Explicit content flag wins (--content, --text, legacy --embedding-text).
+  const explicit = flags.content || flags.text || flags["embedding-text"];
+  if (explicit) return explicit;
+  // Otherwise try a piped stdin body.
+  const body = await readStdinBody(reader ?? process.stdin);
+  return body.trim() || key;
+}
+
+/**
+ * Remember command
+ */
+async function rememberCommand(args: string[]): Promise<void> {
+  // Space-form normalization for the value-taking remember flags (same
+  // treatment as recall/search/forget). parseArgs only splits on "=" so a
+  // bare `--domain concept` parses domain as the literal "true" and leaks
+  // the value into positionals — a silent wrong-namespace write when the
+  // flag is --namespace. --wait is deliberately absent: it is boolean and
+  // must not swallow the following token.
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, [
+      "--domain",
+      "--attr",
+      "--namespace",
+      "--content",
+      "--text",
+      "--embedding-text",
+      "--valid-from",
+      "--valid-until",
+    ]),
+  );
+
+  // Reject unknown flags loudly (scoped to remember only — do NOT change
+  // parseArgs globally; other commands keep their loose flag handling).
+  for (const flag of Object.keys(flags)) {
+    if (!REMEMBER_FLAGS.has(flag)) {
+      console.error(`Error: unknown flag '--${flag}' for 'remember'.`);
+      console.error(
+        "Valid flags: --domain=<d> --attr=<json> --namespace=<name> --wait --content=<text> --text=<text> --embedding-text=<text> --valid-from=<iso> --valid-until=<iso>",
+      );
+      console.error(
+        "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--valid-from=<iso>] [--valid-until=<iso>] [--wait]",
+      );
+      process.exit(1);
+    }
+  }
+
+  if (positional.length < 1) {
+    console.error(
+      "Usage: duckbrain remember <key> --domain=<domain> [--content=<text> | --text=<text>] [--attr=<json>] [--namespace=<name>] [--valid-from=<iso>] [--valid-until=<iso>] [--wait]",
+    );
+    process.exit(1);
+  }
+
+  const key = positional[0];
+  const domain = flags.domain || "general";
+  const namespace = flags.namespace || getDefaultNamespace();
+  // Content/body precedence: explicit flag > piped stdin body > key fallback.
+  const embeddingText = await resolveRememberBody(flags, key);
+  let attributes = {};
+
+  if (flags.attr) {
+    try {
+      attributes = JSON.parse(flags.attr);
+    } catch (error) {
+      console.error("Error: --attr must be valid JSON");
+      process.exit(1);
+    }
+  }
+
+  try {
+    const result = await rememberTool({
+      key,
+      domain: domain as
+        "message" | "person" | "event" | "concept" | "config" | "raw_note",
+      attributes,
+      embedding_text: embeddingText,
+      namespace,
+      // RETR-011: optional validity window — passthrough from the flags;
+      // omitted fields keep the legacy always-current behavior.
+      ...(flags["valid-from"] !== undefined
+        ? { valid_from: flags["valid-from"] }
+        : {}),
+      ...(flags["valid-until"] !== undefined
+        ? { valid_until: flags["valid-until"] }
+        : {}),
+    });
+
+    if (result.success) {
+      // CLI-WAIT-001: --wait previously advertised a guarantee it did not
+      // provide — the flag was parsed and silently ignored, and the row
+      // always reported "will be committed in batch" (the commit landing
+      // only via the process-exit flush, invisible to the caller). With
+      // --wait we flush the namespace's debounce window NOW and resolve
+      // when its async commit(+push) chain has settled, so the caller can
+      // immediately git-verify. Without the flag the legacy buffered
+      // behavior is byte-identical.
+      if (flags.wait) {
+        try {
+          await waitForNamespaceCommit(resolveNamespacePath(namespace));
+          console.log(
+            `✓ Remembered ${key} (ID: ${result.id}) - committed to git (namespace: ${namespace})`,
+          );
+        } catch (error) {
+          // Waiting must never turn a successful write into a failure —
+          // the row is already durable. Report and keep exit 0.
+          console.warn(
+            `[Git] Auto-commit warning for ${namespace}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+          console.log(
+            `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
+          );
+        }
+      } else {
+        console.log(
+          `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
+        );
+      }
+    } else {
+      console.error("✗ Failed to remember:", result.error);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * RETR-006: collect repeatable --attr filters from raw args.
+ *
+ * Supports both `--attr=<name>=<value>` and bare `--attr <name>=<value>`
+ * (the bare form's pair lands in `positional`, hence the raw-args scan).
+ * Malformed pairs exit with a usage error — never silently dropped.
+ */
+function collectAttrFilters(
+  args: string[],
+  positional: string[],
+): Record<string, string> | undefined {
+  const attrs: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let pair: string | undefined;
+    if (arg.startsWith("--attr=")) {
+      pair = arg.slice("--attr=".length);
+    } else if (arg === "--attr") {
+      pair = args[i + 1];
+      // A following --flag is not a pair — the value is missing.
+      if (pair === undefined || pair.startsWith("--")) pair = undefined;
+    } else {
+      continue;
+    }
+    if (pair === undefined) {
+      console.error(
+        "Error: --attr requires <name>=<value> (e.g. --attr=domain=config or --attr domain=config)",
+      );
+      process.exit(1);
+    }
+    const eq = pair.indexOf("=");
+    if (eq <= 0 || eq === pair.length - 1) {
+      console.error(
+        `Error: --attr must be <name>=<value> — got '${pair}' (e.g. --attr=domain=config)`,
+      );
+      process.exit(1);
+    }
+    attrs[pair.slice(0, eq)] = pair.slice(eq + 1);
+  }
+  // Bare `--attr name=value` also reaches `positional` via parseArgs.
+  for (const p of positional) {
+    const eq = p.indexOf("=");
+    if (eq > 0 && eq < p.length - 1) {
+      attrs[p.slice(0, eq)] = p.slice(eq + 1);
+    }
+  }
+  return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
+/**
+ * Recall command
+ */
+async function recallCommand(args: string[]): Promise<void> {
+  // Handle --help before running any query
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: duckbrain recall [options]`);
+    console.log("");
+    console.log(
+      "Query memories. Defaults to a prefix search over the whole store.",
+    );
+    console.log("");
+    console.log("Options:");
+    console.log("  --key=<key>        Exact key lookup");
+    console.log("  --prefix=<prefix>  Prefix search (default: /)");
+    console.log(
+      "  --domain=<domain>  Filter by domain (person|event|concept|message|config|raw_note)",
+    );
+    console.log("  --query=<text>     Semantic search");
+    console.log(
+      "  --contains=<text>  Keyword filter (offline full-text search; the index refreshes automatically)",
+    );
+    console.log(
+      "  --after=<iso>      Only rows at or after this ISO-8601 date/datetime (e.g. 2026-08-10 or 2026-08-10T12:00:00Z)",
+    );
+    console.log(
+      "  --before=<iso>     Only rows at or before this ISO-8601 date/datetime (date-only = end of that day)",
+    );
+    console.log(
+      "  --between=<a,b>    Only rows between two ISO-8601 values (shorthand for --after + --before)",
+    );
+    console.log(
+      "  --as-of=<ref>      Read the namespace state as of a git ref or ISO-8601 date (date = nearest commit at-or-before it)",
+    );
+    console.log(
+      "  --attr=<name>=<value>  Attribute filter: only rows whose attributes match name=value (repeatable, e.g. --attr=domain=config --attr=tick=403)",
+    );
+    console.log(
+      "  --historical         Historical view: include ALL rows regardless of validity window (expired valid_until / future valid_from facts stay visible). Default: current view only",
+    );
+    console.log("  --limit=<n>        Max results (default: 10)");
+    console.log(
+      "  --namespace=<name> Select namespace (default: config defaultNamespace)",
+    );
+    console.log("  --help, -h         Show this help message");
+    return;
+  }
+
+  const { flags, positional } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace", "--as-of"]),
+  );
+
+  // RETR-006: attribute filters — repeatable --attr=<name>=<value> (or
+  // bare `--attr <name>=<value>`). Malformed pairs exit cleanly above.
+  const attrFilters = collectAttrFilters(args, positional);
+
+  // RETR-003: time-scoped recall — validate + normalize --after/--before/
+  // --between before they reach the tool. Invalid ISO-8601 values exit
+  // cleanly with a message (no stack, no partial query).
+  let timeRange: { after?: string; before?: string };
+  try {
+    timeRange = parseTimeRange({
+      after: flags.after,
+      before: flags.before,
+      between: flags.between,
+    });
+  } catch (error) {
+    console.error("✗", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+
+  // RETR-004: memory-as-of — resolve --as-of to a concrete commit up front
+  // (date → nearest commit at-or-before; hash/branch/tag used directly).
+  // Invalid values exit cleanly, mirroring the time-range validation above.
+  let asOfRef: string | undefined;
+  if (flags["as-of"] !== undefined) {
+    const nsPath = resolveNamespacePath(
+      flags.namespace || getDefaultNamespace(),
+    );
+    try {
+      asOfRef = resolveAsOfRef(flags["as-of"], nsPath);
+    } catch (error) {
+      console.error("✗", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  }
+
+  const input: any = {
+    namespace: flags.namespace || getDefaultNamespace(),
+    limit: parseInt(flags.limit) || 10,
+    ...(timeRange.after ? { after: timeRange.after } : {}),
+    ...(timeRange.before ? { before: timeRange.before } : {}),
+    // RETR-004: pass the RESOLVED commit so the tool never re-resolves
+    // against a different HEAD mid-request.
+    ...(asOfRef ? { asOf: asOfRef } : {}),
+    // RETR-006: repeatable --attr filters (empty = no-op).
+    ...(attrFilters ? { attr: attrFilters } : {}),
+    // RETR-011: --historical selects the historical view (expired facts
+    // included); absent = the default current (validity-filtered) view.
+    ...(flags.historical !== undefined ? { historical: true } : {}),
+  };
+
+  if (flags.key) {
+    input.mode = "exact";
+    input.key = flags.key;
+  } else if (flags.prefix) {
+    input.mode = "prefix";
+    input.prefix = flags.prefix;
+  } else if (flags.domain) {
+    input.mode = "domain";
+    input.domain = flags.domain;
+  } else if (flags.query) {
+    input.mode = "semantic";
+    input.query = flags.query;
+  } else if (flags.contains) {
+    // RETR-001: keyword filter path (offline).
+    input.mode = "keyword";
+    input.contains = flags.contains;
+  } else {
+    input.mode = "prefix";
+    input.prefix = "/";
+  }
+
+  try {
+    const result = await recallTool(input);
+
+    if (result.memories && result.memories.length > 0) {
+      console.log(`Found ${result.memories.length} memories:`);
+      for (const memory of result.memories) {
+        console.log(formatMemory(memory));
+      }
+    } else {
+      console.log("No memories found");
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * RETR-008 / DOGFOOD-027 / CLI-FIX-001: normalize the space-separated flag
+ * forms (`--namespace <name>`, `--as-of <ref>`) to their `=` form before
+ * parseArgs (which only splits on `=`). Without this,
+ * `duckbrain search "GAP-020" --namespace chat-archive` would set
+ * namespace="true" and leak the namespace name into the positional query,
+ * `duckbrain recall --namespace dogfood-scratch` would run a silent
+ * wrong-namespace query, and `recall --as-of 2026-08-10` would fail with
+ * "Invalid --as-of value 'true'". Scoped to the commands that opt in via the
+ * `flags` list — parseArgs stays globally untouched.
+ */
+function normalizeSpaceFormFlags(args: string[], flags: string[]): string[] {
+  const out = args.slice();
+  for (let i = 0; i < out.length - 1; i++) {
+    if (flags.includes(out[i])) {
+      out.splice(i, 2, `${out[i]}=${out[i + 1]}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Search command (RETR-001)
+ *
+ * Keyword full-text search over a namespace's rebuilt FTS sidecar:
+ * `duckbrain search "GAP-020"`. Offline — no embedding provider needed.
+ */
+async function searchCommand(args: string[]): Promise<void> {
+  // Handle --help before running any query
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: duckbrain search <query> [options]`);
+    console.log("");
+    console.log(
+      "Full-text keyword search over memories (content, key, attributes).",
+    );
+    console.log(
+      "The keyword index refreshes automatically on a read; 'duckbrain search-index rebuild' forces one.",
+    );
+    console.log("");
+    console.log("Options:");
+    console.log(
+      "  --namespace=<name> Select namespace (default: config defaultNamespace)",
+    );
+    console.log(
+      "  --all-namespaces   Cross-namespace search (RETR-007): union keyword hits over every",
+    );
+    console.log(
+      "                     namespace with a rebuilt index; each hit shows its source namespace",
+    );
+    console.log("  --limit=<n>        Max results (default: 10)");
+    console.log("  --help, -h         Show this help message");
+    console.log("");
+    console.log("Examples:");
+    console.log('  duckbrain search "GAP-020"');
+    console.log('  duckbrain search "GAP-02*" --namespace=default --limit=20');
+    console.log('  duckbrain search "S3" --all-namespaces --limit=20');
+    return;
+  }
+
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace"]),
+  );
+
+  const query = positional.join(" ").trim();
+  if (!query) {
+    console.error("Error: search requires a query");
+    console.error(
+      "Usage: duckbrain search <query> [--namespace=<name>|--all-namespaces] [--limit=<n>]",
+    );
+    process.exit(1);
+  }
+
+  const limit = parseInt(flags.limit) || 10;
+  // RETR-007: --all-namespaces unions over every manifest namespace.
+  // Mutually exclusive with --namespace (the tool rejects the pair, so
+  // the flag simply wins the input construction here).
+  const allNamespaces = flags["all-namespaces"] === "true";
+
+  try {
+    const result = allNamespaces
+      ? await searchTool({ query, limit, allNamespaces: true })
+      : await searchTool({
+          query,
+          namespace: flags.namespace || getDefaultNamespace(),
+          limit,
+        });
+
+    if (result.error) {
+      console.error(`✗ ${result.error}`);
+      process.exit(1);
+    }
+
+    if (result.memories.length > 0) {
+      const noun = result.memories.length === 1 ? "memory" : "memories";
+      const totNoun = result.total === 1 ? "match" : "matches";
+      console.log(
+        `Found ${result.memories.length} ${noun} (${result.total} total ${totNoun}):`,
+      );
+      for (const memory of result.memories) {
+        console.log("");
+        console.log(
+          `=== ${memory.key} [${memory.domain} · ${memory.timestamp}] (score ${memory.score.toFixed(4)})${allNamespaces ? ` [ns: ${memory.namespace}]` : ""} ===`,
+        );
+        console.log(memory.highlightedSnippet ?? memory.snippet);
+      }
+    } else {
+      console.log("No memories found");
+    }
+
+    // RETR-007: a union that skipped index-less namespaces is partial —
+    // say so on stderr so operators know to rebuild before trusting it.
+    if (result.namespacesSkipped && result.namespacesSkipped.length > 0) {
+      console.error(
+        `Note: skipped ${result.namespacesSkipped.length} namespace(s) with no search index: ${result.namespacesSkipped.join(", ")} — run 'duckbrain search-index rebuild' to include them`,
+      );
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * List-keys command
+ */
+async function listKeysCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+
+  const input: any = {
+    namespace: flags.namespace || getDefaultNamespace(),
+    limit: parseInt(flags.limit) || 50,
+    offset: parseInt(flags.offset) || 0,
+  };
+
+  if (flags.prefix) {
+    input.prefix = flags.prefix;
+  }
+
+  if (flags.depth) {
+    input.depth = parseInt(flags.depth);
+  }
+
+  if (flags.regex) {
+    input.regex = flags.regex;
+  }
+
+  try {
+    const result = await listKeysTool(input);
+
+    if (result.keys && result.keys.length > 0) {
+      console.log(`Keys (${result.keys.length} total):`);
+      console.log(formatKeyTree(result.keys, input.depth || 2));
+
+      if (result.hasMore) {
+        console.log(
+          `\nPage ${Math.floor(input.offset / input.limit) + 1} - Use --offset=${input.offset + input.limit} for next page`,
+        );
+      }
+    } else {
+      console.log("No keys found");
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Forget command
+ */
+async function forgetCommand(args: string[]): Promise<void> {
+  const { positional, flags } = parseArgs(
+    normalizeSpaceFormFlags(args, ["--namespace"]),
+  );
+
+  if (positional.length < 1) {
+    console.error(
+      "Usage: duckbrain forget <id> [--namespace=<name>] [--reason=<reason>]",
+    );
+    process.exit(1);
+  }
+
+  const id = positional[0];
+  const reason = flags.reason || "User requested";
+  // DOGFOOD-0904-01: the namespace was hardcoded to "default", so tombstones
+  // for every other namespace failed with "Namespace 'default' not found".
+  // Resolve it the same way recall/search/status do.
+  const namespace = flags.namespace || getDefaultNamespace();
+
+  try {
+    const result = await forgetTool({ id, namespace, reason });
+
+    if (result.success) {
+      console.log(`✓ Forgotten ${id}`);
+    } else {
+      console.error("✗ Failed to forget:", result.error);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Key mapping for user-friendly flat keys to schema structure
+ * Maps: git.batchLines -> gitBatching.maxLines
+ */
+const KEY_MAP: Record<string, string> = {
+  "git.batchLines": "gitBatching.maxLines",
+  "git.batchIntervalSeconds": "gitBatching.maxSeconds",
+  "git.batchIntervalMs": "gitBatching.maxSeconds",
+  "git.batching.enabled": "gitBatching.enabled",
+};
+
+/**
+ * Resolve user-friendly key to schema key
+ */
+function resolveKey(userKey: string): string {
+  return KEY_MAP[userKey] || userKey;
+}
+
+/**
+ * Get a config value by dot-notation key
+ */
+async function getConfigValue(
+  key: string,
+): Promise<string | number | boolean | undefined> {
+  const config = getConfig();
+  const resolvedKey = resolveKey(key);
+  const keys = resolvedKey.split(".");
+  let value: any = config;
+  for (const k of keys) {
+    value = value?.[k];
+  }
+  return value;
+}
+
+/**
+ * Config command
+ */
+async function configCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const subcommand = positional[0];
+
+  if (!subcommand) {
+    console.error("Usage: duckbrain config <show|set|get>");
+    process.exit(1);
+  }
+
+  if (subcommand === "show") {
+    try {
+      const config = getConfig();
+      console.log("DuckBrain Configuration:");
+      console.log(JSON.stringify(config, null, 2));
+    } catch (error) {
+      console.error(
+        "Error reading config:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else if (subcommand === "set") {
+    const key = positional[1];
+    const value = positional[2];
+
+    if (!key || value === undefined) {
+      console.error("Usage: duckbrain config set <key> <value>");
+      process.exit(1);
+    }
+
+    // Handle nested keys like git.batchLines
+    // Handle nested keys like git.batchLines
+    if (key === "git.batchLines") {
+      const config = getConfig();
+      config.gitBatching.maxLines = parseInt(value, 10);
+      setConfig("gitBatching", config.gitBatching);
+      console.log(`✓ Config git.batchLines set to ${value}`);
+    } else if (key === "git.batchIntervalMs") {
+      const config = getConfig();
+      config.gitBatching.maxSeconds = Math.floor(parseInt(value, 10) / 1000);
+      setConfig("gitBatching", config.gitBatching);
+      console.log(`✓ Config git.batchIntervalMs set to ${value}`);
+    } else if (key === "git.batchIntervalSeconds") {
+      const config = getConfig();
+      config.gitBatching.maxSeconds = parseInt(value, 10);
+      setConfig("gitBatching", config.gitBatching);
+      console.log(`✓ Config git.batchIntervalSeconds set to ${value}`);
+    } else if (key === "git.batching.enabled") {
+      const config = getConfig();
+      config.gitBatching.enabled = value === "true";
+      setConfig("gitBatching", config.gitBatching);
+      console.log(`✓ Config git.batching.enabled set to ${value}`);
+    } else {
+      setConfig(key as any, value);
+      console.log(`✓ Config ${key} set to ${value}`);
+    }
+  } else if (subcommand === "get") {
+    const key = positional[1];
+
+    if (!key) {
+      console.error("Usage: duckbrain config get <key>");
+      process.exit(1);
+    }
+
+    try {
+      const value = await getConfigValue(key);
+      if (value !== undefined) {
+        console.log(value);
+      } else {
+        console.error(`Config key '${key}' not found`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error(
+        "Error reading config:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else {
+    console.error(`Unknown config subcommand: ${subcommand}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Namespaces command - Full namespace management
+ */
+async function namespacesCommand(args: string[]): Promise<void> {
+  const { positional, flags } = parseArgs(args);
+  const subcommand = positional[0];
+
+  if (!subcommand) {
+    console.error(
+      "Usage: duckbrain namespace <create|list|delete-disk|clear-s3|use|set-remote>",
+    );
+    console.error(
+      "  delete-disk: remove LOCAL copy + stop pushes (S3 version kept retrievable)",
+    );
+    console.error(
+      "  clear-s3:    DESTROY the remote S3 objects (disk untouched; dry-run default)",
+    );
+    process.exit(1);
+  }
+
+  // Alias 'switch' to 'use'
+  const cmd = subcommand === "switch" ? "use" : subcommand;
+
+  if (cmd === "list") {
+    try {
+      const config = getConfig();
+      const namespaces = config.namespaceMappings || {
+        default: "./memory/default",
+      };
+      const currentNs = config.defaultNamespace;
+
+      console.log("Configured namespaces:");
+      for (const [name, nsPath] of Object.entries(namespaces)) {
+        const marker = name === currentNs ? " (active)" : "";
+        const isDefault = name === "default" ? " (default)" : "";
+        console.log(`  ${name}${marker}${isDefault}: ${nsPath}`);
+      }
+    } catch (error) {
+      console.error(
+        "Error reading namespaces:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else if (cmd === "create") {
+    const name = positional[1];
+    const setDefault = flags.default !== undefined;
+
+    if (!name) {
+      console.error("Usage: duckbrain namespace create <name> [--default]");
+      process.exit(1);
+    }
+
+    try {
+      const config = getConfig();
+      const nsPath = path.join(config.namespacesPath, name);
+
+      // Create namespace directory
+      if (!fs.existsSync(nsPath)) {
+        fs.mkdirSync(nsPath, { recursive: true });
+      }
+
+      // Initialize git repo
+      try {
+        execSync("git init", { cwd: nsPath, stdio: "pipe" });
+      } catch (gitError) {
+        console.warn(
+          `Warning: Could not init git: ${(gitError as Error).message}`,
+        );
+      }
+
+      // Create initial manifest
+      const manifestPath = path.join(nsPath, "manifest.json");
+      if (!fs.existsSync(manifestPath)) {
+        fs.writeFileSync(
+          manifestPath,
+          JSON.stringify(
+            {
+              version: "1.0",
+              createdAt: new Date().toISOString(),
+              partitions: [],
+            },
+            null,
+            2,
+          ) + "\n",
+        );
+      }
+
+      // Update config
+      registerNamespace(".", name, nsPath);
+
+      if (setDefault) {
+        setConfig("defaultNamespace", name);
+      }
+
+      console.log(`✓ Created namespace '${name}' at ${nsPath}`);
+    } catch (error) {
+      console.error(
+        "Error creating namespace:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else if (cmd === "delete-disk" || (cmd === "delete" && !flags.purge)) {
+    // ITEM 66 (REVIEW-DUCKBRAIN-001/002): 'delete' now means DISK-ONLY —
+    // local dir + mapping + S3 sync manifest, S3 objects preserved. The old
+    // `delete <name> --force [--purge]` boolean conflation is retired:
+    // deleting from disk and destroying the remote copy are DIFFERENT
+    // operations with different gates. Remote destruction lives under
+    // 'clear-s3' (explicit) and 'duckbrain s3 clear' with its own dry-run.
+    const name = positional[1];
+    const force = flags.force !== undefined;
+    const requestedBy =
+      (flags["requested-by"] as string) ||
+      `cli:${process.env.USER ?? "unknown"}`;
+    const reason = (flags.reason as string) || "";
+
+    if (!name) {
+      console.error(
+        "Usage: duckbrain namespace delete-disk <name> --force [--requested-by=<who>] [--reason=<why>]",
+      );
+      console.error(
+        "  Deletes the LOCAL namespace (dir + mapping + sync manifest). S3 objects are kept.",
+      );
+      console.error(
+        "  To also destroy the S3 copy, run 'duckbrain namespace clear-s3 <name>' separately.",
+      );
+      process.exit(1);
+    }
+    if (!force) {
+      console.error(
+        "Error: --force flag required to delete namespace from disk",
+      );
+      console.error(
+        "This removes the local directory permanently (S3 backup is kept).",
+      );
+      process.exit(1);
+    }
+
+    const result = deleteNamespaceFromDisk(name, {
+      confirm: true,
+      requestedBy,
+      reason: reason || "namespace delete-disk (human CLI)",
+    });
+    if (!result.success) {
+      console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(
+      `✓ Deleted namespace '${name}' from disk${result.path ? ` (${result.path})` : " (already absent)"}`,
+    );
+    console.log(
+      `  S3 sync manifest pruned: ${result.manifestPruned ? "yes" : "none existed"} — scheduled pushes stopped`,
+    );
+    if (result.s3Preserved) {
+      console.log(
+        `  S3 objects PRESERVED: s3://${result.s3Preserved.bucket}/${result.s3Preserved.prefix} (retrievable via pull / git clone)`,
+      );
+    }
+  } else if (cmd === "delete" && flags.purge !== undefined) {
+    // Legacy-compatible alias for delete-disk (kept so existing scripts do
+    // not silently change meaning; identical code path, identical gates).
+    const name = positional[1];
+    if (!name || flags.force === undefined) {
+      console.error(
+        "Usage: duckbrain namespace delete <name> --force --purge  (same as delete-disk; S3 objects are KEPT)",
+      );
+      process.exit(1);
+    }
+    const result = deleteNamespaceFromDisk(name, {
+      confirm: true,
+      requestedBy:
+        (flags["requested-by"] as string) ||
+        `cli:${process.env.USER ?? "unknown"}`,
+      reason: (flags.reason as string) || "namespace delete --force --purge",
+    });
+    if (!result.success) {
+      console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(
+      `✓ Deleted namespace '${name}' from disk (S3 objects preserved)`,
+    );
+  } else if (cmd === "clear-s3") {
+    // The remote-destruction path: dry-run by default, --yes + who/why to
+    // execute. Refuses to touch local disk; separate confirmation from delete.
+    const name = positional[1];
+    const dryRun = flags["dry-run"] !== undefined || flags.yes === undefined;
+    const requestedBy = (flags["requested-by"] as string) || "";
+    const reason = (flags.reason as string) || "";
+
+    if (!name) {
+      console.error(
+        "Usage: duckbrain namespace clear-s3 <name> --dry-run | --yes --requested-by=<who> --reason=<why>",
+      );
+      process.exit(1);
+    }
+
+    const config = getConfig();
+    if (!config.s3?.enabled) {
+      console.error(
+        "Error: s3 is not enabled in duckbrain.config.json — nothing to clear.",
+      );
+      process.exit(1);
+    }
+
+    if (dryRun) {
+      const plan = await planS3Clear(config.s3, name);
+      console.log(`DRY-RUN — clearing ${name} from S3 would destroy:`);
+      console.log(`  bucket: ${plan.bucket}  prefix: ${plan.prefix}`);
+      console.log(
+        `  objects: ${plan.objectCount} (${plan.totalBytes} bytes)${plan.truncated ? " (truncated at 5000)" : ""}`,
+      );
+      console.log(
+        `  local dir still exists: ${plan.localStillExists} (clear NEVER touches disk)`,
+      );
+      for (const o of plan.objects.slice(0, 10)) {
+        console.log(`    ${o.key} (${o.size}B)`);
+      }
+      if (plan.objectCount > 10)
+        console.log(`    ... and ${plan.objectCount - 10} more`);
+      console.log(
+        "Re-run with --yes --requested-by=<who> --reason=<why> to destroy them.",
+      );
+    } else {
+      const result = await clearNamespaceFromS3(config.s3, name, {
+        confirm: true,
+        requestedBy,
+        reason: reason || "namespace clear-s3 (human CLI)",
+      });
+      if (!result.success && result.error) {
+        console.error(`Error: ${result.error}`);
+        process.exit(1);
+      }
+      console.log(
+        `[S3] cleared namespace '${name}': deleted=${result.deleted} failed=${result.failed}`,
+      );
+      if (result.failed > 0) process.exit(1);
+    }
+  } else if (cmd === "use") {
+    const name = positional[1];
+
+    if (!name) {
+      console.error("Usage: duckbrain namespace use <name>");
+      process.exit(1);
+    }
+
+    try {
+      const config = getConfig();
+
+      if (!config.namespaceMappings?.[name]) {
+        console.error(
+          `Error: Namespace '${name}' not found. Run 'duckbrain namespace list' to see available namespaces.`,
+        );
+        process.exit(1);
+      }
+
+      setConfig("defaultNamespace", name);
+      console.log(`✓ Switched to namespace '${name}'`);
+    } catch (error) {
+      console.error(
+        "Error switching namespace:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else if (cmd === "set-remote") {
+    const name = positional[1];
+    const url = positional[2];
+
+    if (!name || !url) {
+      console.error("Usage: duckbrain namespace set-remote <name> <url>");
+      process.exit(1);
+    }
+
+    try {
+      const config = getConfig();
+      const nsPath = config.namespaceMappings?.[name];
+
+      if (!nsPath) {
+        console.error(`Error: Namespace '${name}' not found`);
+        process.exit(1);
+      }
+
+      // Configure git remote
+      execSync(`git remote add origin ${url}`, { cwd: nsPath, stdio: "pipe" });
+      console.log(`✓ Set remote for '${name}' to ${url}`);
+    } catch (error) {
+      // Remote might already exist - try to update it
+      try {
+        const config = getConfig();
+        const nsPath = config.namespaceMappings?.[name];
+        if (nsPath) {
+          execSync(`git remote set-url origin ${url}`, {
+            cwd: nsPath,
+            stdio: "pipe",
+          });
+          console.log(`✓ Updated remote for '${name}' to ${url}`);
+          return;
+        }
+      } catch {}
+
+      console.error(
+        "Error setting remote:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else {
+    console.error(`Unknown namespace subcommand: ${cmd}`);
+    console.error("Valid: create, list, delete, use, set-remote");
+    process.exit(1);
+  }
+}
+
+/**
+ * Status command
+ */
+async function statusCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+  const namespace = flags.namespace || getDefaultNamespace();
+
+  try {
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace] || "./memory/default";
+
+    console.log(`DuckBrain Status`);
+    console.log(`================`);
+    console.log(`Namespace: ${namespace}`);
+    console.log(`Path: ${nsPath}`);
+    console.log(`Status: OK`);
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * SSH test command
+ */
+async function sshTestCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+  const host = flags.host;
+
+  if (!host) {
+    console.error("Usage: duckbrain ssh-test --host=<user@server>");
+    process.exit(1);
+  }
+
+  console.log(`SSH Tunnel Test`);
+  console.log(`===============`);
+  console.log(`Host: ${host}`);
+  console.log(``);
+  console.log(`To connect via SSH tunnel:`);
+  console.log(`  ssh ${host} "duckbrain stdio"`);
+  console.log(``);
+  console.log(`For Claude Desktop config, add to claude_desktop_config.json:`);
+  console.log(`  {`);
+  console.log(`    "mcpServers": {`);
+  console.log(`      "duckbrain": {`);
+  console.log(`        "command": "ssh",`);
+  console.log(`        "args": ["${host}", "duckbrain", "stdio"]`);
+  console.log(`      }`);
+  console.log(`    }`);
+  console.log(`  }`);
+}
+
+/**
+ * SSH connect command - Full SSH tunnel with auto-install
+ */
+async function sshConnectCommand(args: string[]): Promise<void> {
+  const { flags } = parseArgs(args);
+  const host = flags.host;
+  const name =
+    flags.name || host.split("@").pop()?.replace(/\./g, "-") || "default";
+  const identityFile = flags["identity-file"];
+  const port = flags.port ? parseInt(flags.port) : undefined;
+
+  if (!host) {
+    console.error(
+      "Usage: duckbrain ssh-connect --host=<user@server> [--name=<name>] [--identity-file=<path>] [--port=<port>]",
+    );
+    process.exit(1);
+  }
+
+  console.log(`SSH Connect`);
+  console.log(`===========`);
+  console.log(`Host: ${host}`);
+  console.log(`Name: ${name}`);
+
+  // Step 1: Verify SSH connectivity
+  console.log(`\nConnecting via SSH...`);
+  const connected = await connectToRemote({ host, identityFile, port });
+  if (!connected) {
+    console.error("✗ Failed to connect via SSH. Check host and credentials.");
+    process.exit(1);
+  }
+  console.log("✓ SSH connection established");
+
+  // Step 2: Check remote DuckBrain installation
+  console.log(`\nChecking remote DuckBrain installation...`);
+  const status = await checkRemoteInstall(host);
+
+  if (!status.installed) {
+    console.log("DuckBrain not found on remote. Installing...");
+    const installed = await installRemote(host);
+    if (!installed) {
+      console.error(
+        "✗ Could not auto-install DuckBrain on remote. See instructions above.",
+      );
+      process.exit(1);
+    }
+    console.log("✓ DuckBrain installed on remote");
+  } else if (status.needsUpdate) {
+    console.log(`DuckBrain v${status.version} found (update available)`);
+    console.log("Run: duckbrain ssh-connect --host=... to reinstall");
+  } else {
+    console.log(`✓ DuckBrain v${status.version} found`);
+  }
+
+  // Step 3: Create SSH tunnel
+  const socketPath = path.join(
+    os.homedir(),
+    ".duckbrain",
+    "sockets",
+    `${name}.sock`,
+  );
+  console.log(`\nCreating SSH tunnel...`);
+
+  try {
+    const tunnelPath = await createTunnel({
+      remoteHost: host,
+      localSocketPath: socketPath,
+      remotePort: 3000,
+    });
+    console.log(`✓ SSH tunnel established`);
+    console.log(`\nSocket: ${tunnelPath}`);
+    console.log(`\nTo use this connection:`);
+    console.log(`  duckbrain --socket=${name} status`);
+    console.log(`  duckbrain --socket=${name} recall --prefix=/`);
+  } catch (error) {
+    console.error(
+      "✗ Failed to create tunnel:",
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Socket connect command - Run CLI commands via Unix socket
+ */
+async function socketConnectCommand(args: string[]): Promise<void> {
+  const { flags, positional } = parseArgs(args);
+  const socketName = flags.socket;
+
+  if (!socketName) {
+    console.error("Usage: duckbrain --socket=<name> <command> [options]");
+    console.error("\nAvailable sockets:");
+    const tunnels = listTunnels();
+    if (tunnels.length === 0) {
+      console.error(
+        "  No active tunnels. Run: duckbrain ssh-connect --host=<server>",
+      );
+    } else {
+      for (const t of tunnels) {
+        console.error(`  ${t.name} -> ${t.remoteHost}`);
+      }
+    }
+    process.exit(1);
+  }
+
+  const socketPath = path.join(
+    os.homedir(),
+    ".duckbrain",
+    "sockets",
+    `${socketName}.sock`,
+  );
+
+  if (!fs.existsSync(socketPath)) {
+    console.error(`Error: Socket '${socketName}' not found at ${socketPath}`);
+    console.error("\nAvailable sockets:");
+    const tunnels = listTunnels();
+    if (tunnels.length === 0) {
+      console.error(
+        "  No active tunnels. Run: duckbrain ssh-connect --host=<server>",
+      );
+    } else {
+      for (const t of tunnels) {
+        console.error(`  ${t.name} -> ${t.remoteHost}`);
+      }
+    }
+    process.exit(1);
+  }
+
+  // Forward command to remote DuckBrain via HTTP over Unix socket
+  const command = positional.join(" ");
+  if (!command) {
+    console.error("Error: No command specified");
+    console.error("Usage: duckbrain --socket=<name> <command> [options]");
+    process.exit(1);
+  }
+
+  // Build request body for remote CLI execution
+  const requestBody = JSON.stringify({ command, args: positional.slice(1) });
+
+  // HTTP request over Unix socket
+  const options = {
+    socketPath,
+    path: "/cli",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(requestBody),
+    },
+  };
+
+  return new Promise<void>((resolve) => {
+    const req = http.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.output) {
+            console.log(response.output);
+          }
+          if (response.error) {
+            console.error(response.error);
+          }
+          resolve();
+        } catch {
+          console.log(data);
+          resolve();
+        }
+      });
+    });
+
+    req.on("error", (err) => {
+      console.error(`Error connecting to remote DuckBrain: ${err.message}`);
+      console.error("Make sure the remote DuckBrain HTTP server is running.");
+      process.exit(1);
+    });
+
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+/**
+ * Servers command - Manage named server connections
+ */
+async function serversCommand(args: string[]): Promise<void> {
+  const { positional, flags } = parseArgs(args);
+  const subcommand = positional[0];
+
+  if (!subcommand) {
+    console.error("Usage: duckbrain servers <list|add|remove>");
+    process.exit(1);
+  }
+
+  const serversPath = path.join(os.homedir(), ".duckbrain", "servers.json");
+
+  // Load or initialize servers config
+  function loadServers(): Record<string, { host: string; addedAt: string }> {
+    if (fs.existsSync(serversPath)) {
+      return JSON.parse(fs.readFileSync(serversPath, "utf-8"));
+    }
+    return {};
+  }
+
+  function saveServers(
+    servers: Record<string, { host: string; addedAt: string }>,
+  ): void {
+    const dir = path.dirname(serversPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(serversPath, JSON.stringify(servers, null, 2) + "\n");
+  }
+
+  if (subcommand === "list") {
+    const servers = loadServers();
+    const entries = Object.entries(servers);
+
+    if (entries.length === 0) {
+      console.log("No servers configured.");
+      console.log(
+        "Add one with: duckbrain servers add --name=<name> --host=<user@server>",
+      );
+      return;
+    }
+
+    console.log("Configured servers:");
+    for (const [name, info] of entries) {
+      console.log(`  ${name} -> ${info.host} (added: ${info.addedAt})`);
+    }
+  } else if (subcommand === "add") {
+    const name = flags.name;
+    const host = flags.host;
+
+    if (!name || !host) {
+      console.error(
+        "Usage: duckbrain servers add --name=<name> --host=<user@server>",
+      );
+      process.exit(1);
+    }
+
+    const servers = loadServers();
+    servers[name] = { host, addedAt: new Date().toISOString() };
+    saveServers(servers);
+
+    console.log(`✓ Added server '${name}' -> ${host}`);
+  } else if (subcommand === "remove") {
+    const name = positional[1] || flags.name;
+
+    if (!name) {
+      console.error("Usage: duckbrain servers remove <name>");
+      process.exit(1);
+    }
+
+    const servers = loadServers();
+    if (!(name in servers)) {
+      console.error(`Error: Server '${name}' not found`);
+      process.exit(1);
+    }
+
+    delete servers[name];
+    saveServers(servers);
+    console.log(`✓ Removed server '${name}'`);
+  } else {
+    console.error(`Unknown servers subcommand: ${subcommand}`);
+    console.error("Valid: list, add, remove");
+    process.exit(1);
+  }
+}
+
+/**
+ * Pull command - Pull from remote with auto-merge
+ */
+async function pullCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const namespace = positional[0] || "default";
+
+  try {
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace];
+
+    if (!nsPath) {
+      console.error(`Error: Namespace '${namespace}' not found`);
+      process.exit(1);
+    }
+
+    console.log(`Pulling ${namespace}...`);
+
+    // Pull without committing (allows us to merge conflicts)
+    execSync("git pull --no-commit", { cwd: nsPath, stdio: "inherit" });
+
+    // If we get here, pull succeeded (possibly with conflicts auto-resolved)
+    console.log(`✓ Pulled ${namespace}`);
+  } catch (error) {
+    console.error(
+      "Error pulling:",
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Push command - Push to remote
+ */
+async function pushCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const namespace = positional[0] || "default";
+
+  try {
+    const config = getConfig();
+    const nsPath = config.namespaceMappings?.[namespace];
+
+    if (!nsPath) {
+      console.error(`Error: Namespace '${namespace}' not found`);
+      process.exit(1);
+    }
+
+    console.log(`Pushing ${namespace}...`);
+    execSync("git push", { cwd: nsPath, stdio: "inherit" });
+    console.log(`✓ Pushed ${namespace}`);
+  } catch (error) {
+    console.error(
+      "Error pushing:",
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Remote command - Manage remotes
+ */
+async function remoteCommand(args: string[]): Promise<void> {
+  const { positional } = parseArgs(args);
+  const subcommand = positional[0];
+
+  if (!subcommand) {
+    console.error("Usage: duckbrain remote <add|remove> <namespace> [url]");
+    process.exit(1);
+  }
+
+  if (subcommand === "add") {
+    const namespace = positional[1];
+    const url = positional[2];
+
+    if (!namespace || !url) {
+      console.error("Usage: duckbrain remote add <namespace> <url>");
+      process.exit(1);
+    }
+
+    // Delegate to namespace set-remote
+    await namespacesCommand(["set-remote", namespace, url]);
+  } else if (subcommand === "remove") {
+    const namespace = positional[1];
+
+    if (!namespace) {
+      console.error("Usage: duckbrain remote remove <namespace>");
+      process.exit(1);
+    }
+
+    try {
+      const config = getConfig();
+      const nsPath = config.namespaceMappings?.[namespace];
+
+      if (!nsPath) {
+        console.error(`Error: Namespace '${namespace}' not found`);
+        process.exit(1);
+      }
+
+      execSync("git remote remove origin", { cwd: nsPath, stdio: "pipe" });
+      console.log(`✓ Removed remote from '${namespace}'`);
+    } catch (error) {
+      console.error(
+        "Error removing remote:",
+        error instanceof Error ? error.message : error,
+      );
+      process.exit(1);
+    }
+  } else {
+    console.error(`Unknown remote subcommand: ${subcommand}`);
+    console.error("Valid: add, remove");
+    process.exit(1);
+  }
+}
+
+/**
+ * `duckbrain squash --segments` — segment-level JSONL repair (DB-GAP-051).
+ *
+ * Repairs ONE explicit partition in place, keeping it JSONL:
+ *   - merges near-empty numeric segments up to the 1000-line / 1MB rotation
+ *     bound (the live `scheduler/event/2026-09/` partition holds 16k one-line
+ *     segments),
+ *   - splits segments past that bound (the same partition's 84MB
+ *     `10000.jsonl`).
+ *
+ * `--partition` is required and never inferred: the default of "all
+ * partitions" would make a repair pass over the whole store a keystroke away,
+ * and this command deletes and rewrites files.
+ *
+ * @param flags - Parsed CLI flags (`partition`, `dry-run`, `namespace`)
+ */
+async function squashSegments(flags: Record<string, string>): Promise<void> {
+  const partitionArg = flags.partition;
+  if (!partitionArg) {
+    console.error(
+      "✗ --segments requires an explicit --partition=<domain/YYYY-MM>.",
+    );
+    console.error(
+      "Usage: duckbrain squash --segments --partition=<domain/YYYY-MM> [--dry-run] [--namespace=<name>]",
+    );
+    console.error(
+      "There is no 'all partitions' mode for segment repair: merging/splitting rewrites and deletes files, so the target is always named explicitly.",
+    );
+    process.exit(1);
+  }
+
+  const namespacePath = resolveNamespacePath(flags.namespace);
+  const partitionPath = path.isAbsolute(partitionArg)
+    ? partitionArg
+    : path.join(namespacePath, partitionArg);
+
+  if (
+    !fs.existsSync(partitionPath) ||
+    !fs.statSync(partitionPath).isDirectory()
+  ) {
+    console.error(`✗ Partition not found: ${partitionPath}`);
+    process.exit(1);
+  }
+
+  const dryRun = flags["dry-run"] === "true";
+
+  try {
+    const result = executeSegmentConsolidation(partitionPath, { dryRun });
+    const { plan, stats } = result;
+
+    console.log(
+      `${dryRun ? "Segment repair preview" : "Segment repair"} — ${partitionPath}`,
+    );
+    console.log(
+      `  segments: ${stats.segmentsBefore} → ${stats.segmentsAfter}` +
+        ` (${plan.merges.length} merge group(s), ${plan.splits.length} split(s))`,
+    );
+    console.log(
+      `  records:  ${stats.recordsBefore} → ${stats.recordsAfter} (unchanged)`,
+    );
+    console.log(
+      `  bytes:    ${stats.bytesBefore} → ${stats.bytesAfter} (record bytes unchanged)`,
+    );
+
+    for (const merge of plan.merges) {
+      console.log(
+        `  merge  ${merge.inputs.join(" + ")} → ${merge.output}` +
+          ` (${merge.lines} lines, ${merge.bytes} bytes)`,
+      );
+    }
+    for (const split of plan.splits) {
+      console.log(
+        `  split  ${split.input} (${split.inputLines} lines, ${split.inputBytes} bytes) → ` +
+          split.chunks.map((c) => `${c.name} (${c.lines} lines)`).join(", "),
+      );
+    }
+    for (const blocked of plan.unplaceable) {
+      console.log(`  skip   ${blocked.input}: ${blocked.reason}`);
+    }
+    if (plan.merges.length === 0 && plan.splits.length === 0) {
+      console.log("  nothing to do — partition is already within bounds");
+    }
+
+    if (dryRun) {
+      console.log("");
+      console.log(
+        `Dry run: no files written, no files deleted (${plan.writtenFiles.length} file(s) would be written, ${plan.removedFiles.length} deleted).`,
+      );
+      return;
+    }
+
+    console.log("");
+    console.log(
+      `✓ Wrote ${result.written.length} file(s), removed ${result.removed.length} superseded file(s).`,
+    );
+    if (result.removed.length > 0) {
+      console.log(`  removed: ${result.removed.join(", ")}`);
+    }
+    console.log(
+      "  Re-run to confirm idempotence (a second pass should report nothing to do).",
+    );
+  } catch (error) {
+    console.error(
+      "✗ Segment repair failed:",
+      error instanceof Error ? error.message : error,
+    );
+    process.exit(1);
+  }
+}
+
+/**
+ * Squash command
+ */
+async function squashCommand(args: string[]): Promise<void> {
+  // Handle --help before any namespace checks
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: duckbrain squash [options]`);
+    console.log("");
+    console.log("Options:");
+    console.log("  --stats           Show compaction statistics");
+    console.log(
+      "  --dry-run         Preview what would be compacted without making changes",
+    );
+    console.log("  --partition <id>  Compact specific partition only");
+    console.log(
+      "  --aggressive      More aggressive compaction (lower thresholds)",
+    );
+    console.log(
+      "  --segments        Segment repair (DB-GAP-051): merge near-empty",
+    );
+    console.log(
+      "                    JSONL segments and split oversize ones, keeping the",
+    );
+    console.log(
+      "                    partition readable as JSONL. REQUIRES --partition.",
+    );
+    console.log("  --help, -h        Show this help message");
+    console.log("");
+    console.log(
+      "Squashes/compacts memory partitions by converting old JSONL files to Parquet",
+    );
+    console.log(
+      "and removing tombstoned records. Also squashes git history for compacted partitions.",
+    );
+    console.log("");
+    console.log(
+      "With --segments, no Parquet is written: numeric segments of one",
+    );
+    console.log(
+      "partition are merged/split to the 1000-line / 1MB rotation bound, with",
+    );
+    console.log(
+      "record order and record counts preserved. Example: duckbrain squash --segments --partition=person/2026-08 --dry-run",
+    );
+    return;
+  }
+
+  const { flags } = parseArgs(args);
+
+  // ---- segment repair mode (DB-GAP-051) ---------------------------------
+  if (flags.segments) {
+    await squashSegments(flags);
+    return;
+  }
+
+  const input: any = {
+    dryRun: flags["dry-run"] || false,
+    aggressive: flags.aggressive || false,
+  };
+
+  if (flags.partition) {
+    input.partition = flags.partition;
+  }
+
+  // Handle --stats flag separately
+  if (flags.stats) {
+    try {
+      const result = await getCompactionStatsTool({});
+
+      if (result.success && result.stats) {
+        const stats = result.stats;
+        console.log("DuckBrain Compaction Statistics");
+        console.log("================================");
+        console.log(
+          `Total Size: ${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`,
+        );
+        console.log(`Total Partitions: ${stats.totalPartitions}`);
+        console.log(`  - JSONL: ${stats.jsonlPartitions}`);
+        console.log(`  - Parquet: ${stats.parquetPartitions}`);
+        console.log(``);
+        console.log(`Total Records: ${stats.totalRecords.toLocaleString()}`);
+        console.log(
+          `Tombstones: ${stats.tombstoneRecords.toLocaleString()} (${stats.tombstonePercent}%)`,
+        );
+        console.log(`Parquet Ratio: ${stats.parquetRatio}%`);
+        console.log(``);
+
+        if (stats.oldPartitions.length > 0) {
+          console.log(
+            `Old Partitions (>30 days): ${stats.oldPartitions.length}`,
+          );
+          for (const p of stats.oldPartitions.slice(0, 5)) {
+            console.log(`  - ${p}`);
+          }
+          if (stats.oldPartitions.length > 5) {
+            console.log(`  ... and ${stats.oldPartitions.length - 5} more`);
+          }
+        }
+
+        if (stats.largePartitions.length > 0) {
+          console.log(``);
+          console.log(
+            `Large Partitions (>1000 records): ${stats.largePartitions.length}`,
+          );
+          for (const p of stats.largePartitions.slice(0, 5)) {
+            console.log(
+              `  - ${p.path}: ${p.records.toLocaleString()} records, ${(p.size / 1024).toFixed(2)} KB`,
+            );
+          }
+          if (stats.largePartitions.length > 5) {
+            console.log(`  ... and ${stats.largePartitions.length - 5} more`);
+          }
+        }
+      } else {
+        console.error("Error getting stats:", result.error);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error("Error:", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+    return;
+  }
+
+  try {
+    const result = await squashTool(input);
+
+    if (result.success) {
+      console.log(result.message);
+      if (result.stats) {
+        console.log("");
+        console.log("Statistics:");
+        if (result.stats.partitionsCompacted !== undefined) {
+          console.log(
+            `  Partitions compacted: ${result.stats.partitionsCompacted}`,
+          );
+        }
+        if (result.stats.totalRecordsKept !== undefined) {
+          console.log(
+            `  Records kept: ${result.stats.totalRecordsKept.toLocaleString()}`,
+          );
+        }
+        if (result.stats.totalRecordsRemoved !== undefined) {
+          console.log(
+            `  Records removed: ${result.stats.totalRecordsRemoved.toLocaleString()}`,
+          );
+        }
+      }
+      if (result.errors && result.errors.length > 0) {
+        console.log("");
+        console.log("Warnings:");
+        for (const err of result.errors) {
+          console.log(`  - ${err}`);
+        }
+      }
+    } else {
+      console.error("✗ Squash failed:", result.message);
+      if (result.errors) {
+        for (const err of result.errors) {
+          console.error(`  - ${err}`);
+        }
+      }
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error("Error:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Token command - Generate API token for HTTP authentication
+ *
+ * DB-GAP-031: --namespace=NS grants — repeatable AND comma-separated
+ * (parseArgs keeps only the last --flag=value, so grants are collected by
+ * re-scanning the raw args). Absent = unrestricted token (backward compat).
+ *
+ * TOKEN-ROLES-001: --role=<r> grants — repeatable, `=`-form and space form
+ * (same raw-args scan). Valid: admin, writer, analyst, uploader. Absent =
+ * ["admin"] (backward-compat default). Unknown roles are a fatal error.
+ */
+async function tokenCommand(args: string[]): Promise<void> {
+  // Handle --help before minting anything (DB-GAP-034: --help must not
+  // generate + persist a token — side-effect-free help like every other command)
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(
+      `Usage: duckbrain token [--name=<token-name>] [--namespace=<ns>[,<ns>...]] [--auth-file=<path>]
+
+  Generate an API token for HTTP authentication (--auth=apikey).
+
+  Options:
+    --name=<name>         Human-readable token name (also the author identity)
+    --namespace=<ns>      Namespace grants — repeatable and/or comma-separated.
+                          Absent = unrestricted (all namespaces).
+    --role=<role>         Role grants — repeatable (admin, writer, analyst,
+                          uploader). Absent = admin (backward compatible).
+    --auth-file=<path>    Write the token to PATH instead of the default store
+                          (env: DUCKBRAIN_AUTH_FILE). An explicit path that is
+                          missing or unparseable is a fatal error — the token
+                          is never silently written to the production store.
+
+  The token is printed once and saved to the resolved auth store (default:
+  ~/.duckbrain/auth.json; override with --auth-file or DUCKBRAIN_AUTH_FILE).`,
+    );
+    return;
+  }
+  const { flags } = parseArgs(args);
+  const crypto = await import("crypto");
+
+  const namespaceGrants: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--namespace") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--namespace=")) {
+      value = arg.slice("--namespace=".length);
+    }
+    if (value === undefined) continue;
+    for (const ns of value.split(",")) {
+      const trimmed = ns.trim();
+      if (trimmed && !namespaceGrants.includes(trimmed)) {
+        namespaceGrants.push(trimmed);
+      }
+    }
+  }
+
+  // TOKEN-ROLES-001: --role=<r> grants — repeatable, `=`-form and space
+  // form (same raw-args scan as --namespace above; parseArgs keeps only the
+  // last --flag=value). Unknown roles are FATAL: exit before minting so the
+  // auth store is never written with an invalid entry.
+  const validRoles = ["admin", "writer", "analyst", "uploader"];
+  const roleGrants: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--role") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--role=")) {
+      value = arg.slice("--role=".length);
+    }
+    if (value === undefined) continue;
+    const trimmed = value.trim();
+    if (!validRoles.includes(trimmed)) {
+      console.error(
+        `Unknown role: ${trimmed}. Valid roles: ${validRoles.join(", ")}.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (!roleGrants.includes(trimmed)) {
+      roleGrants.push(trimmed);
+    }
+  }
+  const grantedRoles = roleGrants.length > 0 ? roleGrants : ["admin"];
+
+  // Generate secure random token
+  const token = crypto.randomBytes(32).toString("hex");
+
+  // Determine auth config path — explicit --auth-file > DUCKBRAIN_AUTH_FILE
+  // env > prod default (same precedence as the HTTP daemon, DB-GAP-043).
+  // An explicit path that is missing or unparseable is FATAL: scratch/judge
+  // workflows must never silently fall back to the production store
+  // (DOGFOOD-026 — minting with DUCKBRAIN_AUTH_FILE set used to write prod).
+  // --auth-file supports both --auth-file=<path> and --auth-file <path>
+  // (space form), matching the --namespace convention below. parseArgs alone
+  // would turn a bare --auth-file into "true", so the raw args are scanned.
+  let authFileFlag: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--auth-file") {
+      authFileFlag = args[i + 1];
+    } else if (arg.startsWith("--auth-file=")) {
+      authFileFlag = arg.slice("--auth-file=".length);
+    }
+    if (authFileFlag !== undefined) break;
+  }
+  const { authFilePath, explicit } = resolveAuthStorePath(authFileFlag);
+  // A missing explicit --auth-file is FATAL — never fall back to prod
+  // (DB-GAP-043). The DUCKBRAIN_AUTH_FILE env override is a write-target
+  // redirect for scratch/judge workflows: a missing env path is CREATED on
+  // first mint (DOGFOOD-026 acceptance: DUCKBRAIN_AUTH_FILE=/tmp/scratch
+  // duckbrain token writes the scratch file only, prod untouched).
+  if (authFileFlag !== undefined && !fs.existsSync(authFilePath)) {
+    console.error(
+      `--auth-file not found: ${authFilePath}. An explicit auth store ` +
+        "must exist — refusing to fall back to the production " +
+        "~/.duckbrain/auth.json (DB-GAP-043).",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Load or create auth config
+  let authConfig: any = { apiKeys: [] };
+  if (fs.existsSync(authFilePath)) {
+    try {
+      authConfig = JSON.parse(fs.readFileSync(authFilePath, "utf-8"));
+    } catch (e) {
+      if (explicit) {
+        console.error(
+          `Could not parse --auth-file ${authFilePath}: ` +
+            `${e instanceof Error ? e.message : String(e)} (DB-GAP-043).`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      // Ignore parse errors
+    }
+  }
+
+  // Add new token — namespaces carries the grants when scoped; roles carries
+  // the SUPA-4 role grants (default ["admin"] for back-compat).
+  // TOKEN-NAME-001: --name accepts BOTH spellings, exactly like --namespace,
+  // --role and --auth-file above. This is not cosmetic. parseArgs turns a
+  // bare `--name` into the literal string "true", and a token's name IS the
+  // author identity stamped on every row that token writes — so `--name
+  // gateprobe` (a space, the ordinary CLI convention) silently minted a
+  // credential called "true" and attributed all of its writes to
+  // "true@duckbrain.local". Five of the six tokens in the live E2E agent's
+  // store had been created this way: enough to lose provenance across a
+  // whole namespace, and to make the audit trail unable to answer "who
+  // wrote this".
+  let nameFlag: string | undefined;
+  let sawNameWithValue = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--name") {
+      const value = args[i + 1];
+      if (value !== undefined && !value.startsWith("-")) {
+        nameFlag = value;
+        sawNameWithValue = true;
+      }
+      break;
+    }
+    if (arg.startsWith("--name=")) {
+      nameFlag = arg.slice("--name=".length);
+      sawNameWithValue = true;
+      break;
+    }
+  }
+
+  // A --name/-name given without a value is a caller error, not a request
+  // for a token called "true". Fail loudly: silently minting a mislabelled
+  // credential is how the defect stayed invisible for so long.
+  const bareNameFlag =
+    (args.includes("--name") || flags.name !== undefined) && !sawNameWithValue;
+  if (bareNameFlag) {
+    console.error(
+      "--name requires a value: use --name=<name> or --name <name> (TOKEN-NAME-001).",
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  // A token named with a bare reserved literal is indistinguishable in the
+  // store from the defect above and destroys row provenance, so refuse it
+  // rather than persist an ambiguous identity.
+  const RESERVED_TOKEN_NAMES = new Set(["true", "false", "null", "undefined"]);
+  if (
+    nameFlag !== undefined &&
+    RESERVED_TOKEN_NAMES.has(nameFlag.trim().toLowerCase())
+  ) {
+    console.error(
+      `Refusing to name a token ${JSON.stringify(nameFlag)}: a bare reserved ` +
+        "literal is not an identity — it is the value a missing --name used " +
+        "to fall back to (TOKEN-NAME-001). Pass a real name.",
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  const tokenName = nameFlag || flags.name || `token-${Date.now()}`;
+  if (!authConfig.apiKeys) {
+    authConfig.apiKeys = [];
+  }
+  const tokenEntry: any = {
+    keyHash: hashApiKey(token),
+    name: tokenName,
+    roles: grantedRoles,
+  };
+  if (namespaceGrants.length > 0) {
+    tokenEntry.namespaces = namespaceGrants;
+  }
+  authConfig.apiKeys.push(tokenEntry);
+
+  // Ensure directory exists
+  const authDir = path.dirname(authFilePath);
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+  }
+
+  // Write config
+  fs.writeFileSync(authFilePath, JSON.stringify(authConfig, null, 2) + "\n");
+
+  console.log("Generated API token:");
+  console.log(token);
+  console.log("");
+  console.log(`Roles: ${grantedRoles.join(", ")}`);
+  if (namespaceGrants.length > 0) {
+    console.log(`Namespace grants: ${namespaceGrants.join(", ")}`);
+    console.log("(requests to other namespaces will be rejected with 403)");
+  } else {
+    console.log("Namespace grants: all namespaces (unrestricted)");
+  }
+  console.log("");
+  console.log("Use with HTTP requests:");
+  console.log(`  curl -H "X-API-Key: ${token}" http://localhost:3000/health`);
+  console.log("");
+  console.log(`Token saved to ${authFilePath}`);
+}
+
+/**
+ * Show help message
+ */
+function showHelp(): void {
+  console.log(
+    `
+  DuckBrain v1.0.0 - AI Memory System
+
+  Usage: duckbrain <command> [options]
+
+  Commands:
+    stdio              Start MCP server for local Claude
+    remember <key>     Remember a memory (body via --content=, --text=, or stdin)
+    recall             Query memories
+    search <query>     Keyword full-text search (offline; index refreshes automatically)
+    search-index       Manage the keyword search index (rebuild|status|install-hooks)
+    list-keys          Browse memory structure
+    forget <id>        Delete a memory (--namespace=<name>, --reason=<reason>)
+    config             Show or set configuration
+    namespace(s)       Manage namespaces
+    pull               Pull from remote (auto-merge conflicts)
+    push               Push to remote
+    remote             Manage remotes (add|remove)
+    status             Show system status
+    token              Generate API token for HTTP authentication
+                       (--name=NAME, --namespace=NS[,NS...] for scoped grants)
+    ssh-test           Test SSH tunnel setup
+    ssh-connect        Connect to remote DuckBrain via SSH tunnel
+    servers            Manage server connections (list|add|remove)
+    squash             Compact old partitions
+    query              Read-only SQL over a namespace (SELECT ... or --template)
+    s3                 Native S3 sync/query (status|sync|query|config)
+    help               Show this help
+
+  Options:
+    --namespace=NAME   Select namespace (default: config defaultNamespace)
+    --socket=NAME      Use remote connection via Unix socket
+    --wait             Wait for git commit (remember command only)
+    SSH Options:
+    --host=USER@HOST   Remote host for SSH connection
+    --name=NAME        Name for the tunnel/socket (default: derived from host)
+    --identity-file=PATH  SSH identity file (key)
+    --port=PORT        SSH port (default: 22)
+
+  Squash Options:
+    --partition=PATH   Target specific partition
+    --dry-run          Preview without modifying files
+    --aggressive       Include git history squashing
+    --stats            Show compaction statistics
+    --segments         Segment repair only (DB-GAP-051): merge near-empty
+                       JSONL segments and split oversize ones in place,
+                       keeping the partition readable as JSONL. Requires
+                       --partition; writes no Parquet. Combine with --dry-run
+                       to preview.
+
+  Examples:
+    duckbrain stdio
+    duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
+    duckbrain echo "project notes body" | duckbrain remember /notes/test --domain=raw_note --wait
+    duckbrain recall --prefix=/projects/
+    duckbrain recall --prefix=/chats/ --after=2026-08-10 --before=2026-08-12
+    duckbrain recall --between=2026-08-10,2026-08-12
+    duckbrain list-keys --depth=3 --limit=20
+    duckbrain forget abc-123 --reason="obsolete"
+    duckbrain forget abc-123 --namespace=<ns> --reason="obsolete"
+    duckbrain status --namespace=default
+    duckbrain config set git.batchLines 100
+    duckbrain ssh-connect --host=user@server --name=prod
+    duckbrain --socket=prod status
+    duckbrain servers list
+    duckbrain servers add --name=prod --host=user@server
+    duckbrain squash --stats
+    duckbrain squash --dry-run
+    duckbrain squash --partition=person/2025-01 --aggressive
+    duckbrain squash --segments --partition=event/2026-09 --dry-run
+  `.trim(),
+  );
+}
+
+/**
+ * Run human CLI command
+ * @param command Command name
+ * @param args Command arguments
+ */
+export async function runHumanCLI(
+  command: string,
+  args: string[],
+): Promise<void> {
+  // Check for --socket flag to route through remote connection
+  const { flags: globalFlags } = parseArgs(args);
+  if (
+    globalFlags.socket &&
+    command !== "ssh-connect" &&
+    command !== "ssh-test" &&
+    command !== "servers"
+  ) {
+    await socketConnectCommand(args);
+    return;
+  }
+
+  const commands: Record<string, (args: string[]) => Promise<void>> = {
+    remember: rememberCommand,
+    recall: recallCommand,
+    search: searchCommand,
+    "list-keys": listKeysCommand,
+    forget: forgetCommand,
+    config: configCommand,
+    namespace: namespacesCommand,
+    namespaces: namespacesCommand, // alias
+    status: statusCommand,
+    token: tokenCommand,
+    "ssh-test": sshTestCommand,
+    "ssh-connect": sshConnectCommand,
+    servers: serversCommand,
+    squash: squashCommand,
+    pull: pullCommand,
+    push: pushCommand,
+    remote: remoteCommand,
+    query: queryCommand,
+    s3: (args: string[]) => s3Command(args),
+    consolidate: consolidateCommand,
+    help: async () => showHelp(),
+  };
+
+  const handler = commands[command];
+
+  if (!handler) {
+    console.error(`Unknown command: ${command}`);
+    console.error('Run "duckbrain help" for usage');
+    process.exit(1);
+  }
+
+  await handler(args);
+}

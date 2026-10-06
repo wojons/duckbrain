@@ -1,0 +1,97 @@
+{
+  "task_id": "DF-0919-05",
+  "task_title": "remember validUntil camelCase silently ignored",
+  "task_criteria": [
+    "POST /api/memories with camelCase validUntil/validFrom is honored (mapped to valid_until/valid_from) \u2014 no silent field drop; regression test proves a validUntil in the past excludes the memory from the current view; full suite green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "8bc3709fe2e57154282ac096acf6eed6f35a75a4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:51PM INF scanned ~9176088 bytes (9.18 MB) in 1.26s\n4:51PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193676 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  16:51:33\n   Duration  55.17s (transform 2.73s, setup 1.03s, import 40.51s, tests 158.80s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 POST /api/memories with camelCase validUntil/validFrom is honored (mapped to valid_until/valid_from) \u2014 no silent field drop; regression test proves a validUntil in the past excludes the memory from the current view; full suite green: Implementation: src/http/routes/memories.ts:228 normalizeValidityWindow() maps camelCase validFrom/validUntil onto canonical valid_from/valid_until (snake_case wins on collision); POST handler at lines 522-523 reads body.validFrom/validUntil and passes the normalized window to rememberTool (line 563) and echoes snake_case in the 201 response (line 578) \u2014 no silent drop. Regression test src/http/routes/memories-validuntil-alias-df091905.test.ts test (f) line 449: {validUntil: PAST} \u2192 201 echoes valid_until, validUntil undefined, current view items length 0 (excluded), historical view returns 1 with valid_until=PAST; test (b) line 124 proves the same via MCP rememberTool. Test run: `npx vitest run src/http/routes/memories-validuntil-alias-df091905.test.ts` \u2192 'Test Files 1 passed (1), Tests 8 passed (8)'. Full suite: `npx vitest run` \u2192 'Test Files 155 passed (155), Tests 1212 passed (1212)', Duration 57.73s, zero failures.\ncamelCase validUntil/validFrom are mapped to snake_case with a passing regression test proving past-validUntil exclusion, and the full 1212-test suite is green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 POST /api/memories with camelCase validUntil/validFrom is honored (mapped to valid_until/valid_from) \u2014 no silent field drop; regression test proves a validUntil in the past excludes the memory from the current view; full suite green: Implementation: src/http/routes/memories.ts:228 normalizeValidityWindow() maps camelCase validFrom/validUntil onto canonical valid_from/valid_until (snake_case wins on collision); POST handler at lines 522-523 reads body.validFrom/validUntil and passes the normalized window to rememberTool (line 563) and echoes snake_case in the 201 response (line 578) \u2014 no silent drop. Regression test src/http/routes/memories-validuntil-alias-df091905.test.ts test (f) line 449: {validUntil: PAST} \u2192 201 echoes valid_until, validUntil undefined, current view items length 0 (excluded), historical view returns 1 with valid_until=PAST; test (b) line 124 proves the same via MCP rememberTool. Test run: `npx vitest run src/http/routes/memories-validuntil-alias-df091905.test.ts` \u2192 'Test Files 1 passed (1), Tests 8 passed (8)'. Full suite: `npx vitest run` \u2192 'Test Files 155 passed (155), Tests 1212 passed (1212)', Duration 57.73s, zero failures.\ncamelCase validUntil/validFrom are mapped to snake_case with a passing regression test proving past-validUntil exclusion, and the full 1212-test suite is green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "POST /api/memories with camelCase validUntil/validFrom is honored (mapped to valid_until/valid_from) \u2014 no silent field drop; regression test proves a validUntil in the past excludes the memory from the current view; full suite green",
+                "status": "PASS",
+                "detail": "Implementation: src/http/routes/memories.ts:228 normalizeValidityWindow() maps camelCase validFrom/validUntil onto canonical valid_from/valid_until (snake_case wins on collision); POST handler at lines 522-523 reads body.validFrom/validUntil and passes the normalized window to rememberTool (line 563) and echoes snake_case in the 201 response (line 578) \u2014 no silent drop. Regression test src/http/routes/memories-validuntil-alias-df091905.test.ts test (f) line 449: {validUntil: PAST} \u2192 201 echoes valid_until, validUntil undefined, current view items length 0 (excluded), historical view returns 1 with valid_until=PAST; test (b) line 124 proves the same via MCP rememberTool. Test run: `npx vitest run src/http/routes/memories-validuntil-alias-df091905.test.ts` \u2192 'Test Files 1 passed (1), Tests 8 passed (8)'. Full suite: `npx vitest run` \u2192 'Test Files 155 passed (155), Tests 1212 passed (1212)', Duration 57.73s, zero failures."
+              }
+            ],
+            "summary": "camelCase validUntil/validFrom are mapped to snake_case with a passing regression test proving past-validUntil exclusion, and the full 1212-test suite is green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-05\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 POST /api/memories with camelCase validUntil/validFrom is honored (mapped to valid_until/valid_from) \u2014 no silent field drop; regression test proves a validUntil in the past excludes the memory from the current view; full suite green: Implementation: src/http/routes/memories.ts:228 normalizeValidityWindow() maps camelCase validFrom/validUntil onto canonical valid_from/valid_until (snake_case wins on collision); POST handler at lines 522-523 reads body.validFrom/validUntil and passes the normalized window to rememberTool (line 563) and echoes snake_case in the 201 response (line 578) \u2014 no silent drop. Regression test src/http/routes/memories-validuntil-alias-df091905.test.ts test (f) line 449: {validUntil: PAST} \u2192 201 echoes valid_until, validUntil undefined, current view items length 0 (excluded), historical view returns 1 with valid_until=PAST; test (b) line 124 proves the same via MCP rememberTool. Test run: `npx vitest run src/http/routes/memories-validuntil-alias-df091905.test.ts` \u2192 'Test Files 1 passed (1), Tests 8 passed (8)'. Full suite: `npx vitest run` \u2192 'Test Files 155 passed (155), Tests 1212 passed (1212)', Duration 57.73s, zero failures.\ncamelCase validUntil/validFrom are mapped to snake_case with a passing regression test proving past-validUntil exclusion, and the full 1212-test suite is green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T21:54:54.763455",
+  "evidence": {
+    "collected_at": "2026-09-19T21:54:54.806866+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4134,
+        "truncated": false,
+        "source": "git show 8bc3709fe2e5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 5518,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0919-05"
+  }
+}

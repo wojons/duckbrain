@@ -1,0 +1,67 @@
+{
+  "task_id": "BOARD-REPAIR-001",
+  "task_title": "Board data repair: torn events.jsonl line (tick 491 id-416 + tick 492 idle_audit events glued without newline)",
+  "task_criteria": [
+    "events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416) and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total reflects latest tick; board.db max-id lockstep with events.jsonl"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12064032 bytes (12.06 MB) in 5.3s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b[\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  99 passed (99)\n      Tests  843 passed (843)\n   S",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12064032 bytes (12.06 MB) in 5.3s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  99 passed (99)\n      Tests  843 passed (843)\n   Start at  12:00:33\n   Duration  14.90s (transform 8.96s, setup 1.97s, import 51.18s, tests 116.79s, environment 13ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416) and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total reflects latest tick; board.db max-id lockstep with events.jsonl: Verified via direct data inspection (no test suite exists for data files; this is a data-repair task). (1) events.jsonl: 418 non-empty lines, all parse as valid JSON, 0 malformed (python json.loads loop). (2) Tick 491 id-416 event present & intact on line 417 (id=416, tick_number=491, event_type=audit, full detail JSON). Tick 492 idle_audit present & intact on line 418 (tick=492, type=idle_audit, board_status='106/106 complete', decision present). (3) board.jsonl header ticks_total=492 matches latest tick 492. (4) board.db (DuckDB) events MAX(id)=416 == events.jsonl max numeric id=416 \u2014 lockstep confirmed.\nThe torn events.jsonl line was repaired: all 418 lines parse cleanly, tick 491 id-416 and tick 492 idle_audit events are both present and intact, board.jsonl ticks_total=492 reflects the latest tick, and board.db max-id (416) is in lockstep with events.jsonl.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416) and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total reflects latest tick; board.db max-id lockstep with events.jsonl: Verified via direct data inspection (no test suite exists for data files; this is a data-repair task). (1) events.jsonl: 418 non-empty lines, all parse as valid JSON, 0 malformed (python json.loads loop). (2) Tick 491 id-416 event present & intact on line ",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416) and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total reflects latest tick; board.db max-id lockstep with events.jsonl",
+                "status": "PASS",
+                "detail": "Verified via direct data inspection (no test suite exists for data files; this is a data-repair task). (1) events.jsonl: 418 non-empty lines, all parse as valid JSON, 0 malformed (python json.loads loop). (2) Tick 491 id-416 event present & intact on line 417 (id=416, tick_number=491, event_type=audit, full detail JSON). Tick 492 idle_audit present & intact on line 418 (tick=492, type=idle_audit, board_status='106/106 complete', decision present). (3) board.jsonl header ticks_total=492 matches latest tick 492. (4) board.db (DuckDB) events MAX(id)=416 == events.jsonl max numeric id=416 \u2014 lockstep confirmed."
+              }
+            ],
+            "summary": "The torn events.jsonl line was repaired: all 418 lines parse cleanly, tick 491 id-416 and tick 492 idle_audit events are both present and intact, board.jsonl ticks_total=492 reflects the latest tick, and board.db max-id (416) is in lockstep with events.jsonl."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: BOARD-REPAIR-001\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12064032 bytes (12.06 MB) in 5.3s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b[\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  99 passed (99)\n      Tests  843 passed (843)\n   S\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 events.jsonl parses line-by-line with zero malformed lines; tick 491 (id 416) and tick 492 idle_audit events both present and intact; board.jsonl header ticks_total reflects latest tick; board.db max-id lockstep with events.jsonl: Verified via direct data inspection (no test suite exists for data files; this is a data-repair task). (1) events.jsonl: 418 non-empty lines, all parse as valid JSON, 0 malformed (python json.loads loop). (2) Tick 491 id-416 event present & intact on line 417 (id=416, tick_number=491, event_type=audit, full detail JSON). Tick 492 idle_audit present & intact on line 418 (tick=492, type=idle_audit, board_status='106/106 complete', decision present). (3) board.jsonl header ticks_total=492 matches latest tick 492. (4) board.db (DuckDB) events MAX(id)=416 == events.jsonl max numeric id=416 \u2014 lockstep confirmed.\nThe torn events.jsonl line was repaired: all 418 lines parse cleanly, tick 491 id-416 and tick 492 idle_audit events are both present and intact, board.jsonl ticks_total=492 reflects the latest tick, and board.db max-id (416) is in lockstep with events.jsonl.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-27T17:01:38.067817"
+}

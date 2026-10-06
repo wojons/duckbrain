@@ -1,0 +1,77 @@
+{
+  "task_id": "INT-CI-002",
+  "task_title": "Fix http-auth waitForUrl CI flake on Node 22",
+  "task_criteria": [
+    "waitForUrl retry/timing hardened: integration suites no longer time out waiting for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: \u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11114853 bytes (11.11 MB) in 4.78s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b\n  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11114853 bytes (11.11 MB) in 4.78s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-dogfood016.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1136\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m cleans this process's scratch files on SIGTERM and dies by the signal \u001b[33m 1007\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1409\u001b[2mms\u001b[22m\u001b[39m\n       \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m should return singleton connection for s",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 waitForUrl retry/timing hardened: integration suites no longer time out waiting for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard PASS: tests/helpers.ts (commit 979af5a): waitForUrl default timeout 15s->30s, added createStderrTail rolling stderr capture (last 50 lines), waitForUrl now accepts child and surfaces stderr tail on timeout, waitForPort 10s->20s; startDuckbrainHttp captures stderr tail. Integration tests http-auth/http-e2e/http-ratelimit updated to 30s timeout + pass child (beforeAll caps raised to 60s/45s). New tests/helpers.int.test.ts (6 tests) cover the hardened helpers. Verified with actual output: `npx vitest run` -> 59 files / 443 tests passed; `npx tsc --noEmit` -> exit 0; `gitreins guard` -> 'Tier 1 Guards: PASS'; integration suites (vitest.integration.config.ts) -> 3 files / 22 tests passed (http-auth 6, http-e2e 13, http-ratelimit 3), daemons spawned within hardened timeout.\nwaitForUrl retry/timing hardened (30s timeout + stderr-tail diagnostics), all integration suites pass, full suite 443 tests pass, tsc clean, gitreins guard PASS.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 waitForUrl retry/timing hardened: integration suites no longer time out waiting for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard PASS: tests/helpers.ts (commit 979af5a): waitForUrl default timeout 15s->30s, added createStderrTail rolling stderr capture (last 50 lines), waitForUrl now accepts child and surfaces stderr tail on timeout, waitForPort 10s->20s; startDuckbrainHttp captures stderr tail. Integration tests http-auth/http-e2e/http-ratelimit updated",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "waitForUrl retry/timing hardened: integration suites no longer time out waiting for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard PASS",
+                "status": "PASS",
+                "detail": "tests/helpers.ts (commit 979af5a): waitForUrl default timeout 15s->30s, added createStderrTail rolling stderr capture (last 50 lines), waitForUrl now accepts child and surfaces stderr tail on timeout, waitForPort 10s->20s; startDuckbrainHttp captures stderr tail. Integration tests http-auth/http-e2e/http-ratelimit updated to 30s timeout + pass child (beforeAll caps raised to 60s/45s). New tests/helpers.int.test.ts (6 tests) cover the hardened helpers. Verified with actual output: `npx vitest run` -> 59 files / 443 tests passed; `npx tsc --noEmit` -> exit 0; `gitreins guard` -> 'Tier 1 Guards: PASS'; integration suites (vitest.integration.config.ts) -> 3 files / 22 tests passed (http-auth 6, http-e2e 13, http-ratelimit 3), daemons spawned within hardened timeout."
+              }
+            ],
+            "summary": "waitForUrl retry/timing hardened (30s timeout + stderr-tail diagnostics), all integration suites pass, full suite 443 tests pass, tsc clean, gitreins guard PASS."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-002\n\nStage tier1: FAIL\n    \u2713 secrets: \u001b[90m12:00PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11114853 bytes (11.11 MB) in 4.78s\u001b[0m\n\u001b[90m12:00PM\u001b[0m \u001b\n  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 waitForUrl retry/timing hardened: integration suites no longer time out waiting for spawned daemon on Node 22 CI job; full suite + tsc clean + gitreins guard PASS: tests/helpers.ts (commit 979af5a): waitForUrl default timeout 15s->30s, added createStderrTail rolling stderr capture (last 50 lines), waitForUrl now accepts child and surfaces stderr tail on timeout, waitForPort 10s->20s; startDuckbrainHttp captures stderr tail. Integration tests http-auth/http-e2e/http-ratelimit updated to 30s timeout + pass child (beforeAll caps raised to 60s/45s). New tests/helpers.int.test.ts (6 tests) cover the hardened helpers. Verified with actual output: `npx vitest run` -> 59 files / 443 tests passed; `npx tsc --noEmit` -> exit 0; `gitreins guard` -> 'Tier 1 Guards: PASS'; integration suites (vitest.integration.config.ts) -> 3 files / 22 tests passed (http-auth 6, http-e2e 13, http-ratelimit 3), daemons spawned within hardened timeout.\nwaitForUrl retry/timing hardened (30s timeout + stderr-tail diagnostics), all integration suites pass, full suite 443 tests pass, tsc clean, gitreins guard PASS.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T17:03:38.717045"
+}

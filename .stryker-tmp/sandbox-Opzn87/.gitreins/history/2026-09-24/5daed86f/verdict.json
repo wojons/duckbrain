@@ -1,0 +1,103 @@
+{
+  "task_id": "CI-005",
+  "task_title": "CI red recurrence: AGENTS.md test-count assertion fails on every run - derive counts via sync script instead of hand-typed literals",
+  "task_criteria": [
+    "CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "5962ea0a8c480d0e9ee1d4c57b04bcdf9a1fe7b7",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n8:27AM INF scanned ~13450419 bytes (13.45 MB) in 1.98s\n8:27AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 248000 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  167 passed (167)\n      Tests  1332 passed (1332)\n   Start at  08:27:19\n   Duration  54.51s (tests 77%, import 20%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  167 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~4.03s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output: Ran the real suite: `npx vitest run` produced ' Test Files  167 passed (167)' / '      Tests  1332 passed (1332)' (corroborated by `find src -name '*.test.ts' | wc -l` == 167 and vitest's '167 workers spawned'). AGENTS.md:14 '(167 suites, 1332 tests)' and AGENTS.md:33 '# 1332 tests, 167 suites' match exactly. Executed the CI step verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest2.out` -> 'AGENTS.md test counts match live suite (167 suites, 1332 tests)', exit 0. Single shared script: scripts/sync-agents-md-counts.sh (68 lines, mode 100755) holds the only extraction (strip_ansi + grep -oP for 'Test Files ... (N)' and 'Tests ... (N)'); ci.yml:69-70 now just calls `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`, and grep for 'Test Files|grep -oP|suites' in ci.yml returns NONE (no leftover inline duplication). Script serves both modes (default sync, --check). Idempotent: two consecutive sync runs on matching input left md5 34496cfd0551d3f39c7c749ea39e01c1 unchanged, printing 'no change (idempotent)', exit 0. Fails loudly: garbage input -> 'GAP-032: vitest summary unparseable in /tmp/bad.out' exit 1; missing file -> 'GAP-032: vitest output not found' exit 1; drift (999/888) -> 'GAP-012 drift' exit 1. `bash -n` syntax OK. [resolution 0.00; AGENTS.md, scripts/sync-agents-md-counts.sh]\nThe CI assertion passes against real live vitest totals (167 suites / 1332 tests) matching AGENTS.md, via a single shared script that is idempotent and fails loudly on unparseable output.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output: Ran the real suite: `npx vitest run` produced ' Test Files  167 passed (167)' / '      Tests  1332 passed (1332)' (corroborated by `find src -name '*.test.ts' | wc -l` == 167 and vitest's '167 workers spawned'). AGENTS.md:14 '(167 suites, 1332 tests)' and AGENTS.md:33 '# 1332 tests, 167 suites' match exactly. Executed the CI step verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest2.out` -> 'AGENTS.md test counts match live suite (167 suites, 1332 tests)', exit 0. Single shared script: scripts/sync-agents-md-counts.sh (68 lines, mode 100755) holds the only extraction (strip_ansi + grep -oP for 'Test Files ... (N)' and 'Tests ... (N)'); ci.yml:69-70 now just calls `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`, and grep for 'Test Files|grep -oP|suites' in ci.yml returns NONE (no leftover inline duplication). Script serves both modes (default sync, --check). Idempotent: two consecutive sync runs on matching input left md5 34496cfd0551d3f39c7c749ea39e01c1 unchanged, printing 'no change (idempotent)', exit 0. Fails loudly: garbage input -> 'GAP-032: vitest summary unparseable in /tmp/bad.out' exit 1; missing file -> 'GAP-032: vitest output not found' exit 1; drift (999/888) -> 'GAP-012 drift' exit 1. `bash -n` syntax OK. [resolution 0.00; AGENTS.md, scripts/sync-agents-md-counts.sh]\nThe CI assertion passes against real live vitest totals (167 suites / 1332 tests) matching AGENTS.md, via a single shared script that is idempotent and fails loudly on unparseable output.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output",
+                "status": "PASS",
+                "detail": "Ran the real suite: `npx vitest run` produced ' Test Files  167 passed (167)' / '      Tests  1332 passed (1332)' (corroborated by `find src -name '*.test.ts' | wc -l` == 167 and vitest's '167 workers spawned'). AGENTS.md:14 '(167 suites, 1332 tests)' and AGENTS.md:33 '# 1332 tests, 167 suites' match exactly. Executed the CI step verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest2.out` -> 'AGENTS.md test counts match live suite (167 suites, 1332 tests)', exit 0. Single shared script: scripts/sync-agents-md-counts.sh (68 lines, mode 100755) holds the only extraction (strip_ansi + grep -oP for 'Test Files ... (N)' and 'Tests ... (N)'); ci.yml:69-70 now just calls `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`, and grep for 'Test Files|grep -oP|suites' in ci.yml returns NONE (no leftover inline duplication). Script serves both modes (default sync, --check). Idempotent: two consecutive sync runs on matching input left md5 34496cfd0551d3f39c7c749ea39e01c1 unchanged, printing 'no change (idempotent)', exit 0. Fails loudly: garbage input -> 'GAP-032: vitest summary unparseable in /tmp/bad.out' exit 1; missing file -> 'GAP-032: vitest output not found' exit 1; drift (999/888) -> 'GAP-012 drift' exit 1. `bash -n` syntax OK. [resolution 0.00; AGENTS.md, scripts/sync-agents-md-counts.sh]",
+                "resolution_probability": 0.0,
+                "cited_path": "AGENTS.md, scripts/sync-agents-md-counts.sh"
+              }
+            ],
+            "summary": "The CI assertion passes against real live vitest totals (167 suites / 1332 tests) matching AGENTS.md, via a single shared script that is idempotent and fails loudly on unparseable output."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: CI-005\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output: Ran the real suite: `npx vitest run` produced ' Test Files  167 passed (167)' / '      Tests  1332 passed (1332)' (corroborated by `find src -name '*.test.ts' | wc -l` == 167 and vitest's '167 workers spawned'). AGENTS.md:14 '(167 suites, 1332 tests)' and AGENTS.md:33 '# 1332 tests, 167 suites' match exactly. Executed the CI step verbatim: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest2.out` -> 'AGENTS.md test counts match live suite (167 suites, 1332 tests)', exit 0. Single shared script: scripts/sync-agents-md-counts.sh (68 lines, mode 100755) holds the only extraction (strip_ansi + grep -oP for 'Test Files ... (N)' and 'Tests ... (N)'); ci.yml:69-70 now just calls `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`, and grep for 'Test Files|grep -oP|suites' in ci.yml returns NONE (no leftover inline duplication). Script serves both modes (default sync, --check). Idempotent: two consecutive sync runs on matching input left md5 34496cfd0551d3f39c7c749ea39e01c1 unchanged, printing 'no change (idempotent)', exit 0. Fails loudly: garbage input -> 'GAP-032: vitest summary unparseable in /tmp/bad.out' exit 1; missing file -> 'GAP-032: vitest output not found' exit 1; drift (999/888) -> 'GAP-012 drift' exit 1. `bash -n` syntax OK. [resolution 0.00; AGENTS.md, scripts/sync-agents-md-counts.sh]\nThe CI assertion passes against real live vitest totals (167 suites / 1332 tests) matching AGENTS.md, via a single shared script that is idempotent and fails loudly on unparseable output.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-24T13:37:37.664356",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-24T13:37:37.680194+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6017,
+        "truncated": false,
+        "source": "git show 5962ea0a8c48"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1556,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "CI-005"
+  }
+}

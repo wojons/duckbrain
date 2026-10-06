@@ -1,0 +1,95 @@
+{
+  "task_id": "DF-0924-05",
+  "task_title": "P0 UI dead on hardened auth deployments: hardcoded namespace, zero credentials, 429 storm",
+  "task_criteria": [
+    "On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "edc611236820dddc2112637934f50964ff1c6e05",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:00PM INF scanned ~12496299 bytes (12.50 MB) in 2.75s\n5:00PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 255359 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  169 passed (169)\n      Tests  1359 passed (1359)\n   Start at  16:59:58\n   Duration  65.06s (tests 75%, import 21%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  169 workers spawned \u00b7 ~119ms startup each (spawn + environment, per file)\n             at least ~4.90s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: (1) packages/ui/src/hooks/use-namespaces.ts:66-113 useNamespaceBootStatus fetches GET /api/namespaces and adopts data.currentNamespace into the store in the same effect that flips status to 'ready'; App.tsx:38-54 gates <Routes> on bootStatus so pages never mount pre-adoption. Only remaining \"default\" is the documented fallback at stores/ui-store.ts:74. Regression tests use-namespaces.test.tsx:130-169 assert every /api/memories and /api/keys request carries namespace=work (not 'default'/'stale-persisted'). (2) api-client.ts:32-52 getApiToken/setApiToken/clearApiToken persist under localStorage key 'duckbrain-api-token'; apiFetch (api-client.ts:110-121) attaches X-API-Key on every request when a token is set; visible entry point ApiTokenControl rendered at components/layout/header.tsx:113 plus ApiAuthBanner. (3) api-client.ts:87-93 shouldRetryQuery returns false for ApiAuthError and failureCount<1 otherwise (max 1 retry); wired as QueryClient retry in App.tsx:17 and main.tsx:15; api-token-banner.test.tsx:117 asserts calls===2 (one boot + one refetch, no storm). (4) `pnpm test` in packages/ui: 'Test Files 9 passed (9) / Tests 57 passed (57)'; `pnpm build` (tsc && vite build): 'built in 2.92s' EXIT=0; the 3 new regression files run green (19 tests). (5) root `npx vitest run`: 'Test Files 169 passed (169) / Tests 1359 passed (1359)'; `npx tsc --noEmit` TSC_EXIT=0; `scripts/sync-agents-md-counts.sh --check` prints 'AGENTS.md test counts match live suite (169 suites, 1359 tests)' EXIT=0, matching AGENTS.md:14 and :33. [resolution 0.16; AGENTS.md]\nAll five sub-criteria verified: boot namespace adoption with route gating, X-API-Key token entry persisted in localStorage, single-retry/no-auth-retry predicate, and green UI build/test plus green root vitest/tsc with AGENTS.md counts matching live.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: (1) packages/ui/src/hooks/use-namespaces.ts:66-113 useNamespaceBootStatus fetches GET /api/namespaces and adopts data.currentNamespace into the store in the same effect that flips status to 'ready'; App.tsx:38-54 gates <Routes> on bootStatus so pages never mount pre-adoption. Only remaining \"default\" is the documented fallback at stores/ui-store.ts:74. Regression tests use-namespaces.test.tsx:130-169 assert every /api/memories and /api/keys request carries namespace=work (not 'default'/'stale-persisted'). (2) api-client.ts:32-52 getApiToken/setApiToken/clearApiToken persist under localStorage key 'duckbrain-api-token'; apiFetch (api-client.ts:110-121) attaches X-API-Key on every request when a token is set; visible entry point ApiTokenControl rendered at components/layout/header.tsx:113 plus ApiAuthBanner. (3) api-client.ts:87-93 shouldRetryQuery returns false for ApiAuthError and failureCount<1 otherwise (max 1 retry); wired as QueryClient retry in App.tsx:17 and main.tsx:15; api-token-banner.test.tsx:117 asserts calls===2 (one boot + one refetch, no storm). (4) `pnpm test` in packages/ui: 'Test Files 9 passed (9) / Tests 57 passed (57)'; `pnpm build` (tsc && vite build): 'built in 2.92s' EXIT=0; the 3 new regression files run green (19 tests). (5) root `npx vitest run`: 'Test Files 169 passed (169) / Tests 1359 passed (1359)'; `npx tsc --noEmit` TSC_EXIT=0; `scripts/sync-agents-md-counts.sh --check` prints 'AGENTS.md test counts match live suite (169 suites, 1359 tests)' EXIT=0, matching AGENTS.md:14 and :33. [resolution 0.16; AGENTS.md]\nAll five sub-criteria verified: boot namespace adoption with route gating, X-API-Key token entry persisted in localStorage, single-retry/no-auth-retry predicate, and green UI build/test plus green root vitest/tsc with AGENTS.md counts matching live.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change",
+                "status": "PASS",
+                "detail": "(1) packages/ui/src/hooks/use-namespaces.ts:66-113 useNamespaceBootStatus fetches GET /api/namespaces and adopts data.currentNamespace into the store in the same effect that flips status to 'ready'; App.tsx:38-54 gates <Routes> on bootStatus so pages never mount pre-adoption. Only remaining \"default\" is the documented fallback at stores/ui-store.ts:74. Regression tests use-namespaces.test.tsx:130-169 assert every /api/memories and /api/keys request carries namespace=work (not 'default'/'stale-persisted'). (2) api-client.ts:32-52 getApiToken/setApiToken/clearApiToken persist under localStorage key 'duckbrain-api-token'; apiFetch (api-client.ts:110-121) attaches X-API-Key on every request when a token is set; visible entry point ApiTokenControl rendered at components/layout/header.tsx:113 plus ApiAuthBanner. (3) api-client.ts:87-93 shouldRetryQuery returns false for ApiAuthError and failureCount<1 otherwise (max 1 retry); wired as QueryClient retry in App.tsx:17 and main.tsx:15; api-token-banner.test.tsx:117 asserts calls===2 (one boot + one refetch, no storm). (4) `pnpm test` in packages/ui: 'Test Files 9 passed (9) / Tests 57 passed (57)'; `pnpm build` (tsc && vite build): 'built in 2.92s' EXIT=0; the 3 new regression files run green (19 tests). (5) root `npx vitest run`: 'Test Files 169 passed (169) / Tests 1359 passed (1359)'; `npx tsc --noEmit` TSC_EXIT=0; `scripts/sync-agents-md-counts.sh --check` prints 'AGENTS.md test counts match live suite (169 suites, 1359 tests)' EXIT=0, matching AGENTS.md:14 and :33. [resolution 0.16; AGENTS.md]",
+                "resolution_probability": 0.16,
+                "cited_path": "AGENTS.md"
+              }
+            ],
+            "summary": "All five sub-criteria verified: boot namespace adoption with route gating, X-API-Key token entry persisted in localStorage, single-retry/no-auth-retry predicate, and green UI build/test plus green root vitest/tsc with AGENTS.md counts matching live."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-05\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 On an --auth=apikey scratch daemon: (1) UI boots with the server-reported currentNamespace (no queries against hardcoded 'default'); (2) all API calls attach X-API-Key from a user-entered token persisted in localStorage, with a visible token entry point; (3) 401/404 failures do not retry more than once (no 429 storm); (4) packages/ui pnpm build + pnpm test green including new regression tests; (5) root npx vitest run + npx tsc --noEmit remain green and AGENTS.md counts match live if root suite counts change: (1) packages/ui/src/hooks/use-namespaces.ts:66-113 useNamespaceBootStatus fetches GET /api/namespaces and adopts data.currentNamespace into the store in the same effect that flips status to 'ready'; App.tsx:38-54 gates <Routes> on bootStatus so pages never mount pre-adoption. Only remaining \"default\" is the documented fallback at stores/ui-store.ts:74. Regression tests use-namespaces.test.tsx:130-169 assert every /api/memories and /api/keys request carries namespace=work (not 'default'/'stale-persisted'). (2) api-client.ts:32-52 getApiToken/setApiToken/clearApiToken persist under localStorage key 'duckbrain-api-token'; apiFetch (api-client.ts:110-121) attaches X-API-Key on every request when a token is set; visible entry point ApiTokenControl rendered at components/layout/header.tsx:113 plus ApiAuthBanner. (3) api-client.ts:87-93 shouldRetryQuery returns false for ApiAuthError and failureCount<1 otherwise (max 1 retry); wired as QueryClient retry in App.tsx:17 and main.tsx:15; api-token-banner.test.tsx:117 asserts calls===2 (one boot + one refetch, no storm). (4) `pnpm test` in packages/ui: 'Test Files 9 passed (9) / Tests 57 passed (57)'; `pnpm build` (tsc && vite build): 'built in 2.92s' EXIT=0; the 3 new regression files run green (19 tests). (5) root `npx vitest run`: 'Test Files 169 passed (169) / Tests 1359 passed (1359)'; `npx tsc --noEmit` TSC_EXIT=0; `scripts/sync-agents-md-counts.sh --check` prints 'AGENTS.md test counts match live suite (169 suites, 1359 tests)' EXIT=0, matching AGENTS.md:14 and :33. [resolution 0.16; AGENTS.md]\nAll five sub-criteria verified: boot namespace adoption with route gating, X-API-Key token entry persisted in localStorage, single-retry/no-auth-retry predicate, and green UI build/test plus green root vitest/tsc with AGENTS.md counts matching live.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-24T22:04:45.440626",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-24T22:04:45.483814+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 110488,
+        "truncated": false,
+        "source": "git show edc611236820"
+      }
+    ],
+    "task_id": "DF-0924-05"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0930-02",
+  "task_title": "README quickstart namespace creation",
+  "task_criteria": [
+    "README verify block creates quickstart namespace before first write; fresh-scratch sequence has no 404"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bbee2ccf50176f18215f30dc052d30d54e71a8cd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:24AM INF scanned ~13982513 bytes (13.98 MB) in 2.92s\n5:24AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 364170 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T070947.942098Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.2 /home/kara/duckbrain\n\n\n Test Files  191 passed (191)\n      Tests  1523 passed (1523)\n   Start at  05:23:59\n   Duration  86.61s (tests 79%, import 19%, transform 2%)\n\n    Isolate  191 workers spawned \u00b7 ~129ms startup each (spawn + environment, per file)\n             at least ~6.04s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T070947.942098Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 README verify block creates quickstart namespace before first write; fresh-scratch sequence has no 404: README.md:120-131 verify block: step 3 POST /api/namespaces {\"name\":\"quickstart\"} runs BEFORE step 4 write POST /api/memories?namespace=quickstart. Commit faa1798 (DF-0930-02) added the 409-tolerance comment and printf. Route src/http/routes/namespaces.ts:142-183 returns 201 on create / 409 when exists. End-to-end fresh-scratch run (temp DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH, port 41777, --auth=none): step3=HTTP 201, step4 write=HTTP 201, step5 read=HTTP 200 returning the stored content \u2014 no 404. Tests: `npx vitest run src/http/routes/namespaces.test.ts src/http/routes/memories-namespace-autocreate-nsauto001.test.ts` => exit 0, 'Test Files 2 passed (2), Tests 24 passed (24)'.\nREADME verify block creates the quickstart namespace before the first write and the fresh-scratch sequence completes with 201/201/200 and no 404, confirmed by an end-to-end daemon run and passing route tests.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 README verify block creates quickstart namespace before first write; fresh-scratch sequence has no 404: README.md:120-131 verify block: step 3 POST /api/namespaces {\"name\":\"quickstart\"} runs BEFORE step 4 write POST /api/memories?namespace=quickstart. Commit faa1798 (DF-0930-02) added the 409-tolerance comment and printf. Route src/http/routes/namespaces.ts:142-183 returns 201 on create / 409 when exists. End-to-end fresh-scratch run (temp DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH, port 41777, --auth=none): step3=HTTP 201, step4 write=HTTP 201, step5 read=HTTP 200 returning the stored content \u2014 no 404. Tests: `npx vitest run src/http/routes/namespaces.test.ts src/http/routes/memories-namespace-autocreate-nsauto001.test.ts` => exit 0, 'Test Files 2 passed (2), Tests 24 passed (24)'.\nREADME verify block creates the quickstart namespace before the first write and the fresh-scratch sequence completes with 201/201/200 and no 404, confirmed by an end-to-end daemon run and passing route tests.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "README verify block creates quickstart namespace before first write; fresh-scratch sequence has no 404",
+                "status": "PASS",
+                "detail": "README.md:120-131 verify block: step 3 POST /api/namespaces {\"name\":\"quickstart\"} runs BEFORE step 4 write POST /api/memories?namespace=quickstart. Commit faa1798 (DF-0930-02) added the 409-tolerance comment and printf. Route src/http/routes/namespaces.ts:142-183 returns 201 on create / 409 when exists. End-to-end fresh-scratch run (temp DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH, port 41777, --auth=none): step3=HTTP 201, step4 write=HTTP 201, step5 read=HTTP 200 returning the stored content \u2014 no 404. Tests: `npx vitest run src/http/routes/namespaces.test.ts src/http/routes/memories-namespace-autocreate-nsauto001.test.ts` => exit 0, 'Test Files 2 passed (2), Tests 24 passed (24)'.",
+                "resolution_probability": 0.03
+              }
+            ],
+            "summary": "README verify block creates the quickstart namespace before the first write and the fresh-scratch sequence completes with 201/201/200 and no 404, confirmed by an end-to-end daemon run and passing route tests."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0930-02\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.2 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 README verify block creates quickstart namespace before first write; fresh-scratch sequence has no 404: README.md:120-131 verify block: step 3 POST /api/namespaces {\"name\":\"quickstart\"} runs BEFORE step 4 write POST /api/memories?namespace=quickstart. Commit faa1798 (DF-0930-02) added the 409-tolerance comment and printf. Route src/http/routes/namespaces.ts:142-183 returns 201 on create / 409 when exists. End-to-end fresh-scratch run (temp DUCKBRAIN_DATA_DIR/DUCKBRAIN_NAMESPACES_PATH, port 41777, --auth=none): step3=HTTP 201, step4 write=HTTP 201, step5 read=HTTP 200 returning the stored content \u2014 no 404. Tests: `npx vitest run src/http/routes/namespaces.test.ts src/http/routes/memories-namespace-autocreate-nsauto001.test.ts` => exit 0, 'Test Files 2 passed (2), Tests 24 passed (24)'.\nREADME verify block creates the quickstart namespace before the first write and the fresh-scratch sequence completes with 201/201/200 and no 404, confirmed by an end-to-end daemon run and passing route tests.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-30T10:28:48.440738",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T10:28:48.477957+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4260,
+        "truncated": false,
+        "source": "git show bbee2ccf5017"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2524,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0930-02"
+  }
+}

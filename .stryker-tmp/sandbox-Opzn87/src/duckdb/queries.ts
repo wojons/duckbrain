@@ -1,0 +1,955 @@
+/**
+ * DuckDB Memory Queries
+ *
+ * Query layer for reading/writing memories via DuckDB.
+ * Filters tombstone records by default.
+ */
+// @ts-nocheck
+
+
+import type { Database } from "./connection";
+import type { MemoryType } from "../schema/memory";
+import type { AuthPrincipal } from "../auth/middleware";
+import { resolveNamespacesPath } from "../config";
+import { getNamespaceWriter } from "../serialization/namespaceWriter";
+import path from "path";
+import fs from "fs";
+import { deepConvertBigInts } from "../utils/serialize";
+import { compareChunkNames } from "../storage/jsonl";
+
+/**
+ * Parse DuckDB STRUCT format string into a JavaScript object
+ *
+ * DuckDB returns STRUCT columns as strings like: {key1='value1', key2='value2'}
+ * This parser handles the STRUCT format and converts to valid JSON
+ *
+ * @param structStr - The STRUCT format string from DuckDB
+ * @returns Parsed JavaScript object
+ *
+ * Exported so the RETR-009 read-only query surface shapes its rows with the
+ * exact same semantics as queryMemories (attributes is VARCHAR raw JSON text
+ * under the all-VARCHAR columns override; JSON.parse collapses RFC 8259
+ * duplicate keys to the last value).
+ */
+export function parseDuckDBStruct(structStr: string): Record<string, unknown> {
+  if (!structStr || typeof structStr !== "string") {
+    return {};
+  }
+
+  try {
+    // Try to parse as JSON first (in case it's already JSON)
+    return JSON.parse(structStr);
+  } catch {
+    // It's in STRUCT format, parse manually
+  }
+
+  const result: Record<string, unknown> = {};
+
+  // Remove outer braces and whitespace
+  const content = structStr
+    .trim()
+    .replace(/^\{|\}$/g, "")
+    .trim();
+  if (!content) {
+    return result;
+  }
+
+  // Split by commas, but be careful with nested structures
+  // Simple parsing: key='value' pairs
+  const pairs = content.split(",");
+
+  for (const pair of pairs) {
+    const trimmed = pair.trim();
+    if (!trimmed) continue;
+
+    // Find the = separator
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+
+    const key = trimmed.substring(0, eqIndex).trim();
+    let value = trimmed.substring(eqIndex + 1).trim();
+
+    // Remove quotes from value
+    if (
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('"') && value.endsWith('"'))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    // Try to parse as JSON if it looks like a nested object or array
+    if (
+      (value.startsWith("{") && value.endsWith("}")) ||
+      (value.startsWith("[") && value.endsWith("]"))
+    ) {
+      try {
+        result[key] = JSON.parse(value);
+      } catch {
+        result[key] = value;
+      }
+    } else if (value === "true") {
+      result[key] = true;
+    } else if (value === "false") {
+      result[key] = false;
+    } else if (value === "null") {
+      result[key] = null;
+    } else if (!isNaN(Number(value)) && value !== "") {
+      result[key] = Number(value);
+    } else {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Query filters shared by queryMemories and countMemories (GAP-024).
+ */
+export interface MemoryQueryFilters {
+  key?: string;
+  keyPrefix?: string;
+  domain?: string;
+  author?: string;
+  id?: string;
+  query?: string;
+  embedding?: number[];
+  /** RETR-003: include rows whose timestamp (or chat-archive key date facet)
+   *  is at or after this ISO-8601 instant */
+  after?: string;
+  /** RETR-003: include rows whose timestamp (or chat-archive key date facet)
+   *  is at or before this ISO-8601 instant */
+  before?: string;
+  /** RETR-006: attribute filters — include only rows whose `attributes`
+   *  JSON contains name → value (exact string match after DuckDB's
+   *  json_extract_string normalization: numeric/bool values compare by
+   *  their string form, so attr.tick=403 matches both 403 and "403").
+   *  Empty record = no-op. */
+  attr?: Record<string, string>;
+  /** RETR-011: validity-window filtering — when `now` is provided and
+   *  `historical` is not true, only rows whose validity window contains
+   *  `now` are included: valid_until in the past (expired) and valid_from
+   *  in the future (not yet valid) are excluded. historical=true (or no
+   *  `now`) disables the filter. Callers outside the recall surface never
+   *  set `now`, so their behavior is unchanged. */
+  historical?: boolean;
+  /** RETR-011: the "now" instant (ISO-8601) the validity window is
+   *  compared against — set once per recall request so the whole query
+   *  (and its count) sees one fixed instant. */
+  now?: string;
+  limit?: number;
+  /** DB-GAP-046: page window start — rows [offset, offset+limit) of the
+   *  ORDERED, deduplicated, tombstone-filtered result set. Applied as SQL
+   *  LIMIT/OFFSET (only along with `limit`), never as a post-query slice of
+   *  an already-truncated page: an offset applied outside the query cannot
+   *  reach rows the LIMIT never fetched. countMemories ignores this field —
+   *  `total` is always the unlimited match count (GAP-024). */
+  offset?: number;
+}
+
+/**
+ * Collect the JSONL file paths for the given partitions
+ */
+export function collectJsonlFiles(partitionPaths: string[]): string[] {
+  const jsonlFiles: string[] = [];
+  for (const partitionPath of partitionPaths) {
+    if (!fs.existsSync(partitionPath)) continue;
+
+    const files = fs
+      .readdirSync(partitionPath)
+      .filter((f) => f.endsWith(".jsonl"))
+      // Numeric segment order, not readdir order: past segment 9999 the names
+      // are not fixed-width, and DuckDB ingests in the order given.
+      .sort(compareChunkNames)
+      .map((f) => path.join(partitionPath, f).replace(/\\/g, "/"));
+    jsonlFiles.push(...files);
+  }
+  return jsonlFiles;
+}
+
+/**
+ * RETR-003: SQL conditions for the after/before time bounds, if any.
+ *
+ * The row matches when EITHER:
+ *  1. its own `timestamp` satisfies ALL bounds — compared as a real
+ *     TIMESTAMP (try_cast), NOT as a string: chat-archive rows mix
+ *     formats (`.749Z` and `.676525+00:00`), and lexicographic
+ *     comparison is wrong across those formats. Bounds arrive already
+ *     canonicalized to UTC (src/utils/timerange.ts), and this DuckDB
+ *     version parses `Z` and `+00:00` stored rows to the same instant
+ *     (non-UTC offsets are read wall-clock-as-UTC — the corpus only
+ *     carries +00:00, so comparisons are correct for the data at hand).
+ *  2. its KEY carries a chat-archive date facet — /chats/<view>/<YYYY-MM-DD>
+ *     — whose facet date satisfies ALL bounds. This is what makes since/until
+ *     work on chat-archive keys (T-1/RETR-003): those records' timestamps
+ *     are the archive INGESTION time (e.g. 2026-08-07T09:26:22.496Z), while
+ *     the message date lives in the key (e.g. /chats/karahermes-dm/2026-05-24).
+ *     Facet dates compare at day granularity (midnight UTC).
+ *
+ * The facet clause deliberately wraps ALL bounds as ONE window: per-bound
+ * OR-clauses would let a row pass `after` via its timestamp and `before`
+ * via its facet (or vice versa) — a cross-product match outside the window.
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same semantics to its candidate SQL.
+ */
+export function buildTimeRangeConditions(
+  after?: string,
+  before?: string,
+): string[] {
+  const timestampBounds: string[] = [];
+  const facetBounds: string[] = [];
+  if (after !== undefined) {
+    timestampBounds.push(buildTimestampBound("after", after));
+    facetBounds.push(buildFacetBound("after", after));
+  }
+  if (before !== undefined) {
+    timestampBounds.push(buildTimestampBound("before", before));
+    facetBounds.push(buildFacetBound("before", before));
+  }
+  if (timestampBounds.length === 0) return [];
+  return [
+    `(${timestampBounds.join(" AND ")} OR (regexp_matches(key, '^/chats/[^/]+/[0-9]{4}-[0-9]{2}-[0-9]{2}(/|$)') AND ${facetBounds.join(" AND ")}))`,
+  ];
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+/**
+ * RETR-006: SQL conditions for attribute filters, if any.
+ *
+ * `attributes` is forced to VARCHAR by READ_JSON_COLUMNS, so rows carry the
+ * RAW JSON text and json_extract_string (verified live on duckdb 1.4.4)
+ * is the right extractor — it parses the JSON per call, tolerates
+ * RFC 8259 duplicate keys (first value wins, DOGFOOD-018/019), stringifies
+ * scalars (numeric `tick: 403` extracts to '403', so a single literal
+ * comparison matches both `403` and `"403"`), and returns NULL (no match)
+ * for missing keys or unparseable rows (read_json ignore_errors=true has
+ * already NULLed malformed lines).
+ *
+ * Injection safety, mirroring the other template-literal conditions:
+ *   - the VALUE is escaped as a SQL string literal (single-quote doubling);
+ *   - the NAME is embedded in a JSONPath `$."…"` segment with `\` and `"`
+ *     backslash-escaped, so quotes/backslashes in a name can neither break
+ *     the SQL string nor the JSONPath parser (verified live).
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same conditions to its sidecar candidate SQL.
+ */
+export function buildAttributeConditions(
+  attr?: Record<string, string>,
+): string[] {
+  if (!attr) return [];
+  const conditions: string[] = [];
+  for (const [name, value] of Object.entries(attr)) {
+    const pathSegment = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    conditions.push(
+      `json_extract_string(attributes, '$."${pathSegment}"') = '${escapeSqlLiteral(value)}'`,
+    );
+  }
+  return conditions;
+}
+
+/**
+ * RETR-011: SQL conditions for the validity window, if the caller opted in.
+ *
+ * Current view (historical !== true AND now provided): a row is visible
+ * only while its validity window contains `now`:
+ *   - valid_until IS NULL OR valid_until >= now   (not expired)
+ *   - valid_from IS NULL OR valid_from <= now     (already valid)
+ * Both fields are VARCHAR ISO-8601 (READ_JSON_COLUMNS), compared as
+ * TIMESTAMP via try_cast — the same pattern as the RETR-003 time bounds
+ * (a lexicographic string compare would be wrong across mixed formats).
+ * historical=true (or no `now`) → no conditions, all rows regardless of
+ * validity — the historical view where expired facts remain visible.
+ *
+ * Exported so the FTS keyword path (src/search/query.ts) applies exactly
+ * the same semantics to its sidecar candidate SQL.
+ */
+export function buildValidityConditions(
+  historical: boolean | undefined,
+  now: string | undefined,
+): string[] {
+  if (historical === true || now === undefined) return [];
+  const nowLit = escapeSqlLiteral(now);
+  return [
+    `(valid_until IS NULL OR try_cast(valid_until AS TIMESTAMP) >= try_cast('${nowLit}' AS TIMESTAMP))`,
+    `(valid_from IS NULL OR try_cast(valid_from AS TIMESTAMP) <= try_cast('${nowLit}' AS TIMESTAMP))`,
+  ];
+}
+
+function buildTimestampBound(kind: "after" | "before", value: string): string {
+  const cmp = kind === "after" ? ">=" : "<=";
+  return `try_cast(timestamp AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
+}
+
+function buildFacetBound(kind: "after" | "before", value: string): string {
+  const cmp = kind === "after" ? ">=" : "<=";
+  return `try_cast(regexp_extract(key, '^/chats/[^/]+/([0-9]{4}-[0-9]{2}-[0-9]{2})', 1) AS TIMESTAMP) ${cmp} try_cast('${escapeSqlLiteral(value)}' AS TIMESTAMP)`;
+}
+
+/**
+ * RETR-005: recency-aware default ordering for listing paths (exact-key,
+ * glob/keyPrefix, domain/author, plain list). Newest-first by default —
+ * before RETR-005 these legs had NO ORDER BY at all and surfaced rows in
+ * read_json file order (oldest-first on appended JSONL).
+ *
+ * try_cast(timestamp AS TIMESTAMP) compares the mixed corpus formats
+ * (`.749Z` vs `.676525+00:00`) as instants — the same approach the
+ * RETR-003 time bounds use; a lexicographic sort would misorder those
+ * (0x2B '+' < 0x5A 'Z'). NULLS LAST keeps unparseable rows at the bottom
+ * (a corrupt row must never pollute the top of a listing), and id ASC is
+ * the deterministic final tiebreak for equal timestamps.
+ */
+const DEFAULT_ORDER_BY =
+  "ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC";
+
+/**
+ * Build the inner WHERE conditions for the given filters.
+ *
+ * Shared by queryMemories and countMemories so the counted row set always
+ * matches the queried row set (same dedup + tombstone semantics).
+ */
+function buildWhereConditions(filters?: MemoryQueryFilters): string[] {
+  const conditions: string[] = [];
+
+  if (filters?.key) {
+    // Escape single quotes in key to prevent SQL injection
+    const escapedKey = filters.key.replace(/'/g, "''");
+    conditions.push(`key = '${escapedKey}'`);
+  }
+
+  if (filters?.id) {
+    // Escape single quotes in id to prevent SQL injection
+    const escapedId = filters.id.replace(/'/g, "''");
+    conditions.push(`id = '${escapedId}'`);
+  }
+
+  if (filters?.keyPrefix) {
+    // Escape single quotes in prefix and add LIKE pattern
+    const escapedPrefix = filters.keyPrefix.replace(/'/g, "''");
+    conditions.push(`key LIKE '${escapedPrefix}%%'`);
+  }
+
+  if (filters?.domain) {
+    conditions.push(`domain = '${filters.domain}'`);
+  }
+
+  if (filters?.author) {
+    // Escape single quotes in author to prevent SQL injection
+    const escapedAuthor = filters.author.replace(/'/g, "''");
+    conditions.push(`author = '${escapedAuthor}'`);
+  }
+
+  // RETR-003: time-scoped recall — timestamp (and chat-archive key facet)
+  // bounds. Applied INSIDE the dedup window, so a memory that was updated
+  // after the window's end still surfaces as its latest in-window record.
+  conditions.push(...buildTimeRangeConditions(filters?.after, filters?.before));
+
+  // RETR-006: attribute filters — exact matches on the attributes JSON.
+  // ANDed with everything above (intersection semantics). Applied inside
+  // the dedup window like the time bounds.
+  conditions.push(...buildAttributeConditions(filters?.attr));
+
+  // RETR-011: validity-window filter — current view excludes expired
+  // (past valid_until) and not-yet-valid (future valid_from) rows.
+  // Applied inside the dedup window, mirroring the time bounds; the
+  // recall surface always sets `now`, so non-recall callers (which never
+  // set it) keep legacy behavior.
+  conditions.push(
+    ...buildValidityConditions(filters?.historical, filters?.now),
+  );
+
+  // Semantic search with vector similarity
+  if (filters?.query && filters?.embedding) {
+    conditions.push("embedding IS NOT NULL");
+  }
+
+  return conditions;
+}
+
+/**
+ * Explicit read_json column schema (DOGFOOD-010).
+ *
+ * Auto-inference types a heterogeneous `attributes` object as MAP(...); when
+ * a record's JSON object then contains duplicate keys (valid per RFC 8259,
+ * produced by external writers — JSON.parse in-process silently collapses
+ * them), MAP conversion fails with `duckdb::InvalidInputException: Map keys
+ * must be unique.` thrown from native code. node-duckdb's
+ * RunPreparedTask::DoWork() (the db.all() path) has NO try/catch around
+ * Execute(), so the C++ throw escapes the libuv worker thread →
+ * std::terminate → SIGABRT → whole process dies. A JS try/catch cannot help:
+ * the exception never crosses back into JS.
+ *
+ * Forcing every column to VARCHAR means `attributes` arrives as RAW JSON TEXT
+ * (parsed in JS by parseDuckDBStruct, which tries JSON.parse first) and no
+ * MAP/STRUCT is ever built — duplicate keys become harmless. ignore_errors
+ * converts any remaining per-record conversion error (e.g. a malformed JSON
+ * line) into an all-NULL row, which the `action != 'tombstone'` outer filter
+ * drops, instead of a native throw.
+ */
+export const READ_JSON_COLUMNS =
+  "columns={id:'VARCHAR', key:'VARCHAR', domain:'VARCHAR', timestamp:'VARCHAR', valid_from:'VARCHAR', valid_until:'VARCHAR', author:'VARCHAR', action:'VARCHAR', embedding_text:'VARCHAR', attributes:'VARCHAR'}";
+
+/**
+ * Map one raw DuckDB row (all-VARCHAR READ_JSON_COLUMNS shape) to the
+ * exported MemoryType shape.
+ *
+ * PERF-003: extracted from queryMemories so queryMemoriesWithTotal shapes
+ * its rows with the SAME code path — identical key order, identical
+ * attributes parsing (parseDuckDBStruct), identical BigInt normalization —
+ * which is what makes the fused result byte-identical to the old
+ * two-scan path.
+ */
+function mapMemoryRow(row: any): MemoryType {
+  return deepConvertBigInts({
+    id: row.id,
+    key: row.key,
+    domain: row.domain,
+    timestamp: row.timestamp,
+    // RETR-011: optional validity window — absent on rows written
+    // before the fields existed (NULL → undefined).
+    ...(typeof row.valid_from === "string"
+      ? { valid_from: row.valid_from }
+      : {}),
+    ...(typeof row.valid_until === "string"
+      ? { valid_until: row.valid_until }
+      : {}),
+    author: row.author,
+    action: row.action,
+    embedding_text: row.embedding_text,
+    attributes:
+      typeof row.attributes === "string"
+        ? parseDuckDBStruct(row.attributes)
+        : row.attributes,
+  });
+}
+
+/**
+ * Query memories from DuckDB with optional filters
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters
+ * @returns Array of matching memory records
+ */
+export function queryMemories(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): MemoryType[] | Promise<MemoryType[]> {
+  if (partitionPaths.length === 0) {
+    return [];
+  }
+
+  // Build file list for DuckDB (use read_json instead of glob for reliability)
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+
+  if (jsonlFiles.length === 0) {
+    return [];
+  }
+
+  // Build WHERE clause based on filters - use template literals instead of
+  // prepared statements to avoid DuckDB Node.js binding issues with parameter
+  // placeholders
+  const innerConditions = buildWhereConditions(filters);
+
+  // RETR-005: listing legs default to newest-first. The semantic leg keeps
+  // cosine similarity as the primary key and breaks equal-distance ties by
+  // recency (same try_cast + id tiebreak as DEFAULT_ORDER_BY), so fresh
+  // memories outrank equal-similarity old ones at the SQL layer too.
+  let orderByClause = DEFAULT_ORDER_BY;
+
+  // Semantic search with vector similarity
+  if (filters?.query && filters?.embedding) {
+    // Use DuckDB VSS extension for cosine similarity
+    const embeddingStr = `[${filters.embedding.join(",")}]`;
+    orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC`;
+  }
+
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+
+  // Use a window function to deduplicate by ID, keeping only the latest
+  // record for each memory. If the latest action is 'tombstone', the
+  // memory is considered deleted and excluded from results.
+  // This fixes BUG-027: tombstone filtering was broken because the
+  // old flat WHERE clause excluded tombstone records but still returned
+  // the original 'add' record with the same ID.
+  //
+  // The "latest" pick orders by try_cast(timestamp AS TIMESTAMP) — NOT the
+  // raw VARCHAR — so mixed timestamp formats (.749Z vs .749525+00:00,
+  // RETR-003) order as instants and the genuinely newest version wins. A
+  // lexicographic VARCHAR sort misorders those (0x5A 'Z' > 0x35 '5'), so
+  // the OLDER .749Z row would be kept and the newer version made invisible.
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
+
+  // GAP-023: explicit undefined check — a falsy 0 previously produced NO
+  // LIMIT clause at all (returning every row). LIMIT 0 must emit "LIMIT 0".
+  const limitClause =
+    filters?.limit !== undefined ? `LIMIT ${filters.limit}` : "";
+
+  // DB-GAP-046: the page window (offset) is applied HERE, to the ordered
+  // deduped result set, so the DB returns rows [offset, offset+limit) and
+  // callers never have to slice a page they already truncated. Emitted only
+  // alongside a LIMIT: a bare OFFSET is meaningless for this query shape and
+  // would split callers onto a second SQL path. A non-positive offset is a
+  // no-op (the HTTP route rejects negative/non-numeric offsets up front).
+  const offsetClause =
+    filters?.limit !== undefined && (filters?.offset ?? 0) > 0
+      ? `OFFSET ${filters.offset}`
+      : "";
+
+  // Use read_json with explicit file list instead of glob pattern
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  const sql = `
+    SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      ${innerWhereClause}
+    ) sub
+    WHERE ${outerWhereClause}
+    ${orderByClause}
+    ${limitClause}
+    ${offsetClause}
+  `;
+
+  // Use db.all() directly instead of prepared statements to avoid parameter binding issues
+  return new Promise((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          console.error("DuckDB query error:", err);
+          // BUG-034: Propagate connection errors so callers can retry.
+          // A silently-broken Database (e.g. file locked by another process)
+          // must be evicted from the cache and re-created.
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve([]);
+          return;
+        }
+
+        // Handle case where result is undefined or not an array
+        if (!result || !Array.isArray(result)) {
+          resolve([]);
+          return;
+        }
+
+        resolve((result as any[]).map(mapMemoryRow));
+      });
+    } catch (error) {
+      console.error("DuckDB query error:", error);
+      resolve([]);
+    }
+  });
+}
+
+/**
+ * Count memories matching the given filters (GAP-024).
+ *
+ * Produces the same row set as queryMemories — deduplicated by id (latest
+ * record wins) with tombstoned memories excluded — but with no LIMIT, so
+ * the result is the true total for the active filters regardless of any
+ * limit/offset the caller applies to the data query.
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters (limit AND offset are ignored —
+ *   GAP-024/DB-GAP-046: the total must be the unlimited match count)
+ * @returns Number of matching memory records
+ */
+export function countMemories(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): Promise<number> {
+  if (partitionPaths.length === 0) {
+    return Promise.resolve(0);
+  }
+
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+
+  if (jsonlFiles.length === 0) {
+    return Promise.resolve(0);
+  }
+
+  const innerConditions = buildWhereConditions(filters);
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+
+  // Same dedup/tombstone semantics as queryMemories
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
+
+  // Use read_json with explicit file list instead of glob pattern
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      ${innerWhereClause}
+    ) sub
+    WHERE ${outerWhereClause}
+  `;
+
+  // Use db.all() directly instead of prepared statements to avoid parameter binding issues
+  return new Promise((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          console.error("DuckDB count error:", err);
+          // BUG-034: Propagate connection errors so callers can retry.
+          // A silently-broken Database (e.g. file locked by another process)
+          // must be evicted from the cache and re-created.
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve(0);
+          return;
+        }
+
+        // COUNT(*) comes back as BIGINT; Number() normalizes it
+        resolve(Number(result?.[0]?.total ?? 0));
+      });
+    } catch (error) {
+      console.error("DuckDB count error:", error);
+      resolve(0);
+    }
+  });
+}
+
+/** Combined query+total result (PERF-003). */
+export interface QueryMemoriesWithTotalResult {
+  memories: MemoryType[];
+  /**
+   * The true total for the active filters — the DEDUPED, tombstone-filtered
+   * match count, unlimited by limit/offset (GAP-024 semantics — identical to
+   * what countMemories reports).
+   */
+  total: number;
+}
+
+/**
+ * Query memories AND their true total in ONE read_json scan (PERF-003).
+ *
+ * The old list path ran queryMemories + countMemories back-to-back; EACH
+ * mounted every chunk file via DuckDB read_json, so every recall/list
+ * request paid two full re-ingests of the namespace. This fused query
+ * mounts the files once, computes the dedup window ONCE, and derives both
+ * the page and the total from that single materialized set.
+ *
+ * Shape (combined API — NOT a module-level capture var; the probe's capture
+ * var was a thread-safety/abstraction smell, PERF-003 redesign):
+ *
+ *   WITH matches AS MATERIALIZED ( … dedup + tombstone filter, UNLIMITED … )
+ *   , total AS MATERIALIZED ( SELECT COUNT(*) FROM matches )
+ *   , page AS ( SELECT * FROM matches ORDER BY … LIMIT … OFFSET … )
+ *   SELECT … FROM (
+ *     SELECT 'row' AS kind, page.*, 0 AS __total FROM page
+ *     UNION ALL
+ *     SELECT 'total', NULL…, total.__total FROM total
+ *   ) ORDER BY kind DESC
+ *
+ * The count leg reads the MATERIALIZED dedup set — NOT a re-mount of
+ * read_json — so there is exactly ONE read_json per list request, and the
+ * total row is emitted even when LIMIT/OFFSET leaves the page empty
+ * (an offset beyond the end still carries the true total).
+ *
+ * Rows and total are byte-identical to the old two-scan path: same inner
+ * conditions, same dedup window, same ordering, same LIMIT/OFFSET
+ * placement, same row mapper (mapMemoryRow), and the total is a COUNT(*)
+ * over exactly the set countMemories counts.
+ *
+ * @param db - DuckDB database instance
+ * @param partitionPaths - Array of absolute partition paths to query
+ * @param filters - Optional query filters (limit/offset slice the page;
+ *   the total is always the unlimited match count)
+ * @returns { memories, total }
+ */
+export async function queryMemoriesWithTotal(
+  db: Database,
+  partitionPaths: string[],
+  filters?: MemoryQueryFilters,
+): Promise<QueryMemoriesWithTotalResult> {
+  const empty: QueryMemoriesWithTotalResult = { memories: [], total: 0 };
+  if (partitionPaths.length === 0) {
+    return empty;
+  }
+
+  const jsonlFiles = collectJsonlFiles(partitionPaths);
+  if (jsonlFiles.length === 0) {
+    return empty;
+  }
+
+  const innerConditions = buildWhereConditions(filters);
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+
+  // Same dedup/tombstone semantics as queryMemories/countMemories
+  const outerWhereClause = "__rn = 1 AND action != 'tombstone'";
+
+  // RETR-005 default order; the semantic leg keeps cosine similarity first
+  // (same override queryMemories applies).
+  let orderByClause = DEFAULT_ORDER_BY;
+  if (filters?.query && filters?.embedding) {
+    const embeddingStr = `[${filters.embedding.join(",")}]`;
+    orderByClause = `ORDER BY array_cosine_distance(embedding, ${embeddingStr}::FLOAT[384]) ASC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC`;
+  }
+
+  // GAP-023: LIMIT 0 must emit "LIMIT 0" (undefined → no clause).
+  const limitClause =
+    filters?.limit !== undefined ? `LIMIT ${filters.limit}` : "";
+
+  // DB-GAP-046: page window emitted only alongside a LIMIT (same rule as
+  // queryMemories — a bare OFFSET would split callers onto a second path).
+  const offsetClause =
+    filters?.limit !== undefined && (filters?.offset ?? 0) > 0
+      ? `OFFSET ${filters.offset}`
+      : "";
+
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+  const sql = `
+    WITH matches AS MATERIALIZED (
+      SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
+      FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST) as __rn
+        FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+        ${innerWhereClause}
+      ) sub
+      WHERE ${outerWhereClause}
+    ),
+    total AS MATERIALIZED (
+      SELECT COUNT(*) AS __total FROM matches
+    ),
+    page AS (
+      SELECT * FROM matches
+      ${orderByClause}
+      ${limitClause}
+      ${offsetClause}
+    )
+    SELECT kind, id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, __total
+    FROM (
+      SELECT 'row' AS kind, p.*, 0 AS __total FROM page p
+      UNION ALL
+      SELECT 'total' AS kind, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.__total FROM total t
+    ) fused
+    ORDER BY kind DESC
+  `;
+
+  return new Promise<QueryMemoriesWithTotalResult>((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          console.error("DuckDB query error:", err);
+          // BUG-034: Propagate connection errors so callers can retry
+          // (same contract as queryMemories/countMemories).
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve(empty);
+          return;
+        }
+
+        if (!result || !Array.isArray(result)) {
+          resolve(empty);
+          return;
+        }
+
+        const memories: MemoryType[] = [];
+        let total = 0;
+        for (const row of result as any[]) {
+          if (row?.kind === "total") {
+            // COUNT(*) comes back as BIGINT; Number() normalizes it
+            total = Number(row.__total ?? 0);
+          } else if (row?.kind === "row") {
+            memories.push(mapMemoryRow(row));
+          }
+        }
+        resolve({ memories, total });
+      });
+    } catch (error) {
+      console.error("DuckDB query error:", error);
+      resolve(empty);
+    }
+  });
+}
+
+/**
+ * Insert a memory record through the SUPA-2 namespace serializer.
+ *
+ * @param db - DuckDB database instance (retained for API compatibility)
+ * @param memory - Memory record to insert
+ * @param partitionPath - Absolute path to partition directory
+ * @param principal - Authenticated principal for the SUPA-4 authorization seam
+ */
+export async function insertMemory(
+  _db: Database,
+  memory: MemoryType,
+  partitionPath: string,
+  principal?: AuthPrincipal,
+): Promise<void> {
+  await insertMemoryToPartition(memory, partitionPath, principal);
+}
+
+interface SerializationTarget {
+  namespacesPath: string;
+  ns: string;
+  namespacePath: string;
+  targetPath: string;
+  partitionPath?: string;
+}
+
+/** Resolve a production namespace partition, with a legacy test-path fallback. */
+function resolveSerializationTarget(
+  partitionPath: string,
+): SerializationTarget {
+  // GAP-062: classify against the config-derived root, never the caller's cwd.
+  const configuredRoot = resolveNamespacesPath();
+  const resolvedPartition = path.resolve(partitionPath);
+  const relative = path.relative(configuredRoot, resolvedPartition);
+  const parts = relative.split(path.sep).filter(Boolean);
+  if (
+    relative !== "" &&
+    !relative.startsWith("..") &&
+    !path.isAbsolute(relative) &&
+    parts.length >= 2
+  ) {
+    const [ns, ...partitionParts] = parts;
+    const relativePartition = partitionParts.join(path.sep) + path.sep;
+    return {
+      namespacesPath: configuredRoot,
+      ns,
+      namespacePath: path.join(configuredRoot, ns),
+      targetPath: path.join(relativePartition, "current.jsonl"),
+      partitionPath: relativePartition,
+    };
+  }
+
+  // `insertMemory` is a historical exported helper used by isolated tests with
+  // an arbitrary partition directory. Treat that directory as a standalone
+  // namespace while still routing its write through the serializer.
+  return {
+    namespacesPath: path.dirname(resolvedPartition),
+    ns: path.basename(resolvedPartition),
+    namespacePath: resolvedPartition,
+    targetPath: "current.jsonl",
+  };
+}
+
+/** Insert memory to partition through the one writer that owns its namespace. */
+async function insertMemoryToPartition(
+  memory: MemoryType,
+  partitionPath: string,
+  principal?: AuthPrincipal,
+): Promise<void> {
+  const target = resolveSerializationTarget(partitionPath);
+  fs.mkdirSync(target.namespacePath, { recursive: true });
+  const writerOptions = target.partitionPath
+    ? { namespacesPath: target.namespacesPath }
+    : {
+        namespacesPath: target.namespacesPath,
+        // Historical standalone test helper paths are not namespace git repositories.
+        scheduleCommit: () => undefined,
+      };
+  const result = await getNamespaceWriter(target.ns, writerOptions).enqueue({
+    ns: target.ns,
+    table: "memories",
+    op:
+      memory.action === "tombstone"
+        ? "delete"
+        : memory.action === "update"
+          ? "update"
+          : "insert",
+    record: memory,
+    principal,
+    targetPath: target.targetPath,
+    ...(target.partitionPath ? { partitionPath: target.partitionPath } : {}),
+  });
+  if (!result.ok) {
+    const error = new Error(`${result.code}: ${result.message}`) as Error & {
+      code?: string;
+      retryAfter?: number;
+    };
+    error.code = result.code;
+    error.retryAfter = result.retryAfter;
+    throw error;
+  }
+}
+
+/**
+ * Create tombstone record for a memory
+ *
+ * Appends a tombstone record with the same ID as the original memory.
+ * Never deletes files - preserves git history.
+ *
+ * @param db - DuckDB database instance
+ * @param memoryId - ID of memory to tombstone
+ * @param partitionPath - Partition path to search and append to
+ * @param reason - Optional reason for deletion (stored in attributes)
+ * @param author - Optional author identity for the tombstone (DB-GAP-031:
+ *  authenticated principal; absent = the original memory's author)
+ */
+export async function tombstoneMemory(
+  db: Database,
+  memoryId: string,
+  partitionPath: string,
+  reason?: string,
+  author?: string,
+  principal?: AuthPrincipal,
+): Promise<void> {
+  // Find the original memory in the partition using DuckDB WHERE clause
+  const memories = await queryMemories(db, [partitionPath], {
+    id: memoryId,
+    limit: 1,
+  });
+  const originalMemory = memories[0];
+
+  if (!originalMemory) {
+    // Memory not found - create tombstone anyway with minimal data
+    // This handles cases where the memory might be in a different partition
+    const tombstone: MemoryType = {
+      id: memoryId,
+      key: "/unknown",
+      domain: "raw_note",
+      timestamp: new Date().toISOString(),
+      author: author ?? "system@localhost.localdomain",
+      action: "tombstone",
+      embedding_text: "",
+      attributes: reason ? { tombstone_reason: reason } : {},
+    };
+    await insertMemoryToPartition(tombstone, partitionPath, principal);
+    return;
+  }
+
+  // Create tombstone record copying all fields from original — the author
+  // is replaced by the authenticated principal when one was provided
+  // (DB-GAP-031), else the original memory's author is preserved.
+  const tombstone: MemoryType = {
+    ...originalMemory,
+    action: "tombstone",
+    timestamp: new Date().toISOString(),
+    author: author ?? originalMemory.author,
+    attributes: {
+      ...originalMemory.attributes,
+      ...(reason ? { tombstone_reason: reason } : {}),
+    },
+  };
+
+  await insertMemoryToPartition(tombstone, partitionPath, principal);
+}

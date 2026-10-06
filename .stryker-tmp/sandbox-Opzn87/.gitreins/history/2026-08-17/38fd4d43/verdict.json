@@ -1,0 +1,77 @@
+{
+  "task_id": "DOGFOOD-011",
+  "task_title": "Semantic search has NO relevance threshold - ?q=/recall query returns all memories for garbage queries",
+  "task_criteria": [
+    "semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold items) on a populated namespace; similarity scores exposed in REST ?q= responses (items[].score); MCP recall with query behaves consistently; regression tests added; full suite + npx tsc --noEmit clean; gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m8:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10692315 bytes (10.69 MB) in 2.56s\u001b[0m\n\u001b[90m8:40PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10692315 bytes (10.69 MB) in 2.56s\u001b[0m\n\u001b[90m8:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 779\u001b[2mms\u001b[22m\u001b[39m\n\u001b[90mstdout\u001b[2m | src/cli/remember-dogfood003.test.ts\u001b[2m > \u001b[22m\u001b[2mDOGFOOD-003: remember content/body handling\u001b[2m > \u001b[22m\u001b[2m(d) unknown flag rejection does not fire for a valid --content flag\n\u001b[22m\u001b[39m\u2713 Remembered /scratch/project/alpha (ID: 2ae5a0d6-3e3c-404c-a573-b1269827dd33) - will be committed in b",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold items) on a populated namespace; similarity scores exposed in REST ?q= responses (items[].score); MCP recall with query behaves consistently; regression tests added; full suite + npx tsc --noEmit clean; gitreins guard PASS: All sub-criteria verified. (1) src/embedding/search.ts: DEFAULT_MIN_SCORE=0.25 and `if (score >= minScore)` drops below-threshold candidates. (2) src/http/routes/memories-dogfood011.test.ts test (a): ?q=zzznothing returns 0 items with total>0 (pool existed, filtered). (3) src/http/routes/memories.ts transformMemory adds score when present; test (c) asserts item.score is number in (0,1]. (4) src/mcp/tools/recall.ts uses same semanticSearch with same threshold and returns score on memories; REST calls recallTool (same function) so MCP/REST consistent. (5) Regression tests: 5 threshold tests in src/embedding/search.test.ts + 5 integration tests in memories-dogfood011.test.ts. (6) `npx vitest run` exit 0: 390 passed (54 files); `npx tsc --noEmit` clean (no output). (7) gitreins guard test_command='npx vitest run' passes (full suite green).\nDOGFOOD-011 complete: semantic search enforces DEFAULT_MIN_SCORE=0.25 floor, exposes items[].score over REST, MCP recall consistent via shared recallTool, regression tests added, full suite (390 passed) + tsc clean, gitreins guard PASS.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold items) on a populated namespace; similarity scores exposed in REST ?q= responses (items[].score); MCP recall with query behaves consistently; regression tests added; full suite + npx tsc --noEmit clean; gitreins guard PASS: All sub-criteria verified. (1) src/embedding/search.ts: DEFAULT_MIN_SCORE=0.25 and `if",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold items) on a populated namespace; similarity scores exposed in REST ?q= responses (items[].score); MCP recall with query behaves consistently; regression tests added; full suite + npx tsc --noEmit clean; gitreins guard PASS",
+                "status": "PASS",
+                "detail": "All sub-criteria verified. (1) src/embedding/search.ts: DEFAULT_MIN_SCORE=0.25 and `if (score >= minScore)` drops below-threshold candidates. (2) src/http/routes/memories-dogfood011.test.ts test (a): ?q=zzznothing returns 0 items with total>0 (pool existed, filtered). (3) src/http/routes/memories.ts transformMemory adds score when present; test (c) asserts item.score is number in (0,1]. (4) src/mcp/tools/recall.ts uses same semanticSearch with same threshold and returns score on memories; REST calls recallTool (same function) so MCP/REST consistent. (5) Regression tests: 5 threshold tests in src/embedding/search.test.ts + 5 integration tests in memories-dogfood011.test.ts. (6) `npx vitest run` exit 0: 390 passed (54 files); `npx tsc --noEmit` clean (no output). (7) gitreins guard test_command='npx vitest run' passes (full suite green)."
+              }
+            ],
+            "summary": "DOGFOOD-011 complete: semantic search enforces DEFAULT_MIN_SCORE=0.25 floor, exposes items[].score over REST, MCP recall consistent via shared recallTool, regression tests added, full suite (390 passed) + tsc clean, gitreins guard PASS."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-011\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m8:40PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10692315 bytes (10.69 MB) in 2.56s\u001b[0m\n\u001b[90m8:40PM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 semanticSearch (src/embedding/search.ts) applies a minimum cosine-similarity threshold so a nonsense query (?q=zzznothing) returns no results (or only genuinely above-threshold items) on a populated namespace; similarity scores exposed in REST ?q= responses (items[].score); MCP recall with query behaves consistently; regression tests added; full suite + npx tsc --noEmit clean; gitreins guard PASS: All sub-criteria verified. (1) src/embedding/search.ts: DEFAULT_MIN_SCORE=0.25 and `if (score >= minScore)` drops below-threshold candidates. (2) src/http/routes/memories-dogfood011.test.ts test (a): ?q=zzznothing returns 0 items with total>0 (pool existed, filtered). (3) src/http/routes/memories.ts transformMemory adds score when present; test (c) asserts item.score is number in (0,1]. (4) src/mcp/tools/recall.ts uses same semanticSearch with same threshold and returns score on memories; REST calls recallTool (same function) so MCP/REST consistent. (5) Regression tests: 5 threshold tests in src/embedding/search.test.ts + 5 integration tests in memories-dogfood011.test.ts. (6) `npx vitest run` exit 0: 390 passed (54 files); `npx tsc --noEmit` clean (no output). (7) gitreins guard test_command='npx vitest run' passes (full suite green).\nDOGFOOD-011 complete: semantic search enforces DEFAULT_MIN_SCORE=0.25 floor, exposes items[].score over REST, MCP recall consistent via shared recallTool, regression tests added, full suite (390 passed) + tsc clean, gitreins guard PASS.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T01:41:54.570011"
+}

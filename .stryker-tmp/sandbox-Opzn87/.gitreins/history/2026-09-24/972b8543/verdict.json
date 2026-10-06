@@ -1,0 +1,95 @@
+{
+  "task_id": "CI-005",
+  "task_title": "CI red recurrence: AGENTS.md test-count assertion fails on every run - derive counts via sync script instead of hand-typed literals",
+  "task_criteria": [
+    "CI step 'Assert AGENTS.md test counts match live suite' passes: counts in AGENTS.md equal live vitest totals, extracted by a single shared script (scripts/sync-agents-md-counts.sh) used by both the sync and the CI check mode; script is idempotent and fails loudly on unparseable output"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "5962ea0a8c480d0e9ee1d4c57b04bcdf9a1fe7b7",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n7:39AM INF scanned ~13450419 bytes (13.45 MB) in 2.02s\n7:39AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 247549 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  167 passed (167)\n      Tests  1332 passed (1332)\n   Start at  07:39:34\n   Duration  104.38s (tests 89%, import 9%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nCap exceeded: Time cap (45m) exceeded (45m6s elapsed). Increase max_time or simplify criteria.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nCap exceeded: Time cap (45m) exceeded (45m6s elapsed). Increase max_time or simplify criteria.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Cap exceeded: Time cap (45m) exceeded (45m6s elapsed). Increase max_time or simplify criteria."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: CI-005\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n\nCap exceeded: Time cap (45m) exceeded (45m6s elapsed). Increase max_time or simplify criteria.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-24T13:26:29.112990",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-24T13:26:29.128116+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6017,
+        "truncated": false,
+        "source": "git show 5962ea0a8c48"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 901,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "CI-005"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-041",
+  "task_title": "duckbrain-usage SKILL.md auth coverage (post-auth-flip docs drift)",
+  "task_criteria": [
+    "SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns 200 with the documented header; suite green + tsc --noEmit clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m5:52AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11817799 bytes (11.82 MB) in 6.17s\u001b[0m\n\u001b[90m5:52AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m5:52AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11817799 bytes (11.82 MB) in 6.17s\u001b[0m\n\u001b[90m5:52AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 888\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1041\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 948\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-asof-retr004.test.ts \u001b[2m(\u001b[22m\u001b[",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns 200 with the documented header; suite green + tsc --noEmit clean: (1) skills/duckbrain-usage/SKILL.md entry table documents `node bin/duckbrain.js http --port 3000 --auth=apikey` and 'every request sends -H X-API-Key: <token> (401 without it)'; all curl examples carry `-H 'X-API-Key: <token>'`; Authentication section documents --auth=apikey + X-API-Key. (2) Live daemon with --auth=apikey: POST /api/namespaces=201, POST /api/memories=201, GET /api/memories/key=200, GET /api/memories?prefix=200, GET /api/keys=200, POST /mcp=200, no-token=401. (3) `npx vitest run` \u2192 92 files/794 tests passed, exit 0 (incl. memories-auth-dbgap031.test.ts 9 tests verifying X-API-Key\u2192200). (4) `npx tsc --noEmit` \u2192 exit 0.\nSKILL.md fully documents --auth=apikey + X-API-Key, all documented curl commands return 200/201 with the header (verified live), suite green (794 tests) and tsc --noEmit clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns 200 with the documented header; suite green + tsc --noEmit clean: (1) skills/duckbrain-usage/SKILL.md entry table documents `node bin/duckbrain.js http --port 3000 --auth=apikey` and 'every request sends -H X-API-Key: <token> (401 without it)'; all curl examples carry `-H 'X-API-Key: <token>'`; Authentication section documents --auth=apikey + X-API-Key. (2) Live daemon with --auth=apikey: POST /api/names",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns 200 with the documented header; suite green + tsc --noEmit clean",
+                "status": "PASS",
+                "detail": "(1) skills/duckbrain-usage/SKILL.md entry table documents `node bin/duckbrain.js http --port 3000 --auth=apikey` and 'every request sends -H X-API-Key: <token> (401 without it)'; all curl examples carry `-H 'X-API-Key: <token>'`; Authentication section documents --auth=apikey + X-API-Key. (2) Live daemon with --auth=apikey: POST /api/namespaces=201, POST /api/memories=201, GET /api/memories/key=200, GET /api/memories?prefix=200, GET /api/keys=200, POST /mcp=200, no-token=401. (3) `npx vitest run` \u2192 92 files/794 tests passed, exit 0 (incl. memories-auth-dbgap031.test.ts 9 tests verifying X-API-Key\u2192200). (4) `npx tsc --noEmit` \u2192 exit 0."
+              }
+            ],
+            "summary": "SKILL.md fully documents --auth=apikey + X-API-Key, all documented curl commands return 200/201 with the header (verified live), suite green (794 tests) and tsc --noEmit clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-041\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m5:52AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11817799 bytes (11.82 MB) in 6.17s\u001b[0m\n\u001b[90m5:52AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 SKILL.md documents --auth=apikey + X-API-Key header; each SKILL.md curl returns 200 with the documented header; suite green + tsc --noEmit clean: (1) skills/duckbrain-usage/SKILL.md entry table documents `node bin/duckbrain.js http --port 3000 --auth=apikey` and 'every request sends -H X-API-Key: <token> (401 without it)'; all curl examples carry `-H 'X-API-Key: <token>'`; Authentication section documents --auth=apikey + X-API-Key. (2) Live daemon with --auth=apikey: POST /api/namespaces=201, POST /api/memories=201, GET /api/memories/key=200, GET /api/memories?prefix=200, GET /api/keys=200, POST /mcp=200, no-token=401. (3) `npx vitest run` \u2192 92 files/794 tests passed, exit 0 (incl. memories-auth-dbgap031.test.ts 9 tests verifying X-API-Key\u2192200). (4) `npx tsc --noEmit` \u2192 exit 0.\nSKILL.md fully documents --auth=apikey + X-API-Key, all documented curl commands return 200/201 with the header (verified live), suite green (794 tests) and tsc --noEmit clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-25T10:54:28.588988"
+}

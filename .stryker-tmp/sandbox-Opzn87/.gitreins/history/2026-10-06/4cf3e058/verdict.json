@@ -1,0 +1,102 @@
+{
+  "task_id": "TESTQ-001",
+  "task_title": "Add mutation/red-proof test gate to CI",
+  "task_criteria": [
+    "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "ab9e4de9ab494f4a81c04811dc9a6777b9edc37b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n2:18PM INF scanned ~14588531 bytes (14.59 MB) in 1.84s\n2:18PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 436568 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  205 passed (205)\n      Tests  1658 passed (1658)\n   Start at  14:18:39\n   Duration  54.01s (tests 77%, import 21%, transform 1%, worker 1%)\n\n    Isolate  205 workers spawned \u00b7 ~76ms startup each (spawn + environment, per file)\n             at least ~3.83s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T154652.226446Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI gate is non-functional. .github/workflows/ci.yml:84-88 adds a step running `pnpm test:mutation`, but that script is defined nowhere (grep for 'test:mutation' matches only ci.yml:85; package.json has no such script). Running the exact CI command yields exit 1: `Error: ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL \u00d7 Command \"test:mutation\" not found`. No Stryker config exists (`find . -iname 'stryker.conf*' -o -iname '.strykerrc*'` => nothing), package.json devDependencies contain no @stryker-mutator/* entries, and pnpm-lock.yaml has 0 'stryker' occurrences (`git diff pnpm-lock.yaml` is empty). The added src/test/red-proof-gate.test.ts does not prove red-proof behavior: it defines its own inline 'mutant' functions (lines 41-45, 53-56) and asserts they differ from the real function, never mutating real source, so it passes regardless of whether the code is broken \u2014 `npx vitest run src/test/red-proof-gate.test.ts` => 'Test Files 1 passed (1), Tests 7 passed (7)'. This is exactly the 'test that passes before and after' the criterion forbids. No working mutation-testing or test-verification gate was added.\nThe CI mutation gate invokes a non-existent `pnpm test:mutation` script (exits 1, runs no mutation testing), no Stryker config/deps exist, and the added 'red-proof' test is a self-contained tautology that passes regardless of source correctness \u2014 the criterion is not met.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI gate is non-functional. .github/workflows/ci.yml:84-88 adds a step running `pnpm test:mutation`, but that script is defined nowhere (grep for 'test:mutation' matches only ci.yml:85; package.json has no such script). Running the exact CI command yields exit 1: `Error: ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL \u00d7 Command \"test:mutation\" not found`. No Stryker config exists (`find . -iname 'stryker.conf*' -o -iname '.strykerrc*'` => nothing), package.json devDependencies contain no @stryker-mutator/* entries, and pnpm-lock.yaml has 0 'stryker' occurrences (`git diff pnpm-lock.yaml` is empty). The added src/test/red-proof-gate.test.ts does not prove red-proof behavior: it defines its own inline 'mutant' functions (lines 41-45, 53-56) and asserts they differ from the real function, never mutating real source, so it passes regardless of whether the code is broken \u2014 `npx vitest run src/test/red-proof-gate.test.ts` => 'Test Files 1 passed (1), Tests 7 passed (7)'. This is exactly the 'test that passes before and after' the criterion forbids. No working mutation-testing or test-verification gate was added.\nThe CI mutation gate invokes a non-existent `pnpm test:mutation` script (exits 1, runs no mutation testing), no Stryker config/deps exist, and the added 'red-proof' test is a self-contained tautology that passes regardless of source correctness \u2014 the criterion is not met.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.",
+                "status": "FAIL",
+                "detail": "The CI gate is non-functional. .github/workflows/ci.yml:84-88 adds a step running `pnpm test:mutation`, but that script is defined nowhere (grep for 'test:mutation' matches only ci.yml:85; package.json has no such script). Running the exact CI command yields exit 1: `Error: ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL \u00d7 Command \"test:mutation\" not found`. No Stryker config exists (`find . -iname 'stryker.conf*' -o -iname '.strykerrc*'` => nothing), package.json devDependencies contain no @stryker-mutator/* entries, and pnpm-lock.yaml has 0 'stryker' occurrences (`git diff pnpm-lock.yaml` is empty). The added src/test/red-proof-gate.test.ts does not prove red-proof behavior: it defines its own inline 'mutant' functions (lines 41-45, 53-56) and asserts they differ from the real function, never mutating real source, so it passes regardless of whether the code is broken \u2014 `npx vitest run src/test/red-proof-gate.test.ts` => 'Test Files 1 passed (1), Tests 7 passed (7)'. This is exactly the 'test that passes before and after' the criterion forbids. No working mutation-testing or test-verification gate was added.",
+                "resolution_probability": 0.37
+              }
+            ],
+            "summary": "The CI mutation gate invokes a non-existent `pnpm test:mutation` script (exits 1, runs no mutation testing), no Stryker config/deps exist, and the added 'red-proof' test is a self-contained tautology that passes regardless of source correctness \u2014 the criterion is not met."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Tests must fail on the pre-fix tree (red-proof) so a test that passes before and after a fix cannot be filed. Add a mutation testing or test-verification gate to CI.: The CI gate is non-functional. .github/workflows/ci.yml:84-88 adds a step running `pnpm test:mutation`, but that script is defined nowhere (grep for 'test:mutation' matches only ci.yml:85; package.json has no such script). Running the exact CI command yields exit 1: `Error: ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL \u00d7 Command \"test:mutation\" not found`. No Stryker config exists (`find . -iname 'stryker.conf*' -o -iname '.strykerrc*'` => nothing), package.json devDependencies contain no @stryker-mutator/* entries, and pnpm-lock.yaml has 0 'stryker' occurrences (`git diff pnpm-lock.yaml` is empty). The added src/test/red-proof-gate.test.ts does not prove red-proof behavior: it defines its own inline 'mutant' functions (lines 41-45, 53-56) and asserts they differ from the real function, never mutating real source, so it passes regardless of whether the code is broken \u2014 `npx vitest run src/test/red-proof-gate.test.ts` => 'Test Files 1 passed (1), Tests 7 passed (7)'. This is exactly the 'test that passes before and after' the criterion forbids. No working mutation-testing or test-verification gate was added.\nThe CI mutation gate invokes a non-existent `pnpm test:mutation` script (exits 1, runs no mutation testing), no Stryker config/deps exist, and the added 'red-proof' test is a self-contained tautology that passes regardless of source correctness \u2014 the criterion is not met.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T19:20:49.545742",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T19:20:49.566646+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5238,
+        "truncated": false,
+        "source": "git show ab9e4de9ab49"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 675,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-001"
+  }
+}

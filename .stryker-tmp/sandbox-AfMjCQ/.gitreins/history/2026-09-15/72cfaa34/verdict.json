@@ -1,0 +1,70 @@
+{
+  "task_id": "S3-GIT-002",
+  "task_title": "Failure-tolerant DuckBrain S3 git-history layer: one rejecting namespace must not re-run the whole 140-repo pass every 15m",
+  "task_criteria": [
+    "push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run whose only failures are already-backed-off namespaces does not block the 24h daily marker; hermetic harness proves run2 skips healthy namespaces (no push attempt) and retries only the expired-backoff one; real cron log shows the pass no longer recurring every 15m while hermes-canopy/scheduler remain retried at a bounded cadence"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "53b0010b7e004085c583e00a562d7dd3665699fd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m6:00AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8513934 bytes (8.51 MB) in 1.98s\u001b[0m\n\u001b[90m6:00AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m6:00AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8513934 bytes (8.51 MB) in 1.98s\u001b[0m\n\u001b[90m6:00AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n   Start at  06:00:38\n   Duration  42.97s (transform 2.28s, setup 901ms, import 33.57s, tests 119.57s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run whose only failures are already-backed-off namespaces does not block the 24h daily marker; hermetic harness proves run2 skips healthy namespaces (no push attempt) and retries only the expired-backoff one; real cron log shows the pass no longer recurring every 15m while hermes-canopy/scheduler remain retried at a bounded cadence: All four sub-claims verified with hard evidence. (1) Per-ns completion stamp + backoff: scripts/s3/duckbrain-s3-push.sh:56 BACKOFF_LADDER=(900 3600 21600 86400); lines 123-172 read/write per-ns state (fail_count, next_retry, refs_hash) and defer when next_retry>now; lines 190-193 atomically write $STATE_DIR/s3-git-pass.last. Production state present: 137 files in ~/.hermes/state/s3-git-ns/s3daily/ plus ~/.hermes/state/s3-git-pass.last. (2) Backed-off failures do not block the 24h marker: scripts/s3/duckbrain-s3-unified.sh:78-88 sets layer_ok=1 when PASS_TS>=GIT_START (completed pass) even on non-zero exit, then writes GIT_MARKER; harness RUN4 asserts 'run4 advanced the 24h git marker despite the failure'. (3) Hermetic harness: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 38 passed, 0 failed', EXIT=0 (repo and deployed copies byte-identical). RUN2 asserts 'pushed=0 skipped=3 failed=0' after the healthy bare remotes are deleted, so any push attempt would have failed \u2014 proving healthy namespaces were skipped with no push; RUN3 forces next_retry=1 and asserts 'pushed=0 skipped=2 failed=1' with only ns-three retried. (4) Real cron log: git passes ran every ~15m from 05:38Z to 10:55Z (42 today \u2014 the bug). New unified script deployed 10:41Z; the 10:45Z tick wrote marker 1789469103 (10:45:03Z). The 11:00Z tick (executions.db job 1229f45f3ea4, status completed 11:03:12) moved the native log mtime to 11:03:12 (tick ran) but duckbrain-s3daily.log stayed at 1147 lines (last entry 10:55:23Z) and the marker was unchanged \u2014 the git pass did NOT re-run, so the 15m recurrence has stopped. Bounded cadence for a still-failing namespace is the 900/3600/21600/86400s ladder, proven by harness RUN3; in the real log hermes-canopy/scheduler now show fail_count=0 (hermes-canopy succeeded 10:52:27Z), so they are no longer pinning the pass.\nThe failure-tolerant S3 git layer is implemented, harness-proven (38/38 PASS), and the real cron log confirms the 11:00Z tick no longer re-ran the ~140-repo pass after the 24h marker advanced.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run whose only failures are already-backed-off namespaces does not block the 24h daily marker; hermetic harness proves run2 skips healthy namespaces (no push attempt) and retries only the expired-backoff one; real cron log shows the pass no longer recurring every 15m while hermes-canopy/scheduler remain retried at a bounded cadence: All four sub-claims verified with hard evidence. (1) Per-ns completion stam",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run whose only failures are already-backed-off namespaces does not block the 24h daily marker; hermetic harness proves run2 skips healthy namespaces (no push attempt) and retries only the expired-backoff one; real cron log shows the pass no longer recurring every 15m while hermes-canopy/scheduler remain retried at a bounded cadence",
+                "status": "PASS",
+                "detail": "All four sub-claims verified with hard evidence. (1) Per-ns completion stamp + backoff: scripts/s3/duckbrain-s3-push.sh:56 BACKOFF_LADDER=(900 3600 21600 86400); lines 123-172 read/write per-ns state (fail_count, next_retry, refs_hash) and defer when next_retry>now; lines 190-193 atomically write $STATE_DIR/s3-git-pass.last. Production state present: 137 files in ~/.hermes/state/s3-git-ns/s3daily/ plus ~/.hermes/state/s3-git-pass.last. (2) Backed-off failures do not block the 24h marker: scripts/s3/duckbrain-s3-unified.sh:78-88 sets layer_ok=1 when PASS_TS>=GIT_START (completed pass) even on non-zero exit, then writes GIT_MARKER; harness RUN4 asserts 'run4 advanced the 24h git marker despite the failure'. (3) Hermetic harness: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 38 passed, 0 failed', EXIT=0 (repo and deployed copies byte-identical). RUN2 asserts 'pushed=0 skipped=3 failed=0' after the healthy bare remotes are deleted, so any push attempt would have failed \u2014 proving healthy namespaces were skipped with no push; RUN3 forces next_retry=1 and asserts 'pushed=0 skipped=2 failed=1' with only ns-three retried. (4) Real cron log: git passes ran every ~15m from 05:38Z to 10:55Z (42 today \u2014 the bug). New unified script deployed 10:41Z; the 10:45Z tick wrote marker 1789469103 (10:45:03Z). The 11:00Z tick (executions.db job 1229f45f3ea4, status completed 11:03:12) moved the native log mtime to 11:03:12 (tick ran) but duckbrain-s3daily.log stayed at 1147 lines (last entry 10:55:23Z) and the marker was unchanged \u2014 the git pass did NOT re-run, so the 15m recurrence has stopped. Bounded cadence for a still-failing namespace is the 900/3600/21600/86400s ladder, proven by harness RUN3; in the real log hermes-canopy/scheduler now show fail_count=0 (hermes-canopy succeeded 10:52:27Z), so they are no longer pinning the pass."
+              }
+            ],
+            "summary": "The failure-tolerant S3 git layer is implemented, harness-proven (38/38 PASS), and the real cron log confirms the 11:00Z tick no longer re-ran the ~140-repo pass after the 24h marker advanced."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-GIT-002\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m6:00AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8513934 bytes (8.51 MB) in 1.98s\u001b[0m\n\u001b[90m6:00AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  122 passed (122)\n      Tests  1071 passed (1071)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 push.sh reports a per-namespace completion stamp + per-ns failure backoff; a run whose only failures are already-backed-off namespaces does not block the 24h daily marker; hermetic harness proves run2 skips healthy namespaces (no push attempt) and retries only the expired-backoff one; real cron log shows the pass no longer recurring every 15m while hermes-canopy/scheduler remain retried at a bounded cadence: All four sub-claims verified with hard evidence. (1) Per-ns completion stamp + backoff: scripts/s3/duckbrain-s3-push.sh:56 BACKOFF_LADDER=(900 3600 21600 86400); lines 123-172 read/write per-ns state (fail_count, next_retry, refs_hash) and defer when next_retry>now; lines 190-193 atomically write $STATE_DIR/s3-git-pass.last. Production state present: 137 files in ~/.hermes/state/s3-git-ns/s3daily/ plus ~/.hermes/state/s3-git-pass.last. (2) Backed-off failures do not block the 24h marker: scripts/s3/duckbrain-s3-unified.sh:78-88 sets layer_ok=1 when PASS_TS>=GIT_START (completed pass) even on non-zero exit, then writes GIT_MARKER; harness RUN4 asserts 'run4 advanced the 24h git marker despite the failure'. (3) Hermetic harness: `bash scripts/s3/test-push-backoff.sh` -> 'harness: 38 passed, 0 failed', EXIT=0 (repo and deployed copies byte-identical). RUN2 asserts 'pushed=0 skipped=3 failed=0' after the healthy bare remotes are deleted, so any push attempt would have failed \u2014 proving healthy namespaces were skipped with no push; RUN3 forces next_retry=1 and asserts 'pushed=0 skipped=2 failed=1' with only ns-three retried. (4) Real cron log: git passes ran every ~15m from 05:38Z to 10:55Z (42 today \u2014 the bug). New unified script deployed 10:41Z; the 10:45Z tick wrote marker 1789469103 (10:45:03Z). The 11:00Z tick (executions.db job 1229f45f3ea4, status completed 11:03:12) moved the native log mtime to 11:03:12 (tick ran) but duckbrain-s3daily.log stayed at 1147 lines (last entry 10:55:23Z) and the marker was unchanged \u2014 the git pass did NOT re-run, so the 15m recurrence has stopped. Bounded cadence for a still-failing namespace is the 900/3600/21600/86400s ladder, proven by harness RUN3; in the real log hermes-canopy/scheduler now show fail_count=0 (hermes-canopy succeeded 10:52:27Z), so they are no longer pinning the pass.\nThe failure-tolerant S3 git layer is implemented, harness-proven (38/38 PASS), and the real cron log confirms the 11:00Z tick no longer re-ran the ~140-repo pass after the 24h marker advanced.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-15T11:04:38.236445"
+}

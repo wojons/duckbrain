@@ -1,0 +1,70 @@
+{
+  "task_id": "OPS-007",
+  "task_title": "Remove synchronous child spawns from HTTP routes",
+  "task_criteria": [
+    "Namespace creation and users listing use bounded asynchronous git processes; no synchronous child spawn reachable from these routes; tests prove behavior and unaffected cheap-route latency; TypeScript, full suites, guard green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e3012e9c47d96f3b979ac57a387d11f6be3a9f6b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m6:37AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8663207 bytes (8.66 MB) in 1.44s\u001b[0m\n\u001b[90m6:37AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m6:37AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8663207 bytes (8.66 MB) in 1.44s\u001b[0m\n\u001b[90m6:37AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  06:37:52\n   Duration  58.88s (transform 3.46s, setup 1.33s, import 45.82s, tests 165.70s, environment 17ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Namespace creation and users listing use bounded asynchronous git processes; no synchronous child spawn reachable from these routes; tests prove behavior and unaffected cheap-route latency; TypeScript, full suites, guard green: Bounded async: src/git/exec.ts:40-63 runGitAsync uses async execFile (no shell) with explicit timeout+maxBuffer; users.ts:37 runGitAsync([\"log\",\"--all\",\"--format=%aN\"], timeoutMs=5000, maxBufferBytes=4MiB); namespace.ts:141 runGitAsync([\"init\"], timeoutMs=10000, maxBufferBytes=1MiB). No sync spawn reachable: grep for execSync|spawnSync|execFileSync in users.ts/namespace.ts/exec.ts returns only comments (no calls); transitive deps (src/config/*, src/duckdb/*, src/namespaces/delete, listNamespacesTool) contain no sync spawns; POST /api/namespaces (namespaces.ts:85) -> createNamespaceTool and GET /users (users.ts:152) -> getAuthorsFromGit are the only git paths. Tests: src/http/routes/serving-paths-ops007.test.ts (4 tests) patches execSync/spawnSync to stall 1500ms and counts calls, asserting syncCalls delta==0, heartbeat gaps <1000ms, concurrent /health <1000ms. `npx vitest run src/http/routes/serving-paths-ops007.test.ts` => 'Test Files 1 passed (1)', 'Tests 4 passed (4)'. RED proof independently reproduced: reverting users.ts+namespace.ts to e3012e9~1 => 'Tests 4 failed (4)' with 'expected 1 to be +0' (syncCalls); files restored and re-run 4/4 pass. TypeScript: `npx tsc --noEmit` exit 0. Full suite: `npx vitest run` => 'Test Files 149 passed (149)', 'Tests 1168 passed (1168)', matching AGENTS.md 149/1168. Guard: `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; LSP diagnostics 0 findings; existing namespaces/users route tests 15 passed.\nBoth HTTP-serving git spawns (POST /api/namespaces git init, GET /users git log) now use bounded async execFile via src/git/exec.ts with no sync spawn reachable; the new 4-test suite is RED against pre-fix code and green after, tsc is clean, and the full suite (149 files/1168 tests) plus prettier/LSP guards are green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Namespace creation and users listing use bounded asynchronous git processes; no synchronous child spawn reachable from these routes; tests prove behavior and unaffected cheap-route latency; TypeScript, full suites, guard green: Bounded async: src/git/exec.ts:40-63 runGitAsync uses async execFile (no shell) with explicit timeout+maxBuffer; users.ts:37 runGitAsync([\"log\",\"--all\",\"--format=%aN\"], timeoutMs=5000, maxBufferBytes=4MiB); namespace.ts:141 runGitAsync([\"init\"], timeoutMs=10000, maxBufferBytes=1MiB). No sync spawn reachable: grep for execSync|spawnSync|execFileSync in users.ts/namespace.ts/exec.ts returns only comments (no calls); transitive deps (src/config/*, src/duckdb/*, src/namespaces/delete, listNamespacesTool) contain no sync spawns; POST /api/namespaces (namespaces.ts:85) -> createNamespaceTool and GET /users (users.ts:152) -> getAuthorsFromGit are the only git paths. Tests: src/http/routes/serving-paths-ops007.test.ts (4 tests) patches execSync/spawnSync to stall 1500ms and counts calls, asserting syncCalls delta==0, heartbeat gaps <1000ms, concurrent /health <1000ms. `npx vitest run src/http/routes/serving-paths-ops007.test.ts` => 'Test Files 1 passed (1)', 'Tests 4 passed (4)'. RED proof independently reproduced: reverting users.ts+namespace.ts to e3012e9~1 => 'Tests 4 failed (4)' with 'expected 1 to be +0' (syncCalls); files restored and re-run 4/4 pass. TypeScript: `npx tsc --noEmit` exit 0. Full suite: `npx vitest run` => 'Test Files 149 passed (149)', 'Tests 1168 passed (1168)', matching AGENTS.md 149/1168. Guard: `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; LSP diagnostics 0 findings; existing namespaces/users route tests 15 passed.\nBoth HTTP-serving git spawns (POST /api/namespaces git init, GET /users git log) now use bounded async execFile via src/git/exec.ts with no sync spawn reachable; the new 4-test suite is RED against pre-fix code and green after, tsc is clean, and the full suite (149 files/1168 tests) plus prettier/LSP guards are green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Namespace creation and users listing use bounded asynchronous git processes; no synchronous child spawn reachable from these routes; tests prove behavior and unaffected cheap-route latency; TypeScript, full suites, guard green",
+                "status": "PASS",
+                "detail": "Bounded async: src/git/exec.ts:40-63 runGitAsync uses async execFile (no shell) with explicit timeout+maxBuffer; users.ts:37 runGitAsync([\"log\",\"--all\",\"--format=%aN\"], timeoutMs=5000, maxBufferBytes=4MiB); namespace.ts:141 runGitAsync([\"init\"], timeoutMs=10000, maxBufferBytes=1MiB). No sync spawn reachable: grep for execSync|spawnSync|execFileSync in users.ts/namespace.ts/exec.ts returns only comments (no calls); transitive deps (src/config/*, src/duckdb/*, src/namespaces/delete, listNamespacesTool) contain no sync spawns; POST /api/namespaces (namespaces.ts:85) -> createNamespaceTool and GET /users (users.ts:152) -> getAuthorsFromGit are the only git paths. Tests: src/http/routes/serving-paths-ops007.test.ts (4 tests) patches execSync/spawnSync to stall 1500ms and counts calls, asserting syncCalls delta==0, heartbeat gaps <1000ms, concurrent /health <1000ms. `npx vitest run src/http/routes/serving-paths-ops007.test.ts` => 'Test Files 1 passed (1)', 'Tests 4 passed (4)'. RED proof independently reproduced: reverting users.ts+namespace.ts to e3012e9~1 => 'Tests 4 failed (4)' with 'expected 1 to be +0' (syncCalls); files restored and re-run 4/4 pass. TypeScript: `npx tsc --noEmit` exit 0. Full suite: `npx vitest run` => 'Test Files 149 passed (149)', 'Tests 1168 passed (1168)', matching AGENTS.md 149/1168. Guard: `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; LSP diagnostics 0 findings; existing namespaces/users route tests 15 passed."
+              }
+            ],
+            "summary": "Both HTTP-serving git spawns (POST /api/namespaces git init, GET /users git log) now use bounded async execFile via src/git/exec.ts with no sync spawn reachable; the new 4-test suite is RED against pre-fix code and green after, tsc is clean, and the full suite (149 files/1168 tests) plus prettier/LSP guards are green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-007\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m6:37AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8663207 bytes (8.66 MB) in 1.44s\u001b[0m\n\u001b[90m6:37AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Namespace creation and users listing use bounded asynchronous git processes; no synchronous child spawn reachable from these routes; tests prove behavior and unaffected cheap-route latency; TypeScript, full suites, guard green: Bounded async: src/git/exec.ts:40-63 runGitAsync uses async execFile (no shell) with explicit timeout+maxBuffer; users.ts:37 runGitAsync([\"log\",\"--all\",\"--format=%aN\"], timeoutMs=5000, maxBufferBytes=4MiB); namespace.ts:141 runGitAsync([\"init\"], timeoutMs=10000, maxBufferBytes=1MiB). No sync spawn reachable: grep for execSync|spawnSync|execFileSync in users.ts/namespace.ts/exec.ts returns only comments (no calls); transitive deps (src/config/*, src/duckdb/*, src/namespaces/delete, listNamespacesTool) contain no sync spawns; POST /api/namespaces (namespaces.ts:85) -> createNamespaceTool and GET /users (users.ts:152) -> getAuthorsFromGit are the only git paths. Tests: src/http/routes/serving-paths-ops007.test.ts (4 tests) patches execSync/spawnSync to stall 1500ms and counts calls, asserting syncCalls delta==0, heartbeat gaps <1000ms, concurrent /health <1000ms. `npx vitest run src/http/routes/serving-paths-ops007.test.ts` => 'Test Files 1 passed (1)', 'Tests 4 passed (4)'. RED proof independently reproduced: reverting users.ts+namespace.ts to e3012e9~1 => 'Tests 4 failed (4)' with 'expected 1 to be +0' (syncCalls); files restored and re-run 4/4 pass. TypeScript: `npx tsc --noEmit` exit 0. Full suite: `npx vitest run` => 'Test Files 149 passed (149)', 'Tests 1168 passed (1168)', matching AGENTS.md 149/1168. Guard: `npx prettier --check src/` => 'All matched files use Prettier code style!' exit 0; LSP diagnostics 0 findings; existing namespaces/users route tests 15 passed.\nBoth HTTP-serving git spawns (POST /api/namespaces git init, GET /users git log) now use bounded async execFile via src/git/exec.ts with no sync spawn reachable; the new 4-test suite is RED against pre-fix code and green after, tsc is clean, and the full suite (149 files/1168 tests) plus prettier/LSP guards are green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T11:42:33.115626"
+}

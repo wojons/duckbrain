@@ -1,0 +1,245 @@
+commit 04aa721e622966f881881a5c6a73d4546f662233
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Sep 29 18:34:20 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Sep 29 18:34:20 2026 -0500
+
+    fix(health): resolve default namespace in keys probe — fresh install no longer degraded
+    
+    probeKeysStore() passed no namespace into the keys query, so on a fresh
+    install (empty namespaces root, default namespace never created) /health
+    answered 503 forever with keys_error "Namespace 'undefined' does not
+    exist".
+    
+    The probe now resolves the config default namespace (the same
+    resolution every other keys consumer uses via resolveNamespaceName) and
+    passes that resolved name on; runKeysQuery names the resolved namespace
+    in its error string instead of the raw argument. A not-yet-existing or
+    empty namespace directory reports healthy (fresh install — no keys
+    exist, nothing to fail on); genuine store errors (corrupt JSONL, corrupt
+    manifest, connection loss) still degrade /health.
+    
+    Tests: probeKeysStore treats a missing namespace as healthy, resolves
+    the default through DUCKBRAIN_NAMESPACE, still returns a short error on
+    a corrupt manifest; createHealthHandler over an empty namespaces root
+    returns 200 healthy with keys_error null (HEALTH-KEYS-UNDEFINED-001).
+    
+    Addresses HEALTH-KEYS-UNDEFINED-001.
+    
+    Co-authored-by: Hermes Foreman <totalwindupflightsystems@gmail.com>
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http-health-dbgap035.test.ts     | 43 ++++++++++++++++++++++++++++++++
+ src/cli/http.ts                          |  7 ++++--
+ src/mcp/tools/list-keys-dbgap035.test.ts | 40 +++++++++++++++++++++++++----
+ src/mcp/tools/list_keys.ts               | 38 ++++++++++++++++++++++------
+ 4 files changed, 114 insertions(+), 14 deletions(-)
+
+diff --git a/src/cli/http-health-dbgap035.test.ts b/src/cli/http-health-dbgap035.test.ts
+index 6802416..517d51d 100644
+--- a/src/cli/http-health-dbgap035.test.ts
++++ b/src/cli/http-health-dbgap035.test.ts
+@@ -18,6 +18,9 @@
+  */
+ 
+ import { describe, it, expect } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
+ import { createHealthHandler } from "./http";
+ 
+ /** Minimal express Response double — the handler calls res.status() + res.json(). */
+@@ -102,3 +105,43 @@ describe("DB-GAP-035: /health keys_error", () => {
+     expect((captured.body as any).status).toBe("degraded");
+   });
+ });
++
++/**
++ * HEALTH-KEYS-UNDEFINED-001: a fresh install has an EMPTY namespaces root —
++ * the config default namespace does not exist yet. The wired-in keys probe
++ * (probeKeysStore with no explicit namespace, exactly what createHttpServer
++ * mounts) must resolve the config default and report healthy, so /health is
++ * 200 — pre-fix the probe fed the raw `undefined` argument to list_keys and
++ * /health answered 503 with keys_error "Namespace 'undefined' does not
++ * exist".
++ *
++ * Runs against a real (empty) namespaces root via DUCKBRAIN_NAMESPACES_PATH,
++ * with the embedding probe injected healthy so keys is the only live signal.
++ */
++describe("HEALTH-KEYS-UNDEFINED-001: fresh install /health is healthy", () => {
++  it("empty namespaces root — default namespace absent — is NOT degraded", async () => {
++    const freshRoot = fs.mkdtempSync(
++      path.join(os.tmpdir(), "duckbrain-fresh-install-"),
++    );
++    const savedNsPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
++    const savedNsName = process.env.DUCKBRAIN_NAMESPACE;
++    process.env.DUCKBRAIN_NAMESPACES_PATH = freshRoot;
++    try {
++      // Default keysProbe — the same resolution the HTTP layer mounts.
++      const handler = createHealthHandler(async () => healthyEmbedding);
++      const { res, captured } = fakeRes();
++      await handler({} as any, res as any);
++
++      expect(captured.statusCode).toBe(200);
++      expect((captured.body as any).status).toBe("healthy");
++      expect((captured.body as any).keys_error).toBeNull();
++      expect(JSON.stringify(captured.body)).not.toContain("undefined");
++    } finally {
++      if (savedNsPath === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++      else process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsPath;
++      if (savedNsName === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
++      else process.env.DUCKBRAIN_NAMESPACE = savedNsName;
++      fs.rmSync(freshRoot, { recursive: true, force: true });
++    }
++  });
++});
+diff --git a/src/cli/http.ts b/src/cli/http.ts
+index 51e808a..d854896 100644
+--- a/src/cli/http.ts
++++ b/src/cli/http.ts
+@@ -218,10 +218,13 @@ function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
+  *
+  * DB-GAP-035: also probes the keys store (same resilient read as list_keys)
+  * and surfaces keys_error — null when the store answers, a short error
+- * string when the keys read path fails (corrupt JSONL, missing namespace,
++ * string when the keys read path fails (corrupt JSONL, corrupt manifest,
+  * connection loss). A failed keys probe flips status to degraded: every
+  * consumer of keys over HTTP/MCP would fail, so a green /health would be a
+- * false green.
++ * false green. A namespace that does not exist yet (fresh install, empty
++ * namespaces root) is HEALTHY, not degraded (HEALTH-KEYS-UNDEFINED-001) —
++ * the probe resolves the config default namespace and reports null when
++ * nothing has been written to it yet.
+  *
+  * GAP-030: HTTP status now carries the signal too — 503 when degraded
+  * (embedding.healthy=false or keys_error set), 200 when healthy — so a
+diff --git a/src/mcp/tools/list-keys-dbgap035.test.ts b/src/mcp/tools/list-keys-dbgap035.test.ts
+index 209af5b..90f420f 100644
+--- a/src/mcp/tools/list-keys-dbgap035.test.ts
++++ b/src/mcp/tools/list-keys-dbgap035.test.ts
+@@ -88,10 +88,40 @@ describe("DB-GAP-035: probeKeysStore (health)", () => {
+     expect(await probeKeysStore(NS_NAME)).toBeNull();
+   });
+ 
+-  it("returns a short error string when the namespace is missing", async () => {
+-    const err = await probeKeysStore("dbgap035-does-not-exist");
+-    expect(typeof err).toBe("string");
+-    expect(err!.length).toBeLessThanOrEqual(200);
+-    expect(err).toContain("does not exist");
++  // HEALTH-KEYS-UNDEFINED-001: a namespace that does not exist yet is a
++  // fresh install, not a degraded store — the probe must report healthy
++  // (null), never an "Namespace '...' does not exist" error.
++  it("treats a missing namespace as a fresh install — healthy, not degraded", async () => {
++    expect(await probeKeysStore("dbgap035-does-not-exist")).toBeNull();
++  });
++
++  it("resolves the config default instead of interpolating the raw argument", async () => {
++    const saved = process.env.DUCKBRAIN_NAMESPACE;
++    process.env.DUCKBRAIN_NAMESPACE = "dbgap035-fresh-default";
++    try {
++      // The no-arg probe must resolve through the config default (the same
++      // resolution every other keys consumer uses) and a not-yet-created
++      // default namespace is healthy — pre-fix this surfaced
++      // "Namespace 'undefined' does not exist" on fresh installs.
++      expect(await probeKeysStore()).toBeNull();
++    } finally {
++      if (saved === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
++      else process.env.DUCKBRAIN_NAMESPACE = saved;
++    }
++  });
++
++  it("still reports a short error string on a genuine store error", async () => {
++    // Namespace dir exists, but its manifest is corrupt JSON — a real store
++    // error (not a fresh install), which must keep degrading /health.
++    const nsPath = path.join(NS_ROOT, "dbgap035-corrupt-manifest");
++    fs.mkdirSync(nsPath, { recursive: true });
++    fs.writeFileSync(path.join(nsPath, "manifest.json"), "{corrupt", "utf-8");
++    try {
++      const err = await probeKeysStore("dbgap035-corrupt-manifest");
++      expect(typeof err).toBe("string");
++      expect(err!.length).toBeLessThanOrEqual(200);
++    } finally {
++      fs.rmSync(nsPath, { recursive: true, force: true });
++    }
+   });
+ });
+diff --git a/src/mcp/tools/list_keys.ts b/src/mcp/tools/list_keys.ts
+index 1819ef7..98b86b8 100644
+--- a/src/mcp/tools/list_keys.ts
++++ b/src/mcp/tools/list_keys.ts
+@@ -12,7 +12,7 @@ import {
+   keysCacheEnabled,
+   type KeyListEntry,
+ } from "../../keys/keyListCache";
+-import { resolveNamespacePath } from "./shared";
++import { resolveNamespacePath, resolveNamespaceName } from "./shared";
+ import path from "path";
+ import fs from "fs";
+ 
+@@ -164,12 +164,16 @@ async function runKeysQuery(validated: ValidatedListKeysInput): Promise<{
+   nextOffset: number | null;
+   prefixes: Record<string, number>;
+ }> {
+-  // Resolve namespace path
++  // Resolve namespace path. The NAME is resolved once (config default /
++  // DUCKBRAIN_NAMESPACE) and the resolved name is what every message names —
++  // an absent argument must never be interpolated verbatim into an error
++  // string (HEALTH-KEYS-UNDEFINED-001).
++  const namespaceName = resolveNamespaceName(validated.namespace);
+   const namespacePath = resolveNamespacePath(validated.namespace);
+ 
+   // Check if namespace exists
+   if (!fs.existsSync(namespacePath)) {
+-    throw new Error(`Namespace '${validated.namespace}' does not exist`);
++    throw new Error(`Namespace '${namespaceName}' does not exist`);
+   }
+ 
+   // Get manifest to find partition paths
+@@ -366,9 +370,18 @@ export async function listKeysTool(input: unknown): Promise<ListKeysOutput> {
+  * Keys-store health probe for GET /health (DB-GAP-035).
+  *
+  * Runs the same resilient keys query as list_keys (limit 1) against the
+- * active namespace and returns null when the store answers, or a short
+- * error string when the probe fails (corrupt store, missing namespace,
+- * connection loss — anything that would break the keys read path).
++ * given namespace (or the config default when none is given — the same
++ * resolution every other keys consumer uses; the raw argument is never
++ * interpolated into a message, HEALTH-KEYS-UNDEFINED-001) and returns null
++ * when the store answers, or a short error string when the probe fails.
++ *
++ * Fresh installs are healthy: the config default namespace may not exist
++ * yet (empty namespaces root, nothing ever written), which the probe
++ * reports as null — no keys exist and no consumer has anything to fail
++ * on. Only genuine store errors degrade /health: corrupt JSONL, a corrupt
++ * manifest, connection loss — anything that would break the keys read
++ * path for data that IS there.
++ *
+  * Quiet by design: health monitors poll frequently, so the probe does not
+  * log (listKeysTool's console.error noise is MCP-call-only).
+  */
+@@ -376,12 +389,23 @@ export async function probeKeysStore(
+   namespace?: string,
+ ): Promise<string | null> {
+   try {
++    // HEALTH-KEYS-UNDEFINED-001: resolve the config default explicitly (the
++    // same resolution every other keys consumer uses) and pass THAT name on —
++    // the raw (possibly undefined) argument never reaches a query or message.
++    const resolvedNamespace = resolveNamespaceName(namespace);
++    const namespacePath = resolveNamespacePath(resolvedNamespace);
++    const isFreshInstall =
++      !fs.existsSync(namespacePath) ||
++      fs.readdirSync(namespacePath).length === 0;
++    if (isFreshInstall) {
++      return null;
++    }
+     await runKeysQuery({
+       prefix: "/",
+       maxDepth: 1,
+       limit: 1,
+       offset: 0,
+-      namespace,
++      namespace: resolvedNamespace,
+     });
+     return null;
+   } catch (error) {

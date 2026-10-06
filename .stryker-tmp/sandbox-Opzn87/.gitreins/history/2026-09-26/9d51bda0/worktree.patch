@@ -1,0 +1,34 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index 8c6be85..a83e88f 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1226,3 +1226,13 @@
+ {"id": 648, "timestamp": "2026-09-26 00:00:00", "event_type": "task_created", "task_id": "DF-0926-05", "actor": "dogfood", "detail": "{\"id\": \"DF-0926-05\", \"status\": \"pending\"}", "tick_number": null}
+ {"id": 649, "timestamp": "2026-09-26 00:00:00", "event_type": "task_created", "task_id": "DF-0926-06", "actor": "dogfood", "detail": "{\"id\": \"DF-0926-06\", \"status\": \"pending\"}", "tick_number": null}
+ {"id":650,"timestamp":"2026-09-26 08:13:58.000000","event_type":"audit","task_id":null,"actor":"foreman","detail":"{\"tick\": 591, \"summary\": \"FAILED: DF-0926-01 was selected as the highest-value unblocked P0, but the dispatched worker produced no implementation and gitreins marked the task FAIL after live reproduction confirmed all four defects remain. The failed judge artifact was committed and pushed as b87d894. No board task was falsely closed.\", \"gates\": {\"git\": \"clean; b87d894 pushed to origin/feat/native-s3; rev-list origin/feat/native-s3..HEAD = 0\", \"battery\": \"not run: worker produced zero implementation; gitreins tier1 reported PASS on the unchanged tree, which is not a valid work gate\", \"ci\": \"IN FLIGHT on b87d894 at closeout; prior recent failures were real AGENTS.md count assertions on accf1cb/267b6e3/1baee9f and were already surfaced by the existing CI-005 row; no duplicate row filed\", \"daemon\": \"not changed by this tick; worker judge independently reproduced a live scratch bind conflict without claiming product changes\", \"off_by_one\": \"discover duckbrain-foreman-next-pending-task-selection returned not_found; no non-trivial debugging was performed by this tick, so no submit\", \"gitreins\": \"DF-0926-01 create -> start -> complete; verdict d6e588d8 FAIL (tier1 PASS, tier2 INCOMPLETE because no implementation); task deleted after recording the verdict\", \"parity\": \"board.db ABSENT (untracked cache retired); pre-tick board header ticks_total=590; board closeout pending\", \"deps\": \"not scanned\", \"temp_hygiene\": \"pre-existing scratch daemons and board backups left untouched; no cleanup performed against another session\"}, \"fixtures\": {\"E2E-001\": \"not run; last recorded full battery was tick 586\", \"NEVER-DONE\": \"fixture row untouched\"}, \"tasks_open\": \"pending set unchanged; DF-0926-01 remains pending\", \"notes\": \"Do not redispatch this task from this tick's failed worker. A future tick must dispatch a fresh worker or perform only a genuinely trivial foreman-direct repair, after reading the failed verdict. CI on b87d894 was still in_progress at the closeout observation.\"}","tick_number":591}
++{"id":651,"timestamp":"2026-09-26 18:26:52.465042","event_type":"task_created","task_id":"DOC-6","actor":"foreman","detail":"{\"id\":\"DOC-6\",\"status\":\"pending\"}","tick_number":null}
++{"id":652,"timestamp":"2026-09-26 18:26:52.551889","event_type":"task_created","task_id":"DOC-7","actor":"foreman","detail":"{\"id\":\"DOC-7\",\"status\":\"pending\"}","tick_number":null}
++{"id":653,"timestamp":"2026-09-26 18:26:52.636831","event_type":"task_created","task_id":"DOC-8","actor":"foreman","detail":"{\"id\":\"DOC-8\",\"status\":\"pending\"}","tick_number":null}
++{"id":654,"timestamp":"2026-09-26 18:26:52.724581","event_type":"task_created","task_id":"DOC-9","actor":"foreman","detail":"{\"id\":\"DOC-9\",\"status\":\"pending\"}","tick_number":null}
++{"id":655,"timestamp":"2026-09-26 18:41:21.860824","event_type":"task_created","task_id":"README-1","actor":"foreman","detail":"{\"id\":\"README-1\",\"status\":\"pending\"}","tick_number":null}
++{"id":656,"timestamp":"2026-09-26 18:41:21.917346","event_type":"task_created","task_id":"README-2","actor":"foreman","detail":"{\"id\":\"README-2\",\"status\":\"pending\"}","tick_number":null}
++{"id":657,"timestamp":"2026-09-26 18:41:21.970179","event_type":"task_created","task_id":"README-3","actor":"foreman","detail":"{\"id\":\"README-3\",\"status\":\"pending\"}","tick_number":null}
++{"id":658,"timestamp":"2026-09-26 18:41:22.029656","event_type":"task_created","task_id":"README-4","actor":"foreman","detail":"{\"id\":\"README-4\",\"status\":\"pending\"}","tick_number":null}
++{"id":659,"timestamp":"2026-09-26 18:41:22.083459","event_type":"task_created","task_id":"README-5","actor":"foreman","detail":"{\"id\":\"README-5\",\"status\":\"pending\"}","tick_number":null}
++{"id":660,"timestamp":"2026-09-26 18:41:22.137667","event_type":"task_created","task_id":"README-6","actor":"foreman","detail":"{\"id\":\"README-6\",\"status\":\"pending\"}","tick_number":null}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 63b4298..8554b3f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1908,3 +1908,11 @@ tasks:
+   status: complete
+   created_at: '2026-09-25T23:23:06.413519+00:00'
+   completed_at: '2026-09-25T23:30:01.317796+00:00'
++- id: DF-0925-01
++  title: Fix SSE replay ops filter
++  criteria:
++  - Replay with ops=delete returns only delete events and preserves existing live
++    subscription filtering
++  status: complete
++  created_at: '2026-09-26T14:18:35.025085+00:00'
++  completed_at: '2026-09-26T22:37:18.827353+00:00'

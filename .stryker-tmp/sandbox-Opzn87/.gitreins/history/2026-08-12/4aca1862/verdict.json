@@ -1,0 +1,64 @@
+{
+  "task_id": "GAP-023-024",
+  "task_title": "Pagination: reject negative limits (DoS) + true total count + correct hasMore (GAP-023, GAP-024)",
+  "task_criteria": [
+    "GET /api/memories?namespace=<ns>&limit=-1 returns HTTP 400 VALIDATION_ERROR (not all rows)",
+    "GET /api/memories?namespace=<ns>&limit=abc (non-numeric) returns HTTP 400 VALIDATION_ERROR",
+    "GET /api/memories?namespace=<ns>&limit=0 returns items:[], total=<true count>, hasMore:false",
+    "GET /api/memories?namespace=<ns>&limit=5 returns items.length 5 AND total = true matching count (unlimited by limit/offset)",
+    "src/duckdb/queries.ts LIMIT clause: falsy-0 no longer omits LIMIT (filters.limit !== undefined check)",
+    "Regression tests added for all pagination edge cases (limit=-1 400, limit=0 hasMore:false, limit=5 true total)",
+    "Full suite passes (npx vitest run) and npx tsc --noEmit clean",
+    "duckbrain.config.json byte-identical after test run (GAP-022 AC1)"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m1:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11009942 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m1:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11009942 bytes (11.01 MB) in 2.29s\u001b[0m\n\u001b[90m1:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 231\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 629\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 550\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit-dogfood005.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tes",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /api/memories?namespace=<ns>&limit=-1 returns HTTP 400 VALIDATION_ERROR (not all rows): src/http/routes/memories.ts parseLimit() throws ValidationError for parsed<0 (memories.ts:50-57); errorHandler.ts maps ValidationError to status 400 + code VALIDATION_ERROR; test memories-limit-gap023.test.ts:60-66 asserts status 400 + code VALIDATION_ERROR for limit=-1 and passes (9/9 targeted tests pass)\n  \u2713 GET /api/memories?namespace=<ns>&limit=abc (non-numeric) returns HTTP 400 VALIDATION_ERROR: parseInt('abc',10) returns NaN -> parseLimit throws ValidationError (memories.ts:50-57); test memories-limit-gap023.test.ts:72-79 asserts 400 VALIDATION_ERROR for limit=abc and passes\n  \u2713 GET /api/memories?namespace=<ns>&limit=0 returns items:[], total=<true count>, hasMore:false: Route passes limit=0 to recallTool; recall.ts:151-165 short-circuits limit===0 to countMemories returning {memories:[],count:0,total}; route sets hasMore = limit>0 && ... = false (memories.ts:115); test memories-pagination-gap024.test.ts:130-141 asserts items=[], total=SEEDED(9), hasMore=false, nextOffset=null and passes\n  \u2713 GET /api/memories?namespace=<ns>&limit=5 returns items.length 5 AND total = true matching count (unlimited by limit/offset): Route fetches limit+1 (6) and pops extra when hasMore (memories.ts:110-123); recall.ts:270-275 returns total from countMemories (COUNT(*) with no LIMIT); test memories-pagination-gap024.test.ts:117-128 asserts items length 5, total=9, hasMore=true and passes\n  \u2713 src/duckdb/queries.ts LIMIT clause: falsy-0 no longer omits LIMIT (filters.limit !== undefined check): queries.ts:222-223: `const limitClause = filters?.limit !== undefined ? `LIMIT ${filters.limit}` : \"\";` \u2014 explicit undefined check, falsy 0 now emits 'LIMIT 0'\n  \u2713 Regression tests added for all pagination edge cases (limit=-1 400, limit=0 hasMore:false, limit=5 true total): New files: src/http/routes/memories-limit-gap023.test.ts (5 tests: limit=-1 400, limit=-5 400, limit=abc 400, cap at 1000, default 50) and src/http/routes/memories-pagination-gap024.test.ts (4 tests: limit=5 true total, limit=0 hasMore:false, limit=2, author-filtered total); all pass\n  \u2713 Full suite passes (npx vitest run) and npx tsc --noEmit clean: npx vitest run: 49 test files, 362 tests passed (up from 353 = +9 new tests); npx tsc --noEmit: exit 0, no output\n  \u2713 duckbrain.config.json byte-identical after test run (GAP-022 AC1): sha256 fdd4ebf545f1243b322ed9b381071de795004939a3f525e1fa82722f106effcd identical to HEAD after full suite run; git diff clean for the file; gap024 test afterAll asserts byte-identity (memories-pagination-gap024.test.ts:92-93); git status shows only .gitreins/tasks.yaml and dagger.db modified\nAll 8 criteria verified with passing tests (362/362 suite), clean tsc, correct limit validation/total/hasMore logic, and byte-identical config file after test runs.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /api/memories?namespace=<ns>&limit=-1 returns HTTP 400 VALIDATION_ERROR (not all rows): src/http/routes/memories.ts parseLimit() throws ValidationError for parsed<0 (memories.ts:50-57); errorHandler.ts maps ValidationError to status 400 + code VALIDATION_ERROR; test memories-limit-gap023.test.ts:60-66 asserts status 400 + code VALIDATION_ERROR for limit=-1 and passes (9/9 targeted tests pass)\n  \u2713 GET /api/memories?namespace=<ns>&limit=abc (non-numeric) returns HTTP 400 VALIDATIO",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-023-024\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m1:40AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11009942 \n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /api/memories?namespace=<ns>&limit=-1 returns HTTP 400 VALIDATION_ERROR (not all rows): src/http/routes/memories.ts parseLimit() throws ValidationError for parsed<0 (memories.ts:50-57); errorHandler.ts maps ValidationError to status 400 + code VALIDATION_ERROR; test memories-limit-gap023.test.ts:60-66 asserts status 400 + code VALIDATION_ERROR for limit=-1 and passes (9/9 targeted tests pass)\n  \u2713 GET /api/memories?namespace=<ns>&limit=abc (non-numeric) returns HTTP 400 VALIDATION_ERROR: parseInt('abc',10) returns NaN -> parseLimit throws ValidationError (memories.ts:50-57); test memories-limit-gap023.test.ts:72-79 asserts 400 VALIDATION_ERROR for limit=abc and passes\n  \u2713 GET /api/memories?namespace=<ns>&limit=0 returns items:[], total=<true count>, hasMore:false: Route passes limit=0 to recallTool; recall.ts:151-165 short-circuits limit===0 to countMemories returning {memories:[],count:0,total}; route sets hasMore = limit>0 && ... = false (memories.ts:115); test memories-pagination-gap024.test.ts:130-141 asserts items=[], total=SEEDED(9), hasMore=false, nextOffset=null and passes\n  \u2713 GET /api/memories?namespace=<ns>&limit=5 returns items.length 5 AND total = true matching count (unlimited by limit/offset): Route fetches limit+1 (6) and pops extra when hasMore (memories.ts:110-123); recall.ts:270-275 returns total from countMemories (COUNT(*) with no LIMIT); test memories-pagination-gap024.test.ts:117-128 asserts items length 5, total=9, hasMore=true and passes\n  \u2713 src/duckdb/queries.ts LIMIT clause: falsy-0 no longer omits LIMIT (filters.limit !== undefined check): queries.ts:222-223: `const limitClause = filters?.limit !== undefined ? `LIMIT ${filters.limit}` : \"\";` \u2014 explicit undefined check, falsy 0 now emits 'LIMIT 0'\n  \u2713 Regression tests added for all pagination edge cases (limit=-1 400, limit=0 hasMore:false, limit=5 true total): New files: src/http/routes/memories-limit-gap023.test.ts (5 tests: limit=-1 400, limit=-5 400, limit=abc 400, cap at 1000, default 50) and src/http/routes/memories-pagination-gap024.test.ts (4 tests: limit=5 true total, limit=0 hasMore:false, limit=2, author-filtered total); all pass\n  \u2713 Full suite passes (npx vitest run) and npx tsc --noEmit clean: npx vitest run: 49 test files, 362 tests passed (up from 353 = +9 new tests); npx tsc --noEmit: exit 0, no output\n  \u2713 duckbrain.config.json byte-identical after test run (GAP-022 AC1): sha256 fdd4ebf545f1243b322ed9b381071de795004939a3f525e1fa82722f106effcd identical to HEAD after full suite run; git diff clean for the file; gap024 test afterAll asserts byte-identity (memories-pagination-gap024.test.ts:92-93); git status shows only .gitreins/tasks.yaml and dagger.db modified\nAll 8 criteria verified with passing tests (362/362 suite), clean tsc, correct limit validation/total/hasMore logic, and byte-identical config file after test runs.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-12T06:42:17.621392"
+}

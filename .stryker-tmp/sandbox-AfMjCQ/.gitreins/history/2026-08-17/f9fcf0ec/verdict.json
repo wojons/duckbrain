@@ -1,0 +1,71 @@
+{
+  "task_id": "DOGFOOD-012",
+  "task_title": "refresh skills/duckbrain-usage/SKILL.md to current verified behavior",
+  "task_criteria": [
+    "SKILL.md pitfall #1 documents ?q= crash as FIXED (DOGFOOD-010, all-VARCHAR schema + ignore_errors); pitfall #2 documents relevance threshold DEFAULT_MIN_SCORE=0.25 + DUCKBRAIN_SEARCH_MIN_SCORE + REST items[].score (DOGFOOD-011); pitfall #5 documents server_http_start fixed (DOGFOOD-013, module-path projectRoot); MCP remember embedding_text, forget-by-UUID, delete_namespace confirm:true documented; frontmatter description updated; live scratch-instance probes confirm claimed behavior"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:29PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10980869 bytes (10.98 MB) in 2.8s\u001b[0m\n\u001b[90m11:29PM\u001b[0m \u001b[\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:29PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10980869 bytes (10.98 MB) in 2.8s\u001b[0m\n\u001b[90m11:29PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 809\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 765\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1083\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/users-activity.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 163\u001b[2mm",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n\n(auto-parsed from non-JSON response) I have verified all aspects of the single criterion. Let me summarize:\n\nThe task was to refresh `skills/duckbrain-usage/SKILL.md` to current verified behavior. The change was made in commit `006b40b` (45 insertions, 32 deletions). All sub-parts of the criterion are satisfied:\n\n1. **?q= crash FIXED (",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n\n(auto-parsed from non-JSON response) I have verified all aspects of the single criterion. Let me summarize:\n\nThe task was to refresh `skills/duckbrain-usage/SKILL.md` to current verified behavior. The change was made in commit `006b40b` (45 insertions, 32 deletions). All sub-parts of the criterion are satisfied:\n\n1. **?q= crash FIXED (",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [],
+            "summary": "(auto-parsed from non-JSON response) I have verified all aspects of the single criterion. Let me summarize:\n\nThe task was to refresh `skills/duckbrain-usage/SKILL.md` to current verified behavior. The change was made in commit `006b40b` (45 insertions, 32 deletions). All sub-parts of the criterion are satisfied:\n\n1. **?q= crash FIXED ("
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-012\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m11:29PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10980869 bytes (10.98 MB) in 2.8s\u001b[0m\n\u001b[90m11:29PM\u001b[0m \u001b[\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n\n(auto-parsed from non-JSON response) I have verified all aspects of the single criterion. Let me summarize:\n\nThe task was to refresh `skills/duckbrain-usage/SKILL.md` to current verified behavior. The change was made in commit `006b40b` (45 insertions, 32 deletions). All sub-parts of the criterion are satisfied:\n\n1. **?q= crash FIXED (\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T04:31:14.372420"
+}

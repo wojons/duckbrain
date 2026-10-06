@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 73a0689..eb079c5 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2335,3 +2335,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-05T04:08:23.971367+00:00'
+   completed_at: '2026-10-05T04:42:59.866814+00:00'
++- id: DB-GAP-059
++  title: Fix orphaned scratch daemon reaper
++  criteria:
++  - tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent
++    death; add process-level reaper + bound test probes with --max-time; assert no
++    orphaned duckbrain http processes after suite run
++  status: complete
++  created_at: '2026-10-06T13:04:37.499993+00:00'
++  completed_at: '2026-10-06T13:16:00.370096+00:00'

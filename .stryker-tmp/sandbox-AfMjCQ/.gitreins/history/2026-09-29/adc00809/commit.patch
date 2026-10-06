@@ -1,0 +1,434 @@
+commit 5899b4a1f1a07ca897059d9a1987a85c08f37181
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Sep 29 01:25:26 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Sep 29 01:25:26 2026 -0500
+
+    fix(search): ?contains= finds FTS-stopword terms via opt-in literal pass (DF-0926-03)
+    
+    Stopword-only queries (hello/from/different) never reached any candidate
+    pass: dropStopwords emptied the token set and the BM25 block was skipped,
+    so ?contains= silently missed content stored verbatim. Add an opt-in
+    raw-text word-boundary pass (includeStopwordLiterals) enabled only on the
+    contains= call sites, keeping the RETR-002 hybrid fusion contract intact.
+    
+    Regression suite: src/search/search-stopword-contains-df092603.test.ts
+    (6 tests, RED-GREEN verified). AGENTS.md counts synced to live 183/1458.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                               |   8 ++
+ AGENTS.md                                          |   4 +-
+ .../routes/memories-empty-content-dbgap056.test.ts |  15 ++-
+ src/http/routes/memories-hybrid-retr002.test.ts    |  19 ++-
+ .../memories-unknown-params-df092602.test.ts       |  29 ++++-
+ src/mcp/tools/recall.ts                            |   8 ++
+ src/search/query.ts                                |  45 +++++++
+ .../search-stopword-contains-df092603.test.ts      | 130 +++++++++++++++++++++
+ 8 files changed, 244 insertions(+), 14 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 6beaf64..403923f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2041,3 +2041,11 @@ tasks:
+   status: complete
+   created_at: '2026-09-29T02:41:09.876787+00:00'
+   completed_at: '2026-09-29T02:42:05.174628+00:00'
++- id: DF-0926-03
++  title: Fix ?contains= FTS stopword misses
++  criteria:
++  - contains=<stopword like Hello/from/different> returns rows whose content contains
++    that word; regression test RED-GREEN; full suite+tsc+prettier green; scratch-daemon
++    live proof
++  status: in_progress
++  created_at: '2026-09-29T05:34:29.723545+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index 325461e..d7ad4e9 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (182 suites, 1452 tests)
++- **Test Framework:** Vitest (183 suites, 1458 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1452 tests, 182 suites
++pnpm test          # 1458 tests, 183 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/src/http/routes/memories-empty-content-dbgap056.test.ts b/src/http/routes/memories-empty-content-dbgap056.test.ts
+index 0d8677c..6b771e4 100644
+--- a/src/http/routes/memories-empty-content-dbgap056.test.ts
++++ b/src/http/routes/memories-empty-content-dbgap056.test.ts
+@@ -24,6 +24,7 @@ import {
+   writeContentViolation,
+ } from "../../schema/memory";
+ import { rememberTool } from "../../mcp/tools/remember";
++import { drainAsyncCommits } from "../../git/autocommit";
+ 
+ const SCRATCH_ROOT = fs.mkdtempSync(
+   path.join(os.tmpdir(), "duckbrain-emptycontent-"),
+@@ -131,8 +132,18 @@ beforeAll(async () => {
+   });
+ });
+ 
+-afterAll(() => {
+-  server?.close();
++afterAll(async () => {
++  // Await the close, then drain in-flight async git work BEFORE deleting
++  // the scratch tree: an unawaited close returns while the last POST's
++  // auto-commit chain (debounce timers are unref'd) can still be writing
++  // into <root>/namespaces/<ns>/.git, and the rmSync then dies with
++  // ENOTEMPTY while every test in the file has already passed. Mirrors
++  // the http-auth.test.ts teardown (close → flush → drainAsyncCommits →
++  // rmSync).
++  if (server) {
++    await new Promise<void>((resolve) => server.close(() => resolve()));
++  }
++  await drainAsyncCommits();
+   if (PREV_NS_PATH === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+   else process.env.DUCKBRAIN_NAMESPACES_PATH = PREV_NS_PATH;
+   if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
+diff --git a/src/http/routes/memories-hybrid-retr002.test.ts b/src/http/routes/memories-hybrid-retr002.test.ts
+index 5a2974a..7c08a15 100644
+--- a/src/http/routes/memories-hybrid-retr002.test.ts
++++ b/src/http/routes/memories-hybrid-retr002.test.ts
+@@ -42,6 +42,7 @@ import { createAutoProviders } from "../../embedding/providers";
+ import type { EmbeddingProvider } from "../../embedding/providers";
+ import { EmbeddingCache } from "../../embedding/cache";
+ import { rebuildNamespaceIndex } from "../../search/index";
++import { keywordSearch } from "../../search/query";
+ 
+ // Shared by the mocked provider AND the pre-seeded cache, so vectors agree.
+ const { bowVector } = vi.hoisted(() => {
+@@ -338,12 +339,20 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
+         restoreIndex();
+       }
+ 
+-      // Keyword-only: the contains= path (same keywordSearch leg).
+-      const kw = await httpRequest(
+-        "GET",
+-        `/api/memories?contains=${enc}&namespace=${NS_NAME}&limit=10`,
++      // Keyword-only: the keywordSearch leg exactly as the hybrid ?q= path
++      // drives it. DF-0926-03 gave the HTTP ?contains= surface an opt-in
++      // stopword literal pass (includeStopwordLiterals in recall.ts), so
++      // driving that route here would no longer measure the fusion
++      // component — stopword-only queries now legitimately hit through
++      // contains=, and the keyword average would read 1.0 for reasons that
++      // have nothing to do with RRF fusion quality.
++      const kw = await keywordSearch(NS, q.q, { limit: 10 });
++      keyword.push(
++        mrr(
++          kw.memories.map((m) => m.id),
++          relevant,
++        ),
+       );
+-      keyword.push(mrr(kw.body.items?.map((i: any) => i.id) ?? [], relevant));
+     }
+ 
+     // Exact expectations from the fixture construction.
+diff --git a/src/http/routes/memories-unknown-params-df092602.test.ts b/src/http/routes/memories-unknown-params-df092602.test.ts
+index 059c94c..b573d91 100644
+--- a/src/http/routes/memories-unknown-params-df092602.test.ts
++++ b/src/http/routes/memories-unknown-params-df092602.test.ts
+@@ -72,7 +72,10 @@ function httpRequest(method: string, path: string): Promise<HttpResponse> {
+ function advertisedParams(message: string): string[] {
+   const marker = "Valid parameters:";
+   const at = message.indexOf(marker);
+-  expect(at, `400 message must list valid parameters: ${message}`).toBeGreaterThan(-1);
++  expect(
++    at,
++    `400 message must list valid parameters: ${message}`,
++  ).toBeGreaterThan(-1);
+   return message
+     .slice(at + marker.length)
+     .split(",")
+@@ -92,7 +95,10 @@ function documentedParams(): string[] {
+   );
+   const heading = "#### `GET /api/memories`";
+   const start = doc.indexOf(heading);
+-  expect(start, "docs/api/http-api.md must document GET /api/memories").toBeGreaterThan(-1);
++  expect(
++    start,
++    "docs/api/http-api.md must document GET /api/memories",
++  ).toBeGreaterThan(-1);
+   const rest = doc.slice(start + heading.length);
+   const end = rest.indexOf("\n#### ");
+   const section = end === -1 ? rest : rest.slice(0, end);
+@@ -175,7 +181,14 @@ describe("DF-0926-02: GET /api/memories rejects undocumented query params", () =
+     expect(status).toBe(400);
+     const advertised = advertisedParams(body.error);
+     // Guard against a vacuous parse: the documented core params must be there.
+-    for (const name of ["prefix", "domain", "q", "contains", "limit", "namespace"]) {
++    for (const name of [
++      "prefix",
++      "domain",
++      "q",
++      "contains",
++      "limit",
++      "namespace",
++    ]) {
+       expect(advertised, body.error).toContain(name);
+     }
+     // ...and the repeatable attribute form, which is a documented prefix.
+@@ -195,11 +208,17 @@ describe("DF-0926-02: GET /api/memories rejects undocumented query params", () =
+ 
+     // Every documented param is accepted...
+     for (const name of documented) {
+-      expect(advertised, `documented param '${name}' must be accepted`).toContain(name);
++      expect(
++        advertised,
++        `documented param '${name}' must be accepted`,
++      ).toContain(name);
+     }
+     // ...and nothing is accepted that the docs do not advertise.
+     for (const name of advertised) {
+-      expect(documented, `accepted param '${name}' must be documented`).toContain(name);
++      expect(
++        documented,
++        `accepted param '${name}' must be documented`,
++      ).toContain(name);
+     }
+   });
+ 
+diff --git a/src/mcp/tools/recall.ts b/src/mcp/tools/recall.ts
+index 823a9e5..b57fc2c 100644
+--- a/src/mcp/tools/recall.ts
++++ b/src/mcp/tools/recall.ts
+@@ -599,6 +599,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
+               // (historical=true disables the clause).
+               historical: validated.historical === true,
+               now,
++              // DF-0926-03: stopword-only contains= queries still find
++              // content stored verbatim (contains= is a literal filter,
++              // unlike the hybrid ?q= fusion contract).
++              includeStopwordLiterals: true,
+             },
+           )
+         : await keywordSearch(namespacePath, validated.contains, {
+@@ -613,6 +617,10 @@ export async function recallTool(input: unknown): Promise<RecallOutput> {
+             // (historical=true disables the clause).
+             historical: validated.historical === true,
+             now,
++            // DF-0926-03: stopword-only contains= queries still find
++            // content stored verbatim (contains= is a literal filter,
++            // unlike the hybrid ?q= fusion contract).
++            includeStopwordLiterals: true,
+           });
+       // DB-GAP-046: the page window (offset, limit) is applied to the ranked
+       // keyword hits — the fetch above already reached through the page end.
+diff --git a/src/search/query.ts b/src/search/query.ts
+index 23d8e20..b64ae15 100644
+--- a/src/search/query.ts
++++ b/src/search/query.ts
+@@ -26,6 +26,7 @@ import {
+   highlightMatches,
+   type IndexRow,
+ } from "./rank";
++import { FTS_STOPWORDS } from "./stopwords";
+ import {
+   buildTimeRangeConditions,
+   buildAttributeConditions,
+@@ -105,6 +106,13 @@ export interface KeywordSearchOptions {
+    *  DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS / DEFAULT_AUTOBUILD_MAX_ROWS
+    *  (single-namespace reads only). */
+   autoBuildMaxRows?: number;
++  /** DF-0926-03: when true, a query whose ONLY tokens are FTS stopwords
++   *  ("hello", "from", "different") also runs a raw-text literal pass, so
++   *  content stored verbatim still matches (?contains= surface). Default
++   *  false: the hybrid ?q= fusion contract (RETR-002) depends on the
++   *  keyword leg finding nothing for stopword-only queries so the
++   *  semantic leg fuses alone. */
++  includeStopwordLiterals?: boolean;
+ }
+ 
+ function escapeSqlLiteral(s: string): string {
+@@ -296,6 +304,43 @@ async function collectKeywordCandidates(
+         if (!candidates.has(row.id)) candidates.set(row.id, row);
+       }
+     }
++
++    // DF-0926-03: stopword-only queries ("hello", "from", "different")
++    // never reached any candidate pass — dropStopwords removes their tokens
++    // to keep the query token set aligned with what the FTS index stored
++    // (the rank.ts contract), and the BM25 block above is then skipped
++    // entirely, so a query containing ONLY stopwords matched nothing while
++    // the text was stored verbatim. When every token was dropped, add a
++    // raw-text word-boundary pass — the same role as the prefix pass
++    // above: candidates outside the BM25 macro, re-ranked by rank.ts's
++    // tiers on raw_text. The FTS query construction is untouched, so the
++    // FTS/JS stopword alignment stays intact; a stopword absent from the
++    // stored text still matches no row. OPT-IN (includeStopwordLiterals):
++    // the hybrid ?q= fusion contract (RETR-002) relies on the keyword leg
++    // finding nothing for stopword-only queries so the semantic leg fuses
++    // alone, so only the ?contains= surface enables the pass.
++    if (
++      opts.includeStopwordLiterals === true &&
++      ftsTokens.length === 0 &&
++      kept.length === 0 &&
++      tokens.length > 0
++    ) {
++      // Tokens come from tokenize() ([a-z0-9]+ only), so they can be
++      // embedded in a character class without regex escaping; the explicit
++      // filter keeps the guarantee local rather than trusting the caller.
++      const NB = "[^a-z0-9]";
++      const stopwordConditions = [...new Set(tokens)]
++        .filter((t) => FTS_STOPWORDS.has(t) && /^[a-z0-9]+$/.test(t))
++        .map((t) => `regexp_matches(raw_text, '(^|${NB})${t}(${NB}|$)', 'i')`);
++      if (stopwordConditions.length > 0) {
++        const sql = `SELECT ${cols}, 0 AS score FROM memories WHERE (${stopwordConditions.join(" OR ")})${timeClause}${attrClause}${validityClause} ORDER BY timestamp DESC LIMIT ${maxCandidates}`;
++        const rows = await allAsync(db, sql);
++        for (const r of rows) {
++          const row = toIndexRow(r);
++          if (!candidates.has(row.id)) candidates.set(row.id, row);
++        }
++      }
++    }
+   } finally {
+     await closeAsync(db);
+   }
+diff --git a/src/search/search-stopword-contains-df092603.test.ts b/src/search/search-stopword-contains-df092603.test.ts
+new file mode 100644
+index 0000000..3585890
+--- /dev/null
++++ b/src/search/search-stopword-contains-df092603.test.ts
+@@ -0,0 +1,130 @@
++/**
++ * DF-0926-03 Regression Tests: ?contains=<stopword> must find content
++ * stored verbatim.
++ *
++ * "hello", "from", "different" are members of FTS_STOPWORDS (stopwords.ts
++ * dumps the DuckDB FTS extension's default English stopword list), so
++ * dropStopwords removes them from the query side to keep the query token
++ * set aligned with the tokens the FTS index stored. Before the fix a
++ * stopword-only query produced NO candidate pass at all: the FTS block is
++ * guarded by `ftsTokens.length > 0` and the prefix pass only runs on a
++ * trailing `*` — so ?contains=Hello returned total 0 while
++ * ?contains=zebra (not a stopword) hit. Deterministic per-term, exactly
++ * the board row's observed pattern (Hello/from/different → 0; zebra hit).
++ *
++ * The fix adds a raw-text word-boundary pass for stopword-only queries —
++ * the same role as the prefix LIKE pass: candidates outside the BM25
++ * macro, re-ranked by rank.ts's tiers on the raw text. The FTS query
++ * construction is untouched, so the FTS/JS stopword alignment rank.ts
++ * depends on is preserved.
++ *
++ * Real FTS sidecar, no mocks — the fixtures are the board row's contents
++ * ('Hello from HTTP API' + 'zebra').
++ */
++
++import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
++import fs from "fs";
++import path from "path";
++import { keywordSearch } from "./query";
++import { recallTool } from "../mcp/tools/recall";
++
++// Real DuckDB `fts` extension load + rebuild, as in search-retr001.
++vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
++
++const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
++const NS = path.join(NS_ROOT, "df092603-stopword");
++const PARTITION = path.join(NS, "concept", "2026-09");
++const JSONL = path.join(PARTITION, "current.jsonl");
++const MANIFEST = path.join(NS, "manifest.json");
++
++function mem(id: string, key: string, text: string, timestamp: string) {
++  return JSON.stringify({
++    id,
++    key,
++    domain: "raw_note",
++    timestamp,
++    author: "test@example.com",
++    action: "add",
++    embedding_text: text,
++    attributes: {},
++  });
++}
++
++beforeAll(() => {
++  fs.mkdirSync(PARTITION, { recursive: true });
++  fs.writeFileSync(
++    JSONL,
++    [
++      // m1: the board row's exact fixture content. Key deliberately carries
++      // no stopword substring, so a hit can only come from the CONTENT.
++      mem("m1", "/df/m1", "Hello from HTTP API", "2026-09-29T00:00:00.000Z"),
++      // m2: the non-stopword control fixture.
++      mem("m2", "/df/m2", "zebra", "2026-09-29T00:01:00.000Z"),
++    ].join("\n") + "\n",
++    "utf8",
++  );
++  fs.writeFileSync(
++    MANIFEST,
++    JSON.stringify({
++      partitions: ["concept/2026-09"],
++      lastUpdated: new Date().toISOString(),
++    }),
++  );
++});
++
++afterAll(() => {
++  fs.rmSync(NS, { recursive: true, force: true });
++});
++
++describe("DF-0926-03: ?contains=<stopword> finds stored content", () => {
++  it("contains=Hello hits the row whose CONTENT contains it", async () => {
++    // includeStopwordLiterals is the recallTool contains= surface wiring
++    // (see recall.ts); the default-off contract is asserted further below.
++    const res = await keywordSearch(NS, "Hello", {
++      limit: 10,
++      includeStopwordLiterals: true,
++    });
++    expect(res.total).toBeGreaterThanOrEqual(1);
++    expect(res.memories.map((m) => m.id)).toContain("m1");
++    expect(res.memories[0].snippet).toContain("Hello");
++  });
++
++  it("contains=zebra still hits (non-stopword control, no flag needed)", async () => {
++    const res = await keywordSearch(NS, "zebra", { limit: 10 });
++    expect(res.total).toBe(1);
++    expect(res.memories[0].id).toBe("m2");
++  });
++
++  it("contains=from hits via the raw-text pass (board fixture)", async () => {
++    const res = await keywordSearch(NS, "from", {
++      limit: 10,
++      includeStopwordLiterals: true,
++    });
++    expect(res.total).toBeGreaterThanOrEqual(1);
++    expect(res.memories.map((m) => m.id)).toContain("m1");
++  });
++
++  it("default stays opt-out: keywordSearch without the flag finds nothing (RETR-002 hybrid contract)", async () => {
++    const res = await keywordSearch(NS, "Hello", { limit: 10 });
++    expect(res.total).toBe(0);
++  });
++
++  it("recallTool contains= surfaces the same hits", async () => {
++    const res = await recallTool({
++      contains: "Hello",
++      namespace: "df092603-stopword",
++      limit: 10,
++    });
++    expect(res.error).toBeUndefined();
++    expect(res.total).toBeGreaterThanOrEqual(1);
++    expect(res.memories.map((m: any) => m.id)).toContain("m1");
++  });
++
++  it("a stopword absent from the corpus still returns zero rows (no false positives)", async () => {
++    const res = await keywordSearch(NS, "greetings", {
++      limit: 10,
++      includeStopwordLiterals: true,
++    });
++    expect(res.total).toBe(0);
++  });
++});

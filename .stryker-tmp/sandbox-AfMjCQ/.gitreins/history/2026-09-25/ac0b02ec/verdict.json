@@ -1,0 +1,103 @@
+{
+  "task_id": "DB-GAP-057",
+  "task_title": "Namespace registry split-brain: HTTP/MCP creates write mappings to a stray config, GET list is stale",
+  "task_criteria": [
+    "POST /api/namespaces 201 is listed by the immediately following GET; mappings land in the root config and no stray namespaces/duckbrain.config.json is created; GET flags onDiskOnly and directoryMissing drift with counts; full vitest suite green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e921c97de8e9683aa4d64f8bef0aca651303a88e",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n7:28AM INF scanned ~12510484 bytes (12.51 MB) in 2.22s\n7:28AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 267104 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  171 passed (171)\n      Tests  1372 passed (1372)\n   Start at  07:28:07\n   Duration  60.48s (tests 80%, import 18%, transform 1%, setup 1%)\n\n    Isolate  171 workers spawned \u00b7 ~94ms startup each (spawn + environment, per file)\n             at least ~3.92s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 POST /api/namespaces 201 is listed by the immediately following GET; mappings land in the root config and no stray namespaces/duckbrain.config.json is created; GET flags onDiskOnly and directoryMissing drift with counts; full vitest suite green: Fix commit e921c97. (1) POST\u2192GET: src/http/routes/namespaces-dbgap057.test.ts AC-1 spawns a real scratch daemon, POSTs /api/namespaces (expects 201) then immediately GETs and finds 'dbgap057-live' with path join(nsPath,'dbgap057-live') \u2014 passed. (2) Root config + no stray: src/mcp/tools/namespace.ts:createNamespaceTool now calls registerNamespace(cfgRoot, ...) and updateConfig(cfgRoot, ...) where cfgRoot=resolveDuckbrainRoot() (was nsRoot); AC-2 test asserts rootConfig.namespaceMappings['dbgap057-live'] is set, defaultNamespace='dbgap057-default', and fs.existsSync(path.join(nsPath, CONFIG_FILENAME))===false \u2014 passed. (3) Drift: src/http/routes/namespaces.ts GET unions censusOnDiskNamespaces(resolveNamespacesPath()) (src/http/routes/namespace-census.ts, dirs-only, skips hidden + CONFIG_FILENAME), pushes onDiskOnly rows, keeps directoryMissing rows, and emits drift {onDiskOnly,directoryMissing} only when non-zero; test asserts body.drift toEqual({onDiskOnly:1,directoryMissing:1}) and undefined when clean \u2014 passed. (4) Full suite: `npx vitest run` \u2192 'Test Files 171 passed (171) / Tests 1372 passed (1372)', EXIT=0 (log /tmp/vitest-full2.log); DB-GAP-057 file alone: 6 passed. The pre-existing untracked namespaces/duckbrain.config.json is legacy prod damage (git ls-files empty), not produced by the fixed path. [resolution 0.08; namespaces/duckbrain.config.json]\nDB-GAP-057 is fully resolved: the create path registers against resolveDuckbrainRoot(), GET unions an on-disk census with drift flags/counts, the regression test pins all three ACs, and the full vitest suite is green (171 files / 1372 tests, exit 0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 POST /api/namespaces 201 is listed by the immediately following GET; mappings land in the root config and no stray namespaces/duckbrain.config.json is created; GET flags onDiskOnly and directoryMissing drift with counts; full vitest suite green: Fix commit e921c97. (1) POST\u2192GET: src/http/routes/namespaces-dbgap057.test.ts AC-1 spawns a real scratch daemon, POSTs /api/namespaces (expects 201) then immediately GETs and finds 'dbgap057-live' with path join(nsPath,'dbgap057-live') \u2014 passed. (2) Root config + no stray: src/mcp/tools/namespace.ts:createNamespaceTool now calls registerNamespace(cfgRoot, ...) and updateConfig(cfgRoot, ...) where cfgRoot=resolveDuckbrainRoot() (was nsRoot); AC-2 test asserts rootConfig.namespaceMappings['dbgap057-live'] is set, defaultNamespace='dbgap057-default', and fs.existsSync(path.join(nsPath, CONFIG_FILENAME))===false \u2014 passed. (3) Drift: src/http/routes/namespaces.ts GET unions censusOnDiskNamespaces(resolveNamespacesPath()) (src/http/routes/namespace-census.ts, dirs-only, skips hidden + CONFIG_FILENAME), pushes onDiskOnly rows, keeps directoryMissing rows, and emits drift {onDiskOnly,directoryMissing} only when non-zero; test asserts body.drift toEqual({onDiskOnly:1,directoryMissing:1}) and undefined when clean \u2014 passed. (4) Full suite: `npx vitest run` \u2192 'Test Files 171 passed (171) / Tests 1372 passed (1372)', EXIT=0 (log /tmp/vitest-full2.log); DB-GAP-057 file alone: 6 passed. The pre-existing untracked namespaces/duckbrain.config.json is legacy prod damage (git ls-files empty), not produced by the fixed path. [resolution 0.08; namespaces/duckbrain.config.json]\nDB-GAP-057 is fully resolved: the create path registers against resolveDuckbrainRoot(), GET unions an on-disk census with drift flags/counts, the regression test pins all three ACs, and the full vitest suite is green (171 files / 1372 tests, exit 0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "POST /api/namespaces 201 is listed by the immediately following GET; mappings land in the root config and no stray namespaces/duckbrain.config.json is created; GET flags onDiskOnly and directoryMissing drift with counts; full vitest suite green",
+                "status": "PASS",
+                "detail": "Fix commit e921c97. (1) POST\u2192GET: src/http/routes/namespaces-dbgap057.test.ts AC-1 spawns a real scratch daemon, POSTs /api/namespaces (expects 201) then immediately GETs and finds 'dbgap057-live' with path join(nsPath,'dbgap057-live') \u2014 passed. (2) Root config + no stray: src/mcp/tools/namespace.ts:createNamespaceTool now calls registerNamespace(cfgRoot, ...) and updateConfig(cfgRoot, ...) where cfgRoot=resolveDuckbrainRoot() (was nsRoot); AC-2 test asserts rootConfig.namespaceMappings['dbgap057-live'] is set, defaultNamespace='dbgap057-default', and fs.existsSync(path.join(nsPath, CONFIG_FILENAME))===false \u2014 passed. (3) Drift: src/http/routes/namespaces.ts GET unions censusOnDiskNamespaces(resolveNamespacesPath()) (src/http/routes/namespace-census.ts, dirs-only, skips hidden + CONFIG_FILENAME), pushes onDiskOnly rows, keeps directoryMissing rows, and emits drift {onDiskOnly,directoryMissing} only when non-zero; test asserts body.drift toEqual({onDiskOnly:1,directoryMissing:1}) and undefined when clean \u2014 passed. (4) Full suite: `npx vitest run` \u2192 'Test Files 171 passed (171) / Tests 1372 passed (1372)', EXIT=0 (log /tmp/vitest-full2.log); DB-GAP-057 file alone: 6 passed. The pre-existing untracked namespaces/duckbrain.config.json is legacy prod damage (git ls-files empty), not produced by the fixed path. [resolution 0.08; namespaces/duckbrain.config.json]",
+                "resolution_probability": 0.08,
+                "cited_path": "namespaces/duckbrain.config.json"
+              }
+            ],
+            "summary": "DB-GAP-057 is fully resolved: the create path registers against resolveDuckbrainRoot(), GET unions an on-disk census with drift flags/counts, the regression test pins all three ACs, and the full vitest suite is green (171 files / 1372 tests, exit 0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-057\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 POST /api/namespaces 201 is listed by the immediately following GET; mappings land in the root config and no stray namespaces/duckbrain.config.json is created; GET flags onDiskOnly and directoryMissing drift with counts; full vitest suite green: Fix commit e921c97. (1) POST\u2192GET: src/http/routes/namespaces-dbgap057.test.ts AC-1 spawns a real scratch daemon, POSTs /api/namespaces (expects 201) then immediately GETs and finds 'dbgap057-live' with path join(nsPath,'dbgap057-live') \u2014 passed. (2) Root config + no stray: src/mcp/tools/namespace.ts:createNamespaceTool now calls registerNamespace(cfgRoot, ...) and updateConfig(cfgRoot, ...) where cfgRoot=resolveDuckbrainRoot() (was nsRoot); AC-2 test asserts rootConfig.namespaceMappings['dbgap057-live'] is set, defaultNamespace='dbgap057-default', and fs.existsSync(path.join(nsPath, CONFIG_FILENAME))===false \u2014 passed. (3) Drift: src/http/routes/namespaces.ts GET unions censusOnDiskNamespaces(resolveNamespacesPath()) (src/http/routes/namespace-census.ts, dirs-only, skips hidden + CONFIG_FILENAME), pushes onDiskOnly rows, keeps directoryMissing rows, and emits drift {onDiskOnly,directoryMissing} only when non-zero; test asserts body.drift toEqual({onDiskOnly:1,directoryMissing:1}) and undefined when clean \u2014 passed. (4) Full suite: `npx vitest run` \u2192 'Test Files 171 passed (171) / Tests 1372 passed (1372)', EXIT=0 (log /tmp/vitest-full2.log); DB-GAP-057 file alone: 6 passed. The pre-existing untracked namespaces/duckbrain.config.json is legacy prod damage (git ls-files empty), not produced by the fixed path. [resolution 0.08; namespaces/duckbrain.config.json]\nDB-GAP-057 is fully resolved: the create path registers against resolveDuckbrainRoot(), GET unions an on-disk census with drift flags/counts, the regression test pins all three ACs, and the full vitest suite is green (171 files / 1372 tests, exit 0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-25T12:34:46.356345",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-25T12:34:46.412833+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 34205,
+        "truncated": false,
+        "source": "git show e921c97de8e9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 9160,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-057"
+  }
+}

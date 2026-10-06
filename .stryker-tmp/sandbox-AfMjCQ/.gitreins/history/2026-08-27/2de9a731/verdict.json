@@ -1,0 +1,67 @@
+{
+  "task_id": "duckbrain-484-consolidate001",
+  "task_title": "Daily consolidate CLI (CONSOLIDATE-001)",
+  "task_criteria": [
+    "duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean."
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: \u001b[90m9:02PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12465557 bytes (12.47 MB) in 6.4s\u001b[0m\n\u001b[90m9:02PM\u001b[0m \u001b[32\n  \u2717 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m9:02PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12465557 bytes (12.47 MB) in 6.4s\u001b[0m\n\u001b[90m9:02PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1593\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-validuntil-retr011.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1144\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 2089\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m\u2713\u001b[22m\u001b[39m allNamespaces=true returns the union with namespace fac",
+          "error": "",
+          "data": {
+            "exit_code": 1
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: Functional implementation is complete (src/cli/consolidate.ts: scans deltas via collectNamespaceDeltas, dedup via contentHash, capped previews via buildPreview, digest block via buildDigestText, --write-digest/DUCKBRAIN_API_KEY posts to ns duckbrain via postDigest with 201 verified by mocked-fetch test; chat extractor untouched \u2014 only comments reference it; AGENTS.md shows 97 suites/833 tests; npx tsc --noEmit exits 0). BUT the required tool checks are NOT all clean: (1) `npx vitest run` \u2192 1 FAILED / 833 \u2014 src/cli/consolidate.test.ts '--digest-content reads the file for the digest body' fails because the test does not delete DUCKBRAIN_API_KEY from the environment (it is set in this env), so the write path triggers instead of the dry-run print (test isolation bug in the task's own test file); (2) `npx prettier --check src/` \u2192 exit code 1, formatting issue in src/cli/recall-space-form-dogfood027.test.ts. Criterion explicitly requires vitest+tsc+prettier all clean, which is not met.\nThe consolidate CLI is functionally implemented and wired, but the criterion fails because npx vitest run has 1 failing test (consolidate.test.ts not hermetic w.r.t. DUCKBRAIN_API_KEY) and npx prettier --check src/ exits 1, so the required 'all clean' tool checks are not satisfied.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: Functional implementation is complete (src/cli/",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.",
+                "status": "FAIL",
+                "detail": "Functional implementation is complete (src/cli/consolidate.ts: scans deltas via collectNamespaceDeltas, dedup via contentHash, capped previews via buildPreview, digest block via buildDigestText, --write-digest/DUCKBRAIN_API_KEY posts to ns duckbrain via postDigest with 201 verified by mocked-fetch test; chat extractor untouched \u2014 only comments reference it; AGENTS.md shows 97 suites/833 tests; npx tsc --noEmit exits 0). BUT the required tool checks are NOT all clean: (1) `npx vitest run` \u2192 1 FAILED / 833 \u2014 src/cli/consolidate.test.ts '--digest-content reads the file for the digest body' fails because the test does not delete DUCKBRAIN_API_KEY from the environment (it is set in this env), so the write path triggers instead of the dry-run print (test isolation bug in the task's own test file); (2) `npx prettier --check src/` \u2192 exit code 1, formatting issue in src/cli/recall-space-form-dogfood027.test.ts. Criterion explicitly requires vitest+tsc+prettier all clean, which is not met."
+              }
+            ],
+            "summary": "The consolidate CLI is functionally implemented and wired, but the criterion fails because npx vitest run has 1 failing test (consolidate.test.ts not hermetic w.r.t. DUCKBRAIN_API_KEY) and npx prettier --check src/ exits 1, so the required 'all clean' tool checks are not satisfied."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: duckbrain-484-consolidate001\n\nStage tier1: FAIL\n    \u2713 secrets: \u001b[90m9:02PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12465557 bytes (12.47 MB) in 6.4s\u001b[0m\n\u001b[90m9:02PM\u001b[0m \u001b[32\n  \u2717 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 duckbrain consolidate scans all namespace JSONL deltas for the target day, prints per-namespace delta row counts + dedup stats (content-hash collapse) + capped previews + a final digest block; --write-digest or DUCKBRAIN_API_KEY env posts the digest entry to ns duckbrain (HTTP 201 verified); chat extractor untouched; AGENTS.md counts synced (97 suites/833 tests); npx vitest run, npx tsc --noEmit, npx prettier --check src/ all clean.: Functional implementation is complete (src/cli/consolidate.ts: scans deltas via collectNamespaceDeltas, dedup via contentHash, capped previews via buildPreview, digest block via buildDigestText, --write-digest/DUCKBRAIN_API_KEY posts to ns duckbrain via postDigest with 201 verified by mocked-fetch test; chat extractor untouched \u2014 only comments reference it; AGENTS.md shows 97 suites/833 tests; npx tsc --noEmit exits 0). BUT the required tool checks are NOT all clean: (1) `npx vitest run` \u2192 1 FAILED / 833 \u2014 src/cli/consolidate.test.ts '--digest-content reads the file for the digest body' fails because the test does not delete DUCKBRAIN_API_KEY from the environment (it is set in this env), so the write path triggers instead of the dry-run print (test isolation bug in the task's own test file); (2) `npx prettier --check src/` \u2192 exit code 1, formatting issue in src/cli/recall-space-form-dogfood027.test.ts. Criterion explicitly requires vitest+tsc+prettier all clean, which is not met.\nThe consolidate CLI is functionally implemented and wired, but the criterion fails because npx vitest run has 1 failing test (consolidate.test.ts not hermetic w.r.t. DUCKBRAIN_API_KEY) and npx prettier --check src/ exits 1, so the required 'all clean' tool checks are not satisfied.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-27T02:04:16.438651"
+}

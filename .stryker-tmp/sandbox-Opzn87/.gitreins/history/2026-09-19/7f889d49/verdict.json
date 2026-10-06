@@ -1,0 +1,97 @@
+{
+  "task_id": "UI-GAP-001",
+  "task_title": "Wire UI header filters + rich query param controls",
+  "task_criteria": [
+    "Header domain/author/date filters compose into memoriesApi.list params; controls exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in packages/ui flips to assert the requests; packages/ui tests + build green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "a120517f69033083ac0c4406df05f01dde02b4d0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n4:41PM INF scanned ~9196545 bytes (9.20 MB) in 1.37s\n4:41PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193667 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  16:41:58\n   Duration  102.74s (transform 3.32s, setup 3.17s, import 45.56s, tests 340.01s, environment 16ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Header domain/author/date filters compose into memoriesApi.list params; controls exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in packages/ui flips to assert the requests; packages/ui tests + build green: Controls exist in packages/ui/src/components/layout/header.tsx: domain select (L227), author input (L246), date-range select (L255), prefix input (L276), after datetime-local (L285), before datetime-local (L292), as_of input (L302), allNamespaces checkbox (L316) \u2014 all write via updateFilters into shared ui-store (src/stores/ui-store.ts L37-77). Composition: memory-table.tsx L45 filtersToQueryParams(filters) spread into useInfiniteMemories (L55) -> use-memories.ts L143 memoriesApi.list({prefix,limit,offset,domain,author,query,namespace,after,before,asOf,allNamespaces}); filters.ts maps all fields; api-client.ts L131 maps asOf->as_of and allNamespaces->\"true\". GAP test flipped: header.test.tsx L113 'GAP-FIXED: domain / date-range / author / temporal / prefix / all-namespaces selections compose into the list request' asserts api.lastFor(\"/api/memories\").params for domain/author/after/prefix/as_of/allNamespaces and that clear resets them; api-stub records real fetch URLSearchParams. Tests: `npx vitest run` in packages/ui => 'Test Files 6 passed (6), Tests 38 passed (38)', exit 0; header test verbose shows 4 passed incl GAP-FIXED. Build: `npm run build` (tsc && vite build) => exit 0, '\u2713 built in 2.19s', 1601 modules transformed.\nHeader filters are fully wired into memoriesApi.list params with all required controls, the GAP test asserts the wire requests, and packages/ui tests (38/38) and build are green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Header domain/author/date filters compose into memoriesApi.list params; controls exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in packages/ui flips to assert the requests; packages/ui tests + build green: Controls exist in packages/ui/src/components/layout/header.tsx: domain select (L227), author input (L246), date-range select (L255), prefix input (L276), after datetime-local (L285), before datetime-local (L292), as_of input (L302), allNamespaces checkbox (L316) \u2014 all write via updateFilters into shared ui-store (src/stores/ui-store.ts L37-77). Composition: memory-table.tsx L45 filtersToQueryParams(filters) spread into useInfiniteMemories (L55) -> use-memories.ts L143 memoriesApi.list({prefix,limit,offset,domain,author,query,namespace,after,before,asOf,allNamespaces}); filters.ts maps all fields; api-client.ts L131 maps asOf->as_of and allNamespaces->\"true\". GAP test flipped: header.test.tsx L113 'GAP-FIXED: domain / date-range / author / temporal / prefix / all-namespaces selections compose into the list request' asserts api.lastFor(\"/api/memories\").params for domain/author/after/prefix/as_of/allNamespaces and that clear resets them; api-stub records real fetch URLSearchParams. Tests: `npx vitest run` in packages/ui => 'Test Files 6 passed (6), Tests 38 passed (38)', exit 0; header test verbose shows 4 passed incl GAP-FIXED. Build: `npm run build` (tsc && vite build) => exit 0, '\u2713 built in 2.19s', 1601 modules transformed.\nHeader filters are fully wired into memoriesApi.list params with all required controls, the GAP test asserts the wire requests, and packages/ui tests (38/38) and build are green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Header domain/author/date filters compose into memoriesApi.list params; controls exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in packages/ui flips to assert the requests; packages/ui tests + build green",
+                "status": "PASS",
+                "detail": "Controls exist in packages/ui/src/components/layout/header.tsx: domain select (L227), author input (L246), date-range select (L255), prefix input (L276), after datetime-local (L285), before datetime-local (L292), as_of input (L302), allNamespaces checkbox (L316) \u2014 all write via updateFilters into shared ui-store (src/stores/ui-store.ts L37-77). Composition: memory-table.tsx L45 filtersToQueryParams(filters) spread into useInfiniteMemories (L55) -> use-memories.ts L143 memoriesApi.list({prefix,limit,offset,domain,author,query,namespace,after,before,asOf,allNamespaces}); filters.ts maps all fields; api-client.ts L131 maps asOf->as_of and allNamespaces->\"true\". GAP test flipped: header.test.tsx L113 'GAP-FIXED: domain / date-range / author / temporal / prefix / all-namespaces selections compose into the list request' asserts api.lastFor(\"/api/memories\").params for domain/author/after/prefix/as_of/allNamespaces and that clear resets them; api-stub records real fetch URLSearchParams. Tests: `npx vitest run` in packages/ui => 'Test Files 6 passed (6), Tests 38 passed (38)', exit 0; header test verbose shows 4 passed incl GAP-FIXED. Build: `npm run build` (tsc && vite build) => exit 0, '\u2713 built in 2.19s', 1601 modules transformed."
+              }
+            ],
+            "summary": "Header filters are fully wired into memoriesApi.list params with all required controls, the GAP test asserts the wire requests, and packages/ui tests (38/38) and build are green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: UI-GAP-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Header domain/author/date filters compose into memoriesApi.list params; controls exist for temporal (after/before/as_of), prefix, allNamespaces; the GAP test in packages/ui flips to assert the requests; packages/ui tests + build green: Controls exist in packages/ui/src/components/layout/header.tsx: domain select (L227), author input (L246), date-range select (L255), prefix input (L276), after datetime-local (L285), before datetime-local (L292), as_of input (L302), allNamespaces checkbox (L316) \u2014 all write via updateFilters into shared ui-store (src/stores/ui-store.ts L37-77). Composition: memory-table.tsx L45 filtersToQueryParams(filters) spread into useInfiniteMemories (L55) -> use-memories.ts L143 memoriesApi.list({prefix,limit,offset,domain,author,query,namespace,after,before,asOf,allNamespaces}); filters.ts maps all fields; api-client.ts L131 maps asOf->as_of and allNamespaces->\"true\". GAP test flipped: header.test.tsx L113 'GAP-FIXED: domain / date-range / author / temporal / prefix / all-namespaces selections compose into the list request' asserts api.lastFor(\"/api/memories\").params for domain/author/after/prefix/as_of/allNamespaces and that clear resets them; api-stub records real fetch URLSearchParams. Tests: `npx vitest run` in packages/ui => 'Test Files 6 passed (6), Tests 38 passed (38)', exit 0; header test verbose shows 4 passed incl GAP-FIXED. Build: `npm run build` (tsc && vite build) => exit 0, '\u2713 built in 2.19s', 1601 modules transformed.\nHeader filters are fully wired into memoriesApi.list params with all required controls, the GAP test asserts the wire requests, and packages/ui tests (38/38) and build are green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T21:44:32.587820",
+  "evidence": {
+    "collected_at": "2026-09-19T21:44:32.628946+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1237,
+        "truncated": false,
+        "source": "git show a120517f6903"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 4165,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "UI-GAP-001"
+  }
+}

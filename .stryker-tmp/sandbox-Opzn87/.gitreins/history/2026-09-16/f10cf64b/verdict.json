@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-046",
+  "task_title": "GET /api/memories offset+prefix pagination empty-page bug",
+  "task_criteria": [
+    "Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/ with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty page at offset>0); hermetic regression test exists in the tree"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9048751 bytes (9.05 MB) in 1.9s\u001b[0m\n\u001b[90m7:22PM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  123 passed (123)\n      Tests  1079 passed (1079)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9048751 bytes (9.05 MB) in 1.9s\u001b[0m\n\u001b[90m7:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  123 passed (123)\n      Tests  1079 passed (1079)\n   Start at  19:22:35\n   Duration  50.65s (transform 3.10s, setup 1.41s, import 49.91s, tests 125.84s, environment 19ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/ with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty page at offset>0); hermetic regression test exists in the tree: Regression test exists at src/http/routes/memories-offset-prefix-gap046.test.ts: it seeds 25 rows under prefix 'event/demo/' into scratch namespace 'gap046' (seedNamespace writes raw_note/2026-09/current.jsonl + manifest.json under the temp root set by src/test-setup.ts via DUCKBRAIN_NAMESPACES_PATH=mkdtempSync), then asserts offset=0 -> 10 rows (hasMore=true, nextOffset=10), offset=10 -> 10 rows (hasMore=true, nextOffset=20), offset=20 -> 5 rows (hasMore=false, nextOffset=null), plus a full 3-page walk equal to the exact 25-key order. Ran `npx vitest run src/http/routes/memories-offset-prefix-gap046.test.ts --reporter=verbose`: exit_code 0, output 'Test Files 1 passed (1) / Tests 8 passed (8)', including '\u2713 offset=0 returns the first full page with more to come', '\u2713 offset=10 returns the SECOND page (was 0 rows \u2014 the empty-page bug)', '\u2713 offset=20 returns the final 5 rows with hasMore=false'. Fix confirmed in code: src/http/routes/memories.ts:333 forwards offset to recallTool (no post-hoc slice by offset, only a defensive slice(0, limit) at :420), src/mcp/tools/recall.ts:670 passes offset into queryMemories filters, src/duckdb/queries.ts:454-456 emits 'OFFSET n' in SQL. Hermetic: no DUCKBRAIN_* env mutation, repo duckbrain.config.json asserted byte-identical before/after, seeded namespace dirs removed in afterAll.\nThe DB-GAP-046 regression test exists and passes (8/8), proving 25 seeded event/demo/ rows page as 10/10/5 at offsets 0/10/20 with the offset pushed into the SQL query layer.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/ with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty page at offset>0); hermetic regression test exists in the tree: Regression test exists at src/http/routes/memories-offset-prefix-gap046.test.ts: it seeds 25 rows under prefix 'event/demo/' into scratch namespace 'gap046' (seedNamespace writes raw_note/2026-09/current.jsonl + manifest.json under the temp root set by s",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/ with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty page at offset>0); hermetic regression test exists in the tree",
+                "status": "PASS",
+                "detail": "Regression test exists at src/http/routes/memories-offset-prefix-gap046.test.ts: it seeds 25 rows under prefix 'event/demo/' into scratch namespace 'gap046' (seedNamespace writes raw_note/2026-09/current.jsonl + manifest.json under the temp root set by src/test-setup.ts via DUCKBRAIN_NAMESPACES_PATH=mkdtempSync), then asserts offset=0 -> 10 rows (hasMore=true, nextOffset=10), offset=10 -> 10 rows (hasMore=true, nextOffset=20), offset=20 -> 5 rows (hasMore=false, nextOffset=null), plus a full 3-page walk equal to the exact 25-key order. Ran `npx vitest run src/http/routes/memories-offset-prefix-gap046.test.ts --reporter=verbose`: exit_code 0, output 'Test Files 1 passed (1) / Tests 8 passed (8)', including '\u2713 offset=0 returns the first full page with more to come', '\u2713 offset=10 returns the SECOND page (was 0 rows \u2014 the empty-page bug)', '\u2713 offset=20 returns the final 5 rows with hasMore=false'. Fix confirmed in code: src/http/routes/memories.ts:333 forwards offset to recallTool (no post-hoc slice by offset, only a defensive slice(0, limit) at :420), src/mcp/tools/recall.ts:670 passes offset into queryMemories filters, src/duckdb/queries.ts:454-456 emits 'OFFSET n' in SQL. Hermetic: no DUCKBRAIN_* env mutation, repo duckbrain.config.json asserted byte-identical before/after, seeded namespace dirs removed in afterAll."
+              }
+            ],
+            "summary": "The DB-GAP-046 regression test exists and passes (8/8), proving 25 seeded event/demo/ rows page as 10/10/5 at offsets 0/10/20 with the offset pushed into the SQL query layer."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-046\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:22PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~9048751 bytes (9.05 MB) in 1.9s\u001b[0m\n\u001b[90m7:22PM\u001b[0m \u001b[32mI\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  123 passed (123)\n      Tests  1079 passed (1079)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Seed 25 memories in a scratch namespace; GET /api/memories?namespace=X&prefix=event/demo/ with limit=10 at offsets 0, 10, 20 returns 10/10/5 rows respectively (no empty page at offset>0); hermetic regression test exists in the tree: Regression test exists at src/http/routes/memories-offset-prefix-gap046.test.ts: it seeds 25 rows under prefix 'event/demo/' into scratch namespace 'gap046' (seedNamespace writes raw_note/2026-09/current.jsonl + manifest.json under the temp root set by src/test-setup.ts via DUCKBRAIN_NAMESPACES_PATH=mkdtempSync), then asserts offset=0 -> 10 rows (hasMore=true, nextOffset=10), offset=10 -> 10 rows (hasMore=true, nextOffset=20), offset=20 -> 5 rows (hasMore=false, nextOffset=null), plus a full 3-page walk equal to the exact 25-key order. Ran `npx vitest run src/http/routes/memories-offset-prefix-gap046.test.ts --reporter=verbose`: exit_code 0, output 'Test Files 1 passed (1) / Tests 8 passed (8)', including '\u2713 offset=0 returns the first full page with more to come', '\u2713 offset=10 returns the SECOND page (was 0 rows \u2014 the empty-page bug)', '\u2713 offset=20 returns the final 5 rows with hasMore=false'. Fix confirmed in code: src/http/routes/memories.ts:333 forwards offset to recallTool (no post-hoc slice by offset, only a defensive slice(0, limit) at :420), src/mcp/tools/recall.ts:670 passes offset into queryMemories filters, src/duckdb/queries.ts:454-456 emits 'OFFSET n' in SQL. Hermetic: no DUCKBRAIN_* env mutation, repo duckbrain.config.json asserted byte-identical before/after, seeded namespace dirs removed in afterAll.\nThe DB-GAP-046 regression test exists and passes (8/8), proving 25 seeded event/demo/ rows page as 10/10/5 at offsets 0/10/20 with the offset pushed into the SQL query layer.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-16T00:24:04.087079"
+}

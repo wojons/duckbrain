@@ -1,0 +1,99 @@
+{
+  "task_id": "GAP-033",
+  "task_title": "LOAD-HYGIENE: bound test-suite host load",
+  "task_criteria": [
+    "Audit test-suite load patterns; fix the worst offender with in-process plus one parity smoke or bounded waves/session fixture; record audit and before/after measurement; full suite green."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "bf4d0951eada9bb36bb305da118abb64c8f4d066",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n6:52PM INF scanned ~8136945 bytes (8.14 MB) in 2.1s\n6:52PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193848 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  155 passed (155)\n      Tests  1212 passed (1212)\n   Start at  18:52:27\n   Duration  52.97s (transform 2.85s, setup 985ms, import 38.37s, tests 153.41s, environment 13ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Audit test-suite load patterns; fix the worst offender with in-process plus one parity smoke or bounded waves/session fixture; record audit and before/after measurement; full suite green.: AUDIT: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files across patterns (a) >8 concurrent spawns (none found), (b) subprocess-per-assertion (worst = src/cli/token-roles.test.ts, 5 tsx-weighted spawns), (c) per-test expensive builders (bounded by design). Independent re-check confirms 40 test files import child_process with max 2 spawn call sites/file, so token-roles was the worst offender. FIX: commit 062fa82 converts the 5 CLI-contract tests to in-process runHumanCLI (src/cli/token-roles.test.ts:95) plus ONE real-exec parity smoke spawning bin/duckbrain.js (line 254). Before: 5 it() tests all calling the spawning runTokenCli helper (062fa82^:src/cli/token-roles.test.ts:60); after: 6 tests with a single spawn call site. MEASUREMENT: audit records 5->1 spawns, 11.1s->1.52s; verified focused run `npx vitest run src/cli/token-roles.test.ts` = 6 passed, Duration 1.71s, EXIT=0. FULL SUITE GREEN: `npx vitest run` = Test Files 155 passed (155), Tests 1212 passed (1212), Duration 66.43s, EXIT=0 \u2014 matching the audit's 155/1212 claim.\nThe worst test-suite load offender (token-roles, 5 subprocess spawns) was converted to in-process runHumanCLI plus one real-exec parity smoke, with a documented audit and before/after measurement (5->1 spawns, 11.1s->1.52s), and the full suite is green (155 files/1212 tests, EXIT=0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Audit test-suite load patterns; fix the worst offender with in-process plus one parity smoke or bounded waves/session fixture; record audit and before/after measurement; full suite green.: AUDIT: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files across patterns (a) >8 concurrent spawns (none found), (b) subprocess-per-assertion (worst = src/cli/token-roles.test.ts, 5 tsx-weighted spawns), (c) per-test expensive builders (bounded by design). Independent re-check confirms 40 test files import child_process with max 2 spawn call sites/file, so token-roles was the worst offender. FIX: commit 062fa82 converts the 5 CLI-contract tests to in-process runHumanCLI (src/cli/token-roles.test.ts:95) plus ONE real-exec parity smoke spawning bin/duckbrain.js (line 254). Before: 5 it() tests all calling the spawning runTokenCli helper (062fa82^:src/cli/token-roles.test.ts:60); after: 6 tests with a single spawn call site. MEASUREMENT: audit records 5->1 spawns, 11.1s->1.52s; verified focused run `npx vitest run src/cli/token-roles.test.ts` = 6 passed, Duration 1.71s, EXIT=0. FULL SUITE GREEN: `npx vitest run` = Test Files 155 passed (155), Tests 1212 passed (1212), Duration 66.43s, EXIT=0 \u2014 matching the audit's 155/1212 claim.\nThe worst test-suite load offender (token-roles, 5 subprocess spawns) was converted to in-process runHumanCLI plus one real-exec parity smoke, with a documented audit and before/after measurement (5->1 spawns, 11.1s->1.52s), and the full suite is green (155 files/1212 tests, EXIT=0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Audit test-suite load patterns; fix the worst offender with in-process plus one parity smoke or bounded waves/session fixture; record audit and before/after measurement; full suite green.",
+                "status": "PASS",
+                "detail": "AUDIT: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files across patterns (a) >8 concurrent spawns (none found), (b) subprocess-per-assertion (worst = src/cli/token-roles.test.ts, 5 tsx-weighted spawns), (c) per-test expensive builders (bounded by design). Independent re-check confirms 40 test files import child_process with max 2 spawn call sites/file, so token-roles was the worst offender. FIX: commit 062fa82 converts the 5 CLI-contract tests to in-process runHumanCLI (src/cli/token-roles.test.ts:95) plus ONE real-exec parity smoke spawning bin/duckbrain.js (line 254). Before: 5 it() tests all calling the spawning runTokenCli helper (062fa82^:src/cli/token-roles.test.ts:60); after: 6 tests with a single spawn call site. MEASUREMENT: audit records 5->1 spawns, 11.1s->1.52s; verified focused run `npx vitest run src/cli/token-roles.test.ts` = 6 passed, Duration 1.71s, EXIT=0. FULL SUITE GREEN: `npx vitest run` = Test Files 155 passed (155), Tests 1212 passed (1212), Duration 66.43s, EXIT=0 \u2014 matching the audit's 155/1212 claim."
+              }
+            ],
+            "summary": "The worst test-suite load offender (token-roles, 5 subprocess spawns) was converted to in-process runHumanCLI plus one real-exec parity smoke, with a documented audit and before/after measurement (5->1 spawns, 11.1s->1.52s), and the full suite is green (155 files/1212 tests, EXIT=0)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-033\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Audit test-suite load patterns; fix the worst offender with in-process plus one parity smoke or bounded waves/session fixture; record audit and before/after measurement; full suite green.: AUDIT: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files across patterns (a) >8 concurrent spawns (none found), (b) subprocess-per-assertion (worst = src/cli/token-roles.test.ts, 5 tsx-weighted spawns), (c) per-test expensive builders (bounded by design). Independent re-check confirms 40 test files import child_process with max 2 spawn call sites/file, so token-roles was the worst offender. FIX: commit 062fa82 converts the 5 CLI-contract tests to in-process runHumanCLI (src/cli/token-roles.test.ts:95) plus ONE real-exec parity smoke spawning bin/duckbrain.js (line 254). Before: 5 it() tests all calling the spawning runTokenCli helper (062fa82^:src/cli/token-roles.test.ts:60); after: 6 tests with a single spawn call site. MEASUREMENT: audit records 5->1 spawns, 11.1s->1.52s; verified focused run `npx vitest run src/cli/token-roles.test.ts` = 6 passed, Duration 1.71s, EXIT=0. FULL SUITE GREEN: `npx vitest run` = Test Files 155 passed (155), Tests 1212 passed (1212), Duration 66.43s, EXIT=0 \u2014 matching the audit's 155/1212 claim.\nThe worst test-suite load offender (token-roles, 5 subprocess spawns) was converted to in-process runHumanCLI plus one real-exec parity smoke, with a documented audit and before/after measurement (5->1 spawns, 11.1s->1.52s), and the full suite is green (155 files/1212 tests, EXIT=0).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T00:06:29.205504",
+  "evidence": {
+    "collected_at": "2026-09-20T00:06:29.218562+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 745,
+        "truncated": false,
+        "source": "git show bf4d0951eada"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1089,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "GAP-033"
+  }
+}

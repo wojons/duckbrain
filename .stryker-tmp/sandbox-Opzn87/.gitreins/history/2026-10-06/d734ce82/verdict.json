@@ -1,0 +1,103 @@
+{
+  "task_id": "DB-GAP-059",
+  "task_title": "Fix orphaned scratch daemon reaper",
+  "task_criteria": [
+    "tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent death; add process-level reaper + bound test probes with --max-time; assert no orphaned duckbrain http processes after suite run"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e4f1215591f5c57f4842ac8f41e93bb45c82ec63",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:16AM INF scanned ~14497741 bytes (14.50 MB) in 2.97s\n8:16AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 432775 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T131558.654897Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  201 passed (201)\n      Tests  1621 passed (1621)\n   Start at  08:16:01\n   Duration  80.75s (tests 74%, import 23%, transform 2%, worker 1%)\n\n    Isolate  201 workers spawned \u00b7 ~130ms startup each (spawn + environment, per file)\n             at least ~6.42s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T131558.654897Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent death; add process-level reaper + bound test probes with --max-time; assert no orphaned duckbrain http processes after suite run: Two of four sub-requirements unmet. (1) 'add process-level reaper' MISSING: grep for process.on/process.once/beforeExit/SIGINT/SIGHUP in tests/helpers.ts returns only killProcess's process.kill(-pid,'SIGTERM') calls (lines 526-533) \u2014 no process-level exit/signal reaper exists anywhere in helpers.ts or test infra; commit e4f1215 diff adds none. (2) 'assert no orphaned duckbrain http processes after suite run' NOT WIRED: tests/orphan-reaper.test.ts exists but matches neither vitest config include pattern (vitest.config.ts:7 include=['src/**/*.test.ts']; vitest.integration.config.ts:7 include=['tests/**/*.int.test.ts']). `npx vitest list --config vitest.integration.config.ts` collects 65 tests with orphan-reaper absent (grep exit 1); unit list shows only connection-dogfood016.test.ts for 'orphan'. The assertion never runs. (3) '--max-time' DONE: helpers.ts:635 `curl -s -D - --max-time 10 ${args}`. (4) 'detached daemons survive parent death' present but PRE-EXISTING (helpers.ts:380 detached:true, introduced in commit a902f29 Aug 1, not this task).\nThe --max-time probe bound was added, but the required process-level reaper is absent and the orphan-assertion test is never collected by any vitest config, so the criterion is not met.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent death; add process-level reaper + bound test probes with --max-time; assert no orphaned duckbrain http processes after suite run: Two of four sub-requirements unmet. (1) 'add process-level reaper' MISSING: grep for process.on/process.once/beforeExit/SIGINT/SIGHUP in tests/helpers.ts returns only killProcess's process.kill(-pid,'SIGTERM') calls (lines 526-533) \u2014 no process-level exit/signal reaper exists anywhere in helpers.ts or test infra; commit e4f1215 diff adds none. (2) 'assert no orphaned duckbrain http processes after suite run' NOT WIRED: tests/orphan-reaper.test.ts exists but matches neither vitest config include pattern (vitest.config.ts:7 include=['src/**/*.test.ts']; vitest.integration.config.ts:7 include=['tests/**/*.int.test.ts']). `npx vitest list --config vitest.integration.config.ts` collects 65 tests with orphan-reaper absent (grep exit 1); unit list shows only connection-dogfood016.test.ts for 'orphan'. The assertion never runs. (3) '--max-time' DONE: helpers.ts:635 `curl -s -D - --max-time 10 ${args}`. (4) 'detached daemons survive parent death' present but PRE-EXISTING (helpers.ts:380 detached:true, introduced in commit a902f29 Aug 1, not this task).\nThe --max-time probe bound was added, but the required process-level reaper is absent and the orphan-assertion test is never collected by any vitest config, so the criterion is not met.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent death; add process-level reaper + bound test probes with --max-time; assert no orphaned duckbrain http processes after suite run",
+                "status": "FAIL",
+                "detail": "Two of four sub-requirements unmet. (1) 'add process-level reaper' MISSING: grep for process.on/process.once/beforeExit/SIGINT/SIGHUP in tests/helpers.ts returns only killProcess's process.kill(-pid,'SIGTERM') calls (lines 526-533) \u2014 no process-level exit/signal reaper exists anywhere in helpers.ts or test infra; commit e4f1215 diff adds none. (2) 'assert no orphaned duckbrain http processes after suite run' NOT WIRED: tests/orphan-reaper.test.ts exists but matches neither vitest config include pattern (vitest.config.ts:7 include=['src/**/*.test.ts']; vitest.integration.config.ts:7 include=['tests/**/*.int.test.ts']). `npx vitest list --config vitest.integration.config.ts` collects 65 tests with orphan-reaper absent (grep exit 1); unit list shows only connection-dogfood016.test.ts for 'orphan'. The assertion never runs. (3) '--max-time' DONE: helpers.ts:635 `curl -s -D - --max-time 10 ${args}`. (4) 'detached daemons survive parent death' present but PRE-EXISTING (helpers.ts:380 detached:true, introduced in commit a902f29 Aug 1, not this task).",
+                "resolution_probability": 0.34,
+                "cited_path": "tests/helpers.ts"
+              }
+            ],
+            "summary": "The --max-time probe bound was added, but the required process-level reaper is absent and the orphan-assertion test is never collected by any vitest config, so the criterion is not met."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-059\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 tests/helpers.ts startDuckbrainHttp spawns detached daemons that survive parent death; add process-level reaper + bound test probes with --max-time; assert no orphaned duckbrain http processes after suite run: Two of four sub-requirements unmet. (1) 'add process-level reaper' MISSING: grep for process.on/process.once/beforeExit/SIGINT/SIGHUP in tests/helpers.ts returns only killProcess's process.kill(-pid,'SIGTERM') calls (lines 526-533) \u2014 no process-level exit/signal reaper exists anywhere in helpers.ts or test infra; commit e4f1215 diff adds none. (2) 'assert no orphaned duckbrain http processes after suite run' NOT WIRED: tests/orphan-reaper.test.ts exists but matches neither vitest config include pattern (vitest.config.ts:7 include=['src/**/*.test.ts']; vitest.integration.config.ts:7 include=['tests/**/*.int.test.ts']). `npx vitest list --config vitest.integration.config.ts` collects 65 tests with orphan-reaper absent (grep exit 1); unit list shows only connection-dogfood016.test.ts for 'orphan'. The assertion never runs. (3) '--max-time' DONE: helpers.ts:635 `curl -s -D - --max-time 10 ${args}`. (4) 'detached daemons survive parent death' present but PRE-EXISTING (helpers.ts:380 detached:true, introduced in commit a902f29 Aug 1, not this task).\nThe --max-time probe bound was added, but the required process-level reaper is absent and the orphan-assertion test is never collected by any vitest config, so the criterion is not met.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T13:18:11.671844",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T13:18:11.693134+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5635,
+        "truncated": false,
+        "source": "git show e4f1215591f5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 715,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-059"
+  }
+}

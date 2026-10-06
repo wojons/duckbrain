@@ -1,0 +1,23 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 3a709db..68ce1b0 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2349,3 +2349,18 @@ tasks:
+   status: complete
+   created_at: '2026-10-04T04:39:41.854462+00:00'
+   completed_at: '2026-10-04T04:57:26.297528+00:00'
++- id: S3-GIT-007
++  title: 'Bound s3 sync-all: per-ns deadline + wrapper timeout'
++  criteria:
++  - sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites
++    green
++  status: complete
++  created_at: '2026-10-04T10:57:43.144929+00:00'
++  completed_at: '2026-10-04T10:59:14.500099+00:00'
++- id: DF-1003-01
++  title: Purge dead DUCKBRAIN_DATA_DIR from docs; add resolver regression test
++  criteria:
++  - grep docs/skills/README = 0 hits; new config test green
++  status: complete
++  created_at: '2026-10-04T10:57:49.273169+00:00'
++  completed_at: '2026-10-04T11:01:29.653202+00:00'

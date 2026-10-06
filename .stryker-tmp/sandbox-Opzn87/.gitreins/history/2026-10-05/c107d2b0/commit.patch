@@ -1,0 +1,36 @@
+commit 37a5570aa368978bd51f5bd661fc5fcee9a693c5
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 4 23:45:07 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 4 23:45:07 2026 -0500
+
+    chore(gitreins): INT-CI-019 complete (verdict 67a80538)
+    
+    ch:trace row=INT-CI-019 evidence=.gitreins/history/2026-10-05/e41ad4c8/verdict.json verdict=67a80538 commit=0dabaa7 witness=gh-run-38149447653+CI-green-at-59f140c/0dabaa7 memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 6f5c292..f3d4d88 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2334,4 +2334,15 @@ tasks:
+     no behavior change to the tests themselves.
+   status: complete
+   created_at: '2026-10-05T04:08:23.971367+00:00'
+-  completed_at: '2026-10-05T04:19:12.850542+00:00'
++  completed_at: '2026-10-05T04:42:59.866814+00:00'
++- id: DF-1003-01
++  title: Purge dead DUCKBRAIN_DATA_DIR env var from docs and tests
++  criteria:
++  - Remove all references to DUCKBRAIN_DATA_DIR from docs/ and test files since src/config/
++    never reads it. Update docs to point at DUCKBRAIN_NAMESPACES_PATH + DUCKBRAIN_HOME_ROOT
++    as the supported isolation knobs. Tests must still pass (they already set DUCKBRAIN_NAMESPACES_PATH
++    for hermeticity). npx tsc --noEmit clean; npx vitest run on touched test files
++    green.
++  status: complete
++  created_at: '2026-10-05T04:30:19.930397+00:00'
++  completed_at: '2026-10-05T04:44:20.428834+00:00'

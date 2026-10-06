@@ -1,0 +1,97 @@
+{
+  "task_id": "INT-CI-10",
+  "task_title": "Sync AGENTS.md test counts",
+  "task_criteria": [
+    "AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines and git diff verifies only those count edits"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "aed5043385e2c406ad49a63226b83df71b0b6194",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:04PM INF scanned ~9074244 bytes (9.07 MB) in 1.8s\n1:04PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 191934 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  153 passed (153)\n      Tests  1200 passed (1200)\n   Start at  13:04:40\n   Duration  62.78s (transform 3.71s, setup 1.37s, import 54.54s, tests 167.95s, environment 20ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines and git diff verifies only those count edits: AGENTS.md:14 = '- **Test Framework:** Vitest (153 suites, 1200 tests)' and AGENTS.md:33 = 'pnpm test          # 1200 tests, 153 suites' \u2014 both required count lines updated. `git show aed5043 -- AGENTS.md` diff contains exactly 2 changed lines, both count edits (152 suites/1188 tests -> 153 suites/1200 tests), no other AGENTS.md content touched. Counts verified against reality: `npx vitest run` output 'Test Files  153 passed (153)' / 'Tests  1200 passed (1200)'.\nAGENTS.md has both count lines updated to Vitest 153 suites/1200 tests, the commit diff contains only those two count edits, and a fresh vitest run confirms 153 files / 1200 tests.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines and git diff verifies only those count edits: AGENTS.md:14 = '- **Test Framework:** Vitest (153 suites, 1200 tests)' and AGENTS.md:33 = 'pnpm test          # 1200 tests, 153 suites' \u2014 both required count lines updated. `git show aed5043 -- AGENTS.md` diff contains exactly 2 changed lines, both count edits (152 suites/1188 tests -> 153 suites/1200 tests), no other AGENTS.md content touched. Counts verified against reality: `npx vitest run` output 'Test Files  153 passed (153)' / 'Tests  1200 passed (1200)'.\nAGENTS.md has both count lines updated to Vitest 153 suites/1200 tests, the commit diff contains only those two count edits, and a fresh vitest run confirms 153 files / 1200 tests.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines and git diff verifies only those count edits",
+                "status": "PASS",
+                "detail": "AGENTS.md:14 = '- **Test Framework:** Vitest (153 suites, 1200 tests)' and AGENTS.md:33 = 'pnpm test          # 1200 tests, 153 suites' \u2014 both required count lines updated. `git show aed5043 -- AGENTS.md` diff contains exactly 2 changed lines, both count edits (152 suites/1188 tests -> 153 suites/1200 tests), no other AGENTS.md content touched. Counts verified against reality: `npx vitest run` output 'Test Files  153 passed (153)' / 'Tests  1200 passed (1200)'."
+              }
+            ],
+            "summary": "AGENTS.md has both count lines updated to Vitest 153 suites/1200 tests, the commit diff contains only those two count edits, and a fresh vitest run confirms 153 files / 1200 tests."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-10\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 AGENTS.md records Vitest (153 suites, 1200 tests) in both required count lines and git diff verifies only those count edits: AGENTS.md:14 = '- **Test Framework:** Vitest (153 suites, 1200 tests)' and AGENTS.md:33 = 'pnpm test          # 1200 tests, 153 suites' \u2014 both required count lines updated. `git show aed5043 -- AGENTS.md` diff contains exactly 2 changed lines, both count edits (152 suites/1188 tests -> 153 suites/1200 tests), no other AGENTS.md content touched. Counts verified against reality: `npx vitest run` output 'Test Files  153 passed (153)' / 'Tests  1200 passed (1200)'.\nAGENTS.md has both count lines updated to Vitest 153 suites/1200 tests, the commit diff contains only those two count edits, and a fresh vitest run confirms 153 files / 1200 tests.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T18:09:06.920551",
+  "evidence": {
+    "collected_at": "2026-09-19T18:09:06.934993+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1826,
+        "truncated": false,
+        "source": "git show aed5043385e2"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 462,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-10"
+  }
+}

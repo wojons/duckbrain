@@ -1,0 +1,91 @@
+{
+  "task_id": "OPS-013",
+  "task_title": "OPS-007 regression suite: make heartbeat budget load-aware",
+  "task_criteria": [
+    "The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route assertions become load-aware (same-process baseline comparison or derived budget, not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier clean."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "9178d6746ed55b6d6b5b477a3c0ca2904e76acbe",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n11:50PM INF scanned ~9213739 bytes (9.21 MB) in 2.02s\n11:50PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 195904 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  156 passed (156)\n      Tests  1230 passed (1230)\n   Start at  23:50:40\n   Duration  60.84s (transform 3.29s, setup 1.23s, import 47.51s, tests 170.94s, environment 18ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route assertions become load-aware (same-process baseline comparison or derived budget, not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier clean.: All sub-requirements verified with command output. (a) Load-aware budgets: serving-paths-ops007.test.ts:192-193 defines loadAwareBudgetMs(controlMaxGapMs,floorMs)=Math.max(CONTROL_GAP_MULTIPLIER*controlMaxGapMs,floorMs) with CONTROL_GAP_MULTIPLIER=4, fed by measureIdleControlMaxGapMs() (same-process idle control, CONTROL_SAMPLE_MS=500) at lines 363-370 and 452-455; grep for '1000' in the file returns NO literal, so no fixed 1000ms constant remains. (b) Load-independent tripwire: 'expect(rec.syncCalls - syncBefore).toBe(0)' at lines 394, 466, 523 \u2014 a pure counter delta with no timing dependency. (c) Full suite under 4 workers: `npx vitest run --maxWorkers=4` \u2192 'Test Files 156 passed (156) / Tests 1230 passed (1230)', exit 0, 88.80s, zero failures. (d) RED proof: patched src/http/routes/users.ts getAuthorsFromGit to use execSync('git log --all --format=%aN'); suite FAILED with 'AssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 2514 to be less than 300' (servedGaps=[2514,49,51,50]) plus 'expected 0 to be greater than 0' for authorCalls \u2014 2 failed | 2 passed. File restored (git diff clean). (e) tsc: `npx tsc --noEmit` \u2192 exit 0, no output. (f) prettier: `npx prettier --check src/http/routes/serving-paths-ops007.test.ts` \u2192 'All matched files use Prettier code style!', exit 0. Caveat: the load-aware change was committed as c07bdeb 'test(ops-011): make the OPS-007 heartbeat/concurrent-route budgets load-aware (OPS-011)' rather than in the OPS-013 diff (which only touches ops/fleet-feature-test.sh + task bookkeeping), but the criterion concerns the merged-tree state, which is satisfied. Minor: leftover 'TEMP-INSTRUMENTATION (removed before finishing)' console.error blocks remain at ~lines 375 and 460.\nThe OPS-007 suite passes under 4-worker full-suite load (156 files/1230 tests green), goes RED when a synchronous spawn is reintroduced (2514ms gap vs 300ms load-aware budget), keeps the syncCalls tripwire load-independent, and the merged tree is tsc- and prettier-clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route assertions become load-aware (same-process baseline comparison or derived budget, not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier clean.: All sub-requirements verified with command output. (a) Load-aware budgets: serving-paths-ops007.test.ts:192-193 defines loadAwareBudgetMs(controlMaxGapMs,floorMs)=Math.max(CONTROL_GAP_MULTIPLIER*controlMaxGapMs,floorMs) with CONTROL_GAP_MULTIPLIER=4, fed by measureIdleControlMaxGapMs() (same-process idle control, CONTROL_SAMPLE_MS=500) at lines 363-370 and 452-455; grep for '1000' in the file returns NO literal, so no fixed 1000ms constant remains. (b) Load-independent tripwire: 'expect(rec.syncCalls - syncBefore).toBe(0)' at lines 394, 466, 523 \u2014 a pure counter delta with no timing dependency. (c) Full suite under 4 workers: `npx vitest run --maxWorkers=4` \u2192 'Test Files 156 passed (156) / Tests 1230 passed (1230)', exit 0, 88.80s, zero failures. (d) RED proof: patched src/http/routes/users.ts getAuthorsFromGit to use execSync('git log --all --format=%aN'); suite FAILED with 'AssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 2514 to be less than 300' (servedGaps=[2514,49,51,50]) plus 'expected 0 to be greater than 0' for authorCalls \u2014 2 failed | 2 passed. File restored (git diff clean). (e) tsc: `npx tsc --noEmit` \u2192 exit 0, no output. (f) prettier: `npx prettier --check src/http/routes/serving-paths-ops007.test.ts` \u2192 'All matched files use Prettier code style!', exit 0. Caveat: the load-aware change was committed as c07bdeb 'test(ops-011): make the OPS-007 heartbeat/concurrent-route budgets load-aware (OPS-011)' rather than in the OPS-013 diff (which only touches ops/fleet-feature-test.sh + task bookkeeping), but the criterion concerns the merged-tree state, which is satisfied. Minor: leftover 'TEMP-INSTRUMENTATION (removed before finishing)' console.error blocks remain at ~lines 375 and 460.\nThe OPS-007 suite passes under 4-worker full-suite load (156 files/1230 tests green), goes RED when a synchronous spawn is reintroduced (2514ms gap vs 300ms load-aware budget), keeps the syncCalls tripwire load-independent, and the merged tree is tsc- and prettier-clean.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route assertions become load-aware (same-process baseline comparison or derived budget, not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier clean.",
+                "status": "PASS",
+                "detail": "All sub-requirements verified with command output. (a) Load-aware budgets: serving-paths-ops007.test.ts:192-193 defines loadAwareBudgetMs(controlMaxGapMs,floorMs)=Math.max(CONTROL_GAP_MULTIPLIER*controlMaxGapMs,floorMs) with CONTROL_GAP_MULTIPLIER=4, fed by measureIdleControlMaxGapMs() (same-process idle control, CONTROL_SAMPLE_MS=500) at lines 363-370 and 452-455; grep for '1000' in the file returns NO literal, so no fixed 1000ms constant remains. (b) Load-independent tripwire: 'expect(rec.syncCalls - syncBefore).toBe(0)' at lines 394, 466, 523 \u2014 a pure counter delta with no timing dependency. (c) Full suite under 4 workers: `npx vitest run --maxWorkers=4` \u2192 'Test Files 156 passed (156) / Tests 1230 passed (1230)', exit 0, 88.80s, zero failures. (d) RED proof: patched src/http/routes/users.ts getAuthorsFromGit to use execSync('git log --all --format=%aN'); suite FAILED with 'AssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 2514 to be less than 300' (servedGaps=[2514,49,51,50]) plus 'expected 0 to be greater than 0' for authorCalls \u2014 2 failed | 2 passed. File restored (git diff clean). (e) tsc: `npx tsc --noEmit` \u2192 exit 0, no output. (f) prettier: `npx prettier --check src/http/routes/serving-paths-ops007.test.ts` \u2192 'All matched files use Prettier code style!', exit 0. Caveat: the load-aware change was committed as c07bdeb 'test(ops-011): make the OPS-007 heartbeat/concurrent-route budgets load-aware (OPS-011)' rather than in the OPS-013 diff (which only touches ops/fleet-feature-test.sh + task bookkeeping), but the criterion concerns the merged-tree state, which is satisfied. Minor: leftover 'TEMP-INSTRUMENTATION (removed before finishing)' console.error blocks remain at ~lines 375 and 460."
+              }
+            ],
+            "summary": "The OPS-007 suite passes under 4-worker full-suite load (156 files/1230 tests green), goes RED when a synchronous spawn is reintroduced (2514ms gap vs 300ms load-aware budget), keeps the syncCalls tripwire load-independent, and the merged tree is tsc- and prettier-clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-013\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The OPS-007 suite (src/http/routes/serving-paths-ops007.test.ts) passes under concurrent full-suite load (4+ vitest workers) AND still fails (RED) when a synchronous spawn is reintroduced on the route path: the sync-spawn tripwire (rec.syncCalls delta == 0) must remain load-independent, while the heartbeat-gap and concurrent-route assertions become load-aware (same-process baseline comparison or derived budget, not a fixed 1000ms constant). Merged tree: unit suite green, tsc clean, prettier clean.: All sub-requirements verified with command output. (a) Load-aware budgets: serving-paths-ops007.test.ts:192-193 defines loadAwareBudgetMs(controlMaxGapMs,floorMs)=Math.max(CONTROL_GAP_MULTIPLIER*controlMaxGapMs,floorMs) with CONTROL_GAP_MULTIPLIER=4, fed by measureIdleControlMaxGapMs() (same-process idle control, CONTROL_SAMPLE_MS=500) at lines 363-370 and 452-455; grep for '1000' in the file returns NO literal, so no fixed 1000ms constant remains. (b) Load-independent tripwire: 'expect(rec.syncCalls - syncBefore).toBe(0)' at lines 394, 466, 523 \u2014 a pure counter delta with no timing dependency. (c) Full suite under 4 workers: `npx vitest run --maxWorkers=4` \u2192 'Test Files 156 passed (156) / Tests 1230 passed (1230)', exit 0, 88.80s, zero failures. (d) RED proof: patched src/http/routes/users.ts getAuthorsFromGit to use execSync('git log --all --format=%aN'); suite FAILED with 'AssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 2514 to be less than 300' (servedGaps=[2514,49,51,50]) plus 'expected 0 to be greater than 0' for authorCalls \u2014 2 failed | 2 passed. File restored (git diff clean). (e) tsc: `npx tsc --noEmit` \u2192 exit 0, no output. (f) prettier: `npx prettier --check src/http/routes/serving-paths-ops007.test.ts` \u2192 'All matched files use Prettier code style!', exit 0. Caveat: the load-aware change was committed as c07bdeb 'test(ops-011): make the OPS-007 heartbeat/concurrent-route budgets load-aware (OPS-011)' rather than in the OPS-013 diff (which only touches ops/fleet-feature-test.sh + task bookkeeping), but the criterion concerns the merged-tree state, which is satisfied. Minor: leftover 'TEMP-INSTRUMENTATION (removed before finishing)' console.error blocks remain at ~lines 375 and 460.\nThe OPS-007 suite passes under 4-worker full-suite load (156 files/1230 tests green), goes RED when a synchronous spawn is reintroduced (2514ms gap vs 300ms load-aware budget), keeps the syncCalls tripwire load-independent, and the merged tree is tsc- and prettier-clean.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T04:58:32.535738",
+  "evidence": {
+    "collected_at": "2026-09-20T04:58:32.572580+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 26317,
+        "truncated": false,
+        "source": "git show 9178d6746ed5"
+      }
+    ],
+    "task_id": "OPS-013"
+  }
+}

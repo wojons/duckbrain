@@ -1,0 +1,63 @@
+{
+  "task_id": "DB-SUPA-2",
+  "task_title": "SUPA serialization layer",
+  "task_criteria": [
+    "Concurrent API writers across multiple namespaces produce zero torn/interleaved JSONL lines and zero lost acknowledged writes",
+    "Writes are deterministically ordered per namespace through one writer with cross-process locking and dead-holder recovery",
+    "Role authorization happens before enqueue, durable modes write WAL before acknowledgement, and accepted writes retain audit evidence"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m8:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7788689 bytes (7.79 MB) in 3.86s\u001b[0m\n\u001b[90m8:37PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  110 passed (110)\n      Tests  909 passed (909)\n  ",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m8:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7788689 bytes (7.79 MB) in 3.86s\u001b[0m\n\u001b[90m8:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  110 passed (110)\n      Tests  909 passed (909)\n   Start at  20:37:53\n   Duration  19.42s (transform 8.30s, setup 2.74s, import 73.54s, tests 165.51s, environment 32ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nCap exceeded: Time cap (15m) exceeded (15m5s elapsed). Increase max_time or simplify criteria.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nCap exceeded: Time cap (15m) exceeded (15m5s elapsed). Increase max_time or simplify criteria.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Cap exceeded: Time cap (15m) exceeded (15m5s elapsed). Increase max_time or simplify criteria."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-SUPA-2\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m8:37PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7788689 bytes (7.79 MB) in 3.86s\u001b[0m\n\u001b[90m8:37PM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  110 passed (110)\n      Tests  909 passed (909)\n  \n\nStage tier2: FAIL\n  INCOMPLETE\n\nCap exceeded: Time cap (15m) exceeded (15m5s elapsed). Increase max_time or simplify criteria.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-11T01:53:18.343785"
+}

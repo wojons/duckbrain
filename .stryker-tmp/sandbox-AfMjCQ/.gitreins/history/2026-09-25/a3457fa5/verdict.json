@@ -1,0 +1,75 @@
+{
+  "task_id": "DF-0924-07",
+  "task_title": "auth-file without --auth=apikey serves everything unauthenticated",
+  "task_criteria": [
+    "A scratch daemon started with only --auth-file (or DUCKBRAIN_AUTH_FILE) and NO --auth flag must reject keyless API calls with 401: GET /api/memories without X-API-Key returns 401, with a valid key from the store returns 200; boot prints a loud banner that the auth file auto-enabled apikey auth; default (no flag/env) behavior unchanged; new regression test file green; full vitest unit suite green; tsc clean; AGENTS.md suite/test counts synced to live"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "9a994a939a2f665e9d1b6de7bf82d58f1a19befd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:58AM INF scanned ~13554357 bytes (13.55 MB) in 2.24s\n1:58AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 262615 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  170 passed (170)\n      Tests  1366 passed (1366)\n   Start at  01:58:42\n   Duration  54.56s (tests 79%, import 18%, transform 1%, setup 1%)\n\n    Isolate  170 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~3.83s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260924T123709.640744Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DF-0924-07\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-25T06:59:37.375079",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-25T06:59:37.408208+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 25753,
+        "truncated": false,
+        "source": "git show 9a994a939a2f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1151,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-07"
+  }
+}

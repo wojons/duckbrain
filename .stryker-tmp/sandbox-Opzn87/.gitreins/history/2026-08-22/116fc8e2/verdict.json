@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-036-VERIFY",
+  "task_title": "DB-GAP-036 \u2014 live :3000 daemon serves 503 EMBEDDINGS_UNAVAILABLE on semantic endpoints",
+  "task_criteria": [
+    "Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE (or 200 with items if embeddings healthy); GET /health returns 200 with embedding block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain 200"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m11:24AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12261747 bytes (12.26 MB) in 3.88s\u001b[0m\n\u001b[90m11:24AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:24AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12261747 bytes (12.26 MB) in 3.88s\u001b[0m\n\u001b[90m11:24AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1079\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1159\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/query-surface-retr009.test.ts \u001b[2m(\u001b[22m\u001b[2m58 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1171\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 te",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE (or 200 with items if embeddings healthy); GET /health returns 200 with embedding block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain 200: Verified live daemon on :3000 via curl. GET /api/memories?q=test -> HTTP 503 with body {\"error\":\"Embedding generation failed...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}. GET /health -> HTTP 200 with embedding block {\"embedding\":{\"provider\":\"\",\"model\":\"text-embedding-qwen3-embedding-0.6b\",\"healthy\":false,\"providers\":[...]}}. GET /api/keys -> HTTP 200. GET /api/memories (no q) -> HTTP 200. All four behaviors match the criterion exactly.\nLive :3000 daemon serves 503 EMBEDDINGS_UNAVAILABLE on semantic /api/memories?q=test, /health returns 200 with embedding block, and non-semantic endpoints remain 200.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE (or 200 with items if embeddings healthy); GET /health returns 200 with embedding block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain 200: Verified live daemon on :3000 via curl. GET /api/memories?q=test -> HTTP 503 with body {\"error\":\"Embedding generation failed...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}. GET /health -> HTTP 200 with embedding block {\"embedding\":{\"provider\":\"\",\"",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE (or 200 with items if embeddings healthy); GET /health returns 200 with embedding block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain 200",
+                "status": "PASS",
+                "detail": "Verified live daemon on :3000 via curl. GET /api/memories?q=test -> HTTP 503 with body {\"error\":\"Embedding generation failed...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}. GET /health -> HTTP 200 with embedding block {\"embedding\":{\"provider\":\"\",\"model\":\"text-embedding-qwen3-embedding-0.6b\",\"healthy\":false,\"providers\":[...]}}. GET /api/keys -> HTTP 200. GET /api/memories (no q) -> HTTP 200. All four behaviors match the criterion exactly."
+              }
+            ],
+            "summary": "Live :3000 daemon serves 503 EMBEDDINGS_UNAVAILABLE on semantic /api/memories?q=test, /health returns 200 with embedding block, and non-semantic endpoints remain 200."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-036-VERIFY\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m11:24AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12261747 bytes (12.26 MB) in 3.88s\u001b[0m\n\u001b[90m11:24AM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Live :3000 GET /api/memories?q=test returns HTTP 503 with EMBEDDINGS_UNAVAILABLE (or 200 with items if embeddings healthy); GET /health returns 200 with embedding block; non-semantic endpoints (GET /api/keys, GET /api/memories without q) remain 200: Verified live daemon on :3000 via curl. GET /api/memories?q=test -> HTTP 503 with body {\"error\":\"Embedding generation failed...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}. GET /health -> HTTP 200 with embedding block {\"embedding\":{\"provider\":\"\",\"model\":\"text-embedding-qwen3-embedding-0.6b\",\"healthy\":false,\"providers\":[...]}}. GET /api/keys -> HTTP 200. GET /api/memories (no q) -> HTTP 200. All four behaviors match the criterion exactly.\nLive :3000 daemon serves 503 EMBEDDINGS_UNAVAILABLE on semantic /api/memories?q=test, /health returns 200 with embedding block, and non-semantic endpoints remain 200.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-22T16:25:23.022620"
+}

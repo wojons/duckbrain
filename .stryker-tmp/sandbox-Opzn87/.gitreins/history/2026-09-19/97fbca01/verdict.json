@@ -1,0 +1,89 @@
+{
+  "task_id": "DF-0919-03",
+  "task_title": "Align README prerequisites with supported pnpm",
+  "task_criteria": [
+    "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "2eb0bbdad15b1e9f3ebe5f0f1847fb6dda932cd1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:04PM INF scanned ~9154302 bytes (9.15 MB) in 2.52s\n5:04PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193694 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/duckdb/queries-recency-retr005.test.ts (8 tests | 3 failed) 1412ms\n     \u00d7 exact-key listing returns newest first (was oldest-first) 139ms\n     \u00d7 glob/keyPrefix listing returns newest first 78ms\n     \u00d7 plain and domain listing legs are newest-first too 16ms\n \u276f src/duckdb/queries-attr-retr006.test.ts (8 tests | 3 failed) 1428ms\n     \u00d7 attr.domain=config returns only rows whose attributes match, excluding non-config rows 201ms\n     \u00d7 attr.tick=403 matches BOTH numeric (403) and string (\"403\") values 158ms\n     \u00d7 combines with keyPrefix and domain filters \u2014 intersection semantics 224ms\nstderr | src/duckdb/queries.test.ts > DuckDB Queries > queryMemories > should filter by key\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory/current.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory/current.jsonl...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\nstderr | src/duckdb/queries.test.ts > DuckDB Queries > BigInt serialization > should convert BigInt values to safe numbers in query results\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory/chunk_bigint_test.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory/chunk_bigint_test...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\n \u276f src/duckdb/queries.test.ts (11 tests | 5 failed) 2211ms\n       \u00d7 should insert memory to partition 151ms\n       \u00d7 should create partition if not exists 105ms\n       \u00d7 should filter out tombstones by default 197ms\n       \u00d7 should filter by key 354ms\n       \u00d7 should convert BigInt values to safe numbers in query results 174ms\nstderr | src/duckdb/queries-timerange-retr003.test.ts > RETR-003: time-scoped recall \u2014 queryMemories/countMemories > applies the window inside the dedup \u2014 the latest in-window record wins\nDuckDB query error: [Error: IO Error: No files found that match the pattern \"/home/kara/duckbrain/test-memory-timerange/current.jsonl\"\n\nLINE 5:       FROM read_json(['/home/kara/duckbrain/test-memory-timerange/current...\n                   ^] {\n  errno: -1,\n  code: 'DUCKDB_NODEJS_ERROR',\n  errorType: 'IO'\n}\n\n\n\u2026 [8179 chars omitted \u2014 241 line(s)] \u2026\n       |                   ^\n    707|       code?: string;\n    708|       retryAfter?: number;\n \u276f insertMemory src/duckdb/queries.ts:629:3\n \u276f src/duckdb/queries.test.ts:147:7\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[13/15]\u23af\n\n FAIL  src/duckdb/queries.test.ts > DuckDB Queries > queryMemories > should filter by key\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/duckdb/queries.test.ts:175:30\n    173|         key: \"/test/specific\",\n    174|       });\n    175|       expect(results.length).toBe(1);\n       |                              ^\n    176|       expect(results[0].key).toBe(\"/test/specific\");\n    177|     });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[14/15]\u23af\n\n FAIL  src/duckdb/queries.test.ts > DuckDB Queries > BigInt serialization > should convert BigInt values to safe numbers in query results\nAssertionError: expected 0 to be greater than or equal to 1\n \u276f src/duckdb/queries.test.ts:236:30\n    234|\n    235|       const results = await queryMemories(db, [testPartition]);\n    236|       expect(results.length).toBeGreaterThanOrEqual(1);\n       |                              ^\n    237|       const result = results.find((m) => m.key === \"/test/bigint-attrs\u2026\n    238|       expect(result).toBeDefined();\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[15/15]\u23af\n\n\n Test Files  4 failed | 151 passed (155)\n      Tests  15 failed | 1197 passed (1212)\n   Start at  17:04:56\n   Duration  161.43s (transform 9.06s, setup 5.49s, import 80.82s, tests 521.23s, environment 23ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0 (README pnpm major + non-root corepack enable):\n- README.md:74 \"You need git, Node.js 22+, and pnpm 12. The repository pins the tested pnpm release (12.4.2) in package.json.\"\n- README.md:82-87: mkdir -p ~/.local/bin; corepack enable pnpm --install-directory ~/.local/bin; export PATH=\"$HOME/.local/bin:$PATH\"; corepack prepare pnpm@12.4.2 --activate; pnpm --version # expect 12.4.2\n- package.json:4 \"packageManager\": \"pnpm@12.4.2\" -> matches README.\n- Live verification on fresh dir /tmp/cptest: `corepack enable pnpm --install-directory ~/.local/bin` exit=0, created symlink ~/.local/bin/pnpm -> corepack/dist/pnpm.js (no root write); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` -> 12.4.2.\n- `npm view pnpm@12.4.2 version` -> 12.4.2 (major 12 exists).\n- Fresh-store install with documented version: /tmp/cptest2 `pnpm install --frozen-lockfile --store-dir /tmp/cptest-store` exit=0, \"Done in 169ms using pnpm v12.4.2\", lockfileVersion 9.0 accepted.\n- CI (.github/workflows/ci.yml:31) asserts pnpm --version = 12.4.2, consistent with README.\n- Minor doc inconsistency: AGENTS.md:16 says \"pnpm 11+\" (stale, not README).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0 (README pnpm major + non-root corepack enable):\n- README.md:74 \"You need git, Node.js 22+, and pnpm 12. The repository pins the tested pnpm release (12.4.2) in package.json.\"\n- README.md:82-87: mkdir -p ~/.local/bin; corepack enable pnpm --install-directory ~/.local/bin; export PATH=\"$HOME/.local/bin:$PATH\"; corepack prepare pnpm@12.4.2 --activate; pnpm --version # expect 12.4.2\n- package.json:4 \"packageManager\": \"pnpm@12.4.2\" -> matches README.\n- Live verification on fresh dir /tmp/cptest: `corepack enable pnpm --install-directory ~/.local/bin` exit=0, created symlink ~/.local/bin/pnpm -> corepack/dist/pnpm.js (no root write); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` -> 12.4.2.\n- `npm view pnpm@12.4.2 version` -> 12.4.2 (major 12 exists).\n- Fresh-store install with documented version: /tmp/cptest2 `pnpm install --frozen-lockfile --store-dir /tmp/cptest-store` exit=0, \"Done in 169ms using pnpm v12.4.2\", lockfileVersion 9.0 accepted.\n- CI (.github/workflows/ci.yml:31) asserts pnpm --version = 12.4.2, consistent with README.\n- Minor doc inconsistency: AGENTS.md:16 says \"pnpm 11+\" (stale, not README).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.",
+                "status": "FAIL",
+                "detail": "Criterion 0 (README pnpm major + non-root corepack enable):\n- README.md:74 \"You need git, Node.js 22+, and pnpm 12. The repository pins the tested pnpm release (12.4.2) in package.json.\"\n- README.md:82-87: mkdir -p ~/.local/bin; corepack enable pnpm --install-directory ~/.local/bin; export PATH=\"$HOME/.local/bin:$PATH\"; corepack prepare pnpm@12.4.2 --activate; pnpm --version # expect 12.4.2\n- package.json:4 \"packageManager\": \"pnpm@12.4.2\" -> matches README.\n- Live verification on fresh dir /tmp/cptest: `corepack enable pnpm --install-directory ~/.local/bin` exit=0, created symlink ~/.local/bin/pnpm -> corepack/dist/pnpm.js (no root write); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` -> 12.4.2.\n- `npm view pnpm@12.4.2 version` -> 12.4.2 (major 12 exists).\n- Fresh-store install with documented version: /tmp/cptest2 `pnpm install --frozen-lockfile --store-dir /tmp/cptest-store` exit=0, \"Done in 169ms using pnpm v12.4.2\", lockfileVersion 9.0 accepted.\n- CI (.github/workflows/ci.yml:31) asserts pnpm --version = 12.4.2, consistent with README.\n- Minor doc inconsistency: AGENTS.md:16 says \"pnpm 11+\" (stale, not README)."
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0919-03\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 README must state the verified pnpm major and provide a non-root corepack enable command that works on a fresh user; documentation remains accurate and the relevant checks pass.: Criterion 0 (README pnpm major + non-root corepack enable):\n- README.md:74 \"You need git, Node.js 22+, and pnpm 12. The repository pins the tested pnpm release (12.4.2) in package.json.\"\n- README.md:82-87: mkdir -p ~/.local/bin; corepack enable pnpm --install-directory ~/.local/bin; export PATH=\"$HOME/.local/bin:$PATH\"; corepack prepare pnpm@12.4.2 --activate; pnpm --version # expect 12.4.2\n- package.json:4 \"packageManager\": \"pnpm@12.4.2\" -> matches README.\n- Live verification on fresh dir /tmp/cptest: `corepack enable pnpm --install-directory ~/.local/bin` exit=0, created symlink ~/.local/bin/pnpm -> corepack/dist/pnpm.js (no root write); `corepack prepare pnpm@12.4.2 --activate` exit=0; `pnpm --version` -> 12.4.2.\n- `npm view pnpm@12.4.2 version` -> 12.4.2 (major 12 exists).\n- Fresh-store install with documented version: /tmp/cptest2 `pnpm install --frozen-lockfile --store-dir /tmp/cptest-store` exit=0, \"Done in 169ms using pnpm v12.4.2\", lockfileVersion 9.0 accepted.\n- CI (.github/workflows/ci.yml:31) asserts pnpm --version = 12.4.2, consistent with README.\n- Minor doc inconsistency: AGENTS.md:16 says \"pnpm 11+\" (stale, not README).\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T22:32:39.448498",
+  "evidence": {
+    "collected_at": "2026-09-19T22:32:39.461384+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2815,
+        "truncated": false,
+        "source": "git show 2eb0bbdad15b"
+      }
+    ],
+    "task_id": "DF-0919-03"
+  }
+}

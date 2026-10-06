@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0924-04",
+  "task_title": "P3 as_of + q= combination returns 500 instead of 400",
+  "task_criteria": [
+    "HTTP status 400 when as_of combined with q= or contains="
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "881f9d34ed3544d60b97c4bad23c353d0c895356",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:21PM INF scanned ~13878112 bytes (13.88 MB) in 5.15s\n9:21PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 343512 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-empty-content-dbgap056.test.ts (10 tests) 87ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-empty-content-dbgap056.test.ts [ src/http/routes/memories-empty-content-dbgap056.test.ts ]\nError: ENOTEMPTY: directory not empty, rmdir '/tmp/duckbrain-emptycontent-1nEo2g/namespaces/dbgap056-valid/.git'\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 181 passed (182)\n      Tests  1452 passed (1452)\n   Start at  21:21:00\n   Duration  77.44s (tests 80%, import 16%, transform 3%)\n\n    Isolate  182 workers spawned \u00b7 ~109ms startup each (spawn + environment, per file)\n             at least ~4.85s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 HTTP status 400 when as_of combined with q= or contains=: src/mcp/tools/recall.ts:481-486 returns error 'as_of cannot be combined with query or contains' when asOfRef is set and (validated.query || validated.contains) \u2014 covers both q= and contains=. src/http/routes/memories.ts:503 routes result.error through throwRecallError(), which at memories.ts:72-75 now does `if (error.includes(\"as_of cannot be combined\")) throw new ValidationError(error);` (added in commit 881f9d3). ValidationError (src/http/middleware/errorHandler.ts:42-49) is `super(message, 400, \"VALIDATION_ERROR\")`, and the ApiError handler at errorHandler.ts:105-112 emits `res.status(err.status)` => 400 + code VALIDATION_ERROR. ?contains= is forwarded as `contains` to recallTool (memories.ts:373,485), so the guard triggers for contains= too. Fresh test run: `npx vitest run src/http/routes/memories-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; verbose shows '\u2713 ?as_of= combined with ?q= is rejected 13ms' asserting res.status===400 and res.body.code==='VALIDATION_ERROR' (memories-asof-retr004.test.ts:211-218). Combined run of memories-asof-retr004 + recall-asof-retr004 + memories-contains-retr001: exit_code 0, 'Test Files 3 passed (3) / Tests 19 passed (19)'; recall-asof-retr004.test.ts:177-192 asserts both query and contains variants yield the 'as_of cannot be combined' error.\nThe as_of + q=/contains= combination now maps to ValidationError (400 VALIDATION_ERROR) via throwRecallError, verified by passing tests asserting status 400.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 HTTP status 400 when as_of combined with q= or contains=: src/mcp/tools/recall.ts:481-486 returns error 'as_of cannot be combined with query or contains' when asOfRef is set and (validated.query || validated.contains) \u2014 covers both q= and contains=. src/http/routes/memories.ts:503 routes result.error through throwRecallError(), which at memories.ts:72-75 now does `if (error.includes(\"as_of cannot be combined\")) throw new ValidationError(error);` (added in commit 881f9d3). ValidationError (src/http/middleware/errorHandler.ts:42-49) is `super(message, 400, \"VALIDATION_ERROR\")`, and the ApiError handler at errorHandler.ts:105-112 emits `res.status(err.status)` => 400 + code VALIDATION_ERROR. ?contains= is forwarded as `contains` to recallTool (memories.ts:373,485), so the guard triggers for contains= too. Fresh test run: `npx vitest run src/http/routes/memories-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; verbose shows '\u2713 ?as_of= combined with ?q= is rejected 13ms' asserting res.status===400 and res.body.code==='VALIDATION_ERROR' (memories-asof-retr004.test.ts:211-218). Combined run of memories-asof-retr004 + recall-asof-retr004 + memories-contains-retr001: exit_code 0, 'Test Files 3 passed (3) / Tests 19 passed (19)'; recall-asof-retr004.test.ts:177-192 asserts both query and contains variants yield the 'as_of cannot be combined' error.\nThe as_of + q=/contains= combination now maps to ValidationError (400 VALIDATION_ERROR) via throwRecallError, verified by passing tests asserting status 400.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "HTTP status 400 when as_of combined with q= or contains=",
+                "status": "PASS",
+                "detail": "src/mcp/tools/recall.ts:481-486 returns error 'as_of cannot be combined with query or contains' when asOfRef is set and (validated.query || validated.contains) \u2014 covers both q= and contains=. src/http/routes/memories.ts:503 routes result.error through throwRecallError(), which at memories.ts:72-75 now does `if (error.includes(\"as_of cannot be combined\")) throw new ValidationError(error);` (added in commit 881f9d3). ValidationError (src/http/middleware/errorHandler.ts:42-49) is `super(message, 400, \"VALIDATION_ERROR\")`, and the ApiError handler at errorHandler.ts:105-112 emits `res.status(err.status)` => 400 + code VALIDATION_ERROR. ?contains= is forwarded as `contains` to recallTool (memories.ts:373,485), so the guard triggers for contains= too. Fresh test run: `npx vitest run src/http/routes/memories-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; verbose shows '\u2713 ?as_of= combined with ?q= is rejected 13ms' asserting res.status===400 and res.body.code==='VALIDATION_ERROR' (memories-asof-retr004.test.ts:211-218). Combined run of memories-asof-retr004 + recall-asof-retr004 + memories-contains-retr001: exit_code 0, 'Test Files 3 passed (3) / Tests 19 passed (19)'; recall-asof-retr004.test.ts:177-192 asserts both query and contains variants yield the 'as_of cannot be combined' error.",
+                "resolution_probability": 0.18
+              }
+            ],
+            "summary": "The as_of + q=/contains= combination now maps to ValidationError (400 VALIDATION_ERROR) via throwRecallError, verified by passing tests asserting status 400."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-04\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 HTTP status 400 when as_of combined with q= or contains=: src/mcp/tools/recall.ts:481-486 returns error 'as_of cannot be combined with query or contains' when asOfRef is set and (validated.query || validated.contains) \u2014 covers both q= and contains=. src/http/routes/memories.ts:503 routes result.error through throwRecallError(), which at memories.ts:72-75 now does `if (error.includes(\"as_of cannot be combined\")) throw new ValidationError(error);` (added in commit 881f9d3). ValidationError (src/http/middleware/errorHandler.ts:42-49) is `super(message, 400, \"VALIDATION_ERROR\")`, and the ApiError handler at errorHandler.ts:105-112 emits `res.status(err.status)` => 400 + code VALIDATION_ERROR. ?contains= is forwarded as `contains` to recallTool (memories.ts:373,485), so the guard triggers for contains= too. Fresh test run: `npx vitest run src/http/routes/memories-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; verbose shows '\u2713 ?as_of= combined with ?q= is rejected 13ms' asserting res.status===400 and res.body.code==='VALIDATION_ERROR' (memories-asof-retr004.test.ts:211-218). Combined run of memories-asof-retr004 + recall-asof-retr004 + memories-contains-retr001: exit_code 0, 'Test Files 3 passed (3) / Tests 19 passed (19)'; recall-asof-retr004.test.ts:177-192 asserts both query and contains variants yield the 'as_of cannot be combined' error.\nThe as_of + q=/contains= combination now maps to ValidationError (400 VALIDATION_ERROR) via throwRecallError, verified by passing tests asserting status 400.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T02:23:32.245280",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T02:23:32.265738+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3940,
+        "truncated": false,
+        "source": "git show 881f9d34ed35"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 453,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-04"
+  }
+}

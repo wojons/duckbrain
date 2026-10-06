@@ -1,0 +1,57 @@
+{
+  "task_id": "DOGFOOD-017",
+  "task_title": "remember can silently write to wrong namespace - echo namespace in responses + document stickiness",
+  "task_criteria": [
+    "1) remember and recall MCP tool responses include the resolved namespace actually used (including when omitted and defaulted); 2) active-namespace stickiness across processes documented (docs/api/mcp-tools.md and/or skills/duckbrain-usage/SKILL.md); 3) warning (or equivalent) when a write goes to a non-default namespace, per board AC; 4) regression tests cover namespace echo + sticky behavior; 5) full suite + npx tsc --noEmit + gitreins guard PASS"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:44AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10992615\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:44AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10992615 bytes (10.99 MB) in 4.18s\u001b[0m\n\u001b[90m12:44AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": ""
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": ""
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1155\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/remember-recall-namespace-dogfood017.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 811\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/memories-dogfood011.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 290\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/",
+          "error": ""
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 1) remember and recall MCP tool responses include the resolved namespace actually used (including when omitted and defaulted): commit 1110617: remember.ts success path returns namespace: resolvedNamespace (resolveNamespaceName() in shared.ts falls back to config.defaultNamespace || \"default\"); recall.ts echoes namespace: resolvedNamespace in every return path (does-not-exist, empty, semantic error, success, catch) \u2014 e.g. recall.ts:250, 361, 410.\n  \u2713 2) active-namespace stickiness across processes documented (docs/api/mcp-tools.md and/or skills/duckbrain-usage/SKILL.md): docs/api/mcp-tools.md remember + switch_namespace sections: \"The active namespace is STICKY ACROSS PROCESSES (DOGFOOD-017)... switch persists defaultNamespace into duckbrain.config.json (updateConfig)\"; skills/duckbrain-usage/SKILL.md v1.3.0 documents the sticky-across-processes behavior and the FIXED echo/warning.\n  \u2713 3) warning (or equivalent) when a write goes to a non-default namespace, per board AC: remember.ts: if (resolvedNamespace !== \"default\") response.warning = \"Memory written to namespace 'X', not 'default'. The active namespace is sticky across processes \u2014 pass namespace explicitly...\"; confirmed by tests (d) and (f) asserting warning contains nsName and \"not 'default'\".\n  \u2713 4) regression tests cover namespace echo + sticky behavior: src/mcp/tools/remember-recall-namespace-dogfood017.test.ts \u2014 9 tests, all pass (npx vitest run: 9 passed): (a) omitted-arg remember echoes 'default', (b)/(b2) recall echoes resolved/after-switch ns, (c)/(c2) explicit ns echo, (d) non-default write warns, (e) switch_namespace persists defaultNamespace to config FILE on disk, (f) omitted-arg remember after switch echoes switched ns + warns + verifies JSONL actually landed, missing-ns error reports resolved name (not 'undefined').\n  \u2713 5) full suite + npx tsc --noEmit + gitreins guard PASS: npx vitest run: 55 test files / 405 tests passed (matches AGENTS.md update to 55 suites/405 tests); npx tsc --noEmit exit 0; gitreins guard: \"Tier 1 Guards: PASS (secrets clean, tests)\". LSP diagnostics empty, dead-code scan clean.\nDOGFOOD-017 fully implemented and verified: remember/recall echo the resolved namespace, non-default writes carry a warning, stickiness is documented in both docs/api/mcp-tools.md and skills/duckbrain-usage/SKILL.md, 9 regression tests cover echo+sticky behavior, and full suite (405 tests), tsc, and gitreins guard all PASS.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 1) remember and recall MCP tool responses include the resolved namespace actually used (including when omitted and defaulted): commit 1110617: remember.ts success path returns namespace: resolvedNamespace (resolveNamespaceName() in shared.ts falls back to config.defaultNamespace || \"default\"); recall.ts echoes namespace: resolvedNamespace in every return path (does-not-exist, empty, semantic error, success, catch) \u2014 e.g. recall.ts:250, 361, 410.\n  \u2713 2) active-namespace stickiness ac",
+          "error": ""
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-017\n\nStage tier1: PASS\n    \u2713 secrets: \n    \u25cb\n    \u2502\u2572\n    \u2502 \u25cb\n    \u25cb \u2591\n    \u2591    gitleaks\n\n\u001b[90m12:44AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10992615\n  \u2713 lint: \n  \u2713 tests: \n> duckbrain@1.0.0 test\n> vitest\n\n\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/k\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 1) remember and recall MCP tool responses include the resolved namespace actually used (including when omitted and defaulted): commit 1110617: remember.ts success path returns namespace: resolvedNamespace (resolveNamespaceName() in shared.ts falls back to config.defaultNamespace || \"default\"); recall.ts echoes namespace: resolvedNamespace in every return path (does-not-exist, empty, semantic error, success, catch) \u2014 e.g. recall.ts:250, 361, 410.\n  \u2713 2) active-namespace stickiness across processes documented (docs/api/mcp-tools.md and/or skills/duckbrain-usage/SKILL.md): docs/api/mcp-tools.md remember + switch_namespace sections: \"The active namespace is STICKY ACROSS PROCESSES (DOGFOOD-017)... switch persists defaultNamespace into duckbrain.config.json (updateConfig)\"; skills/duckbrain-usage/SKILL.md v1.3.0 documents the sticky-across-processes behavior and the FIXED echo/warning.\n  \u2713 3) warning (or equivalent) when a write goes to a non-default namespace, per board AC: remember.ts: if (resolvedNamespace !== \"default\") response.warning = \"Memory written to namespace 'X', not 'default'. The active namespace is sticky across processes \u2014 pass namespace explicitly...\"; confirmed by tests (d) and (f) asserting warning contains nsName and \"not 'default'\".\n  \u2713 4) regression tests cover namespace echo + sticky behavior: src/mcp/tools/remember-recall-namespace-dogfood017.test.ts \u2014 9 tests, all pass (npx vitest run: 9 passed): (a) omitted-arg remember echoes 'default', (b)/(b2) recall echoes resolved/after-switch ns, (c)/(c2) explicit ns echo, (d) non-default write warns, (e) switch_namespace persists defaultNamespace to config FILE on disk, (f) omitted-arg remember after switch echoes switched ns + warns + verifies JSONL actually landed, missing-ns error reports resolved name (not 'undefined').\n  \u2713 5) full suite + npx tsc --noEmit + gitreins guard PASS: npx vitest run: 55 test files / 405 tests passed (matches AGENTS.md update to 55 suites/405 tests); npx tsc --noEmit exit 0; gitreins guard: \"Tier 1 Guards: PASS (secrets clean, tests)\". LSP diagnostics empty, dead-code scan clean.\nDOGFOOD-017 fully implemented and verified: remember/recall echo the resolved namespace, non-default writes carry a warning, stickiness is documented in both docs/api/mcp-tools.md and skills/duckbrain-usage/SKILL.md, 9 regression tests cover echo+sticky behavior, and full suite (405 tests), tsc, and gitreins guard all PASS.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-17T05:46:49.149252"
+}

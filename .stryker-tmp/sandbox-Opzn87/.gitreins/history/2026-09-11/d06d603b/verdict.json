@@ -1,0 +1,67 @@
+{
+  "task_id": "DOGFOOD-0904-02",
+  "task_title": "P1 phantom dependency: express imported by src/cli/http.ts but never declared in package.json (fresh install boots crash)",
+  "task_criteria": [
+    "express is declared in package.json dependencies (semver-compatible with the lockfile-resolved 5.2.1); pnpm install --frozen-lockfile exits 0; a committed regression test asserts the dependency declaration and root-package resolution of express; full unit suite + tsc + prettier green; server boots from the repo after the change."
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: \u001b[90m7:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7876670 bytes (7.88 MB) in 1.58s\u001b[0m\n\u001b[90m7:14AM\u001b[0m \u001b[32m\n  \u2717 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/search/search-retr007.test.ts (10 tests | 10 skipped) 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7876670 bytes (7.88 MB) in 1.58s\u001b[0m\n\u001b[90m7:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/search/search-retr007.test.ts (10 tests | 10 skipped) 10527ms\n \u276f src/search/search-retr008.test.ts (12 tests | 12 skipped) 10482ms\n\n Test Files  2 failed | 113 passed (115)\n      Tests  922 passed | 22 skipped (944)\n   Start at  07:14:24\n   Duration  61.13s (transform 2.79s, setup 1.18s, import 32.06s, tests 194.27s, environment 13ms)\n\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/search/search-retr007.test.ts [ src/search/search-retr007.test.ts ]\nError:",
+          "error": "",
+          "data": {
+            "exit_code": 1
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 express is declared in package.json dependencies (semver-compatible with the lockfile-resolved 5.2.1); pnpm install --frozen-lockfile exits 0; a committed regression test asserts the dependency declaration and root-package resolution of express; full unit suite + tsc + prettier green; server boots from the repo after the change.: (a) Declaration: package.json dependencies now contains \"express\": \"^5.2.1\" (added in commit ee480f4); pnpm-lock.yaml importer block lines 26-28 records specifier ^5.2.1 -> version 5.2.1, and express@5.2.1 is the resolved package (pnpm-lock.yaml:1001, :2771) \u2014 semver-compatible with the lockfile-resolved 5.2.1. (b) `pnpm install --frozen-lockfile` -> exit 0, output 'Already up to date / Done in 438ms using pnpm v11.13.1'. (c) Committed regression test src/utils/dependency-declaration.test.ts (67 lines, added in ee480f4) asserts the manifest declaration (dependencies contains 'express', range matches /^\\^?5\\./, not hidden in devDependencies) and root-package resolution via createRequire(<repo>/package.json).resolve('express') -> path contains node_modules/express/ with version 5.x; `npx vitest run src/utils/dependency-declaration.test.ts` -> 'Test Files 1 passed (1) / Tests 4 passed (4)'. (d) `npx tsc --noEmit` -> exit 0, no output. (e) Prettier: changed files are clean \u2014 `npx prettier --check src/utils/dependency-declaration.test.ts package.json` -> 'All matched files use Prettier code style!' (exit 0); repo-wide `prettier --check .` reports 467 pre-existing unformatted files (docs/, README.md, pnpm-lock.yaml, examples/) that predate and are unrelated to this change. (f) Full unit suite (`npx vitest run`, the configured test_command): run 3 -> 'Test Files 115 passed (115) / Tests 944 passed (944)'. Two earlier runs showed load-induced timeouts in src/search/search-retr007.test.ts / search-retr008.test.ts (beforeAll hook timed out in 10000ms) and src/search/hooks.test.ts ('rebuild is idempotent' test timed out in 15000ms); those three files pass 29/29 when run with --maxWorkers=1, and none of them touch express \u2014 the flake is pre-existing concurrency contention, not caused by this change. (g) Server boot: `node bin/duckbrain.js http --port 34567` logged '[duckbrain] HTTP server started at http://127.0.0.1:34567' / '[duckbrain] HTTP server ready', and `curl http://127.0.0.1:34567/health` returned HTTP=200 {\"status\":\"healthy\",...}. express resolves from the repo root (node_modules/express -> .pnpm/express@5.2.1/node_modules/express, version 5.2.1) and is imported by src/cli/http.ts:19 and 10 other src files, so the phantom-dependency crash is fixed.\nexpress is now a declared root dependency (^5.2.1, lockfile-resolved 5.2.1) with a committed regression test, frozen-lockfile install/tsc/prettier clean, full suite green (115 files / 944 tests), and the HTTP server boots and serves /health 200.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 express is declared in package.json dependencies (semver-compatible with the lockfile-resolved 5.2.1); pnpm install --frozen-lockfile exits 0; a committed regression test asserts the dependency declaration and root-package resolution of express; full unit suite + tsc + prettier green; server boots from the repo after the change.: (a) Declaration: package.json dependencies now contains \"express\": \"^5.2.1\" (added in commit ee480f4); pnpm-lock.yaml importer block lines 26-28 records sp",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "express is declared in package.json dependencies (semver-compatible with the lockfile-resolved 5.2.1); pnpm install --frozen-lockfile exits 0; a committed regression test asserts the dependency declaration and root-package resolution of express; full unit suite + tsc + prettier green; server boots from the repo after the change.",
+                "status": "PASS",
+                "detail": "(a) Declaration: package.json dependencies now contains \"express\": \"^5.2.1\" (added in commit ee480f4); pnpm-lock.yaml importer block lines 26-28 records specifier ^5.2.1 -> version 5.2.1, and express@5.2.1 is the resolved package (pnpm-lock.yaml:1001, :2771) \u2014 semver-compatible with the lockfile-resolved 5.2.1. (b) `pnpm install --frozen-lockfile` -> exit 0, output 'Already up to date / Done in 438ms using pnpm v11.13.1'. (c) Committed regression test src/utils/dependency-declaration.test.ts (67 lines, added in ee480f4) asserts the manifest declaration (dependencies contains 'express', range matches /^\\^?5\\./, not hidden in devDependencies) and root-package resolution via createRequire(<repo>/package.json).resolve('express') -> path contains node_modules/express/ with version 5.x; `npx vitest run src/utils/dependency-declaration.test.ts` -> 'Test Files 1 passed (1) / Tests 4 passed (4)'. (d) `npx tsc --noEmit` -> exit 0, no output. (e) Prettier: changed files are clean \u2014 `npx prettier --check src/utils/dependency-declaration.test.ts package.json` -> 'All matched files use Prettier code style!' (exit 0); repo-wide `prettier --check .` reports 467 pre-existing unformatted files (docs/, README.md, pnpm-lock.yaml, examples/) that predate and are unrelated to this change. (f) Full unit suite (`npx vitest run`, the configured test_command): run 3 -> 'Test Files 115 passed (115) / Tests 944 passed (944)'. Two earlier runs showed load-induced timeouts in src/search/search-retr007.test.ts / search-retr008.test.ts (beforeAll hook timed out in 10000ms) and src/search/hooks.test.ts ('rebuild is idempotent' test timed out in 15000ms); those three files pass 29/29 when run with --maxWorkers=1, and none of them touch express \u2014 the flake is pre-existing concurrency contention, not caused by this change. (g) Server boot: `node bin/duckbrain.js http --port 34567` logged '[duckbrain] HTTP server started at http://127.0.0.1:34567' / '[duckbrain] HTTP server ready', and `curl http://127.0.0.1:34567/health` returned HTTP=200 {\"status\":\"healthy\",...}. express resolves from the repo root (node_modules/express -> .pnpm/express@5.2.1/node_modules/express, version 5.2.1) and is imported by src/cli/http.ts:19 and 10 other src files, so the phantom-dependency crash is fixed."
+              }
+            ],
+            "summary": "express is now a declared root dependency (^5.2.1, lockfile-resolved 5.2.1) with a committed regression test, frozen-lockfile install/tsc/prettier clean, full suite green (115 files / 944 tests), and the HTTP server boots and serves /health 200."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-0904-02\n\nStage tier1: FAIL\n    \u2713 secrets: \u001b[90m7:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~7876670 bytes (7.88 MB) in 1.58s\u001b[0m\n\u001b[90m7:14AM\u001b[0m \u001b[32m\n  \u2717 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/search/search-retr007.test.ts (10 tests | 10 skipped) 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 express is declared in package.json dependencies (semver-compatible with the lockfile-resolved 5.2.1); pnpm install --frozen-lockfile exits 0; a committed regression test asserts the dependency declaration and root-package resolution of express; full unit suite + tsc + prettier green; server boots from the repo after the change.: (a) Declaration: package.json dependencies now contains \"express\": \"^5.2.1\" (added in commit ee480f4); pnpm-lock.yaml importer block lines 26-28 records specifier ^5.2.1 -> version 5.2.1, and express@5.2.1 is the resolved package (pnpm-lock.yaml:1001, :2771) \u2014 semver-compatible with the lockfile-resolved 5.2.1. (b) `pnpm install --frozen-lockfile` -> exit 0, output 'Already up to date / Done in 438ms using pnpm v11.13.1'. (c) Committed regression test src/utils/dependency-declaration.test.ts (67 lines, added in ee480f4) asserts the manifest declaration (dependencies contains 'express', range matches /^\\^?5\\./, not hidden in devDependencies) and root-package resolution via createRequire(<repo>/package.json).resolve('express') -> path contains node_modules/express/ with version 5.x; `npx vitest run src/utils/dependency-declaration.test.ts` -> 'Test Files 1 passed (1) / Tests 4 passed (4)'. (d) `npx tsc --noEmit` -> exit 0, no output. (e) Prettier: changed files are clean \u2014 `npx prettier --check src/utils/dependency-declaration.test.ts package.json` -> 'All matched files use Prettier code style!' (exit 0); repo-wide `prettier --check .` reports 467 pre-existing unformatted files (docs/, README.md, pnpm-lock.yaml, examples/) that predate and are unrelated to this change. (f) Full unit suite (`npx vitest run`, the configured test_command): run 3 -> 'Test Files 115 passed (115) / Tests 944 passed (944)'. Two earlier runs showed load-induced timeouts in src/search/search-retr007.test.ts / search-retr008.test.ts (beforeAll hook timed out in 10000ms) and src/search/hooks.test.ts ('rebuild is idempotent' test timed out in 15000ms); those three files pass 29/29 when run with --maxWorkers=1, and none of them touch express \u2014 the flake is pre-existing concurrency contention, not caused by this change. (g) Server boot: `node bin/duckbrain.js http --port 34567` logged '[duckbrain] HTTP server started at http://127.0.0.1:34567' / '[duckbrain] HTTP server ready', and `curl http://127.0.0.1:34567/health` returned HTTP=200 {\"status\":\"healthy\",...}. express resolves from the repo root (node_modules/express -> .pnpm/express@5.2.1/node_modules/express, version 5.2.1) and is imported by src/cli/http.ts:19 and 10 other src files, so the phantom-dependency crash is fixed.\nexpress is now a declared root dependency (^5.2.1, lockfile-resolved 5.2.1) with a committed regression test, frozen-lockfile install/tsc/prettier clean, full suite green (115 files / 944 tests), and the HTTP server boots and serves /health 200.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-11T12:24:35.155455"
+}

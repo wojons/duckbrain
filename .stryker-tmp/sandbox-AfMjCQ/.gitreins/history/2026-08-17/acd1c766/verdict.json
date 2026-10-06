@@ -1,0 +1,77 @@
+{
+  "task_id": "DOGFOOD-018",
+  "task_title": "P1 \u2014 /api/activity auto-infer read_json native crash (same class as DOGFOOD-010)",
+  "task_criteria": [
+    "Activity route must not abort the daemon: apply explicit all-VARCHAR read_json schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts; /api/activity over a duplicate-key-attributes namespace returns 200 (not abort); regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m3:03AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10740909 bytes (10.74 MB) in 2.67s\u001b[0m\n\u001b[90m3:03AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m3:03AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10740909 bytes (10.74 MB) in 2.67s\u001b[0m\n\u001b[90m3:03AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 692\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit-dogfood005.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 674\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/remember-recall-namespace-dogfood017.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 569\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Activity route must not abort the daemon: apply explicit all-VARCHAR read_json schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts; /api/activity over a duplicate-key-attributes namespace returns 200 (not abort); regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins guard PASS: activity.ts:108 defines READ_JSON_COLUMNS (all-VARCHAR schema) and line 184 uses read_json([...], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS}), mirroring queries.ts:192/254. Regression test activity-dogfood018.test.ts (3 tests) builds a poisoned dup-key-attributes namespace and asserts /activity returns 200 and /health stays alive (server not aborted). Verified by running: npx vitest run src/http/routes/activity-dogfood018.test.ts \u2192 3 passed; npx vitest run \u2192 55 files/405 tests passed; npx tsc --noEmit \u2192 exit 0; gitreins guard \u2192 'Tier 1 Guards: PASS' exit 0; LSP diagnostics 0.\nDOGFOOD-018 fix is complete: explicit all-VARCHAR read_json schema + ignore_errors=true applied to activity.ts, regression test asserts server alive over duplicate-key namespace, and full suite (405 tests), tsc, and gitreins guard all pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Activity route must not abort the daemon: apply explicit all-VARCHAR read_json schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts; /api/activity over a duplicate-key-attributes namespace returns 200 (not abort); regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins guard PASS: activity.ts:108 defines READ_JSON_COLUMNS (all-VARCHAR schema) and line 184 uses read_json([...], format='newline_delimited', ignore_errors=true, ${RE",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Activity route must not abort the daemon: apply explicit all-VARCHAR read_json schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts; /api/activity over a duplicate-key-attributes namespace returns 200 (not abort); regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins guard PASS",
+                "status": "PASS",
+                "detail": "activity.ts:108 defines READ_JSON_COLUMNS (all-VARCHAR schema) and line 184 uses read_json([...], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS}), mirroring queries.ts:192/254. Regression test activity-dogfood018.test.ts (3 tests) builds a poisoned dup-key-attributes namespace and asserts /activity returns 200 and /health stays alive (server not aborted). Verified by running: npx vitest run src/http/routes/activity-dogfood018.test.ts \u2192 3 passed; npx vitest run \u2192 55 files/405 tests passed; npx tsc --noEmit \u2192 exit 0; gitreins guard \u2192 'Tier 1 Guards: PASS' exit 0; LSP diagnostics 0."
+              }
+            ],
+            "summary": "DOGFOOD-018 fix is complete: explicit all-VARCHAR read_json schema + ignore_errors=true applied to activity.ts, regression test asserts server alive over duplicate-key namespace, and full suite (405 tests), tsc, and gitreins guard all pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-018\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m3:03AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~10740909 bytes (10.74 MB) in 2.67s\u001b[0m\n\u001b[90m3:03AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Activity route must not abort the daemon: apply explicit all-VARCHAR read_json schema + ignore_errors=true (mirror queries.ts) to src/http/routes/activity.ts; /api/activity over a duplicate-key-attributes namespace returns 200 (not abort); regression test asserts server alive; full suite + npx tsc --noEmit clean + gitreins guard PASS: activity.ts:108 defines READ_JSON_COLUMNS (all-VARCHAR schema) and line 184 uses read_json([...], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS}), mirroring queries.ts:192/254. Regression test activity-dogfood018.test.ts (3 tests) builds a poisoned dup-key-attributes namespace and asserts /activity returns 200 and /health stays alive (server not aborted). Verified by running: npx vitest run src/http/routes/activity-dogfood018.test.ts \u2192 3 passed; npx vitest run \u2192 55 files/405 tests passed; npx tsc --noEmit \u2192 exit 0; gitreins guard \u2192 'Tier 1 Guards: PASS' exit 0; LSP diagnostics 0.\nDOGFOOD-018 fix is complete: explicit all-VARCHAR read_json schema + ignore_errors=true applied to activity.ts, regression test asserts server alive over duplicate-key namespace, and full suite (405 tests), tsc, and gitreins guard all pass.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T08:04:51.439156"
+}

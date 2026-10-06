@@ -1,0 +1,93 @@
+{
+  "task_id": "GAP-059",
+  "task_title": "DuckBrain watchdog has no recovery teeth: auto-restart on N consecutive DARK probes",
+  "task_criteria": [
+    "A maintenance stop of duckbrain-http results in automatic recovery within <=5 min with no manual action: a confirm-probe + consecutive-dark counter + cooldown recovery unit performs systemctl --user start duckbrain-http.service; HUNG probes never trigger recovery; recovery path is unit-tested, documented in docs/guide/deployment.md, and proven by a live stop-drill."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "27a50add1b20ee1604dddda191ef2dba232d595a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n1:32AM INF scanned ~9053496 bytes (9.05 MB) in 1.85s\n1:32AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 207832 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  161 passed (161)\n      Tests  1296 passed (1296)\n   Start at  01:32:08\n   Duration  46.94s (tests 77%, import 20%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  161 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~3.60s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 3 column 165 (char 236)) All evidence is confirmed. Every element of the criterion is verified:\n\n1. **Confirm-probe + consecutive-dark counter + cooldown recovery unit** \u2014 `src/cli/watchdog-recover.ts` implements all three; `ops/systemd/duckbrain-http-recover.{service,timer}` runs `systemctl --user start duckbrain-http.serv",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 3 column 165 (char 236)) All evidence is confirmed. Every element of the criterion is verified:\n\n1. **Confirm-probe + consecutive-dark counter + cooldown recovery unit** \u2014 `src/cli/watchdog-recover.ts` implements all three; `ops/systemd/duckbrain-http-recover.{service,timer}` runs `systemctl --user start duckbrain-http.serv",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [],
+            "summary": "(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 3 column 165 (char 236)) All evidence is confirmed. Every element of the criterion is verified:\n\n1. **Confirm-probe + consecutive-dark counter + cooldown recovery unit** \u2014 `src/cli/watchdog-recover.ts` implements all three; `ops/systemd/duckbrain-http-recover.{service,timer}` runs `systemctl --user start duckbrain-http.serv"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-059\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n\n(auto-parsed from non-JSON response \u2014 JSON parse failed: Expecting property name enclosed in double quotes: line 3 column 165 (char 236)) All evidence is confirmed. Every element of the criterion is verified:\n\n1. **Confirm-probe + consecutive-dark counter + cooldown recovery unit** \u2014 `src/cli/watchdog-recover.ts` implements all three; `ops/systemd/duckbrain-http-recover.{service,timer}` runs `systemctl --user start duckbrain-http.serv\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-21T06:38:44.072228",
+  "evidence": {
+    "collected_at": "2026-09-21T06:38:44.083228+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1380,
+        "truncated": false,
+        "source": "git show 27a50add1b20"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 939,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "GAP-059"
+  }
+}

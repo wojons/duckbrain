@@ -1,0 +1,59 @@
+commit 2eb0bbdad15b1e9f3ebe5f0f1847fb6dda932cd1
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 17:05:11 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 17:05:11 2026 -0500
+
+    test: widen OPS-007 stall/budget margin (full-suite flake) + gitreins tier2 cap 4M→10M
+    
+    - serving-paths-ops007: SYNC_STALL_MS 1500→2500 while HEARTBEAT_BUDGET_MS
+      stays 1000. Under full-suite load the scheduler can push a heartbeat gap
+      past 1000ms on a healthy loop; the wider stall keeps the pre-fix signature
+      (gap >= stall) unmistakable and the post-fix budget comfortably clear.
+      This flake failed DF-0919-02 tier1 while its tier2 PASSED.
+    - .gitreins/config.yaml: max_input_tokens 4M→10M (gitreins default). The 4M
+      override starved DF-0919-01 tier2's clean-install reproduce exploration.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/config.yaml                        | 4 +++-
+ src/http/routes/serving-paths-ops007.test.ts | 4 ++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/.gitreins/config.yaml b/.gitreins/config.yaml
+index ea65360..a2e6766 100644
+--- a/.gitreins/config.yaml
++++ b/.gitreins/config.yaml
+@@ -17,7 +17,9 @@ guards:
+ evaluator:
+   max_iterations: 250
+   max_time: "25m"
+-  max_input_tokens: "4M"
++  # 4M starved DF-0919-01's tier-2 (the judge's clean-install reproduce needs
++  # a wide exploration loop on this repo). 10M = the gitreins default.
++  max_input_tokens: "10M"
+   max_output_tokens: "0.05M"
+   tool_call_weight: 0.1
+ 
+diff --git a/src/http/routes/serving-paths-ops007.test.ts b/src/http/routes/serving-paths-ops007.test.ts
+index 0b39f6b..ace1ba8 100644
+--- a/src/http/routes/serving-paths-ops007.test.ts
++++ b/src/http/routes/serving-paths-ops007.test.ts
+@@ -8,7 +8,7 @@
+  * The proof is BEHAVIOURAL, mirroring `src/git/autocommit-ops006.test.ts`:
+  *
+  *  1. the synchronous child-process primitives (`execSync` / `spawnSync`) are
+- *     patched to STALL the event loop for 1500ms when product code calls them,
++ *     patched to STALL the event loop for 2500ms when product code calls them,
+  *     and counted. While GET /users (and `createNamespaceTool`) run, a 50ms
+  *     heartbeat on the SAME loop must keep firing (<250ms gaps) and a
+  *     concurrent cheap route must answer (<500ms). Pre-fix both product paths
+@@ -35,7 +35,7 @@ import os from "os";
+ import path from "path";
+ 
+ /** Stall duration the patched sync primitive burns on its first armed call. */
+-const SYNC_STALL_MS = 1500;
++const SYNC_STALL_MS = 2500;
+ /**
+  * Upper bound a heartbeat gap may reach while a serving path runs. Sits well
+  * below SYNC_STALL_MS so the pre-fix (synchronous) signature — a gap of >= the

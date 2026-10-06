@@ -1,0 +1,99 @@
+{
+  "task_id": "OPS-010",
+  "task_title": "Ship namespace repack sweep in-repo + document thresholds",
+  "task_criteria": [
+    "scripts/maintenance/duckbrain-ns-repack.sh committed byte-identical to the deployed copy (cmp) and executable; scripts/maintenance/README.md documents thresholds, sweep behavior and deploy path; no src/ or test changes"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "e6075ca202cdc25ae30c6c5006b6ea81dc2ed8e8",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n2:32AM INF scanned ~8207728 bytes (8.21 MB) in 1.63s\n2:32AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 197340 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  157 passed (157)\n      Tests  1247 passed (1247)\n   Start at  02:32:36\n   Duration  52.21s (tests 79%, import 19%, transform 1%, worker 1%)\n\n    Isolate  157 workers spawned \u00b7 ~94ms startup each (spawn + environment, per file)\n             at least ~3.61s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 scripts/maintenance/duckbrain-ns-repack.sh committed byte-identical to the deployed copy (cmp) and executable; scripts/maintenance/README.md documents thresholds, sweep behavior and deploy path; no src/ or test changes: Commit 12189c6 in /home/kara/worktrees/duckbrain-OPS-010 adds exactly two files (git show --name-only: scripts/maintenance/README.md, scripts/maintenance/duckbrain-ns-repack.sh). Byte-identical: `cmp scripts/maintenance/duckbrain-ns-repack.sh /home/kara/.hermes/scripts/duckbrain-ns-repack.sh` => exit 0; md5 73ec84be3646d0a17ea1308e71589e4c matches the deployed copy (and /home/kara/duckbrain/scripts/maintenance/ copy). Executable: stat -rwxrwxr-x, git ls-files -s mode 100755, `test -x` => EXECUTABLE, `bash -n` => SYNTAX OK. README documents thresholds (table: REPACK_LOOSE_COUNT=500, REPACK_LOOSE_MB=50, REPACK_PACKS=3, REPACK_MAX_OBJECT_MB=20, REPACK_TIMEOUT=1800, REPACK_LOG/LAST_JSON/LOCK), sweep behavior (scan ~/duckbrain/namespaces for s3:// remotes, measure loose/packs/largest, pgrep busy-check, nice -10 timeout 1800 git repack -adf + prune-packed, HEAD check, DRY_RUN, single-flight flock, state files), and deploy path (canonical in-repo -> ~/.hermes/scripts via atomic mv, cmp drift check, systemd duckbrain-ns-repack.service/.timer Sun 04:20). No src/ or test changes: `git show --name-only HEAD | grep -E '^(src/|tests/|test/)'` => NONE. No test suite applies (docs/script-only change; test_command npx vitest run is unrelated to this diff).\nOPS-010 ships the repack script byte-identical to the deployed copy (cmp exit 0, mode 100755) with a README documenting thresholds, sweep behavior and deploy path, and touches no src/ or test files.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 scripts/maintenance/duckbrain-ns-repack.sh committed byte-identical to the deployed copy (cmp) and executable; scripts/maintenance/README.md documents thresholds, sweep behavior and deploy path; no src/ or test changes: Commit 12189c6 in /home/kara/worktrees/duckbrain-OPS-010 adds exactly two files (git show --name-only: scripts/maintenance/README.md, scripts/maintenance/duckbrain-ns-repack.sh). Byte-identical: `cmp scripts/maintenance/duckbrain-ns-repack.sh /home/kara/.hermes/scripts/duckbrain-ns-repack.sh` => exit 0; md5 73ec84be3646d0a17ea1308e71589e4c matches the deployed copy (and /home/kara/duckbrain/scripts/maintenance/ copy). Executable: stat -rwxrwxr-x, git ls-files -s mode 100755, `test -x` => EXECUTABLE, `bash -n` => SYNTAX OK. README documents thresholds (table: REPACK_LOOSE_COUNT=500, REPACK_LOOSE_MB=50, REPACK_PACKS=3, REPACK_MAX_OBJECT_MB=20, REPACK_TIMEOUT=1800, REPACK_LOG/LAST_JSON/LOCK), sweep behavior (scan ~/duckbrain/namespaces for s3:// remotes, measure loose/packs/largest, pgrep busy-check, nice -10 timeout 1800 git repack -adf + prune-packed, HEAD check, DRY_RUN, single-flight flock, state files), and deploy path (canonical in-repo -> ~/.hermes/scripts via atomic mv, cmp drift check, systemd duckbrain-ns-repack.service/.timer Sun 04:20). No src/ or test changes: `git show --name-only HEAD | grep -E '^(src/|tests/|test/)'` => NONE. No test suite applies (docs/script-only change; test_command npx vitest run is unrelated to this diff).\nOPS-010 ships the repack script byte-identical to the deployed copy (cmp exit 0, mode 100755) with a README documenting thresholds, sweep behavior and deploy path, and touches no src/ or test files.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "scripts/maintenance/duckbrain-ns-repack.sh committed byte-identical to the deployed copy (cmp) and executable; scripts/maintenance/README.md documents thresholds, sweep behavior and deploy path; no src/ or test changes",
+                "status": "PASS",
+                "detail": "Commit 12189c6 in /home/kara/worktrees/duckbrain-OPS-010 adds exactly two files (git show --name-only: scripts/maintenance/README.md, scripts/maintenance/duckbrain-ns-repack.sh). Byte-identical: `cmp scripts/maintenance/duckbrain-ns-repack.sh /home/kara/.hermes/scripts/duckbrain-ns-repack.sh` => exit 0; md5 73ec84be3646d0a17ea1308e71589e4c matches the deployed copy (and /home/kara/duckbrain/scripts/maintenance/ copy). Executable: stat -rwxrwxr-x, git ls-files -s mode 100755, `test -x` => EXECUTABLE, `bash -n` => SYNTAX OK. README documents thresholds (table: REPACK_LOOSE_COUNT=500, REPACK_LOOSE_MB=50, REPACK_PACKS=3, REPACK_MAX_OBJECT_MB=20, REPACK_TIMEOUT=1800, REPACK_LOG/LAST_JSON/LOCK), sweep behavior (scan ~/duckbrain/namespaces for s3:// remotes, measure loose/packs/largest, pgrep busy-check, nice -10 timeout 1800 git repack -adf + prune-packed, HEAD check, DRY_RUN, single-flight flock, state files), and deploy path (canonical in-repo -> ~/.hermes/scripts via atomic mv, cmp drift check, systemd duckbrain-ns-repack.service/.timer Sun 04:20). No src/ or test changes: `git show --name-only HEAD | grep -E '^(src/|tests/|test/)'` => NONE. No test suite applies (docs/script-only change; test_command npx vitest run is unrelated to this diff)."
+              }
+            ],
+            "summary": "OPS-010 ships the repack script byte-identical to the deployed copy (cmp exit 0, mode 100755) with a README documenting thresholds, sweep behavior and deploy path, and touches no src/ or test files."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: OPS-010\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 scripts/maintenance/duckbrain-ns-repack.sh committed byte-identical to the deployed copy (cmp) and executable; scripts/maintenance/README.md documents thresholds, sweep behavior and deploy path; no src/ or test changes: Commit 12189c6 in /home/kara/worktrees/duckbrain-OPS-010 adds exactly two files (git show --name-only: scripts/maintenance/README.md, scripts/maintenance/duckbrain-ns-repack.sh). Byte-identical: `cmp scripts/maintenance/duckbrain-ns-repack.sh /home/kara/.hermes/scripts/duckbrain-ns-repack.sh` => exit 0; md5 73ec84be3646d0a17ea1308e71589e4c matches the deployed copy (and /home/kara/duckbrain/scripts/maintenance/ copy). Executable: stat -rwxrwxr-x, git ls-files -s mode 100755, `test -x` => EXECUTABLE, `bash -n` => SYNTAX OK. README documents thresholds (table: REPACK_LOOSE_COUNT=500, REPACK_LOOSE_MB=50, REPACK_PACKS=3, REPACK_MAX_OBJECT_MB=20, REPACK_TIMEOUT=1800, REPACK_LOG/LAST_JSON/LOCK), sweep behavior (scan ~/duckbrain/namespaces for s3:// remotes, measure loose/packs/largest, pgrep busy-check, nice -10 timeout 1800 git repack -adf + prune-packed, HEAD check, DRY_RUN, single-flight flock, state files), and deploy path (canonical in-repo -> ~/.hermes/scripts via atomic mv, cmp drift check, systemd duckbrain-ns-repack.service/.timer Sun 04:20). No src/ or test changes: `git show --name-only HEAD | grep -E '^(src/|tests/|test/)'` => NONE. No test suite applies (docs/script-only change; test_command npx vitest run is unrelated to this diff).\nOPS-010 ships the repack script byte-identical to the deployed copy (cmp exit 0, mode 100755) with a README documenting thresholds, sweep behavior and deploy path, and touches no src/ or test files.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-20T07:34:53.846949",
+  "evidence": {
+    "collected_at": "2026-09-20T07:34:53.866918+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 108123,
+        "truncated": false,
+        "source": "git show e6075ca202cd"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2116,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "OPS-010"
+  }
+}

@@ -1,0 +1,399 @@
+commit 534eb7846835351e9ad77a33706f239315583a2c
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 20 05:14:54 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 20 05:14:54 2026 -0500
+
+    fix(cli): remember --wait flushes + awaits the namespace commit (CLI-WAIT-001)
+    
+    --wait was parsed but never consumed: every remember printed 'will be
+    committed in batch' and the commit landed only via the process-exit
+    flush, invisible to scripts that git-verify right after the call.
+    
+    - new waitForNamespaceCommit(namespacePath) in src/git/autocommit.ts:
+      flushNamespaceCommit (forces the debounce window now, exit-path-only
+      helper) + drainAsyncCommits-style settle detection scoped to one
+      namespace's async chain (additive; serving paths untouched)
+    - rememberCommand: with --wait, await the commit and print 'committed
+      to git (namespace: <ns>)'; wait failures warn but never fail the
+      write; without the flag the legacy buffered line is byte-identical
+    - regression suite src/cli/remember-wait-cliwait001.test.ts drives the
+      real CLI in a scratch root (env-redirected): committed+clean git
+      state immediately after exit, legacy message preserved, no leak into
+      namespaces/; RED control: reverting human.ts to HEAD fails it
+    - AGENTS.md suite/test counts synced to live 158/1250
+    
+    GitReins: CLI-WAIT-001 (criteria in .gitreins/tasks.yaml)
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                     |  19 +++
+ AGENTS.md                                |   4 +-
+ src/cli/human.ts                         |  35 +++++-
+ src/cli/remember-wait-cliwait001.test.ts | 209 +++++++++++++++++++++++++++++++
+ src/git/autocommit.ts                    |  36 ++++++
+ 5 files changed, 298 insertions(+), 5 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index fc9a9ad..1614257 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1660,3 +1660,22 @@ tasks:
+   status: complete
+   created_at: '2026-09-20T09:09:28.098886+00:00'
+   completed_at: '2026-09-20T09:09:31.466265+00:00'
++- id: CLI-WAIT-001
++  title: 'Wire remember --wait: flush + await namespace commit'
++  criteria:
++  - "Driving the real CLI (node bin/duckbrain.js remember <key> --domain=raw_note\
++    \ --content=... --namespace=<scratch-ns> --wait) with DUCKBRAIN_NAMESPACES_PATH/CONFIG_PATH\
++    \ redirected to a scratch root: (1) WITH --wait the command exits 0, stdout reports\
++    \ the commit landed, and stdout does NOT contain the buffered phrasing 'will be\
++    \ committed in batch'; (2) WITH --wait, after exit the scratch namespace has a\
++    \ .git dir, git log has at least one commit, git status --porcelain is EMPTY,\
++    \ and the remembered key is grep-findable in the namespace JSONL files; (3) WITHOUT\
++    \ --wait the legacy buffered message 'will be committed in batch' still prints\
++    \ and the end state is identical (exit-flush commit present); (4) RED control:\
++    \ reverting ONLY src/cli/human.ts to HEAD (git show HEAD:src/cli/human.ts > src/cli/human.ts)\
++    \ makes criterion (1) fail \u2014 the old buffered phrasing reappears \u2014 then\
++    \ restoring the fixed file makes it pass again; (5) npx tsc --noEmit clean and\
++    \ the full unit suite green with the new suite counted in AGENTS.md (both count\
++    \ lines synced)."
++  status: in_progress
++  created_at: '2026-09-20T10:03:36.988683+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index d1d2976..1faa5a0 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (157 suites, 1247 tests)
++- **Test Framework:** Vitest (158 suites, 1250 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1247 tests, 157 suites
++pnpm test          # 1250 tests, 158 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/src/cli/human.ts b/src/cli/human.ts
+index d8cea4d..91be929 100644
+--- a/src/cli/human.ts
++++ b/src/cli/human.ts
+@@ -43,6 +43,7 @@ import {
+ import { createTunnel, listTunnels } from "../ssh/tunnel";
+ import { resolveAuthStorePath } from "./http";
+ import { hashApiKey } from "../auth/storeSchema";
++import { waitForNamespaceCommit } from "../git/autocommit";
+ import { execSync } from "child_process";
+ import http from "http";
+ import fs from "fs";
+@@ -277,9 +278,37 @@ async function rememberCommand(args: string[]): Promise<void> {
+     });
+ 
+     if (result.success) {
+-      console.log(
+-        `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
+-      );
++      // CLI-WAIT-001: --wait previously advertised a guarantee it did not
++      // provide — the flag was parsed and silently ignored, and the row
++      // always reported "will be committed in batch" (the commit landing
++      // only via the process-exit flush, invisible to the caller). With
++      // --wait we flush the namespace's debounce window NOW and resolve
++      // when its async commit(+push) chain has settled, so the caller can
++      // immediately git-verify. Without the flag the legacy buffered
++      // behavior is byte-identical.
++      if (flags.wait) {
++        try {
++          await waitForNamespaceCommit(resolveNamespacePath(namespace));
++          console.log(
++            `✓ Remembered ${key} (ID: ${result.id}) - committed to git (namespace: ${namespace})`,
++          );
++        } catch (error) {
++          // Waiting must never turn a successful write into a failure —
++          // the row is already durable. Report and keep exit 0.
++          console.warn(
++            `[Git] Auto-commit warning for ${namespace}: ${
++              error instanceof Error ? error.message : error
++            }`,
++          );
++          console.log(
++            `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
++          );
++        }
++      } else {
++        console.log(
++          `✓ Remembered ${key} (ID: ${result.id}) - will be committed in batch`,
++        );
++      }
+     } else {
+       console.error("✗ Failed to remember:", result.error);
+       process.exit(1);
+diff --git a/src/cli/remember-wait-cliwait001.test.ts b/src/cli/remember-wait-cliwait001.test.ts
+new file mode 100644
+index 0000000..66a3eaf
+--- /dev/null
++++ b/src/cli/remember-wait-cliwait001.test.ts
+@@ -0,0 +1,209 @@
++/**
++ * CLI-WAIT-001: `duckbrain remember --wait` must deliver the guarantee its
++ * docs advertise — the git commit has landed by the time the process exits.
++ *
++ * Pre-fix the flag was parsed (whitelisted in REMEMBER_FLAGS) and silently
++ * ignored: every remember printed "will be committed in batch" and the commit
++ * landed only via the process-'exit' flush (flushAllCommits), which runs
++ * AFTER any await point and is invisible to the caller — scripts that
++ * git-verify immediately after `remember --wait` saw nothing.
++ *
++ * The fix: with --wait, rememberCommand flushes the namespace's debounce
++ * window (flushNamespaceCommit) and awaits the namespace's async commit chain
++ * (waitForNamespaceCommit), then prints the committed line. Without the flag
++ * the legacy buffered message is byte-identical and the end state is the
++ * same (the exit flush still commits).
++ *
++ * These tests drive the REAL CLI (node bin/duckbrain.js remember …) in a
++ * subprocess and assert on GIT STATE after exit — not on the exit line alone.
++ *
++ * Hermeticity: the child's write path is redirected with
++ * DUCKBRAIN_NAMESPACES_PATH / DUCKBRAIN_CONFIG_PATH pointed at a scratch dir
++ * (saved/restored around the suite), so nothing here touches the repo's
++ * `namespaces/` or `duckbrain.config.json`, and no daemon is required.
++ * The final case asserts that no write leaked into the repo namespace root.
++ */
++
++import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
++import { spawn, execSync } from "child_process";
++import fs from "fs";
++import os from "os";
++import path from "path";
++
++// Process-spawning suite: file-scoped budgets (same convention as
++// src/cli/remember-eq-value-clitrunc001.test.ts).
++vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
++
++const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
++const REPO_NAMESPACES_DIR = path.join(process.cwd(), "namespaces");
++
++const SCRATCH_ROOT = fs.mkdtempSync(
++  path.join(os.tmpdir(), "duckbrain-cliwait001-"),
++);
++const SCRATCH_NS_ROOT = path.join(SCRATCH_ROOT, "namespaces");
++const SCRATCH_CONFIG_PATH = path.join(SCRATCH_ROOT, "duckbrain.config.json");
++
++/** Scratch namespaces for this suite — never registered in any config file. */
++const NS_WAIT = "cliwait001-wait-ns";
++const NS_NOWAIT = "cliwait001-nowait-ns";
++
++/** Env vars that gate the write path — saved and restored around this suite. */
++const PREV_NS_PATH = process.env.DUCKBRAIN_NAMESPACES_PATH;
++const PREV_CONFIG_PATH = process.env.DUCKBRAIN_CONFIG_PATH;
++
++beforeAll(() => {
++  fs.mkdirSync(SCRATCH_NS_ROOT, { recursive: true });
++  process.env.DUCKBRAIN_NAMESPACES_PATH = SCRATCH_NS_ROOT;
++  process.env.DUCKBRAIN_CONFIG_PATH = SCRATCH_CONFIG_PATH;
++});
++
++afterAll(() => {
++  if (PREV_NS_PATH === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++  else process.env.DUCKBRAIN_NAMESPACES_PATH = PREV_NS_PATH;
++  if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
++  else process.env.DUCKBRAIN_CONFIG_PATH = PREV_CONFIG_PATH;
++  fs.rmSync(SCRATCH_ROOT, { recursive: true, force: true });
++});
++
++/** Spawn the real CLI and capture stdout/stderr until exit or timeout. */
++function runCli(
++  args: string[],
++  timeoutMs = 45_000,
++): Promise<{ code: number | null; stdout: string; stderr: string }> {
++  return new Promise((resolve) => {
++    const child = spawn(process.execPath, [BIN_PATH, ...args], {
++      env: {
++        ...process.env,
++        DUCKBRAIN_NAMESPACES_PATH: SCRATCH_NS_ROOT,
++        DUCKBRAIN_CONFIG_PATH: SCRATCH_CONFIG_PATH,
++      },
++      cwd: process.cwd(),
++    });
++    let stdout = "";
++    let stderr = "";
++    child.stdout.on("data", (d) => (stdout += String(d)));
++    child.stderr.on("data", (d) => (stderr += String(d)));
++    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
++    child.on("close", (code) => {
++      clearTimeout(timer);
++      resolve({ code, stdout, stderr });
++    });
++  });
++}
++
++/** Git facts about a namespace repo, read from OUTSIDE the child process. */
++function gitFacts(nsDir: string): {
++  hasGit: boolean;
++  commitCount: number;
++  porcelain: string;
++} {
++  const hasGit = fs.existsSync(path.join(nsDir, ".git"));
++  if (!hasGit) return { hasGit, commitCount: 0, porcelain: "" };
++  let commitCount = 0;
++  try {
++    commitCount = parseInt(
++      execSync(`git -C ${nsDir} rev-list --count HEAD`, {
++        encoding: "utf8",
++      }).trim(),
++      10,
++    );
++  } catch {
++    commitCount = 0;
++  }
++  let porcelain = "";
++  try {
++    porcelain = execSync(`git -C ${nsDir} status --porcelain`, {
++      encoding: "utf8",
++    });
++  } catch {
++    porcelain = "";
++  }
++  return { hasGit, commitCount, porcelain };
++}
++
++/** Poll until a namespace repo has at least one commit (bounded). */
++async function waitForCommit(
++  nsDir: string,
++  timeoutMs = 5_000,
++): Promise<number> {
++  const deadline = Date.now() + timeoutMs;
++  for (;;) {
++    const facts = gitFacts(nsDir);
++    if (facts.hasGit && facts.commitCount >= 1) return facts.commitCount;
++    if (Date.now() > deadline) return facts.commitCount;
++    await new Promise((resolve) => setTimeout(resolve, 50));
++  }
++}
++
++/** True when the remembered key is present in any JSONL under the namespace. */
++function keyInJsonl(nsDir: string, key: string): boolean {
++  let found = false;
++  const walk = (dir: string): void => {
++    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
++      const p = path.join(dir, entry.name);
++      if (entry.isDirectory()) walk(p);
++      else if (entry.name.endsWith(".jsonl")) {
++        if (fs.readFileSync(p, "utf8").includes(key)) found = true;
++      }
++    }
++  };
++  walk(nsDir);
++  return found;
++}
++
++describe("CLI-WAIT-001: remember --wait commits before exit", () => {
++  it("with --wait: reports the commit, exits 0, and the namespace repo is committed + clean immediately after exit", async () => {
++    const key = "/cliwait001/wait-key";
++    const res = await runCli([
++      "remember",
++      key,
++      "--domain=raw_note",
++      "--content=cliwait001 wait probe body",
++      `--namespace=${NS_WAIT}`,
++      "--wait",
++    ]);
++
++    expect(res.code).toBe(0);
++    // The committed line replaces the buffered phrasing entirely.
++    expect(res.stdout).toContain("committed to git");
++    expect(res.stdout).not.toContain("will be committed in batch");
++
++    // Immediately after exit — no polling grace: the flag promises this.
++    const nsDir = path.join(SCRATCH_NS_ROOT, NS_WAIT);
++    expect(fs.existsSync(nsDir)).toBe(true);
++    expect(fs.existsSync(path.join(nsDir, ".git"))).toBe(true);
++    const facts = gitFacts(nsDir);
++    expect(facts.commitCount).toBeGreaterThanOrEqual(1);
++    expect(facts.porcelain).toBe("");
++    expect(keyInJsonl(nsDir, key)).toBe(true);
++  }, 60_000);
++
++  it("without --wait: legacy buffered message is preserved and the end state still converges (exit flush)", async () => {
++    const key = "/cliwait001/nowait-key";
++    const res = await runCli([
++      "remember",
++      key,
++      "--domain=raw_note",
++      "--content=cliwait001 no-wait probe body",
++      `--namespace=${NS_NOWAIT}`,
++    ]);
++
++    expect(res.code).toBe(0);
++    expect(res.stdout).toContain("will be committed in batch");
++
++    // The process 'exit' handler flushes the debounce window, so the
++    // commit lands before the process is gone — bounded poll for CI.
++    const nsDir = path.join(SCRATCH_NS_ROOT, NS_NOWAIT);
++    const commits = await waitForCommit(nsDir);
++    expect(commits).toBeGreaterThanOrEqual(1);
++    expect(gitFacts(nsDir).porcelain).toBe("");
++  }, 60_000);
++
++  it("writes nothing into the repo's real namespaces/ root", async () => {
++    const leaked = fs
++      .readdirSync(REPO_NAMESPACES_DIR, { withFileTypes: true })
++      .filter((e) => e.isDirectory() && e.name.startsWith("cliwait001"))
++      .map((e) => e.name);
++    expect(leaked).toEqual([]);
++  });
++});
+diff --git a/src/git/autocommit.ts b/src/git/autocommit.ts
+index 12e7b92..fd24862 100644
+--- a/src/git/autocommit.ts
++++ b/src/git/autocommit.ts
+@@ -468,6 +468,42 @@ export function flushNamespaceCommit(namespacePath: string): void {
+   immediateCommit(namespacePath, existing.message);
+ }
+ 
++/**
++ * CLI-WAIT-001: flush THIS namespace's debounce window, then resolve when its
++ * async commit+push chain has settled.
++ *
++ * `remember --wait` promises the caller that the git commit has landed by the
++ * time the process exits. The debounced branch of commitNamespaceWithParams
++ * returns an already-resolved promise (the window is opened, nothing runs
++ * yet), so a plain `await commitNamespace(...)` proves nothing — and the
++ * process 'exit' flush (flushAllCommits) runs AFTER 'await' points, too late
++ * to observe. This is the CLI-legal primitive: synchronous
++ * flushNamespaceCommit forces the window NOW (exit-path-only helper, zero
++ * serving-path use), then the seen-loop resolves once the namespace's
++ * in-flight chain finishes — the same settle-detection drainAsyncCommits
++ * uses, scoped to one namespace and with NO time budget (the caller is a
++ * CLI exit, and git work is already bounded by execFile timeouts in
++ * asyncCommit).
++ */
++export async function waitForNamespaceCommit(
++  namespacePath: string,
++): Promise<void> {
++  flushNamespaceCommit(namespacePath);
++  // Settle detection, drainAsyncCommits-style but scoped to one namespace:
++  // await the CURRENT chain; after it settles, re-check — a chain we have
++  // already awaited (or an empty map) ends the loop, so a concurrent writer
++  // that scheduled one follow-up commit during the wait is covered and the
++  // loop still terminates. NO time budget: the caller is a CLI exit path and
++  // git work is already bounded by execFile timeouts in asyncCommit.
++  const seen: Promise<void>[] = [];
++  for (;;) {
++    const current = asyncChains.get(namespacePath);
++    if (!current || seen.includes(current)) return;
++    seen.push(current);
++    await Promise.allSettled([current]);
++  }
++}
++
+ /**
+  * Flush every pending debounce window (e.g. on graceful shutdown).
+  *

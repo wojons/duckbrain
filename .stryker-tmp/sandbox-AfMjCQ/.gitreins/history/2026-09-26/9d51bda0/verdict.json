@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-0925-01",
+  "task_title": "Fix SSE replay ops filter",
+  "task_criteria": [
+    "Replay with ops=delete returns only delete events and preserves existing live subscription filtering"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "3e44f6a6d0871034e94738d91be29a308491a949",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:37PM INF scanned ~9503206 bytes (9.50 MB) in 2.24s\n5:37PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 298147 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  178 passed (178)\n      Tests  1412 passed (1412)\n   Start at  17:37:19\n   Duration  73.32s (tests 78%, import 19%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  178 workers spawned \u00b7 ~120ms startup each (spawn + environment, per file)\n             at least ~5.24s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260926T104119.765631Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Replay with ops=delete returns only delete events and preserves existing live subscription filtering: Fix commit 8381dc8 modifies src/http/realtime/hub.ts: builds replayAllow from request.tables/request.ops (lines 269-272) and applies the shared predicate `if (!this.changeMatchesSubscriber(replayAllow, change)) continue;` in both replay loops (lines 285, 298); changeMatchesSubscriber (lines 655-666) checks tables.includes && ops.includes. Live filtering preserved: deliver() still calls changeMatchesSubscriber(subscriber, change) at line 677. Test src/http/routes/realtime-replay-filter.test.ts:98 'ops=delete replay drops the historical inserts' subscribes with ops=[\"delete\"] and asserts opsOf(replayed)===['delete'] plus matching cursor; back-compat test asserts unfiltered replay unchanged. Fresh run: `npx vitest run src/http/routes/realtime-replay-filter.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; regression `npx vitest run realtime-replay.test.ts realtime-cursor.test.ts realtime-routes.test.ts realtime-fanout.test.ts realtime-wire.test.ts` exit_code 0, 'Test Files 5 passed (5) / Tests 15 passed (15)'.\nSSE replay now applies the same ops/tables allow-list predicate as live fan-out, with ops=delete replay returning only delete events and all realtime tests passing.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Replay with ops=delete returns only delete events and preserves existing live subscription filtering: Fix commit 8381dc8 modifies src/http/realtime/hub.ts: builds replayAllow from request.tables/request.ops (lines 269-272) and applies the shared predicate `if (!this.changeMatchesSubscriber(replayAllow, change)) continue;` in both replay loops (lines 285, 298); changeMatchesSubscriber (lines 655-666) checks tables.includes && ops.includes. Live filtering preserved: deliver() still calls changeMatchesSubscriber(subscriber, change) at line 677. Test src/http/routes/realtime-replay-filter.test.ts:98 'ops=delete replay drops the historical inserts' subscribes with ops=[\"delete\"] and asserts opsOf(replayed)===['delete'] plus matching cursor; back-compat test asserts unfiltered replay unchanged. Fresh run: `npx vitest run src/http/routes/realtime-replay-filter.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; regression `npx vitest run realtime-replay.test.ts realtime-cursor.test.ts realtime-routes.test.ts realtime-fanout.test.ts realtime-wire.test.ts` exit_code 0, 'Test Files 5 passed (5) / Tests 15 passed (15)'.\nSSE replay now applies the same ops/tables allow-list predicate as live fan-out, with ops=delete replay returning only delete events and all realtime tests passing.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Replay with ops=delete returns only delete events and preserves existing live subscription filtering",
+                "status": "PASS",
+                "detail": "Fix commit 8381dc8 modifies src/http/realtime/hub.ts: builds replayAllow from request.tables/request.ops (lines 269-272) and applies the shared predicate `if (!this.changeMatchesSubscriber(replayAllow, change)) continue;` in both replay loops (lines 285, 298); changeMatchesSubscriber (lines 655-666) checks tables.includes && ops.includes. Live filtering preserved: deliver() still calls changeMatchesSubscriber(subscriber, change) at line 677. Test src/http/routes/realtime-replay-filter.test.ts:98 'ops=delete replay drops the historical inserts' subscribes with ops=[\"delete\"] and asserts opsOf(replayed)===['delete'] plus matching cursor; back-compat test asserts unfiltered replay unchanged. Fresh run: `npx vitest run src/http/routes/realtime-replay-filter.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; regression `npx vitest run realtime-replay.test.ts realtime-cursor.test.ts realtime-routes.test.ts realtime-fanout.test.ts realtime-wire.test.ts` exit_code 0, 'Test Files 5 passed (5) / Tests 15 passed (15)'.",
+                "resolution_probability": 0.44
+              }
+            ],
+            "summary": "SSE replay now applies the same ops/tables allow-list predicate as live fan-out, with ops=delete replay returning only delete events and all realtime tests passing."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0925-01\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Replay with ops=delete returns only delete events and preserves existing live subscription filtering: Fix commit 8381dc8 modifies src/http/realtime/hub.ts: builds replayAllow from request.tables/request.ops (lines 269-272) and applies the shared predicate `if (!this.changeMatchesSubscriber(replayAllow, change)) continue;` in both replay loops (lines 285, 298); changeMatchesSubscriber (lines 655-666) checks tables.includes && ops.includes. Live filtering preserved: deliver() still calls changeMatchesSubscriber(subscriber, change) at line 677. Test src/http/routes/realtime-replay-filter.test.ts:98 'ops=delete replay drops the historical inserts' subscribes with ops=[\"delete\"] and asserts opsOf(replayed)===['delete'] plus matching cursor; back-compat test asserts unfiltered replay unchanged. Fresh run: `npx vitest run src/http/routes/realtime-replay-filter.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; regression `npx vitest run realtime-replay.test.ts realtime-cursor.test.ts realtime-routes.test.ts realtime-fanout.test.ts realtime-wire.test.ts` exit_code 0, 'Test Files 5 passed (5) / Tests 15 passed (15)'.\nSSE replay now applies the same ops/tables allow-list predicate as live fan-out, with ops=delete replay returning only delete events and all realtime tests passing.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-26T22:39:07.677777",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-26T22:39:07.712207+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 14955,
+        "truncated": false,
+        "source": "git show 3e44f6a6d087"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 5343,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0925-01"
+  }
+}

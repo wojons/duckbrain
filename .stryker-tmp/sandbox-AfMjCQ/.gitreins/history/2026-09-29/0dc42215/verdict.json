@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0924-03",
+  "task_title": "Document MCP recall asOf parameter",
+  "task_criteria": [
+    "docs/api/mcp-tools.md documents asOf parameter with type, description, and usage example"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "92f987b6c649ef607c963476cc239a912e5c355a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n9:42PM INF scanned ~13878717 bytes (13.88 MB) in 4.41s\n9:42PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 343741 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-empty-content-dbgap056.test.ts (10 tests) 103ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-empty-content-dbgap056.test.ts [ src/http/routes/memories-empty-content-dbgap056.test.ts ]\nError: ENOTEMPTY: directory not empty, rmdir '/tmp/duckbrain-emptycontent-sy4Ou1/namespaces/dbgap056-valid/.git'\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 181 passed (182)\n      Tests  1452 passed (1452)\n   Start at  21:42:06\n   Duration  73.17s (tests 76%, import 19%, transform 4%, setup 1%, worker 1%)\n\n    Isolate  182 workers spawned \u00b7 ~120ms startup each (spawn + environment, per file)\n             at least ~5.32s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T024129.193985Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/mcp-tools.md documents asOf parameter with type, description, and usage example: docs/api/mcp-tools.md:114 documents `asOf?: string;` with type (string), description ('RETR-004: ISO-8601 date or git ref (commit/branch/tag) \u2014 read namespace state as it existed at that point in git history. Cannot combine with query/contains...'), and a usage example at lines 152-158 ('Time travel (RETR-004)' JSON block with \"asOf\": \"2026-08-10\" plus explanatory text). Implementation matches: src/mcp/tools/recall.ts:132 defines `asOf: z.string().optional()` and uses it at lines 457-507. Tests pass: `npx vitest run src/mcp/tools/recall-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. [resolution 0.28; docs/api/mcp-tools.md]\ndocs/api/mcp-tools.md fully documents the recall asOf parameter with type, description, and usage example, matching the implementation and passing tests.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/mcp-tools.md documents asOf parameter with type, description, and usage example: docs/api/mcp-tools.md:114 documents `asOf?: string;` with type (string), description ('RETR-004: ISO-8601 date or git ref (commit/branch/tag) \u2014 read namespace state as it existed at that point in git history. Cannot combine with query/contains...'), and a usage example at lines 152-158 ('Time travel (RETR-004)' JSON block with \"asOf\": \"2026-08-10\" plus explanatory text). Implementation matches: src/mcp/tools/recall.ts:132 defines `asOf: z.string().optional()` and uses it at lines 457-507. Tests pass: `npx vitest run src/mcp/tools/recall-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. [resolution 0.28; docs/api/mcp-tools.md]\ndocs/api/mcp-tools.md fully documents the recall asOf parameter with type, description, and usage example, matching the implementation and passing tests.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/mcp-tools.md documents asOf parameter with type, description, and usage example",
+                "status": "PASS",
+                "detail": "docs/api/mcp-tools.md:114 documents `asOf?: string;` with type (string), description ('RETR-004: ISO-8601 date or git ref (commit/branch/tag) \u2014 read namespace state as it existed at that point in git history. Cannot combine with query/contains...'), and a usage example at lines 152-158 ('Time travel (RETR-004)' JSON block with \"asOf\": \"2026-08-10\" plus explanatory text). Implementation matches: src/mcp/tools/recall.ts:132 defines `asOf: z.string().optional()` and uses it at lines 457-507. Tests pass: `npx vitest run src/mcp/tools/recall-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. [resolution 0.28; docs/api/mcp-tools.md]",
+                "resolution_probability": 0.28,
+                "cited_path": "docs/api/mcp-tools.md"
+              }
+            ],
+            "summary": "docs/api/mcp-tools.md fully documents the recall asOf parameter with type, description, and usage example, matching the implementation and passing tests."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0924-03\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/mcp-tools.md documents asOf parameter with type, description, and usage example: docs/api/mcp-tools.md:114 documents `asOf?: string;` with type (string), description ('RETR-004: ISO-8601 date or git ref (commit/branch/tag) \u2014 read namespace state as it existed at that point in git history. Cannot combine with query/contains...'), and a usage example at lines 152-158 ('Time travel (RETR-004)' JSON block with \"asOf\": \"2026-08-10\" plus explanatory text). Implementation matches: src/mcp/tools/recall.ts:132 defines `asOf: z.string().optional()` and uses it at lines 457-507. Tests pass: `npx vitest run src/mcp/tools/recall-asof-retr004.test.ts` exit_code 0, 'Test Files 1 passed (1), Tests 9 passed (9)'. [resolution 0.28; docs/api/mcp-tools.md]\ndocs/api/mcp-tools.md fully documents the recall asOf parameter with type, description, and usage example, matching the implementation and passing tests.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-29T02:43:43.328008",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-29T02:43:43.348122+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1630,
+        "truncated": false,
+        "source": "git show 92f987b6c649"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 751,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0924-03"
+  }
+}

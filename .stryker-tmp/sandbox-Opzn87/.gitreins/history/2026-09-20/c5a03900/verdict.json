@@ -1,0 +1,99 @@
+{
+  "task_id": "DB-GAP-051",
+  "task_title": "Segment consolidation + oversize-segment split for JSONL partitions",
+  "task_criteria": [
+    "src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition yields fewer files with byte-identical record order and every output within the 1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments with exact record-count preservation; the operation is idempotent (second run writes nothing) and never overwrites an existing segment name; dry-run writes nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match the live unit run; live-proof numbers on a COPIED real partition are reported and namespaces/ in the working tree is unchanged."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "a0e2996a25325f044a1ffec494e56db0296186bc",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n7:13AM INF scanned ~8269143 bytes (8.27 MB) in 1.64s\n7:13AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 199528 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n \u276f src/serialization/ddl-views.test.ts (2 tests | 1 failed) 27785ms\n   \u276f SUPA-6 view declarations (2)\n     \u00d7 dependency cycle and exposed-shape drift are rejected 16654ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/serialization/ddl-views.test.ts > SUPA-6 view declarations > dependency cycle and exposed-shape drift are rejected\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/serialization/ddl-views.test.ts:131:3\n    129|   });\n    130|\n    131|   it(\"dependency cycle and exposed-shape drift are rejected\", async ()\u2026\n       |   ^\n    132|     const root = makeRoot();\n    133|     await createTable(\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 158 passed (159)\n      Tests  1 failed | 1264 passed (1265)\n   Start at  07:13:11\n   Duration  145.04s (tests 91%, import 7%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition yields fewer files with byte-identical record order and every output within the 1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments with exact record-count preservation; the operation is idempotent (second run writes nothing) and never overwrites an existing segment name; dry-run writes nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match the live unit run; live-proof numbers on a COPIED real partition are reported and namespaces/ in the working tree is unchanged.: src/storage/segment-consolidation.ts (846 lines) exists; exports planSegmentConsolidation (line 320) and executeSegmentConsolidation (line 669); imports compareChunkNames from \"./jsonl\" (line 66). LIVE PROOF on a COPIED real partition (cp -r namespaces/scheduler/event/2026-09 -> /tmp/liveproof/part, 16746 files / 104951 records): BEFORE files=16746 records=104951; DRY written=0 removed=0; AFTER files=173 records=104951; ORDER_IDENTICAL=true; RECORDS_PRESERVED=true; OVER_BOUND=0; SECOND_RUN written=0 removed=0. Collision probe (20 tiny + 2500-line segment + foreign current.jsonl): FOREIGN_OVERWRITE=0, WRITTEN_AND_REMOVED_OVERLAP=0, current.jsonl intact=true. RED-verified: stubbing the impl made 15/15 tests FAIL; real impl 15/15 PASS (src/storage/segment-consolidation.test.ts covers merge/split/counts/idempotence/collision/dry-run). `npx tsc --noEmit` exit 0. `npx prettier --check src/` -> 'All matched files use Prettier code style!'. `npx vitest run` -> 'Test Files 159 passed (159)', 'Tests 1265 passed (1265)' (fully green; an earlier run showed one flaky ddl-views.test.ts timeout that passes in isolation and in the confirming run). AGENTS.md lines 14/33 state '159 suites, 1265 tests' = exact match to the live run. namespaces/ git status = 0 lines; real partition still 16746 segments and 10000.jsonl untouched at 84677070 bytes.\nAll DB-GAP-051 criteria verified: module exists with plan/execute pair importing compareChunkNames, live proof on a copied real partition shows 16746->173 files with byte-identical order and exact record preservation, idempotent/dry-run/collision-safe, RED-before-GREEN tests, tsc/prettier clean, vitest fully green (159/1265 matching AGENTS.md), namespaces/ unchanged.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition yields fewer files with byte-identical record order and every output within the 1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments with exact record-count preservation; the operation is idempotent (second run writes nothing) and never overwrites an existing segment name; dry-run writes nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match the live unit run; live-proof numbers on a COPIED real partition are reported and namespaces/ in the working tree is unchanged.: src/storage/segment-consolidation.ts (846 lines) exists; exports planSegmentConsolidation (line 320) and executeSegmentConsolidation (line 669); imports compareChunkNames from \"./jsonl\" (line 66). LIVE PROOF on a COPIED real partition (cp -r namespaces/scheduler/event/2026-09 -> /tmp/liveproof/part, 16746 files / 104951 records): BEFORE files=16746 records=104951; DRY written=0 removed=0; AFTER files=173 records=104951; ORDER_IDENTICAL=true; RECORDS_PRESERVED=true; OVER_BOUND=0; SECOND_RUN written=0 removed=0. Collision probe (20 tiny + 2500-line segment + foreign current.jsonl): FOREIGN_OVERWRITE=0, WRITTEN_AND_REMOVED_OVERLAP=0, current.jsonl intact=true. RED-verified: stubbing the impl made 15/15 tests FAIL; real impl 15/15 PASS (src/storage/segment-consolidation.test.ts covers merge/split/counts/idempotence/collision/dry-run). `npx tsc --noEmit` exit 0. `npx prettier --check src/` -> 'All matched files use Prettier code style!'. `npx vitest run` -> 'Test Files 159 passed (159)', 'Tests 1265 passed (1265)' (fully green; an earlier run showed one flaky ddl-views.test.ts timeout that passes in isolation and in the confirming run). AGENTS.md lines 14/33 state '159 suites, 1265 tests' = exact match to the live run. namespaces/ git status = 0 lines; real partition still 16746 segments and 10000.jsonl untouched at 84677070 bytes.\nAll DB-GAP-051 criteria verified: module exists with plan/execute pair importing compareChunkNames, live proof on a copied real partition shows 16746->173 files with byte-identical order and exact record preservation, idempotent/dry-run/collision-safe, RED-before-GREEN tests, tsc/prettier clean, vitest fully green (159/1265 matching AGENTS.md), namespaces/ unchanged.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition yields fewer files with byte-identical record order and every output within the 1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments with exact record-count preservation; the operation is idempotent (second run writes nothing) and never overwrites an existing segment name; dry-run writes nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match the live unit run; live-proof numbers on a COPIED real partition are reported and namespaces/ in the working tree is unchanged.",
+                "status": "PASS",
+                "detail": "src/storage/segment-consolidation.ts (846 lines) exists; exports planSegmentConsolidation (line 320) and executeSegmentConsolidation (line 669); imports compareChunkNames from \"./jsonl\" (line 66). LIVE PROOF on a COPIED real partition (cp -r namespaces/scheduler/event/2026-09 -> /tmp/liveproof/part, 16746 files / 104951 records): BEFORE files=16746 records=104951; DRY written=0 removed=0; AFTER files=173 records=104951; ORDER_IDENTICAL=true; RECORDS_PRESERVED=true; OVER_BOUND=0; SECOND_RUN written=0 removed=0. Collision probe (20 tiny + 2500-line segment + foreign current.jsonl): FOREIGN_OVERWRITE=0, WRITTEN_AND_REMOVED_OVERLAP=0, current.jsonl intact=true. RED-verified: stubbing the impl made 15/15 tests FAIL; real impl 15/15 PASS (src/storage/segment-consolidation.test.ts covers merge/split/counts/idempotence/collision/dry-run). `npx tsc --noEmit` exit 0. `npx prettier --check src/` -> 'All matched files use Prettier code style!'. `npx vitest run` -> 'Test Files 159 passed (159)', 'Tests 1265 passed (1265)' (fully green; an earlier run showed one flaky ddl-views.test.ts timeout that passes in isolation and in the confirming run). AGENTS.md lines 14/33 state '159 suites, 1265 tests' = exact match to the live run. namespaces/ git status = 0 lines; real partition still 16746 segments and 10000.jsonl untouched at 84677070 bytes."
+              }
+            ],
+            "summary": "All DB-GAP-051 criteria verified: module exists with plan/execute pair importing compareChunkNames, live proof on a copied real partition shows 16746->173 files with byte-identical order and exact record preservation, idempotent/dry-run/collision-safe, RED-before-GREEN tests, tsc/prettier clean, vitest fully green (159/1265 matching AGENTS.md), namespaces/ unchanged."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-051\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/storage/segment-consolidation.ts exists and exports a plan/execute pair importing compareChunkNames from ./jsonl; merging N tiny segments in a scratch partition yields fewer files with byte-identical record order and every output within the 1000-line/1MB bound; a >1000-line or >1MB segment splits into bounded segments with exact record-count preservation; the operation is idempotent (second run writes nothing) and never overwrites an existing segment name; dry-run writes nothing; a new vitest file covers merge/split/counts/idempotence/collision/dry-run and is RED-verified before GREEN; npx tsc --noEmit exits 0; npx prettier --check src/ is clean; npx vitest run is fully green; AGENTS.md suite/test counts match the live unit run; live-proof numbers on a COPIED real partition are reported and namespaces/ in the working tree is unchanged.: src/storage/segment-consolidation.ts (846 lines) exists; exports planSegmentConsolidation (line 320) and executeSegmentConsolidation (line 669); imports compareChunkNames from \"./jsonl\" (line 66). LIVE PROOF on a COPIED real partition (cp -r namespaces/scheduler/event/2026-09 -> /tmp/liveproof/part, 16746 files / 104951 records): BEFORE files=16746 records=104951; DRY written=0 removed=0; AFTER files=173 records=104951; ORDER_IDENTICAL=true; RECORDS_PRESERVED=true; OVER_BOUND=0; SECOND_RUN written=0 removed=0. Collision probe (20 tiny + 2500-line segment + foreign current.jsonl): FOREIGN_OVERWRITE=0, WRITTEN_AND_REMOVED_OVERLAP=0, current.jsonl intact=true. RED-verified: stubbing the impl made 15/15 tests FAIL; real impl 15/15 PASS (src/storage/segment-consolidation.test.ts covers merge/split/counts/idempotence/collision/dry-run). `npx tsc --noEmit` exit 0. `npx prettier --check src/` -> 'All matched files use Prettier code style!'. `npx vitest run` -> 'Test Files 159 passed (159)', 'Tests 1265 passed (1265)' (fully green; an earlier run showed one flaky ddl-views.test.ts timeout that passes in isolation and in the confirming run). AGENTS.md lines 14/33 state '159 suites, 1265 tests' = exact match to the live run. namespaces/ git status = 0 lines; real partition still 16746 segments and 10000.jsonl untouched at 84677070 bytes.\nAll DB-GAP-051 criteria verified: module exists with plan/execute pair importing compareChunkNames, live proof on a copied real partition shows 16746->173 files with byte-identical order and exact record preservation, idempotent/dry-run/collision-safe, RED-before-GREEN tests, tsc/prettier clean, vitest fully green (159/1265 matching AGENTS.md), namespaces/ unchanged.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-20T12:24:02.273768",
+  "evidence": {
+    "collected_at": "2026-09-20T12:24:02.304728+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 66249,
+        "truncated": false,
+        "source": "git show a0e2996a2532"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 538,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-051"
+  }
+}

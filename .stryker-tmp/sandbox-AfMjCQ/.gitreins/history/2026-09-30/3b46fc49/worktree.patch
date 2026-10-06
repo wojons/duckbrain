@@ -1,0 +1,165 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 42d69e3..d2784e5 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2177,3 +2177,11 @@ tasks:
+   status: complete
+   created_at: '2026-09-30T13:10:49.620073+00:00'
+   completed_at: '2026-09-30T13:24:12.228920+00:00'
++- id: QA-DUCKBRAIN-006
++  title: package-lock.json stale after DEPS-004 (docker npm ci dead)
++  criteria:
++  - npm ci --dry-run exits 0 at HEAD; fresh clone npm ci succeeds; lockfile matches
++    package.json
++  status: complete
++  created_at: '2026-09-30T13:59:58.506220+00:00'
++  completed_at: '2026-09-30T14:05:11.087703+00:00'
+diff --git a/src/cli/auth-default-review-006.test.ts b/src/cli/auth-default-review-006.test.ts
+index 92f5a22..a388ba0 100644
+--- a/src/cli/auth-default-review-006.test.ts
++++ b/src/cli/auth-default-review-006.test.ts
+@@ -136,7 +136,8 @@ function requestStatus(
+ }
+ 
+ function killChild(child: ChildProcess): Promise<void> {
+-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
++  if (child.exitCode !== null || child.signalCode !== null)
++    return Promise.resolve();
+   return new Promise((resolve) => {
+     const timer = setTimeout(() => {
+       child.kill("SIGKILL");
+diff --git a/src/cli/http-health-dbgap035.test.ts b/src/cli/http-health-dbgap035.test.ts
+index 517d51d..921d85f 100644
+--- a/src/cli/http-health-dbgap035.test.ts
++++ b/src/cli/http-health-dbgap035.test.ts
+@@ -137,7 +137,8 @@ describe("HEALTH-KEYS-UNDEFINED-001: fresh install /health is healthy", () => {
+       expect((captured.body as any).keys_error).toBeNull();
+       expect(JSON.stringify(captured.body)).not.toContain("undefined");
+     } finally {
+-      if (savedNsPath === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++      if (savedNsPath === undefined)
++        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+       else process.env.DUCKBRAIN_NAMESPACES_PATH = savedNsPath;
+       if (savedNsName === undefined) delete process.env.DUCKBRAIN_NAMESPACE;
+       else process.env.DUCKBRAIN_NAMESPACE = savedNsName;
+diff --git a/src/duckdb/queries-dedup-mixed-timestamp.test.ts b/src/duckdb/queries-dedup-mixed-timestamp.test.ts
+index 3147455..f33d75a 100644
+--- a/src/duckdb/queries-dedup-mixed-timestamp.test.ts
++++ b/src/duckdb/queries-dedup-mixed-timestamp.test.ts
+@@ -86,10 +86,18 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
+   it("same id, mixed formats: the NEWER (+00:00 microsecond) version wins, not the lexicographically-last Z version", async () => {
+     seed([
+       // OLDER: .749Z = 749.000ms.
+-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749Z" }),
++      line({
++        id: OLDER_ID,
++        key: "/dedup/mixed",
++        timestamp: "2026-08-07T09:27:00.749Z",
++      }),
+       // NEWER: .749525+00:00 = 749.525ms. A lexicographic DESC sorts the
+       // '.749Z' row first ('Z' 0x5A > '5' 0x35) and would hide this one.
+-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749525+00:00" }),
++      line({
++        id: OLDER_ID,
++        key: "/dedup/mixed",
++        timestamp: "2026-08-07T09:27:00.749525+00:00",
++      }),
+     ]);
+ 
+     const rows = await queryMemories(db, [partition], {
+@@ -102,8 +110,16 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
+ 
+   it("count agrees with the query: exactly one live version survives the dedup", async () => {
+     seed([
+-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749Z" }),
+-      line({ id: OLDER_ID, key: "/dedup/mixed", timestamp: "2026-08-07T09:27:00.749525+00:00" }),
++      line({
++        id: OLDER_ID,
++        key: "/dedup/mixed",
++        timestamp: "2026-08-07T09:27:00.749Z",
++      }),
++      line({
++        id: OLDER_ID,
++        key: "/dedup/mixed",
++        timestamp: "2026-08-07T09:27:00.749525+00:00",
++      }),
+     ]);
+ 
+     const total = await countMemories(db, [partition], {
+@@ -114,9 +130,18 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
+ 
+   it("a mixed-format TOMBSTONE still outranks an older add and excludes the memory", async () => {
+     seed([
+-      line({ id: TOMB_ID, key: "/dedup/tomb", timestamp: "2026-08-10T00:00:00.749Z" }),
++      line({
++        id: TOMB_ID,
++        key: "/dedup/tomb",
++        timestamp: "2026-08-10T00:00:00.749Z",
++      }),
+       // Tombstone at a NEWER instant, but lexicographically EARLIER.
+-      line({ id: TOMB_ID, key: "/dedup/tomb", timestamp: "2026-08-10T00:00:00.749525+00:00", action: "tombstone" }),
++      line({
++        id: TOMB_ID,
++        key: "/dedup/tomb",
++        timestamp: "2026-08-10T00:00:00.749525+00:00",
++        action: "tombstone",
++      }),
+     ]);
+ 
+     const rows = await queryMemories(db, [partition], {
+@@ -131,7 +156,11 @@ describe("SYNC-2026-09-28-001: dedup keeps the newest version across mixed times
+     // NULLS LAST must never let it win over a later parseable version.
+     seed([
+       line({ id: NULL_ID, key: "/dedup/null", timestamp: null }),
+-      line({ id: NULL_ID, key: "/dedup/null", timestamp: "2026-08-20T00:00:00.000Z" }),
++      line({
++        id: NULL_ID,
++        key: "/dedup/null",
++        timestamp: "2026-08-20T00:00:00.000Z",
++      }),
+     ]);
+ 
+     const rows = await queryMemories(db, [partition], {
+diff --git a/src/git/attribution.test.ts b/src/git/attribution.test.ts
+index ff6f2b4..827316b 100644
+--- a/src/git/attribution.test.ts
++++ b/src/git/attribution.test.ts
+@@ -110,7 +110,9 @@ describe("DF-0930-01: bare-host git email falls back to the default", () => {
+ 
+   it("valid git email test@example.com is used as-is", async () => {
+     mockedExecSync.mockImplementation(((cmd: string | Buffer) => {
+-      return cmd === "git config user.email" ? "test@example.com\n" : "Test User\n";
++      return cmd === "git config user.email"
++        ? "test@example.com\n"
++        : "Test User\n";
+     }) as typeof execSync);
+     const { getAuthorEmail, getAuthorName } = await import("./attribution.js");
+ 
+@@ -121,9 +123,8 @@ describe("DF-0930-01: bare-host git email falls back to the default", () => {
+   it("schema validation of a full memory accepts the default but rejects the bare-host value", async () => {
+     // Pins the fixture contract: the bare-host email is exactly what the
+     // strict schema rejects, and the default is what it accepts.
+-    const { safeValidateMemory, createMemory } = await import(
+-      "../schema/memory.js"
+-    );
++    const { safeValidateMemory, createMemory } =
++      await import("../schema/memory.js");
+ 
+     const rejected = safeValidateMemory(
+       createMemory({
+diff --git a/src/mcp/tools/remember-recall-durability.test.ts b/src/mcp/tools/remember-recall-durability.test.ts
+index fe243ab..7acd134 100644
+--- a/src/mcp/tools/remember-recall-durability.test.ts
++++ b/src/mcp/tools/remember-recall-durability.test.ts
+@@ -36,7 +36,10 @@ describe("SYNC-2026-09-28-001: write (201) -> immediate recall -> visible", () =
+     oldNs = process.env.DUCKBRAIN_NAMESPACES_PATH;
+     oldCfg = process.env.DUCKBRAIN_CONFIG_PATH;
+     process.env.DUCKBRAIN_NAMESPACES_PATH = root;
+-    process.env.DUCKBRAIN_CONFIG_PATH = path.join(root, "duckbrain.config.json");
++    process.env.DUCKBRAIN_CONFIG_PATH = path.join(
++      root,
++      "duckbrain.config.json",
++    );
+     resetSerializerStateForTests();
+   });
+ 

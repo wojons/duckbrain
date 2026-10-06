@@ -1,0 +1,32 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 18bed48..cad5b13 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2346,3 +2346,27 @@ tasks:
+   status: complete
+   created_at: '2026-10-06T15:00:47.976236+00:00'
+   completed_at: '2026-10-06T15:02:56.969578+00:00'
++- id: DEPS-DUCKBRAIN-2026-10-04
++  title: Review and update 9 outdated Node packages
++  criteria:
++  - pnpm outdated shows 0 outdated packages in scope; touched package groups updated
++    coherently (simple-git major bump handled or deferred with recorded reason); tsc
++    --noEmit clean; touched-area test suites green; lockfile diff limited to intended
++    packages
++  status: complete
++  created_at: '2026-10-06T15:37:59.126713+00:00'
++  completed_at: '2026-10-06T15:48:21.264218+00:00'
++- id: DB-GAP-059
++  title: Fix orphaned scratch daemons in integration tests
++  criteria:
++  - "tests/helpers.ts: (a) curl probes must have --max-time; (b) scratch daemons need\
++    \ process-level reaper; (c) pin isolated namespace root + port for all test daemons.\
++    \ AC: (1) stuck curl fails test instead of hanging (assert timeout in <15s on\
++    \ a stalled probe), (2) after test hard-kill, orphaned duckbrain http processes\
++    \ are detected and killed (assert no duckbrain http processes survive >60s after\
++    \ test exit), (3) scratch daemons never inherit host config \u2014 assert DUCKBRAIN_NAMESPACES_PATH\
++    \ and port are set. Evidence: repro script that spawns daemon, hangs curl, verifies\
++    \ suite timeout; post-kill process scan."
++  status: complete
++  created_at: '2026-10-06T16:06:01.172246+00:00'
++  completed_at: '2026-10-06T16:11:03.780337+00:00'

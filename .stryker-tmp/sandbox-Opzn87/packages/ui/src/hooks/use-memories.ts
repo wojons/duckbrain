@@ -1,0 +1,270 @@
+/**
+ * Memories Hooks
+ *
+ * TanStack Query hooks for memory CRUD operations.
+ * Provides caching, automatic refetching, and mutations.
+ */
+// @ts-nocheck
+
+
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
+import { memoriesApi } from "../lib/api-client";
+import {
+  CreateMemoryRequest,
+  UpdateMemoryRequest,
+} from "../../../../src/http/types/api";
+
+// Query keys for cache invalidation
+const memoriesKeys = {
+  all: ["memories"] as const,
+  lists: () => [...memoriesKeys.all, "list"] as const,
+  list: (filters: Record<string, unknown>) =>
+    [...memoriesKeys.lists(), filters] as const,
+  details: () => [...memoriesKeys.all, "detail"] as const,
+  detail: (id: string) => [...memoriesKeys.details(), "by-id-v2", id] as const, // Changed key to break old cache
+};
+
+// Query keys for key-based lookups
+const memoryByKeyKeys = {
+  all: ["memory-by-key"] as const,
+  detail: (key: string) => [...memoryByKeyKeys.all, "by-key", key] as const,
+};
+
+interface UseMemoriesParams {
+  prefix?: string;
+  limit?: number;
+  offset?: number;
+  domain?: string;
+  author?: string;
+  query?: string;
+  namespace?: string;
+  cursor?: string;
+  /** Only memories created after this ISO-8601 instant. */
+  after?: string;
+  /** Only memories created before this ISO-8601 instant. */
+  before?: string;
+  /** Point-in-time selector — sent as ?as_of=. */
+  asOf?: string;
+  /** RETR-007: search every manifest namespace in one request. */
+  allNamespaces?: boolean;
+}
+
+/**
+ * Hook to fetch memories list with caching
+ */
+export function useMemories(params: UseMemoriesParams = {}) {
+  const {
+    prefix,
+    limit,
+    offset,
+    domain,
+    author,
+    query,
+    namespace,
+    after,
+    before,
+    asOf,
+    allNamespaces,
+  } = params;
+
+  return useQuery({
+    queryKey: memoriesKeys.list({
+      prefix,
+      limit,
+      offset,
+      domain,
+      author,
+      query,
+      namespace,
+      after,
+      before,
+      asOf,
+      allNamespaces,
+    }),
+    queryFn: () =>
+      memoriesApi.list({
+        prefix,
+        limit,
+        offset,
+        domain,
+        author,
+        query,
+        namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
+      }),
+    staleTime: 30 * 1000, // 30 seconds
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Hook for infinite scroll pagination
+ */
+export function useInfiniteMemories(
+  params: Omit<UseMemoriesParams, "cursor"> = {},
+) {
+  const {
+    prefix,
+    limit = 50,
+    domain,
+    author,
+    query,
+    namespace,
+    after,
+    before,
+    asOf,
+    allNamespaces,
+  } = params;
+
+  return useInfiniteQuery({
+    queryKey: [
+      ...memoriesKeys.lists(),
+      "infinite",
+      {
+        prefix,
+        limit,
+        domain,
+        author,
+        query,
+        namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
+      },
+    ],
+    queryFn: async ({ pageParam }) => {
+      const result = await memoriesApi.list({
+        prefix,
+        limit,
+        offset: pageParam || 0,
+        domain,
+        author,
+        query,
+        namespace,
+        after,
+        before,
+        asOf,
+        allNamespaces,
+      });
+      return result;
+    },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.hasMore) {
+        return lastPage.nextOffset || lastPage.offset + lastPage.limit;
+      }
+      return undefined;
+    },
+    initialPageParam: 0,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Check if a string looks like a UUID
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+/**
+ * Hook to fetch a single memory by ID (UUID only)
+ */
+export function useMemory(id: string, namespace?: string) {
+  return useQuery({
+    queryKey: memoriesKeys.detail(id),
+    queryFn: () => memoriesApi.get(id, namespace),
+    enabled: !!id && isUUID(id), // Only run if ID looks like a UUID
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook to fetch a single memory by key path (used by Tree)
+ * Key path example: /test/batch-1
+ */
+export function useMemoryByKey(key: string, namespace?: string) {
+  return useQuery({
+    queryKey: memoryByKeyKeys.detail(key),
+    queryFn: () => memoriesApi.getByKey(key, namespace),
+    enabled: !!key && key.startsWith("/"), // Only run if key looks like a path
+    staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook to create a new memory
+ */
+export function useCreateMemory(namespace?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateMemoryRequest) =>
+      memoriesApi.create(data, namespace),
+    onSuccess: () => {
+      // Invalidate memories list to refetch
+      queryClient.invalidateQueries({ queryKey: memoriesKeys.lists() });
+      // Also invalidate keys since a new key may have been added
+      queryClient.invalidateQueries({ queryKey: ["keys"] });
+    },
+  });
+}
+
+/**
+ * Hook to update an existing memory
+ */
+export function useUpdateMemory(namespace?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateMemoryRequest }) =>
+      memoriesApi.update(id, data, namespace),
+    onSuccess: (result) => {
+      // Invalidate the specific memory
+      queryClient.invalidateQueries({
+        queryKey: memoriesKeys.detail(result.id),
+      });
+      // Invalidate memories list
+      queryClient.invalidateQueries({ queryKey: memoriesKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Hook to delete (forget) a memory
+ */
+export function useForgetMemory(namespace?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => memoriesApi.delete(id, namespace),
+    onSuccess: () => {
+      // Invalidate all memory queries
+      queryClient.invalidateQueries({ queryKey: memoriesKeys.all });
+      // Invalidate keys since a memory was removed
+      queryClient.invalidateQueries({ queryKey: ["keys"] });
+    },
+  });
+}
+
+/**
+ * Hook to fetch memory versions
+ */
+export function useMemoryVersions(id: string, namespace?: string) {
+  return useQuery({
+    queryKey: [...memoriesKeys.detail(id), "versions"],
+    queryFn: () => memoriesApi.getVersions(id, namespace),
+    enabled: !!id,
+  });
+}

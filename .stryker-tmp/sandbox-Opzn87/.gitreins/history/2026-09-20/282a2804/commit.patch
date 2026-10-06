@@ -1,0 +1,77 @@
+commit 73c298d426a948eb91b7246a8808d8a1033a1c2b
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Sep 19 21:14:46 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Sep 19 21:14:46 2026 -0500
+
+    chore(gitreins): wave duckbrain-2026-09-20-01-17-40 — 4 task lifecycles started
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml | 56 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 56 insertions(+)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index de61f63..b387701 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1527,3 +1527,59 @@ tasks:
+   status: complete
+   created_at: '2026-09-19T20:50:35.156615+00:00'
+   completed_at: '2026-09-19T21:51:32.192763+00:00'
++- id: DB-GAP-048
++  title: s3 query honors AWS_PROFILE
++  criteria:
++  - 'src/s3/query.ts resolves S3 credentials for the DuckDB httpfs layer in this precedence:
++    (1) direct env AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (or DUCKBRAIN_S3_* overrides)
++    are used verbatim with no SDK call; (2) else, when a profile is named via env
++    AWS_PROFILE or cfg.profile, the AWS SDK v3 credential chain resolves it and the
++    key/secret/session token are set on the httpfs session for the query; (3) else
++    nothing is injected and httpfs raises its own authentication error. An unresolvable
++    named profile fails loudly naming the profile. New tests in src/s3/cli-query.test.ts
++    cover direct-keys-precedence, profile-fallback credential injection (asserted
++    on the SQL issued to DuckDB, hermetic), cfg.profile fallback and env precedence,
++    no-credentials unchanged failure, and loud unresolvable-profile failure. Full
++    npx vitest run green (155 files / 1226 tests) and npx tsc --noEmit clean on the
++    merged tree.'
++  status: in_progress
++  created_at: '2026-09-20T02:14:41.994381+00:00'
++- id: DF-0919-04
++  title: /health aggregate ignores unconfigured providers
++  criteria:
++  - 'src/embedding/health.ts distinguishes CONFIGURED from UNCONFIGURED embedding
++    providers: a provider with no credentials configured (keyless openai, note ''missing
++    API key'') does NOT drag the /health aggregate to degraded/unhealthy, while still
++    appearing in providers[] with healthy:false and its note. A provider that IS configured
++    and fails (timeout / HTTP error / capability gate) still degrades the aggregate.
++    New tests in src/embedding/health-dogfood020.test.ts cover keyless-openai + healthy-local
++    aggregate healthy, keyless-openai-alone not fake-green, configured-openai HTTP
++    500 still degrading, and providers[] still listing the keyless provider. Full
++    npx vitest run green and tsc clean on the merged tree.'
++  status: in_progress
++  created_at: '2026-09-20T02:14:42.456469+00:00'
++- id: DF-0919-06
++  title: remember warns only when namespace omitted
++  criteria:
++  - "src/mcp/tools/remember.ts emits response.warning ONLY when the caller omitted\
++    \ the namespace argument and the resolved (sticky active) namespace is not 'default'.\
++    \ An explicit namespace argument \u2014 including one equal to the active namespace,\
++    \ and including 'default' \u2014 never produces the warning. The warning text\
++    \ is unchanged for the genuine sticky-surprise case. Tests in src/mcp/tools/remember-recall-namespace-dogfood017.test.ts\
++    \ cover explicit non-default (no warning), explicit equal to sticky active (no\
++    \ warning), omitted with non-default sticky (warning present with the DOGFOOD-017\
++    \ text), and explicit default (no warning). Full npx vitest run green and tsc\
++    \ clean on the merged tree."
++  status: in_progress
++  created_at: '2026-09-20T02:14:42.937450+00:00'
++- id: DOC-1
++  title: document duckbrain consolidate CLI
++  criteria:
++  - 'skills/duckbrain-usage/SKILL.md documents the duckbrain consolidate command (purpose,
++    --date, --write-digest, --digest-content=FILE, --help, DUCKBRAIN_API_KEY/DUCKBRAIN_API_URL
++    env, the implicit-write-mode caveat) with flags matching the live consolidate
++    --help output, including a real executed dry-run transcript. README.md mentions
++    the command in its CLI surface. The diff is documentation only: README.md and
++    skills/duckbrain-usage/SKILL.md, no src/ changes and no new test files.'
++  status: in_progress
++  created_at: '2026-09-20T02:14:43.440407+00:00'

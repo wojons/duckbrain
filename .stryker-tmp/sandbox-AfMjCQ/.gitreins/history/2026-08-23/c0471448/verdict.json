@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-036-2",
+  "task_title": "Restore embedding health on live :3000 daemon (DB-GAP-036 reopen)",
+  "task_criteria": [
+    "GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1 returns HTTP 200 with items"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m11:57PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12272853 bytes (12.27 MB) in 3.62s\u001b[0m\n\u001b[90m11:57PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m11:57PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12272853 bytes (12.27 MB) in 3.62s\u001b[0m\n\u001b[90m11:57PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-timerange-retr003.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1058\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m8 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1116\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1218\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-validuntil-retr011.test.ts \u001b[2m(\u001b[22m\u001b[",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1 returns HTTP 200 with items: Live :3000 daemon verified: curl localhost:3000/health returns HTTP 200 with embedding.healthy:true and providers lmstudio healthy:true, ollama healthy:true (>=1 healthy). curl 'localhost:3000/api/memories?namespace=coding-hermes&q=test&limit=1' returns HTTP 200 with items array containing 1 item (id 27d55c0a-3573-4dc5-8314-fb00cf314972).\nEmbedding health restored on live :3000 daemon \u2014 /health shows >=1 healthy embedding provider and /api/memories returns HTTP 200 with items.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1 returns HTTP 200 with items: Live :3000 daemon verified: curl localhost:3000/health returns HTTP 200 with embedding.healthy:true and providers lmstudio healthy:true, ollama healthy:true (>=1 healthy). curl 'localhost:3000/api/memories?namespace=coding-hermes&q=test&limit=1' returns HTTP 200 with items array containing 1 item (id 27d55c0a-3573-4dc5-8314-fb00cf314972).\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1 returns HTTP 200 with items",
+                "status": "PASS",
+                "detail": "Live :3000 daemon verified: curl localhost:3000/health returns HTTP 200 with embedding.healthy:true and providers lmstudio healthy:true, ollama healthy:true (>=1 healthy). curl 'localhost:3000/api/memories?namespace=coding-hermes&q=test&limit=1' returns HTTP 200 with items array containing 1 item (id 27d55c0a-3573-4dc5-8314-fb00cf314972)."
+              }
+            ],
+            "summary": "Embedding health restored on live :3000 daemon \u2014 /health shows >=1 healthy embedding provider and /api/memories returns HTTP 200 with items."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-036-2\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m11:57PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~12272853 bytes (12.27 MB) in 3.62s\u001b[0m\n\u001b[90m11:57PM\u001b[0m \u001b\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /health shows >=1 embedding provider healthy:true AND GET /api/memories?namespace=coding-hermes&q=<term>&limit=1 returns HTTP 200 with items: Live :3000 daemon verified: curl localhost:3000/health returns HTTP 200 with embedding.healthy:true and providers lmstudio healthy:true, ollama healthy:true (>=1 healthy). curl 'localhost:3000/api/memories?namespace=coding-hermes&q=test&limit=1' returns HTTP 200 with items array containing 1 item (id 27d55c0a-3573-4dc5-8314-fb00cf314972).\nEmbedding health restored on live :3000 daemon \u2014 /health shows >=1 healthy embedding provider and /api/memories returns HTTP 200 with items.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-23T04:57:55.394632"
+}

@@ -1,0 +1,26 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index a0aba78..c35c1d6 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1337,3 +1337,4 @@
+ {"id":8046,"timestamp":"2026-10-03T03:25:18.512123+00:00","type":"task_dispatched","tick":613,"actor":"foreman","task_id":"DF-0926-05","detail":"worker glm-5.3-flash@zai-glm-default worktree /home/kara/worktrees/duckbrain-DF-0926-05 branch wt/DF-0926-05; brief /tmp/brief-DF-0926-05.md"}
+ {"id":8047,"timestamp":"2026-10-03T03:25:18.512131+00:00","type":"task_completed","tick":613,"actor":"foreman","task_id":"DF-0926-05","commit_hash":"b156d6f","ch:trace":"row=DF-0926-05 wave=duckbrain-foreman-2026-10-03-00-46-49 evidence=.gitreins/history/2026-10-03/ (verdicts d9303dbe) commit=b156d6f witness=path@origin:examples/custom-storage/README.md"}
+ {"id":8048,"timestamp":"2026-10-03T03:25:18.512441+00:00","type":"audit","tick":613,"actor":"foreman","detail":"{\"tick\": 613, \"summary\": \"Wave tick (budget 2): DF-0924-10 + DF-0926-05 docs-integrity fixes. Repo self-heal first: committed stranded DB-GAP-063 board row (02237b1), rebased onto origin/main, pushed backlog (17 commits landed by strand-push cron). Two docs workers (glm-5.3-flash@zai-glm-default, worktrees wt/DF-0924-10 + wt/DF-0926-05) merged 4de8852/5a83fba. Judge follow-up: a9ba39be caught src/ssh/client.ts npm fiction, fixed foreman-direct 09b0dff. 6-file prettier drift chore 561d684 (pre-existing sibling drift). gitreins test_timeout raised 300->1800 (proven starved at 300 and 900 under load). Local suite red only under loadavg 50-80 (timeout/ENOTEMPTY/O_DIRECT-EINVAL classes, all discriminated environmental; CI full-suite green on 561d684+09b0dff).\", \"gates\": {\"git\": \"clean after closeout; 0 unpushed (verified)\", \"ci\": \"success on 09b0dff (head) + 561d684 \\u2014 full suite + tsc green\", \"judge\": \"tier2 PASS x4 total; tier1 tests-leg timeout x4 environmental (see config.yaml note)\", \"battery\": \"local unit suite attempted x3 under loadavg 50-80; reds = hook-timeout/ENOTEMPTY/O_DIRECT-EINVAL classes, isolation re-runs at raised budgets still red under load; GitHub CI = authoritative green\"}, \"tasks_open\": 34, \"notes\": \"Wave manifest .coding-hermes/waves/duckbrain-foreman-2026-10-03-00-46-49.json. Off-by-one: no debugging done this tick (docs-only) \\u2014 no discover, no submit. Release-CUT-001 remains owner-gated P1. Fleet strand-push cron landed backlog mid-tick.\"}"}
++{"id":8049,"timestamp":"2026-10-03T05:13:09.743861+00:00","type":null,"tick":null,"actor":"foreman","detail":"{\"id\":\"DEPS-005\",\"status\":\"pending\"}","event_type":"task_created","task_id":"DEPS-005"}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 235c420..bb6b1f2 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2274,3 +2274,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-03T02:18:38.984962+00:00'
+   completed_at: '2026-10-03T03:01:32.934574+00:00'
++- id: DF-0926-06
++  title: Fix key-path validation HTTP status
++  criteria:
++  - POST /api/memories with key missing leading slash returns 400 VALIDATION_ERROR
++    instead of 500; test asserts 400 + error message contains 'key must be a filesystem-style
++    path'
++  status: complete
++  created_at: '2026-10-03T06:54:15.844534+00:00'
++  completed_at: '2026-10-03T07:04:46.222190+00:00'

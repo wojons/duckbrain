@@ -1,0 +1,460 @@
+commit 8c6c312e777c2e73013854f7bd37fbd2f9a02594
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Fri Oct 2 04:49:47 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Fri Oct 2 04:49:47 2026 -0500
+
+    fix(QA-DUCKBRAIN-003): unlink O_DIRECT residue + surface DURABILITY_* codes in HTTP envelope
+    
+    appendJsonlDirect opened the target with O_CREAT before the O_DIRECT check,
+    so a rejected open/write left the freshly-created current.jsonl behind as an
+    empty file. Now the failure path unlinks the created target (only when this
+    call would have created it — pre-existing files are never touched) and
+    rethrows the durability error unchanged.
+    
+    DurabilityError is not an ApiError, so the shared errorHandler fell through
+    to the generic 500 INTERNAL_ERROR and the machine-readable DURABILITY_* code
+    was lost from every HTTP response. Added an isDurabilityError branch that
+    emits {error, code} at status 500 (SUPA-1: durability failures fail LOUD —
+    never downgraded to 4xx).
+    
+    Tests: +2 residue tests incl. pre-existing-file negative control (RED on
+    pre-fix tree, GREEN post); +5 errorHandler envelope tests (3/5 RED pre-fix);
+    http-durability envelope assertions extended. Suite 193/1539 -> 194/1547,
+    AGENTS.md count lines synced. Verified foreman-side: red-proofs via stash
+    controls, touched suites green solo, tsc clean, prettier tree-wide clean.
+    Worker: glm-5.3-flash @ zai-glm, session 20261002_024916_af94cf.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                               | 12 +++
+ AGENTS.md                                          |  4 +-
+ src/cli/http-durability.test.ts                    | 40 +++++++++
+ .../middleware/errorHandler.durability.test.ts     | 95 +++++++++++++++++++++
+ src/http/middleware/errorHandler.ts                | 14 ++++
+ src/storage/durability.test.ts                     | 96 ++++++++++++++++++++++
+ src/storage/durability.ts                          | 65 +++++++++------
+ 7 files changed, 300 insertions(+), 26 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index b81b41d..0046c50 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2240,3 +2240,15 @@ tasks:
+   status: complete
+   created_at: '2026-10-01T21:58:19.104086+00:00'
+   completed_at: '2026-10-01T22:35:44.373372+00:00'
++- id: QA-DUCKBRAIN-003
++  title: O_DIRECT append leaves empty current.jsonl residue + DURABILITY_* surfaces
++    as bare 500
++  criteria:
++  - 'All acceptance criteria in the worker brief pass: (1) appendJsonlDirect unlinks
++    a file it created when O_DIRECT is rejected, verified by RED-then-GREEN tests
++    on an O_DIRECT-less fs (TMPDIR=/dev/shm); (2) a pre-existing direct-mode file
++    is never deleted on failure; (3) DURABILITY_* errors reach the HTTP error envelope
++    with their machine-readable code visible; (4) full unit suite + tsc + prettier
++    green; AGENTS.md counts synced'
++  status: in_progress
++  created_at: '2026-10-02T07:48:17.808448+00:00'
+diff --git a/AGENTS.md b/AGENTS.md
+index f130bf4..d1413eb 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (193 suites, 1539 tests)
++- **Test Framework:** Vitest (194 suites, 1547 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1539 tests, 193 suites
++pnpm test          # 1547 tests, 194 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/src/cli/http-durability.test.ts b/src/cli/http-durability.test.ts
+index cfc920b..e0cccf7 100644
+--- a/src/cli/http-durability.test.ts
++++ b/src/cli/http-durability.test.ts
+@@ -289,6 +289,46 @@ describe("SUPA-1/SUPA-2: direct mode is framed through the serializer", () => {
+     expect(res.headers["x-durability"]).toBe("direct");
+     expect(readNamespaceRecords(DIRECT_NS)).toHaveLength(1);
+   });
++
++  // QA-DUCKBRAIN-003 AC-3: a durability failure that surfaces through the
++  // HTTP error envelope must carry its machine-readable DURABILITY_* code,
++  // never the generic INTERNAL_ERROR. The open mock reproduces the kernel's
++  // O_DIRECT rejection (EINVAL after O_CREAT) so the failure path runs on
++  // every filesystem.
++  it("surfaces the DURABILITY_* code through the HTTP error envelope on a rejected O_DIRECT write", async () => {
++    writeConfig({
++      durability: {
++        defaultMode: "buffered",
++        overrides: { [DIRECT_NS]: "direct" },
++      },
++    });
++
++    const realOpenSync = fs.openSync.bind(fs);
++    const openSpy = vi.spyOn(fs, "openSync");
++    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
++      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
++        try {
++          realOpenSync(p, fs.constants.O_WRONLY | fs.constants.O_CREAT, 0o644);
++        } catch {
++          // ignore: the EINVAL throw below is the failure under test
++        }
++        const error: NodeJS.ErrnoException = new Error(
++          "invalid argument, open",
++        );
++        error.code = "EINVAL";
++        throw error;
++      }
++      return realOpenSync(p, flags, mode);
++    }) as any);
++
++    const res = await postMemory(DIRECT_NS, "/supa1/http/direct-rejected");
++
++    expect(res.status).toBe(500);
++    expect(String(res.body?.code)).toMatch(/^DURABILITY_/);
++    expect(res.body?.code).not.toBe("INTERNAL_ERROR");
++    // Keep it loud (SUPA-1 spec: durability failures fail at 500 deliberately).
++    expect(res.headers["x-durability"]).toBeUndefined();
++  });
+ });
+ 
+ describe("SUPA-1 AC-3: buffered mode honesty", () => {
+diff --git a/src/http/middleware/errorHandler.durability.test.ts b/src/http/middleware/errorHandler.durability.test.ts
+new file mode 100644
+index 0000000..3b0673c
+--- /dev/null
++++ b/src/http/middleware/errorHandler.durability.test.ts
+@@ -0,0 +1,95 @@
++/**
++ * QA-DUCKBRAIN-003 — DURABILITY_* codes must be visible in the HTTP error
++ * envelope. `DurabilityError` is NOT an `ApiError`, so without the dedicated
++ * branch in `errorHandler` it fell through to the generic
++ * `{"error":"Internal server error","code":"INTERNAL_ERROR"}` and the
++ * machine-readable code was lost from every response.
++ *
++ * Status stays 500 by design (SUPA-1 spec: a durability mechanism that cannot
++ * honor its contract fails the request LOUDLY — never downgraded to 4xx).
++ *
++ * These tests call the middleware directly (Express signature) so the
++ * branch logic is pinned independently of any route's own code mapping.
++ */
++
++import { describe, it, expect } from "vitest";
++import type { Request, Response, NextFunction } from "express";
++import { errorHandler, ApiError } from "./errorHandler";
++import { DurabilityError } from "../../storage/durability-errors";
++
++function runMiddleware(err: Error): { status: number; body: any } {
++  const captured: { status: number; body: any } = { status: 0, body: null };
++  const res: any = {
++    status(code: number) {
++      captured.status = code;
++      return res;
++    },
++    json(body: unknown) {
++      captured.body = body;
++      return res;
++    },
++  };
++  errorHandler(err, {} as Request, res as Response, (() => {}) as NextFunction);
++  return captured;
++}
++
++describe("QA-DUCKBRAIN-003: errorHandler surfaces DURABILITY_* codes", () => {
++  it("maps a DurabilityError to status 500 with its machine-readable code", () => {
++    const captured = runMiddleware(
++      new DurabilityError(
++        "DURABILITY_UNSUPPORTED",
++        "O_DIRECT is not supported on this filesystem for /x/current.jsonl",
++      ),
++    );
++
++    expect(captured.status).toBe(500);
++    expect(captured.body.code).toBe("DURABILITY_UNSUPPORTED");
++    expect(captured.body.error).toContain("DURABILITY_UNSUPPORTED");
++  });
++
++  it("keeps every DURABILITY_* code loud at 500 (never 4xx)", () => {
++    for (const code of [
++      "DURABILITY_UNSUPPORTED",
++      "DURABILITY_DIRECT_FRAME_ERROR",
++      "DURABILITY_FSYNC_FAILED",
++      "DURABILITY_DIR_FSYNC_UNSUPPORTED",
++      "DURABILITY_BYPASS",
++    ] as const) {
++      const captured = runMiddleware(
++        new DurabilityError(code, `probe for ${code}`),
++      );
++      expect(captured.status).toBe(500);
++      expect(captured.body.code).toBe(code);
++    }
++  });
++
++  it("does not swallow duck-typed DurabilityErrors from a twin module instance", () => {
++    // isDurabilityError() also recognizes name+code shape (two import
++    // spellings of one module must not split the envelope surface).
++    const twin = Object.assign(new Error("DURABILITY_BYPASS: twin"), {
++      name: "DurabilityError",
++      code: "DURABILITY_BYPASS",
++      status: 500,
++    });
++    const captured = runMiddleware(twin);
++
++    expect(captured.status).toBe(500);
++    expect(captured.body.code).toBe("DURABILITY_BYPASS");
++  });
++
++  it("leaves generic errors on the INTERNAL_ERROR path (no broadening)", () => {
++    const captured = runMiddleware(new Error("something else broke"));
++
++    expect(captured.status).toBe(500);
++    expect(captured.body.code).toBe("INTERNAL_ERROR");
++  });
++
++  it("leaves ApiError handling unchanged (branch must not preempt it)", () => {
++    const captured = runMiddleware(
++      new ApiError("Missing required fields", 400, "VALIDATION_ERROR"),
++    );
++
++    expect(captured.status).toBe(400);
++    expect(captured.body.code).toBe("VALIDATION_ERROR");
++  });
++});
+diff --git a/src/http/middleware/errorHandler.ts b/src/http/middleware/errorHandler.ts
+index 440f720..1665aa8 100644
+--- a/src/http/middleware/errorHandler.ts
++++ b/src/http/middleware/errorHandler.ts
+@@ -7,6 +7,7 @@
+ 
+ import { Request, Response, NextFunction } from "express";
+ import { ZodError } from "zod";
++import { isDurabilityError } from "../../storage/durability-errors";
+ 
+ /**
+  * Custom API error class with status code
+@@ -101,6 +102,19 @@ export function errorHandler(
+     return;
+   }
+ 
++  // QA-DUCKBRAIN-003: a DurabilityError is not an ApiError, so without this
++  // branch it fell through to the generic 500 INTERNAL_ERROR envelope and the
++  // machine-readable DURABILITY_* code was lost from the HTTP response. The
++  // status stays 500 by design (SUPA-1: durability failures fail LOUD — the
++  // code itself is what callers and monitoring must see).
++  if (isDurabilityError(err)) {
++    res.status(err.status).json({
++      error: err.message,
++      code: err.code,
++    });
++    return;
++  }
++
+   // Handle specific error types
+   if (err instanceof ApiError) {
+     res.status(err.status).json({
+diff --git a/src/storage/durability.test.ts b/src/storage/durability.test.ts
+index a4f718a..e712047 100644
+--- a/src/storage/durability.test.ts
++++ b/src/storage/durability.test.ts
+@@ -432,6 +432,102 @@ describe("SUPA-1 direct mode", () => {
+       /DURABILITY_DIRECT_FRAME_ERROR/,
+     );
+   });
++
++  // QA-DUCKBRAIN-003 AC-1: on a filesystem that rejects O_DIRECT the kernel
++  // honors O_CREAT BEFORE the open fails with EINVAL — the freshly-created
++  // empty target used to be left behind as residue. The open mock below
++  // reproduces exactly that observed create-then-EINVAL shape so the
++  // failure path is exercised on every filesystem.
++  it("leaves no created file behind when the O_DIRECT open fails after O_CREAT", () => {
++    const realOpenSync = fs.openSync.bind(fs);
++    const openSpy = vi.spyOn(fs, "openSync");
++    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
++      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
++        // Kernel semantics: the O_CREAT name is created first, THEN the
++        // O_DIRECT rejection lands. Recreate that residue setup.
++        try {
++          realOpenSync(p, fs.constants.O_WRONLY | fs.constants.O_CREAT, 0o644);
++        } catch {
++          // ignore: the EINVAL throw below is the failure under test
++        }
++        const error: NodeJS.ErrnoException = new Error(
++          "invalid argument, open",
++        );
++        error.code = "EINVAL";
++        throw error;
++      }
++      return realOpenSync(p, flags, mode);
++    }) as any);
++
++    const filePath = path.join(tmpDir, "event", "2026-09", "current.jsonl");
++    const framed = frameJsonlRecord(makeRecord(12));
++
++    let thrown: unknown;
++    try {
++      appendJsonlDirect(filePath, framed);
++    } catch (error) {
++      thrown = error;
++    }
++
++    expect(isDurabilityError(thrown)).toBe(true);
++    expect((thrown as { code: string }).code).toBe("DURABILITY_UNSUPPORTED");
++    // THE residue assertion: the failed append leaves ZERO files behind.
++    expect(fs.existsSync(filePath)).toBe(false);
++  });
++
++  // QA-DUCKBRAIN-003 AC-2 (negative control): a direct-mode append to a
++  // PRE-EXISTING file that fails must never delete that file. The failure is
++  // forced on the WRITE leg so the residue cleanup path really runs (with
++  // fileExisted=true) and must leave the original bytes untouched.
++  it("never deletes a pre-existing file when the direct append fails", () => {
++    const filePath = path.join(tmpDir, "event", "2026-09", "current.jsonl");
++    fs.mkdirSync(path.dirname(filePath), { recursive: true });
++    const original =
++      '{"key":"/pre/existing","domain":"event"}\nMORE ORIGINAL DATA\n';
++    fs.writeFileSync(filePath, original, "utf-8");
++
++    const realOpenSync = fs.openSync.bind(fs);
++    const realWriteSync = fs.writeSync.bind(fs);
++    let directFd: number | null = null;
++    const openSpy = vi.spyOn(fs, "openSync");
++    openSpy.mockImplementation(((p: any, flags: any, mode?: any) => {
++      const fd = realOpenSync(p, flags, mode);
++      if (typeof flags === "number" && (flags & fs.constants.O_DIRECT) !== 0) {
++        directFd = fd;
++      }
++      return fd;
++    }) as any);
++    const writeSpy = vi.spyOn(fs, "writeSync");
++    writeSpy.mockImplementation(((
++      fd: any,
++      buffer: any,
++      offset?: any,
++      length?: any,
++      position?: any,
++    ) => {
++      if (fd === directFd) {
++        const error: NodeJS.ErrnoException = new Error(
++          "invalid argument, write",
++        );
++        error.code = "EINVAL";
++        throw error;
++      }
++      return realWriteSync(fd, buffer, offset, length, position);
++    }) as any);
++
++    let thrown: unknown;
++    try {
++      appendJsonlDirect(filePath, frameJsonlRecord(makeRecord(13)));
++    } catch (error) {
++      thrown = error;
++    }
++
++    expect(isDurabilityError(thrown)).toBe(true);
++    expect((thrown as { code: string }).code).toBe("DURABILITY_UNSUPPORTED");
++    // The pre-existing file survived the failed append byte-for-byte.
++    expect(fs.existsSync(filePath)).toBe(true);
++    expect(fs.readFileSync(filePath, "utf-8")).toBe(original);
++  });
+ });
+ 
+ describe("SUPA-1 mode resolution and config validation (AC-5)", () => {
+diff --git a/src/storage/durability.ts b/src/storage/durability.ts
+index 48c58c6..9878d84 100644
+--- a/src/storage/durability.ts
++++ b/src/storage/durability.ts
+@@ -396,43 +396,60 @@ export function appendJsonlDirect(
+     fs.constants.O_DIRECT;
+ 
+   let fd: number;
+-  try {
+-    fd = fs.openSync(targetPath, flags, 0o644);
+-  } catch (error) {
+-    const code = (error as { code?: string } | null)?.code;
+-    if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
+-      throw new DurabilityError(
+-        "DURABILITY_UNSUPPORTED",
+-        `O_DIRECT is not supported on this filesystem for ${targetPath} — ` +
+-          `write NOT acknowledged, no bytes written: ${errnoDetail(error)}`,
+-      );
+-    }
+-    throw new DurabilityError(
+-      "DURABILITY_FSYNC_FAILED",
+-      `cannot open ${targetPath} for direct-mode append — write NOT acknowledged: ${errnoDetail(error)}`,
+-    );
+-  }
+-
+   try {
+     try {
+-      fs.writeSync(fd, record.buffer, 0, record.buffer.length, null);
++      fd = fs.openSync(targetPath, flags, 0o644);
+     } catch (error) {
+       const code = (error as { code?: string } | null)?.code;
+       if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
+         throw new DurabilityError(
+           "DURABILITY_UNSUPPORTED",
+-          `O_DIRECT write rejected on ${targetPath} (${errnoDetail(error)}) — ` +
+-            "write NOT acknowledged, no buffered fallback taken",
++          `O_DIRECT is not supported on this filesystem for ${targetPath} — ` +
++            `write NOT acknowledged, no bytes written: ${errnoDetail(error)}`,
+         );
+       }
+       throw new DurabilityError(
+         "DURABILITY_FSYNC_FAILED",
+-        `direct-mode write failed for ${targetPath} — write NOT acknowledged: ${errnoDetail(error)}`,
++        `cannot open ${targetPath} for direct-mode append — write NOT acknowledged: ${errnoDetail(error)}`,
+       );
+     }
+-    barrierFile(fd, targetPath);
+-  } finally {
+-    fs.closeSync(fd);
++
++    try {
++      try {
++        fs.writeSync(fd, record.buffer, 0, record.buffer.length, null);
++      } catch (error) {
++        const code = (error as { code?: string } | null)?.code;
++        if (code && FS_UNSUPPORTED_OP_CODES.has(code)) {
++          throw new DurabilityError(
++            "DURABILITY_UNSUPPORTED",
++            `O_DIRECT write rejected on ${targetPath} (${errnoDetail(error)}) — ` +
++              "write NOT acknowledged, no buffered fallback taken",
++          );
++        }
++        throw new DurabilityError(
++          "DURABILITY_FSYNC_FAILED",
++          `direct-mode write failed for ${targetPath} — write NOT acknowledged: ${errnoDetail(error)}`,
++        );
++      }
++      barrierFile(fd, targetPath);
++    } finally {
++      fs.closeSync(fd);
++    }
++  } catch (error) {
++    // QA-DUCKBRAIN-003: when the filesystem rejects O_DIRECT the kernel
++    // honors O_CREAT BEFORE the EINVAL lands, so a failed direct-mode append
++    // (open or first write) can leave the freshly-created target behind as
++    // an empty file. Remove that residue — but ONLY a file this call would
++    // have created (`!fileExisted`); a pre-existing target is never touched,
++    // and the durability error itself is always rethrown unchanged.
++    if (isDurabilityError(error) && !fileExisted) {
++      try {
++        fs.unlinkSync(targetPath);
++      } catch {
++        // best-effort: never mask the durability failure with a cleanup error
++      }
++    }
++    throw error;
+   }
+ 
+   fsyncParentsForCreate(targetPath, fileExisted, createdDirs);

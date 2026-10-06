@@ -1,0 +1,99 @@
+{
+  "task_id": "GAP-033",
+  "task_title": "LOAD-HYGIENE: bound test-suite host load",
+  "task_criteria": [
+    "Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "fd23b3c2bd9b9aa8eefa8e57af0b9ad3a3e110d1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n5:35PM INF scanned ~9186363 bytes (9.19 MB) in 1.25s\n5:35PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 193718 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n \u276f src/serialization/ddl-migration.test.ts (5 tests | 1 failed) 54122ms\n     \u00d7 pre-switch crash preserves old schema and generation 15956ms\nstderr | src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\n[duckbrain] Removed 1 orphaned scratch db file(s) from /tmp\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 3270ms\n     \u00d7 serves a concurrent route + heartbeat while the author scan runs 2113ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/serialization/ddl-migration.test.ts > SUPA-6 materialized migration and recovery > pre-switch crash preserves old schema and generation\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/serialization/ddl-migration.test.ts:224:3\n    222|\n    223| describe(\"SUPA-6 materialized migration and recovery\", () => {\n    224|   it(\"pre-switch crash preserves old schema and generation\", async () \u2026\n       |   ^\n    225|     const root = makeRoot();\n    226|     await seed(root);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: GET /users never blocks the event loop on git > serves a concurrent route + heartbeat while the author scan runs\nAssertionError: expected 1815 to be less than 1000\n \u276f src/http/routes/serving-paths-ops007.test.ts:287:31\n    285|     // \u2026and the loop kept ticking throughout the scan.\n    286|     expect(gaps.length).toBeGreaterThan(3);\n    287|     expect(Math.max(...gaps)).toBeLessThan(HEARTBEAT_BUDGET_MS);\n       |                               ^\n    288|     // No synchronous spawn was reachable from the route.\n    289|     expect(rec.syncCalls - syncBefore).toBe(0);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  2 failed | 153 passed (155)\n      Tests  2 failed | 1210 passed (1212)\n   Start at  17:35:32\n   Duration  172.90s (transform 7.90s, setup 14.12s, import 50.67s, tests 604.25s, environment 14ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: Audit, offender-fix, and measurement are present, but the prescribed fix mechanism is absent. (1) Audit PASS: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files and tabulates (a) none, (b) src/cli/token-roles.test.ts worst, (c) search/hooks+retr001 bounded-by-design. (2) Fix mechanism FAIL: commit 062fa82 fixed token-roles.test.ts (5 spawns -> 1, verified grep -c 'spawn(' = 1) but via in-process runHumanCLI conversion, NOT 'bounded waves (env knob clamped 2-16)' and NOT 'a session-scoped shared fixture'. grep across src/ found no env knob clamped 2-16 (no WAVE/_CONCURRENCY/MAX_PARALLEL/PARALLELISM knobs) and token-roles.test.ts has no beforeAll/session fixture (only 1 process.env use, in the parity smoke). The criterion names two specific acceptable mechanisms; neither is implemented. (3) Full suite: 'npx vitest run' => Test Files 1 failed | 154 passed (155), Tests 1 failed | 1211 passed (1212); the sole failure src/serialization/ddl-auth.test.ts 'non-admin DDL is forbidden' is a 15050ms timeout (testTimeout=15s) load flake unrelated to the change (only token-roles.test.ts was modified) and passes in isolation (4.23s). (4) Measurement PASS: artifact records 5->1 spawns, 11.1s->1.52s; focused run confirms tests 1.59s, 6 passed.\nThe audit, worst-offender fix, green suite, and before/after measurement are all present, but the fix used an unlisted in-process conversion rather than the criterion's required 'bounded waves (env knob clamped 2-16)' or 'session-scoped shared fixture'.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: Audit, offender-fix, and measurement are present, but the prescribed fix mechanism is absent. (1) Audit PASS: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files and tabulates (a) none, (b) src/cli/token-roles.test.ts worst, (c) search/hooks+retr001 bounded-by-design. (2) Fix mechanism FAIL: commit 062fa82 fixed token-roles.test.ts (5 spawns -> 1, verified grep -c 'spawn(' = 1) but via in-process runHumanCLI conversion, NOT 'bounded waves (env knob clamped 2-16)' and NOT 'a session-scoped shared fixture'. grep across src/ found no env knob clamped 2-16 (no WAVE/_CONCURRENCY/MAX_PARALLEL/PARALLELISM knobs) and token-roles.test.ts has no beforeAll/session fixture (only 1 process.env use, in the parity smoke). The criterion names two specific acceptable mechanisms; neither is implemented. (3) Full suite: 'npx vitest run' => Test Files 1 failed | 154 passed (155), Tests 1 failed | 1211 passed (1212); the sole failure src/serialization/ddl-auth.test.ts 'non-admin DDL is forbidden' is a 15050ms timeout (testTimeout=15s) load flake unrelated to the change (only token-roles.test.ts was modified) and passes in isolation (4.23s). (4) Measurement PASS: artifact records 5->1 spawns, 11.1s->1.52s; focused run confirms tests 1.59s, 6 passed.\nThe audit, worst-offender fix, green suite, and before/after measurement are all present, but the fix used an unlisted in-process conversion rather than the criterion's required 'bounded waves (env knob clamped 2-16)' or 'session-scoped shared fixture'.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded",
+                "status": "FAIL",
+                "detail": "Audit, offender-fix, and measurement are present, but the prescribed fix mechanism is absent. (1) Audit PASS: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files and tabulates (a) none, (b) src/cli/token-roles.test.ts worst, (c) search/hooks+retr001 bounded-by-design. (2) Fix mechanism FAIL: commit 062fa82 fixed token-roles.test.ts (5 spawns -> 1, verified grep -c 'spawn(' = 1) but via in-process runHumanCLI conversion, NOT 'bounded waves (env knob clamped 2-16)' and NOT 'a session-scoped shared fixture'. grep across src/ found no env knob clamped 2-16 (no WAVE/_CONCURRENCY/MAX_PARALLEL/PARALLELISM knobs) and token-roles.test.ts has no beforeAll/session fixture (only 1 process.env use, in the parity smoke). The criterion names two specific acceptable mechanisms; neither is implemented. (3) Full suite: 'npx vitest run' => Test Files 1 failed | 154 passed (155), Tests 1 failed | 1211 passed (1212); the sole failure src/serialization/ddl-auth.test.ts 'non-admin DDL is forbidden' is a 15050ms timeout (testTimeout=15s) load flake unrelated to the change (only token-roles.test.ts was modified) and passes in isolation (4.23s). (4) Measurement PASS: artifact records 5->1 spawns, 11.1s->1.52s; focused run confirms tests 1.59s, 6 passed."
+              }
+            ],
+            "summary": "The audit, worst-offender fix, green suite, and before/after measurement are all present, but the fix used an unlisted in-process conversion rather than the criterion's required 'bounded waves (env knob clamped 2-16)' or 'session-scoped shared fixture'."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-033\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Audit the test suite for (a) >8 concurrent subprocess spawns, (b) subprocess-per-assertion, (c) per-test expensive builder loops; fix the single worst offender with bounded waves (env knob clamped 2-16) or a session-scoped shared fixture; full suite still green; before/after measurement recorded: Audit, offender-fix, and measurement are present, but the prescribed fix mechanism is absent. (1) Audit PASS: ops/gap033-load-hygiene.md (commit 8bc3709) censuses 75 child_process test files and tabulates (a) none, (b) src/cli/token-roles.test.ts worst, (c) search/hooks+retr001 bounded-by-design. (2) Fix mechanism FAIL: commit 062fa82 fixed token-roles.test.ts (5 spawns -> 1, verified grep -c 'spawn(' = 1) but via in-process runHumanCLI conversion, NOT 'bounded waves (env knob clamped 2-16)' and NOT 'a session-scoped shared fixture'. grep across src/ found no env knob clamped 2-16 (no WAVE/_CONCURRENCY/MAX_PARALLEL/PARALLELISM knobs) and token-roles.test.ts has no beforeAll/session fixture (only 1 process.env use, in the parity smoke). The criterion names two specific acceptable mechanisms; neither is implemented. (3) Full suite: 'npx vitest run' => Test Files 1 failed | 154 passed (155), Tests 1 failed | 1211 passed (1212); the sole failure src/serialization/ddl-auth.test.ts 'non-admin DDL is forbidden' is a 15050ms timeout (testTimeout=15s) load flake unrelated to the change (only token-roles.test.ts was modified) and passes in isolation (4.23s). (4) Measurement PASS: artifact records 5->1 spawns, 11.1s->1.52s; focused run confirms tests 1.59s, 6 passed.\nThe audit, worst-offender fix, green suite, and before/after measurement are all present, but the fix used an unlisted in-process conversion rather than the criterion's required 'bounded waves (env knob clamped 2-16)' or 'session-scoped shared fixture'.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-09-19T22:57:50.778983",
+  "evidence": {
+    "collected_at": "2026-09-19T22:57:50.855501+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4632,
+        "truncated": false,
+        "source": "git show fd23b3c2bd9b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 482,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "GAP-033"
+  }
+}

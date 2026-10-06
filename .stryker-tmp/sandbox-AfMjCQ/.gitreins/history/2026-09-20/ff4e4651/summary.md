@@ -1,0 +1,21 @@
+# Verdict: OPS-005
+
+**Task:** Node <22 install-time enforcement (corrected mechanism)
+**Evaluated:** 2026-09-20T16:57:54.928712
+**Result:** ✓ PASS
+
+## Pipeline Stages
+
+- ✓ **tier1**
+  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
+
+## Summary
+
+Judge Result: OPS-005
+
+Stage tier1: PASS
+    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
+
+Overall: PASS ✓

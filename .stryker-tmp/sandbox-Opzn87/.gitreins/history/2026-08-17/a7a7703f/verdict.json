@@ -1,0 +1,77 @@
+{
+  "task_id": "DOGFOOD-015",
+  "task_title": "server_status is instance-blind - never verifies which process it describes",
+  "task_criteria": [
+    "serverStatusTool ties status to the config's own port/pidfile (not hardcoded default 3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved config; a scratch-config stdio process must report its own port/pidfile, not the live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins guard PASS"
+  ],
+  "passed": false,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11311083 bytes (11.31 MB) in 2.32s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": false,
+          "output": "\nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) file.\n\nFrom ESLint v9.0.0, the default configuration file is now eslint.config.js.\nIf you are using a .eslintrc.* file, please follow the migration guide\nto update your configuration file to the new format:\n\nhttps://eslint.org/docs/latest/use/configure/migration-guide\n\nIf you still have problems after following the migration guide, please stop by\nhttps://eslint.org/chat/help to chat with the team.",
+          "error": "",
+          "data": {
+            "exit_code": 2
+          }
+        },
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11311083 bytes (11.31 MB) in 2.32s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 674\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/mcp/tools/squash-dogfood014.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 382\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/autocommit-dogfood005.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 594\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/queries.test.ts \u001b[2m(\u001b[22m\u001b[2m11 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 serverStatusTool ties status to the config's own port/pidfile (not hardcoded default 3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved config; a scratch-config stdio process must report its own port/pidfile, not the live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins guard PASS: Port resolved from DUCKBRAIN_API_PORT env via resolveHttpPort() (server.ts:44-55), not hardcoded 3000; pidfile via shared httpPidFilePath using DUCKBRAIN_DATA_DIR (server.ts:118-119); pid liveness via process.kill(pid,0) with EPERM handling (server.ts:76-84); resolveConfigSummary reports namespacesPath+configFile (server.ts:96-116). Regression test 'reports the resolved config so callers can identify the instance' (server.test.ts:283-330) sets scratch DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/DATA_DIR and asserts pidFile is scratch duckbrain-http-3559.pid, not the live daemon's; 'resolves the port from DUCKBRAIN_API_PORT' (server.test.ts:145) asserts port 3999 from env; 'reports a dead pid from the pidfile as stale' (server.test.ts:210) validates liveness. Full suite: npx vitest run -> 57 files, 420 tests passed (exit 0). tsc --noEmit -> exit 0. gitreins guard test_command 'npx vitest run' passed; secrets guard clean (no secrets in changed files); lint disabled. LSP diagnostics clean.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 serverStatusTool ties status to the config's own port/pidfile (not hardcoded default 3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved config; a scratch-config stdio process must report its own port/pidfile, not the live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins guard PASS: Port resolved from DUCKBRAIN_API_PORT env via resolveHttpPort() (server.ts:44-55), not hardcoded 3000; pidfile via shared httpPidFilePath using D",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "serverStatusTool ties status to the config's own port/pidfile (not hardcoded default 3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved config; a scratch-config stdio process must report its own port/pidfile, not the live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins guard PASS",
+                "status": "PASS",
+                "detail": "Port resolved from DUCKBRAIN_API_PORT env via resolveHttpPort() (server.ts:44-55), not hardcoded 3000; pidfile via shared httpPidFilePath using DUCKBRAIN_DATA_DIR (server.ts:118-119); pid liveness via process.kill(pid,0) with EPERM handling (server.ts:76-84); resolveConfigSummary reports namespacesPath+configFile (server.ts:96-116). Regression test 'reports the resolved config so callers can identify the instance' (server.test.ts:283-330) sets scratch DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/DATA_DIR and asserts pidFile is scratch duckbrain-http-3559.pid, not the live daemon's; 'resolves the port from DUCKBRAIN_API_PORT' (server.test.ts:145) asserts port 3999 from env; 'reports a dead pid from the pidfile as stale' (server.test.ts:210) validates liveness. Full suite: npx vitest run -> 57 files, 420 tests passed (exit 0). tsc --noEmit -> exit 0. gitreins guard test_command 'npx vitest run' passed; secrets guard clean (no secrets in changed files); lint disabled. LSP diagnostics clean."
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOGFOOD-015\n\nStage tier1: FAIL\n    \u2717 lint: \nOops! Something went wrong! :(\n\nESLint: 10.8.1\n\nESLint couldn't find an eslint.config.(js|mjs|cjs) \n  \u2713 secrets: \u001b[90m7:39AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11311083 bytes (11.31 MB) in 2.32s\u001b[0m\n\u001b[90m7:39AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 serverStatusTool ties status to the config's own port/pidfile (not hardcoded default 3000), validates pid liveness (process.kill(pid,0) or /proc), reports the resolved config; a scratch-config stdio process must report its own port/pidfile, not the live daemon's; regression test added; full suite + tsc --noEmit clean + gitreins guard PASS: Port resolved from DUCKBRAIN_API_PORT env via resolveHttpPort() (server.ts:44-55), not hardcoded 3000; pidfile via shared httpPidFilePath using DUCKBRAIN_DATA_DIR (server.ts:118-119); pid liveness via process.kill(pid,0) with EPERM handling (server.ts:76-84); resolveConfigSummary reports namespacesPath+configFile (server.ts:96-116). Regression test 'reports the resolved config so callers can identify the instance' (server.test.ts:283-330) sets scratch DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/DATA_DIR and asserts pidFile is scratch duckbrain-http-3559.pid, not the live daemon's; 'resolves the port from DUCKBRAIN_API_PORT' (server.test.ts:145) asserts port 3999 from env; 'reports a dead pid from the pidfile as stale' (server.test.ts:210) validates liveness. Full suite: npx vitest run -> 57 files, 420 tests passed (exit 0). tsc --noEmit -> exit 0. gitreins guard test_command 'npx vitest run' passed; secrets guard clean (no secrets in changed files); lint disabled. LSP diagnostics clean.\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-08-17T12:41:07.731334"
+}

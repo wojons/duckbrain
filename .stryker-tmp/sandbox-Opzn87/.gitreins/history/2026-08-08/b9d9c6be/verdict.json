@@ -1,0 +1,95 @@
+{
+  "task_id": "GAP-007",
+  "task_title": "GAP-007 \u2014 test suite must not mutate production config",
+  "task_criteria": [
+    "updateConfig/setConfig/registerNamespace no longer persist env-overridden fields (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig leaves the file's namespacesPath unchanged",
+    "regression test src/config/config-pollution-gap007.test.ts proves env path not persisted with env set, and updates persist normally with env unset",
+    "CI workflow ci.yml asserts duckbrain.config.json unchanged (git diff --exit-code) after the test job",
+    "full suite green: npx vitest run 315/315, npx tsc --noEmit clean"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "/bin/sh: 1: gitleaks: not found\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "lint",
+          "type": "script",
+          "passed": true,
+          "output": "",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/embedding/hooks.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 122\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection-gap001.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 137\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/http/routes/namespaces.test.ts \u001b[2m(\u001b[22m\u001b[2m15 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 319\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/duckdb/connection.test.ts \u001b[2m(\u001b[22m\u001b[2m9 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 760",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 updateConfig/setConfig/registerNamespace no longer persist env-overridden fields (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig leaves the file's namespacesPath unchanged: src/config/index.ts:229-248 updateConfig merges against readFileConfig (raw on-disk config) instead of getConfig() (env-overridden); registerNamespace (321-331) and setConfig (341-345) route through updateConfig. Test confirms file namespacesPath stays './namespaces' with env set while runtime getConfig reflects the override.\n  \u2713 regression test src/config/config-pollution-gap007.test.ts proves env path not persisted with env set, and updates persist normally with env unset: src/config/config-pollution-gap007.test.ts exists with 7 tests covering env-set (does NOT persist env path, still persists requested update, registerNamespace no leak) and env-unset (normal persist, switch_namespace flow, registerNamespace). Ran: 7/7 passed.\n  \u2713 CI workflow ci.yml asserts duckbrain.config.json unchanged (git diff --exit-code) after the test job: .github/workflows/ci.yml:41 'run: git diff --exit-code duckbrain.config.json' placed after the Run tests step.\n  \u2713 full suite green: npx vitest run 315/315, npx tsc --noEmit clean: npx vitest run -> 315 passed (41 files); npx tsc --noEmit exit 0 clean.\nAll four GAP-007 criteria verified: config functions no longer persist env-overridden fields, regression test passes, CI asserts config unchanged, and full suite is green (315/315, tsc clean).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 updateConfig/setConfig/registerNamespace no longer persist env-overridden fields (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig leaves the file's namespacesPath unchanged: src/config/index.ts:229-248 updateConfig merges against readFileConfig (raw on-disk config) instead of getConfig() (env-overridden); registerNamespace (321-331) and setConfig (341-345) route through updateConfig. Test confirms file namespacesPath stays './namespaces' with env set ",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "updateConfig/setConfig/registerNamespace no longer persist env-overridden fields (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig leaves the file's namespacesPath unchanged",
+                "status": "PASS",
+                "detail": "src/config/index.ts:229-248 updateConfig merges against readFileConfig (raw on-disk config) instead of getConfig() (env-overridden); registerNamespace (321-331) and setConfig (341-345) route through updateConfig. Test confirms file namespacesPath stays './namespaces' with env set while runtime getConfig reflects the override."
+              },
+              {
+                "criterion": "regression test src/config/config-pollution-gap007.test.ts proves env path not persisted with env set, and updates persist normally with env unset",
+                "status": "PASS",
+                "detail": "src/config/config-pollution-gap007.test.ts exists with 7 tests covering env-set (does NOT persist env path, still persists requested update, registerNamespace no leak) and env-unset (normal persist, switch_namespace flow, registerNamespace). Ran: 7/7 passed."
+              },
+              {
+                "criterion": "CI workflow ci.yml asserts duckbrain.config.json unchanged (git diff --exit-code) after the test job",
+                "status": "PASS",
+                "detail": ".github/workflows/ci.yml:41 'run: git diff --exit-code duckbrain.config.json' placed after the Run tests step."
+              },
+              {
+                "criterion": "full suite green: npx vitest run 315/315, npx tsc --noEmit clean",
+                "status": "PASS",
+                "detail": "npx vitest run -> 315 passed (41 files); npx tsc --noEmit exit 0 clean."
+              }
+            ],
+            "summary": "All four GAP-007 criteria verified: config functions no longer persist env-overridden fields, regression test passes, CI asserts config unchanged, and full suite is green (315/315, tsc clean)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: GAP-007\n\nStage tier1: PASS\n    \u2713 secrets: /bin/sh: 1: gitleaks: not found\n\n  \u2713 lint: \n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 updateConfig/setConfig/registerNamespace no longer persist env-overridden fields (DUCKBRAIN_NAMESPACES_PATH) into the config file; with env var set, updateConfig leaves the file's namespacesPath unchanged: src/config/index.ts:229-248 updateConfig merges against readFileConfig (raw on-disk config) instead of getConfig() (env-overridden); registerNamespace (321-331) and setConfig (341-345) route through updateConfig. Test confirms file namespacesPath stays './namespaces' with env set while runtime getConfig reflects the override.\n  \u2713 regression test src/config/config-pollution-gap007.test.ts proves env path not persisted with env set, and updates persist normally with env unset: src/config/config-pollution-gap007.test.ts exists with 7 tests covering env-set (does NOT persist env path, still persists requested update, registerNamespace no leak) and env-unset (normal persist, switch_namespace flow, registerNamespace). Ran: 7/7 passed.\n  \u2713 CI workflow ci.yml asserts duckbrain.config.json unchanged (git diff --exit-code) after the test job: .github/workflows/ci.yml:41 'run: git diff --exit-code duckbrain.config.json' placed after the Run tests step.\n  \u2713 full suite green: npx vitest run 315/315, npx tsc --noEmit clean: npx vitest run -> 315 passed (41 files); npx tsc --noEmit exit 0 clean.\nAll four GAP-007 criteria verified: config functions no longer persist env-overridden fields, regression test passes, CI asserts config unchanged, and full suite is green (315/315, tsc clean).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-08T02:34:05.355775"
+}

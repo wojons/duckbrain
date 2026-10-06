@@ -1,0 +1,1365 @@
+/**
+ * HTTP MCP Server
+ *
+ * HTTP server with Streamable HTTP transport for remote MCP access.
+ * Includes DNS rebinding protection, authentication, rate limiting, and multi-user endpoints.
+ *
+ * Endpoints:
+ * - POST /mcp, GET /mcp - Streamable HTTP transport
+ * - GET /health - Health check (unauthenticated)
+ * - GET /stats - System statistics
+ * - GET /namespaces - List loaded namespaces
+ * - GET /users - List unique authors
+ * - GET /activity - Recent activity feed
+ * - GET /api/tree - Hierarchical memory tree
+ * - GET /api/timeline - Chronological feed
+ * - GET /api/search - Search with filters
+ */
+// @ts-nocheck
+
+
+import express, { Express, Request, Response, NextFunction } from "express";
+import http from "http";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Mutex } from "async-mutex";
+import { server, stopServer, registerTools } from "../mcp/server.js";
+import {
+  authMiddleware,
+  AuthConfig,
+  getPrincipal,
+  auditRequestDenial,
+} from "../auth/middleware.js";
+import type { AuthPrincipal, DenialAuditor } from "../auth/middleware.js";
+import { FileAuthStore } from "../auth/storeSchema.js";
+import { authorizeTableAccess } from "../auth/roles.js";
+import { createDenialAuditor } from "../serialization/audit.js";
+import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
+import { resolveNamespacesPath } from "../config/index.js";
+import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
+import {
+  errorHandler,
+  notFoundHandler,
+} from "../http/middleware/errorHandler.js";
+import { listNamespacesTool } from "../mcp/tools/namespace.js";
+import { probeKeysStore } from "../mcp/tools/list_keys.js";
+import { createMemoryRoutes } from "../http/routes/memories.js";
+import { createKeyRoutes } from "../http/routes/keys.js";
+import { createNamespaceRoutes } from "../http/routes/namespaces.js";
+import { createEventsRoutes } from "../http/routes/events.js";
+import { createCompactionRoutes } from "../http/routes/compaction.js";
+import {
+  createTableRoutes,
+  createNamespaceOpenApiRoutes,
+} from "../http/routes/tables.js";
+import {
+  createRealtimeRoutes,
+  REALTIME_ROUTE_PATH,
+} from "../http/routes/realtime.js";
+import { createUsersRoutes } from "../http/routes/users.js";
+import { createActivityRoutes } from "../http/routes/activity.js";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import { httpPidFilePath, cleanupStalePidFile } from "../utils/pidfile.js";
+import {
+  drainDurableWrites,
+  getDurabilityHealth,
+  type DurabilityHealth,
+} from "../storage/durability.js";
+import { drainAsyncCommits, flushAllCommits } from "../git/autocommit.js";
+import {
+  getEmbeddingHealth,
+  type EmbeddingHealthResult,
+} from "../embedding/health.js";
+
+/**
+ * HTTP server configuration options
+ */
+export interface HttpServerOptions {
+  /** Port to listen on (default: 3000) */
+  port?: number;
+  /** Bind to all interfaces (0.0.0.0) instead of localhost only */
+  bindAll?: boolean;
+  /** Extra Host-header values the DNS-rebinding guard accepts, on top of
+   *  the always-allowed "localhost"/"127.0.0.1". Needed when the server is
+   *  reached through a side-door or reverse proxy (e.g. a tailnet address
+   *  or hostname) while staying bound to loopback. CLI: --allowed-hosts /
+   *  env: DUCKBRAIN_ALLOWED_HOSTS. An empty/absent list keeps the guard at
+   *  its loopback-only default. */
+  allowedHosts?: string[];
+  /** Authentication type: none, basic, or apikey */
+  authType?: "none" | "basic" | "apikey";
+  /** Rate limit: requests per minute per IP (default: 100) */
+  rateLimit?: number;
+  /** Unix domain socket path to also listen on (in addition to TCP port).
+   *  Enables MCP-over-HTTP and CLI access via filesystem socket. */
+  socket?: string;
+  /** Socket file permissions as octal string (default: "0660").
+   *  Applied via chmod after bind. */
+  socketMode?: string;
+  /** Group name or numeric GID to chown the socket file to.
+   *  Allows other users in the group to connect. */
+  socketGroup?: string;
+  /** Auth configuration override (DB-GAP-031: unit-test injection).
+   *  When provided, ~/.duckbrain/auth.json is NOT consulted — the server
+   *  runs with exactly this config. Production callers omit it and keep
+   *  the file-based behavior. */
+  authConfig?: AuthConfig;
+  /** Auth store file override (DB-GAP-043) — CLI `--auth-file`, env
+   *  fallback DUCKBRAIN_AUTH_FILE. When set, the server reads users/apiKeys
+   *  from THAT file ONLY (os.homedir()/.duckbrain/auth.json is never
+   *  consulted) and the file MUST exist and parse — missing/unparseable is
+   *  a fatal startup error. When unset, the prod default remains
+   *  authoritative. Scratch/judge daemons use this so they can never touch
+   *  the production auth store. */
+  authFile?: string;
+  /** Namespace root override for isolated embedders/tests and denial audit. */
+  namespacesPath?: string;
+}
+
+/**
+ * Production auth store path: ~/.duckbrain/auth.json
+ */
+export function defaultAuthStorePath(): string {
+  return path.join(os.homedir(), ".duckbrain", "auth.json");
+}
+
+/**
+ * Resolve the auth store path for the HTTP server (DB-GAP-043).
+ *
+ * Precedence: explicit `authFile` (CLI --auth-file) > DUCKBRAIN_AUTH_FILE
+ * env > prod default. Same env-only philosophy as DUCKBRAIN_CONFIG_PATH
+ * (GAP-022): runtime-only override, never persisted anywhere, unset in
+ * production = the prod file is authoritative.
+ *
+ * The returned `explicit` flag marks an operator-chosen path: a
+ * missing/unparseable explicit file is a FATAL startup error — never a
+ * silent fallback to the prod store (the DB-GAP-041 judge incident wiped
+ * 13 prod tokens because scratch daemons shared the prod path).
+ *
+ * @param authFile - CLI --auth-file value, if any
+ */
+export function resolveAuthStorePath(authFile?: string): {
+  authFilePath: string;
+  explicit: boolean;
+} {
+  if (authFile) return { authFilePath: authFile, explicit: true };
+  const envOverride = process.env.DUCKBRAIN_AUTH_FILE;
+  if (envOverride) return { authFilePath: envOverride, explicit: true };
+  return { authFilePath: defaultAuthStorePath(), explicit: false };
+}
+
+/**
+ * DNS rebinding protection middleware
+ * Validates Host header against allowed hosts
+ */
+function dnsRebindingProtection(allowedHosts: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const host = req.headers.host?.split(":")[0];
+
+    if (!host || !allowedHosts.includes(host)) {
+      res.status(403).json({ error: "Forbidden: Invalid host" });
+      return;
+    }
+
+    next();
+  };
+}
+
+/** Outer deadline for the whole /health response (OPS-002).
+ *
+ * Raised 4_000 → 9_000 on 2026-09-27 to stay ABOVE the embedding probe's own
+ * deadline (now 8_500 — a remote embedder whose real latency is 3.1s). The
+ * ordering invariant is unchanged: the embedding probe reports inside its own
+ * budget by its own precise cause, and this handler bound stays the
+ * last-resort backstop.
+ */
+export const HEALTH_HANDLER_DEADLINE_MS = 9_000;
+
+/** A sub-probe outcome: it settled with a value, or missed the deadline. */
+type ProbeOutcome<T> = { ok: true; value: T } | { ok: false };
+
+/**
+ * Bound `promise` by `ms`: resolve with its value when it settles in time, or
+ * `{ ok: false }` at the deadline.
+ *
+ * The abandoned promise keeps its handlers attached, so a late rejection can
+ * never surface as an unhandled rejection — the stuck probe is quarantined,
+ * not allowed to take the process down. `setTimeout` is unref'd (a pending
+ * deadline must never hold the event loop open) and always cleared.
+ */
+async function withDeadline<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<ProbeOutcome<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const expiry = new Promise<ProbeOutcome<T>>((resolve) => {
+      timer = setTimeout(() => resolve({ ok: false }), ms);
+      timer.unref?.();
+    });
+    return await Promise.race([
+      promise.then((value) => ({ ok: true as const, value })),
+      expiry,
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Degraded embedding block for a sub-probe that missed the deadline. */
+function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
+  return {
+    provider: "",
+    model: "",
+    healthy: false,
+    providers: [{ id: "deadline", healthy: false, note }],
+  };
+}
+
+/**
+ * Health check endpoint handler (DOGFOOD-020, DB-GAP-035, OPS-002)
+ *
+ * Reports embedding provider health alongside process liveness. The top-level
+ * status is "degraded" when no embedding provider passed a real embed probe —
+ * fleet monitors previously got a false green while every ?q= semantic search
+ * 500ed (configured model 400ing on LM Studio with the model file on an
+ * offline host; Ollama not having the model in /api/tags).
+ *
+ * DB-GAP-035: also probes the keys store (same resilient read as list_keys)
+ * and surfaces keys_error — null when the store answers, a short error
+ * string when the keys read path fails (corrupt JSONL, corrupt manifest,
+ * connection loss). A failed keys probe flips status to degraded: every
+ * consumer of keys over HTTP/MCP would fail, so a green /health would be a
+ * false green. A namespace that does not exist yet (fresh install, empty
+ * namespaces root) is HEALTHY, not degraded (HEALTH-KEYS-UNDEFINED-001) —
+ * the probe resolves the config default namespace and reports null when
+ * nothing has been written to it yet.
+ *
+ * GAP-030: HTTP status now carries the signal too — 503 when degraded
+ * (embedding.healthy=false or keys_error set), 200 when healthy — so a
+ * supervisor watching HTTP codes sees non-200 while semantic search is
+ * down. The body still carries the detail.
+ *
+ * SUPA-1: the body also carries a `durability` block
+ * `{ defaultMode, overrides }` — the per-namespace write durability contract
+ * (`docs/specs/SUPA-1-write-durability.md`). Config-derived only, never a
+ * filesystem probe, so /health cannot fail or stall over durability
+ * reporting.
+ *
+ * OPS-002: EVERY await in this handler is bounded by
+ * HEALTH_HANDLER_DEADLINE_MS, so the handler always answers within that budget
+ * on every path. The live incident this closes: a sub-probe whose await never
+ * settled left /health parked forever (no bytes ever written, an idle daemon)
+ * while the process happily served /stats and /api/*; monitors were blind and
+ * the dark-port watchdog reported DARK for a daemon that was serving traffic.
+ * When a sub-probe misses the deadline the handler answers 503
+ * `status: "degraded"`, names the culprit in `deadline_exceeded` (an array of
+ * "embedding" / "keys"), and puts the reason in that section's own note. Each
+ * sub-probe gets the budget REMAINING at its turn, so the whole handler —
+ * probes and response — stays inside the deadline.
+ *
+ * @param probe injectable for tests (defaults to the 30s-TTL-cached probe)
+ * @param keysProbe injectable for tests (defaults to probeKeysStore)
+ * @param durabilityProbe injectable for tests (defaults to getDurabilityHealth)
+ * @param deadlineMs injectable for tests (defaults to HEALTH_HANDLER_DEADLINE_MS)
+ */
+export function createHealthHandler(
+  probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
+  keysProbe: () => Promise<string | null> = probeKeysStore,
+  durabilityProbe: () => DurabilityHealth = getDurabilityHealth,
+  deadlineMs: number = HEALTH_HANDLER_DEADLINE_MS,
+): (req: Request, res: Response) => Promise<void> {
+  return async (_req: Request, res: Response) => {
+    // OPS-002: one budget for the WHOLE response. Each sub-probe gets whatever
+    // is left when its turn comes, so a slow/hung probe can never push the
+    // handler past the deadline — the rest of the response is reported as
+    // deadline-exceeded instead of hanging.
+    const deadlineExceeded: string[] = [];
+    const deadlineAt = Date.now() + deadlineMs;
+    const remaining = (): number => Math.max(0, deadlineAt - Date.now());
+
+    let embedding: EmbeddingHealthResult;
+    try {
+      const outcome = await withDeadline(probe(), remaining());
+      if (outcome.ok) {
+        embedding = outcome.value;
+      } else {
+        deadlineExceeded.push("embedding");
+        embedding = embeddingDeadlineResult(
+          `embedding probe did not settle within the ${deadlineMs}ms /health deadline`,
+        );
+      }
+    } catch (e) {
+      // The probe must never take /health down (liveness) — report degraded.
+      embedding = {
+        provider: "",
+        model: "",
+        healthy: false,
+        providers: [
+          {
+            id: "probe",
+            healthy: false,
+            note: `probe error: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        ],
+      };
+    }
+
+    // DB-GAP-035: keys-store probe. Must never take /health down either —
+    // report keys_error and let the status field carry the signal.
+    let keysError: string | null = null;
+    try {
+      const outcome = await withDeadline(keysProbe(), remaining());
+      if (outcome.ok) {
+        keysError = outcome.value;
+      } else {
+        deadlineExceeded.push("keys");
+        keysError =
+          `keys probe did not settle within the ${deadlineMs}ms /health deadline`.slice(
+            0,
+            200,
+          );
+      }
+    } catch (e) {
+      keysError =
+        `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
+          0,
+          200,
+        );
+    }
+
+    const degraded = !embedding.healthy || keysError !== null;
+    // SUPA-1: durability reporting can never take /health down.
+    let durability: DurabilityHealth;
+    try {
+      durability = durabilityProbe();
+    } catch {
+      durability = { defaultMode: "buffered", overrides: {} };
+    }
+    // GAP-030: a supervisor watching HTTP status codes must see non-200 while
+    // the KB's semantic search is down — 503 when degraded, 200 when healthy.
+    // OPS-002: `deadline_exceeded` names any sub-probe that missed the handler
+    // deadline (empty array when everything answered in budget).
+    res.status(degraded ? 503 : 200).json({
+      status: degraded ? "degraded" : "healthy",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      embedding,
+      keys_error: keysError,
+      durability,
+      deadline_exceeded: deadlineExceeded,
+    });
+  };
+}
+
+/**
+ * Stats endpoint handler
+ */
+function statsHandler(_req: Request, res: Response) {
+  res.json({
+    memory: process.memoryUsage(),
+    uptime: process.uptime(),
+    nodeVersion: process.version,
+  });
+}
+
+/**
+ * MCP tools are registered on the module-level singleton `server`, whose
+ * registerTools() throws on a second call. Guard at module scope so multiple
+ * createHttpServer() calls in one process (in-process tests, embedders) register
+ * exactly once instead of failing the second construction.
+ */
+let mcpToolsRegistered = false;
+
+/**
+ * Create Express app with MCP transport, auth, and rate limiting
+ *
+ * Middleware order (critical):
+ * 1. DNS rebinding protection (block bad hosts immediately)
+ * 2. Rate limiting (catch abuse before auth processing)
+ * 3. Authentication (verify credentials)
+ * 4. JSON body parser (after rate limit/auth to avoid parsing overhead on rejected requests)
+ * 5. Routes
+ *
+ * @param options - Server configuration options
+ */
+export function createHttpServer(options: HttpServerOptions = {}): Express {
+  const app = express();
+
+  // 1. DNS rebinding protection
+  //
+  // Always allows loopback; an operator reaching the server through a
+  // side-door or reverse proxy (tailnet address/hostname, container gateway)
+  // extends the list with --allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS instead
+  // of abandoning the check entirely with --bind-all. Hostnames are matched
+  // with the port stripped, exactly as the guard compares them.
+  const allowedHosts = [
+    "localhost",
+    "127.0.0.1",
+    ...(options.allowedHosts ?? [])
+      .map((entry) => entry.split(":")[0].trim())
+      .filter(Boolean),
+  ];
+  if (options.bindAll) {
+    // When binding to all interfaces, allow any hostname
+    // User explicitly chose to expose the server
+    app.use((_req: Request, _res: Response, next: NextFunction) => {
+      next(); // Skip DNS rebinding check when bindAll
+    });
+  } else {
+    app.use(dnsRebindingProtection(allowedHosts));
+  }
+
+  // 2. Rate limiting (before auth to prevent credential stuffing/brute force)
+  const rateLimitConfig: RateLimitConfig = {
+    requestsPerMinute: options.rateLimit ?? 100,
+  };
+  app.use(rateLimitMiddleware(rateLimitConfig));
+
+  // 3. Authentication — production loads a validated, hot-reloadable store.
+  // Inline authConfig remains the hermetic embed/test seam.
+  // GAP-062: server-side root = the config file's own directory, never cwd
+  // (the server must serve the same namespaces regardless of where it started).
+  const namespacesPath = path.resolve(
+    options.namespacesPath ?? resolveNamespacesPath(),
+  );
+  const authConfig: AuthConfig = {
+    // The CLI front door is fail-closed by default. Embedded callers and
+    // explicit --auth=none still provide an intentional local/test opt-out.
+    ...(options.authConfig ?? { type: options.authType ?? "apikey" }),
+  };
+  if (
+    !options.authConfig &&
+    (authConfig.type !== "none" ||
+      options.authFile !== undefined ||
+      process.env.DUCKBRAIN_AUTH_FILE !== undefined)
+  ) {
+    const { authFilePath, explicit } = resolveAuthStorePath(options.authFile);
+    if (explicit && !fs.existsSync(authFilePath)) {
+      throw new Error(
+        `--auth-file not found: ${authFilePath}. An explicit auth store ` +
+          "must exist — refusing to fall back to the production " +
+          "~/.duckbrain/auth.json (DB-GAP-043).",
+      );
+    }
+    if (fs.existsSync(authFilePath)) {
+      // DF-0924-07: an explicit auth store (flag or env) implies apikey
+      // enforcement. Loading a store and then mounting the none backend is
+      // how the daemon ended up serving /api/* unauthenticated (keyless GET
+      // 200 / POST 201) while the operator believed the store was active.
+      // An operator-set type (e.g. --auth=basic) still wins; only the
+      // implicit default is upgraded. The prod default path (explicit=false)
+      // is deliberately NOT auto-enabled — default behavior stays unchanged.
+      if (explicit && authConfig.type === "none") {
+        authConfig.type = "apikey";
+        console.error(
+          `[auth] --auth-file provided: auto-enabling apikey authentication (store: ${authFilePath})`,
+        );
+      }
+      try {
+        authConfig.store = new FileAuthStore(authFilePath);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        if (explicit) {
+          throw new Error(
+            `Could not parse --auth-file ${authFilePath}: ${detail} (DB-GAP-043).`,
+          );
+        }
+        // SUPA-4: an invalid default store is a fatal startup error too. A
+        // malformed credential store must never silently become an empty one.
+        throw new Error(`Could not load auth store ${authFilePath}: ${detail}`);
+      }
+    }
+  }
+  authConfig.auditDenial ??= createDenialAuditor(namespacesPath);
+  setSerializerAuthorizationHook((request) =>
+    authorizeTableAccess(request.principal, request.ns, request.table, "write"),
+  );
+  app.use(authMiddleware(authConfig));
+
+  // 4. CORS middleware for UI development
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization",
+    );
+
+    // Handle preflight requests
+    if (req.method === "OPTIONS") {
+      res.status(200).end();
+      return;
+    }
+
+    next();
+  });
+
+  // 5. Body parsers (after rate limit and auth)
+  // DB-SUPA-3 REWORK: the generic table→REST layer (src/http/routes/tables.ts)
+  // accepts batch inserts as `application/x-ndjson`. express.json() never
+  // matches that content type, so without a text parser the request stream is
+  // left unconsumed, req.body stays undefined, and every live NDJSON insert
+  // 400s with "NDJSON body required" — the exact defect the module battery
+  // missed because its hand-built test app mounted its own parser. Scoped to
+  // the tables mounts so every other route's JSON parsing semantics are
+  // byte-for-byte unchanged; ordered BEFORE express.json() so an x-ndjson
+  // body is consumed here and the JSON parser simply skips the mismatched
+  // content type.
+  app.use(
+    "/api/ns/:ns/tables",
+    express.text({ type: "application/x-ndjson", limit: "1mb" }),
+  );
+  app.use(express.json());
+
+  // Health check (bypasses auth via middleware, must be registered here)
+  app.get("/health", createHealthHandler());
+
+  // Stats
+  app.get("/stats", statsHandler);
+
+  // API Routes (new REST API)
+  app.use("/api/memories", createMemoryRoutes);
+  app.use("/api/keys", createKeyRoutes);
+  app.use("/api/namespaces", createNamespaceRoutes);
+  app.use("/api/events", createEventsRoutes);
+  app.use("/api/compaction", createCompactionRoutes);
+
+  // DB-SUPA-3: generic table→REST resource layer (declared tables only).
+  // The factory is CALLED (passing the function itself would install it as
+  // dead middleware) and mounted at the :ns prefix so mergeParams surfaces
+  // req.params.ns inside the routes. The tables instance serves the table
+  // routes; the openapi.json instance's "/" route serves the registry doc.
+  app.use("/api/ns/:ns/tables", createTableRoutes());
+  app.use("/api/ns/:ns/openapi.json", createNamespaceOpenApiRoutes());
+
+  // DB-SUPA-5: committed append-log change feed (SSE). Mounted after the auth
+  // middleware so every subscription carries a SUPA-4 principal, and before
+  // errorHandler so a rejected subscription gets its documented JSON error
+  // code (400/403/410/500) with no partial event stream. It shares no
+  // connection state with the legacy /api/events scaffold above.
+  app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes());
+
+  // Legacy namespaces — delegate to real MCP tool
+  app.get("/namespaces", async (req: Request, res: Response) => {
+    // card t_667d7e6c: this legacy listing grades the caller's token grant
+    // like `/api/namespaces` — pass the authenticated principal so the rows
+    // are filtered to it. `result.currentNamespace` is undefined when the
+    // active namespace is outside the grant, and an undefined value drops out
+    // of the JSON body (the key is omitted, not null).
+    const result = await listNamespacesTool(
+      {},
+      { principal: getPrincipal(req) },
+    );
+    if (!result.success) {
+      res
+        .status(500)
+        .json({ error: result.error || "Failed to list namespaces" });
+      return;
+    }
+    const namespaces = result.namespaces.map((ns: any) => ns.name);
+    res.json({ namespaces, currentNamespace: result.currentNamespace });
+  });
+
+  // Users list — extracts unique authors from namespace commit history
+  app.use("/users", createUsersRoutes);
+
+  // Activity feed — returns recent memory activity across all namespaces
+  app.use("/activity", createActivityRoutes);
+
+  // Legacy API stubs (redirect to new endpoints)
+  app.get("/api/tree", (req: Request, res: Response) => {
+    res.redirect(301, "/api/keys?prefix=" + (req.query.prefix || "/"));
+  });
+
+  app.get("/api/timeline", (req: Request, res: Response) => {
+    res.redirect(301, "/api/memories?limit=" + (req.query.limit || "50"));
+  });
+
+  app.get("/api/search", (req: Request, res: Response) => {
+    res.redirect(301, "/api/memories?q=" + (req.query.q || ""));
+  });
+
+  // Error handling (must be after all routes)
+
+  // CLI remote execution endpoint (for --socket usage)
+  // Whitelist: only safe/non-destructive CLI commands allowed via remote socket.
+  // Blocked: stdio (launches MCP server), http (launches HTTP server),
+  //          service (systemd management — stop/restart could take down the daemon).
+  const CLI_COMMAND_WHITELIST = new Set([
+    "remember",
+    "recall",
+    "list-keys",
+    "forget",
+    "config",
+    "namespaces",
+    "namespace",
+    "pull",
+    "push",
+    "remote",
+    "status",
+    "token",
+    "squash",
+    "ssh-test",
+    "ssh-connect",
+    "servers",
+  ]);
+
+  // Security limits for CLI arguments (prevents DoS via memory/time exhaustion)
+  const CLI_MAX_ARGS = 100;
+  const CLI_MAX_ARG_LENGTH = 4096;
+
+  /**
+   * Validate CLI arguments for security.
+   * Rejects path traversal, null bytes, newlines, and excessive sizes.
+   *
+   * @returns { valid: true } or { valid: false; error: string }
+   */
+  function validateCliArgs(
+    args: unknown,
+  ): { valid: true } | { valid: false; error: string } {
+    // Args must be an array of strings (or absent)
+    if (args === undefined || args === null) {
+      return { valid: true };
+    }
+
+    if (!Array.isArray(args)) {
+      return { valid: false, error: "args must be an array of strings" };
+    }
+
+    // Reject too many args (DoS prevention)
+    if (args.length > CLI_MAX_ARGS) {
+      return { valid: false, error: `args exceeds maximum of ${CLI_MAX_ARGS}` };
+    }
+
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+
+      // Each arg must be a string
+      if (typeof arg !== "string") {
+        return { valid: false, error: "args must be an array of strings" };
+      }
+
+      // Reject excessively long args (DoS prevention)
+      if (arg.length > CLI_MAX_ARG_LENGTH) {
+        return {
+          valid: false,
+          error: `arg[${i}] exceeds maximum length of ${CLI_MAX_ARG_LENGTH} characters`,
+        };
+      }
+
+      // Reject null byte injection — can cause C-level string truncation in
+      // child processes and libraries, bypassing downstream validation.
+      if (arg.includes("\x00")) {
+        return { valid: false, error: `arg[${i}] contains null byte` };
+      }
+
+      // Reject newline injection — prevents log injection, command splitting in
+      // downstream CLI parsers, and HTTP header injection through stderr/stdout.
+      if (arg.includes("\n") || arg.includes("\r")) {
+        return { valid: false, error: `arg[${i}] contains newline character` };
+      }
+
+      // Reject path traversal — blocks attempts to read/write files outside
+      // the intended directories via subcommands that process file paths.
+      if (
+        arg.includes("..") &&
+        (arg.startsWith("..") ||
+          arg.includes("/..") ||
+          arg.includes("\\..") ||
+          arg === "..")
+      ) {
+        return {
+          valid: false,
+          error: `arg[${i}] contains path traversal sequence`,
+        };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  app.post("/cli", async (req: Request, res: Response) => {
+    try {
+      const { command, args: cmdArgs } = req.body;
+
+      // Input validation: command must be a non-empty string
+      if (!command || typeof command !== "string") {
+        res.status(400).json({ error: "Missing or invalid command" });
+        return;
+      }
+
+      // Command whitelist: reject disallowed commands
+      if (!CLI_COMMAND_WHITELIST.has(command)) {
+        res.status(403).json({ error: `Command not allowed: ${command}` });
+        return;
+      }
+
+      // Args security validation
+      const argsValidation = validateCliArgs(cmdArgs);
+      if (!argsValidation.valid) {
+        res.status(400).json({ error: argsValidation.error });
+        return;
+      }
+
+      const { execFile } = await import("child_process");
+      const binPath = path.resolve(process.cwd(), "bin/duckbrain.ts");
+      const fullArgs = [binPath, command, ...(cmdArgs || [])];
+
+      execFile(
+        "npx",
+        ["tsx", ...fullArgs],
+        {
+          timeout: 30000,
+          maxBuffer: 1024 * 1024,
+          cwd: process.cwd(),
+          env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+        },
+        (err: any, stdout: string, stderr: string) => {
+          if (err) {
+            const output = [stderr, stdout].filter(Boolean).join("\n").trim();
+            res.json({ error: output || err.message, exitCode: err.code || 1 });
+            return;
+          }
+          const output = stdout.trim();
+          const errOutput = stderr.trim();
+          res.json({ output, error: errOutput || undefined, exitCode: 0 });
+        },
+      );
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal error",
+      });
+    }
+  });
+
+  // Streamable HTTP transport for MCP.
+  //
+  // Tools are registered on the singleton server exactly once (registerTools()
+  // throws "Tool <name> is already registered" if called twice; the module-scope
+  // mcpToolsRegistered flag guards against repeat createHttpServer() calls). In
+  // stateless
+  // mode (sessionIdGenerator: undefined) the SDK requires a *fresh* transport per
+  // request — reusing one throws "Stateless transport cannot be reused across
+  // requests". So each request gets a new transport that is connected, used, and
+  // then closed, which releases the singleton server to connect again next time.
+  //
+  // Requests are serialized with a mutex because the singleton server accepts only
+  // one transport at a time — a second overlapping server.connect() throws
+  // "Already connected to a transport".
+  if (!mcpToolsRegistered) {
+    registerTools();
+    mcpToolsRegistered = true;
+  }
+  const mcpMutex = new Mutex();
+
+  const handleMcpRequest = (
+    req: Request,
+    res: Response,
+    parsedBody?: unknown,
+  ): Promise<void> =>
+    mcpMutex.runExclusive(async () => {
+      // DOGFOOD-025: the auth middleware runs before /mcp, so an
+      // authenticated request (--auth=apikey / basic) carries its principal
+      // here; auth=none leaves it undefined and MCP tools keep their
+      // local-mode fallbacks. Requests are serialized through mcpMutex, so
+      // setting the module-scope slot here and clearing it in finally is
+      // single-flight safe (see getMcpRequestPrincipal below).
+      mcpRequestPrincipal = getPrincipal(req);
+      // SUPA-4 (audit-every-denial): expose the SAME request-scoped denial
+      // auditor the REST middlewares audit through (the auth middleware
+      // installed it on this request) so an MCP tool refusal writes its
+      // denial row to the shared sink instead of vanishing. Bound to the
+      // request, and cleared with the principal when the call completes.
+      mcpRequestAuditDenial = (event) => auditRequestDenial(req, event);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        // Return a single JSON response per request instead of an open SSE
+        // stream, so each stateless request completes and releases promptly.
+        enableJsonResponse: true,
+      });
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res, parsedBody);
+      } finally {
+        await transport.close().catch(() => {});
+        mcpRequestPrincipal = undefined;
+        mcpRequestAuditDenial = undefined;
+      }
+    });
+
+  app.post("/mcp", async (req: Request, res: Response) => {
+    try {
+      // express.json() has already consumed the request stream, so pass the
+      // parsed body to the transport explicitly.
+      await handleMcpRequest(req, res, req.body);
+    } catch (error) {
+      console.error("MCP request error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  });
+
+  // GET opens the optional server-to-client SSE stream. DuckBrain is
+  // request/response only (no server-initiated messages) and the singleton server
+  // cannot hold a long-lived GET stream while also answering POSTs, so this
+  // endpoint does not offer it. Per the MCP spec, return 405; the Streamable HTTP
+  // client treats 405 as "no SSE stream here" and continues with POST only.
+  app.get("/mcp", (_req: Request, res: Response) => {
+    res
+      .status(405)
+      .set("Allow", "POST")
+      .json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message:
+            "Method Not Allowed: this endpoint does not offer a GET SSE stream",
+        },
+        id: null,
+      });
+  });
+
+  app.use(errorHandler);
+  app.use(notFoundHandler);
+
+  return app;
+}
+
+// DOGFOOD-025: module-scope slot holding the authenticated principal of the
+// MCP request currently being served. The /mcp route sets it inside its
+// mutex (single-flight — requests are serialized) and clears it in finally;
+// MCP tool handlers read it via getMcpRequestPrincipal(). In stdio/local
+// (auth=none) mode nothing ever sets it, so it stays undefined and tools
+// keep their git-config author fallback. The stdio entry point never calls
+// createHttpServer, so the singleton MCP server's stdio session is
+// unaffected by this slot.
+let mcpRequestPrincipal: AuthPrincipal | undefined;
+
+/**
+ * SUPA-4: module-scope slot holding the denial auditor of the MCP request
+ * currently being served — the same request-scoped sink
+ * `requireNamespaceGrant` / `requireTableGrant` audit through on the REST
+ * routes. Set inside the /mcp mutex (single-flight) and cleared in finally;
+ * MCP tool handlers reach it via `getMcpRequestDenialAuditor()`, which is how
+ * a refusal taken below the transport lands an audit row.
+ */
+let mcpRequestAuditDenial: DenialAuditor | undefined;
+
+/**
+ * DOGFOOD-025: resolve the authenticated principal of the in-flight MCP
+ * request, if any.
+ *
+ * Returns undefined for stdio transports and auth=none local mode — MCP
+ * tools then fall back to their client-supplied author / git-config
+ * behavior, which must stay unchanged.
+ */
+export function getMcpRequestPrincipal(): AuthPrincipal | undefined {
+  return mcpRequestPrincipal;
+}
+
+/**
+ * SUPA-4 (audit-every-denial): resolve the denial auditor of the in-flight
+ * MCP request, if any.
+ *
+ * Returns undefined for stdio transports, auth=none local mode and embedders
+ * that installed no auditor — a refusal is then returned un-audited (the
+ * legacy behavior) and nothing blocks on audit I/O.
+ */
+export function getMcpRequestDenialAuditor(): DenialAuditor | undefined {
+  return mcpRequestAuditDenial;
+}
+
+/**
+ * Listen on a Unix domain socket with correct filesystem permissions.
+ *
+ * Removes a stale socket file, binds, then applies chmod (default 0660) and
+ * optional chown to a group. Shared by startHttpMode and tests/embedders.
+ *
+ * @param app Express app to serve
+ * @param socketPath Unix socket path
+ * @param opts Permissions: socketMode (octal string), socketGroup (name or GID)
+ * @returns the listening http.Server
+ */
+export function listenOnSocket(
+  app: Express,
+  socketPath: string,
+  opts: { socketMode?: string; socketGroup?: string } = {},
+): Promise<http.Server> {
+  const socketMode = opts.socketMode ?? "0660";
+
+  return new Promise((resolve, reject) => {
+    // Remove stale socket file if present (previous crash may have left it)
+    try {
+      if (fs.existsSync(socketPath)) {
+        fs.unlinkSync(socketPath);
+        console.error(`[duckbrain] Removed stale socket file: ${socketPath}`);
+      }
+    } catch (e) {
+      console.error(
+        `[duckbrain] Warning: could not remove stale socket ${socketPath}:`,
+        e,
+      );
+    }
+
+    const server = app.listen(socketPath, () => {
+      // Apply filesystem permissions after bind
+      try {
+        const mode = parseInt(socketMode, 8);
+        if (!Number.isNaN(mode)) {
+          fs.chmodSync(socketPath, mode);
+        }
+        if (opts.socketGroup) {
+          // Resolve group name to GID (or accept numeric GID directly)
+          let gid: number;
+          const numeric = parseInt(opts.socketGroup, 10);
+          if (!Number.isNaN(numeric)) {
+            gid = numeric;
+          } else {
+            const { execSync } = require("child_process");
+            gid = parseInt(
+              execSync(`getent group ${opts.socketGroup} | cut -d: -f3`)
+                .toString()
+                .trim(),
+              10,
+            );
+          }
+          fs.chownSync(socketPath, -1, gid);
+        }
+        console.error(
+          `[duckbrain] HTTP server listening on Unix socket ${socketPath} (mode ${socketMode})`,
+        );
+      } catch (e) {
+        console.error(
+          `[duckbrain] Warning: could not set socket permissions:`,
+          e,
+        );
+      }
+      resolve(server);
+    });
+
+    server.on("error", reject);
+  });
+}
+
+/**
+ * Bind a TCP listener and settle only when the outcome is certain.
+ *
+ * DF-0926-01: Node can deliver the 'listening' callback BEFORE the 'error'
+ * event on the SAME server when the port is taken (measured: listening cb at
+ * t+4ms, EADDRINUSE at t+5ms — the kernel refuses the bind asynchronously
+ * after listen() was called). A promise that resolves directly inside the
+ * listening callback therefore settles the start as a success first, and the
+ * later error event is swallowed by the already-resolved promise: the daemon
+ * printed its "started" banner, wrote a pidfile, and exited 0 without serving
+ * anything. The fix is to defer the resolution one macrotask turn: a pending
+ * error event always wins the race, and a genuine bind stays genuine because
+ * the callback does not fire for a server that will error.
+ *
+ * @param app Express app to listen with
+ * @param port TCP port to bind
+ * @param host Interface to bind
+ */
+function listenTcp(
+  app: Express,
+  port: number,
+  host: string,
+): Promise<http.Server> {
+  return new Promise<http.Server>((resolve, reject) => {
+    let settled = false;
+    const httpServer = app.listen(port, host, () => {
+      // Let an in-flight error event (EADDRINUSE) claim the failure first.
+      setImmediate(() => {
+        if (settled) return;
+        settled = true;
+        resolve(httpServer);
+      });
+    });
+    httpServer.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Start HTTP server
+ *
+ * Listens on TCP (port) and, if `options.socket` is set, on a Unix domain
+ * socket. Socket permissions are applied via chmod/chown after bind so the
+ * file is created with the requested mode (default 0660) and optional group.
+ *
+ * Lifecycle (DF-0926-01): the TCP bind happens FIRST; the success banner,
+ * stale-pidfile cleanup, and pidfile write only run after the port is
+ * actually bound. A failed bind rejects before any of those side effects,
+ * and the catch path below exits nonzero — a conflicting daemon can no
+ * longer announce success, clobber a live pidfile, or exit 0.
+ *
+ * @param options Server options
+ */
+export async function startHttpMode(
+  options: HttpServerOptions = {},
+): Promise<void> {
+  const { port = 3000, bindAll = false, socket, socketMode = "0660" } = options;
+  const host = bindAll ? "0.0.0.0" : "127.0.0.1";
+  const pidFile = httpPidFilePath(port, socket);
+
+  try {
+    const app = createHttpServer(options);
+    const servers: http.Server[] = [];
+
+    // Start TCP listener (always, unless socket-only mode is requested via port 0)
+    const httpServer = await listenTcp(app, port, host);
+    servers.push(httpServer);
+    console.error(`[duckbrain] HTTP server started at http://${host}:${port}`);
+
+    // Graceful shutdown
+    const shutdown = () => {
+      // Remove PID file on shutdown
+      try {
+        if (fs.existsSync(pidFile)) {
+          fs.unlinkSync(pidFile);
+        }
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+
+      // Remove socket file if present
+      if (socket) {
+        try {
+          if (fs.existsSync(socket)) {
+            fs.unlinkSync(socket);
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+
+      Promise.all(
+        servers.map(
+          (s) =>
+            new Promise<void>((r) => {
+              s.close(() => r());
+            }),
+        ),
+      ).then(async () => {
+        // SUPA-1 (AC-7): drain the durability barrier BEFORE the debounced
+        // commit flush — every fsync-mode append has already hit its barrier
+        // (appends are synchronous), and the SUPA-2 serializer's queued
+        // appends hook into drainDurableWrites() once it lands. Commit flush
+        // last: it is the history transport, not the durability mechanism.
+        await drainDurableWrites().catch(() => {});
+        // OPS-006: give async git work already in flight (commit + push
+        // spawned off the event loop) a bounded chance to land before the
+        // windows that never fired are flushed synchronously below. Bounded
+        // and best-effort by contract — shutdown never hangs on git.
+        try {
+          await drainAsyncCommits();
+        } catch {
+          // Git is best-effort — never block shutdown on it.
+        }
+        try {
+          flushAllCommits();
+        } catch {
+          // Git is best-effort — never block shutdown on it.
+        }
+        await stopServer();
+        process.exit(0);
+      });
+    };
+
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+
+    // Write PID to local file for easy management. If a previous instance
+    // crashed and left a pidfile whose PID is no longer alive, remove it
+    // first so a dead pid never shadows the live server (DOGFOOD-016).
+    //
+    // Best-effort, mirroring cleanupStalePidFile's contract: the pidfile is
+    // bookkeeping for `scoped-stop` / `server_status`, and the TCP listener
+    // is ALREADY bound and serving by this point. A shared temp dir can hold
+    // a pidfile owned by another user (a root-run instance, a container)
+    // whose unlink+rewrite is refused with EACCES, and a read-only data dir
+    // refuses the write outright — neither may take down a ready server, and
+    // neither has anything to do with the flag/port the caller asked for.
+    cleanupStalePidFile(pidFile);
+    try {
+      fs.writeFileSync(pidFile, process.pid.toString());
+      console.error(`[duckbrain] PID written to: ${pidFile}`);
+    } catch (error) {
+      console.error(
+        `[duckbrain] Could not write pidfile ${pidFile}: ${
+          error instanceof Error ? error.message : String(error)
+        } — continuing without it (server is already listening)`,
+      );
+    }
+
+    // Start Unix socket listener if requested
+    if (socket) {
+      const socketServer = await listenOnSocket(app, socket, {
+        socketMode,
+        socketGroup: options.socketGroup,
+      });
+      servers.push(socketServer);
+    }
+
+    // Keep process alive — servers array holds listeners; also prevent
+    // premature exit when only socket listening.
+    console.error("[duckbrain] HTTP server ready");
+  } catch (error) {
+    console.error("[duckbrain] Failed to start HTTP server:", error);
+    process.exit(1);
+  }
+}
+
+/**
+ * HTTP-HELP-001: the `duckbrain http` front door (help short-circuit, flag
+ * parsing, server start), extracted from bin/duckbrain.ts so vitest can
+ * drive it in-process — the bin entry module runs closeAllConnections() and
+ * main() at import time and must never be imported by a test.
+ *
+ * A bare `--help` or `-h` ANYWHERE in the args is answered with the http
+ * options block on STDOUT and an immediate return — before any flag parsing
+ * and WITHOUT calling start(). The production start() is startHttpMode, the
+ * only caller of createHttpServer() on this path, so "start not called"
+ * transitively proves the server is never constructed for a help request.
+ * With no --help the behavior is identical to the pre-extraction bin case:
+ * same flags, same space/`=` forms, same defaults (port 3000, authType
+ * "apikey", rateLimit 100). REVIEW-DUCKBRAIN-006 flipped authType's default
+ * from "none" to "apikey": the flag vocabulary and parse shape are
+ * unchanged, only the no-flag fallback moved to the fail-closed value, and
+ * an explicit --auth=none now prints a loud unauthenticated-mode warning on
+ * stderr.
+ *
+ * `helped: true` lets the bin entry exit 0 immediately after printing help.
+ */
+export interface HttpCommandStartOptions {
+  port: number;
+  authType: "none" | "basic" | "apikey";
+  authFile?: string;
+  rateLimit: number;
+  bindAll: boolean;
+  allowedHosts?: string[];
+  socket?: string;
+  socketMode?: string;
+  socketGroup?: string;
+}
+
+export interface HttpCommandResult {
+  /** True when a help request was answered; no server was started. */
+  helped: boolean;
+}
+
+/**
+ * Print the `duckbrain http` options block to STDOUT.
+ *
+ * Mirrors the real flag list parsed below / HttpServerOptions (port,
+ * bind-all, auth, auth-file, rate-limit, unix-socket family) and the
+ * documented defaults, so `http --help` never drifts from what the command
+ * actually accepts.
+ */
+function printHttpHelp(): void {
+  console.log(
+    `
+Usage: duckbrain http [options]
+
+Start the DuckBrain server with HTTP transport (MCP-over-HTTP + REST API).
+
+Options:
+  --port=PORT              HTTP server port (default: 3000)
+  --bind-all               Bind to all interfaces (0.0.0.0) instead of localhost
+  --allowed-hosts=H1,H2    Extra Host-header values the DNS-rebinding guard
+                           accepts (repeatable and/or comma-separated; env:
+                           DUCKBRAIN_ALLOWED_HOSTS). Use this when the
+                           server is reached through a side-door or reverse
+                           proxy (e.g. a tailnet address) so it can stay
+                           bound to loopback instead of --bind-all.
+  --auth=TYPE              Authentication type: none, basic, apikey
+                           (default: apikey — a fresh daemon requires
+                           API keys; --auth=none is an EXPLICIT UNSAFE
+                           opt-out that serves unauthenticated reads
+                           and writes, for local/test use only)
+  --auth-file=PATH         Read auth users/apiKeys from PATH instead of
+                           ~/.duckbrain/auth.json (env: DUCKBRAIN_AUTH_FILE);
+                           the file must exist — for scratch/test daemons
+  --rate-limit=N           Requests per minute per IP (default: 100)
+  --unix-socket=PATH       Also listen on a Unix domain socket at PATH
+                           (enables MCP-over-HTTP and CLI access via socket)
+  --unix-socket-mode=OCTAL Socket file permissions (default: 0660)
+  --unix-socket-group=NAME Chown socket to group NAME or numeric GID
+  --help, -h               Show this help message
+
+Examples:
+  duckbrain http --port=3000
+  duckbrain http --auth=basic --rate-limit=60
+  duckbrain http --bind-all --port=8080
+  duckbrain http --unix-socket=/run/duckbrain.sock
+  duckbrain http --allowed-hosts=100.97.236.14,memory.example.ts.net
+`.trim(),
+  );
+}
+
+export async function handleHttpCommand(
+  args: string[],
+  deps: { start?: (options: HttpCommandStartOptions) => Promise<void> } = {},
+): Promise<HttpCommandResult> {
+  // HTTP-HELP-001: help FIRST — a bare --help/-h anywhere in the args is a
+  // help request, never a server start. The old code ignored --help and
+  // went straight to startHttpMode, binding :3000 (EADDRINUSE under an
+  // already-running daemon) or silently starting a server on a free port.
+  if (args.includes("--help") || args.includes("-h")) {
+    printHttpHelp();
+    return { helped: true };
+  }
+
+  const start = deps.start ?? startHttpMode;
+
+  // Support both --port=9000 and --port 9000 formats
+  const portIdx = args.findIndex(
+    (arg) => arg === "--port" || arg.startsWith("--port="),
+  );
+  const bindAllIdx = args.findIndex((arg) => arg === "--bind-all");
+  const authIdx = args.findIndex(
+    (arg) => arg === "--auth" || arg.startsWith("--auth="),
+  );
+  const authFileIdx = args.findIndex(
+    (arg) => arg === "--auth-file" || arg.startsWith("--auth-file="),
+  );
+  const rateLimitIdx = args.findIndex(
+    (arg) => arg === "--rate-limit" || arg.startsWith("--rate-limit="),
+  );
+  const socketIdx = args.findIndex(
+    (arg) => arg === "--unix-socket" || arg.startsWith("--unix-socket="),
+  );
+  const socketModeIdx = args.findIndex(
+    (arg) =>
+      arg === "--unix-socket-mode" || arg.startsWith("--unix-socket-mode="),
+  );
+  const socketGroupIdx = args.findIndex(
+    (arg) =>
+      arg === "--unix-socket-group" || arg.startsWith("--unix-socket-group="),
+  );
+
+  const port =
+    portIdx !== -1
+      ? args[portIdx].includes("=")
+        ? parseInt(args[portIdx].split("=")[1])
+        : parseInt(args[portIdx + 1])
+      : 3000;
+  const bindAll = bindAllIdx !== -1;
+  // REVIEW-DUCKBRAIN-006: the CLI default is apikey, not none. A fresh
+  // daemon must never serve unauthenticated reads/writes; opening the door
+  // is an explicit operator action (--auth=none) and is announced loudly
+  // on stderr below. createHttpServer() carries the same default, so an
+  // embedded caller that passes no authType is fail-closed too.
+  const authType =
+    authIdx !== -1
+      ? ((args[authIdx].includes("=")
+          ? args[authIdx].split("=")[1]
+          : args[authIdx + 1]) as "none" | "basic" | "apikey")
+      : "apikey";
+  // Explicit opt-out only (the default above is apikey, so this fires
+  // exactly when the operator asked for none): the warning is the
+  // operator's evidence that the daemon is unauthenticated.
+  if (authType === "none") {
+    console.error(
+      "[auth] WARNING: --auth=none disables authentication — with no auth " +
+        "store this daemon accepts UNAUTHENTICATED reads and writes (an " +
+        "explicit --auth-file/DUCKBRAIN_AUTH_FILE still auto-enables apikey " +
+        "and prints its own banner). Use it only for explicit local/test " +
+        "mode; the default is --auth=apikey.",
+    );
+  }
+  const authFile =
+    authFileIdx !== -1
+      ? args[authFileIdx].includes("=")
+        ? args[authFileIdx].split("=")[1]
+        : args[authFileIdx + 1]
+      : undefined;
+  const rateLimit =
+    rateLimitIdx !== -1
+      ? args[rateLimitIdx].includes("=")
+        ? parseInt(args[rateLimitIdx].split("=")[1])
+        : parseInt(args[rateLimitIdx + 1])
+      : 100;
+  const socket =
+    socketIdx !== -1
+      ? args[socketIdx].includes("=")
+        ? args[socketIdx].split("=")[1]
+        : args[socketIdx + 1]
+      : undefined;
+  const socketMode =
+    socketModeIdx !== -1
+      ? args[socketModeIdx].includes("=")
+        ? args[socketModeIdx].split("=")[1]
+        : args[socketModeIdx + 1]
+      : undefined;
+  const socketGroup =
+    socketGroupIdx !== -1
+      ? args[socketGroupIdx].includes("=")
+        ? args[socketGroupIdx].split("=")[1]
+        : args[socketGroupIdx + 1]
+      : undefined;
+
+  // DUCKBRAIN-ALLOWED-HOSTS-001: extra Host-header values for the
+  // DNS-rebinding guard — repeatable and/or comma-separated. parseArgs keeps
+  // only the last --flag=value, so the raw args are re-scanned (same
+  // convention as `duckbrain token --namespace`). An explicit flag wins over
+  // the DUCKBRAIN_ALLOWED_HOSTS env fallback; absent both, the guard keeps
+  // its loopback-only default.
+  const allowedHosts: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let value: string | undefined;
+    if (arg === "--allowed-hosts") {
+      value = args[i + 1];
+    } else if (arg.startsWith("--allowed-hosts=")) {
+      value = arg.slice("--allowed-hosts=".length);
+    }
+    if (value === undefined) continue;
+    for (const entry of value.split(",")) {
+      const trimmed = entry.split(":")[0].trim();
+      if (trimmed && !allowedHosts.includes(trimmed)) {
+        allowedHosts.push(trimmed);
+      }
+    }
+  }
+  if (allowedHosts.length === 0 && process.env.DUCKBRAIN_ALLOWED_HOSTS) {
+    for (const entry of process.env.DUCKBRAIN_ALLOWED_HOSTS.split(",")) {
+      const trimmed = entry.split(":")[0].trim();
+      if (trimmed && !allowedHosts.includes(trimmed)) {
+        allowedHosts.push(trimmed);
+      }
+    }
+  }
+
+  await start({
+    port,
+    authType,
+    authFile,
+    rateLimit,
+    bindAll,
+    ...(allowedHosts.length > 0 ? { allowedHosts } : {}),
+    socket,
+    socketMode,
+    socketGroup,
+  });
+  return { helped: false };
+}
+
+// Auto-start if run directly
+if (
+  process.argv[1]?.endsWith("http.ts") ||
+  process.argv[1]?.endsWith("http.js")
+) {
+  startHttpMode().catch((error: unknown) => {
+    console.error("[duckbrain] Unhandled error:", error);
+    process.exit(1);
+  });
+}

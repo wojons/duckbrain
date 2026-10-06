@@ -1,0 +1,102 @@
+{
+  "task_id": "HEALTH-KEYS-UNDEFINED-001",
+  "task_title": "Fix fresh-install /health degraded: keys_error Namespace undefined",
+  "task_criteria": [
+    "curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum not degraded due to keys probe); probeKeysStore passes the resolved default namespace name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "04aa721e622966f881881a5c6a73d4546f662233",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n6:49PM INF scanned ~14240663 bytes (14.24 MB) in 1.83s\n6:49PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 359504 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  188 passed (188)\n      Tests  1504 passed (1504)\n   Start at  18:49:06\n   Duration  59.01s (tests 80%, import 18%, transform 2%, setup 1%)\n\n    Isolate  188 workers spawned \u00b7 ~89ms startup each (spawn + environment, per file)\n             at least ~4.10s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260929T114610.035040Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum not degraded due to keys probe); probeKeysStore passes the resolved default namespace name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run green: All four sub-claims verified with hard evidence. (1) END-TO-END: started a real daemon (npx tsx bin/duckbrain.ts http --port 3399) with DUCKBRAIN_NAMESPACES_PATH=<empty tmpdir>; `curl -w HTTP=%{http_code} /health` returned HTTP=200 and body {\"status\":\"healthy\",...,\"keys_error\":null,\"deadline_exceeded\":[]} with no 'undefined' anywhere. The parent commit 653a105 under identical conditions returned HTTP=503 {\"status\":\"degraded\",\"keys_error\":\"Namespace 'undefined' does not exist\"} \u2014 the exact reported bug, now fixed. (2) probeKeysStore (src/mcp/tools/list_keys.ts:388-410) now calls resolveNamespaceName(namespace) (src/mcp/tools/shared.ts:25 -> namespace || config.defaultNamespace || \"default\") and passes `namespace: resolvedNamespace` into runKeysQuery; it also returns null for a missing/empty namespace dir (fresh install). (3) grep -rn \"'undefined'|\\\"undefined\\\"\" src/mcp/tools/list_keys.ts src/cli/http.ts src/mcp/tools/shared.ts -> exit 1, no matches; runKeysQuery (list_keys.ts:164-176) throws `Namespace '${namespaceName}' does not exist` using the resolved name, never the raw arg. (4) TESTS: targeted `npx vitest run src/cli/http-health-dbgap035.test.ts src/mcp/tools/list-keys-dbgap035.test.ts` -> exit 0, 'Test Files 2 passed (2) / Tests 10 passed (10)'; full suite `npx vitest run` (= pnpm test:run) -> 'Test Files 188 passed (188) / Tests 1504 passed (1504)' GREEN. A first full-suite run showed one flaky failure in src/http/routes/memories-validuntil-retr011.test.ts (afterAll repo-config equality, cross-test config pollution from concurrent namespace-registry writes); that file passes in isolation (6/6), does not touch list_keys/probeKeysStore/keys_error, and the suite is green on re-run \u2014 pre-existing flakiness, not attributable to this change. New test src/cli/http-health-dbgap035.test.ts:118-146 asserts empty namespaces root -> 200/healthy/keys_error null/no 'undefined'.\nThe keys probe now resolves the config default namespace instead of interpolating raw undefined, and a real fresh-install daemon returns 200 healthy with keys_error null (parent commit reproduced the 503 'Namespace undefined' bug); full vitest suite is green at 188 files / 1504 tests.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum not degraded due to keys probe); probeKeysStore passes the resolved default namespace name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run green: All four sub-claims verified with hard evidence. (1) END-TO-END: started a real daemon (npx tsx bin/duckbrain.ts http --port 3399) with DUCKBRAIN_NAMESPACES_PATH=<empty tmpdir>; `curl -w HTTP=%{http_code} /health` returned HTTP=200 and body {\"status\":\"healthy\",...,\"keys_error\":null,\"deadline_exceeded\":[]} with no 'undefined' anywhere. The parent commit 653a105 under identical conditions returned HTTP=503 {\"status\":\"degraded\",\"keys_error\":\"Namespace 'undefined' does not exist\"} \u2014 the exact reported bug, now fixed. (2) probeKeysStore (src/mcp/tools/list_keys.ts:388-410) now calls resolveNamespaceName(namespace) (src/mcp/tools/shared.ts:25 -> namespace || config.defaultNamespace || \"default\") and passes `namespace: resolvedNamespace` into runKeysQuery; it also returns null for a missing/empty namespace dir (fresh install). (3) grep -rn \"'undefined'|\\\"undefined\\\"\" src/mcp/tools/list_keys.ts src/cli/http.ts src/mcp/tools/shared.ts -> exit 1, no matches; runKeysQuery (list_keys.ts:164-176) throws `Namespace '${namespaceName}' does not exist` using the resolved name, never the raw arg. (4) TESTS: targeted `npx vitest run src/cli/http-health-dbgap035.test.ts src/mcp/tools/list-keys-dbgap035.test.ts` -> exit 0, 'Test Files 2 passed (2) / Tests 10 passed (10)'; full suite `npx vitest run` (= pnpm test:run) -> 'Test Files 188 passed (188) / Tests 1504 passed (1504)' GREEN. A first full-suite run showed one flaky failure in src/http/routes/memories-validuntil-retr011.test.ts (afterAll repo-config equality, cross-test config pollution from concurrent namespace-registry writes); that file passes in isolation (6/6), does not touch list_keys/probeKeysStore/keys_error, and the suite is green on re-run \u2014 pre-existing flakiness, not attributable to this change. New test src/cli/http-health-dbgap035.test.ts:118-146 asserts empty namespaces root -> 200/healthy/keys_error null/no 'undefined'.\nThe keys probe now resolves the config default namespace instead of interpolating raw undefined, and a real fresh-install daemon returns 200 healthy with keys_error null (parent commit reproduced the 503 'Namespace undefined' bug); full vitest suite is green at 188 files / 1504 tests.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum not degraded due to keys probe); probeKeysStore passes the resolved default namespace name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run green",
+                "status": "PASS",
+                "detail": "All four sub-claims verified with hard evidence. (1) END-TO-END: started a real daemon (npx tsx bin/duckbrain.ts http --port 3399) with DUCKBRAIN_NAMESPACES_PATH=<empty tmpdir>; `curl -w HTTP=%{http_code} /health` returned HTTP=200 and body {\"status\":\"healthy\",...,\"keys_error\":null,\"deadline_exceeded\":[]} with no 'undefined' anywhere. The parent commit 653a105 under identical conditions returned HTTP=503 {\"status\":\"degraded\",\"keys_error\":\"Namespace 'undefined' does not exist\"} \u2014 the exact reported bug, now fixed. (2) probeKeysStore (src/mcp/tools/list_keys.ts:388-410) now calls resolveNamespaceName(namespace) (src/mcp/tools/shared.ts:25 -> namespace || config.defaultNamespace || \"default\") and passes `namespace: resolvedNamespace` into runKeysQuery; it also returns null for a missing/empty namespace dir (fresh install). (3) grep -rn \"'undefined'|\\\"undefined\\\"\" src/mcp/tools/list_keys.ts src/cli/http.ts src/mcp/tools/shared.ts -> exit 1, no matches; runKeysQuery (list_keys.ts:164-176) throws `Namespace '${namespaceName}' does not exist` using the resolved name, never the raw arg. (4) TESTS: targeted `npx vitest run src/cli/http-health-dbgap035.test.ts src/mcp/tools/list-keys-dbgap035.test.ts` -> exit 0, 'Test Files 2 passed (2) / Tests 10 passed (10)'; full suite `npx vitest run` (= pnpm test:run) -> 'Test Files 188 passed (188) / Tests 1504 passed (1504)' GREEN. A first full-suite run showed one flaky failure in src/http/routes/memories-validuntil-retr011.test.ts (afterAll repo-config equality, cross-test config pollution from concurrent namespace-registry writes); that file passes in isolation (6/6), does not touch list_keys/probeKeysStore/keys_error, and the suite is green on re-run \u2014 pre-existing flakiness, not attributable to this change. New test src/cli/http-health-dbgap035.test.ts:118-146 asserts empty namespaces root -> 200/healthy/keys_error null/no 'undefined'.",
+                "resolution_probability": 0.32
+              }
+            ],
+            "summary": "The keys probe now resolves the config default namespace instead of interpolating raw undefined, and a real fresh-install daemon returns 200 healthy with keys_error null (parent commit reproduced the 503 'Namespace undefined' bug); full vitest suite is green at 188 files / 1504 tests."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: HEALTH-KEYS-UNDEFINED-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 curl /health on a fresh empty daemon returns 200 status=healthy (or at minimum not degraded due to keys probe); probeKeysStore passes the resolved default namespace name; grep confirms no raw 'undefined' interpolation in list_keys path; pnpm test:run green: All four sub-claims verified with hard evidence. (1) END-TO-END: started a real daemon (npx tsx bin/duckbrain.ts http --port 3399) with DUCKBRAIN_NAMESPACES_PATH=<empty tmpdir>; `curl -w HTTP=%{http_code} /health` returned HTTP=200 and body {\"status\":\"healthy\",...,\"keys_error\":null,\"deadline_exceeded\":[]} with no 'undefined' anywhere. The parent commit 653a105 under identical conditions returned HTTP=503 {\"status\":\"degraded\",\"keys_error\":\"Namespace 'undefined' does not exist\"} \u2014 the exact reported bug, now fixed. (2) probeKeysStore (src/mcp/tools/list_keys.ts:388-410) now calls resolveNamespaceName(namespace) (src/mcp/tools/shared.ts:25 -> namespace || config.defaultNamespace || \"default\") and passes `namespace: resolvedNamespace` into runKeysQuery; it also returns null for a missing/empty namespace dir (fresh install). (3) grep -rn \"'undefined'|\\\"undefined\\\"\" src/mcp/tools/list_keys.ts src/cli/http.ts src/mcp/tools/shared.ts -> exit 1, no matches; runKeysQuery (list_keys.ts:164-176) throws `Namespace '${namespaceName}' does not exist` using the resolved name, never the raw arg. (4) TESTS: targeted `npx vitest run src/cli/http-health-dbgap035.test.ts src/mcp/tools/list-keys-dbgap035.test.ts` -> exit 0, 'Test Files 2 passed (2) / Tests 10 passed (10)'; full suite `npx vitest run` (= pnpm test:run) -> 'Test Files 188 passed (188) / Tests 1504 passed (1504)' GREEN. A first full-suite run showed one flaky failure in src/http/routes/memories-validuntil-retr011.test.ts (afterAll repo-config equality, cross-test config pollution from concurrent namespace-registry writes); that file passes in isolation (6/6), does not touch list_keys/probeKeysStore/keys_error, and the suite is green on re-run \u2014 pre-existing flakiness, not attributable to this change. New test src/cli/http-health-dbgap035.test.ts:118-146 asserts empty namespaces root -> 200/healthy/keys_error null/no 'undefined'.\nThe keys probe now resolves the config default namespace instead of interpolating raw undefined, and a real fresh-install daemon returns 200 healthy with keys_error null (parent commit reproduced the 503 'Namespace undefined' bug); full vitest suite is green at 188 files / 1504 tests.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-30T00:16:27.003038",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-09-30T00:16:27.022242+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 11632,
+        "truncated": false,
+        "source": "git show 04aa721e6229"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1175,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "HEALTH-KEYS-UNDEFINED-001"
+  }
+}

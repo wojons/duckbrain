@@ -1,0 +1,83 @@
+// @ts-nocheck
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { execSync } from "child_process";
+import {
+  uniqueId,
+  getRandomPort,
+  startSshContainer,
+  stopSshContainer,
+  sshExec,
+  waitForPort,
+  run,
+  sleep,
+} from "./helpers";
+
+const id = uniqueId();
+const sshPort = getRandomPort();
+let containerName: string;
+
+describe("SSH Tunnel Integration", () => {
+  beforeAll(async () => {
+    containerName = await startSshContainer(id, sshPort);
+    // 60s: docker build + container start on cold CI runners regularly
+    // exceeds the old 15s wait (proven: run 30696804505 attempt 1, Node 20.x —
+    // "Timed out waiting for port" while 22.x passed the same attempt).
+    // INT-CI-003: 120s — the SAME docker build is already allowed 300s by
+    // docker-build.int.test.ts; on hosts whose docker daemon is shared with
+    // other tenants (observed: this host under concurrent CI-runner builds)
+    // 60s build+run+sshd was still too tight.
+    await waitForPort(sshPort, 120000);
+  }, 180000);
+
+  afterAll(() => {
+    stopSshContainer(containerName);
+  });
+
+  it("should SSH into the container and run a command", async () => {
+    const result = run(
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o PreferredAuthentications=password -p ${sshPort} testuser@127.0.0.1 "echo hello-from-container"`,
+    );
+    expect(result).toContain("hello-from-container");
+  });
+
+  it("should detect DuckBrain is NOT installed on a fresh container", async () => {
+    const result = run(
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o PreferredAuthentications=password -p ${sshPort} testuser@127.0.0.1 "which duckbrain 2>/dev/null || echo NOT_FOUND"`,
+    );
+    expect(result).toContain("NOT_FOUND");
+  });
+
+  it("should create an SSH tunnel with port forwarding", async () => {
+    run(
+      `sshpass -p testpass ssh -o StrictHostKeyChecking=accept-new -p ${sshPort} -L 0:localhost:22 -N -f testuser@127.0.0.1 2>&1 || true`,
+    );
+    await sleep(500);
+    const tunnelResult = run(
+      `ps aux | grep "ssh.*${sshPort}" | grep -v grep || echo NO_TUNNEL`,
+    );
+    const hasTunnel = !tunnelResult.includes("NO_TUNNEL");
+    // Cleanup: execSync directly with stdio:'ignore' to avoid pkill/process-group issues
+    try {
+      execSync(`pkill -f "ssh.*-L.*${sshPort}"`, { stdio: "ignore" });
+    } catch {}
+    if (hasTunnel) {
+      expect(hasTunnel).toBe(true);
+    }
+  });
+
+  it("should write and read a file through SSH", async () => {
+    sshExec(containerName, 'echo "test-data" > /tmp/duckbrain-test.txt');
+    const result = sshExec(containerName, "cat /tmp/duckbrain-test.txt");
+    expect(result).toContain("test-data");
+  });
+
+  it("should have git available in the container", async () => {
+    const result = sshExec(containerName, "which git");
+    expect(result).toContain("git");
+  });
+
+  it("should have ssh client available in the container", async () => {
+    const result = sshExec(containerName, "which ssh");
+    expect(result).toContain("ssh");
+  });
+});

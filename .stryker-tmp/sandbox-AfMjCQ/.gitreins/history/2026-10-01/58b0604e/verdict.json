@@ -1,0 +1,99 @@
+{
+  "task_id": "S3-GIT-006",
+  "task_title": "Bound S3 sync request legs + stop fd-9 lock inheritance in unified cron",
+  "task_criteria": [
+    "A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the unified cron's child processes do not inherit the flock fd (hermetic /proc test)"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "c50433642bda0b06f07a105e183f3cb82d552610",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n10:26AM INF scanned ~14015271 bytes (14.02 MB) in 1.6s\n10:26AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 378497 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "",
+          "error": "Command timed out",
+          "data": {}
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the unified cron's child processes do not inherit the flock fd (hermetic /proc test): Half 1: src/s3/client.ts:48-52 buildClient now wires NodeHttpHandler{requestTimeout:120_000, connectionTimeout:10_000, httpsAgent:new Agent({keepAlive:true,maxSockets:20})}. src/s3/client-timeout-s3git006.test.ts is hermetic (http://localhost:1, ECONNREFUSED, in-process, env creds so rejection is on the wire path) and its expectRejectedWithin() fails with 'still pending after 15s (HANG \u2014 S3-GIT-006)' if unsettled. Fresh run: `npx vitest run src/s3/client-timeout-s3git006.test.ts --reporter=verbose` -> exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)', with 'listRemoteObjects REJECTS within 15s against localhost:1 (ECONNREFUSED) 248ms' and 'client.send REJECTS within 15s against localhost:1 157ms' \u2014 both far under 15s. Half 2: scripts/s3/duckbrain-s3-unified.sh takes the lock via `exec 9>\"$LOCK\"; flock -n 9` and closes fd 9 per-invocation on every layer spawn (`duckbrain-s3-native-sync.sh 9>&-`, `GIT_OUT=\"$(duckbrain-s3-daily.sh 9>&- 2>&1)\"`, `duckbrain-s3-weekly.sh 9>&-`), keeping the shell's own fd holding the flock. scripts/s3/test-fd-inheritance.sh is hermetic (mktemp -d + DUCKBRAIN_S3_* overrides) and inspects /proc/<pid>/fd. Fresh run: `bash scripts/s3/test-fd-inheritance.sh` -> exit 0, 'fd-inheritance harness: 14 passed, 0 failed'; arm1 child has NO lockfile fd, arm2 control (no 9>&-) DOES inherit (detector live), arm3 second flock refused while child alive, arm4 pins that top-level `exec 9>&-` releases the lock, arm5 end-to-end on the REAL unified script shows the running child (pid 1703321) has NO lockfile fd while the wrapper shell (pid 1703308) holds it, a concurrent wrapper is SKIPPED, and the lock is free after exit; arm6 concurrent second wrapper exits 0 with the SKIPPED line.\nBoth halves of S3-GIT-006 are implemented and verified by fresh hermetic test runs: the S3 client rejects within 15s against localhost:1 (4/4 vitest pass) and the unified cron's children no longer inherit flock fd 9 (14/14 fd-inheritance arms pass, including the end-to-end /proc check on the real script).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the unified cron's child processes do not inherit the flock fd (hermetic /proc test): Half 1: src/s3/client.ts:48-52 buildClient now wires NodeHttpHandler{requestTimeout:120_000, connectionTimeout:10_000, httpsAgent:new Agent({keepAlive:true,maxSockets:20})}. src/s3/client-timeout-s3git006.test.ts is hermetic (http://localhost:1, ECONNREFUSED, in-process, env creds so rejection is on the wire path) and its expectRejectedWithin() fails with 'still pending after 15s (HANG \u2014 S3-GIT-006)' if unsettled. Fresh run: `npx vitest run src/s3/client-timeout-s3git006.test.ts --reporter=verbose` -> exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)', with 'listRemoteObjects REJECTS within 15s against localhost:1 (ECONNREFUSED) 248ms' and 'client.send REJECTS within 15s against localhost:1 157ms' \u2014 both far under 15s. Half 2: scripts/s3/duckbrain-s3-unified.sh takes the lock via `exec 9>\"$LOCK\"; flock -n 9` and closes fd 9 per-invocation on every layer spawn (`duckbrain-s3-native-sync.sh 9>&-`, `GIT_OUT=\"$(duckbrain-s3-daily.sh 9>&- 2>&1)\"`, `duckbrain-s3-weekly.sh 9>&-`), keeping the shell's own fd holding the flock. scripts/s3/test-fd-inheritance.sh is hermetic (mktemp -d + DUCKBRAIN_S3_* overrides) and inspects /proc/<pid>/fd. Fresh run: `bash scripts/s3/test-fd-inheritance.sh` -> exit 0, 'fd-inheritance harness: 14 passed, 0 failed'; arm1 child has NO lockfile fd, arm2 control (no 9>&-) DOES inherit (detector live), arm3 second flock refused while child alive, arm4 pins that top-level `exec 9>&-` releases the lock, arm5 end-to-end on the REAL unified script shows the running child (pid 1703321) has NO lockfile fd while the wrapper shell (pid 1703308) holds it, a concurrent wrapper is SKIPPED, and the lock is free after exit; arm6 concurrent second wrapper exits 0 with the SKIPPED line.\nBoth halves of S3-GIT-006 are implemented and verified by fresh hermetic test runs: the S3 client rejects within 15s against localhost:1 (4/4 vitest pass) and the unified cron's children no longer inherit flock fd 9 (14/14 fd-inheritance arms pass, including the end-to-end /proc check on the real script).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the unified cron's child processes do not inherit the flock fd (hermetic /proc test)",
+                "status": "PASS",
+                "detail": "Half 1: src/s3/client.ts:48-52 buildClient now wires NodeHttpHandler{requestTimeout:120_000, connectionTimeout:10_000, httpsAgent:new Agent({keepAlive:true,maxSockets:20})}. src/s3/client-timeout-s3git006.test.ts is hermetic (http://localhost:1, ECONNREFUSED, in-process, env creds so rejection is on the wire path) and its expectRejectedWithin() fails with 'still pending after 15s (HANG \u2014 S3-GIT-006)' if unsettled. Fresh run: `npx vitest run src/s3/client-timeout-s3git006.test.ts --reporter=verbose` -> exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)', with 'listRemoteObjects REJECTS within 15s against localhost:1 (ECONNREFUSED) 248ms' and 'client.send REJECTS within 15s against localhost:1 157ms' \u2014 both far under 15s. Half 2: scripts/s3/duckbrain-s3-unified.sh takes the lock via `exec 9>\"$LOCK\"; flock -n 9` and closes fd 9 per-invocation on every layer spawn (`duckbrain-s3-native-sync.sh 9>&-`, `GIT_OUT=\"$(duckbrain-s3-daily.sh 9>&- 2>&1)\"`, `duckbrain-s3-weekly.sh 9>&-`), keeping the shell's own fd holding the flock. scripts/s3/test-fd-inheritance.sh is hermetic (mktemp -d + DUCKBRAIN_S3_* overrides) and inspects /proc/<pid>/fd. Fresh run: `bash scripts/s3/test-fd-inheritance.sh` -> exit 0, 'fd-inheritance harness: 14 passed, 0 failed'; arm1 child has NO lockfile fd, arm2 control (no 9>&-) DOES inherit (detector live), arm3 second flock refused while child alive, arm4 pins that top-level `exec 9>&-` releases the lock, arm5 end-to-end on the REAL unified script shows the running child (pid 1703321) has NO lockfile fd while the wrapper shell (pid 1703308) holds it, a concurrent wrapper is SKIPPED, and the lock is free after exit; arm6 concurrent second wrapper exits 0 with the SKIPPED line.",
+                "resolution_probability": 0.26
+              }
+            ],
+            "summary": "Both halves of S3-GIT-006 are implemented and verified by fresh hermetic test runs: the S3 client rejects within 15s against localhost:1 (4/4 vitest pass) and the unified cron's children no longer inherit flock fd 9 (14/14 fd-inheritance arms pass, including the end-to-end /proc check on the real script)."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-GIT-006\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: Command timed out\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A hanging S3 host request rejects within 15s (hermetic localhost:1 test) and the unified cron's child processes do not inherit the flock fd (hermetic /proc test): Half 1: src/s3/client.ts:48-52 buildClient now wires NodeHttpHandler{requestTimeout:120_000, connectionTimeout:10_000, httpsAgent:new Agent({keepAlive:true,maxSockets:20})}. src/s3/client-timeout-s3git006.test.ts is hermetic (http://localhost:1, ECONNREFUSED, in-process, env creds so rejection is on the wire path) and its expectRejectedWithin() fails with 'still pending after 15s (HANG \u2014 S3-GIT-006)' if unsettled. Fresh run: `npx vitest run src/s3/client-timeout-s3git006.test.ts --reporter=verbose` -> exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)', with 'listRemoteObjects REJECTS within 15s against localhost:1 (ECONNREFUSED) 248ms' and 'client.send REJECTS within 15s against localhost:1 157ms' \u2014 both far under 15s. Half 2: scripts/s3/duckbrain-s3-unified.sh takes the lock via `exec 9>\"$LOCK\"; flock -n 9` and closes fd 9 per-invocation on every layer spawn (`duckbrain-s3-native-sync.sh 9>&-`, `GIT_OUT=\"$(duckbrain-s3-daily.sh 9>&- 2>&1)\"`, `duckbrain-s3-weekly.sh 9>&-`), keeping the shell's own fd holding the flock. scripts/s3/test-fd-inheritance.sh is hermetic (mktemp -d + DUCKBRAIN_S3_* overrides) and inspects /proc/<pid>/fd. Fresh run: `bash scripts/s3/test-fd-inheritance.sh` -> exit 0, 'fd-inheritance harness: 14 passed, 0 failed'; arm1 child has NO lockfile fd, arm2 control (no 9>&-) DOES inherit (detector live), arm3 second flock refused while child alive, arm4 pins that top-level `exec 9>&-` releases the lock, arm5 end-to-end on the REAL unified script shows the running child (pid 1703321) has NO lockfile fd while the wrapper shell (pid 1703308) holds it, a concurrent wrapper is SKIPPED, and the lock is free after exit; arm6 concurrent second wrapper exits 0 with the SKIPPED line.\nBoth halves of S3-GIT-006 are implemented and verified by fresh hermetic test runs: the S3 client rejects within 15s against localhost:1 (4/4 vitest pass) and the unified cron's children no longer inherit flock fd 9 (14/14 fd-inheritance arms pass, including the end-to-end /proc check on the real script).\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-01T15:32:46.185349",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-01T15:32:46.209359+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 27813,
+        "truncated": false,
+        "source": "git show c50433642bda"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3056,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "S3-GIT-006"
+  }
+}

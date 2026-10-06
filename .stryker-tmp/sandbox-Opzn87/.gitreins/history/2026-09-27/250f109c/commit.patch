@@ -1,0 +1,897 @@
+commit c1cd177a22e5bb61d82f6e3d3529ce2d80142d3e
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 27 06:42:58 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 27 06:42:58 2026 -0500
+
+    fix(df-0926-01): make the examples on-ramp runnable and the bind lifecycle truthful
+    
+    The P0 examples on-ramp could not be followed end to end, and a second
+    `duckbrain http` on an occupied port announced success, clobbered the live
+    daemon's pidfile and exited 0. The source half of the fix is already in HEAD
+    (listenTcp defers its resolution one macrotask so a pending EADDRINUSE wins the
+    race, and the started banner / stale-pidfile cleanup / pidfile write now run
+    only after a successful bind — src/cli/http.ts, ae7ab2e). This commit completes
+    the user-visible half:
+    
+    - AC1  every documented invocation is runnable: `pnpm start -- http ...`
+      forwards a literal `--` under the pinned pnpm (Unknown command: --, exit 1).
+      All sites across README.md, docs/api/http-api.md, docs/dogfood/* and the
+      three example READMEs now use `pnpm start http ...` or invoke the entry point
+      directly; `grep -rn "pnpm start --" README.md docs examples` is zero-hit.
+    - AC2  examples/http-api/client.js is plain CommonJS (it was ESM with
+      import.meta inside a "type": "commonjs" repo) and its payloads pass the
+      server's own validation: keys start with "/", content is a plain string,
+      recall goes through GET /api/memories/key/:key, keyword search uses ?contains=.
+    - AC3/AC4  regression coverage in src/cli/http.test.ts (bind conflict exits
+      nonzero with no started banner, the live occupant's pidfile is untouched, the
+      challenger writes no pidfile of its own) plus a hermetic end-to-end suite
+      tests/examples-onramp-df092601.int.test.ts that runs the committed client
+      against a scratch daemon.
+    - AGENTS.md test counts synced to the live suite (178 suites, 1414 tests) — the
+      new test file would otherwise red the CI count assert (GAP-012 class).
+    
+    Live acceptance evidence (foreman, scratch daemon on a scratch port, killed by
+    explicit PID):
+      challenger exit=1 · "Failed to start HTTP server: Error: listen EADDRINUSE"
+      · no "HTTP server started" banner · occupant pidfile sha256 identical before
+      and after · no challenger pidfile · occupant still serving 200
+      · `node examples/http-api/client.js` printed steps 1-4 and exited 0
+    
+    Gates: prettier --check src/ examples/ clean; tsc --noEmit exit 0;
+    vitest run 178 suites / 1414 tests passed; targeted integration 2/2 passed;
+    scripts/sync-agents-md-counts.sh --check matches live.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md                                       |   4 +-
+ docs/api/http-api.md                            |  14 +--
+ docs/dogfood/2026-09-26-examples-integration.md |   2 +-
+ docs/dogfood/diagnostics.md                     |   8 +-
+ examples/custom-storage/README.md               |  16 ++-
+ examples/http-api/README.md                     | 145 +++++++++++++++--------
+ examples/http-api/client.js                     | 113 ++++++++++--------
+ examples/mcp-client/README.md                   |  11 +-
+ src/cli/http.test.ts                            |  98 ++++++++++++++++
+ tests/examples-onramp-df092601.int.test.ts      | 147 ++++++++++++++++++++++++
+ 10 files changed, 441 insertions(+), 117 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index f0c58e4..d359ba0 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (171 suites, 1372 tests)
++- **Test Framework:** Vitest (178 suites, 1414 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1372 tests, 171 suites
++pnpm test          # 1414 tests, 178 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index 01328d1..e331149 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -6,16 +6,16 @@ DuckBrain's HTTP server provides REST API access to memories, namespaces, and sy
+ 
+ ```bash
+ # Default port 3000, localhost only
+-pnpm start -- http
++pnpm start http
+ 
+ # Custom port
+-pnpm start -- http --port=8080
++pnpm start http --port=8080
+ 
+ # Bind to all interfaces (for remote access)
+-pnpm start -- http --bind-all --port=8080
++pnpm start http --bind-all --port=8080
+ 
+ # With authentication
+-pnpm start -- http --auth=apikey --rate-limit=60
++pnpm start http --auth=apikey --rate-limit=60
+ ```
+ 
+ ### HTTP Server Options
+@@ -1292,10 +1292,10 @@ touches the production one:
+ 
+ ```bash
+ # Flag form
+-pnpm start -- http --auth=apikey --auth-file=/tmp/scratch-auth.json
++pnpm start http --auth=apikey --auth-file=/tmp/scratch-auth.json
+ 
+ # Env fallback (used when the flag is absent)
+-DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start -- http --auth=apikey
++DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start http --auth=apikey
+ ```
+ 
+ - Precedence: `--auth-file` flag > `DUCKBRAIN_AUTH_FILE` env > prod default.
+@@ -1311,7 +1311,7 @@ DUCKBRAIN_AUTH_FILE=/tmp/scratch-auth.json pnpm start -- http --auth=apikey
+ 
+ ```bash
+ # Start server with API key auth
+-pnpm start -- http --auth=apikey
++pnpm start http --auth=apikey
+ 
+ # Configure keys in ~/.duckbrain/auth.json
+ # {"apiKeys": [{"key": "sk-duckbrain-abc123", "name": "default"}]}
+diff --git a/docs/dogfood/2026-09-26-examples-integration.md b/docs/dogfood/2026-09-26-examples-integration.md
+index 650b3c9..aa5b344 100644
+--- a/docs/dogfood/2026-09-26-examples-integration.md
++++ b/docs/dogfood/2026-09-26-examples-integration.md
+@@ -22,7 +22,7 @@ second wall, then a 500. Once you know the real API (from `docs/api/http-api.md`
+ 
+ | Step | What the docs say | What actually happened |
+ |---|---|---|
+-| Start HTTP API example | `pnpm start -- http --port=3000` | `pnpm start -- X` forwards a literal `--` → CLI: `Unknown command: --`, exit 1. **Both** example READMEs' pnpm invocations fail verbatim under the repo's pinned pnpm. |
++| Start HTTP API example | pnpm start with the `--` separator | A `--`-separated pnpm start invocation forwards a literal `--` → CLI: `Unknown command: --`, exit 1. **Both** example READMEs' pnpm invocations failed verbatim under the repo's pinned pnpm. |
+ | Run the example client | `node examples/http-api/client.js` | SyntaxError: `import.meta` in a `.js` file in a CommonJS repo (no `"type": "module"`). Must copy to `.mjs` — or the README should say to. |
+ | `client.remember(...)` | POST `/api/memories` `{key, content}` | 400 `Missing required fields: key, domain, content` — example never sends `domain`. |
+ | Add `domain: "example"` | — | 400 listing the real enum: `person, event, concept, message, config, raw_note`. |
+diff --git a/docs/dogfood/diagnostics.md b/docs/dogfood/diagnostics.md
+index 9c4c204..2677a7c 100644
+--- a/docs/dogfood/diagnostics.md
++++ b/docs/dogfood/diagnostics.md
+@@ -735,9 +735,11 @@ exit nonzero on bind failure.
+ 
+ **Errors hit this run, and their fixes (the right way per finding):**
+ 
+-- `Unknown command: --` from `pnpm start -- http …` — pnpm's `--` separator is
+-  forwarded verbatim to the CLI. Right way: `node bin/duckbrain.js http …`, or
+-  fix package.json to strip the separator (filed, DF-0926-01).
++- `Unknown command: --` from a `pnpm start` invocation with the `--`
++  separator before the subcommand — pnpm's `--` separator is
++  forwarded verbatim to the CLI. Right way: `pnpm start http …` (no
++  separator) or `node bin/duckbrain.js http …` (separator issue filed,
++  DF-0926-01).
+ - `Cannot use 'import.meta' outside a module` — example is ESM in a CJS repo.
+   Right way: run the copy as `.mjs` (dogfood did); durable fix is the example's
+   own extension or `"type": "module"` scoping (same row).
+diff --git a/examples/custom-storage/README.md b/examples/custom-storage/README.md
+index 7ff6bb4..61164be 100644
+--- a/examples/custom-storage/README.md
++++ b/examples/custom-storage/README.md
+@@ -87,7 +87,7 @@ docker run -d \
+ ### Docker Compose
+ 
+ ```yaml
+-version: '3.8'
++version: "3.8"
+ services:
+   duckbrain:
+     image: duckbrain:latest
+@@ -172,13 +172,17 @@ DuckBrain supports multiple storage backends:
+ ## Testing Configuration
+ 
+ ```bash
+-# Test with custom config
+-pnpm start -- http --config=./examples/custom-storage/duckbrain.config.json
+-
+-# Verify configuration
+-pnpm start -- --verify-config
++# Test with custom config (DUCKBRAIN_CONFIG_PATH redirects the config file)
++DUCKBRAIN_CONFIG_PATH=./examples/custom-storage/duckbrain.config.json \
++  node bin/duckbrain.js http --port=39472
+ ```
+ 
++(Do not use the `--`-separator spellings (`pnpm start` + `--` + `http`, or
++`pnpm start` + `--` + `--verify-config`) here: under the repo's pinned pnpm
++the `--` separator is forwarded to the CLI verbatim and DuckBrain exits with
++`Unknown command: --`. There is also no `--verify-config` CLI flag — config
++resolution is logged at startup.)
++
+ ## Troubleshooting
+ 
+ ### Permission Issues
+diff --git a/examples/http-api/README.md b/examples/http-api/README.md
+index e3f82ad..9fd3209 100644
+--- a/examples/http-api/README.md
++++ b/examples/http-api/README.md
+@@ -5,94 +5,138 @@ This example demonstrates how to use DuckBrain via its HTTP REST API.
+ ## Setup
+ 
+ 1. Start the HTTP server:
+-```bash
+-pnpm start -- http --port=3000
+-```
+ 
+-2. Get an API token (if authentication is enabled):
+ ```bash
+-curl -X POST http://localhost:3000/auth/token \
+-  -H "Content-Type: application/json" \
+-  -d '{"clientId": "my-app", "secret": "your-secret"}'
++node bin/duckbrain.js http --port=3000
+ ```
+ 
++(The `pnpm start` + `--`-separator spelling is avoided here on purpose: under
++the repo's pinned pnpm, the separator is forwarded to the CLI verbatim and
++DuckBrain exits with `Unknown command: --`. Invoke the entry point directly,
++or use `pnpm start http --port=3000` with no separator.)
++
++2. Authentication (optional): the examples below run against a daemon started
++   with `--auth=none` (the default), so no headers are needed. To require auth,
++   start the daemon with `--auth=apikey`, mint a token with
++   `duckbrain token --name=my-app`, and pass it with
++   `-H "X-API-Key: <your-token>"` (the client below does this automatically when
++   `DUCKBRAIN_TOKEN` is set).
++
+ ## API Examples
+ 
++The examples assume a scratch daemon with a scratch data dir so they never
++touch production data:
++
++```bash
++export SCRATCH_DATA=$(mktemp -d)
++mkdir -p "$SCRATCH_DATA/namespaces/default"
++DUCKBRAIN_DATA_DIR="$SCRATCH_DATA" \
++DUCKBRAIN_NAMESPACES_PATH="$SCRATCH_DATA/namespaces" \
++  node bin/duckbrain.js http --port=39471 &
++# wait for readiness
++curl --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:39471/health
++```
++
+ ### Store a Memory
++
+ ```bash
+-curl -X POST http://localhost:3000/api/memories \
++curl -X POST http://127.0.0.1:39471/api/memories \
+   -H "Content-Type: application/json" \
+-  -H "Authorization: Bearer YOUR_TOKEN" \
+   -d '{
+-    "key": "projects/mcp/schema",
+-    "content": {
+-      "type": "database",
+-      "fields": ["id", "name", "content"]
+-    }
++    "key": "/projects/mcp/schema",
++    "domain": "config",
++    "content": "Database schema: id, name, content"
+   }'
+ ```
+ 
+ ### Query Memories by Key
++
+ ```bash
+-curl "http://localhost:3000/api/memories?key=projects/mcp/schema" \
+-  -H "Authorization: Bearer YOUR_TOKEN"
++curl "http://127.0.0.1:39471/api/memories/key/projects/mcp/schema"
++```
++
++### Keyword Search (offline, no embedding provider needed)
++
++```bash
++curl "http://127.0.0.1:39471/api/memories?contains=schema&limit=5"
+ ```
+ 
+ ### Semantic Search
++
+ ```bash
+-curl "http://localhost:3000/api/memories?query=database%20schema&limit=5" \
+-  -H "Authorization: Bearer YOUR_TOKEN"
++curl "http://127.0.0.1:39471/api/memories?q=database%20schema&limit=5"
+ ```
+ 
++(`?q=` needs a reachable embedding provider at query time; when none is
++configured the endpoint answers 503 `EMBEDDINGS_UNAVAILABLE`. Prefer
++`?contains=` in examples — it works offline.)
++
+ ### List Namespaces
++
+ ```bash
+-curl http://localhost:3000/api/namespaces \
+-  -H "Authorization: Bearer YOUR_TOKEN"
++curl http://127.0.0.1:39471/api/namespaces
+ ```
+ 
+ ### Create Namespace
++
+ ```bash
+-curl -X POST http://localhost:3000/api/namespaces \
++curl -X POST http://127.0.0.1:39471/api/namespaces \
+   -H "Content-Type: application/json" \
+-  -H "Authorization: Bearer YOUR_TOKEN" \
+   -d '{"name": "my-project"}'
+ ```
+ 
+ ### Subscribe to Events (Server-Sent Events)
++
+ ```bash
+-curl http://localhost:3000/api/events \
+-  -H "Authorization: Bearer YOUR_TOKEN" \
++curl http://127.0.0.1:39471/api/events \
+   -H "Accept: text/event-stream"
+ ```
+ 
+-## JavaScript/TypeScript Client
++### Stop the scratch daemon
++
++Kill only the exact PID recorded at startup — never a pattern kill:
+ 
+-```typescript
+-import { DuckBrainClient } from './client';
++```bash
++kill "$(cat "$SCRATCH_DATA/duckbrain-http-39471.pid")"
++```
++
++## JavaScript Client
++
++```javascript
++const { DuckBrainClient } = require("./client.js");
+ 
+ const client = new DuckBrainClient({
+-  baseUrl: 'http://localhost:3000',
+-  token: 'your-api-token'
++  baseUrl: "http://localhost:3000",
++  token: "your-api-token", // sent as the X-API-Key header
+ });
+ 
+-// Store a memory
++// Store a memory — key is a filesystem-style path starting with "/",
++// content is a plain string, domain must be one of:
++// person, event, concept, message, config, raw_note
+ await client.remember({
+-  key: 'user/preferences',
+-  content: { theme: 'dark' }
++  key: "/user/preferences",
++  content: "theme=dark",
++  domain: "config",
+ });
+ 
+-// Recall memories
+-const memories = await client.recall({
+-  key: 'user/preferences'
++// Recall the latest memory under an exact key path
++const memory = await client.recall({
++  key: "/user/preferences",
+ });
+ 
+-// Semantic search
++// Keyword search (offline)
+ const results = await client.search({
+-  query: 'user preferences',
+-  limit: 10
++  query: "preferences",
++  limit: 10,
+ });
+ ```
+ 
++Run the bundled example end to end:
++
++```bash
++node examples/http-api/client.js
++```
++
+ ## Python Client
+ 
+ ```python
+@@ -100,21 +144,20 @@ import requests
+ 
+ BASE_URL = "http://localhost:3000"
+ TOKEN = "your-api-token"
+-headers = {"Authorization": f"Bearer {TOKEN}"}
++headers = {"X-API-Key": TOKEN}
+ 
+-# Store memory
+-requests.post(f"{BASE_URL}/api/memories", 
++# Store memory (key starts with "/", content is a string)
++requests.post(f"{BASE_URL}/api/memories",
+     headers=headers,
+-    json={"key": "test", "content": {"data": "value"}})
+-
+-# Query memories
+-response = requests.get(f"{BASE_URL}/api/memories?key=test", headers=headers)
+-memories = response.json()
+-```
++    json={"key": "/test", "domain": "raw_note", "content": "value"})
+ 
+-## Testing
++# Query memories by key path
++response = requests.get(f"{BASE_URL}/api/memories/key/test", headers=headers)
++memory = response.json()
+ 
+-Run the test script:
+-```bash
+-node examples/http-api/test.js
++# Keyword search
++response = requests.get(f"{BASE_URL}/api/memories",
++    headers=headers,
++    params={"contains": "value", "limit": 10})
++memories = response.json()
+ ```
+diff --git a/examples/http-api/client.js b/examples/http-api/client.js
+index b958d9b..dc8c18d 100644
+--- a/examples/http-api/client.js
++++ b/examples/http-api/client.js
+@@ -1,21 +1,35 @@
+ /**
+  * HTTP API Client Example
+- * 
+- * Demonstrates how to interact with DuckBrain via HTTP REST API
++ *
++ * Demonstrates how to interact with DuckBrain via its HTTP REST API.
++ *
++ * The repository is CommonJS ("type": "commonjs" in package.json), so this
++ * example is plain CommonJS: run it directly with
++ *
++ *   node examples/http-api/client.js
++ *
++ * Keys are filesystem-style paths (they must start with "/", e.g.
++ * "/examples/http/test") and content is a plain string. Recall by key uses
++ * the documented GET /api/memories/key/:key endpoint; keyword search uses
++ * the documented ?contains= parameter (offline full-text search — no
++ * embedding provider needed).
+  */
+ 
++const DEFAULT_BASE_URL = process.env.DUCKBRAIN_URL || "http://localhost:3000";
++const DEFAULT_TOKEN = process.env.DUCKBRAIN_TOKEN || null;
++
+ class DuckBrainClient {
+-  constructor({ baseUrl = 'http://localhost:3000', token = null } = {}) {
+-    this.baseUrl = baseUrl.replace(/\/$/, '');
++  constructor({ baseUrl = DEFAULT_BASE_URL, token = DEFAULT_TOKEN } = {}) {
++    this.baseUrl = baseUrl.replace(/\/$/, "");
+     this.token = token;
+   }
+ 
+   getHeaders() {
+     const headers = {
+-      'Content-Type': 'application/json'
++      "Content-Type": "application/json",
+     };
+     if (this.token) {
+-      headers['Authorization'] = `Bearer ${this.token}`;
++      headers["X-API-Key"] = this.token;
+     }
+     return headers;
+   }
+@@ -26,8 +40,8 @@ class DuckBrainClient {
+       ...options,
+       headers: {
+         ...this.getHeaders(),
+-        ...options.headers
+-      }
++        ...options.headers,
++      },
+     });
+ 
+     if (!response.ok) {
+@@ -39,81 +53,90 @@ class DuckBrainClient {
+   }
+ 
+   // Memory operations
+-  async remember({ key, content, metadata = {} }) {
+-    return this.request('/api/memories', {
+-      method: 'POST',
+-      body: JSON.stringify({ key, content, metadata })
++
++  /**
++   * Store a memory. `key` must be a filesystem-style path starting with "/";
++   * `content` is a plain string; `domain` must be one of the server's
++   * domains: person, event, concept, message, config, raw_note.
++   */
++  async remember({ key, content, domain = "raw_note", metadata = {} }) {
++    return this.request("/api/memories", {
++      method: "POST",
++      body: JSON.stringify({ key, content, domain, attributes: metadata }),
+     });
+   }
+ 
+-  async recall({ key, limit = 10 }) {
+-    const params = new URLSearchParams({ key, limit: String(limit) });
+-    return this.request(`/api/memories?${params}`);
++  /**
++   * Recall the latest memory stored under an exact key path via the
++   * documented GET /api/memories/key/:key endpoint.
++   */
++  async recall({ key }) {
++    return this.request(`/api/memories/key/${key.replace(/^\//, "")}`);
+   }
+ 
++  /**
++   * Keyword search over content/key/attributes via the documented
++   * ?contains= parameter (offline — no embedding provider required).
++   */
+   async search({ query, limit = 10 }) {
+-    const params = new URLSearchParams({ query, limit: String(limit) });
++    const params = new URLSearchParams({
++      contains: query,
++      limit: String(limit),
++    });
+     return this.request(`/api/memories?${params}`);
+   }
+ 
+   // Namespace operations
+   async listNamespaces() {
+-    return this.request('/api/namespaces');
++    return this.request("/api/namespaces");
+   }
+ 
+   async createNamespace(name) {
+-    return this.request('/api/namespaces', {
+-      method: 'POST',
+-      body: JSON.stringify({ name })
++    return this.request("/api/namespaces", {
++      method: "POST",
++      body: JSON.stringify({ name }),
+     });
+   }
+ }
+ 
+ // Example usage
+ async function main() {
+-  const client = new DuckBrainClient({
+-    baseUrl: process.env.DUCKBRAIN_URL || 'http://localhost:3000',
+-    token: process.env.DUCKBRAIN_TOKEN
+-  });
++  const client = new DuckBrainClient();
+ 
+   try {
+-    console.log('DuckBrain HTTP API Example\n');
++    console.log("DuckBrain HTTP API Example\n");
+ 
+     // Store a memory
+-    console.log('1. Storing memory...');
++    console.log("1. Storing memory...");
+     const stored = await client.remember({
+-      key: 'examples/http/test',
+-      content: {
+-        message: 'Hello from HTTP API!',
+-        timestamp: new Date().toISOString()
+-      }
++      key: "/examples/http/test",
++      content: `Hello from HTTP API! (${new Date().toISOString()})`,
+     });
+-    console.log('Stored:', JSON.stringify(stored, null, 2));
++    console.log("Stored:", JSON.stringify(stored, null, 2));
+ 
+     // Recall by key
+-    console.log('\n2. Recalling memory...');
+-    const recalled = await client.recall({ key: 'examples/http/test' });
+-    console.log('Recalled:', JSON.stringify(recalled, null, 2));
++    console.log("\n2. Recalling memory...");
++    const recalled = await client.recall({ key: "/examples/http/test" });
++    console.log("Recalled:", JSON.stringify(recalled, null, 2));
+ 
+-    // Search
+-    console.log('\n3. Searching memories...');
+-    const results = await client.search({ query: 'hello', limit: 5 });
+-    console.log('Search results:', JSON.stringify(results, null, 2));
++    // Keyword search
++    console.log("\n3. Searching memories...");
++    const results = await client.search({ query: "hello", limit: 5 });
++    console.log("Search results:", JSON.stringify(results, null, 2));
+ 
+     // List namespaces
+-    console.log('\n4. Listing namespaces...');
++    console.log("\n4. Listing namespaces...");
+     const namespaces = await client.listNamespaces();
+-    console.log('Namespaces:', JSON.stringify(namespaces, null, 2));
+-
++    console.log("Namespaces:", JSON.stringify(namespaces, null, 2));
+   } catch (error) {
+-    console.error('Error:', error.message);
++    console.error("Error:", error.message);
+     process.exit(1);
+   }
+ }
+ 
+ // Run if called directly
+-if (import.meta.url === `file://${process.argv[1]}`) {
++if (require.main === module) {
+   main();
+ }
+ 
+-export { DuckBrainClient };
++module.exports = { DuckBrainClient };
+diff --git a/examples/mcp-client/README.md b/examples/mcp-client/README.md
+index 7cc4112..9392c6f 100644
+--- a/examples/mcp-client/README.md
++++ b/examples/mcp-client/README.md
+@@ -5,6 +5,7 @@ This example demonstrates how to use DuckBrain as an MCP server with a client.
+ ## Setup
+ 
+ 1. Install DuckBrain:
++
+ ```bash
+ pnpm install --frozen-lockfile
+ ```
+@@ -12,6 +13,7 @@ pnpm install --frozen-lockfile
+ 2. Configure your MCP client (e.g., Claude Desktop) to use DuckBrain:
+ 
+ **Claude Desktop Config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
++
+ ```json
+ {
+   "mcpServers": {
+@@ -34,7 +36,7 @@ pnpm install --frozen-lockfile
+ Once configured, DuckBrain provides these tools to Claude:
+ 
+ - `remember` - Store a memory
+-- `recall` - Query memories  
++- `recall` - Query memories
+ - `list_keys` - List memory keys
+ - `forget` - Remove a memory
+ 
+@@ -55,7 +57,12 @@ Once configured, DuckBrain provides these tools to Claude:
+ ## Testing
+ 
+ Test the MCP connection:
++
+ ```bash
+ # Run DuckBrain in stdio mode
+-pnpm start -- stdio
++node bin/duckbrain.js stdio
+ ```
++
++(Do not use the `--`-separator spelling (`pnpm start` + `--` + `stdio`) here:
++under the repo's pinned pnpm the separator is forwarded to the CLI verbatim
++and DuckBrain exits with `Unknown command: --`.)
+diff --git a/src/cli/http.test.ts b/src/cli/http.test.ts
+index b53bb99..9ca606a 100644
+--- a/src/cli/http.test.ts
++++ b/src/cli/http.test.ts
+@@ -238,3 +238,101 @@ describe("DOGFOOD-016 stale pidfile cleanup", () => {
+     }
+   });
+ });
++
++describe("DF-0926-01 bind-conflict lifecycle", () => {
++  /**
++   * Spawn the real CLI entry (`node bin/duckbrain.js http --port=<port>`) in
++   * an isolated scratch environment (unique data dir + namespaces path +
++   * unique port) so a bind conflict can never touch a live daemon's
++   * pidfile. Every spawned child is terminated via its explicit PID —
++   * never a pattern kill.
++   */
++  it("bind conflict: exits nonzero, no started banner, prior live pidfile preserved, own pidfile absent", async () => {
++    // Occupant: a real healthy DuckBrain HTTP daemon owns the scratch port.
++    const port = await findFreePort();
++    const { dataDir: dirA, nsPath: nsA } = prepareDataDir(
++      "duckbrain-bind-occupy-a-",
++    );
++    const occupant = spawnHttpServer(port, dirA, nsA);
++
++    // Challenger: fresh scratch env, SAME port.
++    const { dataDir: dirB, nsPath: nsB } = prepareDataDir(
++      "duckbrain-bind-challenger-b-",
++    );
++    const pidFileB = path.join(dirB, `duckbrain-http-${port}.pid`);
++    const pidFileA = path.join(dirA, `duckbrain-http-${port}.pid`);
++
++    try {
++      await waitForHealth(port);
++      expect(fs.readFileSync(pidFileA, "utf8").trim()).toBe(
++        String(occupant.pid),
++      );
++
++      const challenger = spawnHttpServer(port, dirB, nsB);
++      let stderr = "";
++      let stdout = "";
++      challenger.stderr?.on("data", (c: Buffer) => (stderr += c.toString()));
++      challenger.stdout?.on("data", (c: Buffer) => (stdout += c.toString()));
++
++      // waitForClose resolves on self-exit (the fixed behavior). On the
++      // pre-fix code the challenger lingers as a zombie copy (never self-
++      // exits, never serves) and the 60s deadline fires with SIGKILL +
++      // reject — either way the test fails before the fix.
++      await waitForClose(challenger, 60000);
++
++      const exitCode = (
++        challenger as ChildProcess & { exitCode?: number | null }
++      ).exitCode;
++      expect(exitCode).not.toBe(0);
++
++      // The started banner must never have been printed.
++      const combined = stdout + stderr;
++      expect(combined).not.toContain("HTTP server started at");
++      expect(combined).not.toContain("HTTP server ready");
++      expect(combined).not.toContain("PID written to");
++      // The failure path itself must be loud.
++      expect(combined).toContain("Failed to start HTTP server");
++
++      // The challenger must not have written its own pidfile...
++      expect(fs.existsSync(pidFileB)).toBe(false);
++      // ...and the live occupant's pidfile must be untouched.
++      expect(fs.existsSync(pidFileA)).toBe(true);
++      expect(fs.readFileSync(pidFileA, "utf8").trim()).toBe(
++        String(occupant.pid),
++      );
++
++      // The occupant must still be the one serving.
++      await waitForHealth(port, 5000);
++    } finally {
++      try {
++        occupant.kill("SIGKILL");
++      } catch {
++        // ignore
++      }
++      fs.rmSync(dirA, { recursive: true, force: true });
++      fs.rmSync(dirB, { recursive: true, force: true });
++    }
++  }, 90000);
++
++  it("healthy boot still writes the pidfile only after the port listens", async () => {
++    const port = await findFreePort();
++    const { dataDir, nsPath } = prepareDataDir("duckbrain-bind-ok-");
++    const child = spawnHttpServer(port, dataDir, nsPath);
++
++    try {
++      await waitForHealth(port);
++      const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
++      // Success path: pidfile exists AFTER a successful bind and names the
++      // live process (per-port pidfile behavior preserved).
++      expect(fs.existsSync(pidFile)).toBe(true);
++      expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
++    } finally {
++      try {
++        child.kill("SIGKILL");
++      } catch {
++        // ignore
++      }
++      fs.rmSync(dataDir, { recursive: true, force: true });
++    }
++  }, 30000);
++});
+diff --git a/tests/examples-onramp-df092601.int.test.ts b/tests/examples-onramp-df092601.int.test.ts
+new file mode 100644
+index 0000000..65f8070
+--- /dev/null
++++ b/tests/examples-onramp-df092601.int.test.ts
+@@ -0,0 +1,147 @@
++/**
++ * DF-0926-01: examples on-ramp must actually run.
++ *
++ * Proves the documented example surfaces work against a real scratch daemon:
++ *   1. examples/http-api/client.js executes as committed (CommonJS, no
++ *      import.meta) and its payloads pass the server's own validation —
++ *      every step of its main() succeeds (store → recall → search →
++ *      namespaces) against the live daemon.
++ *   2. The DuckBrainClient class is importable (module.exports) and
++ *      behaves as documented: sends X-API-Key when given a token, and
++ *      default-recall maps an exact key path onto the documented
++ *      GET /api/memories/key/:key endpoint.
++ *
++ * The daemon is hermetic: unique port, unique temp data dir + namespaces
++ * path, degraded (offline) embedding provider. Killed by explicit PID only.
++ */
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import { ChildProcess } from "child_process";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import {
++  startDuckbrainHttp,
++  killProcess,
++  waitForUrl,
++  getRandomPort,
++  DAEMON_READY_TIMEOUT_MS,
++} from "./helpers";
++
++const port = getRandomPort();
++let server: ChildProcess;
++let scratchDir: string;
++let savedDataDir: string | undefined;
++
++describe("DF-0926-01: examples on-ramp runs against a live scratch daemon", () => {
++  beforeAll(async () => {
++    scratchDir = fs.mkdtempSync(
++      path.join(os.tmpdir(), "duckbrain-examples-df-"),
++    );
++    fs.mkdirSync(path.join(scratchDir, "namespaces", "default"), {
++      recursive: true,
++    });
++    savedDataDir = process.env.DUCKBRAIN_DATA_DIR;
++    server = await startDuckbrainHttp({
++      port,
++      env: {
++        DUCKBRAIN_DATA_DIR: scratchDir,
++        DUCKBRAIN_NAMESPACES_PATH: path.join(scratchDir, "namespaces"),
++      },
++    });
++    await waitForUrl(
++      `http://127.0.0.1:${port}/health`,
++      DAEMON_READY_TIMEOUT_MS,
++      server,
++    );
++  }, 120000);
++
++  afterAll(() => {
++    killProcess(server);
++    if (savedDataDir === undefined) {
++      delete process.env.DUCKBRAIN_DATA_DIR;
++    } else {
++      process.env.DUCKBRAIN_DATA_DIR = savedDataDir;
++    }
++    fs.rmSync(scratchDir, { recursive: true, force: true });
++  });
++
++  it("client.js runs as committed and every step of its main() succeeds", async () => {
++    const { execFile } = await import("child_process");
++    const { promisify } = await import("util");
++    const run = promisify(execFile);
++
++    const result = await run(
++      process.execPath,
++      [path.join(process.cwd(), "examples", "http-api", "client.js")],
++      {
++        cwd: process.cwd(),
++        timeout: 60000,
++        killSignal: "SIGKILL",
++        maxBuffer: 32 * 1024 * 1024,
++        env: {
++          ...process.env,
++          DUCKBRAIN_URL: `http://127.0.0.1:${port}`,
++          DUCKBRAIN_DATA_DIR: scratchDir,
++        },
++      },
++    );
++
++    // main() only prints its full step list when every request returned 2xx;
++    // any step failing exits 1 via the catch path.
++    expect(result.stdout).toContain("DuckBrain HTTP API Example");
++    expect(result.stdout).toContain("1. Storing memory...");
++    expect(result.stdout).toContain("2. Recalling memory...");
++    expect(result.stdout).toContain("3. Searching memories...");
++    expect(result.stdout).toContain("4. Listing namespaces...");
++    expect(result.stderr).not.toContain("Error:");
++  }, 90000);
++
++  it("DuckBrainClient is importable and honors the documented wire contract", async () => {
++    // Import the committed CommonJS module from the test. Vitest runs tests
++    // as ESM, so interop with the CJS example goes through createRequire —
++    // the same mechanism any CommonJS consumer of the repo would use.
++    // (createRequire anchored at <cwd>/package.json, NOT import.meta.url:
++    // this file compiles under module: NodeNext into CommonJS output, where
++    // the import.meta meta-property is illegal — TS1470. The repo's
++    // http-e2e suite uses the same CJS-safe form.)
++    const { createRequire } = await import("module");
++    const nodeRequire = createRequire(path.join(process.cwd(), "package.json"));
++    const { DuckBrainClient } = nodeRequire("./examples/http-api/client.js");
++
++    expect(typeof DuckBrainClient).toBe("function");
++
++    // Auth header contract: a token rides X-API-Key (the apikey backend's
++    // documented header), not Authorization.
++    const client = new DuckBrainClient({
++      baseUrl: `http://127.0.0.1:${port}`,
++      token: "test-token-123",
++    });
++    const headers = client.getHeaders();
++    expect(headers["X-API-Key"]).toBe("test-token-123");
++    expect(headers["Authorization"]).toBeUndefined();
++
++    // Payload contract: remember() sends key/domain/content — the exact
++    // fields POST /api/memories validates — and the write lands.
++    const stored = await client.remember({
++      key: "/df092601/client-contract",
++      content: "wire-contract probe",
++      domain: "raw_note",
++    });
++    expect(stored.key).toBe("/df092601/client-contract");
++    expect(stored.content).toBe("wire-contract probe");
++
++    // recall() default hits GET /api/memories/key/:key.
++    const recalled = await client.recall({ key: "/df092601/client-contract" });
++    expect(recalled.key).toBe("/df092601/client-contract");
++    expect(recalled.content).toBe("wire-contract probe");
++
++    // search() maps query -> the documented ?contains= parameter.
++    const found = await client.search({ query: "wire-contract", limit: 10 });
++    expect(Array.isArray(found.items)).toBe(true);
++    expect(
++      found.items.some(
++        (m: { key?: string }) => m.key === "/df092601/client-contract",
++      ),
++    ).toBe(true);
++  }, 60000);
++});

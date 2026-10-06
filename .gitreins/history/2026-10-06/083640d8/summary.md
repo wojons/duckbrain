@@ -1,0 +1,30 @@
+# Verdict: DB-GAP-059
+
+**Task:** Fix orphaned scratch daemons in integration tests
+**Evaluated:** 2026-10-06T16:14:24.427022
+**Result:** ✗ FAIL
+
+## Pipeline Stages
+
+- ✓ **tier1**
+  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: scanners: nice=nice -n 10
+- ✗ **tier2**
+  - INCOMPLETE
+  ✗ tests/helpers.ts: (a) curl probes must have --max-time; (b) scratch daemons need process-level reaper; (c) pin isolated namespace root + port for all test daemons. AC: (1) stuck curl fails test instead of hanging (assert timeout in <15s on a stalled probe), (2) after test hard-kill, orphaned duckbrain http processes are detected and killed (assert no duckbrain http processes survive >60s after test exit), (3) scratch daemons never inherit host config — assert DUCKBRAIN_NAMESPACES_PATH and port are set. Evidence: repro script that spawns daemon, hangs curl, verifies suite timeout; post-kill process scan.: (a) PASS: tests/helpers.ts:673 `curl -s -D - --max-time 10 ${args}`; empirically a stalled TCP server on :29999 made curl return in 10015ms (<15s). (c) PASS: tests/helpers.ts:363-380 pins DUCKBRAIN_NAMESPACES_PATH/DATA_DIR/CONFIG_PATH to a temp root, port via `--port=` (line 333). (b) FAIL: tests/helpers.ts:18-42 adds spawnedDaemons + process.on('beforeExit')/process.on('exit') handlers, but these only fire on GRACEFUL exit. Empirically verified (spawned node with exit/beforeExit handlers, `kill -9` => handlers did NOT run), so the reaper is ineffective for the hard-kill scenario AC(2) names. No independent/external reaper exists on this branch: `ls src/testing/` shows only race-safe-daemon.ts; grep for reapOrphan/orphan-daemon-reaper => empty. The real reaper (src/testing/orphan-daemon-reaper.ts) exists only on branch wt/DB-GAP-059 (commit 80b8923), which is NOT an ancestor of HEAD (feat/native-s3). AC(1) FAIL: no test asserts a stalled probe times out in <15s — tests/helpers.int.test.ts only exercises waitForUrl against a REFUSING port (fast-fail); no CURL_MAX_TIME constant or toBeLessThan assertion anywhere. AC(2) FAIL: tests/orphan-reaper.int.test.ts runs inside the suite and scans for orphans at that instant; it does not hard-kill the suite, does not wait 60s, and does not assert post-exit survival (grep for hard-kill/SIGKILL/survive/60000 => only a comment). AC(3) FAIL: no test asserts child.namespacesPath or child.port are set (grep for `namespacesPath).toBe`/`port).toBe`/`toBeTruthy` in the orphan-reaper test => empty). Evidence repro script FAIL: no repro script exists (find for *repro*/DB-GAP-059 scripts => none). Test runs: `npx vitest run --config vitest.integration.config.ts tests/orphan-reaper.int.test.ts` => 1 passed; `... tests/helpers.int.test.ts` => 9 passed (both green but do not cover the ACs). Prior verdict commit dbb8c60 = 'verdict: DB-GAP-059 — FAIL'.
+The curl --max-time and namespace/port pinning mechanisms are present, but the process-level reaper only runs on graceful exit (proven ineffective under SIGKILL), and none of the three required AC assertion tests nor the repro script exist on this branch.
+
+## Summary
+
+Judge Result: DB-GAP-059
+
+Stage tier1: PASS
+    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
+  ✓ tests: scanners: nice=nice -n 10
+
+Stage tier2: FAIL
+  INCOMPLETE
+  ✗ tests/helpers.ts: (a) curl probes must have --max-time; (b) scratch daemons need process-level reaper; (c) pin isolated namespace root + port for all test daemons. AC: (1) stuck curl fails test instead of hanging (assert timeout in <15s on a stalled probe), (2) after test hard-kill, orphaned duckbrain http processes are detected and killed (assert no duckbrain http processes survive >60s after test exit), (3) scratch daemons never inherit host config — assert DUCKBRAIN_NAMESPACES_PATH and port are set. Evidence: repro script that spawns daemon, hangs curl, verifies suite timeout; post-kill process scan.: (a) PASS: tests/helpers.ts:673 `curl -s -D - --max-time 10 ${args}`; empirically a stalled TCP server on :29999 made curl return in 10015ms (<15s). (c) PASS: tests/helpers.ts:363-380 pins DUCKBRAIN_NAMESPACES_PATH/DATA_DIR/CONFIG_PATH to a temp root, port via `--port=` (line 333). (b) FAIL: tests/helpers.ts:18-42 adds spawnedDaemons + process.on('beforeExit')/process.on('exit') handlers, but these only fire on GRACEFUL exit. Empirically verified (spawned node with exit/beforeExit handlers, `kill -9` => handlers did NOT run), so the reaper is ineffective for the hard-kill scenario AC(2) names. No independent/external reaper exists on this branch: `ls src/testing/` shows only race-safe-daemon.ts; grep for reapOrphan/orphan-daemon-reaper => empty. The real reaper (src/testing/orphan-daemon-reaper.ts) exists only on branch wt/DB-GAP-059 (commit 80b8923), which is NOT an ancestor of HEAD (feat/native-s3). AC(1) FAIL: no test asserts a stalled probe times out in <15s — tests/helpers.int.test.ts only exercises waitForUrl against a REFUSING port (fast-fail); no CURL_MAX_TIME constant or toBeLessThan assertion anywhere. AC(2) FAIL: tests/orphan-reaper.int.test.ts runs inside the suite and scans for orphans at that instant; it does not hard-kill the suite, does not wait 60s, and does not assert post-exit survival (grep for hard-kill/SIGKILL/survive/60000 => only a comment). AC(3) FAIL: no test asserts child.namespacesPath or child.port are set (grep for `namespacesPath).toBe`/`port).toBe`/`toBeTruthy` in the orphan-reaper test => empty). Evidence repro script FAIL: no repro script exists (find for *repro*/DB-GAP-059 scripts => none). Test runs: `npx vitest run --config vitest.integration.config.ts tests/orphan-reaper.int.test.ts` => 1 passed; `... tests/helpers.int.test.ts` => 9 passed (both green but do not cover the ACs). Prior verdict commit dbb8c60 = 'verdict: DB-GAP-059 — FAIL'.
+The curl --max-time and namespace/port pinning mechanisms are present, but the process-level reaper only runs on graceful exit (proven ineffective under SIGKILL), and none of the three required AC assertion tests nor the repro script exist on this branch.
+
+Overall: FAIL ✗

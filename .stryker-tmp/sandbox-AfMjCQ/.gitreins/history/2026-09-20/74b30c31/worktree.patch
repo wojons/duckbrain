@@ -1,0 +1,36 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index b843813..8987407 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1128,3 +1128,4 @@
+ {"id":565,"timestamp":"2026-09-20 04:53:20.372788","event_type":"task_completed","task_id":"OPS-013","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+ {"id":566,"timestamp":"2026-09-20 04:53:25.462256","event_type":"audit","task_id":"OPS-013","actor":"foreman","detail":"{\"tick\":\"duckbrain-2026-09-20-04-33-30\",\"event\":\"tick\",\"picked\":\"OPS-013\",\"commit\":\"c07bdeb\",\"guard\":\"PASS\",\"judge\":\"tier1 PASS; tier2 background\",\"mode\":\"SALVAGE + foreman-direct\",\"summary\":\"Rescue tick: the prior tick (02-53-46) produced load-aware OPS-007 budgets and CLOSED WITHOUT COMMITTING them. Sibling was still live (telegram session writing search/query.ts + ops/), so I committed ONLY my orphaned test file + this board/AGENTS delta, never the sibling files. Re-id OPS-011(dup P2 heartbeat row) -> OPS-013 so the duplicate-id collision stops; the already-complete scheduler-autopush OPS-011 pair is untouched. Also closed INT-CI-10 (CI red at exactly one step: stale AGENTS.md count assert).\"}","tick_number":561}
+ {"id":567,"timestamp":"2026-09-20 05:03:32.580159","event_type":"audit","task_id":"OPS-013","actor":"foreman","detail":"{\"tick\":\"duckbrain-2026-09-20-04-33-30\",\"event\":\"tick_close\",\"picked\":\"OPS-013\",\"commit\":\"c07bdeb\",\"followup_commit\":\"76ae07e\",\"judge\":\"tier1 PASS + tier2 PASS (history/2026-09-20/66d0107e)\",\"mode\":\"SALVAGE\",\"summary\":\"Post-judge cleanup: the tier-2 judge flagged leftover TEMP-INSTRUMENTATION console.error blocks at two sites; removed both (76ae07e), suite still 4/4 solo and 156 files/1230 tests on the merged tree, prettier clean. Judge caveat acknowledged: the change shipped as c07bdeb (id OPS-011, i.e. the pre-re-id name) and the tier-2 grade therefore covers c07bdeb, not the two trailing board/cleanup commits.\",\"ci\":\"76ae07e pushed; run in progress. INT-CI-10 fix (73a8e1b) closed the GAP-012 count assert: runs for 73a8e1b/5259e24/9178d67 all SUCCESS. c07bdeb's run is red at exactly one step - the AGENTS.md count assert - superseded by 73a8e1b.\"}","tick_number":561}
++{"id":568,"timestamp":"2026-09-20 00:33:13.169814414","event_type":"task_dispatched","task_id":"OPS-012","actor":"foreman","detail":"{\"status\": \"dispatched\", \"worker\": \"k3 @ kimi-for-coding\", \"tick\": \"duckbrain-2026-09-20-05-17-15\", \"brief\": \"/tmp/OPS-012-brief.md\"}","tick_number":null}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 5202f27..24bc320 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1600,3 +1600,22 @@ tasks:
+   status: complete
+   created_at: '2026-09-20T03:11:24.528807+00:00'
+   completed_at: '2026-09-20T04:50:38.714506+00:00'
++- id: OPS-012
++  title: In-daemon duplicate-bundle self-heal for s3 autopush (S3-GIT-004 repair moved
++    into the layer that races)
++  criteria:
++  - src/git/s3-repair.ts faithfully ports repair_duplicate_bundles from scripts/s3/duckbrain-s3-push.sh
++    (parse s3:// remote URL to bucket+prefix, list <prefix>/refs/heads/<branch>/ *.bundle
++    objects excluding LOCK#/PROTECTED#/.zip//LOCKS//.lock, keeper=local-tip-sha else
++    newest LastModified, skip stale sha absent from local repo via git cat-file -e,
++    quarantine server-side copy to quarantine/git/<ns>/<branch>/<sha>.bundle with
++    HeadObject size verify BEFORE delete, re-list assert, never throws) AND pushNamespaceAsync
++    in src/git/autocommit.ts runs that repair + retries the push exactly once when
++    the push fails with the duplicate-ref signature (matches more than one) on an
++    s3:// remote, happy path unchanged AND hermetic tests (stubbed S3 client + scratch
++    git repos, no network/daemon) cover keeper selection, stale-skip, size-mismatch
++    no-delete, non-s3 no-op, and signature mismatch no-repair AND npx tsc --noEmit
++    clean AND npx prettier --check src/ clean
++  status: complete
++  created_at: '2026-09-20T05:30:34.922767+00:00'
++  completed_at: '2026-09-20T05:51:21.332596+00:00'

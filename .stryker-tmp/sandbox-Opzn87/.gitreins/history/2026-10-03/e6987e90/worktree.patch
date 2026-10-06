@@ -1,0 +1,29 @@
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index c35c1d6..60a730b 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1338,3 +1338,4 @@
+ {"id":8047,"timestamp":"2026-10-03T03:25:18.512131+00:00","type":"task_completed","tick":613,"actor":"foreman","task_id":"DF-0926-05","commit_hash":"b156d6f","ch:trace":"row=DF-0926-05 wave=duckbrain-foreman-2026-10-03-00-46-49 evidence=.gitreins/history/2026-10-03/ (verdicts d9303dbe) commit=b156d6f witness=path@origin:examples/custom-storage/README.md"}
+ {"id":8048,"timestamp":"2026-10-03T03:25:18.512441+00:00","type":"audit","tick":613,"actor":"foreman","detail":"{\"tick\": 613, \"summary\": \"Wave tick (budget 2): DF-0924-10 + DF-0926-05 docs-integrity fixes. Repo self-heal first: committed stranded DB-GAP-063 board row (02237b1), rebased onto origin/main, pushed backlog (17 commits landed by strand-push cron). Two docs workers (glm-5.3-flash@zai-glm-default, worktrees wt/DF-0924-10 + wt/DF-0926-05) merged 4de8852/5a83fba. Judge follow-up: a9ba39be caught src/ssh/client.ts npm fiction, fixed foreman-direct 09b0dff. 6-file prettier drift chore 561d684 (pre-existing sibling drift). gitreins test_timeout raised 300->1800 (proven starved at 300 and 900 under load). Local suite red only under loadavg 50-80 (timeout/ENOTEMPTY/O_DIRECT-EINVAL classes, all discriminated environmental; CI full-suite green on 561d684+09b0dff).\", \"gates\": {\"git\": \"clean after closeout; 0 unpushed (verified)\", \"ci\": \"success on 09b0dff (head) + 561d684 \\u2014 full suite + tsc green\", \"judge\": \"tier2 PASS x4 total; tier1 tests-leg timeout x4 environmental (see config.yaml note)\", \"battery\": \"local unit suite attempted x3 under loadavg 50-80; reds = hook-timeout/ENOTEMPTY/O_DIRECT-EINVAL classes, isolation re-runs at raised budgets still red under load; GitHub CI = authoritative green\"}, \"tasks_open\": 34, \"notes\": \"Wave manifest .coding-hermes/waves/duckbrain-foreman-2026-10-03-00-46-49.json. Off-by-one: no debugging done this tick (docs-only) \\u2014 no discover, no submit. Release-CUT-001 remains owner-gated P1. Fleet strand-push cron landed backlog mid-tick.\"}"}
+ {"id":8049,"timestamp":"2026-10-03T05:13:09.743861+00:00","type":null,"tick":null,"actor":"foreman","detail":"{\"id\":\"DEPS-005\",\"status\":\"pending\"}","event_type":"task_created","task_id":"DEPS-005"}
++{"type":"task_started","tick":614,"actor":"foreman","task_id":"DEPS-005","summary":"foreman-direct dep sync: vitest 5.0.3, coverage-v8 5.0.3, @types/node 26.6.4, s3 SDK pin 3.1145.0 (3.1146.0 + MCP SDK 1.32.0 blocked by pnpm minimumReleaseAge <24h, simple-git 4.x major deferred); lockfile regenerated fresh; npm ci dry-run green; tsc+prettier clean; 15 full-suite reds classified pre-existing host-load FTS-timeout (same on pre-change tree)","commit_hash":"3051241","ch:trace":"row=DEPS-005 spec=package.json evidence=/tmp/deps005-gate.log witness=none:local-log commit=3051241"}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index bb6b1f2..54d86d7 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2283,3 +2283,15 @@ tasks:
+   status: complete
+   created_at: '2026-10-03T06:54:15.844534+00:00'
+   completed_at: '2026-10-03T07:04:46.222190+00:00'
++- id: DEPS-005
++  title: Sync 5 outdated Node deps (vitest 5.0.3, coverage-v8 5.0.3, @types/node 26.6.4,
++    s3 SDK 3.1145, MCP SDK 1.31)
++  criteria:
++  - package.json lists vitest@^5.0.3, @vitest/coverage-v8@^5.0.3, @types/node@^26.6.4,
++    @aws-sdk/client-s3@3.1145.0, @modelcontextprotocol/sdk@^1.31.0; pnpm-lock.yaml
++    regenerated clean (no minimumReleaseAge violations); npm ci --dry-run exits 0;
++    tsc --noEmit clean; affected suites pass or failures are classified pre-existing
++    load-timeout (same failures on pre-change tree)
++  status: complete
++  created_at: '2026-10-03T09:12:06.875946+00:00'
++  completed_at: '2026-10-03T09:20:16.816970+00:00'

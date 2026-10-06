@@ -1,0 +1,67 @@
+{
+  "task_id": "RETR-009",
+  "task_title": "SQL query surface + saved templates (Q-6 + T-6)",
+  "task_criteria": [
+    "duckbrain query \"SELECT ...\" executes read-only over read_json_auto, namespace-scoped, LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible); saved templates (incidents-by-day, per-project status, cost series) return correct results on live namespaces; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced"
+  ],
+  "passed": true,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m3:28AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11796002 bytes (11.80 MB) in 2.95s\u001b[0m\n\u001b[90m3:28AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m3:28AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11796002 bytes (11.80 MB) in 2.95s\u001b[0m\n\u001b[90m3:28AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m src/mcp/tools/recall-attr-retr006.test.ts \u001b[2m(\u001b[22m\u001b[2m7 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 921\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/git/asof.test.ts \u001b[2m(\u001b[22m\u001b[2m17 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1586\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr007.test.ts \u001b[2m(\u001b[22m\u001b[2m10 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33m 1422\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u2713\u001b[39m src/search/search-retr008.test.ts \u001b[2m(\u001b[22m\u001b[2m12 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[33",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 duckbrain query \"SELECT ...\" executes read-only over read_json_auto, namespace-scoped, LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible); saved templates (incidents-by-day, per-project status, cost series) return correct results on live namespaces; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: All sub-parts verified. (1) Read-only over read_json_auto: src/duckdb/query-surface.ts buildNamespaceViewSql uses read_json_auto with READ_JSON_COLUMNS all-VARCHAR override (DOGFOOD-010/018/019 SIGABRT class). (2) Namespace-scoped: collectNamespaceJsonl walks only the namespace path, skipping .git/.embeddings/.search. (3) LIMIT-capped: applyLimitCap caps at QUERY_MAX_ROWS=1000, reusing GAP-023/024 doctrine (MAX_LIMIT=1000 in src/http/routes/memories.ts:57); numeric clamp, LIMIT ALL/expression rejection, subquery-only capping. (4) Injection-safe: validateReadOnlySql rejects mutating keywords (INSERT/UPDATE/DELETE/CREATE/DROP/ALTER/ATTACH/COPY/PRAGMA/VACUUM/CALL/INSTALL/LOAD/SET/EXPORT/IMPORT/BEGIN/COMMIT/ROLLBACK/...), multiple ;-statements, and namespace-escaping table functions (query(), read_json*, read_csv, read_text, glob, sqlite_scan); runs on its own in-memory Database (new Database(':memory:')). (5) No writes possible: 'never writes to the namespace directory' test (query-surface-retr009.test.ts:183) passes. (6) Templates verified: incidents-by-day, per-project-status (json_valid-guarded + latest-per-project window), cost-series all return correct results in fixture tests (query-surface-retr009.test.ts:446-564). (7) Full unit suite: `npx vitest run` -> 85 test files passed, 741 tests passed (exit 0). (8) `npx tsc --noEmit` -> exit 0 clean. (9) `npx prettier --check src/` -> 'All matched files use Prettier code style!' exit 0. (10) AGENTS.md '85 suites, 741 tests' matches actual run exactly. RETR-009-specific tests: 71 passed (58 query-surface + 13 CLI).\nRETR-009 SQL query surface + saved templates fully implemented and verified: read-only/namespace-scoped/LIMIT-capped/injection-safe query surface, correct templates, 85 files/741 tests pass, tsc+prettier clean, AGENTS.md counts synced.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 duckbrain query \"SELECT ...\" executes read-only over read_json_auto, namespace-scoped, LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible); saved templates (incidents-by-day, per-project status, cost series) return correct results on live namespaces; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: All sub-parts verified. (1) Read-only over read_json_auto: src/duckdb/query-surface.ts buildNamespaceViewSql uses read",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "duckbrain query \"SELECT ...\" executes read-only over read_json_auto, namespace-scoped, LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible); saved templates (incidents-by-day, per-project status, cost series) return correct results on live namespaces; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced",
+                "status": "PASS",
+                "detail": "All sub-parts verified. (1) Read-only over read_json_auto: src/duckdb/query-surface.ts buildNamespaceViewSql uses read_json_auto with READ_JSON_COLUMNS all-VARCHAR override (DOGFOOD-010/018/019 SIGABRT class). (2) Namespace-scoped: collectNamespaceJsonl walks only the namespace path, skipping .git/.embeddings/.search. (3) LIMIT-capped: applyLimitCap caps at QUERY_MAX_ROWS=1000, reusing GAP-023/024 doctrine (MAX_LIMIT=1000 in src/http/routes/memories.ts:57); numeric clamp, LIMIT ALL/expression rejection, subquery-only capping. (4) Injection-safe: validateReadOnlySql rejects mutating keywords (INSERT/UPDATE/DELETE/CREATE/DROP/ALTER/ATTACH/COPY/PRAGMA/VACUUM/CALL/INSTALL/LOAD/SET/EXPORT/IMPORT/BEGIN/COMMIT/ROLLBACK/...), multiple ;-statements, and namespace-escaping table functions (query(), read_json*, read_csv, read_text, glob, sqlite_scan); runs on its own in-memory Database (new Database(':memory:')). (5) No writes possible: 'never writes to the namespace directory' test (query-surface-retr009.test.ts:183) passes. (6) Templates verified: incidents-by-day, per-project-status (json_valid-guarded + latest-per-project window), cost-series all return correct results in fixture tests (query-surface-retr009.test.ts:446-564). (7) Full unit suite: `npx vitest run` -> 85 test files passed, 741 tests passed (exit 0). (8) `npx tsc --noEmit` -> exit 0 clean. (9) `npx prettier --check src/` -> 'All matched files use Prettier code style!' exit 0. (10) AGENTS.md '85 suites, 741 tests' matches actual run exactly. RETR-009-specific tests: 71 passed (58 query-surface + 13 CLI)."
+              }
+            ],
+            "summary": "RETR-009 SQL query surface + saved templates fully implemented and verified: read-only/namespace-scoped/LIMIT-capped/injection-safe query surface, correct templates, 85 files/741 tests pass, tsc+prettier clean, AGENTS.md counts synced."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: RETR-009\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m3:28AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~11796002 bytes (11.80 MB) in 2.95s\u001b[0m\n\u001b[90m3:28AM\u001b[0m \u001b[3\n  \u2713 tests: \n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv4.1.10 \u001b[39m\u001b[90m/home/kara/duckbrain\u001b[39m\n\n \u001b[32m\u2713\u001b[39m s\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 duckbrain query \"SELECT ...\" executes read-only over read_json_auto, namespace-scoped, LIMIT-capped (reuse GAP-023/024 guards); injection-safe (no writes possible); saved templates (incidents-by-day, per-project status, cost series) return correct results on live namespaces; full unit suite + tsc --noEmit + prettier --check src/ clean; AGENTS.md suite counts synced: All sub-parts verified. (1) Read-only over read_json_auto: src/duckdb/query-surface.ts buildNamespaceViewSql uses read_json_auto with READ_JSON_COLUMNS all-VARCHAR override (DOGFOOD-010/018/019 SIGABRT class). (2) Namespace-scoped: collectNamespaceJsonl walks only the namespace path, skipping .git/.embeddings/.search. (3) LIMIT-capped: applyLimitCap caps at QUERY_MAX_ROWS=1000, reusing GAP-023/024 doctrine (MAX_LIMIT=1000 in src/http/routes/memories.ts:57); numeric clamp, LIMIT ALL/expression rejection, subquery-only capping. (4) Injection-safe: validateReadOnlySql rejects mutating keywords (INSERT/UPDATE/DELETE/CREATE/DROP/ALTER/ATTACH/COPY/PRAGMA/VACUUM/CALL/INSTALL/LOAD/SET/EXPORT/IMPORT/BEGIN/COMMIT/ROLLBACK/...), multiple ;-statements, and namespace-escaping table functions (query(), read_json*, read_csv, read_text, glob, sqlite_scan); runs on its own in-memory Database (new Database(':memory:')). (5) No writes possible: 'never writes to the namespace directory' test (query-surface-retr009.test.ts:183) passes. (6) Templates verified: incidents-by-day, per-project-status (json_valid-guarded + latest-per-project window), cost-series all return correct results in fixture tests (query-surface-retr009.test.ts:446-564). (7) Full unit suite: `npx vitest run` -> 85 test files passed, 741 tests passed (exit 0). (8) `npx tsc --noEmit` -> exit 0 clean. (9) `npx prettier --check src/` -> 'All matched files use Prettier code style!' exit 0. (10) AGENTS.md '85 suites, 741 tests' matches actual run exactly. RETR-009-specific tests: 71 passed (58 query-surface + 13 CLI).\nRETR-009 SQL query surface + saved templates fully implemented and verified: read-only/namespace-scoped/LIMIT-capped/injection-safe query surface, correct templates, 85 files/741 tests pass, tsc+prettier clean, AGENTS.md counts synced.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-08-19T08:30:41.525264"
+}

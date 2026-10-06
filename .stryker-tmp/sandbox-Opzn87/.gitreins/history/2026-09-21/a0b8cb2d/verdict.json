@@ -1,0 +1,99 @@
+{
+  "task_id": "REG-GONE-001",
+  "task_title": "DELETE /api/namespaces leaves no record of a namespace whose directory is gone (registry delete and directory removal are independent)",
+  "task_criteria": [
+    "GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished from healthy rows; DELETE of a namespace whose directory is already gone removes the registry row or refuses with a clear error (never silent); a regression test creates a namespace, removes its directory out-of-band, and proves both contract points"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "f2f3b91a3242bc373ba7cc1b17135a5e59a2be25",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n3:34AM INF scanned ~8010947 bytes (8.01 MB) in 1.52s\n3:34AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 208133 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  162 passed (162)\n      Tests  1300 passed (1300)\n   Start at  03:34:13\n   Duration  49.89s (tests 74%, import 23%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  162 workers spawned \u00b7 ~109ms startup each (spawn + environment, per file)\n             at least ~4.32s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260919T222203.889923Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished from healthy rows; DELETE of a namespace whose directory is already gone removes the registry row or refuses with a clear error (never silent); a regression test creates a namespace, removes its directory out-of-band, and proves both contract points: GET: src/http/routes/namespaces.ts:29-40 namesWithMissingDirectories() uses fs.existsSync(path.resolve(ns.path)); transformNamespace (lines 47-60) spreads {directoryMissing:true} only for missing rows, healthy rows omit the field. DELETE: route (namespaces.ts:174-230) delegates to real deleteNamespace (src/namespaces/delete.ts:50), which is idempotent \u2014 mapping present + dir already gone still succeeds and removes the mapping (delete.ts:120-127); failures surface clear ApiErrors (404 NOT_FOUND / 400 VALIDATION_ERROR / 500), never silent. Regression test src/http/routes/namespaces-reggone-001.test.ts creates a real namespace via registerNamespace, rmSync's the directory out-of-band, and asserts AC-1a (healthy row has no directoryMissing), AC-1b (gone row flagged, healthy unflagged in same response), AC-2 (DELETE confirm:true -> 200, mapping removed, follow-up list drops row), AC-2 guard (DELETE without confirm -> 400, row survives). Ran `npx vitest run src/http/routes/namespaces-reggone-001.test.ts`: 'Test Files 1 passed (1), Tests 4 passed (4)'. LSP diagnostics: 0.\nGET flags gone-directory rows with directoryMissing while healthy rows omit it, DELETE idempotently removes the stale registry row with clear errors, and the 4-test regression suite passes.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished from healthy rows; DELETE of a namespace whose directory is already gone removes the registry row or refuses with a clear error (never silent); a regression test creates a namespace, removes its directory out-of-band, and proves both contract points: GET: src/http/routes/namespaces.ts:29-40 namesWithMissingDirectories() uses fs.existsSync(path.resolve(ns.path)); transformNamespace (lines 47-60) spreads {directoryMissing:true} only for missing rows, healthy rows omit the field. DELETE: route (namespaces.ts:174-230) delegates to real deleteNamespace (src/namespaces/delete.ts:50), which is idempotent \u2014 mapping present + dir already gone still succeeds and removes the mapping (delete.ts:120-127); failures surface clear ApiErrors (404 NOT_FOUND / 400 VALIDATION_ERROR / 500), never silent. Regression test src/http/routes/namespaces-reggone-001.test.ts creates a real namespace via registerNamespace, rmSync's the directory out-of-band, and asserts AC-1a (healthy row has no directoryMissing), AC-1b (gone row flagged, healthy unflagged in same response), AC-2 (DELETE confirm:true -> 200, mapping removed, follow-up list drops row), AC-2 guard (DELETE without confirm -> 400, row survives). Ran `npx vitest run src/http/routes/namespaces-reggone-001.test.ts`: 'Test Files 1 passed (1), Tests 4 passed (4)'. LSP diagnostics: 0.\nGET flags gone-directory rows with directoryMissing while healthy rows omit it, DELETE idempotently removes the stale registry row with clear errors, and the 4-test regression suite passes.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished from healthy rows; DELETE of a namespace whose directory is already gone removes the registry row or refuses with a clear error (never silent); a regression test creates a namespace, removes its directory out-of-band, and proves both contract points",
+                "status": "PASS",
+                "detail": "GET: src/http/routes/namespaces.ts:29-40 namesWithMissingDirectories() uses fs.existsSync(path.resolve(ns.path)); transformNamespace (lines 47-60) spreads {directoryMissing:true} only for missing rows, healthy rows omit the field. DELETE: route (namespaces.ts:174-230) delegates to real deleteNamespace (src/namespaces/delete.ts:50), which is idempotent \u2014 mapping present + dir already gone still succeeds and removes the mapping (delete.ts:120-127); failures surface clear ApiErrors (404 NOT_FOUND / 400 VALIDATION_ERROR / 500), never silent. Regression test src/http/routes/namespaces-reggone-001.test.ts creates a real namespace via registerNamespace, rmSync's the directory out-of-band, and asserts AC-1a (healthy row has no directoryMissing), AC-1b (gone row flagged, healthy unflagged in same response), AC-2 (DELETE confirm:true -> 200, mapping removed, follow-up list drops row), AC-2 guard (DELETE without confirm -> 400, row survives). Ran `npx vitest run src/http/routes/namespaces-reggone-001.test.ts`: 'Test Files 1 passed (1), Tests 4 passed (4)'. LSP diagnostics: 0."
+              }
+            ],
+            "summary": "GET flags gone-directory rows with directoryMissing while healthy rows omit it, DELETE idempotently removes the stale registry row with clear errors, and the 4-test regression suite passes."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: REG-GONE-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /api/namespaces flags rows whose namespace directory is missing on disk, distinguished from healthy rows; DELETE of a namespace whose directory is already gone removes the registry row or refuses with a clear error (never silent); a regression test creates a namespace, removes its directory out-of-band, and proves both contract points: GET: src/http/routes/namespaces.ts:29-40 namesWithMissingDirectories() uses fs.existsSync(path.resolve(ns.path)); transformNamespace (lines 47-60) spreads {directoryMissing:true} only for missing rows, healthy rows omit the field. DELETE: route (namespaces.ts:174-230) delegates to real deleteNamespace (src/namespaces/delete.ts:50), which is idempotent \u2014 mapping present + dir already gone still succeeds and removes the mapping (delete.ts:120-127); failures surface clear ApiErrors (404 NOT_FOUND / 400 VALIDATION_ERROR / 500), never silent. Regression test src/http/routes/namespaces-reggone-001.test.ts creates a real namespace via registerNamespace, rmSync's the directory out-of-band, and asserts AC-1a (healthy row has no directoryMissing), AC-1b (gone row flagged, healthy unflagged in same response), AC-2 (DELETE confirm:true -> 200, mapping removed, follow-up list drops row), AC-2 guard (DELETE without confirm -> 400, row survives). Ran `npx vitest run src/http/routes/namespaces-reggone-001.test.ts`: 'Test Files 1 passed (1), Tests 4 passed (4)'. LSP diagnostics: 0.\nGET flags gone-directory rows with directoryMissing while healthy rows omit it, DELETE idempotently removes the stale registry row with clear errors, and the 4-test regression suite passes.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-21T08:36:18.119290",
+  "evidence": {
+    "collected_at": "2026-09-21T08:36:18.141142+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 14493,
+        "truncated": false,
+        "source": "git show f2f3b91a3242"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1561,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "REG-GONE-001"
+  }
+}

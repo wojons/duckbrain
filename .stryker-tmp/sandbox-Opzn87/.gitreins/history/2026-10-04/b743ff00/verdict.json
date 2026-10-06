@@ -1,0 +1,103 @@
+{
+  "task_id": "S3-GIT-007",
+  "task_title": "Bound s3 sync-all: per-ns deadline + wrapper timeout",
+  "task_criteria": [
+    "sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "efaeaedcbada58a244e10f544b991fc4e9e84ae0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:59AM INF scanned ~14491964 bytes (14.49 MB) in 2.38s\n5:59AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 412174 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  202 passed (202)\n      Tests  1618 passed (1618)\n   Start at  05:59:15\n   Duration  57.46s (tests 73%, import 24%, transform 2%, worker 1%)\n\n    Isolate  202 workers spawned \u00b7 ~93ms startup each (spawn + environment, per file)\n             at least ~4.62s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260930T132302.737894Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites green: (a) Per-ns deadline test green: `npx vitest run src/s3/sync-s3git007.test.ts` -> \"Test Files 1 passed (1) / Tests 4 passed (4)\", exit_code 0. src/s3/sync-s3git007.test.ts:73-99 sets S3_SYNC_NAMESPACE_DEADLINE_S=1 with a putObject that never resolves for the 'hung' ns, then asserts stats.map(s=>s.ns)===['good'], stats[0].uploaded===1, and warnings matching /sync hung timed out after 1s \\(S3-GIT-007\\)/ and /sync hung failed: sync deadline exceeded/ \u2014 i.e. the hung ns is skipped and the call returns. (b) Wrapper timeout present and functional: scripts/s3/duckbrain-s3-native-sync.sh:39-45 defines SYNC_ALL_DEADLINE_S=\"${S3_SYNC_ALL_DEADLINE_S:-3600}\" and runs `OUT=$(timeout \"$SYNC_ALL_DEADLINE_S\" node bin/duckbrain.js s3 sync all push 2>&1)`; rc=124 logs \"FAIL sync-all-deadline rc=124\" and exits 1. `bash -n` -> SYNTAX OK. Reproduced end-to-end with a hung node stub under S3_SYNC_ALL_DEADLINE_S=2: script rc=1 and log line \"FAIL sync-all-deadline rc=124 2026-10-04-11:01:22\". (c) s3 suites green: `npx vitest run src/s3/` -> \"Test Files 8 passed (8) / Tests 57 passed (57)\", exit_code 0. Supporting implementation: src/s3/sync.ts:360-365 namespaceDeadlineSeconds (default 300, rejects non-finite/non-positive), sync.ts:367-383 withDeadline (Promise.race + clearTimeout in finally), wired at sync.ts:418-427 inside syncNamespace so the rejection flows into the existing per-ns try/catch in syncAllNamespaces (sync.ts:472-476, warn + continue) while the lock is still released in finally. `npx tsc --noEmit` exit 0. [resolution 0.15; sync.ts]\nPer-namespace deadline test (4/4) and all 8 s3 suites (57/57) pass, and the sync-all wrapper's `timeout` + rc=124 failure path is present and reproduced end-to-end.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites green: (a) Per-ns deadline test green: `npx vitest run src/s3/sync-s3git007.test.ts` -> \"Test Files 1 passed (1) / Tests 4 passed (4)\", exit_code 0. src/s3/sync-s3git007.test.ts:73-99 sets S3_SYNC_NAMESPACE_DEADLINE_S=1 with a putObject that never resolves for the 'hung' ns, then asserts stats.map(s=>s.ns)===['good'], stats[0].uploaded===1, and warnings matching /sync hung timed out after 1s \\(S3-GIT-007\\)/ and /sync hung failed: sync deadline exceeded/ \u2014 i.e. the hung ns is skipped and the call returns. (b) Wrapper timeout present and functional: scripts/s3/duckbrain-s3-native-sync.sh:39-45 defines SYNC_ALL_DEADLINE_S=\"${S3_SYNC_ALL_DEADLINE_S:-3600}\" and runs `OUT=$(timeout \"$SYNC_ALL_DEADLINE_S\" node bin/duckbrain.js s3 sync all push 2>&1)`; rc=124 logs \"FAIL sync-all-deadline rc=124\" and exits 1. `bash -n` -> SYNTAX OK. Reproduced end-to-end with a hung node stub under S3_SYNC_ALL_DEADLINE_S=2: script rc=1 and log line \"FAIL sync-all-deadline rc=124 2026-10-04-11:01:22\". (c) s3 suites green: `npx vitest run src/s3/` -> \"Test Files 8 passed (8) / Tests 57 passed (57)\", exit_code 0. Supporting implementation: src/s3/sync.ts:360-365 namespaceDeadlineSeconds (default 300, rejects non-finite/non-positive), sync.ts:367-383 withDeadline (Promise.race + clearTimeout in finally), wired at sync.ts:418-427 inside syncNamespace so the rejection flows into the existing per-ns try/catch in syncAllNamespaces (sync.ts:472-476, warn + continue) while the lock is still released in finally. `npx tsc --noEmit` exit 0. [resolution 0.15; sync.ts]\nPer-namespace deadline test (4/4) and all 8 s3 suites (57/57) pass, and the sync-all wrapper's `timeout` + rc=124 failure path is present and reproduced end-to-end.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites green",
+                "status": "PASS",
+                "detail": "(a) Per-ns deadline test green: `npx vitest run src/s3/sync-s3git007.test.ts` -> \"Test Files 1 passed (1) / Tests 4 passed (4)\", exit_code 0. src/s3/sync-s3git007.test.ts:73-99 sets S3_SYNC_NAMESPACE_DEADLINE_S=1 with a putObject that never resolves for the 'hung' ns, then asserts stats.map(s=>s.ns)===['good'], stats[0].uploaded===1, and warnings matching /sync hung timed out after 1s \\(S3-GIT-007\\)/ and /sync hung failed: sync deadline exceeded/ \u2014 i.e. the hung ns is skipped and the call returns. (b) Wrapper timeout present and functional: scripts/s3/duckbrain-s3-native-sync.sh:39-45 defines SYNC_ALL_DEADLINE_S=\"${S3_SYNC_ALL_DEADLINE_S:-3600}\" and runs `OUT=$(timeout \"$SYNC_ALL_DEADLINE_S\" node bin/duckbrain.js s3 sync all push 2>&1)`; rc=124 logs \"FAIL sync-all-deadline rc=124\" and exits 1. `bash -n` -> SYNTAX OK. Reproduced end-to-end with a hung node stub under S3_SYNC_ALL_DEADLINE_S=2: script rc=1 and log line \"FAIL sync-all-deadline rc=124 2026-10-04-11:01:22\". (c) s3 suites green: `npx vitest run src/s3/` -> \"Test Files 8 passed (8) / Tests 57 passed (57)\", exit_code 0. Supporting implementation: src/s3/sync.ts:360-365 namespaceDeadlineSeconds (default 300, rejects non-finite/non-positive), sync.ts:367-383 withDeadline (Promise.race + clearTimeout in finally), wired at sync.ts:418-427 inside syncNamespace so the rejection flows into the existing per-ns try/catch in syncAllNamespaces (sync.ts:472-476, warn + continue) while the lock is still released in finally. `npx tsc --noEmit` exit 0. [resolution 0.15; sync.ts]",
+                "resolution_probability": 0.15,
+                "cited_path": "sync.ts"
+              }
+            ],
+            "summary": "Per-namespace deadline test (4/4) and all 8 s3 suites (57/57) pass, and the sync-all wrapper's `timeout` + rc=124 failure path is present and reproduced end-to-end."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-GIT-007\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 sync.ts per-namespace deadline test green; wrapper timeout present; s3 suites green: (a) Per-ns deadline test green: `npx vitest run src/s3/sync-s3git007.test.ts` -> \"Test Files 1 passed (1) / Tests 4 passed (4)\", exit_code 0. src/s3/sync-s3git007.test.ts:73-99 sets S3_SYNC_NAMESPACE_DEADLINE_S=1 with a putObject that never resolves for the 'hung' ns, then asserts stats.map(s=>s.ns)===['good'], stats[0].uploaded===1, and warnings matching /sync hung timed out after 1s \\(S3-GIT-007\\)/ and /sync hung failed: sync deadline exceeded/ \u2014 i.e. the hung ns is skipped and the call returns. (b) Wrapper timeout present and functional: scripts/s3/duckbrain-s3-native-sync.sh:39-45 defines SYNC_ALL_DEADLINE_S=\"${S3_SYNC_ALL_DEADLINE_S:-3600}\" and runs `OUT=$(timeout \"$SYNC_ALL_DEADLINE_S\" node bin/duckbrain.js s3 sync all push 2>&1)`; rc=124 logs \"FAIL sync-all-deadline rc=124\" and exits 1. `bash -n` -> SYNTAX OK. Reproduced end-to-end with a hung node stub under S3_SYNC_ALL_DEADLINE_S=2: script rc=1 and log line \"FAIL sync-all-deadline rc=124 2026-10-04-11:01:22\". (c) s3 suites green: `npx vitest run src/s3/` -> \"Test Files 8 passed (8) / Tests 57 passed (57)\", exit_code 0. Supporting implementation: src/s3/sync.ts:360-365 namespaceDeadlineSeconds (default 300, rejects non-finite/non-positive), sync.ts:367-383 withDeadline (Promise.race + clearTimeout in finally), wired at sync.ts:418-427 inside syncNamespace so the rejection flows into the existing per-ns try/catch in syncAllNamespaces (sync.ts:472-476, warn + continue) while the lock is still released in finally. `npx tsc --noEmit` exit 0. [resolution 0.15; sync.ts]\nPer-namespace deadline test (4/4) and all 8 s3 suites (57/57) pass, and the sync-all wrapper's `timeout` + rc=124 failure path is present and reproduced end-to-end.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-04T11:01:29.305710",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-04T11:01:29.324191+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1263,
+        "truncated": false,
+        "source": "git show efaeaedcbada"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 850,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "S3-GIT-007"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "task_id": "DOC-5",
+  "task_title": "Document declared tables REST API",
+  "task_criteria": [
+    "docs/api/http-api.md documents the declared tables routes, NDJSON insert, OpenAPI endpoint, filters, ordering, pagination, count, CRUD, auth, and acceptance checks pass"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "1415262345800cbb8291df7f23c884ccd141cc6f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: \u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8677133 bytes (8.68 MB) in 1.47s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "\u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8677133 bytes (8.68 MB) in 1.47s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n   Start at  07:16:30\n   Duration  57.78s (transform 3.68s, setup 1.65s, import 37.72s, tests 173.31s, environment 13ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/http-api.md documents the declared tables routes, NDJSON insert, OpenAPI endpoint, filters, ordering, pagination, count, CRUD, auth, and acceptance checks pass: docs/api/http-api.md lines 787-989 'Declared Tables (SUPA-3/SUPA-6)' documents all required elements: routes table (lines 812-818: GET /api/ns/:ns/tables, GET/POST/PATCH/DELETE /api/ns/:ns/tables/:table, GET /api/ns/:ns/openapi.json); NDJSON insert (lines 900-931: Content-Type application/x-ndjson, one JSON object per line, 1mb limit); OpenAPI endpoint (lines 965-975: generated OpenAPI 3.1 from registry); filters (lines 851-877: eq/ne/gt/gte/lt/lte/like/in); ordering (line 879: order=col.asc/desc comma-separated); pagination (lines 881-882: limit default 100, cap 1000, offset 0-based); count (lines 884-886: Prefer: count=exact / ?count=exact -> X-Total-Count); CRUD (lines 900-963: POST insert, PATCH/DELETE by pk=eq.<value>); auth (lines 806-810: namespace-grant check, 403 Forbidden); error summary (lines 977-987). Acceptance checks pass: `npx vitest run src/http/routes/tables-supa3.test.ts src/cli/http-tables-ndjson-supa3.test.ts src/http/routes/index.test.ts` -> exit_code 0, 'Test Files 3 passed (3), Tests 37 passed (37)'. Docs match implementation src/http/routes/tables.ts (requireNamespaceGrant at lines 339/358/458/572/620/644; openapi '3.1.0' at line 313; limit clamp verified by test at tables-supa3.test.ts:334-380; X-Total-Count verified at lines 387-405).\ndocs/api/http-api.md fully documents the declared tables REST API (routes, NDJSON insert, OpenAPI, filters, ordering, pagination, count, CRUD, auth) and all 37 acceptance tests pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/http-api.md documents the declared tables routes, NDJSON insert, OpenAPI endpoint, filters, ordering, pagination, count, CRUD, auth, and acceptance checks pass: docs/api/http-api.md lines 787-989 'Declared Tables (SUPA-3/SUPA-6)' documents all required elements: routes table (lines 812-818: GET /api/ns/:ns/tables, GET/POST/PATCH/DELETE /api/ns/:ns/tables/:table, GET /api/ns/:ns/openapi.json); NDJSON insert (lines 900-931: Content-Type application/x-ndjson, one JSON object per line, 1mb limit); OpenAPI endpoint (lines 965-975: generated OpenAPI 3.1 from registry); filters (lines 851-877: eq/ne/gt/gte/lt/lte/like/in); ordering (line 879: order=col.asc/desc comma-separated); pagination (lines 881-882: limit default 100, cap 1000, offset 0-based); count (lines 884-886: Prefer: count=exact / ?count=exact -> X-Total-Count); CRUD (lines 900-963: POST insert, PATCH/DELETE by pk=eq.<value>); auth (lines 806-810: namespace-grant check, 403 Forbidden); error summary (lines 977-987). Acceptance checks pass: `npx vitest run src/http/routes/tables-supa3.test.ts src/cli/http-tables-ndjson-supa3.test.ts src/http/routes/index.test.ts` -> exit_code 0, 'Test Files 3 passed (3), Tests 37 passed (37)'. Docs match implementation src/http/routes/tables.ts (requireNamespaceGrant at lines 339/358/458/572/620/644; openapi '3.1.0' at line 313; limit clamp verified by test at tables-supa3.test.ts:334-380; X-Total-Count verified at lines 387-405).\ndocs/api/http-api.md fully documents the declared tables REST API (routes, NDJSON insert, OpenAPI, filters, ordering, pagination, count, CRUD, auth) and all 37 acceptance tests pass.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/http-api.md documents the declared tables routes, NDJSON insert, OpenAPI endpoint, filters, ordering, pagination, count, CRUD, auth, and acceptance checks pass",
+                "status": "PASS",
+                "detail": "docs/api/http-api.md lines 787-989 'Declared Tables (SUPA-3/SUPA-6)' documents all required elements: routes table (lines 812-818: GET /api/ns/:ns/tables, GET/POST/PATCH/DELETE /api/ns/:ns/tables/:table, GET /api/ns/:ns/openapi.json); NDJSON insert (lines 900-931: Content-Type application/x-ndjson, one JSON object per line, 1mb limit); OpenAPI endpoint (lines 965-975: generated OpenAPI 3.1 from registry); filters (lines 851-877: eq/ne/gt/gte/lt/lte/like/in); ordering (line 879: order=col.asc/desc comma-separated); pagination (lines 881-882: limit default 100, cap 1000, offset 0-based); count (lines 884-886: Prefer: count=exact / ?count=exact -> X-Total-Count); CRUD (lines 900-963: POST insert, PATCH/DELETE by pk=eq.<value>); auth (lines 806-810: namespace-grant check, 403 Forbidden); error summary (lines 977-987). Acceptance checks pass: `npx vitest run src/http/routes/tables-supa3.test.ts src/cli/http-tables-ndjson-supa3.test.ts src/http/routes/index.test.ts` -> exit_code 0, 'Test Files 3 passed (3), Tests 37 passed (37)'. Docs match implementation src/http/routes/tables.ts (requireNamespaceGrant at lines 339/358/458/572/620/644; openapi '3.1.0' at line 313; limit clamp verified by test at tables-supa3.test.ts:334-380; X-Total-Count verified at lines 387-405)."
+              }
+            ],
+            "summary": "docs/api/http-api.md fully documents the declared tables REST API (routes, NDJSON insert, OpenAPI, filters, ordering, pagination, count, CRUD, auth) and all 37 acceptance tests pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-5\n\nStage tier1: PASS\n    \u2713 secrets: \u001b[90m7:16AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~8677133 bytes (8.68 MB) in 1.47s\u001b[0m\n\u001b[90m7:16AM\u001b[0m \u001b[32m\n  \u2713 tests: \n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  149 passed (149)\n      Tests  1168 passed (1168)\n\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/http-api.md documents the declared tables routes, NDJSON insert, OpenAPI endpoint, filters, ordering, pagination, count, CRUD, auth, and acceptance checks pass: docs/api/http-api.md lines 787-989 'Declared Tables (SUPA-3/SUPA-6)' documents all required elements: routes table (lines 812-818: GET /api/ns/:ns/tables, GET/POST/PATCH/DELETE /api/ns/:ns/tables/:table, GET /api/ns/:ns/openapi.json); NDJSON insert (lines 900-931: Content-Type application/x-ndjson, one JSON object per line, 1mb limit); OpenAPI endpoint (lines 965-975: generated OpenAPI 3.1 from registry); filters (lines 851-877: eq/ne/gt/gte/lt/lte/like/in); ordering (line 879: order=col.asc/desc comma-separated); pagination (lines 881-882: limit default 100, cap 1000, offset 0-based); count (lines 884-886: Prefer: count=exact / ?count=exact -> X-Total-Count); CRUD (lines 900-963: POST insert, PATCH/DELETE by pk=eq.<value>); auth (lines 806-810: namespace-grant check, 403 Forbidden); error summary (lines 977-987). Acceptance checks pass: `npx vitest run src/http/routes/tables-supa3.test.ts src/cli/http-tables-ndjson-supa3.test.ts src/http/routes/index.test.ts` -> exit_code 0, 'Test Files 3 passed (3), Tests 37 passed (37)'. Docs match implementation src/http/routes/tables.ts (requireNamespaceGrant at lines 339/358/458/572/620/644; openapi '3.1.0' at line 313; limit clamp verified by test at tables-supa3.test.ts:334-380; X-Total-Count verified at lines 387-405).\ndocs/api/http-api.md fully documents the declared tables REST API (routes, NDJSON insert, OpenAPI, filters, ordering, pagination, count, CRUD, auth) and all 37 acceptance tests pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-18T12:19:04.409816"
+}

@@ -1,0 +1,397 @@
+/**
+ * Remember MCP Tool
+ *
+ * Append a memory to JSONL storage.
+ * Validates input, assigns UUID, timestamp, and author from git config.
+ */
+// @ts-nocheck
+
+
+import { z } from "zod";
+import {
+  DomainEnum,
+  safeValidateMemory,
+  createMemory,
+  writeContentViolation,
+} from "../../schema/memory";
+import { getPartitionPath } from "../../storage/jsonl";
+import { getAuthorEmail } from "../../git/attribution";
+import { getMcpRequestPrincipal } from "../../cli/http";
+import { principalAuthorEmail } from "../../auth/middleware";
+import { getNamespaceWriter } from "../../serialization/namespaceWriter";
+import { getConfig, resolveDuckbrainRoot } from "../../config/index";
+import { normalizeAttributes } from "../../utils/serialize";
+import {
+  resolveNamespaceName,
+  resolveNamespacePath,
+  enforceNamespaceScope,
+  type McpToolContext,
+} from "./shared";
+import fs from "fs";
+
+/**
+ * Input schema for remember tool
+ */
+const RememberInputSchema = z.object({
+  /** Hierarchical key path (e.g., /projects/mcp/schema) */
+  key: z
+    .string()
+    .describe("Hierarchical key path (e.g., /projects/mcp/schema)"),
+  /** Domain categorization */
+  domain: DomainEnum.describe("Domain categorization"),
+  /** Memory attributes as arbitrary JSON (REQUIRED — pass {} if none) */
+  attributes: z
+    .record(z.string(), z.any(), {
+      error:
+        'attributes is required (object of arbitrary key/value metadata, e.g. {"author": "alice"})',
+    })
+    .describe("Memory attributes"),
+  /** Text for vector embedding */
+  embedding_text: z.string().describe("Text for vector embedding"),
+  /** RETR-011: optional validity-window start (ISO-8601 datetime, e.g.
+   *  2026-08-19T00:00:00.000Z). Absent = valid from the moment of
+   *  writing. A future valid_from keeps the memory out of the current
+   *  recall view until that instant. */
+  valid_from: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("Validity window start (ISO-8601); absent = valid immediately"),
+  /** RETR-011: optional validity-window end (ISO-8601 datetime). Absent =
+   *  valid indefinitely. A past valid_until excludes the memory from the
+   *  current recall view (visible with recall historical=true). */
+  valid_until: z
+    .string()
+    .datetime()
+    .optional()
+    .describe(
+      "Validity window end (ISO-8601); absent = valid indefinitely. Past value = expired (current view excludes it; historical view shows it)",
+    ),
+  /**
+   * DF-0919-05: camelCase aliases for the validity window. The REST API
+   * docs and some fleet callers use the API-spec-adjacent spellings
+   * (validFrom/validUntil); zod previously stripped them SILENTLY, so such
+   * writes got unbounded retention with no error. Both spellings are
+   * accepted; snake_case wins when both are present. These schema fields
+   * are never read directly — always normalize with
+   * normalizeValidityWindow() (below) before use.
+   */
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime().optional(),
+  /** Namespace to write to (defaults to the ACTIVE namespace — config
+   *  defaultNamespace, which switch_namespace persists and is therefore
+   *  sticky across processes; see docs/api/mcp-tools.md) */
+  namespace: z.string().optional().describe("Namespace to write to"),
+  /** Author identity override (DB-GAP-031: HTTP routes stamp the
+   *  authenticated principal's name here; absent = git-config fallback,
+   *  preserving local single-user behavior) */
+  author: z
+    .string()
+    .optional()
+    .describe("Author identity (overrides the git config fallback)"),
+});
+
+type RememberInput = z.infer<typeof RememberInputSchema>;
+
+/**
+ * DF-0919-05: collapse the camelCase validity aliases onto the snake_case
+ * canonical fields. Both spellings are accepted; when both are present the
+ * snake_case value WINS (the wire format stays snake_case — this only
+ * back-compatibly widens what callers may send).
+ */
+function normalizeValidityWindow(data: {
+  valid_from?: string;
+  valid_until?: string;
+  validFrom?: string;
+  validUntil?: string;
+}): { valid_from?: string; valid_until?: string } {
+  // Per-field precedence: the snake_case value wins when both spellings of
+  // a field are present; the camelCase value fills an otherwise-empty slot.
+  return {
+    ...(data.valid_from !== undefined || data.validFrom !== undefined
+      ? { valid_from: data.valid_from ?? data.validFrom }
+      : {}),
+    ...(data.valid_until !== undefined || data.validUntil !== undefined
+      ? { valid_until: data.valid_until ?? data.validUntil }
+      : {}),
+  };
+}
+
+export interface RememberContext extends McpToolContext {}
+
+/**
+ * Output schema for remember tool (hybrid format per D-05)
+ */
+interface RememberOutput {
+  success: boolean;
+  id?: string;
+  /** DB-GAP-045: the persisted write timestamp of the stored version
+   *  (ISO-8601), echoed so a client can correlate its ACK with the exact
+   *  version written by the `id` + `timestamp` pair. */
+  timestamp?: string;
+  key?: string;
+  partition?: string;
+  author?: string;
+  /** Namespace actually written — resolved from the arg or the active
+   *  (config defaultNamespace) namespace when omitted (DOGFOOD-017) */
+  namespace?: string;
+  /**
+   * NAMESPACE-AUTOCREATE-001: present (true) ONLY when this write CREATED
+   * the namespace (mkdir -p + git init) because it did not exist before.
+   * Absent when the namespace already existed. The HTTP 201 surfaces it
+   * verbatim, so a typo'd ?namespace= is visible in the response body, not
+   * just the daemon log.
+   */
+  namespace_autocreated?: boolean;
+  /** Present when the write landed outside the 'default' namespace because
+   *  the caller OMITTED the arg and the sticky active namespace was used
+   *  (DOGFOOD-017); an explicit namespace argument never warns (DF-0919-06) */
+  warning?: string;
+  /** SUPA-1: machine-readable failure code (e.g. DURABILITY_UNSUPPORTED,
+   *  DURABILITY_DIRECT_FRAME_ERROR) so HTTP routes can surface it verbatim */
+  code?: string;
+  /** DB-GAP-031 (MCP parity): denial reason when the token has no grant for
+   *  the target namespace — 'namespace_scope', the same reason REST audits.
+   *  See `namespaceScopeViolation` in ./shared. */
+  reason?: string;
+  fields?: Record<string, string>;
+  retryAfter?: number;
+  error?: string;
+}
+
+/**
+ * Resolve namespace path from namespace name using config.
+ * Falls back to config's defaultNamespace when no namespace is provided.
+ */
+/**
+ * Determine partition value (time-based partitioning)
+ * Returns YYYY-MM format
+ */
+function getTimeBasedPartition(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+/**
+ * Remember tool handler
+ *
+ * @param input - Tool input parameters
+ * @returns Hybrid response with id, key, partition, author
+ */
+export async function rememberTool(
+  input: RememberInput,
+  context: RememberContext = {},
+): Promise<RememberOutput> {
+  try {
+    // Validate input
+    const parseResult = RememberInputSchema.safeParse(input);
+    if (!parseResult.success) {
+      return {
+        success: false,
+        error: `Invalid input: ${(parseResult.error as any).issues.map((i: any) => i.message).join("; ")}`,
+      };
+    }
+
+    const { key, domain, attributes, embedding_text, namespace, author } =
+      parseResult.data;
+
+    // DB-GAP-058: the write-content policy, enforced at the ONE choke point
+    // every write caller shares — the HTTP POST/PUT routes, the CLI
+    // `remember` command and the MCP `remember` tool all funnel through this
+    // function, so the rule cannot be applied to one entry point and missed
+    // on another. Rejecting here (before an id/timestamp is minted and
+    // before anything is enqueued) is what stops a blank or placeholder body
+    // from ever reaching the storage-of-record.
+    const contentViolation = writeContentViolation({
+      action: "add",
+      embedding_text,
+    });
+    if (contentViolation) {
+      return {
+        success: false,
+        code: "BLANK_CONTENT",
+        error: contentViolation,
+      };
+    }
+
+    // DOGFOOD-010: canonicalize attributes before persisting (JSON
+    // round-trip — strips non-JSON values so the JSONL row is exactly what
+    // the reader parses back; duplicate keys are impossible in JS objects).
+    const normalizedAttributes = normalizeAttributes(attributes);
+
+    // DOGFOOD-025: an authenticated MCP-over-HTTP request (--auth=apikey /
+    // basic) stamps the principal's identity — mirroring the REST routes,
+    // a client-supplied `author` argument is NEVER honored when a principal
+    // is present (provenance cannot be erased by the caller). In stdio/local
+    // (auth=none) mode getMcpRequestPrincipal() is undefined and the
+    // client-supplied author (or the git-config fallback) keeps its exact
+    // legacy behavior.
+    const mcpPrincipal = context.principal ?? getMcpRequestPrincipal();
+    const authorIdentity = mcpPrincipal
+      ? principalAuthorEmail(mcpPrincipal)
+      : (author ?? getAuthorEmail());
+
+    // Create memory with defaults
+    const memory = createMemory({
+      key,
+      domain,
+      author: authorIdentity,
+      embedding_text,
+      attributes: normalizedAttributes,
+      action: "add",
+      // RETR-011: optional validity window — passthrough from the input;
+      // omitted fields keep the legacy always-current behavior.
+      // DF-0919-05: camelCase validFrom/validUntil collapse onto these
+      // canonical fields first (snake_case wins on collision).
+      ...normalizeValidityWindow(parseResult.data),
+    });
+
+    // Validate complete memory
+    const validationResult = safeValidateMemory(memory);
+    if (!validationResult.success) {
+      return {
+        success: false,
+        error: `Memory validation failed: ${validationResult.error}`,
+      };
+    }
+
+    // Resolve namespace path — DOGFOOD-017: the response must echo the
+    // namespace ACTUALLY written (the resolved one, including when the arg
+    // was omitted and the active config defaultNamespace was used).
+    const resolvedNamespace = resolveNamespaceName(namespace);
+    const namespacePath = resolveNamespacePath(resolvedNamespace);
+
+    // DB-GAP-031 (MCP parity): a token scoped to specific namespaces must not
+    // reach an ungranted one through the MCP tool. The REST router enforces
+    // this in `requireNamespaceGrant` middleware; /mcp has no per-tool route,
+    // so the check runs here — against the RESOLVED namespace (the one this
+    // write will actually touch, including the sticky active default when the
+    // arg is omitted) — BEFORE any directory is created or row enqueued.
+    const scopeViolation = enforceNamespaceScope(context, resolvedNamespace);
+    if (scopeViolation) return scopeViolation;
+
+    // NAMESPACE-AUTOCREATE-001: namespace-creation policy for WRITES. The
+    // daemon serves the fleet — many lanes write to legit namespaces over
+    // HTTP — so auto-create stays the DEFAULT and existing writers are never
+    // broken. What changes:
+    //
+    //  1. LOUD (default mode): a write that creates the namespace still
+    //     succeeds, but the output carries namespace_autocreated: true and a
+    //     WARN lands in the operator log. A typo'd ?namespace= is now visible
+    //     in both the response body and the log instead of scattering
+    //     memories silently.
+    //  2. STRICT (opt-out): with namespaces.autoCreate=false
+    //     (DUCKBRAIN_NAMESPACES_AUTOCREATE=false), a write to a non-existent
+    //     namespace is REFUSED with the serializer's NAMESPACE_NOT_FOUND code
+    //     and the legacy "does not exist" wording — the route's
+    //     throwWriteError maps that code to 404 — and NOTHING is created on
+    //     disk.
+    const nsExistsBefore = fs.existsSync(namespacePath);
+    if (!nsExistsBefore) {
+      const config = getConfig(resolveDuckbrainRoot());
+      if (!config.namespaces.autoCreate) {
+        return {
+          success: false,
+          code: "NAMESPACE_NOT_FOUND",
+          error: `Namespace '${resolvedNamespace}' does not exist (write rejected: namespace auto-creation is disabled via namespaces.autoCreate / DUCKBRAIN_NAMESPACES_AUTOCREATE). Create it first with POST /api/namespaces.`,
+        };
+      }
+      fs.mkdirSync(namespacePath, { recursive: true });
+      console.warn(
+        `[namespace-autocreate] WARN: namespace '${resolvedNamespace}' did not exist and was auto-created by this write (mkdir -p + git init). If this namespace is unexpected (e.g. a typo in ?namespace=), inspect ${namespacePath}. Set namespaces.autoCreate=false / DUCKBRAIN_NAMESPACES_AUTOCREATE=false to reject such writes instead.`,
+      );
+    }
+
+    // Determine partition path (time-based). Directory creation, chunk
+    // rotation, manifest update, durability barrier, audit, and commit
+    // scheduling all run inside the namespace serializer's fenced flush.
+    const partitionValue = getTimeBasedPartition();
+    const partitionRelPath = getPartitionPath(
+      resolvedNamespace,
+      domain,
+      "time",
+      partitionValue,
+    );
+    const writeResult = await getNamespaceWriter(resolvedNamespace).enqueue({
+      ns: resolvedNamespace,
+      table: "memories",
+      op:
+        memory.action === "tombstone"
+          ? "delete"
+          : memory.action === "update"
+            ? "update"
+            : "insert",
+      record: memory,
+      principal: mcpPrincipal,
+      targetPath: `${partitionRelPath}current.jsonl`,
+      partitionPath: partitionRelPath,
+    });
+    if (!writeResult.ok) {
+      return {
+        success: false,
+        code: writeResult.code,
+        error: writeResult.message,
+        ...(writeResult.fields ? { fields: writeResult.fields } : {}),
+        ...(writeResult.retryAfter
+          ? { retryAfter: writeResult.retryAfter }
+          : {}),
+      };
+    }
+
+    // Return hybrid response — DOGFOOD-017: echo the namespace actually
+    // written, and warn when it is not the 'default' namespace (the active
+    // namespace is sticky across processes, so an omitted arg can silently
+    // land somewhere the user did not intend).
+    //
+    // DF-0919-06: the warning is for the STICKY-SURPRISE case ONLY — the
+    // caller omitted the arg and the write landed in the process-persisted
+    // active namespace. An EXPLICIT namespace argument never warns, however
+    // non-default it is: the caller named the target, so the message is pure
+    // noise and trains callers to ignore a real guardrail (live probe: a write
+    // with `?namespace=df-ns-0919` still warned). Note the gate is on the
+    // ARGUMENT, not on `resolvedNamespace !== active` — an explicit arg that
+    // names the currently-active namespace is still an explicit choice.
+    const response: RememberOutput = {
+      success: true,
+      id: memory.id,
+      // DB-GAP-045: echo the stored record's write timestamp so the HTTP 201
+      // can carry the persisted value instead of a response-time stamp.
+      timestamp: memory.timestamp,
+      key: memory.key,
+      partition: partitionRelPath,
+      author: memory.author,
+      namespace: resolvedNamespace,
+    };
+    // NAMESPACE-AUTOCREATE-001: this write created the namespace — say so in
+    // the machine-readable output (the HTTP 201 echoes it verbatim as
+    // namespace_autocreated: true). Absent when the namespace already
+    // existed, so existing clients reading the body see no change.
+    if (!nsExistsBefore) {
+      response.namespace_autocreated = true;
+    }
+    if (!namespace && resolvedNamespace !== "default") {
+      response.warning = `Memory written to namespace '${resolvedNamespace}', not 'default'. The active namespace is sticky across processes — pass namespace explicitly to control where writes land.`;
+    }
+    return response;
+  } catch (error) {
+    const coded = error as { code?: string };
+    return {
+      success: false,
+      ...(typeof coded?.code === "string" ? { code: coded.code } : {}),
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * MCP tool registration
+ */
+export const rememberToolDef = {
+  name: "remember",
+  title: "Remember Memory",
+  description: "Append a memory to JSONL storage",
+  inputSchema: RememberInputSchema,
+  handler: rememberTool,
+};

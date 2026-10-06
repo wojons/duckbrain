@@ -1,0 +1,48 @@
+commit 0dabaa73c5657be947065812771651cf6f52df12
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Oct 5 04:33:13 2026 +0000
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Oct 5 04:33:13 2026 +0000
+
+    fix(tests): race-safe teardown in auth-file-enforcement-df092407.test.ts (INT-CI-019)
+    
+    CI failure on feat/native-s3 @ b060c18 (GitHub run 37225825799, step "Run
+    tests"): ENOTEMPTY from rmdir on /tmp/duckbrain-df092407-unit-basic-*/namespaces.
+    This is the second latent flake documented in board row DB-GAP-063: the
+    afterEach/finally teardown called bare fs.rmSync(dir, {recursive, force})
+    while the daemon's post-SIGTERM git flush was still writing inside
+    <ns>/.git, so rmdir raced a live git child and threw ENOTEMPTY mid-removal.
+    
+    Fix: reuse the in-repo pattern — src/testing/race-safe-daemon.ts
+    removeTempDirSafely() retries the removal briefly and never throws from
+    cleanup. All three teardown sites (~560, ~587, ~619) now await it. The
+    helper was already exported and already imported by this test file; no
+    test logic, assertions, or spawn behavior changed.
+    
+    Verified:
+    - npx tsc --noEmit → clean (rc=0).
+    - npx vitest run src/cli/auth-file-enforcement-df092407.test.ts → green
+      twice (8/8 both runs).
+    - Reproduced the pre-commit gitreins guard manually on exactly this
+      staged diff in a detached worktree at HEAD (this commit was
+      materialized via hash-object + update-ref, which fires no hooks):
+      gitreins guard --scope working-tree --staged-only → Tier 1 PASS
+      (secrets clean; tests full-suite 1621/1621, exit 0; log
+      .gitreins/logs/guard-20261005T041525.379063Z.log in that worktree).
+    - boardctl validate -C . --fail-on dangling-dep → OK rc=0 (the WARN-ONLY
+      board-lint the hook would run; pre-existing legacy-shape warnings only).
+    
+    Commit minted with a 6-hex-prefix self-referential sweep (author/committer
+    identity from repo config; the ch:trace footer carries this commit's own
+    6-hex short sha — a full self-sha is an unmintable fixed point).
+    
+    Supersedes the ch:trace trailer of e182b4 (an intermediate mint of this
+    same change — auto-pushed mid-sweep while its footer still carried a
+    literal placeholder, and the board closeout already cites it). This
+    commit is a fast-forward on top of the INT-CI-019 closeout (59f140c) and
+    is empty by construction: its tree is 7f34c871 — the closeout's tree,
+    which already contains the fix — so the only delta is the corrected
+    ch:trace trailer below.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+    ch:trace row=INT-CI-019 spec=none wave=none test=src/cli/auth-file-enforcement-df092407.test.ts doc=none prompt=/tmp/intci019-brief.md evidence=local-vitest-2x-green witness=none:ci-only-repro verdict=none commit=0dabaa memory=none

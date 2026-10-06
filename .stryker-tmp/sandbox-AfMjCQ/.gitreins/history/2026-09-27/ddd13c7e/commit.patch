@@ -1,0 +1,238 @@
+commit 909c9be3a6faf2b1b4812b56083f62a0961f77c4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Sep 27 15:53:52 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Sep 27 15:53:52 2026 -0500
+
+    chore(gitreins): AUTH-DEFAULT-001 judge records
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/history/2026-09-27/dfe96ea1/commit.patch |  24 +++++
+ .gitreins/history/2026-09-27/dfe96ea1/summary.md   |  30 ++++++
+ .gitreins/history/2026-09-27/dfe96ea1/verdict.json | 102 +++++++++++++++++++++
+ .../history/2026-09-27/dfe96ea1/worktree.patch     |  25 +++++
+ .gitreins/tasks.yaml                               |   7 ++
+ 5 files changed, 188 insertions(+)
+
+diff --git a/.gitreins/history/2026-09-27/dfe96ea1/commit.patch b/.gitreins/history/2026-09-27/dfe96ea1/commit.patch
+new file mode 100644
+index 0000000..9c8f50a
+--- /dev/null
++++ b/.gitreins/history/2026-09-27/dfe96ea1/commit.patch
+@@ -0,0 +1,24 @@
++commit 1787bf71e53db6dd1ff998433b45a88adbea2c06
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Sun Sep 27 14:45:00 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Sun Sep 27 14:45:00 2026 -0500
++
++    board: record INT-CI-015 CI success
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ .coding-hermes/board/events.jsonl | 2 +-
++ 1 file changed, 1 insertion(+), 1 deletion(-)
++
++diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
++index 73d9a56..3bb70fb 100644
++--- a/.coding-hermes/board/events.jsonl
+++++ b/.coding-hermes/board/events.jsonl
++@@ -1257,5 +1257,5 @@
++ {"id": 8006, "timestamp": "2026-09-27 17:19:56.4197", "event_type": "task_created", "task_id": "HTTP-HELP-001", "actor": "foreman", "detail": "{\"id\":\"HTTP-HELP-001\",\"status\":\"pending\"}", "tick_number": null}
++ {"id":8007,"timestamp":"2026-09-27 19:14:00.000000","event_type":"task_verified","task_id":"DB-GAP-056","actor":"foreman","detail":"{\"tick\":597,\"summary\":\"PARTIAL — empty memory payload rejection landed; required health counter and historical cleanup remain open\",\"commit\":\"4d26f6a\",\"worker_commit\":\"67b7023\",\"gates\":{\"focused\":\"regression suite, tsc, prettier, diff-check passed per worker; independently inspected committed diff\",\"gitreins\":\"task create/start/complete executed; evaluator wedged with no verdict artifact; no PASS claimed\",\"ci\":\"RED 36343413991 on exact HEAD: AGENTS.md count drift 179 suites/1424 tests; separate CI row required\",\"push\":\"origin/feat/native-s3 parity 0\"},\"acceptance\":{\"write_rejection\":\"PASS for trimmed {} via shared PLACEHOLDER_CONTENT; HTTP/MCP regression tests committed\",\"empty_content_counter\":\"UNVERIFIED/NOT IMPLEMENTED\",\"historical_cleanup\":\"UNVERIFIED/NOT IMPLEMENTED; operator-gated residual\"},\"notes\":\"Worker was re-dispatched after first attempt stalled with zero diff. Board row is closed with partial evidence only; do not treat as full acceptance.\"}"}
++ {"id":8008,"timestamp":"2026-09-27 19:17:00.000000","event_type":"task_created","task_id":"INT-CI-015","actor":"foreman","detail":"{\"id\":\"INT-CI-015\",\"status\":\"pending\",\"source\":\"CI 36342087936/36343413991\"}"}
++-{"id":8009,"timestamp":"2026-09-27 14:37:06.000000","event_type":"audit","task_id":null,"actor":"foreman","detail":"{\"tick\": 598, \"summary\": \"OK — synchronized AGENTS.md counts to the live Vitest suite and closed INT-CI-015 verification; implementation commit 78c8f32 and GitReins evidence commit f091004 are pushed.\", \"pick\": \"INT-CI-015 was the highest-value unblocked P1 CI-health row; no wave composed because WAVE_BUDGET=1.\", \"gates\": {\"git\": \"clean after closeout; origin/feat/native-s3..HEAD=0\", \"local\": \"initial full suite exposed one pre-existing config-registration cleanup race (178 passed suites, 1424 tests); GitReins tier-1 rerun on the corrected count tree passed 179/179 suites and 1424/1424 tests\", \"gitreins\": \"INT-CI-015 create/start/complete; verdict 751a1d5b PASS, tier1 secrets+tests PASS; tier2 intentionally skipped for count-sync documentation task\", \"ci\": \"recent CI runs before this fix were failures 36342087936 and 36343413991 at the AGENTS.md count step; exact pushed follow-up run is pending observation\", \"protected_file\": \"AGENTS.md updated through sanctioned toggle; security.protected_instruction_files restored and verified true\", \"daemon\": \"/health HTTP 200\", \"off_by_one\": \"discover for vitest-count-drift-protected-agents-md-ci returned not_found; no non-trivial debugging or submission\"}, \"tasks_open\": \"INT-CI-015 closed; other pending rows remain unchanged\", \"notes\": \"Changed only the two count locations in AGENTS.md. The first local run had a one-suite config-registration cleanup failure while all 1424 tests passed; GitReins reran the suite cleanly at 179 suites/1424 tests. Board closeout records the prior CI failures separately from the new pushed state.\"}","tick_number":598}
+++{"id":8009,"timestamp":"2026-09-27 14:37:06.000000","event_type":"audit","task_id":null,"actor":"foreman","detail":"{\"tick\": 598, \"summary\": \"OK — synchronized AGENTS.md counts to the live Vitest suite and closed INT-CI-015 verification; implementation commit 78c8f32 and GitReins evidence commit f091004 are pushed.\", \"pick\": \"INT-CI-015 was the highest-value unblocked P1 CI-health row; no wave composed because WAVE_BUDGET=1.\", \"gates\": {\"git\": \"clean after closeout; origin/feat/native-s3..HEAD=0\", \"local\": \"initial full suite exposed one pre-existing config-registration cleanup race (178 passed suites, 1424 tests); GitReins tier-1 rerun on the corrected count tree passed 179/179 suites and 1424/1424 tests\", \"gitreins\": \"INT-CI-015 create/start/complete; verdict 751a1d5b PASS, tier1 secrets+tests PASS; tier2 intentionally skipped for count-sync documentation task\", \"ci\": \"GREEN — exact pushed HEAD e55f0fe: run 36345055831 SUCCESS; preceding GitReins evidence HEAD f091004 run 36344948923 SUCCESS; prior count-drift run 36343810137 remains the historical failure.\", \"protected_file\": \"AGENTS.md updated through sanctioned toggle; security.protected_instruction_files restored and verified true\", \"daemon\": \"/health HTTP 200\", \"off_by_one\": \"discover for vitest-count-drift-protected-agents-md-ci returned not_found; no non-trivial debugging or submission\"}, \"tasks_open\": \"INT-CI-015 closed; other pending rows remain unchanged\", \"notes\": \"Changed only the two count locations in AGENTS.md. The first local run had a one-suite config-registration cleanup failure while all 1424 tests passed; GitReins reran the suite cleanly at 179 suites/1424 tests. Board closeout records the prior CI failures separately from the new pushed state.\"}","tick_number":598}
++ {"id":8010,"timestamp":"2026-09-27 19:37:16.647995","event_type":"task_completed","task_id":"INT-CI-015","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+diff --git a/.gitreins/history/2026-09-27/dfe96ea1/summary.md b/.gitreins/history/2026-09-27/dfe96ea1/summary.md
+new file mode 100644
+index 0000000..a680be9
+--- /dev/null
++++ b/.gitreins/history/2026-09-27/dfe96ea1/summary.md
+@@ -0,0 +1,30 @@
++# Verdict: AUTH-DEFAULT-001
++
++**Task:** Make the HTTP front door authenticated by default
++**Evaluated:** 2026-09-27T20:16:00.635054
++**Result:** ✗ FAIL
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
++- ✗ **tier2**
++  - INCOMPLETE
++  ✗ Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed — zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? "none" })` (the exact line the task's own board entry names as the defect), and package.json:16 `"start:http": "node bin/duckbrain.js http --port 3000"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' — directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:"apikey". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.
++The task is marked complete but no source, test, or doc changes were made — the open-write default (src/cli/http.ts:403 `authType ?? "none"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.
++
++## Summary
++
++Judge Result: AUTH-DEFAULT-001
++
++Stage tier1: PASS
++    ✓ secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)
++  ✓ tests: RUN  v5.0.1 /home/kara/duckbrain
++
++Stage tier2: FAIL
++  INCOMPLETE
++  ✗ Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed — zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? "none" })` (the exact line the task's own board entry names as the defect), and package.json:16 `"start:http": "node bin/duckbrain.js http --port 3000"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' — directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:"apikey". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.
++The task is marked complete but no source, test, or doc changes were made — the open-write default (src/cli/http.ts:403 `authType ?? "none"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.
++
++Overall: FAIL ✗
+diff --git a/.gitreins/history/2026-09-27/dfe96ea1/verdict.json b/.gitreins/history/2026-09-27/dfe96ea1/verdict.json
+new file mode 100644
+index 0000000..aa2b8e5
+--- /dev/null
++++ b/.gitreins/history/2026-09-27/dfe96ea1/verdict.json
+@@ -0,0 +1,102 @@
++{
++  "task_id": "AUTH-DEFAULT-001",
++  "task_title": "Make the HTTP front door authenticated by default",
++  "task_criteria": [
++    "Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass"
++  ],
++  "passed": false,
++  "worktree": "/home/kara/duckbrain",
++  "branch": "feat/native-s3",
++  "commit": "1787bf71e53db6dd1ff998433b45a88adbea2c06",
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n3:12PM INF scanned ~9615129 bytes (9.62 MB) in 5.09s\n3:12PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 321052 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log",
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "\n RUN  v5.0.1 /home/kara/duckbrain\n\n\n Test Files  179 passed (179)\n      Tests  1424 passed (1424)\n   Start at  15:12:17\n   Duration  184.65s (tests 84%, import 14%, transform 2%, setup 1%)\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20260927T190819.832984Z.log"
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": false,
++      "any_failed": true,
++      "summary": "INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": false,
++          "output": "INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.",
++          "error": "",
++          "data": {
++            "verdict": "INCOMPLETE",
++            "items": [
++              {
++                "criterion": "Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass",
++                "status": "FAIL",
++                "detail": "No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.",
++                "resolution_probability": 0.18
++              }
++            ],
++            "summary": "The task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes."
++          }
++        }
++      ]
++    }
++  },
++  "summary": "Judge Result: AUTH-DEFAULT-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v5.0.1 /home/kara/duckbrain\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Fresh CLI/package startup rejects unauthenticated API writes while explicit test seams and auth opt-out behavior remain covered; regression tests and docs pass: No implementation exists. `git diff HEAD --name-only` shows ONLY .gitreins/tasks.yaml and .coding-hermes/board/tasks.jsonl changed \u2014 zero source/test/doc files. The buggy default is untouched: src/cli/http.ts:403 still reads `...(options.authConfig ?? { type: options.authType ?? \"none\" })` (the exact line the task's own board entry names as the defect), and package.json:16 `\"start:http\": \"node bin/duckbrain.js http --port 3000\"` still passes no --auth flag, so a fresh startup serves unauthenticated writes. Docs were not updated either: README.md:132 still states 'A fresh daemon has no auth (auth is opt-in via `--auth=apikey`), so these commands need no key' \u2014 directly contradicting the criterion. No regression test asserting default-rejects-unauthenticated was added; existing src/cli/http-auth.test.ts only exercises explicit authType:\"apikey\". Ran `npx vitest run src/cli/http-auth.test.ts src/cli/auth-file-enforcement-df092407.test.ts` -> exit_code 0, 'Test Files 2 passed (2), Tests 14 passed (14)', but these validate the OLD opt-in behavior, not the required new default. The task was marked complete in .gitreins/tasks.yaml without any code change.\nThe task is marked complete but no source, test, or doc changes were made \u2014 the open-write default (src/cli/http.ts:403 `authType ?? \"none\"`, package.json start:http, README.md:132) remains, so fresh startup still accepts unauthenticated writes.\n\nOverall: FAIL \u2717",
++  "evaluated_at": "2026-09-27T20:16:00.635054",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-09-27T20:16:00.671506+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 6071,
++        "truncated": false,
++        "source": "git show 1787bf71e53d"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 8250,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "AUTH-DEFAULT-001"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-09-27/dfe96ea1/worktree.patch b/.gitreins/history/2026-09-27/dfe96ea1/worktree.patch
+new file mode 100644
+index 0000000..067cf8a
+--- /dev/null
++++ b/.gitreins/history/2026-09-27/dfe96ea1/worktree.patch
+@@ -0,0 +1,25 @@
++diff --git a/.coding-hermes/board/tasks.jsonl b/.coding-hermes/board/tasks.jsonl
++index 20c8abe..ad2ce46 100644
++--- a/.coding-hermes/board/tasks.jsonl
+++++ b/.coding-hermes/board/tasks.jsonl
++@@ -272,3 +272,4 @@
++ {"id":"HEALTH-KEYS-UNDEFINED-001","priority":"P2","status":"pending","created_at":"2026-09-27T17:19:56.379685+00:00","created_by":null,"complexity":2,"title":"P2 — Fresh-install /health is permanently degraded (503) with keys_error 'Namespace undefined does not exist': probeKeysStore() (http.ts:256) passes no namespace, list_keys.ts:172 interpolates the raw undefined instead of the resolved default, and an empty store is treated as degraded not healthy.","reasoning":"MEASURED on fresh isolated daemons :3189 and :3191 @ 39f0b4f: /health returns HTTP 503 body status=degraded keys_error='Namespace undefined does not exist' even with embedding.healthy=true (lmstudio+ollama both ok), because the default namespace has not been created yet. Root cause is the raw-undefined interpolation plus empty-store-as-degraded. Cross-ref README-5 (docs). Fix: resolve the namespace name before interpolating, and treat a missing-but-empty default store as healthy.","updated_at":"2026-09-27T17:19:56.379685+00:00","detail":{"fingerprint":"639591a598000230fd691adaaa46f0d09f3bd232036b1281bdecd1ceee117dbe"}}
++ {"id":"HTTP-HELP-001","priority":"P3","status":"pending","created_at":"2026-09-27T17:19:56.409023+00:00","created_by":null,"complexity":1,"title":"P3 — 'duckbrain http --help' ignores --help and starts the server (EADDRINUSE on :3000) instead of printing the HTTP options; subcommand help is not wired.","reasoning":"MEASURED @ 39f0b4f: node bin/duckbrain.js http --help -> attempts to bind 127.0.0.1:3000 and crashes EADDRINUSE (port busy), no help text printed. Top-level 'duckbrain --help' works. --auth/--rate-limit/--unix-socket flags are discoverable only via the top-level help; a per-subcommand help handler is missing.","updated_at":"2026-09-27T17:19:56.409023+00:00","detail":{"fingerprint":"577b26fa635567536bf1835133077243ff80947538f74648917a2cd8a36f0edd"}}
++ {"id": "INT-CI-015", "title": "P1 CI red — AGENTS.md test-count assertion reports 179 suites/1424 tests while committed AGENTS.md is stale", "priority": "P1", "status": "complete", "created_at": "2026-09-27T19:17:00+00:00", "created_by": "foreman", "complexity": 1, "reasoning": "CI runs 36342087936 and 36343413991 failed at Assert AGENTS.md test counts match live suite; the workflow reports 179 suites/1424 tests. The failure is repository-wide count drift and predates this tick's implementation; sync AGENTS.md through the sanctioned protected-file workflow, then rerun CI on the exact pushed HEAD.", "capability_tags": ["ci", "docs", "count-sync"], "detail": {"source": "foreman tick 597", "runs": [36342087936, 36343413991]}, "updated_at": "2026-09-27T19:37:16+00:00", "worker_status": "complete", "commit_hash": "78c8f32", "guard_result": "PASS", "ci_result": "GREEN", "worker_summary": "Foreman-direct count sync; GitReins verdict 751a1d5b PASS; AGENTS.md now reports 179 suites/1424 tests.", "foreman_note": "Closed after exact count sync, protected-file toggle restored true, and pushed commits 78c8f32/f091004.", "completed_at": "2026-09-27T19:35:00Z"}
+++{"id":"RELEASE-2026-09-27-002","status":"pending","priority":"P1","complexity":2,"title":"P1 \u2014 DuckBrain v1.1.0 readiness sweep: NO-GO on feat/native-s3 HEAD 1787bf7","created_at":"2026-09-27T20:05:45-05:00","created_by":"duckbrain-releng","reasoning":"Readiness sweep at scheduler tick duckbrain-releng-2026-09-27-20-05-45. Target origin is wojons/duckbrain (remote URL https://github.com/wojons/duckbrain.git; canonical org/repo wojons/duckbrain). Candidate is feat/native-s3 HEAD 1787bf71e53db6dd1ff998433b45a88adbea2c06, 45 commits ahead of origin/main 42cea0a1280c8d4937d95285b1f8c72feacaa62d and therefore not the default branch. Range v1.0.0..HEAD contains 107 commits: feat 1, fix 20, perf 1, docs 4, chore 10, test 1, breaking 0, other/board/merge 70. Conventional-commit matrix would propose a minor v1.1.0, not a major, but no release authorization or release-cut board row exists. Exact HEAD CI is green: GitHub Actions run 36345491267, CI, headSha 1787bf71, test success and docker success. Recent predecessor failures 36342087936 and 36343413991 were count-drift failures and are resolved by the successor sequence ending at this exact green HEAD. GitReins latest relevant verdict is INT-CI-015 PASS 751a1d5b for commit 78c8f32; no GitReins verdict covering current HEAD 1787bf7 was found. Dogfood run 12 commit 60caa94 is PROMISING-BUT-ROUGH, not shippable, and pending P1/P2 findings remain: DF-0925-01/02, DF-0925-07, DF-0926-02/03/04, PERF-001/002/003, AUTH-DEFAULT-001, RATE-LIMIT-001, plus others. AUTH-DEFAULT-001 is currently in_progress, so the candidate is still changing. Version hygiene is not release-ready: package.json, CLI help, README badge, and CHANGELOG remain 1.0.0; no release script/Makefile/goreleaser/npm publish/Docker registry workflow exists. release.yml only runs tests and creates an empty GitHub Release object. Dockerfile exists and local UI build succeeds, but no configured registry push exists. Live source/installed CLI both report v1.0.0, so a v1.1.0 artifact would require version-prep and artifact verification. Existing v1.0.0 remote tag and Release object exist, but the Release has empty notes and zero assets. Worktree is dirty in .gitreins/tasks.yaml and .gitreins/tasks.yaml.lock; no tag was created or moved. Decision: NO-GO; do not tag or create a release until the candidate is intentionally promoted to the default branch, AUTH-DEFAULT-001 and release-blocking findings are resolved or explicitly accepted, a version-prep commit and artifact strategy are landed, and a GitReins verdict covers the release commit.","ci_result":"GREEN \u2014 GitHub Actions run 36345491267 on exact HEAD 1787bf71; test and docker jobs success. Prior failures 36342087936 and 36343413991 were superseded by the count-sync closeout.","guard_result":"Latest relevant GitReins verdict INT-CI-015 PASS 751a1d5b on 78c8f32; current HEAD has no covering verdict found.","worker_summary":"No worker dispatched by releng; verification only.","review_notes":"Release tooling inventory: no Makefile, scripts/release*, .goreleaser.yml/.yaml, npm publish script, or registry-configured Docker publish workflow. .github/workflows/release.yml runs pnpm install, pnpm test:run, and actions/create-release@v1 with no notes or assets. Local pnpm run build succeeded for packages/ui. Existing v1.0.0 Release view: https://github.com/wojons/duckbrain/releases/tag/v1.0.0, assets=[] and body empty.","blocked_reason":"NO-GO: candidate is a non-default feature branch; active P1 blockers and AUTH-DEFAULT-001 in progress; no version-prep commit; no current-HEAD GitReins verdict; dogfood is PROMISING-BUT-ROUGH; artifact/release tooling is incomplete. No tag or GitHub Release created.","files_changed":[],"commit_hash":"1787bf71e53db6dd1ff998433b45a88adbea2c06","detail":{"target":"wojons/duckbrain","range":"v1.0.0..HEAD","head":"1787bf71e53db6dd1ff998433b45a88adbea2c06","origin_main":"42cea0a1280c8d4937d95285b1f8c72feacaa62d","ahead_of_origin_main":45,"categories":{"feat":1,"fix":20,"perf":1,"docs":4,"chore":10,"test":1,"breaking":0,"other":70},"ci_runs":[36345491267,36342087936,36343413991],"gitreins_verdict":"751a1d5b","dogfood_commit":"60caa94","release_surface":{"remote_tag":"v1.0.0","release_object":true,"assets":0,"notes_empty":true},"local_build":"pnpm run build PASS"}}
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 7fbfa6e..331cf40 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -1956,3 +1956,11 @@ tasks:
++   status: complete
++   created_at: '2026-09-27T19:28:53.510440+00:00'
++   completed_at: '2026-09-27T19:33:56.984522+00:00'
+++- id: AUTH-DEFAULT-001
+++  title: Make the HTTP front door authenticated by default
+++  criteria:
+++  - Fresh CLI/package startup rejects unauthenticated API writes while explicit test
+++    seams and auth opt-out behavior remain covered; regression tests and docs pass
+++  status: complete
+++  created_at: '2026-09-27T20:00:36.033623+00:00'
+++  completed_at: '2026-09-27T20:12:15.080794+00:00'
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 7fbfa6e..3a0dd0b 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -1956,3 +1956,10 @@ tasks:
+   status: complete
+   created_at: '2026-09-27T19:28:53.510440+00:00'
+   completed_at: '2026-09-27T19:33:56.984522+00:00'
++- id: AUTH-DEFAULT-001
++  title: Make the HTTP front door authenticated by default (retry)
++  criteria:
++  - Fresh CLI/package startup rejects unauthenticated API writes while explicit test
++    seams and auth opt-out behavior remain covered; regression tests and docs pass
++  status: in_progress
++  created_at: '2026-09-27T20:17:01.334442+00:00'

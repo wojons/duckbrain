@@ -1,0 +1,480 @@
+// @ts-nocheck
+import { execSync, spawn, ChildProcess } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
+
+const CONTAINER_PREFIX = "duckbrain-test";
+
+export function uniqueId(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
+export function run(cmd: string, opts?: { cwd?: string }): string {
+  try {
+    const merged = { encoding: "utf-8", ...opts } as any;
+    const result = execSync(cmd + " 2>&1", merged);
+    return result.trim();
+  } catch (e: any) {
+    const output = [e.stdout, e.stderr].filter(Boolean).join("\n");
+    if (output) return output.trim();
+    throw e;
+  }
+}
+
+/**
+ * How long a daemon spawn may take before waitForUrl gives up.
+ *
+ * INT-CI-002 raised this 15s -> 30s; the 3rd occurrence (INT-CI-003, run
+ * 32071985468) showed the daemon's "HTTP server started" line landing AT the
+ * 30s instant on the Node 22 runner under load — a slow cold start (tsx
+ * transpile + node-duckdb native load + tool registration), not a hang. 60s
+ * matches the docker-build integration file's existing daemon timeout and
+ * gives 2x headroom over the slowest observed start. The daemon-ready wait is
+ * only as slow as the cold start; pre-warming (see
+ * global-setup.integration.ts) keeps the common case fast.
+ */
+export const DAEMON_READY_TIMEOUT_MS = 60_000;
+
+/** Rolling capture of the last `maxLines` lines of a stderr stream. */
+export interface StderrTail {
+  push(chunk: string | Buffer): void;
+  value(): string;
+}
+
+/**
+ * Create a rolling line buffer for capturing a child's stderr tail.
+ * Chunks may split lines arbitrarily; CRLF and LF endings are normalized.
+ * Used by startDuckbrainHttp so waitForUrl timeouts can surface the
+ * daemon's last words instead of a bare "Timed out" (INT-CI-002).
+ */
+export function createStderrTail(maxLines = 50): StderrTail {
+  const lines: string[] = [];
+  let partial = "";
+  return {
+    push(chunk) {
+      partial += chunk.toString();
+      const parts = partial.split(/\r?\n/);
+      partial = parts.pop() ?? "";
+      for (const line of parts) {
+        lines.push(line);
+        if (lines.length > maxLines) lines.shift();
+      }
+    },
+    value() {
+      if (!partial) return lines.join("\n");
+      return lines.length ? `${lines.join("\n")}\n${partial}` : partial;
+    },
+  };
+}
+
+/** A duckbrain daemon child that carries a rolling stderr tail. */
+export type DuckbrainChild = ChildProcess & {
+  stderrTail: string;
+  /**
+   * Effective DUCKBRAIN_DATA_DIR the daemon runs with (QA-DUCKBRAIN-002):
+   * a helper-created temp dir unless the caller supplied one via opts.env
+   * or the ambient process env.
+   */
+  dataDir?: string;
+  /** Effective DUCKBRAIN_NAMESPACES_PATH the daemon runs with. */
+  namespacesPath?: string;
+};
+
+/**
+ * Helper-created temp roots, so cleanupDaemonDirs removes ONLY dirs this
+ * module made — never a caller-supplied or ambient data dir.
+ */
+const helperTempRoots = new WeakMap<DuckbrainChild, string>();
+
+/**
+ * Remove the temp data dir a startDuckbrainHttp call created for this
+ * child (if any). Tolerant of an already-cleaned dir and of children whose
+ * dirs were caller-supplied (a no-op for those).
+ */
+export function cleanupDaemonDirs(child: ChildProcess): void {
+  const root = helperTempRoots.get(child as DuckbrainChild);
+  if (!root) return;
+  try {
+    fs.rmSync(root, { recursive: true, force: true });
+  } catch {
+    // Best-effort teardown — an already-removed dir is not a failure.
+  }
+  helperTempRoots.delete(child as DuckbrainChild);
+}
+
+/** Last captured stderr tail of a child ("" when not captured). */
+export function getStderrTail(child: ChildProcess): string {
+  return (child as DuckbrainChild).stderrTail ?? "";
+}
+
+/**
+ * One-line snapshot of a child's process state for timeout diagnostics
+ * (INT-CI-003): "alive vs exited" plus stat/etime is the difference between
+ * "daemon never came up" and "daemon came up and then died/stopped serving".
+ */
+export function getChildState(child?: ChildProcess): string {
+  if (!child?.pid) return "";
+  try {
+    const ps = run(`ps -o stat=,etime= -p ${child.pid} 2>/dev/null | tail -1`);
+    if (!ps || /not found|no such process/i.test(ps)) {
+      return `pid ${child.pid}: (exited)`;
+    }
+    return `pid ${child.pid}: ${ps.trim()}`;
+  } catch {
+    return `pid ${child.pid}: (exited)`;
+  }
+}
+
+export async function waitForUrl(
+  url: string,
+  timeoutMs = DAEMON_READY_TIMEOUT_MS,
+  child?: ChildProcess,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      // --max-time 10 bounds each attempt: a health handler that accepts TCP
+      // but stalls (e.g. a slow embedding probe) must not pin the poll loop
+      // past its timeout cap (INT-CI-003).
+      const result = run(
+        `curl -sf -o /dev/null -w '%{http_code}' --max-time 10 ${url}`,
+      );
+      // GAP-030: scratch daemons are deliberately started degraded (openai +
+      // empty key) and /health now answers 503 there — accept it as ready.
+      if (result === "200" || result === "401" || result === "503") return;
+    } catch {}
+    await sleep(200);
+  }
+  const stderrTail = child ? getStderrTail(child) : "";
+  const childState = getChildState(child);
+  throw new Error(
+    `Timed out waiting for ${url} after ${timeoutMs}ms` +
+      (childState ? `\n--- child state ---\n${childState}` : "") +
+      (stderrTail ? `\n--- child stderr tail ---\n${stderrTail}` : ""),
+  );
+}
+
+export async function waitForPort(
+  port: number,
+  timeoutMs = 20000,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      run(`nc -z 127.0.0.1 ${port}`);
+      return;
+    } catch {}
+    await sleep(200);
+  }
+  throw new Error(`Timed out waiting for port ${port}`);
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export function getRandomPort(): number {
+  // 21000-29999: below the OS ephemeral range (32768-60999). Drawing from
+  // 30000+ raced runner connections into EADDRINUSE (CI run 37502128620).
+  return 21000 + Math.floor(Math.random() * 9000);
+}
+
+export async function startDuckbrainHttp(opts: {
+  port: number;
+  authType?: string;
+  authFile?: string;
+  rateLimit?: number;
+  bindAll?: boolean;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<DuckbrainChild> {
+  const args = [
+    "node",
+    "--import",
+    "tsx",
+    "bin/duckbrain.ts",
+    "http",
+    `--port=${opts.port}`,
+  ];
+  if (opts.authType) args.push(`--auth=${opts.authType}`);
+  if (opts.authFile) args.push(`--auth-file=${opts.authFile}`);
+  if (opts.rateLimit) args.push(`--rate-limit=${opts.rateLimit}`);
+  if (opts.bindAll) args.push("--bind-all");
+
+  // QA-DUCKBRAIN-002: scratch daemons are hermetic BY DEFAULT. Without
+  // these pins every spawned daemon shared the fixed /tmp pidfile path
+  // (colliding across uids and with stale leftovers) AND the cwd-relative
+  // production namespace root. A value the caller supplied — via opts.env
+  // OR already present in the ambient process env (several suites pin
+  // process.env.DUCKBRAIN_NAMESPACES_PATH around their describe block) —
+  // always wins; we only fill the gaps.
+  //
+  // DUCKBRAIN_CONFIG_PATH is pinned to a (nonexistent) file inside the temp
+  // root for the same reason: without it the daemon's cwd-relative config
+  // discovery finds the repo's duckbrain.config.json, which on a real host
+  // carries the PRODUCTION namespace registry — a scratch daemon then
+  // iterates production namespaces (e.g. GET /users opens one DuckDB
+  // connection per registry entry). A missing file parses to schema
+  // defaults (empty registry), so nothing needs to be written.
+  const callerEnv = opts.env ?? {};
+  const scratchEnv: Record<string, string> = {};
+  let dataDir: string | undefined;
+  let namespacesPath: string | undefined;
+  let tempRoot: string | undefined;
+  const needsDataDir =
+    !callerEnv.DUCKBRAIN_DATA_DIR && !process.env.DUCKBRAIN_DATA_DIR;
+  const needsNsPath =
+    !callerEnv.DUCKBRAIN_NAMESPACES_PATH &&
+    !process.env.DUCKBRAIN_NAMESPACES_PATH;
+  const needsConfigPath =
+    !callerEnv.DUCKBRAIN_CONFIG_PATH && !process.env.DUCKBRAIN_CONFIG_PATH;
+  if (needsDataDir || needsNsPath || needsConfigPath) {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-int-"));
+    if (needsDataDir) {
+      dataDir = tempRoot;
+      scratchEnv.DUCKBRAIN_DATA_DIR = dataDir;
+    }
+    if (needsNsPath) {
+      namespacesPath = path.join(tempRoot, "namespaces");
+      fs.mkdirSync(path.join(namespacesPath, "default"), { recursive: true });
+      scratchEnv.DUCKBRAIN_NAMESPACES_PATH = namespacesPath;
+    }
+    if (needsConfigPath) {
+      scratchEnv.DUCKBRAIN_CONFIG_PATH = path.join(
+        tempRoot,
+        "duckbrain.config.json",
+      );
+    }
+  }
+
+  // Spawn via `node --import tsx` (tsx's documented loader integration)
+  // rather than `npx tsx`: npx adds per-spawn resolution overhead and an
+  // extra process hop, which under CI runner load compounds the cold-start
+  // delay (INT-CI-003). The daemon itself is unchanged.
+  const tail = createStderrTail(50);
+  const child = spawn(args[0], args.slice(1), {
+    cwd: opts.cwd || process.cwd(),
+    stdio: ["pipe", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      // INT-CI-003: scratch daemons must be hermetic — pin the embedding
+      // health probe to a fast-fail provider (openai + empty key => isHealthy
+      // is Boolean(apiKey) = false, no network). On hosts with live LM
+      // Studio/Ollama the first /health request otherwise pays the full
+      // sequential probe chain (1.5s + 3s + 1.5s timeouts per provider) and,
+      // under load when timers fire late, that single request can outlast
+      // the daemon-ready budget — misread as a spawn timeout (INT-CI-003 run
+      // 11: daemon printed "HTTP server started" + "ready", yet /health never
+      // answered within 60s). Tests already accept the "degraded" status.
+      DUCKBRAIN_EMBEDDING_PROVIDER: "openai",
+      DUCKBRAIN_EMBEDDING_API_KEY: "",
+      ...scratchEnv,
+      ...opts.env,
+    },
+    // Own process group so killProcess can SIGTERM the whole tree —
+    // without this, killing the npx wrapper orphans the node daemon
+    // grandchild (recurring stray-daemon leak, ticks #219/#220/#222).
+    detached: true,
+  }) as DuckbrainChild;
+
+  // Keep the last ~50 lines of stderr so a waitForUrl timeout can report
+  // WHY the daemon never came up (tsx compile error, EADDRINUSE from a
+  // stray daemon, duckdb native load failure — INT-CI-002 diagnostics).
+  child.stderrTail = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    tail.push(chunk);
+    child.stderrTail = tail.value();
+  });
+
+  // QA-DUCKBRAIN-002: expose the effective dirs so suites can assert
+  // isolation and teardown can remove the helper-created temp root via
+  // cleanupDaemonDirs (only dirs THIS helper created are ever removed).
+  child.dataDir =
+    dataDir ?? callerEnv.DUCKBRAIN_DATA_DIR ?? process.env.DUCKBRAIN_DATA_DIR;
+  child.namespacesPath =
+    namespacesPath ??
+    callerEnv.DUCKBRAIN_NAMESPACES_PATH ??
+    process.env.DUCKBRAIN_NAMESPACES_PATH;
+  if (tempRoot) helperTempRoots.set(child, tempRoot);
+
+  return child;
+}
+
+export function killProcess(child: ChildProcess): void {
+  try {
+    // Negative pid targets the process group (requires detached: true
+    // at spawn) — kills npx wrapper + tsx + the node daemon itself.
+    if (child.pid !== undefined) {
+      process.kill(-child.pid, "SIGTERM");
+      return;
+    }
+    child.kill("SIGTERM");
+  } catch {
+    // Fallback: direct kill if group kill failed (already dead, etc.)
+    try {
+      child.kill("SIGTERM");
+    } catch {}
+  }
+}
+
+/**
+ * Stop a detached test process and wait for its child/descendants to finish.
+ * Teardown must join the process before deleting its data directory: a
+ * fire-and-forget SIGTERM can leave git/DuckDB writers racing recursive rm.
+ */
+export async function stopProcess(
+  child: ChildProcess,
+  timeoutMs = 15_000,
+): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  let settled = false;
+  let resolveClose: (() => void) | undefined;
+  const closed = new Promise<void>((resolve) => {
+    resolveClose = resolve;
+  });
+  const onClose = () => {
+    settled = true;
+    resolveClose?.();
+  };
+  child.once("close", onClose);
+  killProcess(child);
+
+  const timeout = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), timeoutMs),
+  );
+  const result = await Promise.race([
+    closed.then(() => "closed" as const),
+    timeout,
+  ]);
+  if (result === "timeout" && !settled) {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      else child.kill("SIGKILL");
+    } catch {}
+    const killTimeout = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), 5_000),
+    );
+    const killed = await Promise.race([
+      closed.then(() => "closed" as const),
+      killTimeout,
+    ]);
+    if (killed === "timeout") {
+      child.removeListener("close", onClose);
+      throw new Error(
+        `stopProcess: child ${child.pid ?? "unknown"} still alive after SIGTERM+SIGKILL`,
+      );
+    }
+  }
+  child.removeListener("close", onClose);
+}
+
+export async function startSshContainer(
+  id: string,
+  sshPort: number,
+): Promise<string> {
+  const containerName = `${CONTAINER_PREFIX}-ssh-${id}`;
+
+  run(
+    `docker build -f tests/ssh/Dockerfile.ssh-test -t ${CONTAINER_PREFIX}-ssh .`,
+    { cwd: process.cwd() },
+  );
+
+  run(`docker rm -f ${containerName} 2>/dev/null || true`);
+
+  run(
+    `docker run -d --name ${containerName} -p ${sshPort}:22 ${CONTAINER_PREFIX}-ssh`,
+  );
+
+  await sleep(1000);
+
+  run(`ssh-keygen -R [127.0.0.1]:${sshPort} 2>/dev/null || true`);
+  run(
+    `ssh-keyscan -p ${sshPort} 127.0.0.1 >> ~/.ssh/known_hosts 2>/dev/null || true`,
+  );
+
+  return containerName;
+}
+
+export function stopSshContainer(containerName: string): void {
+  try {
+    run(`docker rm -f ${containerName} 2>/dev/null || true`);
+  } catch {}
+}
+
+export function sshExec(containerName: string, cmd: string): string {
+  return run(`docker exec ${containerName} sh -c ${JSON.stringify(cmd)}`);
+}
+
+/**
+ * Bound on a single `curl()` probe (DB-GAP-059).
+ *
+ * The incident: `curl -s -D - <args>` had NO time bound, so a stalled daemon
+ * (a starved event loop in a DuckDB scratch-file churn loop) pinned the whole
+ * integration file forever instead of failing the test and letting `afterAll`
+ * reap the daemon. This mirrors INT-CI-003's `--max-time 10` in `waitForUrl`.
+ *
+ * A caller that KNOWS its probe is legitimately slow may pass its own
+ * `--max-time N`: curl honours the LAST occurrence and this bound is emitted
+ * first, so a caller-supplied value wins.
+ */
+export const CURL_MAX_TIME_S = 10;
+
+export async function curl(
+  args: string,
+): Promise<{ status: number; body: string; headers: string }> {
+  try {
+    const output = run(`curl -s -D - --max-time ${CURL_MAX_TIME_S} ${args}`);
+    const headerEnd = output.indexOf("\r\n\r\n");
+    if (headerEnd === -1) {
+      return { status: 0, body: output, headers: output };
+    }
+    const headers = output.slice(0, headerEnd);
+    const body = output.slice(headerEnd + 4);
+    const statusMatch = headers.match(/HTTP\/\S+\s+(\d+)/);
+    const status = statusMatch ? parseInt(statusMatch[1]) : 0;
+    return { status, body, headers };
+  } catch (e: any) {
+    // A probe that hit the time bound must FAIL, never be reported as a
+    // (truncated) success: curl exit 28 can arrive with the response headers
+    // already emitted, and parsing a half-body as JSON would surface as a
+    // confusing assertion error instead of the real cause. curl's exit code
+    // is the signal — the command text itself contains "--max-time", so it
+    // must never be matched.
+    const timedOut =
+      e?.status === 28 ||
+      /Operation timed out|Resolving timed out|Connection timed out/i.test(
+        String(e?.message ?? ""),
+      );
+    if (timedOut) {
+      throw new Error(
+        `curl probe exceeded --max-time ${CURL_MAX_TIME_S}s (DB-GAP-059) — ` +
+          `a stalled daemon must fail the test, not hang the suite. args: ${args}`,
+      );
+    }
+    if (e.stdout) {
+      const output = e.stdout as string;
+      const headerEnd = output.indexOf("\r\n\r\n");
+      if (headerEnd !== -1) {
+        const headers = output.slice(0, headerEnd);
+        const body = output.slice(headerEnd + 4);
+        const statusMatch = headers.match(/HTTP\/\S+\s+(\d+)/);
+        return {
+          status: statusMatch ? parseInt(statusMatch[1]) : 0,
+          body,
+          headers,
+        };
+      }
+    }
+    throw e;
+  }
+}
+
+/**
+ * DB-GAP-059: re-exported so integration files can reap in their own
+ * teardown without reaching into src/testing directly. The suite's
+ * globalSetup already runs a startup + teardown sweep; this is the manual /
+ * per-file handle.
+ */
+export { reapOrphanDaemons, formatReapReport } from "../src/testing/orphan-daemon-reaper.js";

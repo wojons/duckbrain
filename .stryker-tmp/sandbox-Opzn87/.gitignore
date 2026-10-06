@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Runtime data
+.duckbrain/
+# GAP-059 watchdog recovery counter — per-host runtime state, never tracked.
+.watchdog/
+# Root-anchored: the runtime namespace storage dir (./namespaces/). Source
+# code under src/namespaces/ (DB-GAP-032 shared deletion core) IS tracked.
+/namespaces/
+
+# Planning/debug (local only)
+.planning/debug/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+
+# Temp files
+*.tmp
+*.temp
+
+# Compiled JavaScript (source is TypeScript)
+packages/ui/src/**/*.js
+.vfs/
+
+# Hilo — local cache files (rebuildable)
+.vfs/graph/graph.db
+.vfs/graph/graph.db.wal
+.vfs/graph/graph.duckdb
+.vfs/graph/.last_warm
+
+# coding-hermes board — rebuildable local cache
+.coding-hermes/board/board.db
+.coding-hermes/board/board.db.wal
+.coding-hermes/board/*.parquet
+
+.coding-hermes/board/*.duckdb
+.gitreins/usage.jsonl
+
+# dagger local state (stray artifact, never track)
+dagger.db
+dagger.db-shm
+dagger.db-wal
+
+# stray empty sqlite created by accident in repo root (2026-08-27)
+/board.db
+
+# instance config (deployment-specific — never commit; see duckbrain.config.example.json)
+duckbrain.config.json
+.scc/
+stray-archives/

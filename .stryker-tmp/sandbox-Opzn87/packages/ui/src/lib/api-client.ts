@@ -1,0 +1,401 @@
+/**
+ * HTTP API Client
+ *
+ * Typed API client for DuckBrain backend.
+ * Wraps fetch calls with error handling and TypeScript types.
+ */
+// @ts-nocheck
+
+
+import {
+  MemoryResponse,
+  MemoryListResponse,
+  KeyTreeResponse,
+  NamespaceListResponse,
+  NamespaceResponse,
+  CreateMemoryRequest,
+  UpdateMemoryRequest,
+} from "../../../../src/http/types/api";
+import {
+  validateMemoryListResponse,
+  validateKeyTreeResponse,
+  validateNamespaceListResponse,
+  validateMemoryResponse,
+} from "./validators";
+import { logApiRequest, logApiResponse, debugLog } from "./api-health";
+
+const API_BASE = "/api";
+
+/**
+ * localStorage key holding the user's DuckBrain API token. Single source of
+ * truth for hardened (--auth=apikey) deployments: the UI has no session
+ * concept, so every request must carry the key the user pasted in.
+ */
+const API_TOKEN_STORAGE_KEY = "duckbrain-api-token";
+
+/** The stored API token, or null when the user has not entered one. */
+export function getApiToken(): string | null {
+  try {
+    return window.localStorage.getItem(API_TOKEN_STORAGE_KEY);
+  } catch {
+    // localStorage can throw in exotic embeds/private modes; treat as unset.
+    return null;
+  }
+}
+
+/** Persist the API token (trimmed). */
+export function setApiToken(token: string): void {
+  window.localStorage.setItem(API_TOKEN_STORAGE_KEY, token.trim());
+}
+
+/** Remove the stored API token. */
+export function clearApiToken(): void {
+  window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
+}
+
+/**
+ * Base class for API failures with the HTTP status attached.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * Distinct 401-class failure: the request reached the server but was not
+ * authorized. Retry logic must never retry these (see shouldRetryQuery) and
+ * the UI surfaces the token entry point instead.
+ */
+export class ApiAuthError extends ApiError {
+  constructor(
+    status = 401,
+    message = "Not authorized — enter your DuckBrain API token",
+  ) {
+    super(status, message);
+    this.name = "ApiAuthError";
+  }
+}
+
+/**
+ * Shared TanStack Query retry predicate: at most one retry for transient
+ * failures, and never a retry for auth errors — a 401 cannot succeed by
+ * being repeated, and repeating it trips the rate limiter (429 storm).
+ */
+export function shouldRetryQuery(
+  failureCount: number,
+  error: unknown,
+): boolean {
+  if (error instanceof ApiAuthError) return false;
+  return failureCount < 1;
+}
+
+// Validation flag - can be disabled in production for performance
+const ENABLE_VALIDATION = import.meta.env?.VITE_VALIDATE_API !== "false";
+
+/**
+ * Base fetch wrapper with error handling and validation
+ */
+async function apiFetch<T>(
+  endpoint: string,
+  options?: RequestInit,
+): Promise<T> {
+  const url = `${API_BASE}${endpoint}`;
+  const startTime = performance.now();
+
+  // Log request in dev mode
+  logApiRequest(options?.method || "GET", endpoint, options?.body);
+
+  // Attach the user's API token (hardened --auth=apikey deployments). The
+  // header is sent on EVERY request and omitted entirely when no token is
+  // set. Callers may still override headers via options.
+  const token = getApiToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-API-Key": token } : {}),
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Unknown error" }));
+    debugLog(
+      "ERROR",
+      `${endpoint} failed: ${error.error || `HTTP ${response.status}`}`,
+    );
+    if (response.status === 401) {
+      // Distinct auth failure so the UI can prompt for a token and the
+      // query retry predicate can refuse to retry.
+      throw new ApiAuthError(response.status, error.error || undefined);
+    }
+    throw new ApiError(
+      response.status,
+      error.error || `HTTP ${response.status}`,
+    );
+  }
+
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const data = await response.json();
+  const duration = Math.round(performance.now() - startTime);
+
+  // Log response in dev mode
+  logApiResponse(endpoint, data, duration);
+
+  // Validate response shape if enabled
+  if (ENABLE_VALIDATION) {
+    validateResponse(endpoint, data);
+  }
+
+  return data;
+}
+
+/**
+ * Validate response based on endpoint
+ */
+function validateResponse(endpoint: string, data: unknown): void {
+  if (endpoint.includes("/memories") && !endpoint.includes("/versions")) {
+    if (endpoint.match(/\/memories\/[^\/]+$/)) {
+      // Single memory
+      const result = validateMemoryResponse(data);
+      if (!result.valid) {
+        console.warn(`[API Validation] ${endpoint}: ${result.error}`);
+      }
+    } else {
+      // Memory list
+      const result = validateMemoryListResponse(data);
+      if (!result.valid) {
+        console.warn(`[API Validation] ${endpoint}: ${result.error}`);
+      }
+    }
+  } else if (endpoint.includes("/keys")) {
+    const result = validateKeyTreeResponse(data);
+    if (!result.valid) {
+      console.warn(`[API Validation] ${endpoint}: ${result.error}`);
+    }
+  } else if (endpoint.includes("/namespaces")) {
+    const result = validateNamespaceListResponse(data);
+    if (!result.valid) {
+      console.warn(`[API Validation] ${endpoint}: ${result.error}`);
+    }
+  }
+}
+
+/**
+ * Query params builder
+ */
+function buildQuery(
+  params: Record<string, string | number | undefined>,
+): string {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      query.append(key, String(value));
+    }
+  });
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+/**
+ * Memories API
+ */
+export const memoriesApi = {
+  /**
+   * List memories with optional filters
+   */
+  list: (params?: {
+    prefix?: string;
+    limit?: number;
+    offset?: number;
+    domain?: string;
+    author?: string;
+    /** Search term — sent as `q`, the name the backend reads (memories.ts). */
+    query?: string;
+    namespace?: string;
+    /** Only memories created after this ISO-8601 instant. */
+    after?: string;
+    /** Only memories created before this ISO-8601 instant. */
+    before?: string;
+    /** Two-comma ISO-8601 window "start,end" — not combinable with after/before. */
+    between?: string;
+    /** Point-in-time selector: commit-ish or ISO-8601 instant (?as_of=). */
+    asOf?: string;
+    /** Include historical (superseded) versions. */
+    historical?: boolean;
+    /** Content must contain this token. */
+    contains?: string;
+    /** RETR-007: search every manifest namespace in one request. */
+    allNamespaces?: boolean;
+  }): Promise<MemoryListResponse> => {
+    const { query, asOf, allNamespaces, historical, ...rest } = params || {};
+    const wire = {
+      ...rest,
+      ...(query ? { q: query } : {}),
+      ...(asOf ? { as_of: asOf } : {}),
+      ...(historical ? { historical: "true" } : {}),
+      ...(allNamespaces ? { allNamespaces: "true" } : {}),
+    };
+    return apiFetch<MemoryListResponse>(`/memories${buildQuery(wire)}`);
+  },
+
+  /**
+   * Get a single memory by ID
+   */
+  get: (id: string, namespace?: string): Promise<MemoryResponse> => {
+    return apiFetch<MemoryResponse>(
+      `/memories/${id}${buildQuery({ namespace })}`,
+    );
+  },
+
+  /**
+   * Get a single memory by key path (used by Tree view)
+   * Key should NOT have leading slash
+   */
+  getByKey: (key: string, namespace?: string): Promise<MemoryResponse> => {
+    const cleanKey = key.startsWith("/") ? key.slice(1) : key;
+    return apiFetch<MemoryResponse>(
+      `/memories/key/${encodeURIComponent(cleanKey)}${buildQuery({ namespace })}`,
+    );
+  },
+
+  /**
+   * Create a new memory
+   */
+  create: (
+    data: CreateMemoryRequest,
+    namespace?: string,
+  ): Promise<MemoryResponse> => {
+    return apiFetch<MemoryResponse>(`/memories${buildQuery({ namespace })}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update an existing memory (forget + remember = new version)
+   */
+  update: (
+    id: string,
+    data: UpdateMemoryRequest,
+    namespace?: string,
+  ): Promise<MemoryResponse> => {
+    return apiFetch<MemoryResponse>(
+      `/memories/${id}${buildQuery({ namespace })}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+  },
+
+  /**
+   * Delete a memory (create tombstone)
+   */
+  delete: (id: string, namespace?: string): Promise<void> => {
+    return apiFetch<void>(`/memories/${id}${buildQuery({ namespace })}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
+   * Get versions of a memory
+   */
+  getVersions: (id: string, namespace?: string): Promise<MemoryResponse[]> => {
+    return apiFetch<MemoryResponse[]>(
+      `/memories/${id}/versions${buildQuery({ namespace })}`,
+    );
+  },
+};
+
+/**
+ * Keys API
+ */
+export const keysApi = {
+  /**
+   * Get hierarchical key tree
+   */
+  list: (params?: {
+    prefix?: string;
+    depth?: number;
+    limit?: number;
+    namespace?: string;
+  }): Promise<KeyTreeResponse> => {
+    return apiFetch<KeyTreeResponse>(`/keys${buildQuery(params || {})}`);
+  },
+
+  /**
+   * Get flat list of keys
+   */
+  listFlat: (params?: {
+    prefix?: string;
+    limit?: number;
+    offset?: number;
+    namespace?: string;
+  }): Promise<{
+    keys: string[];
+    total: number;
+    hasMore: boolean;
+    nextOffset: number | null;
+    prefixes: string[];
+  }> => {
+    return apiFetch(`/keys/flat${buildQuery(params || {})}`);
+  },
+};
+
+/**
+ * Namespaces API
+ */
+export const namespacesApi = {
+  /**
+   * List all namespaces
+   */
+  list: (): Promise<NamespaceListResponse> => {
+    return apiFetch<NamespaceListResponse>("/namespaces");
+  },
+
+  /**
+   * Create a new namespace
+   */
+  create: (name: string, setDefault?: boolean): Promise<NamespaceResponse> => {
+    return apiFetch<NamespaceResponse>("/namespaces", {
+      method: "POST",
+      body: JSON.stringify({ name, setDefault }),
+    });
+  },
+
+  /**
+   * Switch to a namespace
+   */
+  switch: (name: string): Promise<{ success: boolean; namespace: string }> => {
+    return apiFetch("/namespaces/switch", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+};
+
+/**
+ * SSE Events API
+ */
+export const eventsApi = {
+  /**
+   * Create EventSource for real-time updates
+   */
+  connect: (namespace: string): EventSource => {
+    return new EventSource(
+      `${API_BASE}/events/${encodeURIComponent(namespace)}`,
+    );
+  },
+};

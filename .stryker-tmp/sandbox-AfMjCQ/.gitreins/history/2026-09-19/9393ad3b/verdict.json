@@ -1,0 +1,97 @@
+{
+  "task_id": "PUSH-001",
+  "task_title": "Gate in-daemon S3 autopush: honor pushOnCommit+intervalSec, single-flight, skip-unchanged",
+  "task_criteria": [
+    "Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false) produces zero pushes; pushOnCommit=true yields at most one concurrent push per namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful push; tsc+full unit suite+prettier green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "feat/native-s3",
+  "commit": "c8e56171f23dcf43a63ee0c02be9c8efc88876fa",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\n12:42PM INF scanned ~8708442 bytes (8.71 MB) in 1.38s\n12:42PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 191782 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "\n RUN  v4.1.10 /home/kara/duckbrain\n\n\n Test Files  153 passed (153)\n      Tests  1200 passed (1200)\n   Start at  12:42:53\n   Duration  55.79s (transform 2.90s, setup 1.08s, import 44.00s, tests 155.51s, environment 16ms)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false) produces zero pushes; pushOnCommit=true yields at most one concurrent push per namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful push; tsc+full unit suite+prettier green: src/git/autocommit.ts:88-100 evaluatePushGate returns false unless s3.enabled && s3.pushOnCommit (both default false in src/s3/config.ts:21,45,54,59; duckbrain.config.json s3.pushOnCommit=false) \u2192 zero pushes by default (test 'AC-a: pushOnCommit=false (default) \u2192 zero pushes' passes). intervalSec floor at autocommit.ts:97 (<=0 disables). Single-flight: pushNamespaceAsync autocommit.ts:568 returns gateState.inFlight; sync pushNamespace autocommit.ts:643 returns early if inFlight; my probe of 4 concurrent commitNamespace calls yielded pushCount<=1 and sync path skipped while async in flight. Skip-unchanged: HEAD vs gateState.lastPushedHead (autocommit.ts:577,652); failures leave lastPushedHead untouched so retry allowed (test passes). Evidence: `npx tsc --noEmit` EXIT=0; `npx prettier --check` on all 4 changed files \u2192 'All matched files use Prettier code style!' EXIT=0; `npx vitest run` \u2192 'Test Files 153 passed (153), Tests 1200 passed (1200)', EXIT=0; new src/git/autocommit-push-gate.test.ts 12/12 pass; ops006 5/5 pass; LSP diagnostics 0.\nPUSH-001 gating is correctly implemented and verified: default config yields zero pushes, pushOnCommit=true is interval-coalesced, single-flight per namespace, and skips unchanged HEAD, with tsc, prettier, and the full 1200-test suite all green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false) produces zero pushes; pushOnCommit=true yields at most one concurrent push per namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful push; tsc+full unit suite+prettier green: src/git/autocommit.ts:88-100 evaluatePushGate returns false unless s3.enabled && s3.pushOnCommit (both default false in src/s3/config.ts:21,45,54,59; duckbrain.config.json s3.pushOnCommit=false) \u2192 zero pushes by default (test 'AC-a: pushOnCommit=false (default) \u2192 zero pushes' passes). intervalSec floor at autocommit.ts:97 (<=0 disables). Single-flight: pushNamespaceAsync autocommit.ts:568 returns gateState.inFlight; sync pushNamespace autocommit.ts:643 returns early if inFlight; my probe of 4 concurrent commitNamespace calls yielded pushCount<=1 and sync path skipped while async in flight. Skip-unchanged: HEAD vs gateState.lastPushedHead (autocommit.ts:577,652); failures leave lastPushedHead untouched so retry allowed (test passes). Evidence: `npx tsc --noEmit` EXIT=0; `npx prettier --check` on all 4 changed files \u2192 'All matched files use Prettier code style!' EXIT=0; `npx vitest run` \u2192 'Test Files 153 passed (153), Tests 1200 passed (1200)', EXIT=0; new src/git/autocommit-push-gate.test.ts 12/12 pass; ops006 5/5 pass; LSP diagnostics 0.\nPUSH-001 gating is correctly implemented and verified: default config yields zero pushes, pushOnCommit=true is interval-coalesced, single-flight per namespace, and skips unchanged HEAD, with tsc, prettier, and the full 1200-test suite all green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false) produces zero pushes; pushOnCommit=true yields at most one concurrent push per namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful push; tsc+full unit suite+prettier green",
+                "status": "PASS",
+                "detail": "src/git/autocommit.ts:88-100 evaluatePushGate returns false unless s3.enabled && s3.pushOnCommit (both default false in src/s3/config.ts:21,45,54,59; duckbrain.config.json s3.pushOnCommit=false) \u2192 zero pushes by default (test 'AC-a: pushOnCommit=false (default) \u2192 zero pushes' passes). intervalSec floor at autocommit.ts:97 (<=0 disables). Single-flight: pushNamespaceAsync autocommit.ts:568 returns gateState.inFlight; sync pushNamespace autocommit.ts:643 returns early if inFlight; my probe of 4 concurrent commitNamespace calls yielded pushCount<=1 and sync path skipped while async in flight. Skip-unchanged: HEAD vs gateState.lastPushedHead (autocommit.ts:577,652); failures leave lastPushedHead untouched so retry allowed (test passes). Evidence: `npx tsc --noEmit` EXIT=0; `npx prettier --check` on all 4 changed files \u2192 'All matched files use Prettier code style!' EXIT=0; `npx vitest run` \u2192 'Test Files 153 passed (153), Tests 1200 passed (1200)', EXIT=0; new src/git/autocommit-push-gate.test.ts 12/12 pass; ops006 5/5 pass; LSP diagnostics 0."
+              }
+            ],
+            "summary": "PUSH-001 gating is correctly implemented and verified: default config yields zero pushes, pushOnCommit=true is interval-coalesced, single-flight per namespace, and skips unchanged HEAD, with tsc, prettier, and the full 1200-test suite all green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: PUSH-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: RUN  v4.1.10 /home/kara/duckbrain\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Autopush no longer fires per commit flush unconditionally: default config (pushOnCommit=false) produces zero pushes; pushOnCommit=true yields at most one concurrent push per namespace, intervalSec-coalesced, skipping when HEAD unchanged since last successful push; tsc+full unit suite+prettier green: src/git/autocommit.ts:88-100 evaluatePushGate returns false unless s3.enabled && s3.pushOnCommit (both default false in src/s3/config.ts:21,45,54,59; duckbrain.config.json s3.pushOnCommit=false) \u2192 zero pushes by default (test 'AC-a: pushOnCommit=false (default) \u2192 zero pushes' passes). intervalSec floor at autocommit.ts:97 (<=0 disables). Single-flight: pushNamespaceAsync autocommit.ts:568 returns gateState.inFlight; sync pushNamespace autocommit.ts:643 returns early if inFlight; my probe of 4 concurrent commitNamespace calls yielded pushCount<=1 and sync path skipped while async in flight. Skip-unchanged: HEAD vs gateState.lastPushedHead (autocommit.ts:577,652); failures leave lastPushedHead untouched so retry allowed (test passes). Evidence: `npx tsc --noEmit` EXIT=0; `npx prettier --check` on all 4 changed files \u2192 'All matched files use Prettier code style!' EXIT=0; `npx vitest run` \u2192 'Test Files 153 passed (153), Tests 1200 passed (1200)', EXIT=0; new src/git/autocommit-push-gate.test.ts 12/12 pass; ops006 5/5 pass; LSP diagnostics 0.\nPUSH-001 gating is correctly implemented and verified: default config yields zero pushes, pushOnCommit=true is interval-coalesced, single-flight per namespace, and skips unchanged HEAD, with tsc, prettier, and the full 1200-test suite all green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-09-19T17:50:21.917381",
+  "evidence": {
+    "collected_at": "2026-09-19T17:50:21.945117+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 15207,
+        "truncated": false,
+        "source": "git show c8e56171f23d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 536,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PUSH-001"
+  }
+}
