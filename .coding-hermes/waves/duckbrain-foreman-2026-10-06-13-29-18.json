@@ -1,0 +1,55 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-06-13-29-18",
+  "base_sha": "6ed046d",
+  "base_branch": "origin/feat/native-s3",
+  "tasks": [
+    {
+      "id": "S3-GIT-007",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-GIT-007",
+      "branch": "wt/S3-GIT-007",
+      "status": "existing_branch",
+      "commit": "2467c2e",
+      "worker_model": "glm-5.3-flash@zai-glm",
+      "dispatched_at": "2026-10-04T05:51:58-05:00"
+    },
+    {
+      "id": "DF-1003-01",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-1003-01",
+      "branch": "wt/DF-1003-01",
+      "status": "existing_branch",
+      "commit": "4560fe4",
+      "worker_model": "glm-5.3-flash@zai-glm",
+      "dispatched_at": "2026-10-04T05:53:56-05:00"
+    },
+    {
+      "id": "GATE-PARTITION-001",
+      "worktree": "/home/kara/worktrees/duckbrain-GATE-PARTITION-001",
+      "branch": "wt/GATE-PARTITION-001",
+      "status": "dispatching",
+      "worker_model": "glm-5.3-flash@zai-glm"
+    },
+    {
+      "id": "CLI-VERSION-001",
+      "worktree": "/home/kara/worktrees/duckbrain-CLI-VERSION-001",
+      "branch": "wt/CLI-VERSION-001",
+      "status": "dispatching",
+      "worker_model": "glm-5.3-flash@zai-glm"
+    },
+    {
+      "id": "S3-QUERY-SCHEME-001",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-QUERY-SCHEME-001",
+      "branch": "wt/S3-QUERY-SCHEME-001",
+      "status": "dispatching",
+      "worker_model": "glm-5.3-flash@zai-glm"
+    },
+    {
+      "id": "DF-0924-09",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0924-09",
+      "branch": "wt/DF-0924-09",
+      "status": "dispatching",
+      "worker_model": "glm-5.3-flash@zai-glm"
+    }
+  ],
+  "merge_order": ["S3-GIT-007", "DF-1003-01", "GATE-PARTITION-001", "CLI-VERSION-001", "S3-QUERY-SCHEME-001", "DF-0924-09"],
+  "created_at": "2026-10-06T13:29:18-05:00"
+}
