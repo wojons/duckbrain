@@ -169,7 +169,13 @@ before trusting any as-of answer.
 
 ## Namespace deletion lifecycle (shipped 2026-09-22, e3a9852 — verified live 2026-09-23)
 
-Two DIFFERENT operations — never conflate them:
+Two DIFFERENT operations — never conflate them. One-line CLI semantics:
+
+```
+duckbrain namespace delete-disk <ns> --force --requested-by=<who> [--reason=<why>]   # local dir+mapping+manifest gone; S3 KEPT; audited; refuses mid-push
+duckbrain namespace clear-s3 <ns> --dry-run | --yes --requested-by=<who> --reason=<why>  # S3 objects DESTROYED; disk untouched; dry-run default
+duckbrain s3 ghosts [--sweep --yes --requested-by=<who>]   # list/prune manifests+mappings whose ns dir is gone
+```
 
 - **`duckbrain namespace delete-disk <ns> --force [--requested-by=<who>] [--reason=<why>]`**
   removes the LOCAL namespace (dir + config mapping + the per-ns S3 sync
