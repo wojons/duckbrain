@@ -58,7 +58,11 @@ export interface MemoryResponse {
   /**
    * Source namespace — present on keyword ?contains= hits (RETR-007): the
    * searched namespace for single-namespace requests, each hit's own
-   * namespace for ?allNamespaces=true unions
+   * namespace for ?allNamespaces=true unions. On a 201 from
+   * POST /api/memories (DF-1003-03): the EFFECTIVE namespace the write
+   * landed in — the server-resolved target (explicit param >
+   * DUCKBRAIN_NAMESPACE > config defaultNamespace > "default"), which may
+   * differ from what the caller believes when it omitted the field.
    */
   namespace?: string;
 }

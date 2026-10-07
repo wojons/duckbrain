@@ -533,9 +533,18 @@ Create a new memory.
   "valid_until": "2026-12-31T23:59:59.000Z",
   "author": "alice@example.com",
   "isTombstone": false,
-  "action": "add"
+  "action": "add",
+  "namespace": "default"
 }
 ```
+
+> **Note — effective namespace echo (DF-1003-03):** the 201 body carries
+> `"namespace"` — the namespace the write **actually** landed in, after
+> server-side resolution (explicit param > `DUCKBRAIN_NAMESPACE` > config
+> `defaultNamespace` > `"default"`). A caller that omitted the namespace — or
+> typo'd it and received `namespace_autocreated: true` — reads the truth from
+> the body instead of trusting its own request. On the happy path (explicit
+> namespace) the echo is simply that same namespace.
 
 **Example:**
 

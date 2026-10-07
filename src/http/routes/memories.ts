@@ -744,6 +744,16 @@ router.post(
       author: result.author!,
       isTombstone: false,
       action: "add",
+      // DF-1003-03: echo the EFFECTIVE namespace the write landed in. The
+      // target namespace is resolved server-side (explicit param >
+      // DUCKBRAIN_NAMESPACE > config defaultNamespace > "default"), and on a
+      // fresh box a write to a namespace that does not exist yet is
+      // auto-created under the resolved name — so a caller that omitted the
+      // namespace (or typo'd it, seeing namespace_autocreated: true below)
+      // reads where the memory ACTUALLY went from the body instead of
+      // trusting its own request. rememberTool sets this on every success
+      // (DOGFOOD-017); same additive pattern as namespace_autocreated.
+      namespace: result.namespace!,
       // NAMESPACE-AUTOCREATE-001: additive — present (true) only when THIS
       // write created the namespace (it did not exist before); absent when
       // the namespace already existed, so existing clients see no change.
