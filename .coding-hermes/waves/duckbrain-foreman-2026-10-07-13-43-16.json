@@ -1,0 +1,5 @@
+{"tick":"duckbrain-foreman-2026-10-07-13-43-16","created":"2026-10-07T13:50Z","budget":5,"workers":[
+ {"row":"GIT-IDENTITY-001","worktree":"/home/kara/worktrees/duckbrain-GIT-IDENTITY-001","branch":"wt/GIT-IDENTITY-001","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"},
+ {"row":"DF-0925-06","worktree":"/home/kara/worktrees/duckbrain-DF-0925-06","branch":"wt/DF-0925-06","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"},
+ {"row":"DF-0923-03","worktree":"/home/kara/worktrees/duckbrain-DF-0923-03","branch":"wt/DF-0923-03","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"}
+]}
