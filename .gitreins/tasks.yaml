@@ -2286,18 +2286,6 @@ tasks:
   status: complete
   created_at: '2026-10-03T09:12:06.875946+00:00'
   completed_at: '2026-10-03T09:20:16.816970+00:00'
-- id: DB-GAP-063
-  title: Harden remaining scratch-daemon test rigs against port-race/foreign-daemon
-    identity (rollout of the nsauto001 pattern)
-  criteria:
-  - One shared race-safe scratch-daemon helper (private port window + per-spawn identity
-    probe of a sentinel namespace via GET /api/namespaces + bounded spawn retry +
-    early death rejection + best-effort teardown) is either created and adopted by
-    the remaining CLI-server-spawning test files listed in the row's affected_files_remaining,
-    or each file is hardened the same way; vitest run over the touched suites is green;
-    tsc --noEmit clean
-  status: in_progress
-  created_at: '2026-10-03T12:14:11.325869+00:00'
 - id: BOARD-INTEGRITY-001
   title: Prevent concurrent JSONL board corruption
   criteria:
@@ -2490,3 +2478,39 @@ tasks:
   status: complete
   created_at: '2026-10-07T10:56:01.914857+00:00'
   completed_at: '2026-10-07T11:17:25.808415+00:00'
+- id: GIT-IDENTITY-001
+  title: Stop inventing per-namespace git identity; chain resolution + repair
+  criteria:
+  - No hardcoded synthetic identity in src/git/autocommit.ts or attribution.ts; identity
+    resolved repo-local->global->env; repair command removes synthetic pins from namespace
+    repos; regression tests green; tsc clean
+  status: complete
+  created_at: '2026-10-07T13:45:00.272264+00:00'
+  completed_at: '2026-10-07T14:18:06.879208+00:00'
+- id: DF-0925-06
+  title: token --auth-file can create a missing store
+  criteria:
+  - node bin/duckbrain.js token --name=X --auth-file=/tmp/new-auth.json mints successfully
+    creating the file; http path still refuses missing auth-file; tests green; tsc
+    clean
+  status: complete
+  created_at: '2026-10-07T13:45:00.917267+00:00'
+  completed_at: '2026-10-07T14:19:08.387574+00:00'
+- id: DF-0923-03
+  title: Document deletion lifecycle (delete-disk vs clear-s3 vs s3 ghosts)
+  criteria:
+  - README ops section + docs/s3-native.md decision table + skills/duckbrain-usage/SKILL.md
+    CLI section mention delete-disk, clear-s3, s3 ghosts and the semantic change of
+    plain namespace delete; grep finds all three terms; tsc/ci unaffected
+  status: complete
+  created_at: '2026-10-07T13:45:01.530962+00:00'
+  completed_at: '2026-10-07T14:20:11.266431+00:00'
+- id: DF-1003-03
+  title: Echo effective namespace in POST /api/memories response
+  criteria:
+  - POST /api/memories response body includes the effective namespace the write landed
+    in (auto-created or named); regression test covers the auto-create silent-namespace
+    case
+  status: complete
+  created_at: '2026-10-07T15:35:40.348401+00:00'
+  completed_at: '2026-10-07T16:11:33.301674+00:00'
