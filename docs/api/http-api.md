@@ -170,7 +170,7 @@ curl -X POST http://localhost:3000/mcp \
 
 `GET /namespaces`
 
-Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full namespace management.
+Lists the namespaces known to the daemon. Use the REST API (`/api/namespaces`) for full namespace management.
 
 The list is filtered to the caller's token grant (card t_667d7e6c): a token
 carrying `namespaces` grants sees only those names, and `currentNamespace` is
@@ -185,21 +185,28 @@ and `--auth=none` see the full list.
 }
 ```
 
-### Users (Stub)
+### Users
 
 `GET /users`
 
-Returns an empty user list. Reserved for future implementation.
+Returns the distinct authors across the caller's visible namespaces, aggregated
+from git commit history (falling back to JSONL memory data when a namespace has
+no git history).
 
 The author scan follows the caller's namespace grant (card t_667d7e6c): only
 the token's visible namespaces are scanned, so a scoped token neither learns
 foreign namespace names nor their authors.
 
+**Note:** the scan walks every visible namespace serially (git log per
+namespace, JSONL fallback), so on installs with very many namespaces or heavy
+git history this endpoint can take a long time to respond.
+
 **Response:**
 
 ```json
 {
-  "users": []
+  "users": ["agent-alpha@duckbrain.local", "kara@duckbrain.local"],
+  "count": 2
 }
 ```
 
@@ -219,6 +226,10 @@ rows from every namespace's JSONL segments, ordered by `timestamp` descending.
 every-namespace feed. A token carrying `namespaces` grants sees **only its
 granted namespaces**, whether or not `?namespace=` is given — ungranted
 namespaces' segments are not read at all.
+
+**Note:** the feed is assembled from JSONL segment reads across the visible
+namespaces; on installs with very many namespaces this can take a long time
+without `?namespace=` scoping.
 
 **Response:**
 
