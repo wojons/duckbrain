@@ -41,6 +41,7 @@ SKIP_COMPONENTS="${DUCKBRAIN_S3_SKIP_COMPONENTS:-}"
 GIT_MARKER="$STATE_DIR/s3-git-push.last"
 ARCH_MARKER="$STATE_DIR/s3-weekly-archive.last"
 GIT_PASS_STAMP="$STATE_DIR/s3-git-pass.last"
+GATE_STATE="$STATE_DIR/s3-alert-state"
 
 # Single-instance lock: the cron fires every 15 min but a full git-history
 # push + weekly tar can outlive the tick window; without flock two concurrent
@@ -63,9 +64,62 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# ---- S3-ALERT-001: consecutive-failure alert gate ---------------------------
+# The cron running this script is a no_agent silent watchdog: each run only
+# reports ITSELF, so the 2026-10-03 outage (S3-GIT-007) stayed silent for
+# 3+ days. The gate counts consecutive failures across runs (state under
+# GATE_STATE, flock-serialized) and fires a `hermes send` alert at the
+# S3_ALERT_THRESHOLD crossing, re-alerting every S3_REALERT_EVERY failures
+# while an outage drags on.
+#
+# EXIT/TERM/INT trap: a timeout-killed cron run (the sync layer's 300s
+# deadline has killed runs before) would otherwise die before reaching the
+# call_gate below and the failure would never be counted. The trap records
+# rc 143/130 for the killed run; because bash runs the EXIT trap after the
+# signal trap, exactly ONE gate call happens per run. The gate inherits
+# fd 9 — harmless: it locks its OWN per-job file, not this one.
+#   S3_ALERT_GATE=0   disables the gate entirely (tests/one-off runs)
+GATE="$SCRIPTS_DIR/s3-alert-gate.sh"
+GATE_RC=0
+
+on_run_killed() {
+  case "$1" in
+    TERM) GATE_RC=143 ;;
+    INT)  GATE_RC=130 ;;
+  esac
+  echo "duckbrain unified S3 backup KILLED by signal $1 — recording failure via alert gate" >&2
+}
+trap 'on_run_killed TERM' TERM
+trap 'on_run_killed INT' INT
+
+call_gate() { # one gate call per run, success or failure
+  # shellcheck disable=SC2086  # intentional unquoted: empty => omit arg
+  if [ "$GATE_RC" -ne 0 ] || [ -n "$failures" ]; then
+    set -- 1
+  else
+    set -- 0
+  fi
+  if [ -x "$GATE" ]; then
+    S3_ALERT_LAST_ERROR="${S3_ALERT_LAST_ERROR:-$LAST_ERROR_LINE}" \
+      "$GATE" duckbrain-s3-unified "$1" "$GATE_STATE"
+  else
+    echo "duckbrain unified S3 backup: alert gate missing ($GATE) — not counted" >&2
+  fi
+}
+trap call_gate EXIT
+
+if [ "${S3_ALERT_GATE:-1}" = "0" ]; then
+  trap - EXIT
+fi
+
 NOW=$(date +%s)
 failures=""
 FAILED_NS=""
+LAST_ERROR_LINE=""
+
+record_last_error() { # keep the most recent non-blank stderr/stdout line for the alert gate
+  LAST_ERROR_LINE="${1##*$'\n'}"
+}
 
 # skip_component <name> — true (0) when the component was explicitly skipped
 skip_component() {
@@ -82,8 +136,12 @@ skip_component() {
 # holding the flock itself.
 if skip_component native; then
   echo "duckbrain unified S3 backup: native-sync SKIPPED (DUCKBRAIN_S3_SKIP_COMPONENTS=$SKIP_COMPONENTS)"
-elif ! "$SCRIPTS_DIR/duckbrain-s3-native-sync.sh" 9>&-; then
+elif NATIVE_OUT="$("$SCRIPTS_DIR/duckbrain-s3-native-sync.sh" 9>&- 2>&1)"; then
+  if [ -n "$NATIVE_OUT" ]; then printf '%s\n' "$NATIVE_OUT"; fi
+else
+  if [ -n "$NATIVE_OUT" ]; then printf '%s\n' "$NATIVE_OUT"; fi
   failures="$failures native-sync"
+  record_last_error "$NATIVE_OUT"
 fi
 
 # ---- 2. GIT-HISTORY PUSH — at most once per 24h ---------------------------
@@ -113,6 +171,7 @@ elif [ $((NOW - LAST_GIT)) -ge 86400 ]; then
     failures="$failures git-push"
     ns="$(printf '%s\n' "$GIT_OUT" | sed -n 's/.*FAILED:\(.*\) (log:.*/\1/p' || true)"
     FAILED_NS="$FAILED_NS$ns"
+    record_last_error "$GIT_OUT"
   fi
 fi
 
