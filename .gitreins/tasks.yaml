@@ -2372,3 +2372,39 @@ tasks:
   status: complete
   created_at: '2026-10-06T22:18:22.719715+00:00'
   completed_at: '2026-10-06T22:18:31.701390+00:00'
+- id: INT-CI-021
+  title: pidfile-isolation AC3 existsSync race
+  criteria:
+  - 'AC3 asserts helper daemon pidfile exists without polling; must be ready-deterministic:
+    poll-with-timeout or readiness signal, flake eliminated, file green over 5 consecutive
+    runs'
+  status: complete
+  created_at: '2026-10-06T22:55:17.000708+00:00'
+  completed_at: '2026-10-06T22:56:42.074597+00:00'
+- id: PERF-004
+  title: 'CLI startup: precompile dist path + lazy-load S3 subtree'
+  criteria:
+  - bin/duckbrain.js no longer pays tsx on-the-fly compile on the hot path (uses precompiled
+    dist/ or lazy tsx fallback) and read-only recall no longer transitively loads
+    @aws-sdk/client-s3 (lazy require in git/autocommit). pnpm build + tsc --noEmit
+    green, full vitest suite green, and a timing probe shows the CLI boot path loads
+    no aws-sdk module.
+  status: complete
+  created_at: '2026-10-06T23:03:38.603833+00:00'
+  completed_at: '2026-10-06T23:49:06.201825+00:00'
+- id: INT-CI-022
+  title: 'Fix CI: tsx-fallback lazy imports + heartbeat flake'
+  criteria:
+  - pnpm test:run passes on a fresh clone without dist/; s3/cli.test.ts and autocommit-ops006.test.ts
+    green locally with dist/ hidden
+  status: complete
+  created_at: '2026-10-06T23:59:53.041001+00:00'
+  completed_at: '2026-10-07T00:49:58.001725+00:00'
+- id: DB-GAP-060
+  title: 'Stray-config cleanup: void 638 auger-pytest mappings from namespaces/duckbrain.config.json'
+  criteria:
+  - stray mappings 638->0 with pre/post census recorded; root config mapping count
+    unchanged; namespaces-dbgap057.test.ts suite still green
+  status: complete
+  created_at: '2026-10-07T01:28:11.435585+00:00'
+  completed_at: '2026-10-07T01:33:34.681066+00:00'
