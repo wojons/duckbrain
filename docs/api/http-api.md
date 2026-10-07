@@ -381,7 +381,7 @@ Query memories with filters.
 > **Note — `as_of` error contract (DF-0925-04):** `?as_of=` accepts an ISO-8601 date (`2026-08-10`; date-only input is inclusive of the whole day) or a git ref (commit hash, branch, tag), resolved to a concrete commit BEFORE the query runs. It cannot be combined with `q` or `contains` — semantic/keyword search indexes have no historical state. Failure modes, all **400 `VALIDATION_ERROR`** (never a 500 or a silent unfiltered list):
 >
 > - `as_of` + `q`/`contains` → "as_of cannot be combined with 'query' or 'contains' — memory-as-of reads the git state at that ref and does not run semantic or keyword search".
-> - Unresolvable value → "Invalid as-of value '<value>': not an ISO-8601 date and not a resolvable git commit, branch, or tag".
+> - Unresolvable value → "Invalid --as-of value '<value>': not an ISO-8601 date and not a resolvable git commit, branch, or tag".
 > - Date before the first commit → "No commit found at or before <value>".
 > - Namespace without git history → "Namespace at <path> is not a git repository — as-of recall requires namespace git history".
 > - Empty value → "--as-of requires a date or a git commit reference".
