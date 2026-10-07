@@ -376,7 +376,17 @@ Query memories with filters.
 | `after` | — | Only rows at or after this ISO-8601 instant (timestamp or chat-archive key date facet) |
 | `before` | — | Only rows at or before this ISO-8601 instant |
 | `between` | — | ISO-8601 range as `START,END` — shorthand for `after` + `before` |
-| `as_of` | — | Read the namespace state at a git ref or ISO-8601 date (memory-as-of) |
+| `as_of` | — | Read the namespace state at a git ref or ISO-8601 date (memory-as-of, RETR-004) — see the error contract below |
+
+> **Note — `as_of` error contract (DF-0925-04):** `?as_of=` accepts an ISO-8601 date (`2026-08-10`; date-only input is inclusive of the whole day) or a git ref (commit hash, branch, tag), resolved to a concrete commit BEFORE the query runs. It cannot be combined with `q` or `contains` — semantic/keyword search indexes have no historical state. Failure modes, all **400 `VALIDATION_ERROR`** (never a 500 or a silent unfiltered list):
+>
+> - `as_of` + `q`/`contains` → "as_of cannot be combined with 'query' or 'contains' — memory-as-of reads the git state at that ref and does not run semantic or keyword search".
+> - Unresolvable value → "Invalid as-of value '<value>': not an ISO-8601 date and not a resolvable git commit, branch, or tag".
+> - Date before the first commit → "No commit found at or before <value>".
+> - Namespace without git history → "Namespace at <path> is not a git repository — as-of recall requires namespace git history".
+> - Empty value → "--as-of requires a date or a git commit reference".
+>
+> The MCP `recall` tool exposes the same argument as `asOf` and returns the same error strings inside its `error` result (see [mcp-tools.md](mcp-tools.md#recall)).
 | `attr.<name>` | — | Attribute filter: only rows whose `attributes` match `name=value` (repeatable) |
 | `historical` | `false` | View selector: `true` = historical view including ALL rows regardless of validity window (expired `valid_until` / future `valid_from` facts stay visible); `false`/absent = current view (validity-filtered) |
 | `limit` | 50 | Max results to return |
