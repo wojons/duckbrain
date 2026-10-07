@@ -6,21 +6,26 @@ DuckBrain can be configured through environment variables and a JSON configurati
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DUCKBRAIN_HOME` | `~/.duckbrain` | Base directory for DuckBrain data, sockets, and configuration |
-| `DUCKBRAIN_NAMESPACE` | `default` | Active namespace for operations. Runtime override of the config file's `defaultNamespace` (never persisted). Precedence: explicit parameter > this env var > `defaultNamespace` > `default` |
-| `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories |
+| `DUCKBRAIN_HOME` | — | **Not implemented.** No code reads this variable; the home directory is derived from `DUCKBRAIN_HOME_ROOT` / the install layout |
+| `DUCKBRAIN_NAMESPACE` | — | **Not implemented.** No code reads this variable; use the per-call namespace parameter or the config file's `defaultNamespace` |
+| `DUCKBRAIN_HOME_ROOT` | — | Explicit install-root override for the DuckBrain home directory (read at `src/config/index.ts`). Set when the derived install root cannot be resolved (e.g. non-standard layouts) |
+| `DUCKBRAIN_DURABILITY_MODE` | — | Runtime override of the namespace durability write mode (SUPA-1). A malformed value fails config load through the schema enum — never a silent fallback to buffered, because a silently-buffered namespace means acked writes are not durable. Never persisted into `duckbrain.config.json`. Precedence: `durability.overrides[ns]` > this env var > config default |
+| `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories. Env-only, never persisted into `duckbrain.config.json` (BUG-037) |
 | `DUCKBRAIN_API_PORT` | `3000` | HTTP API server port |
-| `DUCKBRAIN_UI_PORT` | `8989` | Web UI server port |
+| `DUCKBRAIN_UI_PORT` | — | **Not implemented.** The Web UI (packages/ui) is a separate Vite app; no code reads this variable |
 | `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |
 | `DUCKBRAIN_HTTP_SOCKET_MODE` | — | Socket file permissions octal string (e.g. `0660`), used by `service install` unit |
-| `DUCKBRAIN_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `DUCKBRAIN_LOG_LEVEL` | — | **Not implemented.** No code reads this variable |
+| `DUCKBRAIN_SEARCH_MIN_SCORE` | — | Operator knob for the semantic recall relevance floor (0..1). Absent or invalid → the search default (0.25) applies. Read by `src/mcp/tools/recall.ts` |
+| `DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS` | `5000` | Row bound for the read-path keyword-search auto-build: a namespace with more source rows is refused inline indexing (the read keeps its pre-change behavior) instead of blocking on a multi-minute rebuild. A value of 0 refuses every auto-build. Read by `src/search/index.ts` |
 | `DUCKBRAIN_ALLOWED_HOSTS` | — | Comma-separated extra Host-header values the DNS-rebinding guard accepts on top of `localhost`/`127.0.0.1`. Empty/absent keeps the loopback-only default. Overridden by an explicit `--allowed-hosts` flag (see [Deployment Guide](deployment)) |
 | `DUCKBRAIN_REALTIME_POLL_MS` | `1000` | Runtime override of the realtime change feed's per-namespace HEAD-observation poll interval (`realtime.pollIntervalMs`) in milliseconds — how often the SSE stream (`GET /api/ns/:ns/changes`) checks for new commits, which bounds change-delivery latency. Must be a positive integer; a malformed or non-positive value fails config load rather than silently falling back. Runtime-only, never persisted into `duckbrain.config.json` |
 | `DUCKBRAIN_REALTIME_HEARTBEAT_MS` | `15000` | Runtime override of the realtime change feed's heartbeat interval (`realtime.heartbeatMs`) in milliseconds — the `:heartbeat` keep-alive comment frame sent on an idle SSE stream. Same validation and runtime-only rules as `DUCKBRAIN_REALTIME_POLL_MS` |
 | `DUCKBRAIN_SKIP_SEARCH_REBUILD` | — | When set (to any non-empty value), the `post-checkout` / `post-merge` / `post-rewrite` git hooks installed by `duckbrain search-index install-hooks` exit without rebuilding the keyword search index. The detached `search-index rebuild` re-spawn sets this to `1` itself so nested git operations cannot re-trigger the hooks (mirror of `DUCKBRAIN_SKIP_EMBED_REBUILD`) |
 | `DUCKBRAIN_KEYS_CACHE` | `enabled` | Key-list materialization cache for `list_keys` (the per-namespace `.keys/` sidecar). Set to `off` to disable the cache so every call runs the full cold SQL aggregation; any other value — including unset — leaves the cache enabled |
-| `AUTH_TYPE` | `none` | HTTP authentication type: `none`, `basic`, `apikey` |
-| `AUTH_TOKEN` | — | Authentication token (API key or password depending on auth type) |
+| `AUTH_TYPE` | — | **Not implemented.** No code reads this variable. HTTP auth is configured via the auth file (`~/.duckbrain/auth.json`, overridable with `--auth-file` / `DUCKBRAIN_AUTH_FILE` — see [Deployment Guide](deployment)) |
+| `AUTH_TOKEN` | — | **Not implemented.** No code reads this variable; see `DUCKBRAIN_AUTH_FILE` above |
+| `DUCKBRAIN_AUTH_FILE` | — | Path to the auth file (users/apiKeys) read by the HTTP server. Precedence: explicit `--auth-file` > this env var > `~/.duckbrain/auth.json` |
 | `NODE_ENV` | — | Set to `production` for production deployments |
 
 ---
