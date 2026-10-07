@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -18,6 +19,14 @@ import {
   ensureCacheGitignored,
   EMBEDDING_CACHE_DIR,
 } from "./cache";
+
+/** Replicates the private entryKey(): sha256(modelId \0 contentHash) */
+function keyFor(modelId: string, contentHash: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(`${modelId}\x00${contentHash}`, "utf8")
+    .digest("hex");
+}
 
 let tmpDir: string;
 
@@ -34,7 +43,12 @@ describe("EmbeddingCache", () => {
     const cache = new EmbeddingCache(tmpDir);
     const hash = EmbeddingCache.contentHash("hello world");
     cache.set("lmstudio/qwen3", hash, [0.1, 0.2, 0.3]);
-    expect(cache.get("lmstudio/qwen3", hash)).toEqual([0.1, 0.2, 0.3]);
+    const got = cache.get("lmstudio/qwen3", hash);
+    // float32 storage: exact equality is NOT the contract anymore
+    expect(got!.length).toBe(3);
+    for (let i = 0; i < 3; i++) {
+      expect(Math.abs([0.1, 0.2, 0.3][i] - got![i])).toBeLessThanOrEqual(1e-6);
+    }
     expect(cache.has("lmstudio/qwen3", hash)).toBe(true);
   });
 
@@ -86,6 +100,112 @@ describe("EmbeddingCache", () => {
     cache.set("m1", EmbeddingCache.contentHash("b"), [4, 5, 6]);
     expect(cache.sizeBytes()).toBeGreaterThan(0);
     expect(cache.count("m1")).toBe(2);
+  });
+
+  it("round-trips a 4096-dim float32 vector within tolerance (DB-GAP-054)", () => {
+    const cache = new EmbeddingCache(tmpDir);
+    const hash = EmbeddingCache.contentHash("big vector");
+    const vector = Array.from({ length: 4096 }, (_, i) => {
+      // non-trivial values incl. irrationals that need float32 rounding;
+      // magnitude ≤ 1 keeps float32 abs error well under the 1e-6 tolerance
+      return Math.sin(i + 1) * Math.pow(10, (i % 4) - 3);
+    });
+    cache.set("lmstudio/qwen3", hash, vector);
+    const got = cache.get("lmstudio/qwen3", hash);
+    expect(got).not.toBeNull();
+    expect(got!.length).toBe(4096);
+    let maxDiff = 0;
+    for (let i = 0; i < vector.length; i++) {
+      maxDiff = Math.max(maxDiff, Math.abs(vector[i] - got![i]));
+    }
+    expect(maxDiff).toBeLessThanOrEqual(1e-6);
+    // new-format file must exist on disk and the JSON legacy file must not
+    const key = keyFor("lmstudio/qwen3", hash);
+    const binPath = path.join(tmpDir, "lmstudio_qwen3", key.slice(0, 2), `${key}.bin`);
+    expect(fs.existsSync(binPath)).toBe(true);
+    // magic check
+    const buf = fs.readFileSync(binPath);
+    expect(buf.readUInt32LE(0)).toBe(0x44424633);
+  });
+
+  it("on-disk 4096-dim entry is < 20,000 bytes (vs ~88 KB JSON)", () => {
+    const cache = new EmbeddingCache(tmpDir);
+    const hash = EmbeddingCache.contentHash("size check");
+    cache.set(
+      "m",
+      hash,
+      Array.from({ length: 4096 }, (_, i) => i / 4096),
+    );
+    const binPath = path.join(
+      tmpDir,
+      "m",
+      keyFor("m", hash).slice(0, 2),
+      `${keyFor("m", hash)}.bin`,
+    );
+    expect(fs.statSync(binPath).size).toBeLessThan(20000);
+  });
+
+  it("reads a legacy JSON entry and migrates it to .bin", () => {
+    const cache = new EmbeddingCache(tmpDir);
+    const hash = EmbeddingCache.contentHash("legacy");
+    const vector = [0.1, 0.2, 0.3, Math.PI, 1e-8];
+    const jsonPath = path.join(
+      tmpDir,
+      "lmstudio_qwen3",
+      keyFor("lmstudio/qwen3", hash).slice(0, 2),
+      `${keyFor("lmstudio/qwen3", hash)}.json`,
+    );
+    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
+    fs.writeFileSync(
+      jsonPath,
+      JSON.stringify({
+        modelId: "lmstudio/qwen3",
+        contentHash: hash,
+        dimensions: vector.length,
+        vector,
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    // backward compat: legacy entry still readable
+    expect(cache.get("lmstudio/qwen3", hash)).toEqual(vector);
+    // migrate converts it
+    const result = cache.migrate();
+    expect(result.converted).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(fs.existsSync(jsonPath)).toBe(false);
+    const binPath = path.join(
+      tmpDir,
+      "lmstudio_qwen3",
+      keyFor("lmstudio/qwen3", hash).slice(0, 2),
+      `${keyFor("lmstudio/qwen3", hash)}.bin`,
+    );
+    expect(fs.existsSync(binPath)).toBe(true);
+    const got = cache.get("lmstudio/qwen3", hash)!;
+    expect(got.length).toBe(vector.length);
+    for (let i = 0; i < vector.length; i++) {
+      expect(Math.abs(vector[i] - got[i])).toBeLessThanOrEqual(1e-6);
+    }
+  });
+
+  it("migrate skips corrupt JSON and does not touch .bin entries", () => {
+    const cache = new EmbeddingCache(tmpDir);
+    const hash = EmbeddingCache.contentHash("mixed");
+    cache.set("m", hash, [1, 2, 3]); // writes .bin
+    const shard = path.join(tmpDir, "m", keyFor("m", hash).slice(0, 2));
+    fs.writeFileSync(path.join(shard, "deadbeef.json"), "{ not json !!");
+    const result = cache.migrate();
+    expect(result.converted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(fs.existsSync(path.join(shard, `${keyFor("m", hash)}.bin`))).toBe(
+      true,
+    );
+    expect(cache.count("m")).toBe(2); // .bin + corrupt .json counted
+  });
+
+  it("count() sees .bin entries", () => {
+    const cache = new EmbeddingCache(tmpDir);
+    cache.set("m", EmbeddingCache.contentHash("x"), [1]);
+    expect(cache.count()).toBe(1);
   });
 });
 

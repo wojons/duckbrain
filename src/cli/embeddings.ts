@@ -6,7 +6,9 @@
  *   status  [--namespace=X]
  *   install-hooks [--namespace=X]
  *   providers
+ *   migrate  [--namespace=X]
  *
+ * `migrate` converts legacy JSON cache entries to the binary float32 format
  * The embedding cache is gitignored and content-addressed (see
  * src/embedding/cache.ts). Rebuilds are cache-assisted: unchanged content is
  * skipped, only new/changed content is embedded.
@@ -224,6 +226,13 @@ async function cmdInstallHooks(opts: EmbeddingsArgs): Promise<void> {
   );
 }
 
+function cmdMigrate(opts: EmbeddingsArgs): void {
+  const { name, nsPath } = resolveNamespacePath(opts.namespace);
+  const cache = EmbeddingCache.forNamespace(nsPath);
+  const result = cache.migrate();
+  console.log(JSON.stringify({ namespace: name, ...result }, null, 2));
+}
+
 function cmdProviders(): void {
   const cfg = resolveEmbeddingConfig();
   console.log(
@@ -264,9 +273,12 @@ export async function runEmbeddingsCLI(args: string[]): Promise<void> {
     case "providers":
       cmdProviders();
       break;
+    case "migrate":
+      cmdMigrate(opts);
+      break;
     default:
       console.error(`Unknown embeddings action: ${opts.action}`);
-      console.error("Actions: rebuild | status | install-hooks | providers");
+      console.error("Actions: rebuild | status | install-hooks | providers | migrate");
       process.exitCode = 1;
   }
 }
