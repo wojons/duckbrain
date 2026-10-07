@@ -33,7 +33,7 @@ REST API, CLI, Web UI**.
 |---|---|---|
 | HTTP daemon | `node bin/duckbrain.js http --port 3000 --auth=apikey` | REST on `/api/*`, MCP on `POST /mcp`; `--unix-socket` also supported; auth REQUIRED on hardened deployments — every request sends `-H 'X-API-Key: <token>'` (401 without it); mint tokens with `duckbrain token --namespace=<ns>` |
 | MCP stdio | `node bin/duckbrain.js stdio` | for Claude/Cursor-style clients |
-| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate |
+| CLI | `node bin/duckbrain.js <cmd>` | remember, recall, search, search-index, query, token, list-keys, forget (⚠ broken outside the 'default' ns — see pitfall #14), namespace(s), squash, embeddings, status, s3, consolidate, config, servers, pull, push, remote (multi-host sync verbs — see [docs/guide/getting-started.md "Multi-host git sync CLI"](../../docs/guide/getting-started.md)) |
 | Config | `duckbrain.config.json` | `defaultNamespace`, `namespaceMappings`, `embedding`, `gitBatching` |
 | Env override | `DUCKBRAIN_NAMESPACE=<ns>` | the per-agent active namespace; wins over the config's `defaultNamespace`, loses to an explicit param, never persisted (DF-0926-04) |
 | Env override | `DUCKBRAIN_NAMESPACES_PATH=/path` | point a scratch instance at isolated data (never touch real namespaces for tests) |

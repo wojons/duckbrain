@@ -266,6 +266,106 @@ DuckBrain automatically versions your memories with Git:
 cd namespaces/my-project && git log
 ```
 
+## Multi-host git sync CLI
+
+Each namespace is its own git repo, so a second host can share the same memory
+by pointing the namespace at a git remote and using `pull`/`push`. These verbs
+work with any git remote — a bare repo, another host's clone, or an
+S3-compatible remote via `git-remote-s3` (see the
+[Native S3 Storage Tier](../s3-native.md) for the daemon-side auto-push).
+
+### `duckbrain remote` — manage a namespace's git remote
+
+```
+Usage: duckbrain remote add <namespace> <url>
+Usage: duckbrain remote remove <namespace>
+```
+
+`add` sets the remote as `origin` for that namespace (delegating to
+`namespace set-remote`); `remove` deletes the `origin` remote. The namespace
+must already exist.
+
+```bash
+# Point the "work" namespace at a shared repo, then pull it down
+duckbrain remote add work git@github.com:you/work-memory.git
+duckbrain pull work
+
+# Unlink it again
+duckbrain remote remove work
+```
+
+What it does **NOT** do: it does not clone or fetch anything on `add` (data
+only arrives when you run `pull`), and it never edits the remote's contents.
+
+### `duckbrain servers` — manage named server connections
+
+```
+Usage: duckbrain servers <list|add|remove>
+Usage: duckbrain servers add --name=<name> --host=<user@server>
+Usage: duckbrain servers remove <name>
+```
+
+Stores named `user@server` entries in `~/.duckbrain/servers.json` so scripts
+and other verbs can reference a peer host by name instead of a raw
+`user@host` string.
+
+```bash
+duckbrain servers add --name=backup --host=backup@10.0.0.5
+duckbrain servers list
+# Configured servers:
+#   backup -> backup@10.0.0.5 (added: 2026-10-07T12:00:00.000Z)
+duckbrain servers remove backup
+```
+
+What it does **NOT** do: it only manages the address book. It does not open
+connections, run ssh, or sync anything by itself.
+
+### `duckbrain pull` — pull a namespace from its remote
+
+```
+Usage: duckbrain pull [namespace]
+```
+
+Runs `git pull --no-commit` in the namespace's repo (defaults to the
+`default` namespace). The namespace must exist and have a remote configured.
+
+```bash
+duckbrain pull work          # sync the "work" namespace from origin
+duckbrain pull               # sync the default namespace
+```
+
+What it does **NOT** do: because of `--no-commit`, the merge (if any) is left
+uncommitted for you — and if the pull hits conflicts, git leaves them in the
+working tree for manual resolution; the command exits non-zero and does not
+attempt to auto-resolve or discard anything. It also does not commit new local
+writes before pulling.
+
+### `duckbrain push` — push a namespace to its remote
+
+```
+Usage: duckbrain push [namespace]
+```
+
+Runs `git push` in the namespace's repo (defaults to the `default`
+namespace). Pushes whatever the auto-commit machinery has already committed.
+
+```bash
+duckbrain push work
+```
+
+What it does **NOT** do: it does not stage or commit uncommitted working-tree
+changes (normal writes are auto-committed, but anything uncommitted stays
+local), and it does not force-push — a rejected non-fast-forward push fails
+and leaves the remote untouched.
+
+### Related verbs
+
+- `duckbrain status` — show namespace/store status, including sync-relevant state.
+- `duckbrain list-keys [--namespace=<ns>] [--prefix=...]` — list keys in a namespace (useful after a pull to confirm what arrived).
+- `duckbrain config <show|set|get> [key] [value]` — inspect or change `duckbrain.config.json`, including `namespaceMappings` (where remote-attached namespaces live) and git batching knobs.
+- `duckbrain squash` — compact old JSONL partitions (optionally squashing git history with `--aggressive`); do this before a push to shrink what syncs.
+- `duckbrain consolidate` — consolidation pass over stored memories.
+
 ## Web UI
 
 Access the web interface to browse memories visually:
