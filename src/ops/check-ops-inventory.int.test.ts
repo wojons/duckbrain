@@ -24,7 +24,7 @@ import path from "path";
 
 const execFileP = promisify(execFile);
 
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = path.resolve(__dirname, "..", "..");
 const GUARD = path.join(ROOT, "scripts", "ops", "check-ops-inventory.sh");
 const DOC = path.join(ROOT, "docs", "ops-scheduled-scripts.md");
 
