@@ -1,0 +1,75 @@
+{
+  "task_id": "README-8",
+  "task_title": "README duckbrain CLI commands not runnable from fresh clone (no bin on PATH)",
+  "task_criteria": [
+    "README documents a working way to obtain/run the duckbrain CLI after a repo clone; verified by actually running the documented command"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "ad0f357a384a68553d9e94f353a392a7d90e3aa5",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:26AM INF scanned ~40980497 bytes (40.98 MB) in 4.94s\n3:26AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1007493 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T065031.563403Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/activity-namespace-attribution.test.ts (2 tests) 76ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/activity-namespace-attribution.test.ts > ACTIVITY-NS-ATTR: /activity attributes each row to its own namespace\nError: ENOTEMPTY: directory not empty, rmdir '/var/tmp/hermes-scratch/duckbrain-activity-nsattr-kSWC7j'\n \u276f src/http/routes/activity-namespace-attribution.test.ts:142:10\n    140|     }\n    141|     if (scratchDir) {\n    142|       fs.rmSync(scratchDir, { recursive: true, force: true });\n       |          ^\n    143|     }\n    144|   });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 206 passed (207)\n      Tests  1695 passed (1695)\n   Start at  03:26:02\n   Duration  71.21s (tests 78%, import 19%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  207 workers spawned \u00b7 ~113ms startup each (spawn + environment, per file)\n             at least ~5.71s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T065031.563403Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: README-8\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T08:27:14.171801",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T08:27:14.214868+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5315,
+        "truncated": false,
+        "source": "git show ad0f357a384a"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 473,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-8"
+  }
+}

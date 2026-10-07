@@ -1,0 +1,68 @@
+commit ad0f357a384a68553d9e94f353a392a7d90e3aa5
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 03:22:02 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 03:22:02 2026 -0500
+
+    docs(readme): how to get the duckbrain CLI after a repo clone (README-8)
+    
+    ch:trace row=README-8 spec=README.md#the-duckbrain-cli test=npm-install-g-live-run doc=none prompt=none evidence=duckbrain-v1.0.0+consolidate-help-ok witness=live:npm-prefix-bin-run commit=this memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .coding-hermes/board/events.jsonl |  2 ++
+ .gitreins/tasks.yaml              |  7 +++++++
+ README.md                         | 15 +++++++++++++++
+ 3 files changed, 24 insertions(+)
+
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index 3c0a9ec..8cdf1f1 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1391,3 +1391,5 @@
+ {"event":"task_completed","task_id":"PERF-011","tick":"duckbrain-foreman-2026-10-07-05-17-28","detail":"commit 6d8e456: as-of chunk reads batched via one git cat-file --batch + whole-tree ls-tree (~29x on 200-chunk/20k-row fixture). 1688 tests green, tsc clean. gitreins tier1 FAIL = unrelated orphan-daemon-reaper /proc flake -> fixed as INT-CI-024 (b802e7e); tier2 judge INCOMPLETE (deepseek API 402 balance). Pushed d8bf05f..94ed1c3, rev-list 0."}
+ {"event":"task_completed","task_id":"INT-CI-024","tick":"duckbrain-foreman-2026-10-07-05-17-28","detail":"foreman-direct: proportional /proc churn tolerance in orphan-daemon-reaper.test.ts (commit b802e7e); reproduced 1-of-3 failing pre-fix, green post-fix. Full suite green on HEAD."}
+ {"id":"ev-gap063b-close-1","task_id":"GAP-063b","type":"closed","created_at":"2026-10-07T07:00:00Z","reasoning":"Mapped namespaces (coding-hermes, hermes-memory, infra) all failed embeddings CLI with doubled path namespaces/namespaces/<ns>. resolveNamespacePath now resolves mapping values against the duckbrain root; regression test added.","commit_hash":"5465479","worker_summary":"Foreman in-tree one-file fix + test. Live T3/T4 verified on dist build. Tier1 PASS; tier2 judge 402 (deepseek balance) -> force-skip-tier2 close.","ch_trace":"row=GAP-063b spec=src/cli/embeddings.ts::resolveNamespacePath test=src/cli/embeddings.test.ts::GAP-063b evidence=live:duckbrain-embeddings-status-coding-hermes witness=live:embeddings-cli-error-output commit=5465479"}
++{"id":"evt-df092505-fail","task_id":"DF-0925-05","event":"status_change","status":"failed","reason":"worker-stalled","detail":"Worker dispatched to glm-5.3-flash stalled for 6.5 minutes with zero output and zero file changes. Brief too complex for model capability. Task remains open for re-dispatch with stronger model or smaller scope.","timestamp":"2026-10-07T03:13:07-05:00","foreman":"duckbrain-foreman-2026-10-07-07-23-53"}
++{"id": "evt-readme8-fix-1", "task_id": "README-8", "event": "status_change", "status": "in_progress", "reason": "foreman-direct fix", "detail": "README-8: fresh clone gets no duckbrain binary (pnpm exec fails, no node_modules/.bin entry). Added a duckbrain-CLI section to README after Running DuckBrain documenting npm install -g . (live-verified: duckbrain --version + consolidate --help) and node bin/duckbrain.js fallback. Tick duckbrain-foreman-2026-10-07-08-19-16."}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 2227ff9..89a2b71 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2472,3 +2472,10 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T05:59:17.283586+00:00'
+   completed_at: '2026-10-07T06:33:51.139655+00:00'
++- id: README-8
++  title: README duckbrain CLI commands not runnable from fresh clone (no bin on PATH)
++  criteria:
++  - README documents a working way to obtain/run the duckbrain CLI after a repo clone;
++    verified by actually running the documented command
++  status: in_progress
++  created_at: '2026-10-07T08:21:48.092398+00:00'
+diff --git a/README.md b/README.md
+index d2fe904..931e883 100644
+--- a/README.md
++++ b/README.md
+@@ -158,6 +158,21 @@ pnpm start http --port=3000 --auth=none     # explicit local-only, unauthenticat
+ pnpm start http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
+ ```
+ 
++**The `duckbrain` CLI**
++
++The sections below run `duckbrain <command>` directly. A repo clone does not put
++`duckbrain` on PATH or in `node_modules/.bin` — run it via the repo's bin script,
++or link it once to get the bare command:
++
++```bash
++# one-time: put duckbrain on PATH (repo must stay in place)
++npm install -g .            # verified with npm; with pnpm, `pnpm link` needs the
++                            # pnpm global bin dir on PATH (`pnpm setup`)
++
++# no install: run through node instead
++node bin/duckbrain.js <command>
++```
++
+ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
+ 
+ **Web UI Only:**
