@@ -339,8 +339,8 @@ export function createRealtimeFixture(
   // so `head()` answers deterministically and the fixture can commit on demand.
   if (!fs.existsSync(path.join(nsPath, ".git"))) {
     gitIn(nsPath, ["init", "-q"]);
-    gitIn(nsPath, ["config", "user.email", "duckbrain@localhost.localdomain"]);
-    gitIn(nsPath, ["config", "user.name", "DuckBrain"]);
+    gitIn(nsPath, ["config", "user.email", "test@example.local"]);
+    gitIn(nsPath, ["config", "user.name", "Test"]);
   }
   return fixture;
 }

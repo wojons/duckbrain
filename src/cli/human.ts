@@ -2150,6 +2150,7 @@ function showHelp(): void {
     squash             Compact old partitions
     query              Read-only SQL over a namespace (SELECT ... or --template)
     s3                 Native S3 sync/query (status|sync|query|config)
+    git                Git identity tools (repair-identity)
     help               Show this help
 
   Options:
@@ -2238,6 +2239,8 @@ export async function runHumanCLI(
     remote: remoteCommand,
     query: queryCommand,
     s3: async (args: string[]) => (await loadS3Cli()).s3Command(args),
+    git: async (args: string[]) =>
+      (await import("./git-identity.js")).runGitIdentityCLI(args),
     consolidate: consolidateCommand,
     help: async () => showHelp(),
   };

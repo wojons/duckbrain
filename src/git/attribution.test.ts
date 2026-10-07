@@ -1,47 +1,87 @@
 /**
- * CI-001 Regression Test: Fallback author email must be schema-valid
+ * CI-001 + GIT-IDENTITY-001 regression tests: author attribution.
  *
- * On hosts without git user.email configured and without GIT_AUTHOR_EMAIL
- * set (e.g. GitHub Actions runners), getAuthorEmail() returns its hardcoded
- * default. That default must pass Zod's z.string().email() validation —
- * otherwise every memory write fails with "Memory validation failed:
- * Invalid email address" (CI red since tick #126 until fixed).
+ * CI-001 (historical): on hosts without git user.email configured and
+ * without GIT_AUTHOR_EMAIL set, getAuthorEmail() used to return a hardcoded
+ * default. GIT-IDENTITY-001 removed that default entirely — resolution now
+ * goes repo-local -> global -> DUCKBRAIN_GIT_AUTHOR_EMAIL and THROWS with an
+ * actionable hint when nothing resolves. A memory row must never carry a
+ * fabricated author ('DuckBrain <duckbrain@localhost.localdomain>').
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
-// Mock git unavailable — execSync throws like it does when user.email is unset
+// Mock git unavailable — the git subprocess helpers throw like they do when
+// user.email is unset
 vi.mock("child_process", () => ({
   execSync: vi.fn(() => {
     throw new Error("git config user.email: command not found");
+  }),
+  execFileSync: vi.fn(() => {
+    throw new Error("git config: not found");
   }),
 }));
 
 const emailSchema = z.string().email();
 
-describe("CI-001: fallback author email is schema-valid", () => {
+describe("GIT-IDENTITY-001: attribution has no synthetic fallback", () => {
   const OLD_ENV = { ...process.env };
 
   beforeEach(() => {
     // Simulate a host with no git config and no author env vars (CI runner)
     delete process.env.GIT_AUTHOR_EMAIL;
     delete process.env.GIT_COMMITTER_EMAIL;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
   });
 
   afterEach(() => {
     process.env = { ...OLD_ENV };
   });
 
-  it("getAuthorEmail() default fallback passes Zod email validation", async () => {
+  it("getAuthorEmail() THROWS with an actionable hint when nothing resolves", async () => {
+    const { getAuthorEmail } = await import("./attribution.js");
+    expect(() => getAuthorEmail()).toThrow(/No git author identity is configured/);
+  });
+
+  it("the thrown hint names the documented env override knobs", async () => {
+    const { getAuthorEmail } = await import("./attribution.js");
+    try {
+      getAuthorEmail();
+      expect.unreachable("getAuthorEmail must throw without identity");
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain("DUCKBRAIN_GIT_AUTHOR_EMAIL");
+      expect(message).toContain("git config --global user.email");
+    }
+  });
+
+  it("the DUCKBRAIN_GIT_AUTHOR_EMAIL env override is honored", async () => {
+    process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = "env.author@example.com";
     const { getAuthorEmail } = await import("./attribution.js");
     const email = getAuthorEmail();
 
-    expect(email).toBe("duckbrain@localhost.localdomain");
+    expect(email).toBe("env.author@example.com");
     expect(emailSchema.safeParse(email).success).toBe(true);
   });
 
-  it("remember-tool style memory with fallback author validates", async () => {
+  it("no synthetic 'duckbrain@localhost' value can ever be returned", async () => {
+    const { getAuthorEmail } = await import("./attribution.js");
+    let email: string | null = null;
+    try {
+      email = getAuthorEmail();
+    } catch {
+      // Throwing is a valid outcome — the assertion below still holds.
+    }
+    if (email !== null) {
+      expect(email).not.toContain("duckbrain@localhost");
+    }
+    expect(emailSchema.safeParse(email).success).toBe(false);
+  });
+
+  it("remember-tool style memory built from a resolved env author validates", async () => {
+    process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = "ci.author@example.com";
     const { getAuthorEmail } = await import("./attribution.js");
     const { createMemory, safeValidateMemory } =
       await import("../schema/memory.js");
@@ -64,65 +104,84 @@ describe("CI-001: fallback author email is schema-valid", () => {
  * DF-0930-01 Regression Tests: bare-host git email must not reach the schema
  *
  * A fresh install with a bare-host git identity (e.g. `git config --global
- * user.email dogfood@localhost`) makes every memory write 500: the git value
- * passes getGitConfig()'s "non-empty string" check but fails
- * MemorySchema's `author: z.string().email()` (zod requires a dot in the
- * domain). getAuthorEmail() must treat such values as unusable and fall back
- * to the TLD-valid default — the schema stays strict.
+ * user.email dogfood@localhost`) must not poison memory rows: the git value
+ * passes a naive "non-empty string" check but fails MemorySchema's
+ * `author: z.string().email()` (zod requires a dot in the domain).
+ * resolveAuthorEmail() treats such values as unusable.
  */
-describe("DF-0930-01: bare-host git email falls back to the default", () => {
+describe("DF-0930-01: bare-host git email is treated as unset", () => {
   const OLD_ENV = { ...process.env };
-  const mockedExecSync = vi.mocked(execSync);
+  const mockedExecFileSync = vi.mocked(execFileSync);
 
   beforeEach(() => {
     delete process.env.GIT_AUTHOR_EMAIL;
     delete process.env.GIT_COMMITTER_EMAIL;
-    mockedExecSync.mockReset();
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+    mockedExecFileSync.mockReset();
   });
 
   afterEach(() => {
     process.env = { ...OLD_ENV };
   });
 
-  it("git email dogfood@localhost (no dot in domain) falls back to the default", async () => {
-    mockedExecSync.mockImplementation(((cmd: string | Buffer) => {
-      return cmd === "git config user.email" ? "dogfood@localhost\n" : "";
-    }) as typeof execSync);
+  it("git email dogfood@localhost (no dot in domain) is treated as unset", async () => {
+    mockedExecFileSync.mockImplementation(((
+      file: string | Buffer,
+      args?: readonly string[],
+    ) => {
+      if (
+        file === "git" &&
+        args?.includes("user.email") &&
+        args?.includes("--global")
+      ) {
+        return "dogfood@localhost\n";
+      }
+      throw new Error("unset");
+    }) as typeof execFileSync);
     const { getAuthorEmail } = await import("./attribution.js");
 
-    const email = getAuthorEmail();
-
-    expect(email).toBe("duckbrain@localhost.localdomain");
-    expect(z.string().email().safeParse(email).success).toBe(true);
+    expect(() => getAuthorEmail()).toThrow(/No git author identity/);
   });
 
-  it("git email root@box (no dot in domain) falls back to the default", async () => {
-    mockedExecSync.mockImplementation(((cmd: string | Buffer) => {
-      return cmd === "git config user.email" ? "root@box\n" : "";
-    }) as typeof execSync);
+  it("git email root@box (no dot in domain) is treated as unset", async () => {
+    mockedExecFileSync.mockImplementation(((
+      file: string | Buffer,
+      args?: readonly string[],
+    ) => {
+      if (
+        file === "git" &&
+        args?.includes("user.email") &&
+        args?.includes("--global")
+      ) {
+        return "root@box\n";
+      }
+      throw new Error("unset");
+    }) as typeof execFileSync);
     const { getAuthorEmail } = await import("./attribution.js");
 
-    const email = getAuthorEmail();
-
-    expect(email).toBe("duckbrain@localhost.localdomain");
-    expect(z.string().email().safeParse(email).success).toBe(true);
+    expect(() => getAuthorEmail()).toThrow(/No git author identity/);
   });
 
   it("valid git email test@example.com is used as-is", async () => {
-    mockedExecSync.mockImplementation(((cmd: string | Buffer) => {
-      return cmd === "git config user.email"
-        ? "test@example.com\n"
-        : "Test User\n";
-    }) as typeof execSync);
+    mockedExecFileSync.mockImplementation(((
+      file: string | Buffer,
+      args?: readonly string[],
+    ) => {
+      if (file === "git" && args?.includes("--global")) {
+        return args.includes("user.email")
+          ? "test@example.com\n"
+          : "Test User\n";
+      }
+      throw new Error("unset");
+    }) as typeof execFileSync);
     const { getAuthorEmail, getAuthorName } = await import("./attribution.js");
 
     expect(getAuthorEmail()).toBe("test@example.com");
     expect(getAuthorName()).toBe("Test User");
   });
 
-  it("schema validation of a full memory accepts the default but rejects the bare-host value", async () => {
-    // Pins the fixture contract: the bare-host email is exactly what the
-    // strict schema rejects, and the default is what it accepts.
+  it("the bare-host value is rejected by the strict memory schema while a TLD email passes", async () => {
     const { safeValidateMemory, createMemory } =
       await import("../schema/memory.js");
 
@@ -142,8 +201,8 @@ describe("DF-0930-01: bare-host git email falls back to the default", () => {
       createMemory({
         key: "/test/df-0930-01",
         domain: "raw_note",
-        author: "duckbrain@localhost.localdomain",
-        embedding_text: "default author validates",
+        author: "real.author@example.com",
+        embedding_text: "TLD author is accepted",
         attributes: {},
         action: "add",
       }),

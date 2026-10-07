@@ -48,8 +48,10 @@ export const DuckBrainConfigSchema = z.object({
   /** Default namespace for operations */
   defaultNamespace: z.string().default("default"),
 
-  /** Author email for attributing memories */
-  authorEmail: z.string().email().default("duckbrain@localhost.localdomain"),
+  /** Author email for attributing memories (GIT-IDENTITY-001: no synthetic
+   *  default — a config file that omits it falls back to the git identity
+   *  chain resolved in src/git/identity.ts, never a fabricated author) */
+  authorEmail: z.string().email().optional(),
 
   /** Path to namespaces directory */
   namespacesPath: z.string().default("./namespaces"),

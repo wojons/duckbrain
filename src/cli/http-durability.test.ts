@@ -170,11 +170,11 @@ function initNamespaceRepo(ns: string): void {
   fs.mkdirSync(nsDir, { recursive: true });
   if (!fs.existsSync(path.join(nsDir, ".git"))) {
     execSync("git init", { cwd: nsDir, stdio: "pipe" });
-    execSync('git config user.email "duckbrain@localhost.localdomain"', {
+    execSync('git config user.email "test@example.local"', {
       cwd: nsDir,
       stdio: "pipe",
     });
-    execSync('git config user.name "DuckBrain"', { cwd: nsDir, stdio: "pipe" });
+    execSync('git config user.name "Test"', { cwd: nsDir, stdio: "pipe" });
     fs.writeFileSync(path.join(nsDir, ".gitkeep"), "");
     execSync("git add -A", { cwd: nsDir, stdio: "pipe" });
     execSync('git commit -m "chore: init"', { cwd: nsDir, stdio: "pipe" });
