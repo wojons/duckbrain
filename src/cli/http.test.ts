@@ -19,6 +19,19 @@ import {
 
 const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 
+// INT-CI-027: the daemon writes its pidfile asynchronously around the same time
+// /health starts answering, so an immediate existsSync can race it in CI. Poll
+// briefly before asserting.
+async function waitForPidFile(pidFile: string, timeoutMs = 10000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!fs.existsSync(pidFile)) {
+    if (Date.now() > deadline) {
+      throw new Error(`pidfile never appeared: ${pidFile}`);
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const nsPath = path.join(dataDir, "namespaces");
@@ -80,6 +93,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
       await waitForHealth(port, 30000, child);
       await assertDaemonIsOurs({ port, child, nsPath, dataDir, sentinel });
       const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
+      await waitForPidFile(pidFile);
       expect(fs.existsSync(pidFile)).toBe(true);
       expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
 
@@ -133,6 +147,8 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
 
       const pidFile1 = path.join(dataDir1, `duckbrain-http-${port1}.pid`);
       const pidFile2 = path.join(dataDir2, `duckbrain-http-${port2}.pid`);
+      await waitForPidFile(pidFile1);
+      await waitForPidFile(pidFile2);
       expect(fs.existsSync(pidFile1)).toBe(true);
       expect(fs.existsSync(pidFile2)).toBe(true);
 
