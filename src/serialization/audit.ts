@@ -18,6 +18,13 @@ export const AuditEntrySchema = z.object({
   // the serializer appends for an accepted write. See
   // src/serialization/changeRecord.ts.
   row: z.unknown().optional(),
+  // SCHED-GAP-1574 — the deduplicated payload reference. Present instead of
+  // `row` on every change record written since the audit ledger stopped
+  // mirroring the full memory row.
+  rowHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   key: z.record(z.string(), z.unknown()).optional(),
   targetPath: z.string().min(1).optional(),
   tombstone: z.boolean().optional(),

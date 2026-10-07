@@ -42,6 +42,7 @@ import {
   isSafeRepoRelativePath,
   keyMaterialFor,
   missingKeyColumns,
+  rowHashOf,
   type ChangeRecord,
 } from "../../serialization/changeRecord";
 import {
@@ -266,6 +267,69 @@ function assertDataRowPresent(
 }
 
 /**
+ * SCHED-GAP-1574 — resolve the row a change record refers to.
+ *
+ * - `rowHash` records (the only shape the writer emits since the dedup): the
+ *   referenced data row is rehydrated from the committed target file and
+ *   verified against the record's hash — the ledger never stored the payload,
+ *   so the row MUST exist in the data partition. No match, or a hash
+ *   mismatch, is `CHANGELOG_CORRUPT`, never a skipped event.
+ * - legacy `row` records (pre-dedup ledgers): the embedded image is returned
+ *   and validated against the target file exactly as before.
+ *
+ * `targetPath`/namespace-safety of the target are checked in both arms.
+ */
+function resolveChangeRecordRow(
+  repoDir: string,
+  commit: string,
+  targetPath: string,
+  record: ChangeRecord,
+): unknown {
+  if (!isSafeRepoRelativePath(targetPath)) {
+    throw corrupt(
+      `change record targetPath '${targetPath}' escapes the namespace`,
+      {
+        commit,
+        path: targetPath,
+      },
+    );
+  }
+  if (record.row !== undefined) {
+    assertDataRowPresent(repoDir, commit, targetPath, record.row);
+    return record.row;
+  }
+  if (record.rowHash === undefined) {
+    throw corrupt(
+      `change record at '${AUDIT_DIR}' carries neither a row image nor a rowHash`,
+      { commit, path: targetPath },
+    );
+  }
+  const bytes = readPathBytes(repoDir, commit, targetPath);
+  if (bytes === null) {
+    throw corrupt(
+      `change record target '${targetPath}' does not exist in commit ${commit}`,
+      { commit, path: targetPath },
+    );
+  }
+  for (const line of bytes.toString("utf-8").split("\n")) {
+    if (line.trim() === "") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    // The hash is over the STABLE serialization (key order independent), so a
+    // re-serialized but structurally identical row still matches.
+    if (rowHashOf(parsed) === record.rowHash) return parsed;
+  }
+  throw corrupt(
+    `change record rowHash ${record.rowHash} matches no row in committed target '${targetPath}'`,
+    { commit, path: targetPath },
+  );
+}
+
+/**
  * Derive the accepted change records newly added by `childRef` versus its
  * first parent, with contiguous ordinals. `options.parentRef` may be passed
  * explicitly (tests, and the null root case).
@@ -361,18 +425,16 @@ export function deriveCommitChanges(
         },
       );
     }
-    const row = (entry as Record<string, unknown>).row;
-    if (row === undefined || row === null) {
-      throw corrupt(
-        `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no row image`,
-        {
-          commit: childRef,
-          parent: parentRef,
-          path: `${AUDIT_DIR}/${added.segment}`,
-          line: added.line,
-        },
-      );
-    }
+    // SCHED-GAP-1574 — resolve the payload the record refers to. New records
+    // carry only `rowHash` and the row is rehydrated (and hash-verified) from
+    // the committed data partition; legacy records keep their embedded image.
+    // Both arms verify key material against the row they resolve.
+    const row = resolveChangeRecordRow(
+      repoDir,
+      childRef,
+      record.targetPath,
+      record,
+    );
     const missing = missingKeyColumns(options.namespacePath, record.table, row);
     if (missing.length > 0) {
       throw corrupt(
@@ -408,11 +470,12 @@ export function deriveCommitChanges(
       }
     }
 
-    assertDataRowPresent(repoDir, childRef, record.targetPath, row);
     changes.push({
       commit: childRef,
       ordinal: changes.length + 1,
-      record,
+      // Attach the resolved payload so hash-shaped records expose the same
+      // surface legacy records did (the change-feed event's `row` field).
+      record: { ...record, row },
       committedAt,
     });
   }

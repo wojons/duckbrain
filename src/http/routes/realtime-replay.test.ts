@@ -368,8 +368,11 @@ describe("DB-SUPA-5 committed replay", () => {
       );
       const lines = fs.readFileSync(segment, "utf-8").split("\n");
       const first = JSON.parse(lines[0]) as Record<string, unknown>;
-      (first.row as Record<string, unknown>).embedding_text =
-        "rewritten in place";
+      // SCHED-GAP-1574: the change record carries `rowHash` (not a row
+      // image). A byte-level in-place rewrite of the committed line — the
+      // payload representation the record DOES store — stays valid JSON, so
+      // only the parent-prefix invariant can catch it.
+      first.rowHash = "f".repeat(64);
       lines[0] = JSON.stringify(first);
       fs.writeFileSync(segment, lines.join("\n"), "utf-8");
 

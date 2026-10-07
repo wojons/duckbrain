@@ -4,10 +4,16 @@
  * `docs/specs/SUPA-5-realtime.md` makes the namespace append/audit log the
  * changelog: for every accepted write the SUPA-2 serializer appends ONE
  * canonical change record to `_audit/*.jsonl`, after the data append, in the
- * same flush. The record carries exactly what a later replay needs:
- * operation, table, row image (or tombstone), key material, the
- * namespace-relative physical data path the row landed in
+ * same flush. The record carries what a later replay needs: operation, table,
+ * key material, the namespace-relative physical data path the row landed in
  * (`targetPath` — rotation-aware), and the table's declared schema version.
+ *
+ * SCHED-GAP-1574 — the record does NOT duplicate the payload. New records
+ * carry `rowHash` (sha256 of the stable serialization of the row image);
+ * replay rehydrates the row from the data file `targetPath` names at the same
+ * child ref, and verifies it against the hash. `row` remains a LEGACY shape
+ * accepted for ledgers written before the dedup, and replay validates those
+ * against the target file exactly as before.
  *
  * It deliberately does NOT carry an audit-file path or a commit-local
  * total-order field: the committed tree identifies the audit segment, and no
@@ -23,6 +29,7 @@
 
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { z } from "zod";
 
 /** The built-in compatibility table every namespace exposes. */
@@ -32,6 +39,36 @@ export const CHANGE_OPERATIONS = ["insert", "update", "delete"] as const;
 export type ChangeOperation = (typeof CHANGE_OPERATIONS)[number];
 
 /**
+ * SCHED-GAP-1574 — the audit ledger must not duplicate the memory row. The
+ * change record carries the payload's sha256 (`rowHash`) instead of the row
+ * image itself: the canonical copy of the payload stays in the data partition
+ * the `targetPath` names, and accountability is preserved by who/what/when,
+ * the key material, and the hash. Replay rehydrates (and verifies) the row
+ * from that data file.
+ */
+export function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, item: unknown) => {
+    if (Array.isArray(item)) return item;
+    if (item !== null && typeof item === "object") {
+      return Object.fromEntries(
+        Object.entries(item as Record<string, unknown>).sort(([a], [b]) =>
+          a < b ? -1 : a > b ? 1 : 0,
+        ),
+      );
+    }
+    return item;
+  });
+}
+
+/** sha256 of the stable serialization of a row image. */
+export function rowHashOf(row: unknown): string {
+  return crypto
+    .createHash("sha256")
+    .update(stableStringify(row))
+    .digest("hex");
+}
+
+/**
  * Marker fields that promote an accepted audit row to a change record.
  * Presence of ANY of them means the line MUST validate as a change record —
  * a partially-written marker set is `CHANGELOG_CORRUPT` at replay time, never
@@ -39,6 +76,7 @@ export type ChangeOperation = (typeof CHANGE_OPERATIONS)[number];
  */
 export const CHANGE_RECORD_MARKERS = [
   "row",
+  "rowHash",
   "key",
   "targetPath",
   "tombstone",
@@ -54,8 +92,20 @@ export const ChangeRecordSchema = z.object({
   outcome: z.literal("accepted"),
   /** Internal process-local serializer sequence — never a cursor. */
   seq: z.number().int().positive().optional(),
-  /** Post-operation row image (insert/update) or appended tombstone (delete). */
-  row: z.unknown(),
+  /**
+   * Post-operation row image (insert/update) or appended tombstone (delete).
+   * LEGACY ROWS ONLY: since SCHED-GAP-1574 newly written records carry
+   * `rowHash` instead and MUST NOT embed the full payload. The schema keeps
+   * accepting `row` so ledgers written before the dedup remain readable;
+   * the writer (namespaceWriter) and replay (replay.ts) treat the hash as
+   * the canonical form.
+   */
+  row: z.unknown().optional(),
+  /** sha256 (hex) of the stable serialization of the row image, when `row` is absent. */
+  rowHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   /** Every declared key column and its value. */
   key: z.record(z.string(), z.unknown()),
   /** Namespace-relative physical data JSONL path the row was appended to. */
@@ -63,9 +113,30 @@ export const ChangeRecordSchema = z.object({
   tombstone: z.boolean(),
   /** Declared table schema version (`1` for the `memories` compatibility entry). */
   schemaVersion: z.number().int().positive(),
-});
+}).refine(
+  // Exactly one payload representation per record: either the legacy row
+  // image or the deduplicated hash, never both, never neither.
+  (record) =>
+    (record.row === undefined) !== (record.rowHash === undefined),
+  { message: "change record must carry exactly one of row | rowHash" },
+);
 
 export type ChangeRecord = z.infer<typeof ChangeRecordSchema>;
+
+/**
+ * The payload representation a change record carries.
+ * - `"row"`: legacy pre-SCHED-GAP-1574 record embedding the full row image.
+ * - `"rowHash"`: deduplicated record; the payload lives only in the data file
+ *   `targetPath` names and replay rehydrates it.
+ */
+export type ChangeRecordShape = "row" | "rowHash";
+
+export function changeRecordShape(record: {
+  row?: unknown;
+  rowHash?: unknown;
+}): ChangeRecordShape {
+  return record.row !== undefined ? "row" : "rowHash";
+}
 
 /** An audit line that claims to be a change record (marker field present). */
 export function isChangeRecordCandidate(

@@ -36,6 +36,7 @@ import {
   declaredSchemaVersion,
   keyMaterialFor,
   missingKeyColumns,
+  rowHashOf,
 } from "./changeRecord";
 import {
   acquireNamespaceWriteLock,
@@ -212,8 +213,15 @@ function notifyCommit(namespace: string): void {
 
 /**
  * Build the DB-SUPA-5 accepted change record: the SUPA-2 audit row plus the
- * operation, table, row image/tombstone, declared key material, physical
- * `targetPath`, and declared `schemaVersion` a later replay needs.
+ * operation, table, declared key material, physical `targetPath`, and
+ * declared `schemaVersion` a later replay needs.
+ *
+ * SCHED-GAP-1574 — the record carries `rowHash` (sha256 of the stable
+ * serialization of the row image) instead of the row image itself: the
+ * canonical payload stays in the data partition `targetPath` names and the
+ * audit ledger is a metadata stream, not a second copy of the memory. Key
+ * material is derived from the row here so the record still names exactly
+ * what changed without embedding it.
  */
 function changeRecordFor(
   namespacePath: string,
@@ -223,7 +231,7 @@ function changeRecordFor(
 ): AuditEntry {
   return {
     ...audit,
-    row: request.record,
+    rowHash: rowHashOf(request.record),
     key: keyMaterialFor(namespacePath, request.table, request.record),
     targetPath,
     tombstone: request.op === "delete",
