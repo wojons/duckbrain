@@ -184,7 +184,7 @@ pnpm run dev
 
 ### Daily consolidation digest
 
-`duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block. Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
+`duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block (unlike the embeddings commands, it tolerates a missing `default` namespace — the dry-run just reports 0 namespaces). Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
 
 ```bash
 duckbrain consolidate --date=2026-09-19     # read-only: digest to stdout
@@ -376,6 +376,8 @@ duckbrain embeddings rebuild --force                 # re-embed everything
 duckbrain embeddings install-hooks --namespace=my-ns # hooks → detached rebuild on clone/pull
 duckbrain embeddings providers                       # list providers + env overrides
 ```
+
+**Default namespace.** `embeddings status` / `rebuild` / `install-hooks` / `providers` all target the **default** namespace unless `--namespace=` is given; on a fresh install with no `default` namespace yet they fail with `Namespace 'default' not found` — pass `--namespace=<name>` or create the namespace first.
 
 Semantic search (`recall` with `query`) ranks candidates by cosine similarity using cached vectors, embedding cache misses on the fly (capped) so a cold clone still works.
 
