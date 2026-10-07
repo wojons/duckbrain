@@ -894,6 +894,62 @@ Every route below is wrapped in the namespace-grant check exactly like
 | `DELETE` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Delete rows by primary key |
 | `GET` | `/api/ns/:ns/openapi.json` | Generated OpenAPI 3.1 document |
 
+#### Declare a table
+
+Tables are served ONLY from declarations on disk — a fresh install has no
+declarations and the layer stays empty until you create one. The CLI verb
+writes the SUPA-6 persistent schema (merging into an existing
+`schema.json`) or the legacy per-table file:
+
+```bash
+duckbrain tables declare <namespace> <table> \
+  --column <name>=<type> [--column <name>=<type> ...] \
+  [--primary <col>] [--format jsonl-objects|jsonl-positional] \
+  [--legacy] [--force]
+```
+
+Column types: `varchar | integer | bigint | double | boolean | timestamp | json`
+(the DB-SUPA-3 storage types; they are mapped to the SUPA-6 canonical
+declared types — `integer` becomes `float64`, which stores JSON numbers
+exactly below 2^53, so the natural `POST {"id": 1}` works).
+
+Example — declare and then insert through the REST route:
+
+```bash
+duckbrain tables declare e2e-supagap widgets \
+  --column id=integer --column name=varchar --primary id
+# → namespaces/e2e-supagap/schema.json (SUPA-6 format):
+{
+  "schemaVersion": 1,
+  "tables": {
+    "widgets": {
+      "schemaVersion": 1,
+      "storage": { "path": "tables/widgets/current.jsonl" },
+      "rowShape": "object",
+      "keyColumns": ["id"],
+      "columns": [
+        { "name": "id", "type": "float64", "nullable": false },
+        { "name": "name", "type": "string", "nullable": true }
+      ]
+    }
+  },
+  "views": {}
+}
+# insert a row (201 on success):
+curl -s -X POST "http://localhost:3000/api/ns/e2e-supagap/tables/widgets" \
+  -H "Content-Type: application/json" -d '{"id": 1, "name": "a"}'
+# read rows / generated OpenAPI:
+curl -s "http://localhost:3000/api/ns/e2e-supagap/tables/widgets"
+curl -s "http://localhost:3000/api/ns/e2e-supagap/openapi.json"
+```
+
+`--force` replaces an existing declaration of the same table (without it, a
+conflicting contract is refused and the run exits nonzero); `--legacy`
+writes `namespaces/<ns>/tables/<table>.table.json` (the historical
+declaration shape) instead of `schema.json`. Re-declaring an identical
+contract is idempotent. The schema switch goes through the DDL fence and is
+journaled under `<ns>/.duckbrain-ddl/` like every other schema change.
+
 #### `GET /api/ns/:ns/tables` — discovery
 
 Lists the namespace's declarations. Columns, types, and the primary key are

@@ -175,6 +175,8 @@ node bin/duckbrain.js <command>
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
+**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
+
 **Web UI Only:**
 
 ```bash

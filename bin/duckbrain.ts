@@ -70,6 +70,7 @@ Commands:
   s3                 Native S3 sync/query (status|sync|query|config)
   git                Git identity tools (repair-identity: remove synthetic
                      local user.name/user.email pins; bare: identity health)
+  tables             Declare tables for the table→REST layer (declare|--help)
   help               Show this help
 
 HTTP Options:
@@ -349,6 +350,24 @@ async function main() {
           commandArgs,
         );
         break;
+
+      case "tables": {
+        // SUPA6-DECLARE-GAP-001: declared-table surface. Lazy import keeps
+        // this file's import-time side effects untouched; TablesCliError is
+        // a plain usage/validation failure → exit 1 with the message.
+        try {
+          const { runTablesCli } = await import("../src/cli/tables.js");
+          const code = await runTablesCli(commandArgs);
+          if (code !== 0) process.exit(code);
+        } catch (error) {
+          console.error(
+            "Error:",
+            error instanceof Error ? error.message : String(error),
+          );
+          process.exit(1);
+        }
+        break;
+      }
 
       case "embeddings":
         await runEmbeddingsCLI(commandArgs);
