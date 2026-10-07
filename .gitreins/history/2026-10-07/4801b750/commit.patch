@@ -1,0 +1,323 @@
+commit ff4f6edca97251076a9627f0794459968108c927
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 05:31:17 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 05:31:17 2026 -0500
+
+    fix(DF-0925-05): revoke live SSE subscribers on auth-store hot-reload
+    
+    Wire validated auth-store reloads through the realtime hub and revoke idle subscribers through the existing revoked-frame path.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/auth/storeSchema.ts               | 59 +++++++++++++++++++++++++
+ src/http/realtime/hub.ts              | 44 +++++++++++++++++++
+ src/http/routes/realtime-auth.test.ts | 82 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 185 insertions(+)
+
+diff --git a/src/auth/storeSchema.ts b/src/auth/storeSchema.ts
+index 9cc3924..44331d7 100644
+--- a/src/auth/storeSchema.ts
++++ b/src/auth/storeSchema.ts
+@@ -71,11 +71,54 @@ export type UserEntry = z.infer<typeof UserEntrySchema>;
+ export type AuthStore = z.infer<typeof AuthStoreSchema>;
+ export type { Role };
+ 
++export interface AuthPrincipalIdentity {
++  name: string;
++  tokenType?: "basic" | "apikey";
++  username?: string;
++}
++
++export type AuthStoreReloadListener = (store: AuthStore) => void;
++
+ export interface AuthStoreSource {
+   getSnapshot(): AuthStore | Promise<AuthStore>;
++  /** Called after a new validated snapshot replaces the previous snapshot. */
++  onReload?(listener: AuthStoreReloadListener): () => void;
+   migrateLegacyApiKey?(name: string, plaintext: string): void | Promise<void>;
+ }
+ 
++let activeAuthStore: AuthStoreSource | undefined;
++
++/** The file-backed store used by the process HTTP server, if one was created. */
++export function getActiveAuthStore(): AuthStoreSource | undefined {
++  return activeAuthStore;
++}
++
++/** Resolve the identity captured at authentication time against a new snapshot. */
++export function resolvesPrincipal(
++  store: AuthStore,
++  principal: AuthPrincipalIdentity,
++  now = new Date(),
++): boolean {
++  if (principal.tokenType === "basic") {
++    const username = principal.username ?? principal.name;
++    return store.users.some(
++      (entry) =>
++        entry.username === username &&
++        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
++    );
++  }
++
++  if (principal.tokenType === "apikey" || principal.tokenType === undefined) {
++    return store.apiKeys.some(
++      (entry) =>
++        entry.name === principal.name &&
++        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
++    );
++  }
++
++  return true;
++}
++
+ export function hashApiKey(key: string): string {
+   return `$sha256$${crypto.createHash("sha256").update(key, "utf-8").digest("hex")}`;
+ }
+@@ -148,6 +191,7 @@ export class FileAuthStore implements AuthStoreSource {
+   private snapshot: AuthStore;
+   private observedFingerprint: string;
+   private readonly deprecated = new Set<string>();
++  private readonly reloadListeners = new Set<AuthStoreReloadListener>();
+ 
+   constructor(file: string, options: FileAuthStoreOptions = {}) {
+     this.file = path.resolve(file);
+@@ -155,6 +199,12 @@ export class FileAuthStore implements AuthStoreSource {
+     this.snapshot = readValidated(this.file);
+     this.observedFingerprint = fingerprint(this.file);
+     this.logLegacyTokens(this.snapshot);
++    activeAuthStore = this;
++  }
++
++  onReload(listener: AuthStoreReloadListener): () => void {
++    this.reloadListeners.add(listener);
++    return () => this.reloadListeners.delete(listener);
+   }
+ 
+   getSnapshot(): AuthStore {
+@@ -177,6 +227,15 @@ export class FileAuthStore implements AuthStoreSource {
+       const next = readValidated(this.file);
+       this.snapshot = next;
+       this.logLegacyTokens(next);
++      for (const listener of this.reloadListeners) {
++        try {
++          listener(next);
++        } catch (error) {
++          this.log(
++            `[duckbrain] auth store reload listener failed: ${formatValidation(error)}`,
++          );
++        }
++      }
+     } catch (error) {
+       this.log(
+         `[duckbrain] auth store reload failed; retaining last good snapshot: ${formatValidation(error)}`,
+diff --git a/src/http/realtime/hub.ts b/src/http/realtime/hub.ts
+index 8902cd8..9b03b5f 100644
+--- a/src/http/realtime/hub.ts
++++ b/src/http/realtime/hub.ts
+@@ -22,6 +22,12 @@
+ import fs from "fs";
+ import path from "path";
+ import type { AuthPrincipal } from "../../auth/middleware";
++import {
++  getActiveAuthStore,
++  resolvesPrincipal,
++  type AuthStore,
++  type AuthStoreSource,
++} from "../../auth/storeSchema";
+ import { authorizeTableAccess } from "../../auth/roles";
+ import { getConfig, resolveNamespacesPath } from "../../config";
+ import {
+@@ -124,6 +130,8 @@ export interface RealtimeHubOptions {
+   maxReplayEvents?: number;
+   maxReplayCommits?: number;
+   retentionDays?: number;
++  /** Auth store whose reloads must revoke no-longer-valid subscribers. */
++  authStore?: AuthStoreSource;
+   log?: (message: string) => void;
+ }
+ 
+@@ -156,6 +164,8 @@ export class RealtimeHub {
+   private readonly maxReplayCommits: number;
+   private readonly retentionDays: number;
+   private readonly log: (message: string) => void;
++  private readonly authStore: AuthStoreSource | undefined;
++  private readonly unsubscribeAuthReload: (() => void) | undefined;
+   private readonly feeds = new Map<string, FeedState>();
+   private nextSubscriberId = 1;
+ 
+@@ -180,6 +190,10 @@ export class RealtimeHub {
+       options.maxReplayCommits ?? config.realtime.maxReplayCommits;
+     this.retentionDays = options.retentionDays ?? config.realtime.retentionDays;
+     this.log = options.log ?? ((message) => console.warn(message));
++    this.authStore = options.authStore ?? getActiveAuthStore();
++    this.unsubscribeAuthReload = this.authStore?.onReload?.((store) => {
++      this.revokeMissingPrincipals(store);
++    });
+   }
+ 
+   /** Total live subscribers across every namespace feed. */
+@@ -355,6 +369,7 @@ export class RealtimeHub {
+   async check(namespace: string): Promise<void> {
+     const feed = this.feeds.get(namespace);
+     if (!feed) return;
++    await this.refreshAuth();
+     await this.runLocked(feed, async () => {
+       if (feed.subscribers.size === 0) return;
+       const head = resolveHeadSha(feed.repoDir);
+@@ -410,6 +425,34 @@ export class RealtimeHub {
+     });
+   }
+ 
++  private async refreshAuth(): Promise<void> {
++    if (!this.authStore) return;
++    try {
++      const snapshot = await this.authStore.getSnapshot();
++      this.revokeMissingPrincipals(snapshot);
++    } catch (error) {
++      this.log(
++        `[realtime] auth store refresh failed; retaining live subscriptions: ${
++          error instanceof Error ? error.message : String(error)
++        }`,
++      );
++    }
++  }
++
++  private revokeMissingPrincipals(store: AuthStore): void {
++    for (const feed of this.feeds.values()) {
++      for (const subscriber of [...feed.subscribers]) {
++        if (
++          subscriber.principal !== undefined &&
++          !resolvesPrincipal(store, subscriber.principal)
++        ) {
++          // Keep all stream teardown and wire emission in the existing path.
++          this.revoke(subscriber);
++        }
++      }
++    }
++  }
++
+   /** Immediate check triggered by the serializer's post-flush notifier. */
+   wake(namespace: string): void {
+     if (!this.feeds.has(namespace)) return;
+@@ -424,6 +467,7 @@ export class RealtimeHub {
+ 
+   /** Close every subscription (server shutdown, tests). */
+   closeAll(): void {
++    this.unsubscribeAuthReload?.();
+     for (const feed of [...this.feeds.values()]) this.closeFeed(feed);
+     for (const feed of [...this.feeds.values()]) {
+       if (feed.timer) clearInterval(feed.timer);
+diff --git a/src/http/routes/realtime-auth.test.ts b/src/http/routes/realtime-auth.test.ts
+index b96887c..68c6246 100644
+--- a/src/http/routes/realtime-auth.test.ts
++++ b/src/http/routes/realtime-auth.test.ts
+@@ -12,9 +12,14 @@
+ 
+ import { describe, it, expect, afterEach } from "vitest";
+ import express from "express";
++import fs from "fs";
++import os from "os";
++import path from "path";
+ import { z } from "zod";
+ import { REALTIME_ROUTE_PATH, createRealtimeRoutes } from "./realtime";
+ import { RealtimeHub } from "../realtime/hub";
++import { FileAuthStore, hashApiKey } from "../../auth/storeSchema";
++import { createAuthBackend } from "../../auth/middleware";
+ import { TableSchemaRegistry } from "../../serialization/registry";
+ import {
+   configNamespacesPath,
+@@ -31,11 +36,14 @@ import {
+ const fixtures: RealtimeFixture[] = [];
+ const hubs: RealtimeHub[] = [];
+ const apps: RunningApp[] = [];
++const authDirs: string[] = [];
+ 
+ afterEach(async () => {
+   for (const app of apps.splice(0)) await app.close();
+   for (const hub of hubs.splice(0)) hub.closeAll();
+   for (const fixture of fixtures.splice(0)) fixture.cleanup();
++  for (const dir of authDirs.splice(0))
++    fs.rmSync(dir, { recursive: true, force: true });
+ });
+ 
+ const genericRow = z.object({ id: z.string() }).passthrough();
+@@ -232,4 +240,78 @@ describe("DB-SUPA-5 authorization filtering", () => {
+     ]);
+     allowed.close();
+   }, 30_000);
++
++  it("revokes an idle SSE subscriber when the auth store reloads", async () => {
++    const fixture = createRealtimeFixture("duckbrain-supa5-auth-reload-", {
++      root: configNamespacesPath(),
++      namespace: `auth-reload-${process.pid}-${Date.now()}`,
++      commitOnFlush: false,
++    });
++    fixtures.push(fixture);
++
++    const authDir = fs.mkdtempSync(
++      path.join(os.tmpdir(), "duckbrain-supa5-auth-store-"),
++    );
++    authDirs.push(authDir);
++    const authFile = path.join(authDir, "auth.json");
++    const token = "idle-reload-token";
++    fs.writeFileSync(
++      authFile,
++      JSON.stringify({
++        apiKeys: [
++          {
++            keyHash: hashApiKey(token),
++            name: "idle-reader",
++            roles: ["analyst"],
++            namespaces: [fixture.ns],
++          },
++        ],
++      }) + "\n",
++      { mode: 0o600 },
++    );
++    const store = new FileAuthStore(authFile);
++    const principal = await createAuthBackend({
++      type: "apikey",
++      store,
++    }).authenticate({ headers: { "x-api-key": token } } as never);
++
++    const hub = new RealtimeHub({
++      namespacesPath: fixture.root,
++      pollIntervalMs: 25,
++      heartbeatMs: 60 * 60 * 1000,
++      authStore: store,
++    });
++    hubs.push(hub);
++
++    const app = express();
++    app.use(express.json());
++    app.use(principalMiddleware(principal));
++    app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes({ hub }));
++    const running = await startApp(app);
++    apps.push(running);
++
++    const client = await openSseClient(
++      running.port,
++      `/api/ns/${fixture.ns}/changes`,
++    );
++    expect(client.status).toBe(200);
++    await client.waitFor((current) => current.frames().length >= 1);
++    expect(hub.countFor(fixture.ns)).toBe(1);
++
++    // No namespace write or wake call follows this edit. The hub's existing
++    // poll interval must drive the auth-store reload and close the idle feed.
++    fs.writeFileSync(authFile, JSON.stringify({ apiKeys: [] }) + "\n");
++    const next = new Date(Date.now() + 1_000);
++    fs.utimesSync(authFile, next, next);
++
++    await client.waitFor(
++      (current) =>
++        current.frames().some((frame) => frame.event === "duckbrain.revoked.v1"),
++      3_000,
++    );
++    await client.waitFor((current) => current.ended(), 3_000);
++    expect(client.frames().filter((frame) => frame.event === "duckbrain.revoked.v1"))
++      .toHaveLength(1);
++    expect(hub.countFor(fixture.ns)).toBe(0);
++  });
+ });

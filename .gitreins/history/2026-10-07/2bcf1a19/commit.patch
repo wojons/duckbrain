@@ -1,0 +1,47 @@
+commit 70fbc1cf878b5adaa71cba057eace7894bf05763
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 04:53:03 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 04:53:03 2026 -0500
+
+    docs(DOC-7): document DUCKBRAIN_REALTIME_*, DUCKBRAIN_SKIP_SEARCH_REBUILD, DUCKBRAIN_KEYS_CACHE env vars
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/http-api.md        | 7 +++++++
+ docs/guide/configuration.md | 4 ++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index 9a836e9..4190e67 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -1056,6 +1056,13 @@ Requires the [namespace grant](#per-token-namespace-grants) for `:ns` plus
+ exist — an unknown namespace is a clean `404 NOT_FOUND` before any stream byte
+ is written.
+ 
++> **Tuning:** the per-namespace HEAD-observation poll interval (default `1000`
++> ms — the upper bound on how long a new commit can go unnoticed) and the SSE
++> heartbeat keep-alive interval (default `15000` ms) are tunable at runtime
++> via the `DUCKBRAIN_REALTIME_POLL_MS` and `DUCKBRAIN_REALTIME_HEARTBEAT_MS`
++> environment variables — see
++> [Configuration Reference](../guide/configuration#environment-variables).
++
+ #### Subscription grammar
+ 
+ | Query param | Grammar | Semantics |
+diff --git a/docs/guide/configuration.md b/docs/guide/configuration.md
+index 6bed8f5..ac6fcaa 100644
+--- a/docs/guide/configuration.md
++++ b/docs/guide/configuration.md
+@@ -15,6 +15,10 @@ DuckBrain can be configured through environment variables and a JSON configurati
+ | `DUCKBRAIN_HTTP_SOCKET_MODE` | — | Socket file permissions octal string (e.g. `0660`), used by `service install` unit |
+ | `DUCKBRAIN_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+ | `DUCKBRAIN_ALLOWED_HOSTS` | — | Comma-separated extra Host-header values the DNS-rebinding guard accepts on top of `localhost`/`127.0.0.1`. Empty/absent keeps the loopback-only default. Overridden by an explicit `--allowed-hosts` flag (see [Deployment Guide](deployment)) |
++| `DUCKBRAIN_REALTIME_POLL_MS` | `1000` | Runtime override of the realtime change feed's per-namespace HEAD-observation poll interval (`realtime.pollIntervalMs`) in milliseconds — how often the SSE stream (`GET /api/ns/:ns/changes`) checks for new commits, which bounds change-delivery latency. Must be a positive integer; a malformed or non-positive value fails config load rather than silently falling back. Runtime-only, never persisted into `duckbrain.config.json` |
++| `DUCKBRAIN_REALTIME_HEARTBEAT_MS` | `15000` | Runtime override of the realtime change feed's heartbeat interval (`realtime.heartbeatMs`) in milliseconds — the `:heartbeat` keep-alive comment frame sent on an idle SSE stream. Same validation and runtime-only rules as `DUCKBRAIN_REALTIME_POLL_MS` |
++| `DUCKBRAIN_SKIP_SEARCH_REBUILD` | — | When set (to any non-empty value), the `post-checkout` / `post-merge` / `post-rewrite` git hooks installed by `duckbrain search-index install-hooks` exit without rebuilding the keyword search index. The detached `search-index rebuild` re-spawn sets this to `1` itself so nested git operations cannot re-trigger the hooks (mirror of `DUCKBRAIN_SKIP_EMBED_REBUILD`) |
++| `DUCKBRAIN_KEYS_CACHE` | `enabled` | Key-list materialization cache for `list_keys` (the per-namespace `.keys/` sidecar). Set to `off` to disable the cache so every call runs the full cold SQL aggregation; any other value — including unset — leaves the cache enabled |
+ | `AUTH_TYPE` | `none` | HTTP authentication type: `none`, `basic`, `apikey` |
+ | `AUTH_TOKEN` | — | Authentication token (API key or password depending on auth type) |
+ | `NODE_ENV` | — | Set to `production` for production deployments |

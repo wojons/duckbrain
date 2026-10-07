@@ -1,0 +1,16 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 2227ff9..378e7ff 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2472,3 +2472,11 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T05:59:17.283586+00:00'
+   completed_at: '2026-10-07T06:33:51.139655+00:00'
++- id: README-4
++  title: README embeddings default-namespace note
++  criteria:
++  - README.md embeddings section documents the default-namespace failure on fresh
++    installs and the --namespace= escape hatch
++  status: complete
++  created_at: '2026-10-07T09:38:20.621033+00:00'
++  completed_at: '2026-10-07T09:42:04.759530+00:00'

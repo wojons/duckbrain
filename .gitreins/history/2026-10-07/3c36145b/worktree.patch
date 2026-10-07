@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 378e7ff..902d07a 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2480,3 +2480,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T09:38:20.621033+00:00'
+   completed_at: '2026-10-07T09:42:04.759530+00:00'
++- id: DF-0925-05
++  title: Revoke live SSE subscribers on auth-store reload
++  criteria:
++  - On auth.json hot-reload, any SSE subscriber whose principal no longer resolves
++    is revoked immediately (stream closed / duckbrain.revoked.v1 emitted) instead
++    of lazily on next event; namespace with zero writes does not keep a revoked subscriber
++    attached; full vitest suite + tsc clean
++  status: complete
++  created_at: '2026-10-07T10:20:49.830455+00:00'
++  completed_at: '2026-10-07T10:39:36.557015+00:00'

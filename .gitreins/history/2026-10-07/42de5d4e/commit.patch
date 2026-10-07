@@ -1,0 +1,51 @@
+commit a0658023668c27c9b23ba6c34f35a1dccdcdabbb
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 03:47:05 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 03:47:05 2026 -0500
+
+    fix(tests): INT-CI-025 bounded-retry teardown in df092407 in-process tests
+    
+    fs.rmSync in the three createHttpServer-option-pair finally blocks raced
+    the daemon async audit-ledger append landing after close() resolved ->
+    ENOTEMPTY rmdir (CI runs 37594299189, 37594915058). Swap to the already
+    imported removeTempDirSafely (same pattern as the spawn-form test).
+    
+    ch:trace row=INT-CI-025 spec=none:none test=src/cli/auth-file-enforcement-df092407.test.ts evidence=/tmp/df025-run[1-5].log witness=live:targeted-file-5x-green verdict=pending commit=pending memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/auth-file-enforcement-df092407.test.ts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/cli/auth-file-enforcement-df092407.test.ts b/src/cli/auth-file-enforcement-df092407.test.ts
+index e1861f6..d017101 100644
+--- a/src/cli/auth-file-enforcement-df092407.test.ts
++++ b/src/cli/auth-file-enforcement-df092407.test.ts
+@@ -557,7 +557,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
+       expect(authed.status).toBe(200);
+     } finally {
+       await close(server);
+-      fs.rmSync(dir, { recursive: true, force: true });
++      await removeTempDirSafely(dir);
+     }
+   });
+ 
+@@ -584,7 +584,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
+       expect(withApiKeyHeader.status).toBe(401);
+     } finally {
+       await close(server);
+-      fs.rmSync(dir, { recursive: true, force: true });
++      await removeTempDirSafely(dir);
+     }
+   });
+ 
+@@ -616,7 +616,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
+       }
+     } finally {
+       delete process.env.DUCKBRAIN_AUTH_FILE;
+-      fs.rmSync(dir, { recursive: true, force: true });
++      await removeTempDirSafely(dir);
+     }
+   });
+ });

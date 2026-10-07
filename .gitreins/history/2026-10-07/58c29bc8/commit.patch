@@ -1,0 +1,81 @@
+commit 2724aa3ecbd7cae47f9070cbab534800bf3e4cc9
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 07:09:55 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 07:09:55 2026 -0500
+
+    docs(DOC-8): fix http-api.md stub rot — /namespaces, /users, /activity are live endpoints
+    
+    - 'Namespaces (Legacy)' no longer described as returning a stub list
+    - 'Users (Stub)' -> Users: documents git-history author aggregation
+      ({users,count}, grant-filtered) instead of 'empty list, reserved'
+    - /users + /activity: scale note — serial per-namespace scans are slow on
+      large installs (live-probed: >150s on the production store), corroborates
+      DB-GAP-055/PERF-005
+    - /activity response shape already matched the handler; authorization text kept
+    
+    Verified: grep stub/reserved/empty = 0 hits; src/http/routes/users-activity.test.ts 11/11 green; shapes cross-checked against src/http/routes/users.ts:137 + activity.ts:337 handlers and live curl of /namespaces on :3000.
+    
+    ch:trace row=DOC-8 spec=docs/api/http-api.md#users test=src/http/routes/users-activity.test.ts evidence=/tmp/db-doc8-daemon.log+live-curl-namespaces witness=live:localhost:3000-namespaces-200 verdict=none:pending-gitreins commit=this
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/http-api.md | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index 0b99cff..7e5cf6b 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -170,7 +170,7 @@ curl -X POST http://localhost:3000/mcp \
+ 
+ `GET /namespaces`
+ 
+-Returns a stub list of namespaces. Use the REST API (`/api/namespaces`) for full namespace management.
++Lists the namespaces known to the daemon. Use the REST API (`/api/namespaces`) for full namespace management.
+ 
+ The list is filtered to the caller's token grant (card t_667d7e6c): a token
+ carrying `namespaces` grants sees only those names, and `currentNamespace` is
+@@ -185,21 +185,28 @@ and `--auth=none` see the full list.
+ }
+ ```
+ 
+-### Users (Stub)
++### Users
+ 
+ `GET /users`
+ 
+-Returns an empty user list. Reserved for future implementation.
++Returns the distinct authors across the caller's visible namespaces, aggregated
++from git commit history (falling back to JSONL memory data when a namespace has
++no git history).
+ 
+ The author scan follows the caller's namespace grant (card t_667d7e6c): only
+ the token's visible namespaces are scanned, so a scoped token neither learns
+ foreign namespace names nor their authors.
+ 
++**Note:** the scan walks every visible namespace serially (git log per
++namespace, JSONL fallback), so on installs with very many namespaces or heavy
++git history this endpoint can take a long time to respond.
++
+ **Response:**
+ 
+ ```json
+ {
+-  "users": []
++  "users": ["agent-alpha@duckbrain.local", "kara@duckbrain.local"],
++  "count": 2
+ }
+ ```
+ 
+@@ -220,6 +227,10 @@ every-namespace feed. A token carrying `namespaces` grants sees **only its
+ granted namespaces**, whether or not `?namespace=` is given — ungranted
+ namespaces' segments are not read at all.
+ 
++**Note:** the feed is assembled from JSONL segment reads across the visible
++namespaces; on installs with very many namespaces this can take a long time
++without `?namespace=` scoping.
++
+ **Response:**
+ 
+ ```json

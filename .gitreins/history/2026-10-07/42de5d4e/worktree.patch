@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 2227ff9..74f5a14 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2472,3 +2472,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T05:59:17.283586+00:00'
+   completed_at: '2026-10-07T06:33:51.139655+00:00'
++- id: INT-CI-025
++  title: auth-file-enforcement teardown ENOTEMPTY flake
++  criteria:
++  - File src/cli/auth-file-enforcement-df092407.test.ts teardown uses removeTempDirSafely
++    bounded-retry; targeted file green 5 consecutive runs; tsc clean; commit pushed
++    to origin/main
++  status: complete
++  created_at: '2026-10-07T08:47:04.822064+00:00'
++  completed_at: '2026-10-07T08:47:10.797885+00:00'

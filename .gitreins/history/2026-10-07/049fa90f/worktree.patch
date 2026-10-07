@@ -1,0 +1,16 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 378e7ff..f73340b 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2480,3 +2480,11 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T09:38:20.621033+00:00'
+   completed_at: '2026-10-07T09:42:04.759530+00:00'
++- id: DF-CI-026
++  title: 'CI count-sync gate red: AGENTS.md stale at 1695 tests'
++  criteria:
++  - 'AGENTS.md carries (207 suites, 1696 tests) and # 1696 tests, 207 suites matching
++    the live suite; sync-agents-md-counts.sh --check exits 0; push verified on origin/main'
++  status: complete
++  created_at: '2026-10-07T10:47:46.388096+00:00'
++  completed_at: '2026-10-07T10:48:03.490695+00:00'

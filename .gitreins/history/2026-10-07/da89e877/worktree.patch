@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 4ab398c..fd95744 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2490,3 +2490,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T10:56:01.914857+00:00'
+   completed_at: '2026-10-07T11:17:25.808415+00:00'
++- id: DF-0923-04
++  title: Fix docker-compose health probe and chaos-shutdown lifecycle
++  criteria:
++  - 'docker compose up -d on a clean box: container starts but localhost health probe
++    never answers (000); chaos-shutdown battery (up/stop/start/kill/start/down) fails
++    with rc=1. Fix the compose stack so it survives its own documented lifecycle.'
++  status: complete
++  created_at: '2026-10-07T12:27:08.659795+00:00'
++  completed_at: '2026-10-07T12:28:59.792833+00:00'

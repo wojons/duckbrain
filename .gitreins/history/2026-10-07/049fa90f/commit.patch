@@ -1,0 +1,41 @@
+commit 691dac4efe4576da98c4a6c9101282e54e278b70
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 05:47:56 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 05:47:56 2026 -0500
+
+    fix(DF-CI-026): sync AGENTS.md test counts to live suite (1696)
+    
+    CI count-sync gate (GAP-012 drift) failed on main runs 37608995502/37609036119:
+    all 1696 tests passed locally in CI but AGENTS.md still said 1695. Synced via
+    scripts/sync-agents-md-counts.sh (single extraction path); --check exits 0.
+    
+    ch:trace row=DF-CI-026 spec=AGENTS.md test=scripts/sync-agents-md-counts.sh evidence=/tmp/vitest.out witness=live:local-vitest-207-1696 commit=pushed
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index e1c991c..cebe109 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (207 suites, 1695 tests)
++- **Test Framework:** Vitest (207 suites, 1696 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1695 tests, 207 suites
++pnpm test          # 1696 tests, 207 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

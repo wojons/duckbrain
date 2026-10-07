@@ -1,0 +1,16 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 4ab398c..ea6b30c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2490,3 +2490,11 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T10:56:01.914857+00:00'
+   completed_at: '2026-10-07T11:17:25.808415+00:00'
++- id: DOC-8
++  title: Fix http-api.md stub rot for /namespaces /users /activity
++  criteria:
++  - grep -n 'stub\|Reserved for future\|empty user list' docs/api/http-api.md returns
++    0 hits; users-activity tests green
++  status: complete
++  created_at: '2026-10-07T12:09:46.416976+00:00'
++  completed_at: '2026-10-07T12:10:09.099847+00:00'

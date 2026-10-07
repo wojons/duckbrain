@@ -1,0 +1,34 @@
+commit 424c3b619a74833b7f733a68fcf53ea7881b445d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 06:10:14 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 06:10:14 2026 -0500
+
+    docs(DF-0925-04): fix the unresolvable-ref error string to match the daemon
+    
+    Judge verdict 5a5cc727 (tier2 PASS/COMPLETE finding): the doc said
+    "Invalid as-of value" but src/git/asof.ts:169 + the live daemon emit
+    "Invalid --as-of value". Corrected; all 5 strings now verbatim.
+    
+    ch:trace row=DF-0925-04 spec=docs/api/http-api.md#as_of test=none:docs-only doc=docs/api/http-api.md evidence=verdict-5a5cc727 witness=live:127.0.0.1:3000 as_of 400s reproduced verdict=5a5cc727 commit=125acc8 memory=none
+    
+    Co-Authored-By: Alexis Okuwa <wojonstech@gmail.com>
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/http-api.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index de68852..0b99cff 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -381,7 +381,7 @@ Query memories with filters.
+ > **Note — `as_of` error contract (DF-0925-04):** `?as_of=` accepts an ISO-8601 date (`2026-08-10`; date-only input is inclusive of the whole day) or a git ref (commit hash, branch, tag), resolved to a concrete commit BEFORE the query runs. It cannot be combined with `q` or `contains` — semantic/keyword search indexes have no historical state. Failure modes, all **400 `VALIDATION_ERROR`** (never a 500 or a silent unfiltered list):
+ >
+ > - `as_of` + `q`/`contains` → "as_of cannot be combined with 'query' or 'contains' — memory-as-of reads the git state at that ref and does not run semantic or keyword search".
+-> - Unresolvable value → "Invalid as-of value '<value>': not an ISO-8601 date and not a resolvable git commit, branch, or tag".
++> - Unresolvable value → "Invalid --as-of value '<value>': not an ISO-8601 date and not a resolvable git commit, branch, or tag".
+ > - Date before the first commit → "No commit found at or before <value>".
+ > - Namespace without git history → "Namespace at <path> is not a git repository — as-of recall requires namespace git history".
+ > - Empty value → "--as-of requires a date or a git commit reference".

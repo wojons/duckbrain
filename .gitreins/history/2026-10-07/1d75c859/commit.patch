@@ -1,0 +1,35 @@
+commit 0a4e7a8873a126e7dffcecf684fdabc164ac4c29
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 04:40:19 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 04:40:19 2026 -0500
+
+    docs(README): README-4 embeddings default-namespace note
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 931e883..3e93902 100644
+--- a/README.md
++++ b/README.md
+@@ -184,7 +184,7 @@ pnpm run dev
+ 
+ ### Daily consolidation digest
+ 
+-`duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block. Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
++`duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block (unlike the embeddings commands, it tolerates a missing `default` namespace — the dry-run just reports 0 namespaces). Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
+ 
+ ```bash
+ duckbrain consolidate --date=2026-09-19     # read-only: digest to stdout
+@@ -377,6 +377,8 @@ duckbrain embeddings install-hooks --namespace=my-ns # hooks → detached rebuil
+ duckbrain embeddings providers                       # list providers + env overrides
+ ```
+ 
++**Default namespace.** `embeddings status` / `rebuild` / `install-hooks` / `providers` all target the **default** namespace unless `--namespace=` is given; on a fresh install with no `default` namespace yet they fail with `Namespace 'default' not found` — pass `--namespace=<name>` or create the namespace first.
++
+ Semantic search (`recall` with `query`) ranks candidates by cosine similarity using cached vectors, embedding cache misses on the fly (capped) so a cold clone still works.
+ 
+ **Prerequisites & failure behavior.** Semantic (`?q=`) search needs a reachable embedding provider at query time: LM Studio or Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider. Check `GET /health` first — its `embedding` block reports `healthy` plus per-provider `providers[]` entries (`id`/`healthy`/`note`). When no provider can embed, semantic endpoints return **HTTP 503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start LM Studio/Ollama or set `DUCKBRAIN_EMBEDDING_PROVIDER` and run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) remains available offline. A reachable provider is not necessarily a usable one (`/models` can answer 200 while every embed 401s/timeouts): run `pnpm ops:embedding-preflight` to prove the path end to end — it exits 1 (fail closed) on that asymmetric state and never prints the key. See the [preflight & provider diagnosis runbook](docs/guide/embeddings.md#preflight--provider-diagnosis-ops-004).

@@ -1,0 +1,1099 @@
+commit 1e46d753b08f2dea20e8a67dbcebf9e34654a92b
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 16:58:07 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 16:58:07 2026 -0500
+
+    feat(cli): tables declare — make the declared-table layer reachable from a fresh install (SUPA6-DECLARE-GAP-001)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md              |   4 +-
+ README.md              |   2 +
+ bin/duckbrain.ts       |  19 ++
+ docs/api/http-api.md   |  56 +++++
+ src/cli/tables.test.ts | 305 ++++++++++++++++++++++++
+ src/cli/tables.ts      | 625 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 1009 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index da6833c..bae0da9 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (213 suites, 1741 tests)
++- **Test Framework:** Vitest (214 suites, 1748 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1741 tests, 213 suites
++pnpm test          # 1748 tests, 214 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 
+diff --git a/README.md b/README.md
+index ac00965..59cda63 100644
+--- a/README.md
++++ b/README.md
+@@ -175,6 +175,8 @@ node bin/duckbrain.js <command>
+ 
+ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
+ 
++**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
++
+ **Web UI Only:**
+ 
+ ```bash
+diff --git a/bin/duckbrain.ts b/bin/duckbrain.ts
+index 4eff869..903742e 100755
+--- a/bin/duckbrain.ts
++++ b/bin/duckbrain.ts
+@@ -70,6 +70,7 @@ Commands:
+   s3                 Native S3 sync/query (status|sync|query|config)
+   git                Git identity tools (repair-identity: remove synthetic
+                      local user.name/user.email pins; bare: identity health)
++  tables             Declare tables for the table→REST layer (declare|--help)
+   help               Show this help
+ 
+ HTTP Options:
+@@ -350,6 +351,24 @@ async function main() {
+         );
+         break;
+ 
++      case "tables": {
++        // SUPA6-DECLARE-GAP-001: declared-table surface. Lazy import keeps
++        // this file's import-time side effects untouched; TablesCliError is
++        // a plain usage/validation failure → exit 1 with the message.
++        try {
++          const { runTablesCli } = await import("../src/cli/tables.js");
++          const code = await runTablesCli(commandArgs);
++          if (code !== 0) process.exit(code);
++        } catch (error) {
++          console.error(
++            "Error:",
++            error instanceof Error ? error.message : String(error),
++          );
++          process.exit(1);
++        }
++        break;
++      }
++
+       case "embeddings":
+         await runEmbeddingsCLI(commandArgs);
+         break;
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index af99295..4c79456 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -894,6 +894,62 @@ Every route below is wrapped in the namespace-grant check exactly like
+ | `DELETE` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Delete rows by primary key |
+ | `GET` | `/api/ns/:ns/openapi.json` | Generated OpenAPI 3.1 document |
+ 
++#### Declare a table
++
++Tables are served ONLY from declarations on disk — a fresh install has no
++declarations and the layer stays empty until you create one. The CLI verb
++writes the SUPA-6 persistent schema (merging into an existing
++`schema.json`) or the legacy per-table file:
++
++```bash
++duckbrain tables declare <namespace> <table> \
++  --column <name>=<type> [--column <name>=<type> ...] \
++  [--primary <col>] [--format jsonl-objects|jsonl-positional] \
++  [--legacy] [--force]
++```
++
++Column types: `varchar | integer | bigint | double | boolean | timestamp | json`
++(the DB-SUPA-3 storage types; they are mapped to the SUPA-6 canonical
++declared types — `integer` becomes `float64`, which stores JSON numbers
++exactly below 2^53, so the natural `POST {"id": 1}` works).
++
++Example — declare and then insert through the REST route:
++
++```bash
++duckbrain tables declare e2e-supagap widgets \
++  --column id=integer --column name=varchar --primary id
++# → namespaces/e2e-supagap/schema.json (SUPA-6 format):
++{
++  "schemaVersion": 1,
++  "tables": {
++    "widgets": {
++      "schemaVersion": 1,
++      "storage": { "path": "tables/widgets/current.jsonl" },
++      "rowShape": "object",
++      "keyColumns": ["id"],
++      "columns": [
++        { "name": "id", "type": "float64", "nullable": false },
++        { "name": "name", "type": "string", "nullable": true }
++      ]
++    }
++  },
++  "views": {}
++}
++# insert a row (201 on success):
++curl -s -X POST "http://localhost:3000/api/ns/e2e-supagap/tables/widgets" \
++  -H "Content-Type: application/json" -d '{"id": 1, "name": "a"}'
++# read rows / generated OpenAPI:
++curl -s "http://localhost:3000/api/ns/e2e-supagap/tables/widgets"
++curl -s "http://localhost:3000/api/ns/e2e-supagap/openapi.json"
++```
++
++`--force` replaces an existing declaration of the same table (without it, a
++conflicting contract is refused and the run exits nonzero); `--legacy`
++writes `namespaces/<ns>/tables/<table>.table.json` (the historical
++declaration shape) instead of `schema.json`. Re-declaring an identical
++contract is idempotent. The schema switch goes through the DDL fence and is
++journaled under `<ns>/.duckbrain-ddl/` like every other schema change.
++
+ #### `GET /api/ns/:ns/tables` — discovery
+ 
+ Lists the namespace's declarations. Columns, types, and the primary key are
+diff --git a/src/cli/tables.test.ts b/src/cli/tables.test.ts
+new file mode 100644
+index 0000000..6ddb702
+--- /dev/null
++++ b/src/cli/tables.test.ts
+@@ -0,0 +1,305 @@
++/**
++ * SUPA6-DECLARE-GAP-001 — `duckbrain tables declare` battery.
++ *
++ * The declare verb is proven against the REAL validators, never mocks:
++ *
++ *   - the written schema.json is loaded through the production
++ *     loadNamespaceSchema (schemaRegistry.ts) and must come back
++ *     `present: true, error: null`;
++ *   - the --legacy declaration is proven through the production legacy
++ *     registry (listTables throws on an invalid declaration file);
++ *   - the end-to-end case drives createHttpServer({ authType: "none" }) —
++ *     the same production wiring http-tables-ndjson-supa3.test.ts uses —
++ *     over a real 127.0.0.1 socket, proving a fresh declare makes the
++ *     generic table→REST layer reachable (OpenAPI path + 201 insert).
++ */
++
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import http from "http";
++import { createServer, type Server } from "http";
++import { runTablesCli, TablesCliError } from "./tables";
++import { createHttpServer } from "./http";
++import { removeTempDirSafely } from "../testing/race-safe-daemon";
++import {
++  invalidateTableRegistry,
++  listTables,
++} from "../schema/table-registry";
++import {
++  invalidateNamespaceSchema,
++  loadNamespaceSchema,
++} from "../serialization/schemaRegistry";
++
++const NS = "e2e-supagap";
++
++let tmpRoot = "";
++
++interface HttpResult {
++  status: number;
++  body: any;
++  text: string;
++}
++
++/** One request against `app` over a real 127.0.0.1 socket. */
++function httpRequest(
++  app: ReturnType<typeof createHttpServer>,
++  method: string,
++  reqPath: string,
++  opts: { headers?: Record<string, string>; body?: string } = {},
++): Promise<HttpResult> {
++  return new Promise((resolve, reject) => {
++    const server: Server = createServer(app);
++    server.listen(0, "127.0.0.1", () => {
++      const addr = server.address();
++      const port = addr && typeof addr !== "string" ? addr.port : 0;
++      const req = http.request(
++        {
++          hostname: "127.0.0.1",
++          port,
++          path: reqPath,
++          method,
++          headers: {
++            Host: "localhost",
++            ...(opts.headers || {}),
++          },
++        },
++        (res) => {
++          let data = "";
++          res.on("data", (chunk: Buffer) => {
++            data += chunk.toString();
++          });
++          res.on("end", () => {
++            server.close();
++            let parsed: any = data;
++            try {
++              parsed = JSON.parse(data);
++            } catch {
++              // non-JSON body — keep the raw text
++            }
++            resolve({ status: res.statusCode ?? 0, body: parsed, text: data });
++          });
++        },
++      );
++      req.on("error", (err: Error) => {
++        server.close();
++        reject(err);
++      });
++      if (opts.body !== undefined) req.write(opts.body);
++      req.end();
++    });
++  });
++}
++
++function loadReal(ns: string): ReturnType<typeof loadNamespaceSchema> {
++  invalidateNamespaceSchema(ns);
++  return loadNamespaceSchema(ns, { namespacesPath: tmpRoot, force: true });
++}
++
++beforeAll(() => {
++  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "tables-declare-gap-"));
++  process.env.DUCKBRAIN_NAMESPACES_PATH = tmpRoot;
++});
++
++afterAll(async () => {
++  // INT-CI-026 class: the in-process daemon's async writes (serializer flush
++  // / audit ledger) can still be landing inside tmpRoot at teardown —
++  // bounded-retry removal per the race-safe pattern.
++  await removeTempDirSafely(tmpRoot);
++});
++
++describe("duckbrain tables declare (SUPA6-DECLARE-GAP-001)", () => {
++  it("AC1: declares schema.json that the REAL registry loader validates", async () => {
++    const code = await runTablesCli([
++      "declare",
++      NS,
++      "widgets",
++      "--column",
++      "id=integer",
++      "--column",
++      "name=varchar",
++      "--primary",
++      "id",
++    ]);
++    expect(code).toBe(0);
++
++    const file = path.join(tmpRoot, NS, "schema.json");
++    expect(fs.existsSync(file)).toBe(true);
++
++    // REAL loader — no mock of the validator anywhere in this battery.
++    const loaded = loadReal(NS);
++    expect(loaded.present).toBe(true);
++    expect(loaded.error).toBeNull();
++    const widgets = loaded.document.tables.widgets;
++    expect(widgets).toBeDefined();
++    expect(widgets!.keyColumns).toEqual(["id"]);
++    expect(widgets!.rowShape).toBe("object");
++    expect(widgets!.columns[0]).toEqual({
++      name: "id",
++      type: "float64",
++      nullable: false,
++    });
++    expect(widgets!.columns[1]).toEqual({
++      name: "name",
++      type: "string",
++      nullable: true,
++    });
++
++    // The switch must be journaled in the DDL journal directory so later
++    // crash recovery stays classifiable.
++    const journalDir = path.join(tmpRoot, NS, ".duckbrain-ddl");
++    expect(fs.readdirSync(journalDir).some((f) => f.endsWith(".json"))).toBe(
++      true,
++    );
++  });
++
++  it("merges a second table into the same schema.json", async () => {
++    const code = await runTablesCli([
++      "declare",
++      NS,
++      "gadgets",
++      "--column",
++      "id=integer",
++    ]);
++    expect(code).toBe(0);
++    const loaded = loadReal(NS);
++    expect(Object.keys(loaded.document.tables).sort()).toEqual([
++      "gadgets",
++      "widgets",
++    ]);
++  });
++
++  it("refuses a different contract without --force; replaces with it", async () => {
++    const refused = await runTablesCli([
++      "declare",
++      NS,
++      "widgets",
++      "--column",
++      "id=integer",
++      "--column",
++      "other=varchar",
++    ]);
++    expect(refused).toBe(1);
++    // The refused declare must not have mutated the document.
++    expect(
++      loadReal(NS).document.tables.widgets!.columns.some(
++        (c) => c.name === "other",
++      ),
++    ).toBe(false);
++
++    const forced = await runTablesCli([
++      "declare",
++      NS,
++      "widgets",
++      "--column",
++      "id=integer",
++      "--column",
++      "other=varchar",
++      "--force",
++    ]);
++    expect(forced).toBe(0);
++    expect(
++      loadReal(NS).document.tables.widgets!.columns.some(
++        (c) => c.name === "other",
++      ),
++    ).toBe(true);
++
++    // Restore the AC1 contract so the end-to-end case below can POST
++    // {"id": 1, "name": "a"} against widgets as freshly declared.
++    const restored = await runTablesCli([
++      "declare",
++      NS,
++      "widgets",
++      "--column",
++      "id=integer",
++      "--column",
++      "name=varchar",
++      "--primary",
++      "id",
++      "--force",
++    ]);
++    expect(restored).toBe(0);
++  });
++
++  it("--legacy writes a declaration the legacy table registry accepts", async () => {
++    const code = await runTablesCli([
++      "declare",
++      NS,
++      "legacy_items",
++      "--column",
++      "id=integer",
++      "--column",
++      "note=varchar",
++      "--legacy",
++    ]);
++    expect(code).toBe(0);
++    expect(
++      fs.existsSync(path.join(tmpRoot, NS, "tables", "legacy_items.table.json")),
++    ).toBe(true);
++    // REAL legacy validator: listTables throws on an invalid declaration.
++    invalidateTableRegistry(NS);
++    const names = listTables(NS).map((t) => t.name);
++    expect(names).toContain("legacy_items");
++    expect(names).toContain("widgets");
++  });
++
++  it("AC3: invalid column type exits nonzero with a clear error", async () => {
++    await expect(
++      runTablesCli(["declare", NS, "broken", "--column", "id=floobits"]),
++    ).rejects.toBeInstanceOf(TablesCliError);
++    await expect(
++      runTablesCli(["declare", NS, "broken", "--column", "id=floobits"]),
++    ).rejects.toThrow(/unsupported column type 'floobits'/);
++    // Nothing may have been written for the failed declare.
++    expect(fs.existsSync(path.join(tmpRoot, NS, "schema.json"))).toBe(true); // still the valid one
++    expect(loadReal(NS).document.tables.broken).toBeUndefined();
++  });
++
++  it("AC3: invalid table and namespace names are refused", async () => {
++    await expect(
++      runTablesCli(["declare", NS, "Bad Table", "--column", "id=integer"]),
++    ).rejects.toThrow(/must match/);
++    await expect(
++      runTablesCli(["declare", "UPPER", "things", "--column", "id=integer"]),
++    ).rejects.toThrow(/must match/);
++    expect(fs.existsSync(path.join(tmpRoot, "UPPER"))).toBe(false);
++  });
++
++  it("AC2: end-to-end — the REST layer serves the freshly declared table", async () => {
++    invalidateTableRegistry(NS);
++    const BASE = `/api/ns/${NS}`;
++
++    const openapi = await httpRequest(
++      createHttpServer({ authType: "none" }),
++      "GET",
++      `${BASE}/openapi.json`,
++    );
++    expect(openapi.status).toBe(200);
++    expect(Object.keys(openapi.body.paths)).toContain(
++      `${BASE}/tables/widgets`,
++    );
++
++    const post = await httpRequest(
++      createHttpServer({ authType: "none" }),
++      "POST",
++      `${BASE}/tables/widgets`,
++      {
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ id: 1, name: "a" }),
++      },
++    );
++    expect(post.status).toBe(201);
++    expect(post.body).toEqual({ inserted: 1 });
++
++    // The inserted row must read back through the same production app.
++    const read = await httpRequest(
++      createHttpServer({ authType: "none" }),
++      "GET",
++      `${BASE}/tables/widgets?id=gte.0&order=id.asc`,
++    );
++    expect(read.status).toBe(200);
++    expect(read.body.map((r: any) => r.id)).toEqual([1]);
++    expect(read.body.map((r: any) => r.name)).toEqual(["a"]);
++  });
++});
+diff --git a/src/cli/tables.ts b/src/cli/tables.ts
+new file mode 100644
+index 0000000..faa8fb1
+--- /dev/null
++++ b/src/cli/tables.ts
+@@ -0,0 +1,625 @@
++/**
++ * `duckbrain tables declare` — SUPA6-DECLARE-GAP-001.
++ *
++ * A fresh install had NO discoverable path to create a table declaration:
++ * the generic table→REST layer (DB-SUPA-3, src/http/routes/tables.ts) serves
++ * only tables DECLARED on disk (SUPA-6 `schema.json` or the legacy
++ * `tables/<table>.table.json`), and nothing on the CLI could write either
++ * file. This verb closes that gap from the command line:
++ *
++ *   duckbrain tables declare <namespace> <table> \
++ *     --column name=type [--column name=type ...] \
++ *     [--primary <col>] [--format jsonl-objects|jsonl-positional] \
++ *     [--legacy] [--force]
++ *
++ * The schema.json path is NOT a hand-rolled writer: it goes through the same
++ * primitives the DDL coordinator (src/serialization/ddl.ts) uses — the
++ * cross-process namespace fence and the atomic temp+rename schema switch —
++ * and every switch is journaled-shaped under `.duckbrain-ddl/` conventions
++ * exactly like a DDL operation, because an UNJOURNALED schema switch poisons
++ * later crash recovery (a future DDL journal must stay classifiable against
++ * the live schema hash). The candidate document is validated with the
++ * production validator (schemaDocumentProblems) BEFORE the switch and proven
++ * loadable through the REAL loader (loadNamespaceSchema) AFTER it; any
++ * failure rolls the previous schema text back, so a failed declare never
++ * leaves the namespace with a broken schema.
++ *
++ * Column types on the command line are the DB-SUPA-3 DuckDB-facing names
++ * (TABLE_COLUMN_TYPES, reused from src/schema/table-registry.ts — never
++ * duplicated here). They are translated to the SUPA-6 canonical declared
++ * types the schema document carries:
++ *
++ *   varchar → string    integer → float64    bigint → int64
++ *   double → float64    boolean → boolean    timestamp → timestamp
++ *   json → json
++ *
++ * `integer` deliberately maps to `float64` (not `int64`): the SUPA-6 write
++ * path is canonical-only (an int64 row value must arrive as a base-10
++ * STRING — a JSON number is rejected), so an `integer` column declared as
++ * int64 would refuse the natural POST {"id": 1}. float64 stores the JSON
++ * number exactly for every value below 2^53 and is a legal key-column type.
++ */
++
++import crypto from "crypto";
++import fs from "fs";
++import path from "path";
++import { resolveNamespacesPath } from "../config/index.js";
++import { releaseNamespaceWriteLock } from "../serialization/lock.js";
++import {
++  DDL_DIR,
++  acquireDdlFence,
++  writeSchemaTextAtomic,
++} from "../serialization/ddl.js";
++import {
++  emptySchemaDocument,
++  formatSchemaDocument,
++  parseSchemaDocument,
++  sameCanonicalTable,
++  schemaDocumentProblems,
++  type SchemaDocument,
++  type SchemaTable,
++} from "../serialization/schemaJson.js";
++import {
++  SCHEMA_FILE_NAME,
++  invalidateNamespaceSchema,
++  loadNamespaceSchema,
++} from "../serialization/schemaRegistry.js";
++import {
++  COLUMN_NAME_PATTERN,
++  RESOURCE_NAME_PATTERN,
++  isReservedResourceName,
++  type DeclaredColumn,
++  type DeclaredColumnType,
++  type RowShape,
++} from "../serialization/schemaTypes.js";
++import {
++  TABLE_COLUMN_TYPES,
++  TABLE_FORMATS,
++  invalidateTableRegistry,
++  listTables,
++  type TableFormat,
++} from "../schema/table-registry.js";
++
++/** DB-SUPA-3 column type → SUPA-6 canonical declared type (see module docs). */
++const CLI_TYPE_TO_DECLARED: Record<string, DeclaredColumnType> = {
++  varchar: "string",
++  integer: "float64",
++  bigint: "int64",
++  double: "float64",
++  boolean: "boolean",
++  timestamp: "timestamp",
++  json: "json",
++};
++
++/** Namespace/table segments must be URL-safe and filesystem-safe. */
++const NAME_PATTERN = /^[a-z0-9_-]+$/;
++
++/** Example JSON value per CLI type, for the printed curl POST example. */
++const EXAMPLE_VALUE: Record<string, string> = {
++  varchar: '"a"',
++  integer: "1",
++  bigint: '"1"',
++  double: "1.5",
++  boolean: "true",
++  timestamp: '"2026-10-07T12:00:00.000Z"',
++  json: "{}",
++};
++
++export const TABLES_DECLARE_USAGE = `Usage: duckbrain tables declare <namespace> <table> --column <name>=<type> [...]
++
++Declare a table so the generic table→REST layer (DB-SUPA-3) can serve it.
++Writes the SUPA-6 persistent schema (namespaces/<ns>/schema.json), merging
++into an existing schema document; use --legacy to write the historical
++tables/<table>.table.json declaration instead.
++
++Options:
++  --column <name>=<type>   Declared column (repeatable, at least one).
++                           Types: ${TABLE_COLUMN_TYPES.join("|")}
++  --primary <col>          Primary key column (must be a declared column).
++                           Defaults to the FIRST declared column.
++  --format <fmt>           Row shape: jsonl-objects (default) or
++                           jsonl-positional.
++  --legacy                 Write tables/<table>.table.json (legacy
++                           declaration) instead of schema.json.
++  --force                  Replace an existing declaration of the same
++                           table name. Without it, a conflicting existing
++                           declaration is refused.
++  --help, -h               Show this help.
++
++Examples:
++  duckbrain tables declare e2e-supagap widgets --column id=integer --column name=varchar --primary id
++  duckbrain tables declare notes events --column id=bigint --column at=timestamp --legacy`;
++
++/** A usage/validation failure. The bin layer prints it and exits 1. */
++export class TablesCliError extends Error {}
++
++function fail(message: string): never {
++  throw new TablesCliError(message);
++}
++
++function messageOf(error: unknown): string {
++  return error instanceof Error ? error.message : String(error);
++}
++
++function printHelp(): void {
++  console.log(TABLES_DECLARE_USAGE);
++}
++
++function readTextOrNull(file: string): string | null {
++  try {
++    return fs.readFileSync(file, "utf-8");
++  } catch {
++    return null;
++  }
++}
++
++function sha256Hex(text: string): string {
++  return crypto.createHash("sha256").update(text).digest("hex");
++}
++
++function writeJsonAtomic(file: string, value: unknown): void {
++  fs.mkdirSync(path.dirname(file), { recursive: true });
++  const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
++  const fd = fs.openSync(tmp, "w", 0o600);
++  try {
++    fs.writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
++    fs.fsyncSync(fd);
++  } finally {
++    fs.closeSync(fd);
++  }
++  fs.renameSync(tmp, file);
++}
++
++// ---------------------------------------------------------------------------
++// CLI arg parsing (the same --flag VALUE / --flag=VALUE shapes as the rest
++// of the duckbrain CLI)
++// ---------------------------------------------------------------------------
++
++interface DeclareArgs {
++  ns: string;
++  table: string;
++  columns: Array<{ name: string; type: string }>;
++  primary?: string;
++  format: TableFormat;
++  legacy: boolean;
++  force: boolean;
++}
++
++/** Returns null when --help printed help (caller exits 0). */
++function parseDeclareArgs(argv: string[]): DeclareArgs | null {
++  const args: DeclareArgs = {
++    ns: "",
++    table: "",
++    columns: [],
++    format: "jsonl-objects",
++    legacy: false,
++    force: false,
++  };
++  const positional: string[] = [];
++  // Consume-as-you-go: every token (flags AND their values) is consumed
++  // exactly once, up-front, so a value can never be re-parsed as a
++  // positional argument and an inline --flag=value form can never loop.
++  let i = 0;
++  const requireValue = (flag: string): string => {
++    const value = argv[i];
++    i += 1;
++    if (value === undefined) fail(`${flag} requires a value`);
++    return value;
++  };
++  while (i < argv.length) {
++    const arg = argv[i]!;
++    i += 1;
++    if (arg === "--help" || arg === "-h") {
++      printHelp();
++      return null;
++    }
++    if (arg === "--legacy") {
++      args.legacy = true;
++      continue;
++    }
++    if (arg === "--force") {
++      args.force = true;
++      continue;
++    }
++    if (arg === "--primary") {
++      args.primary = requireValue("--primary");
++      continue;
++    }
++    if (arg.startsWith("--primary=")) {
++      args.primary = arg.slice("--primary=".length);
++      continue;
++    }
++    if (arg === "--format" || arg.startsWith("--format=")) {
++      const value = arg.startsWith("--format=")
++        ? arg.slice("--format=".length)
++        : requireValue("--format");
++      if (!(TABLE_FORMATS as readonly string[]).includes(value))
++        fail(
++          `--format must be one of ${TABLE_FORMATS.join("|")}, got '${value}'`,
++        );
++      args.format = value as TableFormat;
++      continue;
++    }
++    if (arg === "--column" || arg.startsWith("--column=")) {
++      const pair = arg.startsWith("--column=")
++        ? arg.slice("--column=".length)
++        : requireValue("--column");
++      const eq = pair.indexOf("=");
++      if (eq <= 0 || eq === pair.length - 1)
++        fail(
++          `--column must be name=type (e.g. --column id=integer), got '${pair}'`,
++        );
++      args.columns.push({ name: pair.slice(0, eq), type: pair.slice(eq + 1) });
++      continue;
++    }
++    if (arg.startsWith("--")) fail(`Unknown option '${arg}'`);
++    positional.push(arg);
++  }
++  if (positional.length < 2) fail("a namespace and a table name are required");
++  if (positional.length > 2)
++    fail(`unexpected extra arguments: ${positional.slice(2).join(" ")}`);
++  args.ns = positional[0]!;
++  args.table = positional[1]!;
++  return args;
++}
++
++function validateName(kind: string, value: string): void {
++  if (!NAME_PATTERN.test(value))
++    fail(
++      `${kind} name '${value}' must match ${NAME_PATTERN.source} (lowercase letters, digits, '-', '_')`,
++    );
++}
++
++function buildDeclaredColumns(args: DeclareArgs): {
++  columns: DeclaredColumn[];
++  primary: string;
++} {
++  if (args.columns.length === 0)
++    fail("at least one --column name=type is required");
++  // The primary key defaults to the FIRST declared column, decided BEFORE
++  // nullability is assigned — a declared key column is always non-nullable,
++  // and deciding it after the loop would mint a nullable key column that
++  // the schema validator rejects (key columns must be non-nullable).
++  const primary = args.primary ?? args.columns[0]!.name;
++  const seen = new Set<string>();
++  const columns: DeclaredColumn[] = [];
++  for (const { name, type } of args.columns) {
++    if (!COLUMN_NAME_PATTERN.test(name))
++      fail(
++        `column name '${name}' is not a valid identifier (letters, digits, '_', starting with a letter or '_')`,
++      );
++    if (seen.has(name)) fail(`duplicate column '${name}'`);
++    seen.add(name);
++    if (!(TABLE_COLUMN_TYPES as readonly string[]).includes(type))
++      fail(
++        `unsupported column type '${type}' for column '${name}' (expected one of ${TABLE_COLUMN_TYPES.join("|")})`,
++      );
++    columns.push({
++      name,
++      type: CLI_TYPE_TO_DECLARED[type]!,
++      nullable: name !== primary,
++    });
++  }
++  if (args.primary !== undefined) {
++    if (!columns.some((column) => column.name === args.primary))
++      fail(`--primary '${args.primary}' must name one of the declared columns`);
++  }
++  return { columns, primary };
++}
++
++// ---------------------------------------------------------------------------
++// Output
++// ---------------------------------------------------------------------------
++
++function exampleBodyFor(
++  columns: Array<{ name: string; type: string }>,
++): string {
++  const parts = columns.map(
++    ({ name, type }) => `"${name}": ${EXAMPLE_VALUE[type] ?? "null"}`,
++  );
++  return `{${parts.join(", ")}}`;
++}
++
++function printNextSteps(
++  ns: string,
++  nsDir: string,
++  table: string,
++  schemaPath: boolean,
++  example: string,
++): void {
++  console.log("");
++  console.log("Next steps:");
++  console.log(
++    "  1. Start the HTTP server (if it is not already running):",
++  );
++  console.log("       duckbrain http --auth=none");
++  console.log("  2. Insert a row:");
++  console.log(
++    `       curl -s -X POST "http://localhost:3000/api/ns/${ns}/tables/${table}" \\`,
++  );
++  console.log(`         -H 'Content-Type: application/json' -d '${example}'`);
++  console.log("  3. Read rows:");
++  console.log(
++    `       curl -s "http://localhost:3000/api/ns/${ns}/tables/${table}"`,
++  );
++  console.log("  4. Generated OpenAPI:");
++  console.log(
++    `       curl -s "http://localhost:3000/api/ns/${ns}/openapi.json"`,
++  );
++  if (schemaPath) {
++    console.log("");
++    console.log(
++      `The declaration lives in ${path.join(nsDir, SCHEMA_FILE_NAME)}; further "duckbrain tables declare" runs merge into the same file.`,
++    );
++  }
++}
++
++// ---------------------------------------------------------------------------
++// schema.json path (SUPA-6)
++// ---------------------------------------------------------------------------
++
++async function declareIntoSchemaJson(options: {
++  ns: string;
++  nsDir: string;
++  root: string;
++  table: string;
++  candidate: SchemaTable;
++  force: boolean;
++  /** Pre-rendered curl example body (keyed by CLI type names). */
++  example: string;
++}): Promise<number> {
++  const { ns, nsDir, root, table, candidate, force, example } = options;
++  const schemaFile = path.join(nsDir, SCHEMA_FILE_NAME);
++  const fence = await acquireDdlFence(ns, root, 30_000);
++  try {
++    // Merge decision INSIDE the fence, so no concurrent DDL can interleave.
++    const previousText = readTextOrNull(schemaFile);
++    let document: SchemaDocument = emptySchemaDocument();
++    if (previousText !== null) {
++      try {
++        document = parseSchemaDocument(JSON.parse(previousText), {
++          where: schemaFile,
++        });
++      } catch (error) {
++        console.error(
++          `Error: refusing to merge into an invalid ${SCHEMA_FILE_NAME}: ${messageOf(error)}`,
++        );
++        return 1;
++      }
++    }
++
++    const existing = document.tables[table];
++    if (existing && !force && !sameCanonicalTable(existing, candidate)) {
++      console.error(
++        `Error: table '${table}' is already declared in ${schemaFile} with a different contract. Re-run with --force to replace it.`,
++      );
++      return 1;
++    }
++
++    const nextDocument: SchemaDocument = {
++      ...document,
++      tables: { ...document.tables, [table]: candidate },
++    };
++    // Validate the candidate document BEFORE writing anything: an invalid
++    // declaration must fail without leaving a single byte behind.
++    const problems = schemaDocumentProblems(nextDocument);
++    if (problems.length > 0) {
++      console.error(
++        `Error: the resulting ${SCHEMA_FILE_NAME} would be invalid: ${problems.join("; ")}`,
++      );
++      return 1;
++    }
++
++    const restore = (): void => {
++      if (previousText !== null)
++        writeSchemaTextAtomic(nsDir, previousText, { ns });
++      else {
++        try {
++          fs.unlinkSync(schemaFile);
++        } catch {
++          // best effort — there was no previous document
++        }
++      }
++    };
++
++    const switchText = formatSchemaDocument(nextDocument);
++    const switched = writeSchemaTextAtomic(nsDir, switchText, { ns });
++    // Journal the switch in the DDL journal format BEFORE reporting success
++    // (and AFTER the atomic rename), so crash-recovery evidence stays
++    // classifiable: recovery compares the live schema hash against the
++    // journaled old/new hashes. `switched` is also a status journal here —
++    // the declare already completed before it was written, so recovery
++    // finalizes it without touching the file again.
++    writeJsonAtomic(
++      path.join(nsDir, DDL_DIR, `declare-${Date.now().toString(36)}-${crypto
++        .randomBytes(4)
++        .toString("hex")}.json`),
++      {
++        operation: "createTable",
++        ns,
++        table,
++        status: "finalized",
++        request: {
++          table,
++          rowShape: candidate.rowShape,
++          keyColumns: candidate.keyColumns,
++          columns: candidate.columns,
++          storagePath: candidate.storage.path,
++        },
++        oldSchemaHash:
++          previousText === null ? null : sha256Hex(previousText),
++        newSchemaHash: switched.hash,
++        detail:
++          "declared via `duckbrain tables declare` (no generation published)",
++        createdAt: new Date().toISOString(),
++        updatedAt: new Date().toISOString(),
++      },
++    );
++    // Prove the result through the REAL loader (no mock of the validator).
++    invalidateNamespaceSchema(ns);
++    invalidateTableRegistry(ns);
++    const loaded = loadNamespaceSchema(ns, {
++      namespacesPath: root,
++      force: true,
++    });
++    if (!loaded.present || loaded.error !== null) {
++      restore();
++      invalidateNamespaceSchema(ns);
++      invalidateTableRegistry(ns);
++      console.error(
++        `Error: the written ${SCHEMA_FILE_NAME} failed the real schema loader: ${
++          loaded.error?.message ?? "document did not load"
++        }. The previous schema was restored.`,
++      );
++      return 1;
++    }
++
++    console.log(
++      `Declared table '${table}' in ${switched.path} (schema.json, SUPA-6).`,
++    );
++    printNextSteps(ns, nsDir, table, true, example);
++    return 0;
++  } finally {
++    releaseNamespaceWriteLock(fence);
++    // Same post-fence invalidation pattern as the DDL coordinator: the next
++    // read in ANY surface sees the file that is on disk now.
++    invalidateNamespaceSchema(ns);
++    invalidateTableRegistry(ns);
++    loadNamespaceSchema(ns, { namespacesPath: root, force: true });
++  }
++}
++
++// ---------------------------------------------------------------------------
++// legacy path (tables/<table>.table.json)
++// ---------------------------------------------------------------------------
++
++function declareLegacyFile(options: {
++  ns: string;
++  nsDir: string;
++  table: string;
++  declaration: Record<string, unknown>;
++  example: string;
++}): number {
++  const { ns, nsDir, table, declaration } = options;
++  const tablesDir = path.join(nsDir, "tables");
++  const file = path.join(tablesDir, `${table}.table.json`);
++  const previousText = readTextOrNull(file);
++
++  fs.mkdirSync(tablesDir, { recursive: true });
++  fs.writeFileSync(file, `${JSON.stringify(declaration, null, 2)}\n`);
++
++  // Validate through the REAL legacy registry: listTables reads and
++  // validates every declaration file and throws on a bad one — the same
++  // validator src/http/routes/tables.ts serves through. The cache is
++  // dropped first so this read is guaranteed to hit the disk.
++  let problem: string | null = null;
++  try {
++    invalidateTableRegistry(ns);
++    listTables(ns);
++  } catch (error) {
++    problem = messageOf(error);
++  }
++  if (problem !== null) {
++    if (previousText !== null) fs.writeFileSync(file, previousText);
++    else {
++      try {
++        fs.unlinkSync(file);
++      } catch {
++        // best effort
++      }
++    }
++    invalidateTableRegistry(ns);
++    console.error(
++      `Error: the written declaration failed the legacy table registry: ${problem}. The previous state was restored.`,
++    );
++    return 1;
++  }
++
++  console.log(`Declared table '${table}' in ${file} (legacy .table.json).`);
++  printNextSteps(ns, nsDir, table, false, options.example);
++  return 0;
++}
++
++// ---------------------------------------------------------------------------
++// Entry point
++// ---------------------------------------------------------------------------
++
++/**
++ * Run `duckbrain tables ...`. Resolves with the process exit code (0 on
++ * success); throws TablesCliError for usage/validation failures, which the
++ * bin entry prints and turns into exit 1. Only the `declare` subcommand
++ * exists today; `tables --help` documents it.
++ */
++export async function runTablesCli(argv: string[]): Promise<number> {
++  const [sub, ...rest] = argv;
++  if (sub === undefined || sub === "help" || sub === "--help" || sub === "-h") {
++    printHelp();
++    return 0;
++  }
++  if (sub !== "declare")
++    fail(
++      `Unknown tables subcommand: '${sub}' (expected: declare; run "duckbrain tables --help")`,
++    );
++
++  const args = parseDeclareArgs(rest);
++  if (args === null) return 0;
++  validateName("Namespace", args.ns);
++  validateName("Table", args.table);
++  const { columns, primary } = buildDeclaredColumns(args);
++  const example = exampleBodyFor(args.columns);
++
++  // GAP-062 path resolution: the same config-resolved namespaces root the
++  // rest of the CLI/HTTP surface uses (never the caller's cwd).
++  const root = path.resolve(resolveNamespacesPath());
++  const nsDir = path.join(root, args.ns);
++
++  if (args.legacy) {
++    // The legacy TableDeclaration shape (src/schema/table-registry.ts):
++    // CLI column types are used VERBATIM (they ARE the legacy types), the
++    // name must equal the declaration file base name, and the glob is
++    // relative to the namespace dir.
++    const declaration = {
++      name: args.table,
++      format: args.format,
++      columns: args.columns.map(({ name, type }) => ({ name, type })),
++      primary: args.primary ?? null,
++      glob: `tables/${args.table}.jsonl`,
++    };
++    return declareLegacyFile({
++      ns: args.ns,
++      nsDir,
++      table: args.table,
++      declaration,
++      example,
++    });
++  }
++
++  // SUPA-6 path: the table name must satisfy the stricter schema-document
++  // rules (RESOURCE_NAME_PATTERN + reserved names) because schema.json is
++  // the DDL surface — the production validator would reject anything else.
++  if (!RESOURCE_NAME_PATTERN.test(args.table))
++    fail(
++      `table name '${args.table}' must match ${RESOURCE_NAME_PATTERN.source} for a schema.json declaration (use --legacy for the permissive legacy shape)`,
++    );
++  if (isReservedResourceName(args.table))
++    fail(`table name '${args.table}' is a reserved resource name`);
++
++  const candidate: SchemaTable = {
++    schemaVersion: 1,
++    storage: { path: `tables/${args.table}/current.jsonl` },
++    rowShape: (args.format === "jsonl-positional"
++      ? "positional"
++      : "object") as RowShape,
++    keyColumns: [primary],
++    columns,
++  };
++  return declareIntoSchemaJson({
++    ns: args.ns,
++    nsDir,
++    root,
++    table: args.table,
++    candidate,
++    force: args.force,
++    example,
++  });
++}

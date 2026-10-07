@@ -1,0 +1,36 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 378e7ff..ac90825 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2308,13 +2308,13 @@ tasks:
+   created_at: '2026-10-03T15:33:34.757228+00:00'
+   completed_at: '2026-10-03T10:49:50.969262'
+ - id: AUG-045
+-  title: Require declared primary key on HTTP table POST
++  title: Enforce declared primary key on table POST
+   criteria:
+-  - POST /api/ns/<ns>/tables/<t> must reject rows missing or emptying the table's
+-    declared primary key with HTTP 400 VALIDATION_ERROR (schema.json tables only);
+-    legacy declarations unchanged; vitest suite green; tsc clean
++  - POST /api/ns/:ns/tables/:table returns 400 VALIDATION_ERROR when a row omits the
++    declared primary key value; test covers both schema.json and legacy declaration
++    paths
+   status: in_progress
+-  created_at: '2026-10-03T19:26:50.208399+00:00'
++  created_at: '2026-10-07T10:55:02.008554+00:00'
+ - id: INT-CI-018
+   title: 'CI red on main: AGENTS.md test-count drift after 200th test file'
+   criteria:
+@@ -2480,3 +2480,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T09:38:20.621033+00:00'
+   completed_at: '2026-10-07T09:42:04.759530+00:00'
++- id: DF-0925-04
++  title: Document HTTP as_of error contract
++  criteria:
++  - docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR
++    for combine/ref/no-commit/no-git/empty) and every documented string matches live
++    daemon output
++  status: complete
++  created_at: '2026-10-07T10:56:01.914857+00:00'
++  completed_at: '2026-10-07T10:57:57.769556+00:00'

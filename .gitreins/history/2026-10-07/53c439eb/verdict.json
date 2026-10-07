@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0925-04",
+  "task_title": "Document HTTP as_of error contract",
+  "task_criteria": [
+    "docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "424c3b619a74833b7f733a68fcf53ea7881b445d",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:17AM INF scanned ~41086535 bytes (41.09 MB) in 9.27s\n6:17AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1010682 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T103226.886903Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  207 passed (207)\n      Tests  1701 passed (1701)\n   Start at  06:17:27\n   Duration  91.81s (tests 76%, import 20%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  207 workers spawned \u00b7 ~148ms startup each (spawn + environment, per file)\n             at least ~7.51s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T103226.886903Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:381-389 documents all 5 error modes with exact strings. Source code matches: src/mcp/tools/recall.ts:529 (combine), src/git/asof.ts:168-169 (unresolvable ref), src/git/asof.ts:156 (no commit before date), src/git/asof.ts:133-134 (no git history), src/git/asof.ts:130 (empty value). HTTP layer maps all to 400 VALIDATION_ERROR via ValidationError (src/http/middleware/errorHandler.ts:43-48) at src/http/routes/memories.ts:73-74 and :452-453. Tests pass: npx vitest run src/http/routes/memories-asof-retr004.test.ts \u2192 1 file 6 passed; combined asof tests \u2192 3 files 20 passed. [resolution 0.30; docs/api/http-api.md]\nAll 5 as_of error modes are documented with exact strings that match the source code, and the HTTP layer correctly returns 400 VALIDATION_ERROR for each case.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:381-389 documents all 5 error modes with exact strings. Source code matches: src/mcp/tools/recall.ts:529 (combine), src/git/asof.ts:168-169 (unresolvable ref), src/git/asof.ts:156 (no commit before date), src/git/asof.ts:133-134 (no git history), src/git/asof.ts:130 (empty value). HTTP layer maps all to 400 VALIDATION_ERROR via ValidationError (src/http/middleware/errorHandler.ts:43-48) at src/http/routes/memories.ts:73-74 and :452-453. Tests pass: npx vitest run src/http/routes/memories-asof-retr004.test.ts \u2192 1 file 6 passed; combined asof tests \u2192 3 files 20 passed. [resolution 0.30; docs/api/http-api.md]\nAll 5 as_of error modes are documented with exact strings that match the source code, and the HTTP layer correctly returns 400 VALIDATION_ERROR for each case.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output",
+                "status": "PASS",
+                "detail": "docs/api/http-api.md:381-389 documents all 5 error modes with exact strings. Source code matches: src/mcp/tools/recall.ts:529 (combine), src/git/asof.ts:168-169 (unresolvable ref), src/git/asof.ts:156 (no commit before date), src/git/asof.ts:133-134 (no git history), src/git/asof.ts:130 (empty value). HTTP layer maps all to 400 VALIDATION_ERROR via ValidationError (src/http/middleware/errorHandler.ts:43-48) at src/http/routes/memories.ts:73-74 and :452-453. Tests pass: npx vitest run src/http/routes/memories-asof-retr004.test.ts \u2192 1 file 6 passed; combined asof tests \u2192 3 files 20 passed. [resolution 0.30; docs/api/http-api.md]",
+                "resolution_probability": 0.3,
+                "cited_path": "docs/api/http-api.md"
+              }
+            ],
+            "summary": "All 5 as_of error modes are documented with exact strings that match the source code, and the HTTP layer correctly returns 400 VALIDATION_ERROR for each case."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0925-04\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:381-389 documents all 5 error modes with exact strings. Source code matches: src/mcp/tools/recall.ts:529 (combine), src/git/asof.ts:168-169 (unresolvable ref), src/git/asof.ts:156 (no commit before date), src/git/asof.ts:133-134 (no git history), src/git/asof.ts:130 (empty value). HTTP layer maps all to 400 VALIDATION_ERROR via ValidationError (src/http/middleware/errorHandler.ts:43-48) at src/http/routes/memories.ts:73-74 and :452-453. Tests pass: npx vitest run src/http/routes/memories-asof-retr004.test.ts \u2192 1 file 6 passed; combined asof tests \u2192 3 files 20 passed. [resolution 0.30; docs/api/http-api.md]\nAll 5 as_of error modes are documented with exact strings that match the source code, and the HTTP layer correctly returns 400 VALIDATION_ERROR for each case.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-07T11:22:40.363106",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T11:22:40.564668+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2376,
+        "truncated": false,
+        "source": "git show 424c3b619a74"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1666,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0925-04"
+  }
+}

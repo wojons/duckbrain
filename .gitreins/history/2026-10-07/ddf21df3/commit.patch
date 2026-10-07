@@ -1,0 +1,161 @@
+commit 2c2bcaac37a8bec505e9069626aef227de9a41f6
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 06:00:50 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 06:00:50 2026 -0500
+
+    fix(AUG-045): enforce declared primary key on table POST — reject rows missing/null pk with 400
+    
+    A row inserted without the declared primary key value was stored with
+    pk:null and became unreachable (PATCH/DELETE require ?pk=eq.<value>),
+    leaving hand-editing the JSONL as the only escape. The POST /:table
+    route now validates, AFTER coercion and BEFORE any writer enqueue or
+    legacy append, that every row carries a non-null, non-empty primary-key
+    value when the table declares one; violations get 400 VALIDATION_ERROR
+    and nothing from the batch is inserted. Tables with no declared pk are
+    unchanged. The check sits before the storage-path branch, so both the
+    schema.json writer path and the legacy appendRowsToTable path enforce it.
+    
+    Addresses AUG-045.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/http/routes/tables-supa3.test.ts | 93 ++++++++++++++++++++++++++++++++++++
+ src/http/routes/tables.ts            | 20 ++++++++
+ 2 files changed, 113 insertions(+)
+
+diff --git a/src/http/routes/tables-supa3.test.ts b/src/http/routes/tables-supa3.test.ts
+index c35a0ee..b83e36e 100644
+--- a/src/http/routes/tables-supa3.test.ts
++++ b/src/http/routes/tables-supa3.test.ts
+@@ -491,6 +491,99 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
+     expect(res.status).toBe(422);
+   });
+ 
++  // AUG-045: a declared primary key must be present on every insert row —
++  // a row stored with a null pk is unreachable via PATCH/DELETE (?pk=eq.<v>).
++
++  it("400s a POST omitting the declared primary key (AUG-045)", async () => {
++    const before = (
++      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
++    ).body.length;
++    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
++      body: { name: "pk-less", qty: 1, tags: null },
++    });
++    expect(res.status).toBe(400);
++    expect(res.body.code).toBe("VALIDATION_ERROR");
++    expect(res.body.error).toContain("'id'");
++    expect(res.body.error).toContain("'widgets'");
++    // Zero rows inserted.
++    const after = (
++      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
++    ).body.length;
++    expect(after).toBe(before);
++  });
++
++  it("rejects a POST with an explicit null or empty-string primary key (AUG-045)", async () => {
++    // On this legacy integer-pk table the coercion layer rejects null/"" with
++    // 422 before the AUG-045 pk check; either way the row must NOT insert.
++    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
++      body: { id: null, name: "null-pk", qty: 1 },
++    });
++    expect([400, 422]).toContain(res.status);
++
++    const res2 = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
++      body: { id: "", name: "empty-pk", qty: 1 },
++    });
++    expect([400, 422]).toContain(res2.status);
++    const read = await httpRequest(
++      createApp(),
++      "GET",
++      `${BASE}/widgets?name=eq.null-pk`,
++    );
++    expect(read.body).toHaveLength(0);
++    const read2 = await httpRequest(
++      createApp(),
++      "GET",
++      `${BASE}/widgets?name=eq.empty-pk`,
++    );
++    expect(read2.body).toHaveLength(0);
++  });
++
++  it("rejects a batch where one row lacks the pk and inserts NONE of it (AUG-045)", async () => {
++    const before = (
++      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
++    ).body.length;
++    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
++      body: [
++        { id: 41, name: "good", qty: 1, tags: null },
++        { name: "bad", qty: 2, tags: null },
++      ],
++    });
++    expect(res.status).toBe(400);
++    expect(res.body.code).toBe("VALIDATION_ERROR");
++    const read = await httpRequest(
++      createApp(),
++      "GET",
++      `${BASE}/widgets?id=eq.41`,
++    );
++    expect(read.body).toHaveLength(0);
++    const after = (
++      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
++    ).body.length;
++    expect(after).toBe(before);
++  });
++
++  it("still 201s a POST with the primary key present (AUG-045 unchanged)", async () => {
++    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
++      body: { id: 42, name: "with-pk", qty: 1, tags: null },
++    });
++    expect(res.status).toBe(201);
++    expect(res.body).toEqual({ inserted: 1 });
++    const read = await httpRequest(
++      createApp(),
++      "GET",
++      `${BASE}/widgets?id=eq.42`,
++    );
++    expect(read.body).toHaveLength(1);
++  });
++
++  it("still 201s a POST to a table with no declared primary key (AUG-045 unchanged)", async () => {
++    const res = await httpRequest(createApp(), "POST", `${BASE}/lane_scores`, {
++      body: { model: "aug045", lane: "no-pk", score: 0.5, rank: 5 },
++    });
++    expect(res.status).toBe(201);
++    expect(res.body).toEqual({ inserted: 1 });
++  });
++
+   it("appends positional rows to the positional table", async () => {
+     const res = await httpRequest(createApp(), "POST", `${BASE}/lane_scores`, {
+       body: { model: "glm-5.3", lane: "debug", score: 0.8, rank: 2 },
+diff --git a/src/http/routes/tables.ts b/src/http/routes/tables.ts
+index a78b7c1..3d9b74a 100644
+--- a/src/http/routes/tables.ts
++++ b/src/http/routes/tables.ts
+@@ -471,6 +471,26 @@ function createTableRoutes(): Router {
+       const coerced = rawRows.map((row) =>
+         coerceRowAgainstDeclaration(declaration, row),
+       );
++      // AUG-045: a row that omits (or nulls) the declared primary key would be
++      // stored with id:null and become unreachable via the API — PATCH/DELETE
++      // both require ?pk=eq.<value>. Validate ALL rows before any writer
++      // enqueue / append so a bad batch inserts nothing (no partial inserts).
++      if (declaration.primary) {
++        for (const row of coerced) {
++          const pkValue = row[declaration.primary];
++          if (
++            pkValue === undefined ||
++            pkValue === null ||
++            pkValue === ""
++          ) {
++            throw new ApiError(
++              `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
++              400,
++              "VALIDATION_ERROR",
++            );
++          }
++        }
++      }
+       if (declaration.source === "schema.json") {
+         // Fail closed on a failed DDL recovery and on an invalid on-disk
+         // schema before accepting new generic-table work.

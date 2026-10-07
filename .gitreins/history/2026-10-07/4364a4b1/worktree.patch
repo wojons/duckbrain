@@ -1,0 +1,30 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 4279522..b7af5ea 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2514,3 +2514,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T15:35:40.348401+00:00'
+   completed_at: '2026-10-07T16:11:33.301674+00:00'
++- id: OPS-SCHED-UNTRACKED-001
++  title: Inventory scheduled duckbrain ops scripts + drift guard
++  criteria:
++  - docs/ops-scheduled-scripts.md covers >=13 scripts with schedule surface + secret
++    flags; scripts/ops/check-ops-inventory.sh green on host and provably fails on
++    drift; tsc clean; no secrets in repo
++  status: complete
++  created_at: '2026-10-07T19:40:26.337710+00:00'
++  completed_at: '2026-10-07T20:26:11.868536+00:00'
+diff --git a/src/ops/check-ops-inventory.int.test.ts b/src/ops/check-ops-inventory.int.test.ts
+index a07e495..d07cddc 100644
+--- a/src/ops/check-ops-inventory.int.test.ts
++++ b/src/ops/check-ops-inventory.int.test.ts
+@@ -24,7 +24,7 @@ import path from "path";
+ 
+ const execFileP = promisify(execFile);
+ 
+-const ROOT = path.resolve(__dirname, "..");
++const ROOT = path.resolve(__dirname, "..", "..");
+ const GUARD = path.join(ROOT, "scripts", "ops", "check-ops-inventory.sh");
+ const DOC = path.join(ROOT, "docs", "ops-scheduled-scripts.md");
+ 

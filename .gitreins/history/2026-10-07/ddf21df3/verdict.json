@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-0925-04",
+  "task_title": "Document HTTP as_of error contract",
+  "task_criteria": [
+    "docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "2c2bcaac37a8bec505e9069626aef227de9a41f6",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:58AM INF scanned ~41121345 bytes (41.12 MB) in 4.11s\n5:58AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1010552 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T103226.886903Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/tables-supa3.test.ts (34 tests | 1 failed) 1044ms\n   \u276f DB-SUPA-3: generic table\u2192REST layer (34)\n     \u00d7 400s a POST with an explicit null or empty-string primary key (AUG-045) 11ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/tables-supa3.test.ts > DB-SUPA-3: generic table\u2192REST layer > 400s a POST with an explicit null or empty-string primary key (AUG-045)\nAssertionError: expected 422 to be 400 // Object.is equality\n\n- Expected\n+ Received\n\n- 400\n+ 422\n\n \u276f src/http/routes/tables-supa3.test.ts:519:24\n    517|     // 422 before the AUG-045 pk check; either way the row must NOT in\u2026\n    518|     const res = await httpRequest(createApp(), \"POST\", `${BASE}/widget\u2026\n    519|       body: { id: null, name: \"null-pk\", qty: 1 },\n       |                        ^\n    520|     });\n    521|     expect([400, 422]).toContain(res.status);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 206 passed (207)\n      Tests  1 failed | 1700 passed (1701)\n   Start at  05:57:58\n   Duration  60.60s (tests 76%, import 21%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  207 workers spawned \u00b7 ~107ms startup each (spawn + environment, per file)\n             at least ~5.43s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T103226.886903Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2717 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:388 documents 'Invalid as-of value \\'<value>\\': not an ISO-8601 date...' but live daemon output (confirmed by test run at 06:08:59 and source src/git/asof.ts:169) produces 'Invalid --as-of value \\'<value>\\': not an ISO-8601 date...' (double dash vs no dash). All other 4 error strings match. Tests pass (36/36 across 3 test files).\nDocumented error contract has one mismatch: the unresolvable-ref error string uses 'as-of' in the doc but '--as-of' in actual daemon output.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2717 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:388 documents 'Invalid as-of value \\'<value>\\': not an ISO-8601 date...' but live daemon output (confirmed by test run at 06:08:59 and source src/git/asof.ts:169) produces 'Invalid --as-of value \\'<value>\\': not an ISO-8601 date...' (double dash vs no dash). All other 4 error strings match. Tests pass (36/36 across 3 test files).\nDocumented error contract has one mismatch: the unresolvable-ref error string uses 'as-of' in the doc but '--as-of' in actual daemon output.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output",
+                "status": "FAIL",
+                "detail": "docs/api/http-api.md:388 documents 'Invalid as-of value \\'<value>\\': not an ISO-8601 date...' but live daemon output (confirmed by test run at 06:08:59 and source src/git/asof.ts:169) produces 'Invalid --as-of value \\'<value>\\': not an ISO-8601 date...' (double dash vs no dash). All other 4 error strings match. Tests pass (36/36 across 3 test files).",
+                "resolution_probability": 0.29,
+                "cited_path": "docs/api/http-api.md"
+              }
+            ],
+            "summary": "Documented error contract has one mismatch: the unresolvable-ref error string uses 'as-of' in the doc but '--as-of' in actual daemon output."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-0925-04\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2717 docs/api/http-api.md documents the as_of param error modes (400 VALIDATION_ERROR for combine/ref/no-commit/no-git/empty) and every documented string matches live daemon output: docs/api/http-api.md:388 documents 'Invalid as-of value \\'<value>\\': not an ISO-8601 date...' but live daemon output (confirmed by test run at 06:08:59 and source src/git/asof.ts:169) produces 'Invalid --as-of value \\'<value>\\': not an ISO-8601 date...' (double dash vs no dash). All other 4 error strings match. Tests pass (36/36 across 3 test files).\nDocumented error contract has one mismatch: the unresolvable-ref error string uses 'as-of' in the doc but '--as-of' in actual daemon output.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T11:10:01.288141",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T11:10:01.304837+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6666,
+        "truncated": false,
+        "source": "git show 2c2bcaac37a8"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1594,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-0925-04"
+  }
+}

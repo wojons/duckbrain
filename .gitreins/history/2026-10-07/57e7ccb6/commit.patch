@@ -1,0 +1,49 @@
+commit 78fe0c76b73bf14cf0510b8f469a9051b89185ed
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 09:17:45 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 09:17:45 2026 -0500
+
+    docs(GAP-012): sync AGENTS.md test counts 208/1711 -> 211/1725 after wave merges; add wave manifest
+    
+    ch:trace row=GAP-012 spec=AGENTS.md test=scripts/sync-agents-md-counts.sh evidence=/tmp/vitest.out-211-1725 witness=live:local-full-suite-green verdict=none:mechanical-sync memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .coding-hermes/waves/duckbrain-foreman-2026-10-07-13-43-16.json | 5 +++++
+ AGENTS.md                                                       | 4 ++--
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/.coding-hermes/waves/duckbrain-foreman-2026-10-07-13-43-16.json b/.coding-hermes/waves/duckbrain-foreman-2026-10-07-13-43-16.json
+new file mode 100644
+index 0000000..1589cdd
+--- /dev/null
++++ b/.coding-hermes/waves/duckbrain-foreman-2026-10-07-13-43-16.json
+@@ -0,0 +1,5 @@
++{"tick":"duckbrain-foreman-2026-10-07-13-43-16","created":"2026-10-07T13:50Z","budget":5,"workers":[
++ {"row":"GIT-IDENTITY-001","worktree":"/home/kara/worktrees/duckbrain-GIT-IDENTITY-001","branch":"wt/GIT-IDENTITY-001","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"},
++ {"row":"DF-0925-06","worktree":"/home/kara/worktrees/duckbrain-DF-0925-06","branch":"wt/DF-0925-06","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"},
++ {"row":"DF-0923-03","worktree":"/home/kara/worktrees/duckbrain-DF-0923-03","branch":"wt/DF-0923-03","base_sha":"185baff","model":"deepseek-v4-flash","provider":"deepseek"}
++]}
+diff --git a/AGENTS.md b/AGENTS.md
+index 378f474..699fe29 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (208 suites, 1711 tests)
++- **Test Framework:** Vitest (211 suites, 1725 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1711 tests, 208 suites
++pnpm test          # 1725 tests, 211 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

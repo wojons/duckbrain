@@ -1,0 +1,50 @@
+commit ddc03f867130abaf27130f73e60eec3da909fa04
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 16:12:34 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 16:12:34 2026 -0500
+
+    test(supa3): race-safe teardown in http-tables-ndjson-supa3 (INT-CI-026)
+    
+    afterAll used bare fs.rmSync which raced the in-process daemon's async
+    writes (audit ledger / git autocommit) landing inside the /tmp scratch
+    root -> teardown rmdir ENOTEMPTY, CI run 37682274957. Same async-write
+    race family as INT-CI-021/023/025; swapped to the shared
+    removeTempDirSafely bounded-retry helper (src/testing/race-safe-daemon).
+    
+    Verified: tsc clean; targeted file 1/1 green x5 consecutive runs.
+    
+    ch:trace row=INT-CI-026 spec=none:none wave=none:none test=src/cli/http-tables-ndjson-supa3.test.ts doc=none:none prompt=none:none evidence=offbyone-class-3374+5x-green-logs witness=live:targeted-file-5x-green verdict=none commit=this memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http-tables-ndjson-supa3.test.ts | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/cli/http-tables-ndjson-supa3.test.ts b/src/cli/http-tables-ndjson-supa3.test.ts
+index 1b0b93c..942ffd9 100644
+--- a/src/cli/http-tables-ndjson-supa3.test.ts
++++ b/src/cli/http-tables-ndjson-supa3.test.ts
+@@ -23,6 +23,7 @@ import path from "path";
+ import http from "http";
+ import { createServer, type Server } from "http";
+ import { createHttpServer } from "./http";
++import { removeTempDirSafely } from "../testing/race-safe-daemon";
+ import { invalidateTableRegistry } from "../schema/table-registry";
+ 
+ const FIXTURE_NS = "supa3-prod-wiring";
+@@ -117,8 +118,12 @@ beforeAll(() => {
+   writeFixture();
+ });
+ 
+-afterAll(() => {
+-  fs.rmSync(tmpRoot, { recursive: true, force: true });
++afterAll(async () => {
++  // INT-CI-026: the in-process daemon's async writes (audit ledger / git
++  // autocommit) can still be landing inside tmpRoot when the finally-block
++  // rmSync runs -> teardown rmdir ENOTEMPTY (same family as INT-CI-021/023/025).
++  // Bounded-retry removal per the proven race-safe pattern.
++  await removeTempDirSafely(tmpRoot);
+ });
+ 
+ describe("DB-SUPA-3: NDJSON insert over the production wiring", () => {

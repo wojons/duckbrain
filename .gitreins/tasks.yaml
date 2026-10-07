@@ -2514,3 +2514,20 @@ tasks:
   status: complete
   created_at: '2026-10-07T15:35:40.348401+00:00'
   completed_at: '2026-10-07T16:11:33.301674+00:00'
+- id: INT-CI-026
+  title: supa3 teardown ENOTEMPTY flake fix
+  criteria:
+  - http-tables-ndjson-supa3.test.ts teardown uses bounded-retry removal; tsc clean;
+    targeted file green 5x
+  status: complete
+  created_at: '2026-10-07T21:12:27.699114+00:00'
+  completed_at: '2026-10-07T21:14:26.138423+00:00'
+- id: SUPA6-DECLARE-GAP-001
+  title: tables declare CLI verb so the SUPA-6/3 declared-table layer is reachable
+    from a fresh install
+  criteria:
+  - duckbrain tables declare <ns> <table> writes a valid declaration file; POST to
+    the REST route succeeds on a fresh namespace; tests + docs land
+  status: complete
+  created_at: '2026-10-07T21:24:32.152115+00:00'
+  completed_at: '2026-10-07T22:00:56.137422+00:00'
