@@ -1,0 +1,102 @@
+{
+  "task_id": "INT-CI-023",
+  "task_title": "CI teardown ENOTEMPTY flake in memories-blank-content-dbgap058.test.ts",
+  "task_criteria": [
+    "afterAll awaits server close, drains async commits (drainAsyncCommits), and removes SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests pass; file runs green solo 5x; tsc --noEmit clean"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "9fffb4c5584db6990320e51149de30ccb887a389",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:55PM INF scanned ~40817991 bytes (40.82 MB) in 3.53s\n11:55PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1003860 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T004413.967731Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/testing/orphan-daemon-reaper.test.ts (29 tests | 1 failed) 10443ms\n   \u276f reapOrphanDaemons kill path (DB-GAP-059) (4)\n     \u00d7 scans the real process table without throwing 227ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/testing/orphan-daemon-reaper.test.ts > reapOrphanDaemons kill path (DB-GAP-059) > scans the real process table without throwing\nAssertionError: expected 4 to be less than or equal to 2\n \u276f src/testing/orphan-daemon-reaper.test.ts:416:57\n    414|     // Live /proc between two scans is not stable: processes spawn and\u2026\n    415|     // between (CI race, 46 vs 45). Assert approximate equality instea\u2026\n    416|     expect(Math.abs(report.scanned - processes.length)).toBeLessThanOr\u2026\n       |                                                         ^\n    417|     // The managed unit is protected, so it can never be a victim.\n    418|     for (const victim of report.victims) {\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 206 passed (207)\n      Tests  1 failed | 1683 passed (1684)\n   Start at  23:55:01\n   Duration  51.53s (tests 78%, import 19%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  207 workers spawned \u00b7 ~83ms startup each (spawn + environment, per file)\n             at least ~4.23s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T004413.967731Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 afterAll awaits server close, drains async commits (drainAsyncCommits), and removes SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests pass; file runs green solo 5x; tsc --noEmit clean: afterAll (lines 130-155) awaits server close (line 133: await new Promise<void>((resolve) => server.close(() => resolve()))), drains async commits (line 134: await drainAsyncCommits()), and removes SCRATCH_ROOT via bounded-retry rm (lines 137-143: 5-attempt loop with fs.rmSync recursive/force and exponential backoff). Tests pass solo 5x (20/20 passed, exit 0 each run). tsc --noEmit clean (exit 0, no output).\nAll criterion requirements are met: the afterAll block properly awaits server close, drains async commits, and uses bounded-retry rm for SCRATCH_ROOT cleanup; the test file passes 5 consecutive solo runs; TypeScript compilation is clean.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 afterAll awaits server close, drains async commits (drainAsyncCommits), and removes SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests pass; file runs green solo 5x; tsc --noEmit clean: afterAll (lines 130-155) awaits server close (line 133: await new Promise<void>((resolve) => server.close(() => resolve()))), drains async commits (line 134: await drainAsyncCommits()), and removes SCRATCH_ROOT via bounded-retry rm (lines 137-143: 5-attempt loop with fs.rmSync recursive/force and exponential backoff). Tests pass solo 5x (20/20 passed, exit 0 each run). tsc --noEmit clean (exit 0, no output).\nAll criterion requirements are met: the afterAll block properly awaits server close, drains async commits, and uses bounded-retry rm for SCRATCH_ROOT cleanup; the test file passes 5 consecutive solo runs; TypeScript compilation is clean.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "afterAll awaits server close, drains async commits (drainAsyncCommits), and removes SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests pass; file runs green solo 5x; tsc --noEmit clean",
+                "status": "PASS",
+                "detail": "afterAll (lines 130-155) awaits server close (line 133: await new Promise<void>((resolve) => server.close(() => resolve()))), drains async commits (line 134: await drainAsyncCommits()), and removes SCRATCH_ROOT via bounded-retry rm (lines 137-143: 5-attempt loop with fs.rmSync recursive/force and exponential backoff). Tests pass solo 5x (20/20 passed, exit 0 each run). tsc --noEmit clean (exit 0, no output).",
+                "resolution_probability": 0.09
+              }
+            ],
+            "summary": "All criterion requirements are met: the afterAll block properly awaits server close, drains async commits, and uses bounded-retry rm for SCRATCH_ROOT cleanup; the test file passes 5 consecutive solo runs; TypeScript compilation is clean."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-023\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 afterAll awaits server close, drains async commits (drainAsyncCommits), and removes SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests pass; file runs green solo 5x; tsc --noEmit clean: afterAll (lines 130-155) awaits server close (line 133: await new Promise<void>((resolve) => server.close(() => resolve()))), drains async commits (line 134: await drainAsyncCommits()), and removes SCRATCH_ROOT via bounded-retry rm (lines 137-143: 5-attempt loop with fs.rmSync recursive/force and exponential backoff). Tests pass solo 5x (20/20 passed, exit 0 each run). tsc --noEmit clean (exit 0, no output).\nAll criterion requirements are met: the afterAll block properly awaits server close, drains async commits, and uses bounded-retry rm for SCRATCH_ROOT cleanup; the test file passes 5 consecutive solo runs; TypeScript compilation is clean.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T04:57:03.577033",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T04:57:03.597304+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5453,
+        "truncated": false,
+        "source": "git show 9fffb4c5584d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 545,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-023"
+  }
+}
