@@ -1056,6 +1056,13 @@ Requires the [namespace grant](#per-token-namespace-grants) for `:ns` plus
 exist — an unknown namespace is a clean `404 NOT_FOUND` before any stream byte
 is written.
 
+> **Tuning:** the per-namespace HEAD-observation poll interval (default `1000`
+> ms — the upper bound on how long a new commit can go unnoticed) and the SSE
+> heartbeat keep-alive interval (default `15000` ms) are tunable at runtime
+> via the `DUCKBRAIN_REALTIME_POLL_MS` and `DUCKBRAIN_REALTIME_HEARTBEAT_MS`
+> environment variables — see
+> [Configuration Reference](../guide/configuration#environment-variables).
+
 #### Subscription grammar
 
 | Query param | Grammar | Semantics |
