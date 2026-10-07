@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
 - **Language:** TypeScript 7.x (strict mode)
 - **Runtime:** Node.js 22+
 - **Database:** DuckDB (via node-duckdb)
-- **Test Framework:** Vitest (207 suites, 1701 tests)
+- **Test Framework:** Vitest (208 suites, 1711 tests)
 - **Build:** Vite (frontend), tsc (backend)
 - **Package Manager:** pnpm 11+
 
@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
 ```bash
 pnpm install
 pnpm build
-pnpm test          # 1701 tests, 207 suites
+pnpm test          # 1711 tests, 208 suites
 pnpm tsc --noEmit  # TypeScript check
 ```
 
