@@ -699,7 +699,11 @@ export class RealtimeHub {
       namespace,
       table: change.record.table,
       op: change.record.op,
-      row: change.record.row,
+      // SCHED-GAP-1574: replay resolved the row image from the committed
+      // data file and verified it against the ledger's content hash — the
+      // wire contract (row always present, delete never row: null) is
+      // unchanged for consumers.
+      row: change.row,
       position: { commit: change.commit, ordinal: change.ordinal },
       committedAt: change.committedAt,
       tombstone: change.record.tombstone,

@@ -33,6 +33,7 @@ import {
 } from "./auditLedger";
 import { invalidateKeysCache } from "../keys/keyListCache";
 import {
+  contentHashFor,
   declaredSchemaVersion,
   keyMaterialFor,
   missingKeyColumns,
@@ -212,18 +213,25 @@ function notifyCommit(namespace: string): void {
 
 /**
  * Build the DB-SUPA-5 accepted change record: the SUPA-2 audit row plus the
- * operation, table, row image/tombstone, declared key material, physical
- * `targetPath`, and declared `schemaVersion` a later replay needs.
+ * operation, table, declared key material, physical `targetPath`, declared
+ * `schemaVersion`, and — SCHED-GAP-1574 — the SHA-256 `contentHash` of the
+ * serialized data line. The ledger deliberately does NOT carry a full row
+ * image: the committed data file at `targetPath` is the single copy of the
+ * row (the audit ledger previously duplicated it, ~287 MB across the fleet).
+ * Replay resolves the row from `targetPath` at the child commit and verifies
+ * it against `contentHash`; live consumers fetch the row from DuckBrain when
+ * they need it.
  */
 function changeRecordFor(
   namespacePath: string,
   request: WriteRequest,
   audit: AuditEntry,
   targetPath: string,
+  dataLine: string | undefined,
 ): AuditEntry {
   return {
     ...audit,
-    row: request.record,
+    contentHash: dataLine === undefined ? "" : contentHashFor(dataLine),
     key: keyMaterialFor(namespacePath, request.table, request.record),
     targetPath,
     tombstone: request.op === "delete",
@@ -958,6 +966,7 @@ export class NamespaceWriter implements AuditSink {
           physical,
           item.audit,
           targetPath,
+          dataEntry?.line,
         );
         const line = serializeJsonlLine(change);
         if (line !== null) auditLines.push(line);

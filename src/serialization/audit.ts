@@ -20,6 +20,13 @@ export const AuditEntrySchema = z.object({
   row: z.unknown().optional(),
   key: z.record(z.string(), z.unknown()).optional(),
   targetPath: z.string().min(1).optional(),
+  /**
+   * SCHED-GAP-1574: the audit ledger's content digest. Present (as a 64-hex
+   * SHA-256 of the serialized data line) on every change record the
+   * serializer appends for an accepted write. Legacy rows and denial rows
+   * omit it.
+   */
+  contentHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   tombstone: z.boolean().optional(),
   schemaVersion: z.number().int().positive().optional(),
 });

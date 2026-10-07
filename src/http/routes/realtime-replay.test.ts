@@ -368,8 +368,10 @@ describe("DB-SUPA-5 committed replay", () => {
       );
       const lines = fs.readFileSync(segment, "utf-8").split("\n");
       const first = JSON.parse(lines[0]) as Record<string, unknown>;
-      (first.row as Record<string, unknown>).embedding_text =
-        "rewritten in place";
+      // SCHED-GAP-1574: the ledger carries contentHash, not the row image —
+      // so the mutation targets the digest itself, keeping the line valid
+      // JSON while only the parent-prefix invariant can catch it.
+      first.contentHash = "f".repeat(64);
       lines[0] = JSON.stringify(first);
       fs.writeFileSync(segment, lines.join("\n"), "utf-8");
 

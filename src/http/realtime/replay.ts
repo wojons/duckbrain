@@ -37,6 +37,7 @@ import {
 } from "../../serialization/auditLedger";
 import {
   ChangeRecordSchema,
+  contentHashFor,
   declaredKeyColumns,
   isChangeRecordCandidate,
   isSafeRepoRelativePath,
@@ -56,6 +57,12 @@ export interface DerivedChange {
   commit: string;
   ordinal: number;
   record: ChangeRecord;
+  /**
+   * The row image, resolved from the committed data file at
+   * `record.targetPath` and verified against `record.contentHash`
+   * (SCHED-GAP-1574 — the ledger stores the hash, not the row).
+   */
+  row: unknown;
   committedAt: string;
 }
 
@@ -213,18 +220,24 @@ function deepEqualJson(left: unknown, right: unknown): boolean {
 }
 
 /**
- * Validate that the row image a change record points at really exists in the
- * referenced data file at the SAME child ref — the `target/data mismatch`
- * guard. The row was appended through `serializeJsonlLine`, so an exact line
- * match is the common path; a structural compare keeps the check honest for
- * a re-serialized file.
+ * SCHED-GAP-1574: resolve the row a change record points at by CONTENT HASH.
+ * The ledger carries `contentHash` (SHA-256 of the serialized data line —
+ * compact JSON + trailing newline — exactly the bytes the serializer
+ * appended), not a full row image. The committed data file at the SAME child
+ * ref is the source of truth: a line whose exact bytes hash to the recorded
+ * value must exist there, and its parsed form is the row image.
+ *
+ * Failure classes (all `CHANGELOG_CORRUPT` at the caller):
+ *   - `targetPath` escapes the namespace or is absent at the child ref;
+ *   - no line in the target hashes to `contentHash` (rewritten, moved, or
+ *     fabricated record).
  */
-function assertDataRowPresent(
+function resolveDataRowByHash(
   repoDir: string,
   commit: string,
   targetPath: string,
-  row: unknown,
-): void {
+  contentHash: string,
+): { row: unknown } | null {
   if (!isSafeRepoRelativePath(targetPath)) {
     throw corrupt(
       `change record targetPath '${targetPath}' escapes the namespace`,
@@ -241,28 +254,18 @@ function assertDataRowPresent(
       { commit, path: targetPath },
     );
   }
-  const text = bytes.toString("utf-8");
-  const target = JSON.stringify(row);
-  if (target !== undefined) {
-    for (const line of text.split("\n")) {
-      if (line.trim() === "") continue;
-      if (line === target) return;
-    }
-  }
-  for (const line of text.split("\n")) {
+  for (const line of bytes.toString("utf-8").split("\n")) {
     if (line.trim() === "") continue;
-    let parsed: unknown;
+    if (contentHashFor(line) !== contentHash) continue;
     try {
-      parsed = JSON.parse(line);
+      return { row: JSON.parse(line) };
     } catch {
+      // The bytes hash-match but do not parse: treat as unresolved and keep
+      // scanning — the caller fails closed if no parseable match exists.
       continue;
     }
-    if (deepEqualJson(parsed, row)) return;
   }
-  throw corrupt(
-    `change record row image is not present in committed target '${targetPath}'`,
-    { commit, path: targetPath },
-  );
+  return null;
 }
 
 /**
@@ -361,7 +364,32 @@ export function deriveCommitChanges(
         },
       );
     }
-    const row = (entry as Record<string, unknown>).row;
+    // SCHED-GAP-1574: the ledger stores `contentHash` — the SHA-256 of the
+    // serialized data line — instead of a full row image. The committed data
+    // file at the SAME child ref is the source of truth: a line whose exact
+    // bytes hash to `record.contentHash` must exist there, and THAT parsed
+    // line is the row image. This is the hash-replay form of the
+    // target/data mismatch guard — a mutated, moved, or rewritten data row
+    // (or a fabricated hash) fails closed exactly like a row-image mismatch.
+    const resolved = resolveDataRowByHash(
+      repoDir,
+      childRef,
+      record.targetPath,
+      record.contentHash,
+    );
+    if (resolved === null) {
+      throw corrupt(
+        `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no data row ` +
+          `with the recorded content hash in committed target '${record.targetPath}'`,
+        {
+          commit: childRef,
+          parent: parentRef,
+          path: `${AUDIT_DIR}/${added.segment}`,
+          line: added.line,
+        },
+      );
+    }
+    const row = resolved.row;
     if (row === undefined || row === null) {
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no row image`,
@@ -408,11 +436,11 @@ export function deriveCommitChanges(
       }
     }
 
-    assertDataRowPresent(repoDir, childRef, record.targetPath, row);
     changes.push({
       commit: childRef,
       ordinal: changes.length + 1,
       record,
+      row,
       committedAt,
     });
   }

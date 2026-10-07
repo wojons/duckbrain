@@ -22,6 +22,7 @@
  */
 
 import fs from "fs";
+import { createHash } from "crypto";
 import path from "path";
 import { z } from "zod";
 
@@ -45,6 +46,17 @@ export const CHANGE_RECORD_MARKERS = [
   "schemaVersion",
 ] as const;
 
+/**
+ * SHA-256 hex of the serialized data line the record's `targetPath` points at
+ * (the exact bytes `serializeJsonlLine` appended — compact JSON + `\n`).
+ * SCHED-GAP-1574: the audit ledger stores the hash INSTEAD of the full row
+ * image; consumers that need the row read it from `targetPath` at the child
+ * commit (replay) or live from DuckBrain.
+ */
+export function contentHashFor(line: string): string {
+  return createHash("sha256").update(line, "utf-8").digest("hex");
+}
+
 export const ChangeRecordSchema = z.object({
   ts: z.string().min(1),
   ns: z.string().min(1),
@@ -54,12 +66,16 @@ export const ChangeRecordSchema = z.object({
   outcome: z.literal("accepted"),
   /** Internal process-local serializer sequence — never a cursor. */
   seq: z.number().int().positive().optional(),
-  /** Post-operation row image (insert/update) or appended tombstone (delete). */
-  row: z.unknown(),
-  /** Every declared key column and its value. */
-  key: z.record(z.string(), z.unknown()),
   /** Namespace-relative physical data JSONL path the row was appended to. */
   targetPath: z.string().min(1),
+  /**
+   * SHA-256 of the serialized data line at `targetPath` — the compact-JSON
+   * row image plus its trailing newline, exactly the bytes the serializer
+   * appended to the data file.
+   */
+  contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Every declared key column and its value. */
+  key: z.record(z.string(), z.unknown()),
   tombstone: z.boolean(),
   /** Declared table schema version (`1` for the `memories` compatibility entry). */
   schemaVersion: z.number().int().positive(),
@@ -72,6 +88,9 @@ export function isChangeRecordCandidate(
   entry: Record<string, unknown>,
 ): boolean {
   if (entry.outcome !== "accepted") return false;
+  // SCHED-GAP-1574: new-format change records are identified by contentHash;
+  // legacy row-image records keep validating through the other markers.
+  if (typeof entry.contentHash === "string") return true;
   return CHANGE_RECORD_MARKERS.some((field) => entry[field] !== undefined);
 }
 
