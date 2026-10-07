@@ -232,19 +232,17 @@ describe("DOGFOOD-005: rememberTool implicit-namespace write inits git", () => {
     // for the chain so `git config` has actually been written.
     await drainAsyncCommits();
 
-    // The repo must have user.email + user.name set so future commits work.
-    const email = execSync("git config user.email", {
-      cwd: ns,
-      stdio: "pipe",
-    })
-      .toString()
-      .trim();
-    const name = execSync("git config user.name", {
-      cwd: ns,
-      stdio: "pipe",
-    })
-      .toString()
-      .trim();
+    // The repo must have a resolvable identity so future commits work.
+    // GIT-IDENTITY-001: the commit path passes identity via `-c` and never
+    // writes local config, so on a host/CI runner with no global identity the
+    // resolvable identity comes from the documented env knobs (seeded in
+    // test-setup.ts for CI). Read through the resolution chain, not raw
+    // `git config`.
+    const { resolveGitIdentity } = await import("./identity.js");
+    const resolved = resolveGitIdentity(ns);
+    expect(resolved.identity).not.toBeNull();
+    const email = resolved.identity!.email;
+    const name = resolved.identity!.name;
     expect(email.length).toBeGreaterThan(0);
     expect(name.length).toBeGreaterThan(0);
   });
