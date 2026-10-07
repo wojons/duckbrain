@@ -23,6 +23,7 @@ import path from "path";
 import http from "http";
 import { createServer, type Server } from "http";
 import { createHttpServer } from "./http";
+import { removeTempDirSafely } from "../testing/race-safe-daemon";
 import { invalidateTableRegistry } from "../schema/table-registry";
 
 const FIXTURE_NS = "supa3-prod-wiring";
@@ -117,8 +118,12 @@ beforeAll(() => {
   writeFixture();
 });
 
-afterAll(() => {
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
+afterAll(async () => {
+  // INT-CI-026: the in-process daemon's async writes (audit ledger / git
+  // autocommit) can still be landing inside tmpRoot when the finally-block
+  // rmSync runs -> teardown rmdir ENOTEMPTY (same family as INT-CI-021/023/025).
+  // Bounded-retry removal per the proven race-safe pattern.
+  await removeTempDirSafely(tmpRoot);
 });
 
 describe("DB-SUPA-3: NDJSON insert over the production wiring", () => {
