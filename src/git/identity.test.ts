@@ -99,9 +99,14 @@ describe("GIT-IDENTITY-001: autocommit never invents an identity", () => {
     fs.writeFileSync(path.join(nsPath, "a.jsonl"), "row\n");
 
     // The resolution reads process.env — point GIT_CONFIG_GLOBAL at an empty
-    // config for the duration of the check, then restore.
+    // config for the duration of the check, then restore. Also blank the
+    // test-setup CI identity seed (CI-GITID-028) so nothing resolves at all.
     const savedGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
     process.env.GIT_CONFIG_GLOBAL = emptyGitconfig;
+    const savedSeedName = process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+    const savedSeedEmail = process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
 
     // The identity resolution itself must fail LOUDLY with the actionable hint.
     let thrown: Error | null = null;
@@ -114,6 +119,16 @@ describe("GIT-IDENTITY-001: autocommit never invents an identity", () => {
         delete process.env.GIT_CONFIG_GLOBAL;
       } else {
         process.env.GIT_CONFIG_GLOBAL = savedGitConfigGlobal;
+      }
+      if (savedSeedName === undefined) {
+        delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+      } else {
+        process.env.DUCKBRAIN_GIT_AUTHOR_NAME = savedSeedName;
+      }
+      if (savedSeedEmail === undefined) {
+        delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+      } else {
+        process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = savedSeedEmail;
       }
     }
     expect(thrown).not.toBeNull();

@@ -42,3 +42,10 @@ process.env.DUCKBRAIN_CONFIG_PATH = path.join(
   TEST_CONFIG_DIR,
   "duckbrain.config.json",
 );
+
+// CI-GITID-028: CI runners have no global git identity, so any test rig that
+// exercises the autocommit/attribution path hits the new GIT-IDENTITY-001
+// loud error. Seed the documented env override knobs with a stable test
+// identity (same mechanism production documents for headless hosts).
+process.env.DUCKBRAIN_GIT_AUTHOR_NAME = process.env.DUCKBRAIN_GIT_AUTHOR_NAME ?? "DuckBrain Test";
+process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL ?? "duckbrain-test@example.com";
