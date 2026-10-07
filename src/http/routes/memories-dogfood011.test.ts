@@ -25,6 +25,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { createHttpServer } from "../../cli/http";
+import { drainAsyncCommits } from "../../git/autocommit";
 import { createServer, Server } from "http";
 import fs from "fs";
 import os from "os";
@@ -219,7 +220,20 @@ describe("DOGFOOD-011: semantic search relevance threshold + scores", () => {
       process.env.DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS = previousAutoBuild;
     }
     if (scratchDir) {
-      fs.rmSync(scratchDir, { recursive: true, force: true });
+      // INT-CI-023 class (CI run 37574422881): rmdir raced an in-flight async
+      // autocommit / audit write inside the scratch tree. Drain async commits
+      // first, then bounded-retry rm — cleanup must never red a green suite.
+      await drainAsyncCommits();
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          fs.rmSync(scratchDir, { recursive: true, force: true });
+          return;
+        } catch {
+          await new Promise((resolve) =>
+            setTimeout(resolve, 100 * (attempt + 1)),
+          );
+        }
+      }
     }
   });
 
