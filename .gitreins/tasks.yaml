@@ -2531,3 +2531,19 @@ tasks:
   status: complete
   created_at: '2026-10-07T21:24:32.152115+00:00'
   completed_at: '2026-10-07T22:00:56.137422+00:00'
+- id: INT-CI-027
+  title: 'CI flake: pidfile existence race in http.test.ts'
+  criteria:
+  - src/cli/http.test.ts pidfile assertions wait for pidfile to appear before asserting;
+    targeted test green 5x; tsc clean
+  status: complete
+  created_at: '2026-10-07T22:37:12.027421+00:00'
+  completed_at: '2026-10-07T22:45:12.989666+00:00'
+- id: INT-CI-028
+  title: GAP-024 pagination suite env-dependent on real repo config
+  criteria:
+  - suite green with real config present, in this workdir and fresh clone; AC1 assert
+    isolated via DUCKBRAIN_CONFIG_PATH redirect
+  status: complete
+  created_at: '2026-10-07T23:09:58.872883+00:00'
+  completed_at: '2026-10-07T23:18:55.350038+00:00'
