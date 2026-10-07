@@ -72,4 +72,10 @@ describe("parseArgs", () => {
     expect(a.detached).toBe(true);
     expect(a.log).toBe(".embeddings/rebuild.log");
   });
+
+  it("parses migrate with = form (DB-GAP-054)", () => {
+    const a = parseArgs(["migrate", "--namespace=my-ns"]);
+    expect(a.action).toBe("migrate");
+    expect(a.namespace).toBe("my-ns");
+  });
 });

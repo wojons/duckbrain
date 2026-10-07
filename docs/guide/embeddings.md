@@ -34,6 +34,18 @@ Three decisions fall out of this:
 | `src/embedding/preflight.ts` | OPS-004 preflight: reachability vs real usability, classed failures, secret-safe report |
 | `scripts/embedding-preflight.js` | CLI wrapper (`pnpm ops:embedding-preflight`); exit 0 usable / 1 fail closed / 2 usage |
 
+## Cache file format (DB-GAP-054)
+
+Each cache entry is one **binary float32** `.bin` file: a 4-byte `DBF3` magic,
+a length-prefixed JSON header (`modelId`, `contentHash`, `dimensions`,
+`createdAt`), then the vector as little-endian float32 — a 4096-dim vector is
+~16 KB vs ~88 KB as JSON (≈5.5x smaller). Legacy JSON-per-entry files are
+still read transparently; convert a namespace in place (no re-embedding) with:
+
+```bash
+duckbrain embeddings migrate --namespace=my-ns
+```
+
 ## CLI
 
 ```bash
@@ -43,6 +55,7 @@ duckbrain embeddings rebuild --force                 # re-embed everything
 duckbrain embeddings rebuild --concurrency=8         # parallel embeds
 duckbrain embeddings install-hooks --namespace=my-ns # install git hooks
 duckbrain embeddings providers                       # list providers + env overrides
+duckbrain embeddings migrate --namespace=my-ns       # JSON → binary float32 (in place, no re-embed)
 ```
 
 ## Configuration
