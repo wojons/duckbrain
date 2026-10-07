@@ -158,6 +158,21 @@ pnpm start http --port=3000 --auth=none     # explicit local-only, unauthenticat
 pnpm start http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode=0660 --unix-socket-group=duckbrain
 ```
 
+**The `duckbrain` CLI**
+
+The sections below run `duckbrain <command>` directly. A repo clone does not put
+`duckbrain` on PATH or in `node_modules/.bin` — run it via the repo's bin script,
+or link it once to get the bare command:
+
+```bash
+# one-time: put duckbrain on PATH (repo must stay in place)
+npm install -g .            # verified with npm; with pnpm, `pnpm link` needs the
+                            # pnpm global bin dir on PATH (`pnpm setup`)
+
+# no install: run through node instead
+node bin/duckbrain.js <command>
+```
+
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
 **Web UI Only:**
