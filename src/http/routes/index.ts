@@ -12,3 +12,5 @@ export { createEventsRoutes } from "./events";
 export { createCompactionRoutes } from "./compaction";
 export { createTableRoutes, createNamespaceOpenApiRoutes } from "./tables";
 export { createRealtimeRoutes, REALTIME_ROUTE_PATH } from "./realtime";
+// OBS-DUCKBRAIN-001: read-ledger query routes (additive export)
+export { createReadsRoutes } from "./reads";

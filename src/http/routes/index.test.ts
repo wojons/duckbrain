@@ -47,6 +47,8 @@ describe("Routes barrel exports (index.ts)", () => {
       // DB-SUPA-5: committed append-log SSE change feed (additive export)
       "createRealtimeRoutes",
       "REALTIME_ROUTE_PATH",
+      // OBS-DUCKBRAIN-001: read-ledger query routes (additive export)
+      "createReadsRoutes",
     ];
     const actualExports = Object.keys(routeIndex).filter(
       (k) => k !== "default",

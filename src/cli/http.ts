@@ -55,6 +55,9 @@ import {
 } from "../http/routes/realtime.js";
 import { createUsersRoutes } from "../http/routes/users.js";
 import { createActivityRoutes } from "../http/routes/activity.js";
+import { createReadsRoutes } from "../http/routes/reads.js";
+import { createReadLedgerStore } from "../http/readLedger.js";
+import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -474,6 +477,19 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   setSerializerAuthorizationHook((request) =>
     authorizeTableAccess(request.principal, request.ns, request.table, "write"),
   );
+
+  // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
+  // so an auth-FAILED read is recorded too — authMiddleware answers 401 and
+  // never calls next(), so a ledger mounted after it would see nothing. The
+  // middleware is safe here: classification is path/method-only, the namespace
+  // comes from the request's own explicit scope (?namespace= or path param),
+  // and the append is non-blocking — a ledger failure can never break a
+  // served response. Only GET/HEAD on the documented read routes produce
+  // rows; writes, /health, /stats and the /api/reads query surface itself are
+  // never recorded. DNS-rebinding and rate-limit blocks stay unrecorded
+  // (hostile/unproven traffic is the denial auditor's domain, not a read).
+  app.use(createReadLedgerMiddleware(createReadLedgerStore(namespacesPath)));
+
   app.use(authMiddleware(authConfig));
 
   // 4. CORS middleware for UI development
@@ -568,6 +584,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 
   // Activity feed — returns recent memory activity across all namespaces
   app.use("/activity", createActivityRoutes);
+
+  // OBS-DUCKBRAIN-001: read-ledger query surface — aggregate the read ledger
+  // over an arbitrary historical ts window (queryable far older than process
+  // uptime because the ledger is durable on disk). Auth-gated like the
+  // sibling API mounts; scoped principals are confined to their grants.
+  app.use("/api/reads", createReadsRoutes());
 
   // Legacy API stubs (redirect to new endpoints)
   app.get("/api/tree", (req: Request, res: Response) => {
