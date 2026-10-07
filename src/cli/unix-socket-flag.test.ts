@@ -27,6 +27,7 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { removeTempDirSafely } from "../testing/race-safe-daemon";
 
 const cliPath = path.join(process.cwd(), "bin", "duckbrain.js");
 
@@ -87,11 +88,12 @@ function cleanup(dir: string, sock: string): void {
   } catch {
     // ignore
   }
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // ignore
-  }
+  // Bounded-retry teardown (race-safe-daemon DB-GAP-063): SIGTERM makes the
+  // daemon flush + commit, spawning git children that can still be writing
+  // inside the scratch dir when the single rmSync walks it — a bare rmSync
+  // throws ENOTEMPTY and reds the test from teardown. Cleanup of a temp dir
+  // must never red a test: retry briefly, then leave the orphan (harmless).
+  void removeTempDirSafely(dir);
 }
 
 describe("HTTP unix-socket flag (regression: flag collision)", () => {
