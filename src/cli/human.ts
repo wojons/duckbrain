@@ -1989,20 +1989,15 @@ async function tokenCommand(args: string[]): Promise<void> {
     if (authFileFlag !== undefined) break;
   }
   const { authFilePath, explicit } = resolveAuthStorePath(authFileFlag);
-  // A missing explicit --auth-file is FATAL — never fall back to prod
-  // (DB-GAP-043). The DUCKBRAIN_AUTH_FILE env override is a write-target
-  // redirect for scratch/judge workflows: a missing env path is CREATED on
-  // first mint (DOGFOOD-026 acceptance: DUCKBRAIN_AUTH_FILE=/tmp/scratch
-  // duckbrain token writes the scratch file only, prod untouched).
-  if (authFileFlag !== undefined && !fs.existsSync(authFilePath)) {
-    console.error(
-      `--auth-file not found: ${authFilePath}. An explicit auth store ` +
-        "must exist — refusing to fall back to the production " +
-        "~/.duckbrain/auth.json (DB-GAP-043).",
-    );
-    process.exitCode = 1;
-    return;
-  }
+  // DF-0925-06: an explicit --auth-file that does not exist is now CREATED
+  // (empty store, {"apiKeys":[]}) so a fresh agent can bootstrap a scratch
+  // store on first run — the explicit flag is a write-target, and it is the
+  // only path that runs here, so there is no prod-fallback risk. A missing
+  // parent directory is created too (mkdirSync recursive below). The parse
+  // guard above still fails loudly for an EXISTING but unparseable file.
+  // (DB-GAP-043's silent-fallback hazard applied to the DUCKBRAIN_AUTH_FILE
+  // env redirect racing prod, not to an explicitly-named absent target.)
+  // The HTTP serve path keeps its fatal refusal for a missing --auth-file.
 
   // Load or create auth config
   let authConfig: any = { apiKeys: [] };
