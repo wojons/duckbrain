@@ -491,6 +491,99 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     expect(res.status).toBe(422);
   });
 
+  // AUG-045: a declared primary key must be present on every insert row —
+  // a row stored with a null pk is unreachable via PATCH/DELETE (?pk=eq.<v>).
+
+  it("400s a POST omitting the declared primary key (AUG-045)", async () => {
+    const before = (
+      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
+    ).body.length;
+    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
+      body: { name: "pk-less", qty: 1, tags: null },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error).toContain("'id'");
+    expect(res.body.error).toContain("'widgets'");
+    // Zero rows inserted.
+    const after = (
+      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
+    ).body.length;
+    expect(after).toBe(before);
+  });
+
+  it("rejects a POST with an explicit null or empty-string primary key (AUG-045)", async () => {
+    // On this legacy integer-pk table the coercion layer rejects null/"" with
+    // 422 before the AUG-045 pk check; either way the row must NOT insert.
+    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
+      body: { id: null, name: "null-pk", qty: 1 },
+    });
+    expect([400, 422]).toContain(res.status);
+
+    const res2 = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
+      body: { id: "", name: "empty-pk", qty: 1 },
+    });
+    expect([400, 422]).toContain(res2.status);
+    const read = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?name=eq.null-pk`,
+    );
+    expect(read.body).toHaveLength(0);
+    const read2 = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?name=eq.empty-pk`,
+    );
+    expect(read2.body).toHaveLength(0);
+  });
+
+  it("rejects a batch where one row lacks the pk and inserts NONE of it (AUG-045)", async () => {
+    const before = (
+      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
+    ).body.length;
+    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
+      body: [
+        { id: 41, name: "good", qty: 1, tags: null },
+        { name: "bad", qty: 2, tags: null },
+      ],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    const read = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?id=eq.41`,
+    );
+    expect(read.body).toHaveLength(0);
+    const after = (
+      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
+    ).body.length;
+    expect(after).toBe(before);
+  });
+
+  it("still 201s a POST with the primary key present (AUG-045 unchanged)", async () => {
+    const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
+      body: { id: 42, name: "with-pk", qty: 1, tags: null },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ inserted: 1 });
+    const read = await httpRequest(
+      createApp(),
+      "GET",
+      `${BASE}/widgets?id=eq.42`,
+    );
+    expect(read.body).toHaveLength(1);
+  });
+
+  it("still 201s a POST to a table with no declared primary key (AUG-045 unchanged)", async () => {
+    const res = await httpRequest(createApp(), "POST", `${BASE}/lane_scores`, {
+      body: { model: "aug045", lane: "no-pk", score: 0.5, rank: 5 },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ inserted: 1 });
+  });
+
   it("appends positional rows to the positional table", async () => {
     const res = await httpRequest(createApp(), "POST", `${BASE}/lane_scores`, {
       body: { model: "glm-5.3", lane: "debug", score: 0.8, rank: 2 },

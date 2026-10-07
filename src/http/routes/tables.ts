@@ -471,6 +471,26 @@ function createTableRoutes(): Router {
       const coerced = rawRows.map((row) =>
         coerceRowAgainstDeclaration(declaration, row),
       );
+      // AUG-045: a row that omits (or nulls) the declared primary key would be
+      // stored with id:null and become unreachable via the API — PATCH/DELETE
+      // both require ?pk=eq.<value>. Validate ALL rows before any writer
+      // enqueue / append so a bad batch inserts nothing (no partial inserts).
+      if (declaration.primary) {
+        for (const row of coerced) {
+          const pkValue = row[declaration.primary];
+          if (
+            pkValue === undefined ||
+            pkValue === null ||
+            pkValue === ""
+          ) {
+            throw new ApiError(
+              `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
+              400,
+              "VALIDATION_ERROR",
+            );
+          }
+        }
+      }
       if (declaration.source === "schema.json") {
         // Fail closed on a failed DDL recovery and on an invalid on-disk
         // schema before accepting new generic-table work.
