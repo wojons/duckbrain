@@ -73,7 +73,7 @@ export function parseArgs(args: string[]): EmbeddingsArgs {
   return out;
 }
 
-function resolveNamespacePath(name: string | undefined): {
+export function resolveNamespacePath(name: string | undefined): {
   name: string;
   nsPath: string;
 } {
@@ -87,7 +87,12 @@ function resolveNamespacePath(name: string | undefined): {
   const root = resolveNamespacesPath();
   let nsPath = mapped ?? path.join(root, ns);
   if (!path.isAbsolute(nsPath)) {
-    nsPath = path.resolve(root, nsPath);
+    // GAP-063b: namespaceMappings values are written RELATIVE TO THE DUCKBRAIN
+    // ROOT ("namespaces/coding-hermes" — see git/remote.ts consumers), not
+    // relative to the namespaces dir. Resolving them against `root` produced
+    // <root>/namespaces/namespaces/<ns> and "Namespace not found" for every
+    // mapped namespace. Bare (unmapped) names still resolve against `root`.
+    nsPath = path.resolve(resolveDuckbrainRoot(), nsPath);
   }
   if (!fs.existsSync(nsPath)) {
     throw new Error(`Namespace '${ns}' not found at ${nsPath}`);
