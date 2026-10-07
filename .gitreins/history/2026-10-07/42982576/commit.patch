@@ -1,0 +1,659 @@
+commit bb9926cff964ab885e35e793e20a30fb17426153
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 23:07:52 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 23:11:28 2026 -0500
+
+    feat: S3-ALERT-001 — consecutive-failure alert gate for the S3 backup cron
+    
+    The DuckBrain S3 unified backup cron is a no_agent silent watchdog: each
+    run only reports ITSELF, so the 2026-10-03 outage (S3-GIT-007) stayed
+    broken 3+ days with nobody watching for consecutive failures. This adds
+    a stateful gate that counts them across runs.
+    
+    scripts/s3/s3-alert-gate.sh (new):
+    - usage: s3-alert-gate.sh <job-name> <exit-code> [state-dir]
+      (default state ~/.hermes/backups/s3-alert-state)
+    - exit 0 from the job resets that job's counter; non-zero increments it
+    - at S3_ALERT_THRESHOLD (default 3) consecutive failures fires ONE alert
+      per crossing; re-alerts every S3_REALERT_EVERY (default 8) failures
+      after the first so an ongoing outage never goes quiet forever
+    - alert mechanism (chosen after surveying the host): `hermes send` — the
+      hermes CLI's script-oriented pipe-to-platform subcommand; no LLM, no
+      agent loop, no running gateway needed for bot-token platforms, and its
+      exit code makes delivery success observable. On notifier failure a
+      clearly formatted ALERT line is appended to the fallback log
+      (~/.hermes/backups/s3-alerts.log) and the gate exits 2 so the cron
+      record shows the delivery failure. Every alert is logged there as an
+      audit trail.
+    - S3_ALERT_COMMAND overrides the notifier (tests mock it this way);
+      crash-safe state: flock on a dedicated lock file + atomic
+      tmp-rename counter writes
+    - exit codes: 0 processed, 2 alert fired but delivery failed,
+      64 usage error; never masks the caller's own exit code
+    
+    scripts/s3/duckbrain-s3-unified.sh:
+    - calls the gate on BOTH paths via an EXIT trap — exactly one gate call
+      per run, success or failure (uses the script's real exit status)
+    - TERM/INT signal traps record rc 143/130 so a timeout-killed cron run
+      (the native layer's 300s deadline has killed runs before) still
+      counts as a failure instead of dying silently before the gate
+    - S3_ALERT_GATE=0 disables the gate (tests / one-off manual runs)
+    - per-component last-error lines captured for the alert message
+    - SKIP (lock contention) exits before any trap is armed: no gate call
+    
+    scripts/s3/test-alert-gate.sh (new): hermetic harness (mktemp-only,
+    mock notifier, stub layers — no real S3/Telegram), 47 assertions:
+    threshold/reset cadence, re-alert-at-11 arithmetic, fallback + exit 2,
+    per-job isolation, 8-way concurrent counter integrity, env knobs,
+    real-wrapper wiring both paths, SKIP-arm no-gate-call, and the
+    SIGTERM/timeout path (trap records the kill through the gate).
+    
+    Verification: 47/47 PASS; RED-proven (wrapper reverted -> 10 wiring
+    FAILs; gate removed -> preflight exit 2; never-alert mutation -> 19
+    FAILs); shellcheck -S warning clean on all three scripts; existing
+    harnesses still green (test-fd-inheritance 14/14, test-push-backoff
+    85/85 — both drive the real wrapper).
+    
+    Addresses S3-ALERT-001.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ scripts/s3/duckbrain-s3-unified.sh |  61 +++++++-
+ scripts/s3/s3-alert-gate.sh        | 199 ++++++++++++++++++++++++++
+ scripts/s3/test-alert-gate.sh      | 285 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 544 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/s3/duckbrain-s3-unified.sh b/scripts/s3/duckbrain-s3-unified.sh
+index e301b78..afc37e1 100755
+--- a/scripts/s3/duckbrain-s3-unified.sh
++++ b/scripts/s3/duckbrain-s3-unified.sh
+@@ -41,6 +41,7 @@ SKIP_COMPONENTS="${DUCKBRAIN_S3_SKIP_COMPONENTS:-}"
+ GIT_MARKER="$STATE_DIR/s3-git-push.last"
+ ARCH_MARKER="$STATE_DIR/s3-weekly-archive.last"
+ GIT_PASS_STAMP="$STATE_DIR/s3-git-pass.last"
++GATE_STATE="$STATE_DIR/s3-alert-state"
+ 
+ # Single-instance lock: the cron fires every 15 min but a full git-history
+ # push + weekly tar can outlive the tick window; without flock two concurrent
+@@ -63,9 +64,62 @@ if ! flock -n 9; then
+   exit 0
+ fi
+ 
++# ---- S3-ALERT-001: consecutive-failure alert gate ---------------------------
++# The cron running this script is a no_agent silent watchdog: each run only
++# reports ITSELF, so the 2026-10-03 outage (S3-GIT-007) stayed silent for
++# 3+ days. The gate counts consecutive failures across runs (state under
++# GATE_STATE, flock-serialized) and fires a `hermes send` alert at the
++# S3_ALERT_THRESHOLD crossing, re-alerting every S3_REALERT_EVERY failures
++# while an outage drags on.
++#
++# EXIT/TERM/INT trap: a timeout-killed cron run (the sync layer's 300s
++# deadline has killed runs before) would otherwise die before reaching the
++# call_gate below and the failure would never be counted. The trap records
++# rc 143/130 for the killed run; because bash runs the EXIT trap after the
++# signal trap, exactly ONE gate call happens per run. The gate inherits
++# fd 9 — harmless: it locks its OWN per-job file, not this one.
++#   S3_ALERT_GATE=0   disables the gate entirely (tests/one-off runs)
++GATE="$SCRIPTS_DIR/s3-alert-gate.sh"
++GATE_RC=0
++
++on_run_killed() {
++  case "$1" in
++    TERM) GATE_RC=143 ;;
++    INT)  GATE_RC=130 ;;
++  esac
++  echo "duckbrain unified S3 backup KILLED by signal $1 — recording failure via alert gate" >&2
++}
++trap 'on_run_killed TERM' TERM
++trap 'on_run_killed INT' INT
++
++call_gate() { # one gate call per run, success or failure
++  # shellcheck disable=SC2086  # intentional unquoted: empty => omit arg
++  if [ "$GATE_RC" -ne 0 ] || [ -n "$failures" ]; then
++    set -- 1
++  else
++    set -- 0
++  fi
++  if [ -x "$GATE" ]; then
++    S3_ALERT_LAST_ERROR="${S3_ALERT_LAST_ERROR:-$LAST_ERROR_LINE}" \
++      "$GATE" duckbrain-s3-unified "$1" "$GATE_STATE"
++  else
++    echo "duckbrain unified S3 backup: alert gate missing ($GATE) — not counted" >&2
++  fi
++}
++trap call_gate EXIT
++
++if [ "${S3_ALERT_GATE:-1}" = "0" ]; then
++  trap - EXIT
++fi
++
+ NOW=$(date +%s)
+ failures=""
+ FAILED_NS=""
++LAST_ERROR_LINE=""
++
++record_last_error() { # keep the most recent non-blank stderr/stdout line for the alert gate
++  LAST_ERROR_LINE="${1##*$'\n'}"
++}
+ 
+ # skip_component <name> — true (0) when the component was explicitly skipped
+ skip_component() {
+@@ -82,8 +136,12 @@ skip_component() {
+ # holding the flock itself.
+ if skip_component native; then
+   echo "duckbrain unified S3 backup: native-sync SKIPPED (DUCKBRAIN_S3_SKIP_COMPONENTS=$SKIP_COMPONENTS)"
+-elif ! "$SCRIPTS_DIR/duckbrain-s3-native-sync.sh" 9>&-; then
++elif NATIVE_OUT="$("$SCRIPTS_DIR/duckbrain-s3-native-sync.sh" 9>&- 2>&1)"; then
++  if [ -n "$NATIVE_OUT" ]; then printf '%s\n' "$NATIVE_OUT"; fi
++else
++  if [ -n "$NATIVE_OUT" ]; then printf '%s\n' "$NATIVE_OUT"; fi
+   failures="$failures native-sync"
++  record_last_error "$NATIVE_OUT"
+ fi
+ 
+ # ---- 2. GIT-HISTORY PUSH — at most once per 24h ---------------------------
+@@ -113,6 +171,7 @@ elif [ $((NOW - LAST_GIT)) -ge 86400 ]; then
+     failures="$failures git-push"
+     ns="$(printf '%s\n' "$GIT_OUT" | sed -n 's/.*FAILED:\(.*\) (log:.*/\1/p' || true)"
+     FAILED_NS="$FAILED_NS$ns"
++    record_last_error "$GIT_OUT"
+   fi
+ fi
+ 
+diff --git a/scripts/s3/s3-alert-gate.sh b/scripts/s3/s3-alert-gate.sh
+new file mode 100755
+index 0000000..d13ebbd
+--- /dev/null
++++ b/scripts/s3/s3-alert-gate.sh
+@@ -0,0 +1,199 @@
++#!/usr/bin/env bash
++# s3-alert-gate.sh — consecutive-failure alert gate for S3 backup cron jobs
++# (S3-ALERT-001).
++#
++# Why this exists: the "DuckBrain S3 unified backup (15min)" cron is a
++# no_agent silent watchdog. When the S3 pipeline broke on 2026-10-03
++# (S3-GIT-007) it stayed broken for 3+ DAYS with no alert, because a cron
++# job only reports its own run — nobody counts consecutive failures across
++# runs. This gate does exactly that: the cron script calls it once at the
++# end of every run with the run's real exit code, and the gate keeps a
++# per-job counter of consecutive failures. It speaks only when the streak
++# crosses the threshold, so a single blip never pages anyone but a real
++# outage cannot go quiet again.
++#
++# Usage:
++#   s3-alert-gate.sh <job-name> <exit-code> [state-dir]
++#
++#   <job-name>   simple identifier, no '/', not dot-prefixed (one counter
++#                per job; e.g. duckbrain-s3-unified)
++#   <exit-code>  the job run's real exit status: 0 resets the counter,
++#                non-zero increments it
++#   [state-dir]  counter/lock directory (default
++#                ~/.hermes/backups/s3-alert-state)
++#
++# Exit codes:
++#   0   processed (counter reset / incremented / alert delivered or
++#       suppressed) — the gate never masks the caller's own exit code
++#   2   a threshold alert FIRED but delivery FAILED: the alert was written
++#       to the fallback log instead (see below) so the outage is still
++#       recorded on disk
++#   64  usage error (bad/missing arguments)
++#
++# Alert policy (S3-ALERT-001):
++#   - counter reaches S3_ALERT_THRESHOLD (default 3) consecutive failures
++#       -> fire ONE alert for that threshold crossing;
++#   - every S3_REALERT_EVERY (default 8) consecutive failures AFTER the
++#       first alert -> fire again (an ongoing outage must not go silent
++#       forever: at a 15-min cron cadence that is a re-alert every ~2h);
++#   - any successful run resets the counter to 0 and the cycle starts over.
++#
++# Alert mechanism — what was chosen and why:
++#   Primary: `hermes send` (a subcommand of the hermes CLI already on this
++#   host). It was built for exactly this shape — "pipe text from any shell
++#   script to any messaging platform Hermes is already configured for": no
++#   LLM call, no agent loop, and for bot-token platforms (Telegram) it does
++#   NOT need a running gateway. Its exit code tells us whether delivery
++#   actually succeeded, which is what makes the fallback honest.
++#   Fallback: when the notifier command fails (or times out), a clearly
++#   formatted ALERT line is appended to
++#   ~/.hermes/backups/s3-alerts.log (S3_ALERT_FALLBACK_LOG) and the gate
++#   exits 2, so the caller's cron record shows the alert-delivery failure.
++#   Every alert (delivered or fallen back) is appended to that same log as
++#   an audit trail.
++#
++# Env:
++#   S3_ALERT_THRESHOLD    consecutive failures before the first alert
++#                         (default 3; ~45 min at a 15-min cadence)
++#   S3_REALERT_EVERY      re-alert every N consecutive failures after the
++#                         first (default 8)
++#   S3_ALERT_COMMAND      notifier command template. Run via
++#                         `bash -c "<template>" s3-alert-gate <job> <count>
++#                         <last-error>` — i.e. "$1"=job name, "$2"=failure
++#                         count, "$3"=last error line. Override it in tests
++#                         to mock the notifier.
++#   S3_ALERT_TARGET       delivery target for the default notifier
++#                         (default: telegram = the fleet home channel)
++#   S3_ALERT_LAST_ERROR   optional: the caller's last error line, included
++#                         in the alert message
++#   S3_ALERT_FALLBACK_LOG audit/fallback log
++#                         (default ~/.hermes/backups/s3-alerts.log)
++#   S3_ALERT_TIMEOUT      notifier timeout in seconds (default 30)
++#
++# Crash safety: concurrent runs serialize on an flock(1) taken on a
++# dedicated <job>.lock file; the counter itself is written to a temp file
++# and atomically rename(2)d into place, so a crash mid-write can never
++# leave a torn count. (The lock must live on a file that is never replaced:
++# flock is bound to the inode, so mv-ing the locked file itself would let
++# the next waiter lock a different inode than the writer replaced — the
++# classic rename-under-flock race.)
++set -uo pipefail
++
++die_usage() {
++  echo "s3-alert-gate: $*" >&2
++  echo "usage: s3-alert-gate.sh <job-name> <exit-code> [state-dir]" >&2
++  exit 64
++}
++
++GATE_JOB="${1:-}"
++GATE_RC="${2:-}"
++STATE_DIR="${3-$HOME/.hermes/backups/s3-alert-state}"
++
++case "$GATE_JOB" in ''|*/*|.*) die_usage "job-name must be a simple non-empty name (no '/', not dot-prefixed), got '$GATE_JOB'" ;; esac
++case "$GATE_RC" in ''|*[!0-9]*) die_usage "exit-code must be a non-negative integer, got '$GATE_RC'" ;; esac
++[ -n "$STATE_DIR" ] || die_usage "state-dir must not be empty"
++
++# int_or <default> <value> — value when it is a clean non-negative int, else default
++int_or() {
++  case "$2" in ''|*[!0-9]*) printf '%s' "$1" ;; *) printf '%s' "$2" ;; esac
++}
++
++THRESHOLD="$(int_or 3 "${S3_ALERT_THRESHOLD:-}")"
++REALERT="$(int_or 8 "${S3_REALERT_EVERY:-}")"
++[ "$THRESHOLD" -ge 1 ] || THRESHOLD=1
++[ "$REALERT" -ge 1 ] || REALERT=1
++NOTIFY_TIMEOUT="$(int_or 30 "${S3_ALERT_TIMEOUT:-}")"
++
++LAST_ERROR="${S3_ALERT_LAST_ERROR:-(no error detail)}"
++FALLBACK_LOG="${S3_ALERT_FALLBACK_LOG:-$HOME/.hermes/backups/s3-alerts.log}"
++
++# Default notifier: hermes send -> fleet Telegram home channel. "$1".."$3"
++# are the positional args bash -c receives below (job, count, last error).
++S3_ALERT_COMMAND="${S3_ALERT_COMMAND:-hermes send --quiet --to ${S3_ALERT_TARGET:-telegram} \"\$1: \$2 consecutive S3 backup failures — last error: \$3\"}"
++
++if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
++  echo "s3-alert-gate: cannot create state dir $STATE_DIR" >&2
++  exit 2
++fi
++
++COUNT_FILE="$STATE_DIR/$GATE_JOB.count"
++LOCK_FILE="$STATE_DIR/$GATE_JOB.lock"
++TMP_FILE="$STATE_DIR/$GATE_JOB.count.tmp.$$"
++
++# --- serialize counter read/decide/write across concurrent runs --------------
++if ! exec 9>"$LOCK_FILE"; then
++  echo "s3-alert-gate: cannot open lock file $LOCK_FILE" >&2
++  exit 2
++fi
++if ! flock -w 10 9; then
++  echo "s3-alert-gate: could not acquire $LOCK_FILE within 10s" >&2
++  exit 2
++fi
++
++count=0
++if [ -f "$COUNT_FILE" ]; then
++  count="$(tr -d '[:space:]' < "$COUNT_FILE" 2>/dev/null)"
++  case "$count" in ''|*[!0-9]*) count=0 ;; esac
++fi
++
++save_count() { # atomic replace under the lock
++  if printf '%s\n' "$1" > "$TMP_FILE" 2>/dev/null && mv -f "$TMP_FILE" "$COUNT_FILE" 2>/dev/null; then
++    return 0
++  fi
++  rm -f "$TMP_FILE" 2>/dev/null
++  echo "s3-alert-gate: cannot write counter $COUNT_FILE" >&2
++  return 1
++}
++
++audit_log() { # best-effort audit/fallback line; never fails the gate by itself
++  printf '%s s3-alert-gate ALERT job=%s count=%s delivered=%s :: %s\n' \
++    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GATE_JOB" "$new" "$1" "$LAST_ERROR" >> "$FALLBACK_LOG" 2>/dev/null
++  return 0
++}
++
++deliver_alert() {
++  if command -v timeout >/dev/null 2>&1; then
++    timeout "$NOTIFY_TIMEOUT" bash -c "$S3_ALERT_COMMAND" s3-alert-gate "$GATE_JOB" "$new" "$LAST_ERROR"
++  else
++    bash -c "$S3_ALERT_COMMAND" s3-alert-gate "$GATE_JOB" "$new" "$LAST_ERROR"
++  fi
++}
++
++# --- success: reset the streak ------------------------------------------------
++if [ "$GATE_RC" -eq 0 ]; then
++  if save_count 0; then
++    echo "s3-alert-gate: job=$GATE_JOB rc=0 -> counter reset (was $count)"
++    exit 0
++  fi
++  exit 2
++fi
++
++# --- failure: increment and decide --------------------------------------------
++new=$((count + 1))
++want_alert=0
++if [ "$new" -eq "$THRESHOLD" ]; then
++  want_alert=1
++elif [ "$new" -gt "$THRESHOLD" ] && [ $(( (new - THRESHOLD) % REALERT )) -eq 0 ]; then
++  want_alert=1
++fi
++
++if [ "$want_alert" -eq 0 ]; then
++  if save_count "$new"; then
++    echo "s3-alert-gate: job=$GATE_JOB rc=$GATE_RC -> count=$new (below threshold $THRESHOLD, next re-alert at $((THRESHOLD + REALERT)))"
++    exit 0
++  fi
++  exit 2
++fi
++
++# --- threshold crossing / re-alert: fire exactly once per crossing -----------
++if deliver_alert; then
++  save_count "$new" || exit 2
++  audit_log "yes"
++  echo "s3-alert-gate: job=$GATE_JOB ALERT delivered (count=$new, threshold=$THRESHOLD, re-alert every $REALERT)"
++  exit 0
++else
++  save_count "$new" || exit 2
++  audit_log "no"
++  echo "s3-alert-gate: job=$GATE_JOB ALERT DELIVERY FAILED — line appended to $FALLBACK_LOG (count=$new)" >&2
++  exit 2
++fi
+diff --git a/scripts/s3/test-alert-gate.sh b/scripts/s3/test-alert-gate.sh
+new file mode 100755
+index 0000000..e839478
+--- /dev/null
++++ b/scripts/s3/test-alert-gate.sh
+@@ -0,0 +1,285 @@
++#!/usr/bin/env bash
++# test-alert-gate.sh — hermetic regression harness for the S3-ALERT-001
++# consecutive-failure alert gate (scripts/s3/s3-alert-gate.sh + its wiring
++# into scripts/s3/duckbrain-s3-unified.sh).
++#
++# It never touches real state, real Telegram, or real S3: every run gets a
++# fresh $(mktemp -d) scratch root, the notifier is a mock recording its
++# argv via S3_ALERT_COMMAND, and the unified-wrapper arms either skip all
++# layers (DUCKBRAIN_S3_SKIP_COMPONENTS=native,git,weekly) or run a stub
++# native layer — no real layer script is ever invoked.
++#
++# Arms:
++#   A1  usage errors rejected (missing/bad job, bad exit-code, bad state dir)
++#   A2  2 failures then 1 success -> counter resets to 0, no alert ever
++#   A3  3 consecutive failures -> EXACTLY one alert; failures 4-7 silent;
++#       8th -> second alert (re-alert cadence)
++#   A4  alert message carries job name + failure count + last error line
++#   A5  delivery failure -> alert appended to fallback log, gate exits 2,
++#       counter still advances; next crossing (count 8) fires again
++#   A6  independent per-job counters (two jobs, no cross-talk)
++#   A7  concurrent invocations (8 parallel gate calls) -> counter integrity
++#   A8  threshold/re-alert env knobs honored (threshold=2, re-alert=2)
++#   A9  unified wrapper wiring: success -> gate called with rc=0 (counter
++#       reset); failure (stub git layer) -> counter advances + alert at
++#       threshold; SKIP run (lock contention) -> NO gate call
++#   A10 SIGTERM/timeout path: stub native layer that sleeps, wrapper killed
++#       by `timeout -s TERM` -> SIGTERM trap records the failure through
++#       the gate (counter incremented, alert at threshold)
++#   A11 healthy run after failures: counter reset through the real wrapper
++#
++# Usage: bash scripts/s3/test-alert-gate.sh
++#   exit 0 = every assertion PASS, non-zero = at least one FAIL.
++# Requires: bash, flock, timeout (all present on this host).
++set -uo pipefail
++
++SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++GATE="$SELF_DIR/s3-alert-gate.sh"
++UNIFIED="$SELF_DIR/duckbrain-s3-unified.sh"
++for f in "$GATE" "$UNIFIED"; do
++  if [ ! -f "$f" ]; then echo "FAIL: missing $f"; exit 2; fi
++done
++command -v flock   >/dev/null 2>&1 || { echo "FAIL: flock not on PATH"; exit 2; }
++command -v timeout >/dev/null 2>&1 || { echo "FAIL: timeout not on PATH"; exit 2; }
++
++S="$(mktemp -d)"
++trap 'rm -rf "$S"' EXIT
++
++n_ok=0; n_bad=0
++ok() { printf 'PASS: %s\n' "$1"; n_ok=$((n_ok+1)); }
++no() { printf 'FAIL: %s\n' "$1"; n_bad=$((n_bad+1)); }
++assert_eq() { # <desc> <expected> <actual>
++  if [ "$2" = "$3" ]; then ok "$1 [$3]"; else no "$1 (expected '$2', got '$3')"; fi
++}
++
++# Mock notifier: records job/count/error to $MOCK_LOG (exported), exit code
++# selectable. The gate invokes it as:
++#   bash -c "$S3_ALERT_COMMAND" s3-alert-gate <job> <count> <last-error>
++MOCK_LOG="$S/mock-alerts.log"
++: > "$MOCK_LOG"
++# shellcheck disable=SC2089  # command template — run via `bash -c` by the gate, not by this shell
++MOCK_OK="printf '%s\t%s\t%s\n' \"\$1\" \"\$2\" \"\$3\" >> \"\$MOCK_LOG\""
++MOCK_FAIL="exit 7"
++
++fresh_state() { mkdir -p "$S/state"; }
++gate() { # gate <job> <rc> [state-dir]
++  local st="${3:-$S/state}"
++  S3_ALERT_COMMAND="$MOCK_OK" MOCK_LOG="$MOCK_LOG" \
++    bash "$GATE" "$1" "$2" "$st"
++}
++alert_lines() { wc -l < "$MOCK_LOG" | tr -d '[:space:]'; }
++reset_mock() { : > "$MOCK_LOG"; }
++
++# ---- A1 usage errors ---------------------------------------------------------
++fresh_state
++out="$(bash "$GATE" "" 1 "$S/state" 2>&1)";    [ $? -eq 64 ] && ok "A1a empty job name -> usage exit 64"    || no "A1a (out=$out)"
++out="$(bash "$GATE" "a/b" 1 "$S/state" 2>&1)"; [ $? -eq 64 ] && ok "A1b slash in job name -> usage exit 64" || no "A1b (out=$out)"
++out="$(bash "$GATE" "j" "x" "$S/state" 2>&1)"; [ $? -eq 64 ] && ok "A1c non-numeric exit-code -> usage exit 64" || no "A1c (out=$out)"
++out="$(bash "$GATE" "j" 1 "" 2>&1)";           [ $? -eq 64 ] && ok "A1d empty state-dir -> usage exit 64" || no "A1d (out=$out)"
++
++# ---- A2 reset path -----------------------------------------------------------
++fresh_state
++gate j 1 >/dev/null 2>&1
++gate j 1 >/dev/null 2>&1
++assert_eq "A2a two failures -> count file" "2" "$(cat "$S/state/j.count")"
++gate j 0 >/dev/null 2>&1
++assert_eq "A2b success resets counter" "0" "$(cat "$S/state/j.count")"
++assert_eq "A2c no alerts fired" "0" "$(alert_lines)"
++gate j 1 >/dev/null 2>&1
++assert_eq "A2d post-reset failure starts at 1" "1" "$(cat "$S/state/j.count")"
++
++# ---- A3 threshold + re-alert cadence ----------------------------------------
++fresh_state
++reset_mock
++gate k 1 >/dev/null 2>&1
++assert_eq "A3a count 1 below threshold" "1" "$(cat "$S/state/k.count")"
++assert_eq "A3a no alert at count 1" "0" "$(alert_lines)"
++gate k 1 >/dev/null 2>&1
++assert_eq "A3b count 2 below threshold" "2" "$(cat "$S/state/k.count")"
++assert_eq "A3b still no alert" "0" "$(alert_lines)"
++gate k 1 "$S/state" >/dev/null 2>&1
++assert_eq "A3c count reaches threshold" "3" "$(cat "$S/state/k.count")"
++assert_eq "A3c exactly one alert at threshold" "1" "$(alert_lines)"
++# re-alert every 8 consecutive failures AFTER the first: alerts at 3, 11, 19
++for i in 4 5 6 7 8 9 10; do gate k 1 "$S/state" >/dev/null 2>&1; done
++assert_eq "A3d failures 4-10 silent" "1" "$(alert_lines)"
++gate k 1 "$S/state" >/dev/null 2>&1
++assert_eq "A3e 11th failure -> second alert" "2" "$(alert_lines)"
++gate k 1 "$S/state" >/dev/null 2>&1
++assert_eq "A3f 12th failure silent again" "2" "$(alert_lines)"
++
++# ---- A4 message content -------------------------------------------------------
++fresh_state
++reset_mock
++for i in 1 2 3; do
++  S3_ALERT_LAST_ERROR="sync deadline exceeded after 300s" gate m 1 "$S/state" >/dev/null 2>&1
++done
++[ "$(alert_lines)" -eq 1 ] || no "A4 precondition: expected 1 alert, got $(alert_lines)"
++grep -q $'^m\t3\tsync deadline exceeded after 300s' "$MOCK_LOG" \
++  && ok "A4 alert message carries job+count+error" || no "A4 message content mismatch: $(cat "$MOCK_LOG")"
++
++# ---- A5 delivery failure -> fallback + exit 2 --------------------------------
++fresh_state
++reset_mock
++fb="$S/fallback.log"
++gate_fail() { # gate_fail <job> <rc> — notifier always fails
++  S3_ALERT_COMMAND="$MOCK_FAIL" S3_ALERT_FALLBACK_LOG="$fb" \
++    bash "$GATE" "$1" "$2" "$S/state" 2>/dev/null
++}
++gate_fail f 1 >/dev/null 2>&1
++gate_fail f 1 >/dev/null 2>&1
++rc=0; gate_fail f 1 >/dev/null 2>&1 || rc=$?
++assert_eq "A5a gate exits 2 on failed delivery" "2" "$rc"
++grep -q 'ALERT job=f count=3 delivered=no' "$fb" \
++  && ok "A5b fallback log got the ALERT line" || no "A5b fallback missing"
++assert_eq "A5c counter still advanced" "3" "$(cat "$S/state/f.count")"
++for i in 1 2 3 4 5 6 7; do gate_fail f 1 >/dev/null 2>&1; done   # counts 4..10 silent
++rc=0; gate_fail f 1 >/dev/null 2>&1 || rc=$?               # count 11 re-alerts
++assert_eq "A5d count-11 re-alert also exits 2 via fallback" "2" "$rc"
++assert_eq "A5e two fallback lines total" "2" "$(grep -c 'delivered=no' "$fb")"
++
++# ---- A6 independent per-job counters ----------------------------------------
++fresh_state
++reset_mock
++for i in 1 2 3; do gate x 1 >/dev/null 2>&1; done
++gate y 1 >/dev/null 2>&1
++assert_eq "A6a job x alerting" "1" "$(alert_lines)"
++assert_eq "A6b job y unaffected at count 1" "1" "$(cat "$S/state/y.count")"
++for i in 1 2; do gate y 1 >/dev/null 2>&1; done
++assert_eq "A6c job y alerts on its own schedule" "2" "$(alert_lines)"
++
++# ---- A7 concurrency ----------------------------------------------------------
++fresh_state
++reset_mock
++# shellcheck disable=SC2034  # i is a pure loop counter
++for i in 1 2 3 4 5 6 7 8; do
++  gate c 1 "$S/state" >/dev/null 2>&1 &
++done
++wait
++assert_eq "A7a 8 concurrent failures -> exactly 8" "8" "$(cat "$S/state/c.count")"
++assert_eq "A7b exactly one alert (at 3; 8 < next re-alert at 11)" "1" "$(alert_lines)"
++
++# ---- A8 env knobs ------------------------------------------------------------
++fresh_state
++reset_mock
++for i in 1 2; do S3_ALERT_THRESHOLD=2 gate t 1 "$S/state" >/dev/null 2>&1; done
++assert_eq "A8a threshold=2 alerts on 2nd failure" "1" "$(alert_lines)"
++for i in 3 4; do S3_ALERT_THRESHOLD=2 S3_REALERT_EVERY=2 gate t 1 "$S/state" >/dev/null 2>&1; done
++assert_eq "A8b re-alert every 2 (count 4)" "2" "$(alert_lines)"
++# shellcheck disable=SC2034  # i is a pure loop counter
++for i in 5 6; do S3_ALERT_THRESHOLD=2 S3_REALERT_EVERY=2 gate t 1 "$S/state" >/dev/null 2>&1; done
++assert_eq "A8c count 6 fires again" "3" "$(alert_lines)"
++
++# ---- A9 unified wrapper wiring ----------------------------------------------
++reset_mock
++W="$(mktemp -d)"
++mkdir -p "$W/state" "$W/scripts"
++cp "$GATE" "$W/scripts/s3-alert-gate.sh"
++chmod +x "$W/scripts/s3-alert-gate.sh"
++# Stub GIT layer used to fail the real wrapper deterministically: the git
++# component runs at most once per 24h — seeding its marker to 0 opens the
++# window on every run, and a stub exiting 1 makes the wrapper roll up
++# "FAILED components: git-push" and exit 1.
++cat > "$W/scripts/duckbrain-s3-daily.sh" <<'EOF'
++#!/usr/bin/env bash
++echo "stub git layer: push rejected (multiple bundles exists on server)" >&2
++exit 1
++EOF
++chmod +x "$W/scripts/duckbrain-s3-daily.sh"
++run_wrapper() { # run_wrapper <mode: ok|fail>
++  local mode="$1" rc=0
++  if [ "$mode" = fail ]; then
++    DUCKBRAIN_S3_STATE_DIR="$W/state" DUCKBRAIN_S3_SCRIPTS_DIR="$W/scripts" \
++    DUCKBRAIN_S3_SKIP_COMPONENTS="native,weekly" \
++    S3_ALERT_COMMAND="$MOCK_OK" MOCK_LOG="$MOCK_LOG" \
++      bash "$UNIFIED" >/dev/null 2>&1 || rc=$?
++  else
++    DUCKBRAIN_S3_STATE_DIR="$W/state" DUCKBRAIN_S3_SCRIPTS_DIR="$W/scripts" \
++    DUCKBRAIN_S3_SKIP_COMPONENTS="native,git,weekly" \
++    S3_ALERT_COMMAND="$MOCK_OK" MOCK_LOG="$MOCK_LOG" \
++      bash "$UNIFIED" >/dev/null 2>&1 || rc=$?
++  fi
++  return "$rc"
++}
++run_wrapper ok; assert_eq "A9a wrapper healthy run exits 0" "0" "$?"
++assert_eq "A9b success -> gate called with rc=0 (counter file reset)" "0" "$(cat "$W/state/s3-alert-state/duckbrain-s3-unified.count" 2>/dev/null || echo MISSING)"
++assert_eq "A9c no alerts after healthy run" "0" "$(alert_lines)"
++printf '2\n' > "$W/state/s3-alert-state/duckbrain-s3-unified.count"
++run_wrapper fail; assert_eq "A9d wrapper failing run exits 1 (gate masks nothing)" "1" "$?"
++assert_eq "A9e pre-seeded 2 + 1 failure -> alert through real wiring" "1" "$(alert_lines)"
++assert_eq "A9f counter advanced to 3 through the wrapper" "3" "$(cat "$W/state/s3-alert-state/duckbrain-s3-unified.count")"
++grep -q $'^duckbrain-s3-unified\t3\t' "$MOCK_LOG" \
++  && ok "A9g alert names the job and count" || no "A9g (mock log: $(cat "$MOCK_LOG"))"
++# SKIP run (lock contention) must NOT touch the gate
++printf '9\n' > "$W/state/s3-alert-state/duckbrain-s3-unified.count"
++reset_mock
++flock "$W/state/duckbrain-s3-unified.lock" -c 'sleep 3' &
++LOCKPID=$!
++sleep 0.3
++run_wrapper ok; assert_eq "A9h SKIP run exits 0" "0" "$?"
++assert_eq "A9i SKIP run does NOT call the gate (counter untouched)" "9" "$(cat "$W/state/s3-alert-state/duckbrain-s3-unified.count")"
++assert_eq "A9j no alert from the SKIP run" "0" "$(alert_lines)"
++wait "$LOCKPID" 2>/dev/null
++rm -rf "$W"
++
++# ---- A10 SIGTERM/timeout path through the REAL wrapper ----------------------
++reset_mock
++T="$(mktemp -d)"
++mkdir -p "$T/state" "$T/scripts"
++cp "$GATE" "$T/scripts/s3-alert-gate.sh"
++chmod +x "$T/scripts/s3-alert-gate.sh"
++# The wrapper's git leg opens its 24h window (fresh state) and will look for
++# duckbrain-s3-daily.sh — provide a healthy stub so the ONLY failure source
++# is the killed native leg (keeps the A10e expected error line deterministic).
++printf '#!/usr/bin/env bash\nexit 0\n' > "$T/scripts/duckbrain-s3-daily.sh"
++chmod +x "$T/scripts/duckbrain-s3-daily.sh"
++# Stub native layer: prints an error line, then sleeps — the wrapper runs it
++# (native NOT skipped). `timeout -s TERM 2` delivers TERM to the WRAPPER at
++# t=2s; its signal trap records the kill (GATE_RC=143). The stub exits on its
++# own at t=5s so the wrapper resumes, finishes, and its EXIT trap calls the
++# gate with a failure — exactly the production shape of a timeout-killed cron
++# (the layer's 300s deadline kill) without a 2h wait.
++cat > "$T/scripts/duckbrain-s3-native-sync.sh" <<'EOF'
++#!/usr/bin/env bash
++echo "stub native layer: sync deadline exceeded" >&2
++sleep 5
++exit 1
++EOF
++chmod +x "$T/scripts/duckbrain-s3-native-sync.sh"
++# shellcheck disable=SC2090  # same command-template pattern as MOCK_OK above
++export MOCK_LOG S3_ALERT_COMMAND="$MOCK_OK" MOCK_OK
++killed_run() { # one timeout-killed wrapper run; stdout to /dev/null
++  DUCKBRAIN_S3_STATE_DIR="$T/state" DUCKBRAIN_S3_SCRIPTS_DIR="$T/scripts" \
++    timeout -s TERM 2 bash "$UNIFIED" >/dev/null 2>&1
++  return 0 # the run's own rc is irrelevant; the gate records the kill
++}
++killed_run
++assert_eq "A10a killed run still recorded a failure (count=1)" "1" "$(cat "$T/state/s3-alert-state/duckbrain-s3-unified.count" 2>/dev/null || echo MISSING)"
++assert_eq "A10b first killed run alone stays silent (threshold 3)" "0" "$(alert_lines)"
++killed_run
++killed_run
++assert_eq "A10c third killed run -> threshold alert fired" "1" "$(alert_lines)"
++assert_eq "A10d counter 3 after three killed runs" "3" "$(cat "$T/state/s3-alert-state/duckbrain-s3-unified.count")"
++grep -q $'^duckbrain-s3-unified\t3\tstub native layer: sync deadline exceeded$' "$MOCK_LOG" \
++  && ok "A10e alert carries the killed run's last error line" || no "A10e (mock log: $(head -2 "$MOCK_LOG" 2>/dev/null))"
++rm -rf "$T"
++
++# ---- A11 reset through the real wrapper --------------------------------------
++reset_mock
++V="$(mktemp -d)"
++mkdir -p "$V/state" "$V/scripts"
++cp "$GATE" "$V/scripts/s3-alert-gate.sh"
++chmod +x "$V/scripts/s3-alert-gate.sh"
++mkdir -p "$V/state/s3-alert-state"
++printf '5\n' > "$V/state/s3-alert-state/duckbrain-s3-unified.count"
++DUCKBRAIN_S3_STATE_DIR="$V/state" DUCKBRAIN_S3_SCRIPTS_DIR="$V/scripts" \
++DUCKBRAIN_S3_SKIP_COMPONENTS="native,git,weekly" \
++S3_ALERT_COMMAND="$MOCK_OK" MOCK_LOG="$MOCK_LOG" \
++  bash "$UNIFIED" >/dev/null 2>&1
++assert_eq "A11 healthy run after failures resets counter to 0" "0" "$(cat "$V/state/s3-alert-state/duckbrain-s3-unified.count")"
++rm -rf "$V"
++
++# ---- summary -----------------------------------------------------------------
++printf '\n===== test-alert-gate: %s passed, %s failed =====\n' "$n_ok" "$n_bad"
++[ "$n_bad" -eq 0 ] || exit 1
++exit 0

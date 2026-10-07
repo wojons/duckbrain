@@ -1,0 +1,35 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 54974da..25d7176 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2417,3 +2417,30 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T02:50:20.845148+00:00'
+   completed_at: '2026-10-07T02:55:31.829550+00:00'
++- id: S3-ALERT-001
++  title: Consecutive-failure alert gate for S3 backup cron
++  criteria:
++  - scripts/s3/s3-alert-gate.sh + test-alert-gate.sh pass; unified wrapper wired on
++    success+failure; gate fires once per threshold crossing and re-alerts every 8;
++    crash-safe state
++  status: complete
++  created_at: '2026-10-07T03:32:43.371439+00:00'
++  completed_at: '2026-10-07T04:13:01.414998+00:00'
++- id: S3-DUP-BACKUP-001
++  title: Remove dormant legacy S3 backup script
++  criteria:
++  - Legacy ~/.hermes/scripts/s3-backup.sh (untracked, 565B) removed from host; its
++    content archived in the board close event; unified cron duckbrain-s3-unified.sh
++    confirmed still scheduled and healthy; no cron/systemd reference to s3-backup.sh
++    remains
++  status: complete
++  created_at: '2026-10-07T04:21:01.393033+00:00'
++  completed_at: '2026-10-07T04:21:14.696753+00:00'
++- id: DOC-10
++  title: Document the Host guard (--allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS)
++  criteria:
++  - grep -rn 'ALLOWED_HOSTS' docs README.md returns >=2 hits describing the flag,
++    env override, and empty-list semantics matching src/cli/http.ts behavior
++  status: complete
++  created_at: '2026-10-07T04:26:15.892687+00:00'
++  completed_at: '2026-10-07T04:34:33.308824+00:00'

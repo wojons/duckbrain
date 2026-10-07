@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index a9929ef..d1d2d72 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2372,3 +2372,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-06T22:18:22.719715+00:00'
+   completed_at: '2026-10-06T22:18:31.701390+00:00'
++- id: INT-CI-021
++  title: pidfile-isolation AC3 existsSync race
++  criteria:
++  - 'AC3 asserts helper daemon pidfile exists without polling; must be ready-deterministic:
++    poll-with-timeout or readiness signal, flake eliminated, file green over 5 consecutive
++    runs'
++  status: complete
++  created_at: '2026-10-06T22:55:17.000708+00:00'
++  completed_at: '2026-10-06T22:56:42.074597+00:00'

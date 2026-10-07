@@ -1,0 +1,347 @@
+commit cb55f40c084e54fbe238d358b8a0a0854f8a925b
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 20:20:58 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 20:20:58 2026 -0500
+
+    fix(sync): deduplicate audit ledger, store hash not full row (SCHED-GAP-1574)
+    
+    The DB-SUPA-5 `_audit/*.jsonl` change ledger stored a FULL row image for
+    every accepted write, duplicating each memory row next to its data-file
+    copy (~287 MB of fleet-wide audit bloat; scheduler namespace `_audit/`
+    alone was 784 MB).
+    
+    The accepted change record now persists a 64-hex SHA-256 `contentHash` of
+    the serialized data line (compact JSON + trailing newline, exactly the
+    bytes `serializeJsonlLine` appended) INSTEAD of the `row` image; the
+    schema becomes {key, contentHash, targetPath, tombstone, schemaVersion,
+    ts, ns, table, op, outcome, seq, principal}. The committed data file at
+    `targetPath` is the single copy of the row.
+    
+    Readers updated:
+    - `deriveCommitChanges` (realtime replay) resolves the row image from
+      `targetPath` at the child commit by content hash — the hash-replay
+      form of the target/data-mismatch guard; rewritten, moved, or
+      fabricated records fail closed (`CHANGELOG_CORRUPT`) as before.
+    - `DerivedChange` carries the resolved `row`, so the v1 SSE wire
+      contract (row always present, delete never row: null) is unchanged
+      for consumers; live consumers may equally fetch the row from
+      DuckBrain by `key`.
+    - Legacy row-image audit lines keep validating through the marker
+      fields (`isChangeRecordCandidate` accepts contentHash or the legacy
+      markers), so pre-existing ledgers replay without migration.
+    
+    Addresses SCHED-GAP-1574.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/http/realtime/hub.ts                |  6 ++-
+ src/http/realtime/replay.ts             | 80 ++++++++++++++++++++++-----------
+ src/http/routes/realtime-replay.test.ts |  6 ++-
+ src/serialization/audit.ts              |  7 +++
+ src/serialization/changeRecord.ts       | 27 +++++++++--
+ src/serialization/namespaceWriter.ts    | 15 +++++--
+ 6 files changed, 105 insertions(+), 36 deletions(-)
+
+diff --git a/src/http/realtime/hub.ts b/src/http/realtime/hub.ts
+index 9a5ec90..8902cd8 100644
+--- a/src/http/realtime/hub.ts
++++ b/src/http/realtime/hub.ts
+@@ -699,7 +699,11 @@ export class RealtimeHub {
+       namespace,
+       table: change.record.table,
+       op: change.record.op,
+-      row: change.record.row,
++      // SCHED-GAP-1574: replay resolved the row image from the committed
++      // data file and verified it against the ledger's content hash — the
++      // wire contract (row always present, delete never row: null) is
++      // unchanged for consumers.
++      row: change.row,
+       position: { commit: change.commit, ordinal: change.ordinal },
+       committedAt: change.committedAt,
+       tombstone: change.record.tombstone,
+diff --git a/src/http/realtime/replay.ts b/src/http/realtime/replay.ts
+index 0314d93..abbff53 100644
+--- a/src/http/realtime/replay.ts
++++ b/src/http/realtime/replay.ts
+@@ -37,6 +37,7 @@ import {
+ } from "../../serialization/auditLedger";
+ import {
+   ChangeRecordSchema,
++  contentHashFor,
+   declaredKeyColumns,
+   isChangeRecordCandidate,
+   isSafeRepoRelativePath,
+@@ -56,6 +57,12 @@ export interface DerivedChange {
+   commit: string;
+   ordinal: number;
+   record: ChangeRecord;
++  /**
++   * The row image, resolved from the committed data file at
++   * `record.targetPath` and verified against `record.contentHash`
++   * (SCHED-GAP-1574 — the ledger stores the hash, not the row).
++   */
++  row: unknown;
+   committedAt: string;
+ }
+ 
+@@ -213,18 +220,24 @@ function deepEqualJson(left: unknown, right: unknown): boolean {
+ }
+ 
+ /**
+- * Validate that the row image a change record points at really exists in the
+- * referenced data file at the SAME child ref — the `target/data mismatch`
+- * guard. The row was appended through `serializeJsonlLine`, so an exact line
+- * match is the common path; a structural compare keeps the check honest for
+- * a re-serialized file.
++ * SCHED-GAP-1574: resolve the row a change record points at by CONTENT HASH.
++ * The ledger carries `contentHash` (SHA-256 of the serialized data line —
++ * compact JSON + trailing newline — exactly the bytes the serializer
++ * appended), not a full row image. The committed data file at the SAME child
++ * ref is the source of truth: a line whose exact bytes hash to the recorded
++ * value must exist there, and its parsed form is the row image.
++ *
++ * Failure classes (all `CHANGELOG_CORRUPT` at the caller):
++ *   - `targetPath` escapes the namespace or is absent at the child ref;
++ *   - no line in the target hashes to `contentHash` (rewritten, moved, or
++ *     fabricated record).
+  */
+-function assertDataRowPresent(
++function resolveDataRowByHash(
+   repoDir: string,
+   commit: string,
+   targetPath: string,
+-  row: unknown,
+-): void {
++  contentHash: string,
++): { row: unknown } | null {
+   if (!isSafeRepoRelativePath(targetPath)) {
+     throw corrupt(
+       `change record targetPath '${targetPath}' escapes the namespace`,
+@@ -241,28 +254,18 @@ function assertDataRowPresent(
+       { commit, path: targetPath },
+     );
+   }
+-  const text = bytes.toString("utf-8");
+-  const target = JSON.stringify(row);
+-  if (target !== undefined) {
+-    for (const line of text.split("\n")) {
+-      if (line.trim() === "") continue;
+-      if (line === target) return;
+-    }
+-  }
+-  for (const line of text.split("\n")) {
++  for (const line of bytes.toString("utf-8").split("\n")) {
+     if (line.trim() === "") continue;
+-    let parsed: unknown;
++    if (contentHashFor(line) !== contentHash) continue;
+     try {
+-      parsed = JSON.parse(line);
++      return { row: JSON.parse(line) };
+     } catch {
++      // The bytes hash-match but do not parse: treat as unresolved and keep
++      // scanning — the caller fails closed if no parseable match exists.
+       continue;
+     }
+-    if (deepEqualJson(parsed, row)) return;
+   }
+-  throw corrupt(
+-    `change record row image is not present in committed target '${targetPath}'`,
+-    { commit, path: targetPath },
+-  );
++  return null;
+ }
+ 
+ /**
+@@ -361,7 +364,32 @@ export function deriveCommitChanges(
+         },
+       );
+     }
+-    const row = (entry as Record<string, unknown>).row;
++    // SCHED-GAP-1574: the ledger stores `contentHash` — the SHA-256 of the
++    // serialized data line — instead of a full row image. The committed data
++    // file at the SAME child ref is the source of truth: a line whose exact
++    // bytes hash to `record.contentHash` must exist there, and THAT parsed
++    // line is the row image. This is the hash-replay form of the
++    // target/data mismatch guard — a mutated, moved, or rewritten data row
++    // (or a fabricated hash) fails closed exactly like a row-image mismatch.
++    const resolved = resolveDataRowByHash(
++      repoDir,
++      childRef,
++      record.targetPath,
++      record.contentHash,
++    );
++    if (resolved === null) {
++      throw corrupt(
++        `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no data row ` +
++          `with the recorded content hash in committed target '${record.targetPath}'`,
++        {
++          commit: childRef,
++          parent: parentRef,
++          path: `${AUDIT_DIR}/${added.segment}`,
++          line: added.line,
++        },
++      );
++    }
++    const row = resolved.row;
+     if (row === undefined || row === null) {
+       throw corrupt(
+         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no row image`,
+@@ -408,11 +436,11 @@ export function deriveCommitChanges(
+       }
+     }
+ 
+-    assertDataRowPresent(repoDir, childRef, record.targetPath, row);
+     changes.push({
+       commit: childRef,
+       ordinal: changes.length + 1,
+       record,
++      row,
+       committedAt,
+     });
+   }
+diff --git a/src/http/routes/realtime-replay.test.ts b/src/http/routes/realtime-replay.test.ts
+index 983bd6d..067a0af 100644
+--- a/src/http/routes/realtime-replay.test.ts
++++ b/src/http/routes/realtime-replay.test.ts
+@@ -368,8 +368,10 @@ describe("DB-SUPA-5 committed replay", () => {
+       );
+       const lines = fs.readFileSync(segment, "utf-8").split("\n");
+       const first = JSON.parse(lines[0]) as Record<string, unknown>;
+-      (first.row as Record<string, unknown>).embedding_text =
+-        "rewritten in place";
++      // SCHED-GAP-1574: the ledger carries contentHash, not the row image —
++      // so the mutation targets the digest itself, keeping the line valid
++      // JSON while only the parent-prefix invariant can catch it.
++      first.contentHash = "f".repeat(64);
+       lines[0] = JSON.stringify(first);
+       fs.writeFileSync(segment, lines.join("\n"), "utf-8");
+ 
+diff --git a/src/serialization/audit.ts b/src/serialization/audit.ts
+index 8bf3c6a..7302170 100644
+--- a/src/serialization/audit.ts
++++ b/src/serialization/audit.ts
+@@ -20,6 +20,13 @@ export const AuditEntrySchema = z.object({
+   row: z.unknown().optional(),
+   key: z.record(z.string(), z.unknown()).optional(),
+   targetPath: z.string().min(1).optional(),
++  /**
++   * SCHED-GAP-1574: the audit ledger's content digest. Present (as a 64-hex
++   * SHA-256 of the serialized data line) on every change record the
++   * serializer appends for an accepted write. Legacy rows and denial rows
++   * omit it.
++   */
++  contentHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+   tombstone: z.boolean().optional(),
+   schemaVersion: z.number().int().positive().optional(),
+ });
+diff --git a/src/serialization/changeRecord.ts b/src/serialization/changeRecord.ts
+index abf3e04..d574e9b 100644
+--- a/src/serialization/changeRecord.ts
++++ b/src/serialization/changeRecord.ts
+@@ -22,6 +22,7 @@
+  */
+ 
+ import fs from "fs";
++import { createHash } from "crypto";
+ import path from "path";
+ import { z } from "zod";
+ 
+@@ -45,6 +46,17 @@ export const CHANGE_RECORD_MARKERS = [
+   "schemaVersion",
+ ] as const;
+ 
++/**
++ * SHA-256 hex of the serialized data line the record's `targetPath` points at
++ * (the exact bytes `serializeJsonlLine` appended — compact JSON + `\n`).
++ * SCHED-GAP-1574: the audit ledger stores the hash INSTEAD of the full row
++ * image; consumers that need the row read it from `targetPath` at the child
++ * commit (replay) or live from DuckBrain.
++ */
++export function contentHashFor(line: string): string {
++  return createHash("sha256").update(line, "utf-8").digest("hex");
++}
++
+ export const ChangeRecordSchema = z.object({
+   ts: z.string().min(1),
+   ns: z.string().min(1),
+@@ -54,12 +66,16 @@ export const ChangeRecordSchema = z.object({
+   outcome: z.literal("accepted"),
+   /** Internal process-local serializer sequence — never a cursor. */
+   seq: z.number().int().positive().optional(),
+-  /** Post-operation row image (insert/update) or appended tombstone (delete). */
+-  row: z.unknown(),
+-  /** Every declared key column and its value. */
+-  key: z.record(z.string(), z.unknown()),
+   /** Namespace-relative physical data JSONL path the row was appended to. */
+   targetPath: z.string().min(1),
++  /**
++   * SHA-256 of the serialized data line at `targetPath` — the compact-JSON
++   * row image plus its trailing newline, exactly the bytes the serializer
++   * appended to the data file.
++   */
++  contentHash: z.string().regex(/^[0-9a-f]{64}$/),
++  /** Every declared key column and its value. */
++  key: z.record(z.string(), z.unknown()),
+   tombstone: z.boolean(),
+   /** Declared table schema version (`1` for the `memories` compatibility entry). */
+   schemaVersion: z.number().int().positive(),
+@@ -72,6 +88,9 @@ export function isChangeRecordCandidate(
+   entry: Record<string, unknown>,
+ ): boolean {
+   if (entry.outcome !== "accepted") return false;
++  // SCHED-GAP-1574: new-format change records are identified by contentHash;
++  // legacy row-image records keep validating through the other markers.
++  if (typeof entry.contentHash === "string") return true;
+   return CHANGE_RECORD_MARKERS.some((field) => entry[field] !== undefined);
+ }
+ 
+diff --git a/src/serialization/namespaceWriter.ts b/src/serialization/namespaceWriter.ts
+index 00a44c8..d890cba 100644
+--- a/src/serialization/namespaceWriter.ts
++++ b/src/serialization/namespaceWriter.ts
+@@ -33,6 +33,7 @@ import {
+ } from "./auditLedger";
+ import { invalidateKeysCache } from "../keys/keyListCache";
+ import {
++  contentHashFor,
+   declaredSchemaVersion,
+   keyMaterialFor,
+   missingKeyColumns,
+@@ -212,18 +213,25 @@ function notifyCommit(namespace: string): void {
+ 
+ /**
+  * Build the DB-SUPA-5 accepted change record: the SUPA-2 audit row plus the
+- * operation, table, row image/tombstone, declared key material, physical
+- * `targetPath`, and declared `schemaVersion` a later replay needs.
++ * operation, table, declared key material, physical `targetPath`, declared
++ * `schemaVersion`, and — SCHED-GAP-1574 — the SHA-256 `contentHash` of the
++ * serialized data line. The ledger deliberately does NOT carry a full row
++ * image: the committed data file at `targetPath` is the single copy of the
++ * row (the audit ledger previously duplicated it, ~287 MB across the fleet).
++ * Replay resolves the row from `targetPath` at the child commit and verifies
++ * it against `contentHash`; live consumers fetch the row from DuckBrain when
++ * they need it.
+  */
+ function changeRecordFor(
+   namespacePath: string,
+   request: WriteRequest,
+   audit: AuditEntry,
+   targetPath: string,
++  dataLine: string | undefined,
+ ): AuditEntry {
+   return {
+     ...audit,
+-    row: request.record,
++    contentHash: dataLine === undefined ? "" : contentHashFor(dataLine),
+     key: keyMaterialFor(namespacePath, request.table, request.record),
+     targetPath,
+     tombstone: request.op === "delete",
+@@ -958,6 +966,7 @@ export class NamespaceWriter implements AuditSink {
+           physical,
+           item.audit,
+           targetPath,
++          dataEntry?.line,
+         );
+         const line = serializeJsonlLine(change);
+         if (line !== null) auditLines.push(line);

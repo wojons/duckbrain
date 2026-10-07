@@ -1,0 +1,1412 @@
+commit d88a2b8aab3720ee7b174dac7456fe8ec01f19c4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 21:36:30 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 21:36:30 2026 -0500
+
+    feat(http): per-route read ledger + query endpoint (OBS-DUCKBRAIN-001)
+    
+    Reads were invisible — writes have SUPA-2 _audit ledgers and the server
+    denial ledger, but nothing recorded a query. Additive, JSONL-doctrine
+    observability (no SQLite):
+    
+    - src/http/readLedger.ts: durable append-only JSONL ledger under
+      .duckbrain-audit/reads.jsonl. Row shape {ts, route, method, ns, status,
+      dur_ms}; route is a NORMALIZED TEMPLATE ("GET /api/memories/key/:key"),
+      so real key/id/ns values, query strings, tokens and content never reach
+      the ledger. Rotation seals the active segment into zero-padded monotonic
+      reads.NNNN.jsonl segments (auditLedger.ts basis) instead of a single .1
+      slot — a two-rotation scenario loses no rows by construction. Reads
+      traverse sealed segments oldest-first, then the active file; a torn line
+      is counted (skipped_malformed) and skipped, never fatal. Appends chain
+      on a serialized promise tail (the denial-auditor pattern) and failures
+      are logged + swallowed, so telemetry can never break a served response.
+    - src/http/middleware/readLedger.ts: GET/HEAD-only middleware recording
+      exactly the documented read routes (memories, keys, namespaces, ns
+      tables, activity, events stats); writes, /health, /stats, unknown
+      routes, the realtime SSE stream and the /api/reads surface itself are
+      never recorded (no self-recording). Mounted BEFORE authMiddleware:
+      authMiddleware answers 401 without calling next(), so a ledger mounted
+      after it would never see an auth-failed read; the middleware uses only
+      path/method/query, never the principal, so mounting early is safe.
+    - src/http/routes/reads.ts: GET /api/reads?from=&to=&route=&ns= —
+      aggregates the durable ledger over an arbitrary historical window
+      (inclusive epoch-ms bounds; a window entirely older than process uptime
+      answers from disk). Auth-gated like sibling mounts; scoped principals
+      are confined to their grants (DB-GAP-062 doctrine: ungranted ns rows
+      excluded, null-ns rows visible); bad params are 400 VALIDATION_ERROR,
+      never a silently narrowed window. The response carries files_read and
+      skipped_malformed so ledger coverage gaps stay visible.
+    
+    Tests: unit (append/read-back/rotation/normalization/no-secrets),
+    integration over the real createHttpServer app (window including the
+    requests; acceptance window OLDER than process uptime; writes/health/
+    stats/unknown produce no rows; auth-failed reads recorded with 401;
+    real key values never appear in the ledger file), plus the barrel
+    export assertion. Acceptance: pnpm tsc --noEmit clean, pnpm
+    build:cli + pnpm build clean, targeted suites green.
+    
+    ch:trace row=OBS-DUCKBRAIN-001 test=src/http/readLedger.test.ts
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http.ts                         |  22 ++
+ src/http/middleware/readLedger.ts       |  74 ++++++
+ src/http/readLedger.integration.test.ts | 294 +++++++++++++++++++++++
+ src/http/readLedger.test.ts             | 368 +++++++++++++++++++++++++++++
+ src/http/readLedger.ts                  | 402 ++++++++++++++++++++++++++++++++
+ src/http/routes/index.test.ts           |   2 +
+ src/http/routes/index.ts                |   2 +
+ src/http/routes/reads.ts                | 112 +++++++++
+ 8 files changed, 1276 insertions(+)
+
+diff --git a/src/cli/http.ts b/src/cli/http.ts
+index 1ae4828..407d76f 100644
+--- a/src/cli/http.ts
++++ b/src/cli/http.ts
+@@ -55,6 +55,9 @@ import {
+ } from "../http/routes/realtime.js";
+ import { createUsersRoutes } from "../http/routes/users.js";
+ import { createActivityRoutes } from "../http/routes/activity.js";
++import { createReadsRoutes } from "../http/routes/reads.js";
++import { createReadLedgerStore } from "../http/readLedger.js";
++import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
+ import path from "path";
+ import fs from "fs";
+ import os from "os";
+@@ -474,6 +477,19 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
+   setSerializerAuthorizationHook((request) =>
+     authorizeTableAccess(request.principal, request.ns, request.table, "write"),
+   );
++
++  // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
++  // so an auth-FAILED read is recorded too — authMiddleware answers 401 and
++  // never calls next(), so a ledger mounted after it would see nothing. The
++  // middleware is safe here: classification is path/method-only, the namespace
++  // comes from the request's own explicit scope (?namespace= or path param),
++  // and the append is non-blocking — a ledger failure can never break a
++  // served response. Only GET/HEAD on the documented read routes produce
++  // rows; writes, /health, /stats and the /api/reads query surface itself are
++  // never recorded. DNS-rebinding and rate-limit blocks stay unrecorded
++  // (hostile/unproven traffic is the denial auditor's domain, not a read).
++  app.use(createReadLedgerMiddleware(createReadLedgerStore(namespacesPath)));
++
+   app.use(authMiddleware(authConfig));
+ 
+   // 4. CORS middleware for UI development
+@@ -569,6 +585,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
+   // Activity feed — returns recent memory activity across all namespaces
+   app.use("/activity", createActivityRoutes);
+ 
++  // OBS-DUCKBRAIN-001: read-ledger query surface — aggregate the read ledger
++  // over an arbitrary historical ts window (queryable far older than process
++  // uptime because the ledger is durable on disk). Auth-gated like the
++  // sibling API mounts; scoped principals are confined to their grants.
++  app.use("/api/reads", createReadsRoutes());
++
+   // Legacy API stubs (redirect to new endpoints)
+   app.get("/api/tree", (req: Request, res: Response) => {
+     res.redirect(301, "/api/keys?prefix=" + (req.query.prefix || "/"));
+diff --git a/src/http/middleware/readLedger.ts b/src/http/middleware/readLedger.ts
+new file mode 100644
+index 0000000..a9deff8
+--- /dev/null
++++ b/src/http/middleware/readLedger.ts
+@@ -0,0 +1,74 @@
++/**
++ * OBS-DUCKBRAIN-001 — read-ledger middleware.
++ *
++ * Mounted once, BEFORE any route, with the server's durable ledger store
++ * injected by the assembler (src/cli/http.ts). Every request is classified
++ * through normalizeReadRoute (the single read-path truth table); non-read
++ * traffic (writes, /health, /stats, unknown routes) returns null and costs
++ * one regex pass — nothing is appended. The /api/reads query surface is NOT
++ * recorded (no self-recursion; see readLedger.ts).
++ *
++ * The append never blocks the response: it is queued onto the store's
++ * serialized tail and its failure is logged and swallowed, mirroring the
++ * denial auditor's non-blocking contract (src/serialization/audit.ts) — a
++ * telemetry failure must never fail a served read. The row's status and
++ * duration are captured on res "finish" (response fully sent), so the ts of a
++ * row is the request's COMPLETION time.
++ */
++
++import type { NextFunction, Request, Response } from "express";
++import {
++  normalizeReadRoute,
++  readRowNamespace,
++  type ReadLedgerStore,
++} from "../readLedger";
++
++/**
++ * True when the request targets the read-ledger query surface itself
++ * (any method — a POST would also be a ledger-surface hit and must not be
++ * mistaken for a recordable read).
++ */
++export function isReadsQuerySurface(rawPath: string): boolean {
++  const pathname = rawPath.split("?")[0];
++  const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
++  return /^\/api\/reads$/.test(trimmed);
++}
++
++export function createReadLedgerMiddleware(
++  store: ReadLedgerStore,
++): (req: Request, res: Response, next: NextFunction) => void {
++  return (req: Request, res: Response, next: NextFunction): void => {
++    const method = req.method;
++    const rawPath = req.originalUrl || req.url || "";
++    if (isReadsQuerySurface(rawPath)) {
++      next();
++      return;
++    }
++    const route = normalizeReadRoute(method, rawPath);
++    if (route === null) {
++      next();
++      return;
++    }
++    const ns = readRowNamespace(rawPath, req.query as Record<string, unknown>);
++    const startedAt = process.hrtime.bigint();
++    res.on("finish", () => {
++      const durMs =
++        startedAt === null
++          ? 0
++          : Number(process.hrtime.bigint() - startedAt) / 1_000_000;
++      store
++        .append({
++          ts: new Date().toISOString(),
++          route,
++          method: method.toUpperCase(),
++          ns,
++          status: res.statusCode,
++          dur_ms: Math.max(0, Math.round(durMs)),
++        })
++        .catch(() => {
++          /* logged + swallowed inside the store's tail */
++        });
++    });
++    next();
++  };
++}
+diff --git a/src/http/readLedger.integration.test.ts b/src/http/readLedger.integration.test.ts
+new file mode 100644
+index 0000000..8ad6e3f
+--- /dev/null
++++ b/src/http/readLedger.integration.test.ts
+@@ -0,0 +1,294 @@
++/**
++ * OBS-DUCKBRAIN-001 integration tests: read ledger wired into the real
++ * createHttpServer() app.
++ *
++ * Proves the full loop end to end:
++ *  1. GET requests through the app produce ledger rows;
++ *  2. GET /api/reads over a window INCLUDING those requests reports them —
++ *     and over a purely HISTORICAL window (older than process uptime, seeded
++ *     directly into the durable ledger) they are counted too, which is the
++ *     board row's acceptance criterion;
++ *  3. write paths (POST/PUT/DELETE), /health, /stats, unknown routes and the
++ *     /api/reads surface itself produce NO rows;
++ *  4. auth failures on read paths ARE recorded (status code visible);
++ *  5. normalized rows never leak the real key value.
++ */
++
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import { createHttpServer } from "../cli/http";
++import { createServer, Server } from "http";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import {
++  READS_DIR,
++  READS_FILE,
++  flushReadLedgerForTests,
++} from "./readLedger";
++
++let server: Server;
++let port: number;
++let scratchDir: string;
++let oldNamespacesPath: string | undefined;
++
++interface HttpResponse {
++  status: number;
++  body: any;
++  text: string;
++}
++
++function httpRequest(
++  method: string,
++  p: string,
++  body?: unknown,
++): Promise<HttpResponse> {
++  return new Promise((resolve, reject) => {
++    const http = require("http");
++    const options: any = {
++      hostname: "127.0.0.1",
++      port,
++      path: p,
++      method,
++      headers: {
++        Host: "localhost",
++        "Content-Type": "application/json",
++      },
++    };
++    const req = http.request(options, (res: any) => {
++      let data = "";
++      res.on("data", (chunk: Buffer) => {
++        data += chunk.toString();
++      });
++      res.on("end", () => {
++        try {
++          resolve({ status: res.statusCode, body: JSON.parse(data), text: data });
++        } catch {
++          resolve({ status: res.statusCode, body: data, text: data });
++        }
++      });
++    });
++    req.on("error", reject);
++    if (body !== undefined) req.write(JSON.stringify(body));
++    req.end();
++  });
++}
++
++/** Await the ledger tail AND one macrotask turn so "finish" handlers ran. */
++async function settle(): Promise<void> {
++  await flushReadLedgerForTests();
++  await new Promise((resolve) => setImmediate(resolve));
++}
++
++describe("OBS-DUCKBRAIN-001: read ledger over the real HTTP app", () => {
++  beforeAll(async () => {
++    scratchDir = fs.mkdtempSync(
++      path.join(os.tmpdir(), "duckbrain-obs-readledger-"),
++    );
++    oldNamespacesPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
++    process.env.DUCKBRAIN_NAMESPACES_PATH = scratchDir;
++
++    const app = createHttpServer({ authType: "none" });
++    server = createServer(app);
++    await new Promise<void>((resolve) => {
++      server.listen(0, "127.0.0.1", () => {
++        const addr = server.address();
++        if (addr && typeof addr !== "string") port = addr.port;
++        resolve();
++      });
++    });
++  });
++
++  afterAll(async () => {
++    if (server) {
++      await new Promise<void>((resolve) => server.close(() => resolve()));
++    }
++    if (oldNamespacesPath === undefined) {
++      delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++    } else {
++      process.env.DUCKBRAIN_NAMESPACES_PATH = oldNamespacesPath;
++    }
++    if (scratchDir) {
++      fs.rmSync(scratchDir, { recursive: true, force: true });
++    }
++  });
++
++  it("records GET reads and answers a window query that includes them", async () => {
++    const before = new Date(Date.now() - 60_000).toISOString();
++    await httpRequest("GET", "/api/memories");
++    await httpRequest("GET", "/api/keys?prefix=/alpha");
++    await httpRequest("GET", "/activity");
++    await settle();
++    const after = new Date(Date.now() + 60_000).toISOString();
++
++    const { status, body } = await httpRequest(
++      "GET",
++      `/api/reads?from=${encodeURIComponent(before)}&to=${encodeURIComponent(after)}`,
++    );
++    expect(status).toBe(200);
++    expect(body.total).toBe(3);
++    const routes = new Map(body.routes.map((r: any) => [r.route, r.count]));
++    expect(routes.get("GET /api/memories")).toBe(1);
++    expect(routes.get("GET /api/keys")).toBe(1);
++    expect(routes.get("GET /activity")).toBe(1);
++    // the query itself must not have been recorded
++    expect(routes.has("GET /api/reads")).toBe(false);
++  });
++
++  it("acceptance: a query over a window OLDER than process uptime counts seeded history", async () => {
++    // Seed the DURABLE ledger directly with rows dated long before this
++    // process started (uptime is seconds old; the window is 2026-01).
++    const dir = path.join(scratchDir, READS_DIR);
++    fs.mkdirSync(dir, { recursive: true });
++    const historical = [
++      {
++        ts: "2026-01-15T08:00:00.000Z",
++        route: "GET /api/memories/key/:key",
++        method: "GET",
++        ns: null,
++        status: 200,
++        dur_ms: 21,
++      },
++      {
++        ts: "2026-01-15T09:00:00.000Z",
++        route: "GET /api/memories/key/:key",
++        method: "GET",
++        ns: "research",
++        status: 404,
++        dur_ms: 3,
++      },
++      {
++        ts: "2026-02-20T12:00:00.000Z",
++        route: "GET /api/namespaces",
++        method: "GET",
++        ns: null,
++        status: 200,
++        dur_ms: 1,
++      },
++    ];
++    fs.writeFileSync(
++      path.join(dir, READS_FILE),
++      historical.map((r) => JSON.stringify(r)).join("\n") + "\n",
++      "utf-8",
++    );
++
++    const { status, body } = await httpRequest(
++      "GET",
++      "/api/reads?from=2026-01-01T00:00:00.000Z&to=2026-01-31T00:00:00.000Z",
++    );
++    expect(status).toBe(200);
++    expect(body.total).toBe(2);
++    const route = body.routes.find((r: any) => r.route === "GET /api/memories/key/:key");
++    expect(route.count).toBe(2);
++    expect(route.statuses).toEqual({ "200": 1, "404": 1 });
++
++    // …and the route filter narrows the same historical window.
++    const filtered = await httpRequest(
++      "GET",
++      `/api/reads?from=2026-01-01T00:00:00.000Z&to=2026-01-31T00:00:00.000Z&route=${encodeURIComponent("GET /api/namespaces")}`,
++    );
++    expect(filtered.status).toBe(200);
++    expect(filtered.body.total).toBe(0);
++  });
++
++  it("write paths and non-read routes produce NO rows", async () => {
++    // POST /api/memories with a deliberately invalid body — the write REFUSES
++    // (400) and must still not be recorded as a read. DELETE on a read path
++    // is not a registered route (405 from Express 5's method mismatch).
++    const post = await httpRequest("POST", "/api/memories", {});
++    expect(post.status).toBe(400);
++    const del = await httpRequest("DELETE", "/api/memories");
++    // Express 5 answers the method mismatch 404 (this router's chain) —
++    // either way it is NOT a GET/HEAD and must produce no row.
++    expect([404, 405]).toContain(del.status);
++
++    const health = await httpRequest("GET", "/health");
++    expect([200, 503]).toContain(health.status);
++    const stats = await httpRequest("GET", "/stats");
++    expect(stats.status).toBe(200);
++    const unknown = await httpRequest("GET", "/api/does-not-exist");
++    expect(unknown.status).toBe(404);
++    const compaction = await httpRequest("GET", "/api/compaction");
++    expect([200, 404]).toContain(compaction.status);
++    const readsQuery = await httpRequest("GET", "/api/reads");
++    expect(readsQuery.status).toBe(200);
++
++    await settle();
++
++    // Snapshot the ledger BEFORE (already established) and assert the whole
++    // non-read exercise added exactly zero rows.
++    const before = (await httpRequest("GET", "/api/reads")).body.total;
++    const post2 = await httpRequest("POST", "/api/memories", {});
++    expect(post2.status).toBe(400);
++    await httpRequest("GET", "/health");
++    await httpRequest("GET", "/stats");
++    await httpRequest("GET", "/api/unknown");
++    await httpRequest("GET", "/api/reads");
++    await settle();
++    const after = (await httpRequest("GET", "/api/reads")).body.total;
++    expect(after).toBe(before);
++  });
++
++  it("auth failures on a read path are recorded with their 401 status", async () => {
++    await httpRequest("GET", "/api/memories");
++    await settle();
++    const before = (await httpRequest("GET", "/api/reads")).body.total;
++
++    // This app is auth=none, so drive the auth-failure path through an
++    // apikey app of our own: a VALID store (one writer token) so the server
++    // boots, then a request with a WRONG key → authenticate → 401.
++    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-obs-auth-"));
++    const authFile = path.join(dir, "auth.json");
++    const { hashApiKey } = await import("../auth/storeSchema.js");
++    fs.writeFileSync(
++      authFile,
++      JSON.stringify({
++        apiKeys: [
++          {
++            keyHash: hashApiKey("9".repeat(32)),
++            name: "ledger-test-writer",
++            roles: ["writer"],
++            namespaces: ["default"],
++          },
++        ],
++      }),
++    );
++    const { createHttpServer: createAuthedServer } = await import(
++      "../cli/http.js"
++    );
++    const authedApp = createAuthedServer({
++      authType: "apikey",
++      authFile,
++      namespacesPath: scratchDir,
++    });
++    const authedServer = createServer(authedApp);
++    await new Promise<void>((resolve) => authedServer.listen(0, "127.0.0.1", resolve));
++    const authedPort = (authedServer.address() as any).port;
++    try {
++      const origPort = port;
++      port = authedPort;
++      const denied = await httpRequest("GET", "/api/memories");
++      expect(denied.status).toBe(401);
++      port = origPort;
++    } finally {
++      await new Promise<void>((resolve) => authedServer.close(() => resolve()));
++      fs.rmSync(dir, { recursive: true, force: true });
++    }
++
++    await settle();
++    const after = (await httpRequest("GET", "/api/reads")).body.total;
++    expect(after).toBe(before + 1);
++  });
++
++  it("rows never contain the real key value even when the request carries one", async () => {
++    const secret = "super-secret-key-OBS-001";
++    await httpRequest("GET", `/api/memories/key/${secret}`);
++    await settle();
++
++    const raw = fs.readFileSync(
++      path.join(scratchDir, READS_DIR, READS_FILE),
++      "utf-8",
++    );
++    expect(raw).toContain("GET /api/memories/key/:key");
++    expect(raw).not.toContain(secret);
++  });
++});
+diff --git a/src/http/readLedger.test.ts b/src/http/readLedger.test.ts
+new file mode 100644
+index 0000000..4dea77f
+--- /dev/null
++++ b/src/http/readLedger.test.ts
+@@ -0,0 +1,368 @@
++/**
++ * OBS-DUCKBRAIN-001 unit tests: per-route read ledger module.
++ *
++ * Covers append + rotation + read-back aggregation over arbitrary historical
++ * windows (including windows entirely older than any process's uptime — the
++ * acceptance criterion for queryability), route normalization, namespace
++ * attribution, the no-secrets guarantee, and the malformed-line contract.
++ */
++
++import { describe, it, expect, beforeEach, afterEach } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import {
++  createReadLedgerStore,
++  readReadRows,
++  aggregateReadRows,
++  normalizeReadRoute,
++  readRowNamespace,
++  flushReadLedgerForTests,
++  ReadRowSchema,
++  readsSegmentName,
++  readsSegmentNumber,
++  READS_DIR,
++  READS_FILE,
++  READS_MAX_BYTES,
++} from "./readLedger";
++import { isReadsQuerySurface } from "./middleware/readLedger";
++
++let scratch: string;
++
++beforeEach(() => {
++  scratch = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-readledger-"));
++});
++
++afterEach(() => {
++  fs.rmSync(scratch, { recursive: true, force: true });
++});
++
++const nsRoot = (): string => scratch;
++
++describe("readLedger store: append + read-back", () => {
++  it("appends one JSONL row per read and reads them back chronologically", async () => {
++    const store = createReadLedgerStore(nsRoot());
++    await store.append({
++      ts: "2026-10-01T10:00:00.000Z",
++      route: "GET /api/memories",
++      method: "GET",
++      ns: null,
++      status: 200,
++      dur_ms: 12,
++    });
++    await store.append({
++      ts: "2026-10-02T10:00:00.000Z",
++      route: "GET /activity",
++      method: "GET",
++      ns: "research",
++      status: 200,
++      dur_ms: 3,
++    });
++    await flushReadLedgerForTests();
++
++    const { rows, skippedMalformed, filesRead } = readReadRows(nsRoot());
++    expect(rows).toHaveLength(2);
++    expect(rows[0].route).toBe("GET /api/memories");
++    expect(rows[0].ns).toBeNull();
++    expect(rows[1].route).toBe("GET /activity");
++    expect(rows[1].ns).toBe("research");
++    expect(skippedMalformed).toBe(0);
++    expect(filesRead).toEqual([READS_FILE]);
++  });
++
++  it("writes rows with 0600 file mode into .duckbrain-audit/reads.jsonl", async () => {
++    const store = createReadLedgerStore(nsRoot());
++    await store.append({
++      ts: new Date().toISOString(),
++      route: "GET /api/keys",
++      method: "GET",
++      ns: null,
++      status: 200,
++      dur_ms: 1,
++    });
++    await flushReadLedgerForTests();
++
++    const file = path.join(scratch, READS_DIR, READS_FILE);
++    expect(fs.existsSync(file)).toBe(true);
++    // umask can only NARROW the requested mode; assert the secret-relevant
++    // group/other bits never survive.
++    const mode = fs.statSync(file).mode & 0o777;
++    expect(mode & 0o077).toBe(0);
++  });
++
++  it("seals segments monotonically when the bound is exceeded and keeps all rows queryable", async () => {
++    const store = createReadLedgerStore(nsRoot(), { maxBytes: 300 });
++    for (let i = 0; i < 16; i++) {
++      await store.append({
++        ts: `2026-01-${String((i % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
++        route: "GET /api/memories",
++        method: "GET",
++        ns: null,
++        status: 200,
++        dur_ms: i,
++      });
++    }
++    await flushReadLedgerForTests();
++
++    const dir = path.join(scratch, READS_DIR);
++    const names = fs.readdirSync(dir).sort();
++    // Two+ sealed segments plus the active file, in monotonic order.
++    const sealed = names.filter((n) => readsSegmentNumber(n) !== null);
++    expect(sealed.length).toBeGreaterThanOrEqual(2);
++    expect(sealed).toEqual([...sealed].sort()); // zero-padded: lexicographic == numeric
++    expect(fs.statSync(path.join(dir, READS_FILE)).size).toBeLessThanOrEqual(300);
++
++    // No row is ever lost to rotation — the reads.0001 rm-overwrite failure
++    // mode (single .1 slot) cannot happen by construction.
++    const { rows, filesRead } = readReadRows(nsRoot());
++    expect(rows).toHaveLength(16);
++    expect(filesRead[0]).toBe(readsSegmentName(1));
++    expect(filesRead[filesRead.length - 1]).toBe(READS_FILE);
++    expect(filesRead).toEqual([...filesRead].sort());
++  });
++
++  it("rejects a row that violates the schema and logs instead of appending", async () => {
++    const logged: string[] = [];
++    const store = createReadLedgerStore(nsRoot(), {
++      log: (m) => logged.push(m),
++    });
++    await store.append({
++      ts: "not-a-timestamp",
++      route: "GET /api/memories",
++      method: "GET",
++      ns: null,
++      status: 99999,
++      dur_ms: -5,
++    } as any);
++    await flushReadLedgerForTests();
++
++    expect(logged).toHaveLength(1);
++    expect(logged[0]).toContain("read ledger append failed");
++    const { rows } = readReadRows(nsRoot());
++    expect(rows).toHaveLength(0);
++  });
++});
++
++describe("normalizeReadRoute", () => {
++  it("records the documented read routes, GET and HEAD", () => {
++    expect(normalizeReadRoute("GET", "/api/memories")).toBe("GET /api/memories");
++    expect(normalizeReadRoute("HEAD", "/api/memories")).toBe("HEAD /api/memories");
++    expect(normalizeReadRoute("GET", "/api/memories/key//a/b/secret-key")).toBe(
++      "GET /api/memories/key/:key",
++    );
++    expect(normalizeReadRoute("GET", "/api/memories/abc123")).toBe("GET /api/memories/:id");
++    expect(normalizeReadRoute("GET", "/api/keys")).toBe("GET /api/keys");
++    expect(normalizeReadRoute("GET", "/api/keys/flat")).toBe("GET /api/keys/flat");
++    expect(normalizeReadRoute("GET", "/api/namespaces")).toBe("GET /api/namespaces");
++    expect(normalizeReadRoute("GET", "/api/ns/research/tables")).toBe("GET /api/ns/:ns/tables");
++    expect(normalizeReadRoute("GET", "/api/ns/research/tables/notes")).toBe(
++      "GET /api/ns/:ns/tables/:table",
++    );
++    expect(normalizeReadRoute("GET", "/activity")).toBe("GET /activity");
++    expect(normalizeReadRoute("GET", "/api/events/research")).toBe("GET /api/events/:ns");
++    expect(normalizeReadRoute("GET", "/api/events/research/stats")).toBe(
++      "GET /api/events/:ns/stats",
++    );
++  });
++
++  it("strips real values: the normalized route never contains the key", () => {
++    const route = normalizeReadRoute("GET", "/api/memories/key/alpha/beta");
++    expect(route).not.toContain("alpha");
++    expect(route).not.toContain("beta");
++  });
++
++  it("folds trailing slashes like Express non-strict routing", () => {
++    expect(normalizeReadRoute("GET", "/api/keys/")).toBe("GET /api/keys");
++    expect(normalizeReadRoute("GET", "/activity///")).toBe("GET /activity");
++  });
++
++  it("never records writes, metrics, or unknown routes", () => {
++    expect(normalizeReadRoute("POST", "/api/memories")).toBeNull();
++    expect(normalizeReadRoute("PUT", "/api/memories/abc")).toBeNull();
++    expect(normalizeReadRoute("DELETE", "/api/keys")).toBeNull();
++    expect(normalizeReadRoute("GET", "/health")).toBeNull();
++    expect(normalizeReadRoute("GET", "/stats")).toBeNull();
++    expect(normalizeReadRoute("GET", "/api/reads")).toBeNull();
++    expect(normalizeReadRoute("GET", "/api/compaction")).toBeNull();
++    expect(normalizeReadRoute("GET", "/namespaces")).toBeNull(); // legacy mount not in the read set
++    expect(normalizeReadRoute("GET", "/api/unknown")).toBeNull();
++    expect(normalizeReadRoute("GET", "/api/ns/research/changes")).toBeNull(); // realtime SSE
++    expect(normalizeReadRoute("GET", "/api/ns/research/openapi.json")).toBeNull();
++  });
++
++  it("never lets a query string reach the recorded route", () => {
++    const route = normalizeReadRoute("GET", "/api/memories?q=top+secret&token=x");
++    expect(route).toBe("GET /api/memories");
++    expect(route).not.toContain("secret");
++    expect(route).not.toContain("token");
++  });
++});
++
++describe("readRowNamespace", () => {
++  it("prefers the path namespace, then ?namespace=, else null", () => {
++    expect(readRowNamespace("/api/events/research", {})).toBe("research");
++    expect(readRowNamespace("/api/ns/research/tables", {})).toBe("research");
++    expect(readRowNamespace("/api/memories", { namespace: "alpha" })).toBe("alpha");
++    expect(readRowNamespace("/api/memories", {})).toBeNull();
++    expect(readRowNamespace("/api/memories", { namespace: "" })).toBeNull();
++    expect(readRowNamespace("/api/memories", { namespace: ["a", "b"] })).toBeNull();
++  });
++
++  it("URL-decodes path namespaces and survives malformed encoding", () => {
++    expect(readRowNamespace("/api/events/my%20ns", {})).toBe("my ns");
++    expect(readRowNamespace("/api/events/100%-bad", {})).toBe("100%-bad");
++  });
++});
++
++describe("aggregateReadRows (query over arbitrary windows)", () => {
++  const seed = async (): Promise<void> => {
++    const store = createReadLedgerStore(nsRoot());
++    const rows = [
++      { ts: "2026-01-01T00:00:00.000Z", route: "GET /api/memories", method: "GET", ns: null, status: 200, dur_ms: 10 },
++      { ts: "2026-03-01T00:00:00.000Z", route: "GET /api/memories", method: "GET", ns: "alpha", status: 200, dur_ms: 20 },
++      { ts: "2026-05-01T00:00:00.000Z", route: "GET /activity", method: "GET", ns: null, status: 404, dur_ms: 5 },
++      { ts: "2026-09-30T23:59:59.000Z", route: "GET /api/keys", method: "GET", ns: null, status: 200, dur_ms: 7 },
++    ];
++    for (const row of rows) await store.append(row);
++    await flushReadLedgerForTests();
++  };
++
++  it("aggregates per-route counts with status breakdown over the whole ledger", async () => {
++    await seed();
++    const agg = aggregateReadRows(nsRoot());
++    expect(agg.total).toBe(4);
++    expect(agg.routes.map((r) => [r.route, r.count])).toEqual([
++      ["GET /api/memories", 2],
++      ["GET /activity", 1],
++      ["GET /api/keys", 1],
++    ]);
++    expect(agg.by_status).toEqual({ "200": 3, "404": 1 });
++    const memories = agg.routes.find((r) => r.route === "GET /api/memories");
++    expect(memories?.statuses).toEqual({ "200": 2 });
++    expect(agg.skipped_malformed).toBe(0);
++  });
++
++  it("filters to a historical window entirely older than process uptime", async () => {
++    await seed();
++    // Process started ~now (2026-10+); the window is Jan–Feb 2026 — older
++    // than uptime by many months. The disk-backed ledger still answers.
++    const agg = aggregateReadRows(nsRoot(), {
++      from: "2026-01-01T00:00:00.000Z",
++      to: "2026-02-01T00:00:00.000Z",
++    });
++    expect(agg.total).toBe(1);
++    expect(agg.routes[0].route).toBe("GET /api/memories");
++    expect(agg.window.from).toBe("2026-01-01T00:00:00.000Z");
++    expect(agg.window.to).toBe("2026-02-01T00:00:00.000Z");
++  });
++
++  it("bounds are inclusive on both edges", async () => {
++    await seed();
++    const agg = aggregateReadRows(nsRoot(), {
++      from: "2026-03-01T00:00:00.000Z",
++      to: "2026-03-01T00:00:00.000Z",
++    });
++    expect(agg.total).toBe(1);
++  });
++
++  it("filters by route template and by ns", async () => {
++    await seed();
++    const byRoute = aggregateReadRows(nsRoot(), { route: "GET /api/memories" });
++    expect(byRoute.total).toBe(2);
++    const byNs = aggregateReadRows(nsRoot(), { ns: "alpha" });
++    expect(byNs.total).toBe(1);
++    expect(byNs.routes[0].route).toBe("GET /api/memories");
++  });
++
++  it("confinement: ungranted namespaces are excluded, null-ns rows stay visible", async () => {
++    await seed();
++    // Seed: 3 null-ns rows + 1 alpha row. The only ns-bearing row IS alpha.
++    const all = aggregateReadRows(nsRoot());
++    expect(all.total).toBe(4);
++    // Granted "alpha" → the alpha row stays AND every null-ns row stays
++    // (they carry no namespace name at all, so nothing can be leaked).
++    const granted = aggregateReadRows(nsRoot(), { visibleNamespaces: ["alpha"] });
++    expect(granted.total).toBe(4);
++    expect(granted.total).toBe(all.total);
++    // Ungranted "beta" → exactly the one alpha-foreign row disappears.
++    const other = aggregateReadRows(nsRoot(), { visibleNamespaces: ["beta"] });
++    expect(other.total).toBe(all.total - 1);
++  });
++
++  it("skips malformed lines without dying and reports the count", async () => {
++    const dir = path.join(scratch, READS_DIR);
++    fs.mkdirSync(dir, { recursive: true });
++    fs.writeFileSync(
++      path.join(dir, READS_FILE),
++      [
++        JSON.stringify({
++          ts: "2026-02-02T00:00:00.000Z",
++          route: "GET /api/keys",
++          method: "GET",
++          ns: null,
++          status: 200,
++          dur_ms: 1,
++        }),
++        "{ torn line",
++        "",
++      ].join("\n") + "\n",
++      "utf-8",
++    );
++    const agg = aggregateReadRows(nsRoot());
++    expect(agg.total).toBe(1);
++    expect(agg.skipped_malformed).toBe(1);
++    expect(agg.files_read).toEqual([READS_FILE]);
++  });
++
++  it("answers an empty/absent ledger with a clean zero aggregate", () => {
++    const agg = aggregateReadRows(nsRoot());
++    expect(agg.total).toBe(0);
++    expect(agg.routes).toEqual([]);
++    expect(agg.files_read).toEqual([]);
++    expect(agg.skipped_malformed).toBe(0);
++  });
++});
++
++describe("secrets guarantee", () => {
++  it("a serialized row contains no key values, query strings, tokens, or content", async () => {
++    const store = createReadLedgerStore(nsRoot());
++    await store.append({
++      ts: "2026-10-06T00:00:00.000Z",
++      route: "GET /api/memories/key/:key",
++      method: "GET",
++      ns: null,
++      status: 200,
++      dur_ms: 4,
++    });
++    await flushReadLedgerForTests();
++
++    const raw = fs.readFileSync(
++      path.join(scratch, READS_DIR, READS_FILE),
++      "utf-8",
++    );
++    const parsed = ReadRowSchema.parse(JSON.parse(raw.trim()));
++    expect(Object.keys(parsed).sort()).toEqual(
++      ["dur_ms", "method", "ns", "route", "status", "ts"].sort(),
++    );
++    expect(raw).not.toContain("super-secret-key-value");
++    expect(raw).not.toContain("?q=");
++    expect(raw).not.toContain("Bearer");
++    expect(raw).not.toContain("sk-");
++  });
++});
++
++describe("isReadsQuerySurface", () => {
++  it("matches the query surface with or without trailing slash", () => {
++    expect(isReadsQuerySurface("/api/reads")).toBe(true);
++    expect(isReadsQuerySurface("/api/reads?from=2026-01-01")).toBe(true);
++    expect(isReadsQuerySurface("/api/reads/")).toBe(true);
++    expect(isReadsQuerySurface("/api/memories")).toBe(false);
++    expect(isReadsQuerySurface("/api/readsx")).toBe(false);
++  });
++});
++
++describe("bound constants", () => {
++  it("mirror the server denial ledger budget", () => {
++    expect(READS_MAX_BYTES).toBe(10 * 1024 * 1024);
++  });
++});
+diff --git a/src/http/readLedger.ts b/src/http/readLedger.ts
+new file mode 100644
+index 0000000..810912f
+--- /dev/null
++++ b/src/http/readLedger.ts
+@@ -0,0 +1,402 @@
++/**
++ * OBS-DUCKBRAIN-001 — per-route read ledger.
++ *
++ * Writes are audited (SUPA-2 `_audit` ledgers plus the server-level
++ * `.duckbrain-audit/denials.jsonl`); reads were invisible. This module gives
++ * every recorded read-path request exactly one JSONL row in
++ * `.duckbrain-audit/reads.jsonl`, mirroring the server denial ledger's
++ * storage pattern (src/serialization/audit.ts:appendServerDenial): bounded
++ * append-only file, single `.1` rotation, 0o600 mode, non-blocking serialized
++ * append whose failure can never break a served response.
++ *
++ * Row shape (exactly one row per recorded read):
++ *   { ts: ISO, route: normalized route template, method, ns, status, dur_ms }
++ *
++ * `route` is a NORMALIZED TEMPLATE — real key/id/namespace VALUES are never
++ * written (`GET /api/memories/key/:key`, never the key itself). Query strings
++ * are never logged. `ns` is the namespace the request EXPLICITLY scoped (a
++ * path parameter or `?namespace=`) and is null when it named none — the
++ * resolved default is deliberately NOT materialized, to keep per-request
++ * config I/O off the hot read path (null here means "request named no
++ * namespace", a documented reason, not an unexplained hole). Rows therefore
++ * never carry memory content, tokens, principals, or raw query strings.
++ *
++ * Recorded read paths (GET/HEAD only): /api/memories, /api/keys,
++ * /api/namespaces, /api/ns/:ns/tables, /activity, /api/events/:ns(+ /stats).
++ * Deliberately NOT recorded: /health and /stats (metrics noise), write
++ * methods, unknown routes, the query surface itself (/api/reads — no
++ * self-recording), the realtime SSE stream (/api/ns/:ns/changes — a long-lived
++ * subscription, not a query; out of the OBS-DUCKBRAIN-001 route set).
++ *
++ * Querying: GET /api/reads (src/http/routes/reads.ts) aggregates this ledger
++ * over an arbitrary ts window — including windows entirely older than the
++ * process's uptime, because the ledger is durable on disk, not in memory.
++ */
++
++import fs from "fs";
++import path from "path";
++import { z } from "zod";
++
++/** Storage directory — the existing server audit dir convention. */
++export const READS_DIR = ".duckbrain-audit";
++/** Active ledger file (the segment new rows append to). */
++export const READS_FILE = "reads.jsonl";
++/** Byte bound — same 10 MB budget as the server denial ledger. */
++export const READS_MAX_BYTES = 10 * 1024 * 1024;
++
++/**
++ * Sealed-segment name for a segment number: `reads.0001.jsonl`, … zero-padded
++ * to 4 digits (the auditLedger.ts numeric-segment basis, namespaced with a
++ * `reads.` prefix because .duckbrain-audit/ holds more than one ledger).
++ * Sealed segments are never reopened, rewritten, or deleted — rotation renames
++ * the previous active file into the next number, so no row is ever lost, and
++ * read-back is always oldest-segment-first, active file last.
++ */
++export function readsSegmentName(value: number): string {
++  return `reads.${String(value).padStart(4, "0")}.jsonl`;
++}
++
++export function readsSegmentNumber(name: string): number | null {
++  const match = /^reads\.(\d{4,})\.jsonl$/.exec(name);
++  if (!match) return null;
++  const value = Number(match[1]);
++  return Number.isSafeInteger(value) && value > 0 ? value : null;
++}
++
++export const ReadRowSchema = z.object({
++  /** Request completion time, ISO 8601 UTC. */
++  ts: z.string().datetime(),
++  /** Normalized route template — no real key/id/ns values (see module doc). */
++  route: z.string().min(1),
++  /** Uppercase HTTP verb of the recorded read (GET/HEAD only, by design). */
++  method: z.string().min(1),
++  /** Explicitly scoped namespace, or null when the request named none. */
++  ns: z.string().min(1).nullable(),
++  /** Response status code. */
++  status: z.number().int().min(100).max(599),
++  /** Wall duration of the request in whole milliseconds. */
++  dur_ms: z.number().int().min(0),
++});
++
++export type ReadRow = z.infer<typeof ReadRowSchema>;
++export type ReadRowInput = z.input<typeof ReadRowSchema>;
++
++/**
++ * Serialized append tail — the exact pattern of `denialAuditTail` in
++ * src/serialization/audit.ts: every append chains onto one module-level
++ * promise so concurrent rotations can never interleave, errors are logged and
++ * swallowed, and tests can await the chain via flushReadLedgerForTests().
++ */
++let readLedgerTail: Promise<void> = Promise.resolve();
++
++export interface ReadLedgerStore {
++  /** Queue one row; resolves once the row is durably appended (or dropped). */
++  append(row: ReadRowInput): Promise<void>;
++}
++
++export interface ReadLedgerStoreOptions {
++  /** Byte bound for the active segment (default READS_MAX_BYTES). */
++  maxBytes?: number;
++  /** Failure sink (default console.error). */
++  log?: (message: string) => void;
++}
++
++export function createReadLedgerStore(
++  namespacesPath: string,
++  options: ReadLedgerStoreOptions = {},
++): ReadLedgerStore {
++  const root = path.resolve(namespacesPath);
++  const maxBytes = options.maxBytes ?? READS_MAX_BYTES;
++  const log =
++    options.log ?? ((message: string) => console.error(message));
++
++  return {
++    append(input: ReadRowInput): Promise<void> {
++      const run = async (): Promise<void> => {
++        const row = ReadRowSchema.parse(input);
++        const dir = path.join(root, READS_DIR);
++        const file = path.join(dir, READS_FILE);
++        await fs.promises.mkdir(dir, { recursive: true });
++        const line = JSON.stringify(row) + "\n";
++        const lineBytes = Buffer.byteLength(line, "utf-8");
++        if (lineBytes > maxBytes) {
++          throw new Error("read ledger row exceeds the configured log bound");
++        }
++        let size = 0;
++        try {
++          size = (await fs.promises.stat(file)).size;
++        } catch (error) {
++          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
++        }
++        if (size + lineBytes > maxBytes) {
++          // Seal the active segment under the next monotonic number. Sealed
++          // segments are never reopened or deleted, so a long-running server
++          // never loses history to rotation (unlike a single `.1` slot).
++          const existing = await fs.promises.readdir(dir);
++          const highest = existing.reduce(
++            (max, name) => Math.max(max, readsSegmentNumber(name) ?? 0),
++            0,
++          );
++          await fs.promises.rename(file, path.join(dir, readsSegmentName(highest + 1)));
++        }
++        await fs.promises.appendFile(file, line, {
++          encoding: "utf-8",
++          mode: 0o600,
++        });
++      };
++      readLedgerTail = readLedgerTail
++        .then(run)
++        .catch((error) => {
++          log(
++            `[duckbrain] read ledger append failed: ${error instanceof Error ? error.message : String(error)}`,
++          );
++        });
++      return readLedgerTail;
++    },
++  };
++}
++
++/** Await every pending ledger append (test seam, mirrors the denial sink). */
++export async function flushReadLedgerForTests(): Promise<void> {
++  await readLedgerTail;
++}
++
++export interface ReadLedgerContents {
++  /** Valid rows, chronological: rotated generation first, then current. */
++  rows: ReadRow[];
++  /** Lines that were not parseable as a valid row — skipped, never fatal. */
++  skippedMalformed: number;
++  /** Files actually read, in traversal order. */
++  filesRead: string[];
++}
++
++/**
++ * Read the whole ledger: sealed numeric segments in ascending order, then the
++ * active file (the canonical auditLedger.ts traversal — oldest first, active
++ * last). A malformed line is counted in `skippedMalformed` and skipped: this
++ * is observability telemetry, and one torn line must never break a query
++ * about reads — the count keeps the gap visible instead of silent.
++ */
++export function readReadRows(namespacesPath: string): ReadLedgerContents {
++  const dir = path.join(path.resolve(namespacesPath), READS_DIR);
++  const contents: ReadLedgerContents = {
++    rows: [],
++    skippedMalformed: 0,
++    filesRead: [],
++  };
++  let names: string[] = [];
++  try {
++    names = fs.readdirSync(dir).filter((name) => {
++      if (name === READS_FILE) return true;
++      return readsSegmentNumber(name) !== null;
++    });
++  } catch {
++    return contents;
++  }
++  names.sort((left, right) => {
++    const l = readsSegmentNumber(left);
++    const r = readsSegmentNumber(right);
++    if (l !== null && r !== null) return l - r;
++    if (l !== null) return -1; // sealed segments precede the active file
++    return left === right ? 0 : 1;
++  });
++  for (const name of names) {
++    const file = path.join(dir, name);
++    let text: string;
++    try {
++      text = fs.readFileSync(file, "utf-8");
++    } catch {
++      continue;
++    }
++    contents.filesRead.push(name);
++    for (const line of text.split("\n")) {
++      if (line.trim() === "") continue;
++      try {
++        contents.rows.push(ReadRowSchema.parse(JSON.parse(line)));
++      } catch {
++        contents.skippedMalformed += 1;
++      }
++    }
++  }
++  return contents;
++}
++
++/**
++ * Normalize one request into its recorded route template, or null when the
++ * request is not a recorded read. Combines the read-path truth table and the
++ * value-stripping rules in one place so the middleware has a single decision
++ * to make. Trailing slashes are folded (Express non-strict routing); query
++ * strings never reach this function's output because only req.path is taken.
++ */
++export function normalizeReadRoute(
++  method: string,
++  rawPath: string,
++): string | null {
++  const verb = method.toUpperCase();
++  if (verb !== "GET" && verb !== "HEAD") return null;
++  let p = rawPath.split("?")[0];
++  if (p.length > 1) p = p.replace(/\/+$/, "");
++  if (p === "") p = "/";
++  const route = (template: string): string => `${verb} ${template}`;
++
++  // memories
++  if (/^\/api\/memories$/.test(p)) return route("/api/memories");
++  if (/^\/api\/memories\/key\/.+$/.test(p)) return route("/api/memories/key/:key");
++  if (/^\/api\/memories\/[^/]+$/.test(p)) return route("/api/memories/:id");
++  // keys
++  if (/^\/api\/keys$/.test(p)) return route("/api/keys");
++  if (/^\/api\/keys\/flat$/.test(p)) return route("/api/keys/flat");
++  // namespaces
++  if (/^\/api\/namespaces$/.test(p)) return route("/api/namespaces");
++  // tables (declared table→REST layer)
++  if (/^\/api\/ns\/[^/]+\/tables$/.test(p)) return route("/api/ns/:ns/tables");
++  if (/^\/api\/ns\/[^/]+\/tables\/[^/]+$/.test(p)) {
++    return route("/api/ns/:ns/tables/:table");
++  }
++  // activity feed
++  if (/^\/activity$/.test(p)) return route("/activity");
++  // legacy events feed (SSE subscription + its stats probe)
++  if (/^\/api\/events\/[^/]+\/stats$/.test(p)) return route("/api/events/:ns/stats");
++  if (/^\/api\/events\/[^/]+$/.test(p)) return route("/api/events/:ns");
++  return null;
++}
++
++/**
++ * The namespace a request EXPLICITLY scoped, or null when it named none.
++ * Priority: path parameter (/api/events/:ns, /api/ns/:ns/...) then the
++ * ?namespace= query parameter. Query values other than a non-empty string
++ * (arrays, objects) yield null. Malformed percent-encoding falls back to the
++ * raw segment rather than throwing on the hot path.
++ */
++export function readRowNamespace(
++  rawPath: string,
++  query: Record<string, unknown>,
++): string | null {
++  let p = rawPath.split("?")[0];
++  if (p.length > 1) p = p.replace(/\/+$/, "");
++  const fromPath = /^(?:\/api\/events|\/api\/ns)\/([^/]+)/.exec(p);
++  if (fromPath) {
++    try {
++      return decodeURIComponent(fromPath[1]);
++    } catch {
++      return fromPath[1];
++    }
++  }
++  const ns = query.namespace;
++  return typeof ns === "string" && ns !== "" ? ns : null;
++}
++
++export interface ReadLedgerQuery {
++  /** Inclusive lower ts bound (ISO 8601). Null/undefined = no lower bound. */
++  from?: string | null;
++  /** Inclusive upper ts bound (ISO 8601). Null/undefined = no upper bound. */
++  to?: string | null;
++  /** Exact normalized route template (e.g. "GET /api/memories"). */
++  route?: string | null;
++  /** Exact explicitly-scoped namespace value. */
++  ns?: string | null;
++  /**
++   * Namespace allow-list for scope-confined principals (DB-GAP-062 doctrine).
++   * undefined = unrestricted (unscoped token or auth=none). When set, rows
++   * whose ns is an ungranted namespace are excluded; null-ns rows stay visible
++   * (they carry no namespace name at all).
++   */
++  visibleNamespaces?: readonly string[] | undefined;
++}
++
++export interface ReadLedgerRouteAggregate {
++  route: string;
++  method: string;
++  count: number;
++  /** status code → count, within this route. */
++  statuses: Record<string, number>;
++}
++
++export interface ReadLedgerAggregate {
++  window: { from: string | null; to: string | null };
++  filter: { route: string | null; ns: string | null };
++  /** Rows matching every filter. */
++  total: number;
++  /** Per-route tallies, count descending then route ascending. */
++  routes: ReadLedgerRouteAggregate[];
++  /** status code → count across all matching rows. */
++  by_status: Record<string, number>;
++  /** Malformed ledger lines skipped while reading (never silent). */
++  skipped_malformed: number;
++  /** Ledger files read, in traversal order. */
++  files_read: string[];
++}
++
++/**
++ * Aggregate the ledger over an arbitrary historical window. `from`/`to` must
++ * already be valid ISO timestamps (the route layer turns bad input into a
++ * 400 before calling this); bounds are inclusive and compared on epoch
++ * milliseconds so windows spanning process restarts behave.
++ */
++export function aggregateReadRows(
++  namespacesPath: string,
++  query: ReadLedgerQuery = {},
++): ReadLedgerAggregate {
++  const { rows, skippedMalformed, filesRead } = readReadRows(namespacesPath);
++  const fromMs =
++    query.from !== undefined && query.from !== null
++      ? Date.parse(query.from)
++      : null;
++  const toMs =
++    query.to !== undefined && query.to !== null ? Date.parse(query.to) : null;
++  const visible = query.visibleNamespaces;
++
++  const perRoute = new Map<
++    string,
++    { route: string; method: string; count: number; statuses: Record<string, number> }
++  >();
++  const byStatus: Record<string, number> = {};
++  let total = 0;
++
++  for (const row of rows) {
++    const t = Date.parse(row.ts);
++    if (fromMs !== null && !(t >= fromMs)) continue;
++    if (toMs !== null && !(t <= toMs)) continue;
++    if (query.route != null && row.route !== query.route) continue;
++    if (query.ns != null && row.ns !== query.ns) continue;
++    if (visible !== undefined && row.ns !== null && !visible.includes(row.ns)) {
++      continue;
++    }
++
++    total += 1;
++    const statusKey = String(row.status);
++    byStatus[statusKey] = (byStatus[statusKey] ?? 0) + 1;
++    const key = `${row.method} ${row.route}`;
++    let entry = perRoute.get(key);
++    if (!entry) {
++      entry = { route: row.route, method: row.method, count: 0, statuses: {} };
++      perRoute.set(key, entry);
++    }
++    entry.count += 1;
++    entry.statuses[statusKey] = (entry.statuses[statusKey] ?? 0) + 1;
++  }
++
++  const routes = [...perRoute.values()].sort((left, right) =>
++    left.count !== right.count
++      ? right.count - left.count
++      : left.route.localeCompare(right.route),
++  );
++
++  const by_status: Record<string, number> = {};
++  for (const key of Object.keys(byStatus).sort()) {
++    by_status[key] = byStatus[key];
++  }
++
++  return {
++    window: {
++      from: query.from ?? null,
++      to: query.to ?? null,
++    },
++    filter: { route: query.route ?? null, ns: query.ns ?? null },
++    total,
++    routes,
++    by_status,
++    skipped_malformed: skippedMalformed,
++    files_read: filesRead,
++  };
++}
+diff --git a/src/http/routes/index.test.ts b/src/http/routes/index.test.ts
+index e721b6e..072cdc5 100644
+--- a/src/http/routes/index.test.ts
++++ b/src/http/routes/index.test.ts
+@@ -47,6 +47,8 @@ describe("Routes barrel exports (index.ts)", () => {
+       // DB-SUPA-5: committed append-log SSE change feed (additive export)
+       "createRealtimeRoutes",
+       "REALTIME_ROUTE_PATH",
++      // OBS-DUCKBRAIN-001: read-ledger query routes (additive export)
++      "createReadsRoutes",
+     ];
+     const actualExports = Object.keys(routeIndex).filter(
+       (k) => k !== "default",
+diff --git a/src/http/routes/index.ts b/src/http/routes/index.ts
+index bcd736c..485b804 100644
+--- a/src/http/routes/index.ts
++++ b/src/http/routes/index.ts
+@@ -12,3 +12,5 @@ export { createEventsRoutes } from "./events";
+ export { createCompactionRoutes } from "./compaction";
+ export { createTableRoutes, createNamespaceOpenApiRoutes } from "./tables";
+ export { createRealtimeRoutes, REALTIME_ROUTE_PATH } from "./realtime";
++// OBS-DUCKBRAIN-001: read-ledger query routes (additive export)
++export { createReadsRoutes } from "./reads";
+diff --git a/src/http/routes/reads.ts b/src/http/routes/reads.ts
+new file mode 100644
+index 0000000..73957ee
+--- /dev/null
++++ b/src/http/routes/reads.ts
+@@ -0,0 +1,112 @@
++/**
++ * Reads API Routes (OBS-DUCKBRAIN-001)
++ *
++ * GET /api/reads — aggregate the per-route read ledger
++ * (.duckbrain-audit/reads.jsonl) over an arbitrary historical window.
++ *
++ * Auth-gated like every sibling API route: the middleware mounts AFTER
++ * authMiddleware in src/cli/http.ts, and a scoped principal is confined to
++ * its namespace grants (DB-GAP-062 doctrine): rows whose ns is an ungranted
++ * namespace are excluded from the aggregation; ns-null rows stay visible
++ * because they carry no namespace name at all.
++ *
++ * Query parameters (all optional, combinable):
++ *   from  — inclusive ISO lower ts bound
++ *   to    — inclusive ISO upper ts bound
++ *   route — exact normalized route template (e.g. "GET /api/memories")
++ *   ns    — exact explicitly-scoped namespace value
++ *
++ * Bad input is a 400 with code VALIDATION_ERROR (ValidationError), never a
++ * silent narrowing of the window. The window is allowed to lie entirely
++ * BEFORE the process started — the ledger is durable on disk, so historical
++ * queries need no process to have been alive in the window.
++ */
++
++import { Router, Request, Response } from "express";
++import {
++  asyncHandler,
++  ValidationError,
++} from "../middleware/errorHandler";
++import {
++  aggregateReadRows,
++  flushReadLedgerForTests,
++  READS_FILE,
++  READS_MAX_BYTES,
++} from "../readLedger";
++import { getPrincipal } from "../../auth/middleware";
++import { resolveNamespacesPath } from "../../config/index";
++
++/** Query-parameter parse result: a typed value, or null = "param absent". */
++type OptionalParam<T> = { ok: true; value: T | null } | { ok: false; error: string };
++
++function parseOptionalIso(
++  raw: unknown,
++  name: string,
++): OptionalParam<string> {
++  if (raw === undefined) return { ok: true, value: null };
++  if (typeof raw !== "string" || raw.trim() === "") {
++    return { ok: false, error: `Query parameter '${name}' must be a non-empty ISO 8601 timestamp` };
++  }
++  const parsed = Date.parse(raw);
++  if (Number.isNaN(parsed)) {
++    return { ok: false, error: `Query parameter '${name}' is not a valid ISO 8601 timestamp: '${raw}'` };
++  }
++  return { ok: true, value: new Date(parsed).toISOString() };
++}
++
++function parseOptionalString(
++  raw: unknown,
++  name: string,
++): OptionalParam<string> {
++  if (raw === undefined) return { ok: true, value: null };
++  if (typeof raw !== "string" || raw.trim() === "") {
++    return { ok: false, error: `Query parameter '${name}' must be a non-empty string` };
++  }
++  return { ok: true, value: raw };
++}
++
++export function createReadsRoutes(): Router {
++  const router: Router = Router();
++
++  router.get(
++    "/",
++    asyncHandler(async (req: Request, res: Response) => {
++      const from = parseOptionalIso(req.query.from, "from");
++      if (!from.ok) throw new ValidationError(from.error);
++      const to = parseOptionalIso(req.query.to, "to");
++      if (!to.ok) throw new ValidationError(to.error);
++      const route = parseOptionalString(req.query.route, "route");
++      if (!route.ok) throw new ValidationError(route.error);
++      const ns = parseOptionalString(req.query.ns, "ns");
++      if (!ns.ok) throw new ValidationError(ns.error);
++
++      // Drain any appends still queued by requests that have already
++      // finished sending (the ledger tail is asynchronous by design); a
++      // query issued immediately after reads therefore sees its own rows.
++      await flushReadLedgerForTests();
++
++      // DB-GAP-062: a scoped token sees only its granted namespaces.
++      const principal = getPrincipal(req);
++      const visibleNamespaces = principal?.namespaces;
++
++      const result = aggregateReadRows(resolveNamespacesPath(), {
++        from: from.value,
++        to: to.value,
++        route: route.value,
++        ns: ns.value,
++        visibleNamespaces,
++      });
++
++      res.json({
++        ...result,
++        ledger: {
++          file: `.duckbrain-audit/${READS_FILE}`,
++          segments: "reads.NNNN.jsonl (sealed, monotonic)",
++          max_bytes: READS_MAX_BYTES,
++        },
++      });
++    }),
++  );
++
++  return router;
++}

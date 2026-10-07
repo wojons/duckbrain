@@ -1,0 +1,59 @@
+commit b1fea36c8e5692543bb1a4acf1be782ecef0b38d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 17:56:34 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 17:56:34 2026 -0500
+
+    fix(tests): poll pidfile instead of single existsSync in pidfile-isolation AC3 (INT-CI-021)
+    
+    Run 37541016412 raced: /health answered before the daemon's pidfile write
+    landed, so expect(fs.existsSync(pid2)) failed on a boot race. AC3 now uses
+    a bounded 50ms poll with the daemon-ready budget as its deadline; a genuine
+    never-written pidfile still fails with a named reason.
+    
+    ch:trace row=INT-CI-021 spec=none:none wave=none:none test=src/cli/pidfile-isolation-qaduckbrain002.test.ts doc=none:none prompt=none:none evidence=/tmp/pid021-[1-5].log witness=live:local-vitest-5-repeats-green verdict=pending commit=this memory=none
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/pidfile-isolation-qaduckbrain002.test.ts | 22 ++++++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/src/cli/pidfile-isolation-qaduckbrain002.test.ts b/src/cli/pidfile-isolation-qaduckbrain002.test.ts
+index d2a0320..41e0752 100644
+--- a/src/cli/pidfile-isolation-qaduckbrain002.test.ts
++++ b/src/cli/pidfile-isolation-qaduckbrain002.test.ts
+@@ -198,10 +198,13 @@ describe("integration helper daemon isolation (QA-DUCKBRAIN-002 AC3)", () => {
+       expect(child1.namespacesPath).not.toBe(child2.namespacesPath);
+ 
+       // And each wrote its pidfile under its own dir — no shared path.
++      // INT-CI-021: /health answering does not imply the pidfile write has
++      // landed yet (run 37541016412 raced AC3 on identical code that was
++      // green minutes earlier). Poll briefly instead of a single existsSync.
+       const pid1 = path.join(child1.dataDir!, `duckbrain-http-${port1}.pid`);
+       const pid2 = path.join(child2.dataDir!, `duckbrain-http-${port2}.pid`);
+-      expect(fs.existsSync(pid1)).toBe(true);
+-      expect(fs.existsSync(pid2)).toBe(true);
++      await waitForFile(pid1, DAEMON_READY_TIMEOUT_MS);
++      await waitForFile(pid2, DAEMON_READY_TIMEOUT_MS);
+       expect(pid1).not.toBe(pid2);
+     } finally {
+       await stopProcess(child1);
+@@ -215,3 +218,18 @@ describe("integration helper daemon isolation (QA-DUCKBRAIN-002 AC3)", () => {
+     expect(fs.existsSync(child2.dataDir!)).toBe(false);
+   }, 180_000);
+ });
++
++// INT-CI-021: bounded poll for a file to appear (pidfile boot race).
++// Rejects with the last state so a genuine never-started daemon still fails
++// the test — this only widens the window, it never swallows a real defect.
++async function waitForFile(p: string, timeoutMs: number): Promise<void> {
++  const deadline = Date.now() + timeoutMs;
++  while (!fs.existsSync(p)) {
++    if (Date.now() > deadline) {
++      throw new Error(
++        `waitForFile: ${p} did not appear within ${timeoutMs}ms (daemon pidfile never written)`,
++      );
++    }
++    await new Promise((r) => setTimeout(r, 50));
++  }
++}

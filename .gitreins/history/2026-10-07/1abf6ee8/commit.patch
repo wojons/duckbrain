@@ -1,0 +1,114 @@
+commit 9fffb4c5584db6990320e51149de30ccb887a389
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 23:46:22 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 23:46:22 2026 -0500
+
+    fix(tests): race-safe teardown in memories-blank-content-dbgap058 (INT-CI-023)
+    
+    afterAll now awaits server close and drains async commits before rmSync,
+    with a bounded-retry rm as the final guard. The unawaited teardown raced
+    the last POST's auto-commit chain / audit ledger append inside SCRATCH_ROOT
+    and threw ENOTEMPTY with all tests green (CI runs 37571206935 + 37571830301,
+    main red ~50% today). Mirrors the already-fixed empty-content dbgap056
+    teardown (close + drainAsyncCommits + rm).
+    
+    Verified: tsc --noEmit clean; suite solo green 5x; src/http/routes 48/337
+    green; prettier clean.
+    
+    ch: trace row=INT-CI-023 spec=none:none wave=none:none test=src/http/routes/memories-blank-content-dbgap058.test.ts doc=none:none prompt=none:none evidence=teardown-fix-solo-5x-green+tsc-clean witness=live:local-vitest-5-repeats verdict=none:none commit=SEE-SHA memory=none
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                               | 35 ++++++++++++++++++++++
+ .../routes/memories-blank-content-dbgap058.test.ts | 24 +++++++++++++--
+ 2 files changed, 56 insertions(+), 3 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 54974da..d81b0c5 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2417,3 +2417,38 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T02:50:20.845148+00:00'
+   completed_at: '2026-10-07T02:55:31.829550+00:00'
++- id: S3-ALERT-001
++  title: Consecutive-failure alert gate for S3 backup cron
++  criteria:
++  - scripts/s3/s3-alert-gate.sh + test-alert-gate.sh pass; unified wrapper wired on
++    success+failure; gate fires once per threshold crossing and re-alerts every 8;
++    crash-safe state
++  status: complete
++  created_at: '2026-10-07T03:32:43.371439+00:00'
++  completed_at: '2026-10-07T04:13:01.414998+00:00'
++- id: S3-DUP-BACKUP-001
++  title: Remove dormant legacy S3 backup script
++  criteria:
++  - Legacy ~/.hermes/scripts/s3-backup.sh (untracked, 565B) removed from host; its
++    content archived in the board close event; unified cron duckbrain-s3-unified.sh
++    confirmed still scheduled and healthy; no cron/systemd reference to s3-backup.sh
++    remains
++  status: complete
++  created_at: '2026-10-07T04:21:01.393033+00:00'
++  completed_at: '2026-10-07T04:21:14.696753+00:00'
++- id: DOC-10
++  title: Document the Host guard (--allowed-hosts / DUCKBRAIN_ALLOWED_HOSTS)
++  criteria:
++  - grep -rn 'ALLOWED_HOSTS' docs README.md returns >=2 hits describing the flag,
++    env override, and empty-list semantics matching src/cli/http.ts behavior
++  status: complete
++  created_at: '2026-10-07T04:26:15.892687+00:00'
++  completed_at: '2026-10-07T04:34:33.308824+00:00'
++- id: INT-CI-023
++  title: CI teardown ENOTEMPTY flake in memories-blank-content-dbgap058.test.ts
++  criteria:
++  - afterAll awaits server close, drains async commits (drainAsyncCommits), and removes
++    SCRATCH_ROOT via bounded-retry rm so teardown never throws ENOTEMPTY while tests
++    pass; file runs green solo 5x; tsc --noEmit clean
++  status: in_progress
++  created_at: '2026-10-07T04:45:10.899009+00:00'
+diff --git a/src/http/routes/memories-blank-content-dbgap058.test.ts b/src/http/routes/memories-blank-content-dbgap058.test.ts
+index c60f03b..c33e230 100644
+--- a/src/http/routes/memories-blank-content-dbgap058.test.ts
++++ b/src/http/routes/memories-blank-content-dbgap058.test.ts
+@@ -28,6 +28,7 @@ import os from "os";
+ import path from "path";
+ import { createServer, Server } from "http";
+ import { createHttpServer } from "../../cli/http";
++import { drainAsyncCommits } from "../../git/autocommit";
+ import {
+   BLANK_CONTENT_MESSAGE,
+   isBlankContent,
+@@ -138,13 +139,30 @@ beforeAll(async () => {
+   });
+ });
+ 
+-afterAll(() => {
+-  server?.close();
++afterAll(async () => {
++  // INT-CI-023: an unawaited close returns while the last POST's async
++  // auto-commit chain / audit ledger append can still be writing inside
++  // SCRATCH_ROOT, and fs.rmSync then throws ENOTEMPTY (suite-level CI FAIL
++  // with all tests green, runs 37571206935 + 37571830301). Await the close
++  // and drain in-flight async commits BEFORE deleting the scratch tree;
++  // mirrors the empty-content dbgap056 teardown. A bounded-retry rm is the
++  // final belt-and-suspenders — cleanup of a temp dir must never red a test.
++  if (server) {
++    await new Promise<void>((resolve) => server.close(() => resolve()));
++  }
++  await drainAsyncCommits();
+   if (PREV_NS_PATH === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+   else process.env.DUCKBRAIN_NAMESPACES_PATH = PREV_NS_PATH;
+   if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
+   else process.env.DUCKBRAIN_CONFIG_PATH = PREV_CONFIG_PATH;
+-  fs.rmSync(SCRATCH_ROOT, { recursive: true, force: true });
++  for (let attempt = 0; attempt < 5; attempt++) {
++    try {
++      fs.rmSync(SCRATCH_ROOT, { recursive: true, force: true });
++      return;
++    } catch {
++      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
++    }
++  }
+ });
+ 
+ describe("DB-GAP-058: the shared write-content policy", () => {

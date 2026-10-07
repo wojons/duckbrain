@@ -1,0 +1,95 @@
+{
+  "task_id": "PERF-004",
+  "task_title": "CLI startup: precompile dist path + lazy-load S3 subtree",
+  "task_criteria": [
+    "bin/duckbrain.js no longer pays tsx on-the-fly compile on the hot path (uses precompiled dist/ or lazy tsx fallback) and read-only recall no longer transitively loads @aws-sdk/client-s3 (lazy require in git/autocommit). pnpm build + tsc --noEmit green, full vitest suite green, and a timing probe shows the CLI boot path loads no aws-sdk module."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "d35b5d0f61d2991a3c209e1384264a1ee8768db0",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:43PM INF scanned ~41543371 bytes (41.54 MB) in 3.98s\n6:43PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 998823 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T212501.796135Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/testing/orphan-daemon-reaper.test.ts (29 tests | 1 failed) 10472ms\n   \u276f reapOrphanDaemons kill path (DB-GAP-059) (4)\n     \u00d7 scans the real process table without throwing 236ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/testing/orphan-daemon-reaper.test.ts > reapOrphanDaemons kill path (DB-GAP-059) > scans the real process table without throwing\nAssertionError: expected 3 to be less than or equal to 2\n \u276f src/testing/orphan-daemon-reaper.test.ts:416:57\n    414|     // Live /proc between two scans is not stable: processes spawn and\u2026\n    415|     // between (CI race, 46 vs 45). Assert approximate equality instea\u2026\n    416|     expect(Math.abs(report.scanned - processes.length)).toBeLessThanOr\u2026\n       |                                                         ^\n    417|     // The managed unit is protected, so it can never be a victim.\n    418|     for (const victim of report.victims) {\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 204 passed (205)\n      Tests  1 failed | 1657 passed (1658)\n   Start at  18:43:22\n   Duration  48.82s (tests 78%, import 19%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  205 workers spawned \u00b7 ~82ms startup each (spawn + environment, per file)\n             at least ~4.10s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261006T212501.796135Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: PERF-004\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-06T23:44:20.156311",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-06T23:44:20.180055+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 17667,
+        "truncated": false,
+        "source": "git show d35b5d0f61d2"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1281,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-004"
+  }
+}

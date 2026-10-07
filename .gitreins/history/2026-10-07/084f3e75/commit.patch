@@ -1,0 +1,17 @@
+commit f94aeccd82d1def630a8a54377866dd1c4559dd5
+Merge: 51ec627 ed59c70
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 01:32:34 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 01:32:34 2026 -0500
+
+    Merge feat/db-gap-054-f32-cache: binary float32 embedding cache (DB-GAP-054)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ docs/guide/embeddings.md    |  13 ++++
+ src/cli/embeddings.test.ts  |   6 ++
+ src/cli/embeddings.ts       |  14 +++-
+ src/embedding/cache.test.ts | 122 ++++++++++++++++++++++++++++++++++-
+ src/embedding/cache.ts      | 153 ++++++++++++++++++++++++++++++++++++++++++--
+ 5 files changed, 299 insertions(+), 9 deletions(-)

@@ -1,0 +1,75 @@
+{
+  "task_id": "LOCKFILE-DRIFT-001",
+  "task_title": "Remove non-pnpm lockfiles from pnpm-only repo",
+  "task_criteria": [
+    "Repo tracks only pnpm-lock.yaml as a lockfile; package-lock.json, bun.lock, docs/package-lock.json, packages/ui/package-lock.json are deleted; pnpm install --frozen-lockfile exits 0 and CI config unchanged; no references to deleted files remain in repo (grep)"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "6610b0d0fc8b2c2c8f9e0d3477ea542742180576",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:55PM INF scanned ~41143103 bytes (41.14 MB) in 4.03s\n9:55PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1001974 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T004413.967731Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/testing/orphan-daemon-reaper.test.ts (29 tests | 1 failed) 10475ms\n   \u276f reapOrphanDaemons kill path (DB-GAP-059) (4)\n     \u00d7 scans the real process table without throwing 259ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/testing/orphan-daemon-reaper.test.ts > reapOrphanDaemons kill path (DB-GAP-059) > scans the real process table without throwing\nAssertionError: expected 3 to be less than or equal to 2\n \u276f src/testing/orphan-daemon-reaper.test.ts:416:57\n    414|     // Live /proc between two scans is not stable: processes spawn and\u2026\n    415|     // between (CI race, 46 vs 45). Assert approximate equality instea\u2026\n    416|     expect(Math.abs(report.scanned - processes.length)).toBeLessThanOr\u2026\n       |                                                         ^\n    417|     // The managed unit is protected, so it can never be a victim.\n    418|     for (const victim of report.victims) {\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 206 passed (207)\n      Tests  1 failed | 1683 passed (1684)\n   Start at  21:55:32\n   Duration  49.88s (tests 78%, import 18%, transform 3%, setup 1%, worker 1%)\n\n    Isolate  207 workers spawned \u00b7 ~80ms startup each (spawn + environment, per file)\n             at least ~4.05s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T004413.967731Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: LOCKFILE-DRIFT-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T02:56:22.821374",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T02:56:22.839139+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 145701,
+        "truncated": false,
+        "source": "git show 6610b0d0fc8b"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 785,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "LOCKFILE-DRIFT-001"
+  }
+}

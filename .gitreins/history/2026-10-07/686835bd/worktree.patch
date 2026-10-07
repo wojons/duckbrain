@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index caf1b24..09e641c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2408,3 +2408,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T01:28:11.435585+00:00'
+   completed_at: '2026-10-07T01:33:34.681066+00:00'
++- id: LOCKFILE-DRIFT-001
++  title: Remove non-pnpm lockfiles from pnpm-only repo
++  criteria:
++  - Repo tracks only pnpm-lock.yaml as a lockfile; package-lock.json, bun.lock, docs/package-lock.json,
++    packages/ui/package-lock.json are deleted; pnpm install --frozen-lockfile exits
++    0 and CI config unchanged; no references to deleted files remain in repo (grep)
++  status: complete
++  created_at: '2026-10-07T02:50:20.845148+00:00'
++  completed_at: '2026-10-07T02:54:04.995130+00:00'

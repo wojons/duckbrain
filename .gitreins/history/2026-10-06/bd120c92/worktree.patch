@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index a9929ef..029f3ea 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2372,3 +2372,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-06T22:18:22.719715+00:00'
+   completed_at: '2026-10-06T22:18:31.701390+00:00'
++- id: QA-DUCKBRAIN-008
++  title: 'UI dev server probe-unreachable: bind host + boot budget'
++  criteria:
++  - start:ui accepts a bind host (e.g. --host flag plumbed through concurrently) AND
++    the battery ui-probe polls with a boot budget that tolerates a ~18s vite cold
++    boot; a live boot of the UI on a port followed by an HTTP 200 probe passes
++  status: complete
++  created_at: '2026-10-06T22:39:16.519122+00:00'
++  completed_at: '2026-10-06T22:49:56.461095+00:00'

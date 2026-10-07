@@ -1,0 +1,126 @@
+commit 2c6dc4c664e4a48c5d2ea3498ca43b24b93e8c35
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 17:49:48 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 17:49:48 2026 -0500
+
+    fix(ui): QA-DUCKBRAIN-008 probe-reachable UI dev server
+    
+    - packages/ui dev binds 0.0.0.0 (was localhost-only; battery probe from
+      outside the box read http=000)
+    - start:ui routes through scripts/start-ui.mjs which strips pnpm's literal
+      `--` so `pnpm start:ui -- --port 3111` actually reaches vite
+    - ops/wait-for-ui.sh: polled ready-wait (default 120s budget) replacing the
+      fixed 60s probe window that raced vite's ~18s cold boot
+    
+    Verified live: vite on 0.0.0.0:3111 (ss), wait-for-ui.sh -> HTTP 200; tsc clean.
+    
+    ch:trace row=QA-DUCKBRAIN-008 spec=none:none wave=none:none test=ops/wait-for-ui.sh doc=none:none prompt=/tmp/qa008-brief.md evidence=ss-0.0.0.0:3111+HTTP-200-2026-10-06 witness=live:vite-0.0.0.0:3111-wait-for-ui-200 verdict=none:gitreins-QA-DUCKBRAIN-008 commit=this memory=none
+    
+    Co-authored-by: totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ ops/wait-for-ui.sh       | 33 +++++++++++++++++++++++++++++++++
+ package.json             |  2 +-
+ packages/ui/package.json |  2 +-
+ scripts/start-ui.mjs     | 26 ++++++++++++++++++++++++++
+ 4 files changed, 61 insertions(+), 2 deletions(-)
+
+diff --git a/ops/wait-for-ui.sh b/ops/wait-for-ui.sh
+new file mode 100755
+index 0000000..a8380ac
+--- /dev/null
++++ b/ops/wait-for-ui.sh
+@@ -0,0 +1,33 @@
++#!/usr/bin/env bash
++# wait-for-ui.sh — poll a UI dev server until it answers HTTP.
++#
++# Context (QA-DUCKBRAIN-008): the qa-audit battery's ui-probe cell probed
++# :3111 for 60s and read http=000 while vite was still cold-booting (~18s
++# locally, longer on loaded agents) — and the battery harness itself is NOT
++# in this repo, so this helper is the in-repo, tested equivalent to copy or
++# invoke before probing.
++#
++# Usage: ops/wait-for-ui.sh [PORT] [TIMEOUT_SECONDS]
++#   PORT default 3111 (battery's ui-probe port), TIMEOUT default 120 (>=90s
++#   boot budget per QA-DUCKBRAIN-008 AC3). Polls every 1s; exits 0 on any
++#   HTTP response (2xx/3xx from vite), 1 on timeout, 2 on bad args.
++set -u
++PORT="${1:-3111}"
++TIMEOUT="${2:-120}"
++case "$PORT" in ''|*[!0-9]*) echo "wait-for-ui: bad port '$PORT'" >&2; exit 2;; esac
++case "$TIMEOUT" in ''|*[!0-9]*) echo "wait-for-ui: bad timeout '$TIMEOUT'" >&2; exit 2;; esac
++URL="http://127.0.0.1:${PORT}/"
++deadline=$(( $(date +%s) + TIMEOUT ))
++while [ "$(date +%s)" -lt "$deadline" ]; do
++  code=$(curl -s -o /dev/null -m 2 -w '%{http_code}' "$URL")
++  code=${code//[^0-9]/}
++  # 000 = connect failure (curl prints it for refused/timeout); any real
++  # HTTP status (200/302/404/426...) means vite is up and reachable
++  if [ -n "$code" ] && [ "$code" != "000" ]; then
++    echo "wait-for-ui: ${URL} answered HTTP ${code} after $(( TIMEOUT - (deadline - $(date +%s)) ))s"
++    exit 0
++  fi
++  sleep 1
++done
++echo "wait-for-ui: ${URL} gave no HTTP response within ${TIMEOUT}s" >&2
++exit 1
+diff --git a/package.json b/package.json
+index fc7aec4..2cc944b 100644
+--- a/package.json
++++ b/package.json
+@@ -17,7 +17,7 @@
+     "start": "node bin/duckbrain.js",
+     "start:http": "node bin/duckbrain.js http --port 3000",
+     "dev:api": "node bin/duckbrain.js http --port 3000 --auth=none",
+-    "start:ui": "pnpm --dir packages/ui dev",
++    "start:ui": "node scripts/start-ui.mjs",
+     "dev": "concurrently \"pnpm dev:api\" \"pnpm start:ui\"",
+     "dev:docker": "docker-compose -f docker-compose.dev.yml up",
+     "build": "pnpm --dir packages/ui build",
+diff --git a/packages/ui/package.json b/packages/ui/package.json
+index 4c7c12e..9ffa7db 100644
+--- a/packages/ui/package.json
++++ b/packages/ui/package.json
+@@ -4,7 +4,7 @@
+   "version": "0.0.0",
+   "type": "module",
+   "scripts": {
+-    "dev": "vite",
++    "dev": "vite --host 0.0.0.0",
+     "build": "tsc && vite build",
+     "test": "vitest run",
+     "test:watch": "vitest",
+diff --git a/scripts/start-ui.mjs b/scripts/start-ui.mjs
+new file mode 100644
+index 0000000..b5d8c81
+--- /dev/null
++++ b/scripts/start-ui.mjs
+@@ -0,0 +1,26 @@
++#!/usr/bin/env node
++/**
++ * start-ui shim (QA-DUCKBRAIN-008).
++ *
++ * Root script: "start:ui": "node scripts/start-ui.mjs"
++ *
++ * Why a shim: `pnpm start:ui -- --port 3111` makes pnpm forward a literal
++ * `--` into the child script argv, and vite does not strip it, so the port
++ * never reached vite (it silently bound its default 8989). This shim drops
++ * a leading literal `--` (and pnpm's own flag-looking tokens are avoided by
++ * routing through `pnpm run` AFTER stripping, so `--port N` reaches vite)
++ * and then execs the ui package's dev script.
++ *
++ * Supported invocations (both verified live on :3111 / :3113):
++ *   pnpm start:ui -- --port 3111
++ *   pnpm start:ui --port 3111        (pnpm >=8 forwards unknown flags)
++ */
++import { spawnSync } from 'node:child_process';
++
++const args = process.argv.slice(2);
++if (args[0] === '--') args.shift();
++
++const result = spawnSync('pnpm', ['--dir', 'packages/ui', 'run', 'dev', ...args], {
++  stdio: 'inherit',
++});
++process.exit(result.status ?? 1);

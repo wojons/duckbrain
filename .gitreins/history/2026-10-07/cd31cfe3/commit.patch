@@ -1,0 +1,37 @@
+commit 6e7b997460802b837afc9edfea186f8ba9845158
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 01:35:54 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 01:35:54 2026 -0500
+
+    docs: AGENTS.md test counts 1688 -> 1694 (DB-GAP-054 added 6 cache tests; CI count-drift guard)
+    
+    ch:trace row=DB-GAP-054 commit=ed59c70 test=scripts/sync-agents-md-counts.sh
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 8fd9d6a..c41fdd4 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (207 suites, 1688 tests)
++- **Test Framework:** Vitest (207 suites, 1694 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1688 tests, 207 suites
++pnpm test          # 1694 tests, 207 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

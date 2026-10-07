@@ -1,0 +1,415 @@
+commit d35b5d0f61d2991a3c209e1384264a1ee8768db0
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 6 18:37:54 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 6 18:38:26 2026 -0500
+
+    perf(cli): prefer precompiled dist entry, lazy-load S3 subtree (PERF-004)
+    
+    bin/duckbrain.js now serves dist/bin/duckbrain.js (tsc -p tsconfig.build.json,
+    script build:cli) when present, falling back to tsx with a stderr hint for dev
+    mode. Read-only CLI paths no longer load @aws-sdk/client-s3: the SDK-touching
+    imports in git/autocommit, s3/sync, namespaces/lifecycle and cli/human are
+    deferred to the functions/commands that need them (require-with-import-
+    fallback loaders, so vitest's TS transform still resolves them). Also fixes
+    the dist-path --version regression by walking up from __dirname to the
+    duckbrain package.json.
+    
+    Evidence: /tmp/perf004-probe.js Module._load hook reports AWS_SDK_LOADS=0 on
+    the read-only status path; node bin/duckbrain.js status 0.32-0.34s; full
+    vitest suite 205 files / 1658 tests green (one flaky live-/proc process-table
+    assertion passes on rerun, env-related not change-related).
+    Addresses PERF-004.
+    
+    ch:trace row=PERF-004 evidence=/tmp/perf004-probe.js
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ bin/duckbrain.js            | 27 ++++++++++++++-----
+ bin/duckbrain.ts            | 34 +++++++++++++++++-------
+ package.json                |  1 +
+ src/cli/human.ts            | 19 ++++++++++---
+ src/git/autocommit.ts       | 65 +++++++++++++++++++++++++++++++++++----------
+ src/namespaces/lifecycle.ts | 10 ++++++-
+ src/s3/sync.ts              | 18 ++++++++-----
+ tsconfig.build.json         | 18 +++++++++++++
+ 8 files changed, 150 insertions(+), 42 deletions(-)
+
+diff --git a/bin/duckbrain.js b/bin/duckbrain.js
+index e56448a..0806653 100755
+--- a/bin/duckbrain.js
++++ b/bin/duckbrain.js
+@@ -2,13 +2,28 @@
+ /**
+  * DuckBrain CLI Executable
+  *
+- * Wrapper script that loads tsx and runs the TypeScript CLI.
++ * PERF-004 — prefer the precompiled dist/ entry when it exists (no tsx
++ * on-the-fly TS compilation on the hot path: measured recall 4.19s via tsx
++ * vs 3.10s via precompiled dist/). Falls back to tsx for dev mode / fresh
++ * clones without a build, with a stderr hint to run `pnpm build`.
+  */
+ 
+-// Register tsx to handle TypeScript files
+-require('tsx/cjs');
+-
++const fs = require('fs');
+ const path = require('path');
+ 
+-// Run the TypeScript CLI
+-require(path.join(__dirname, 'duckbrain.ts'));
++// Precompiled CLI entry (tsc -p tsconfig.build.json → dist/bin/duckbrain.js).
++const distEntry = path.join(__dirname, '..', 'dist', 'bin', 'duckbrain.js');
++
++if (fs.existsSync(distEntry)) {
++  require(distEntry);
++} else {
++  process.stderr.write(
++    '[duckbrain] no precompiled build found — falling back to on-the-fly tsx compilation (slower startup; run `pnpm build:cli` to fix)\n',
++  );
++
++  // Register tsx to handle TypeScript files
++  require('tsx/cjs');
++
++  // Run the TypeScript CLI
++  require(path.join(__dirname, 'duckbrain.ts'));
++}
+diff --git a/bin/duckbrain.ts b/bin/duckbrain.ts
+index c5ffc52..668d7d6 100755
+--- a/bin/duckbrain.ts
++++ b/bin/duckbrain.ts
+@@ -128,19 +128,33 @@ Examples:
+  * /(\d+\.\d+\.\d+)/ from stdout; without a version command the remote exit
+  * status is non-zero and the check silently reports "up to date".
+  *
+- * The package is CommonJS and this file lives in bin/, which sits next to
+- * package.json, so __dirname is the correct anchor (never import.meta.url —
+- * that is undefined here). Falls back to "unknown" so --version never throws.
++ * The package is CommonJS, so __dirname is the correct anchor (never
++ * import.meta.url — that is undefined here). PERF-004: the compiled dist/bin
++ * entry is two levels below the package root (dist/bin/), while the tsx dev
++ * path is one level below (bin/), so walk upward until the duckbrain
++ * package.json is found. Falls back to "unknown" so --version never throws.
+  */
+ function readVersion(): string {
+   try {
+-    const pkgPath = path.join(__dirname, "..", "package.json");
+-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+-      version?: unknown;
+-    };
+-    return typeof pkg.version === "string" && pkg.version.length > 0
+-      ? pkg.version
+-      : "unknown";
++    let dir = __dirname;
++    for (let level = 0; level < 5; level++) {
++      try {
++        const pkgPath = path.join(dir, "package.json");
++        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
++          version?: unknown;
++          name?: unknown;
++        };
++        if (pkg?.name === "duckbrain") {
++          return typeof pkg.version === "string" && pkg.version.length > 0
++            ? pkg.version
++            : "unknown";
++        }
++      } catch {
++        // No readable package.json at this level — keep walking.
++      }
++      dir = path.dirname(dir);
++    }
++    return "unknown";
+   } catch {
+     return "unknown";
+   }
+diff --git a/package.json b/package.json
+index 2cc944b..da2efff 100644
+--- a/package.json
++++ b/package.json
+@@ -14,6 +14,7 @@
+     "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/http-ratelimit.int.test.ts",
+     "test:mutation": "bash scripts/red-proof-gate.sh",
+     "test:mutation:stryker": "stryker run",
++    "build:cli": "tsc -p tsconfig.build.json",
+     "start": "node bin/duckbrain.js",
+     "start:http": "node bin/duckbrain.js http --port 3000",
+     "dev:api": "node bin/duckbrain.js http --port 3000 --auth=none",
+diff --git a/src/cli/human.ts b/src/cli/human.ts
+index aebdbbb..e291e6e 100644
+--- a/src/cli/human.ts
++++ b/src/cli/human.ts
+@@ -28,12 +28,21 @@ import { forgetTool } from "../mcp/tools/forget";
+ import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
+ import { executeSegmentConsolidation } from "../storage/segment-consolidation";
+ import { getConfig, setConfig, registerNamespace } from "../config/index";
+-import { s3Command } from "../s3/cli";
+ import {
+   deleteNamespaceFromDisk,
+-  clearNamespaceFromS3,
+-  planS3Clear,
+ } from "../namespaces/lifecycle";
++// PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
++// @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
++// so read-only CLI paths (recall/list-keys/status) never load the SDK.
++async function loadLifecycleS3(): Promise<
++  typeof import("../namespaces/lifecycle.js")
++> {
++  return (await import("../namespaces/lifecycle.js")) as typeof import("../namespaces/lifecycle.js");
++}
++// PERF-004 — lazy s3 CLI subtree (s3/cli imports s3/client → AWS SDK).
++async function loadS3Cli(): Promise<typeof import("../s3/cli.js")> {
++  return (await import("../s3/cli.js")) as typeof import("../s3/cli.js");
++}
+ import { queryCommand } from "./query";
+ import { consolidateCommand } from "./consolidate";
+ import {
+@@ -1042,6 +1051,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
+     }
+ 
+     if (dryRun) {
++      const { planS3Clear } = await loadLifecycleS3();
+       const plan = await planS3Clear(config.s3, name);
+       console.log(`DRY-RUN — clearing ${name} from S3 would destroy:`);
+       console.log(`  bucket: ${plan.bucket}  prefix: ${plan.prefix}`);
+@@ -1060,6 +1070,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
+         "Re-run with --yes --requested-by=<who> --reason=<why> to destroy them.",
+       );
+     } else {
++      const { clearNamespaceFromS3 } = await loadLifecycleS3();
+       const result = await clearNamespaceFromS3(config.s3, name, {
+         confirm: true,
+         requestedBy,
+@@ -2231,7 +2242,7 @@ export async function runHumanCLI(
+     push: pushCommand,
+     remote: remoteCommand,
+     query: queryCommand,
+-    s3: (args: string[]) => s3Command(args),
++    s3: async (args: string[]) => (await loadS3Cli()).s3Command(args),
+     consolidate: consolidateCommand,
+     help: async () => showHelp(),
+   };
+diff --git a/src/git/autocommit.ts b/src/git/autocommit.ts
+index 61c5efb..daf46a4 100644
+--- a/src/git/autocommit.ts
++++ b/src/git/autocommit.ts
+@@ -60,14 +60,43 @@ import { execFile, execSync } from "child_process";
+ import fs from "fs";
+ import path from "path";
+ import { getConfig } from "../config";
+-import { maybeSyncOnCommit } from "../s3";
+-import { buildClient } from "../s3/client";
+ import type { S3Config } from "../s3/config";
+-import {
+-  isDuplicateRefPushError,
+-  parseS3RemoteUrl,
+-  repairAndRetryPushOnDuplicate,
+-} from "./s3-repair";
++
++// PERF-004 — lazy S3 loading. The AWS SDK (@aws-sdk/client-s3, ~91ms measured)
++// must never load on read-only paths: recall/list-keys/status transitively
++// import this module, so every s3-module import is deferred into the function
++// that needs it (the autopush / commit paths). Type-only imports are erased
++// at compile time and stay static. NOTE: a bare require() here breaks under
++// vitest (its transform pipeline does not hook CJS require of TS sources —
++// "Cannot find module '../s3'"), so loadS3 uses a dynamic import with a
++// require() fallback for the compiled dist/ CJS path.
++let s3ModulePromise: Promise<typeof import("../s3/index.js")> | null = null;
++function loadS3(): Promise<typeof import("../s3/index.js")> {
++  if (!s3ModulePromise) {
++    try {
++      // eslint-disable-next-line @typescript-eslint/no-require-imports
++      const m = require("../s3") as typeof import("../s3/index.js");
++      s3ModulePromise = Promise.resolve(m);
++    } catch {
++      s3ModulePromise = import("../s3/index.js");
++    }
++  }
++  return s3ModulePromise;
++}
++let s3RepairPromise: Promise<typeof import("./s3-repair.js")> | null = null;
++async function loadS3Repair(): Promise<typeof import("./s3-repair.js")> {
++  if (!s3RepairPromise) {
++    try {
++      // eslint-disable-next-line @typescript-eslint/no-require-imports
++      s3RepairPromise = Promise.resolve(
++        require("./s3-repair") as typeof import("./s3-repair.js"),
++      );
++    } catch {
++      s3RepairPromise = import("./s3-repair.js");
++    }
++  }
++  return s3RepairPromise;
++}
+ import { Mutex } from "async-mutex";
+ import {
+   acquireNamespaceWriteLock,
+@@ -503,8 +532,7 @@ async function asyncCommit(
+     // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
+     // default config = zero pushes), interval-coalesced and single-flight.
+     // Fire-and-forget: never blocks or fails the write path.
+-    maybeSyncOnCommit(namespacePath);
+-    // AUTOPUSH-001: push the namespace repo to the s3daily remote after each
++    await loadS3().then((s3) => s3.maybeSyncOnCommit(namespacePath));
+     // commit flush (git-remote-s3 → s3://duckbrain/current/git/<ns>), gated
+     // by the PUSH-001 config checks, never holding the event loop for the
+     // bundle + pack-objects duration.
+@@ -675,7 +703,9 @@ function immediateCommit(namespacePath: string, message: string): void {
+     // the 03:47 daily cron. Shares the gate state with the serving path.
+     // Outside the lock (DF-0925-02): the push is history transport, not part
+     // of the data+audit pairing guarantee.
+-    maybeSyncOnCommit(namespacePath);
++    void loadS3()
++      .then((s3) => s3.maybeSyncOnCommit(namespacePath))
++      .catch(() => undefined);
+     pushNamespace(namespacePath);
+   } catch (error) {
+     // Log but don't fail the tool — git is best-effort.
+@@ -953,14 +983,21 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+       // once. Best-effort and bounded: any repair failure logs and falls
+       // through to the standard warning below. Happy path: zero added S3
+       // calls, zero behavior change.
+-      if (s3 && remote && branch && isDuplicateRefPushError(message)) {
++      if (
++        s3 &&
++        remote &&
++        branch &&
++        (await loadS3Repair()).isDuplicateRefPushError(message)
++      ) {
+         try {
+           const remoteUrl = (
+             await gitAsync(["remote", "get-url", remote], namespacePath)
+           ).trim();
+-          const parsed = parseS3RemoteUrl(remoteUrl);
++          const s3Repair = await loadS3Repair();
++          const parsed = s3Repair.parseS3RemoteUrl(remoteUrl);
+           if (parsed) {
+-            recovered = await repairAndRetryPushOnDuplicate({
++            const { buildClient } = await loadS3();
++            recovered = await s3Repair.repairAndRetryPushOnDuplicate({
+               client: buildClient(s3),
+               bucket: parsed.bucket,
+               keyPrefix: parsed.keyPrefix,
+@@ -979,7 +1016,7 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+                     },
+                   },
+                 ),
+-              log: (line) => console.warn(`[Git] ${line}`),
++              log: (line: string) => console.warn(`[Git] ${line}`),
+             });
+             if (recovered) gateState.lastPushedHead = head;
+           }
+diff --git a/src/namespaces/lifecycle.ts b/src/namespaces/lifecycle.ts
+index 93428da..2dc4cec 100644
+--- a/src/namespaces/lifecycle.ts
++++ b/src/namespaces/lifecycle.ts
+@@ -33,7 +33,13 @@ import {
+ } from "../config/index";
+ import type { S3Config } from "../s3/config";
+ import { resolveEffectiveEndpoint } from "../s3/config";
+-import { buildClient, listRemoteObjects, deleteObject } from "../s3/client";
++// PERF-004 — lazy s3/client: it pulls in @aws-sdk/client-s3 (~91ms), and this
++// module is loaded statically by the CLI + MCP namespace tools, so read-only
++// paths (recall/list-keys/status) must never touch the SDK. Only the clear-s3
++// functions below need a client; s3/config and s3/manifest are SDK-free leaves.
++async function loadS3Client(): Promise<typeof import("../s3/client.js")> {
++  return (await import("../s3/client.js")) as typeof import("../s3/client.js");
++}
+ import { stateDir, loadManifest, pruneSyncManifest } from "../s3/manifest";
+ import { namespacePath } from "../s3/sync";
+ import { hasInFlightPush } from "./inflight-push";
+@@ -215,6 +221,7 @@ export async function planS3Clear(
+   if (!ns || ns.includes("/") || ns === "." || ns === "..") {
+     throw new Error(`Invalid namespace name: '${ns}'`);
+   }
++  const { buildClient, listRemoteObjects } = await loadS3Client();
+   const client = buildClient(s3);
+   const prefix = `${s3.prefix}/${ns}/`;
+   const remote = await listRemoteObjects(client, s3.bucket, prefix);
+@@ -302,6 +309,7 @@ export async function clearNamespaceFromS3(
+ 
+   // Re-list at execution time (TOCTOU-safe: destroys what exists NOW).
+   const plan = await planS3Clear(s3, ns, opts);
++  const { buildClient, deleteObject } = await loadS3Client();
+   const client = buildClient(s3);
+   let deleted = 0;
+   let failed = 0;
+diff --git a/src/s3/sync.ts b/src/s3/sync.ts
+index 6e59bd7..e0390f2 100644
+--- a/src/s3/sync.ts
++++ b/src/s3/sync.ts
+@@ -15,13 +15,13 @@
+ 
+ import fs from "fs";
+ import path from "path";
+-import {
+-  buildClient,
+-  listRemoteObjects,
+-  putObject,
+-  getObject,
+-  type RemoteObject,
+-} from "./client";
++// PERF-004 — lazy ./client: it pulls in @aws-sdk/client-s3. This module is
++// loaded statically by lifecycle (which the CLI + MCP namespace tools load),
++// so the client (SDK) is deferred to the sync functions that need it.
++async function loadClient(): Promise<typeof import("./client.js")> {
++  return (await import("./client.js")) as typeof import("./client.js");
++}
++import type { RemoteObject } from "./client.js";
+ import type { S3Client } from "@aws-sdk/client-s3";
+ import {
+   loadManifest,
+@@ -221,6 +221,7 @@ export async function listRemoteNamespaces(
+   client: S3Client,
+   cfg: S3Config,
+ ): Promise<string[]> {
++  const { listRemoteObjects } = await loadClient();
+   const objects = await listRemoteObjects(client, cfg.bucket, `${cfg.prefix}/`);
+   const names = new Set<string>();
+   for (const key of objects.keys()) {
+@@ -241,6 +242,7 @@ export async function pushNamespace(
+   namespacesPath: string,
+ ): Promise<SyncStats> {
+   const start = Date.now();
++  const { buildClient, listRemoteObjects, putObject } = await loadClient();
+   const client = buildClient(cfg);
+   const nsDir = namespacePath(namespacesPath, ns);
+   const prefix = `${cfg.prefix}/${ns}/`;
+@@ -307,6 +309,7 @@ export async function pullNamespace(
+   namespacesPath: string,
+ ): Promise<SyncStats> {
+   const start = Date.now();
++  const { buildClient, listRemoteObjects, getObject } = await loadClient();
+   const client = buildClient(cfg);
+   const nsDir = namespacePath(namespacesPath, ns);
+   const prefix = `${cfg.prefix}/${ns}/`;
+@@ -456,6 +459,7 @@ export async function syncAllNamespaces(
+     // iterate — the old local-only walk reported "0 namespaces" while
+     // restoring nothing) and unions with local ones so an `all pull` also
+     // refreshes namespaces that exist on both sides.
++    const { buildClient } = await loadClient();
+     const client = buildClient(cfg);
+     const remoteNames = await listRemoteNamespaces(client, cfg);
+     nsList = [...new Set([...remoteNames, ...localEntries])].sort();
+diff --git a/tsconfig.build.json b/tsconfig.build.json
+new file mode 100644
+index 0000000..96c4b81
+--- /dev/null
++++ b/tsconfig.build.json
+@@ -0,0 +1,18 @@
++{
++  "extends": "./tsconfig.json",
++  "compilerOptions": {
++    "sourceMap": false,
++    "declarationMap": false
++  },
++  "include": ["src/**/*", "bin/**/*"],
++  "exclude": [
++    "node_modules",
++    "dist",
++    "packages/ui/**/*",
++    "tests",
++    "src/test/**",
++    "src/testing/**",
++    "src/**/*.test.ts",
++    "src/**/*.int.test.ts"
++  ]
++}

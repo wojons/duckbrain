@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index a877079..624f0b4 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2453,3 +2453,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T04:45:10.899009+00:00'
+   completed_at: '2026-10-07T04:58:20.182209+00:00'
++- id: PERF-011
++  title: As-of recall 7.2s p50 on prod default ns (245k rows)
++  criteria:
++  - pnpm test:run green; as-of recall latency on a prod-scale namespace reduced (target
++    >=2x p50 improvement vs 7.2s baseline measured via curl on :3000 default ns);
++    no semantic change to as-of results (dedup/filter/limit semantics preserved, existing
++    asof tests pass)
++  status: complete
++  created_at: '2026-10-07T05:18:31.969804+00:00'
++  completed_at: '2026-10-07T05:40:18.642281+00:00'
