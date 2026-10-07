@@ -451,14 +451,24 @@ node bin/duckbrain.js http --rate-limit=60
 
 Default: 100 requests/min/IP. Rate limiting is applied before authentication to prevent credential stuffing.
 
-### DNS Rebinding Protection
+### Host guard / DNS-rebinding protection
 
-By default, DuckBrain only accepts connections with `Host` headers matching `localhost` or `127.0.0.1`. To expose the server to other hosts, use `--bind-all`:
+By default, DuckBrain only accepts connections with `Host` headers matching `localhost` or `127.0.0.1` (the port part of the header is stripped before comparison). To expose the server to other hosts, use `--bind-all`:
 
 ```bash
-# Expose on all interfaces (use with caution)
+# Expose on all interfaces (use with caution — skips the host check entirely)
 node bin/duckbrain.js http --bind-all --port=8080 --auth=apikey
 ```
+
+You usually do **not** need `--bind-all` to reach the daemon through a side-door or reverse proxy (a tailnet address or hostname, a container gateway). Keep it bound to loopback and extend the host guard's allow list instead with `--allowed-hosts` (repeatable and/or comma-separated):
+
+```bash
+node bin/duckbrain.js http --allowed-hosts myhost.tailnet.example --auth=apikey
+# equivalent:
+node bin/duckbrain.js http --allowed-hosts=100.97.236.14,memory.example.ts.net --auth=apikey
+```
+
+The environment variable `DUCKBRAIN_ALLOWED_HOSTS` (comma-separated) does the same as the flag; an explicit `--allowed-hosts` flag wins over the env var. Configured entries have any `:port` suffix stripped, matching how the guard compares Host headers. With an empty or absent list, the guard keeps its loopback-only default (`localhost` / `127.0.0.1`).
 
 ### Running as Non-Root
 

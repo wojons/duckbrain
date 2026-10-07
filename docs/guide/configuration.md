@@ -14,6 +14,7 @@ DuckBrain can be configured through environment variables and a JSON configurati
 | `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |
 | `DUCKBRAIN_HTTP_SOCKET_MODE` | — | Socket file permissions octal string (e.g. `0660`), used by `service install` unit |
 | `DUCKBRAIN_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `DUCKBRAIN_ALLOWED_HOSTS` | — | Comma-separated extra Host-header values the DNS-rebinding guard accepts on top of `localhost`/`127.0.0.1`. Empty/absent keeps the loopback-only default. Overridden by an explicit `--allowed-hosts` flag (see [Deployment Guide](deployment)) |
 | `AUTH_TYPE` | `none` | HTTP authentication type: `none`, `basic`, `apikey` |
 | `AUTH_TOKEN` | — | Authentication token (API key or password depending on auth type) |
 | `NODE_ENV` | — | Set to `production` for production deployments |

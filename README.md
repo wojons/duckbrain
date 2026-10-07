@@ -133,6 +133,8 @@ curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quick
 
 Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. The snippet above starts the daemon with `--auth=none` explicitly because the default is now `apikey` — a fresh daemon with no `--auth` flag requires API-key authentication and rejects unauthenticated writes with 401. For anything but local development, bootstrap a key store (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
 
+When exposing the daemon past loopback, note the DNS-rebinding host guard: `--allowed-hosts` / `DUCKBRAIN_ALLOWED_HOSTS` extend the accepted Host headers instead of `--bind-all` — see [docs/guide/deployment.md](docs/guide/deployment.md).
+
 ### Running DuckBrain
 
 **MCP Server Mode (for Claude/Cursor):**
