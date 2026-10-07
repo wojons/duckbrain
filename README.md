@@ -255,6 +255,18 @@ curl -s http://127.0.0.1:3000/health
 
 Notes: a restored namespace arrives data-only (JSONL + manifest files; the loop in step 2 recreates its git repo, and the daemon self-heals any namespace still missing a commit). A bootstrap pull never touches `namespaceMappings` — if you want the namespace registered in config, `duckbrain namespace create <ns>` afterward. The pull summary prints per-namespace downloaded counts; if namespaces exist on S3 but ALL fail to restore, `sync all pull` prints a loud warning and exits nonzero — a restore is never a silent zero.
 
+#### Namespace deletion lifecycle
+
+Namespace deletion is TWO separate operations (implemented in `src/namespaces/lifecycle.ts`):
+
+- **`duckbrain namespace delete-disk <ns> --force [--requested-by=<who>] [--reason=<why>]`** — deletes the LOCAL namespace only (directory + config mapping + per-namespace S3 sync manifest, so scheduled pushes stop). **S3 objects are kept** and stay retrievable via pull / git clone. Requires `--force`; refuses while a push is in flight; writes a who/why line to `<namespaces>/.s3state/lifecycle.log`.
+- **`duckbrain namespace clear-s3 <ns> --dry-run | --yes --requested-by=<who> --reason=<why>`** (alias `duckbrain s3 clear <ns> …`) — DESTROYS the namespace's remote S3 objects only; never touches local disk. Dry-run by default; `--yes` plus who/why executes.
+- **`duckbrain s3 ghosts [--sweep --yes --requested-by=<who>]`** — lists (or prunes) sync manifests/config mappings whose namespace directory is gone, so dead namespaces stop failing every push cadence.
+
+⚠️ **Semantic change:** plain `namespace delete <ns> --force` used to take a `--purge` boolean and destroy the remote copy; it now means **disk-only** (identical to `delete-disk`, S3 objects kept — `delete <ns> --force --purge` remains as a legacy alias for the same disk-only path). Scripts written against the old behavior silently preserve S3 state; move remote destruction to `clear-s3` explicitly.
+
+See [docs/s3-native.md](docs/s3-native.md#namespace-deletion-delete-disk-vs-clear-s3) for the full decision table.
+
 ## Screenshots
 
 ### Memory Tree View

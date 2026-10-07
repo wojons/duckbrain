@@ -278,6 +278,36 @@ is fine — the daemon's first write path re-runs init/commit itself). The full
 paste-able sequence (clone → pull → git reinit → serve) is in
 [README.md → Fresh-machine DR restore](../README.md#fresh-machine-dr-restore-paste-able).
 
+## Namespace deletion — delete-disk vs clear-s3
+
+Deletion is TWO separate operations (`src/namespaces/lifecycle.ts`): removing the local copy and destroying the remote S3 objects. Never conflate them.
+
+| | `namespace delete-disk` (alias: `s3`-less `delete --force`) | `namespace clear-s3` / `s3 clear` | `s3 ghosts [--sweep]` |
+|---|---|---|---|
+| Touches | local namespace dir (git repo + JSONL + embeddings), config `namespaceMappings` entry, per-ns sync manifest `.s3state/<ns>.json` | every S3 object under `<prefix>/<ns>/` (delta sync objects + git bundle layers) | ghost sync manifests + ghost mappings only (state files) |
+| S3 objects | **KEPT** (retrievable via pull / git clone) | **DESTROYED** | untouched |
+| Local disk | deleted | untouched | untouched |
+| Gates | `--force` required; refuses while a push is in flight; active-namespace guard; audited (who/why JSONL in `.s3state/lifecycle.log`) | `--dry-run` default; `--yes --requested-by=<who> --reason=<why>` to execute; re-lists the prefix at execution time (TOCTOU-safe); audited | sweep: `--yes --requested-by=<who>`; audited |
+| Result | scheduled pushes stop for the namespace | remote copy gone (restore only from backups) | dead namespaces stop failing every push cadence |
+
+### Semantic change of plain `namespace delete`
+
+`namespace delete <ns> --force` formerly took a `--purge` boolean and destroyed the remote copy. It now means **disk-only** — identical to `delete-disk`; S3 objects are kept. `delete <ns> --force --purge` survives as a legacy alias running the same disk-only code path, kept so old scripts don't silently change meaning — but that means scripts written against the old behavior **silently preserve S3 state**. Move remote destruction to `clear-s3` explicitly.
+
+### Checking for and resolving "s3 ghosts"
+
+An *S3 ghost* is object/manifest state that outlives its namespace: S3 objects with no live local namespace, or (the push-failure class) sync manifests / config mappings whose namespace dir is gone — these keep dead namespaces on every push cadence with "Namespace not found"/ENOENT retries.
+
+```bash
+duckbrain s3 ghosts            # list ghost manifests + ghost mappings (read-only)
+duckbrain s3 ghosts --sweep --yes --requested-by=<who> [--reason=<why>]
+                               # prune the ghost state (S3 objects untouched)
+duckbrain namespace clear-s3 <ns> --dry-run   # enumerate remaining S3 objects for a namespace
+                               # (empty plan + deleted locally = the namespace is fully gone)
+```
+
+Note: the in-flight-push guard and lifecycle audit are CLI-only — REST `DELETE /api/namespaces/:name` and MCP `delete_namespace` use the shared core without them; prefer the CLI for operator deletions.
+
 ## Pitfalls baked in
 
 - ⛔ httpfs on its OWN connection — the singleton connection strips extensions
