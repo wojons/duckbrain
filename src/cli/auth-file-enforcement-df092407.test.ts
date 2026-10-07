@@ -557,7 +557,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
       expect(authed.status).toBe(200);
     } finally {
       await close(server);
-      fs.rmSync(dir, { recursive: true, force: true });
+      await removeTempDirSafely(dir);
     }
   });
 
@@ -584,7 +584,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
       expect(withApiKeyHeader.status).toBe(401);
     } finally {
       await close(server);
-      fs.rmSync(dir, { recursive: true, force: true });
+      await removeTempDirSafely(dir);
     }
   });
 
@@ -616,7 +616,7 @@ describe("DF-0924-07 createHttpServer: bin-shaped option pairs", () => {
       }
     } finally {
       delete process.env.DUCKBRAIN_AUTH_FILE;
-      fs.rmSync(dir, { recursive: true, force: true });
+      await removeTempDirSafely(dir);
     }
   });
 });
