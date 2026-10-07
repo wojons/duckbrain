@@ -224,7 +224,7 @@ export const DuckBrainConfigSchema = z.object({
   /** Embedding store settings (vectors are NEVER stored in git) */
   embedding: z
     .object({
-      /** Provider id: lmstudio | ollama | openai | auto (default: auto) */
+      /** Provider id: lmstudio | ollama | openai | auto | none (default: auto; none disables embeddings and keeps /health green for keyword-only deployments) */
       provider: z.string().default("auto"),
       /** Model name passed to the provider */
       model: z.string().default("text-embedding-qwen3-embedding-0.6b"),

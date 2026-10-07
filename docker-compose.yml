@@ -8,6 +8,14 @@ services:
     environment:
       - NODE_ENV=production
       - DUCKBRAIN_DATA_DIR=/data
+      # DF-0923-04: a container has no LM Studio / Ollama to reach — without
+      # this the auto-probe finds nothing, /health reports degraded (503) and
+      # the compose healthcheck + every monitor read the deployment as broken
+      # even though keyword search works fine. "none" is the explicit
+      # embeddings-disabled configuration: /health answers 200, recall falls
+      # back to keyword search. Operators who mount an embedding backend into
+      # the container's network remove this line (or override the env).
+      - DUCKBRAIN_EMBEDDING_PROVIDER=none
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').catch(()=>process.exit(1))"]

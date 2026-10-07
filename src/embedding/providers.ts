@@ -425,6 +425,9 @@ export function resolveEmbeddingConfig(
       // previous "lmstudio" default made the daemon treat lmstudio as an
       // EXPLICIT provider — no probing, no fallback — so a reachable-but-broken
       // LM Studio silently killed semantic recall even when Ollama was healthy.
+      // DF-0923-04: "none" is the explicit disable — a container / clean-box
+      // deployment with no embedding backend at all. Runtime paths return no
+      // provider (keyword search still works) and /health reports healthy.
       partial.provider ?? env.DUCKBRAIN_EMBEDDING_PROVIDER ?? "auto",
     model:
       partial.model ??
@@ -446,6 +449,11 @@ export function resolveEmbeddingConfig(
  */
 export function createProvider(cfg: EmbeddingConfig = {}): EmbeddingProvider {
   const resolved = resolveEmbeddingConfig(cfg);
+  if (resolved.provider === "none") {
+    throw new Error(
+      `Embeddings are disabled (provider=none). Set DUCKBRAIN_EMBEDDING_PROVIDER or config embedding.provider to lmstudio | ollama | openai | auto to enable semantic search.`,
+    );
+  }
   const ctor = PROVIDERS.find((p) => p.id === resolved.provider);
   if (!ctor) {
     throw new Error(
@@ -526,6 +534,13 @@ export async function createAutoProviders(
   cfg: EmbeddingConfig = {},
 ): Promise<EmbeddingProvider[]> {
   const resolved = resolveEmbeddingConfig(cfg);
+
+  // DF-0923-04: explicit disable — no providers, no probing, no error. Callers
+  // degrade to keyword search through the existing providers.length === 0
+  // contract (recall.ts semanticError path).
+  if (resolved.provider === "none") {
+    return [];
+  }
 
   // Explicit provider → hard requirement
   if (resolved.provider && resolved.provider !== "auto") {

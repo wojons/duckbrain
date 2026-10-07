@@ -274,6 +274,27 @@ export async function probeEmbeddingHealth(
   cfg: EmbeddingConfig = {},
 ): Promise<EmbeddingHealthResult> {
   const resolved = resolveHealthConfig(cfg);
+
+  // DF-0923-04: provider=none is the explicit "this daemon has no embedding
+  // backend" configuration (the container / clean-box deployment case).
+  // Nothing is probed and the aggregate is healthy — an operator who disabled
+  // embeddings cannot be degraded by the absence of the thing they disabled.
+  // The breakdown keeps one entry so /health still SHOWS the state.
+  if (resolved.provider === "none") {
+    return {
+      provider: "",
+      model: resolved.model,
+      healthy: true,
+      providers: [
+        {
+          id: "none",
+          healthy: true,
+          note: "embeddings disabled (DUCKBRAIN_EMBEDDING_PROVIDER=none) — keyword search only",
+        },
+      ],
+    };
+  }
+
   const ordered =
     resolved.provider && resolved.provider !== "auto"
       ? PROVIDERS.filter((p) => p.id === resolved.provider)
