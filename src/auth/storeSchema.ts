@@ -71,9 +71,52 @@ export type UserEntry = z.infer<typeof UserEntrySchema>;
 export type AuthStore = z.infer<typeof AuthStoreSchema>;
 export type { Role };
 
+export interface AuthPrincipalIdentity {
+  name: string;
+  tokenType?: "basic" | "apikey";
+  username?: string;
+}
+
+export type AuthStoreReloadListener = (store: AuthStore) => void;
+
 export interface AuthStoreSource {
   getSnapshot(): AuthStore | Promise<AuthStore>;
+  /** Called after a new validated snapshot replaces the previous snapshot. */
+  onReload?(listener: AuthStoreReloadListener): () => void;
   migrateLegacyApiKey?(name: string, plaintext: string): void | Promise<void>;
+}
+
+let activeAuthStore: AuthStoreSource | undefined;
+
+/** The file-backed store used by the process HTTP server, if one was created. */
+export function getActiveAuthStore(): AuthStoreSource | undefined {
+  return activeAuthStore;
+}
+
+/** Resolve the identity captured at authentication time against a new snapshot. */
+export function resolvesPrincipal(
+  store: AuthStore,
+  principal: AuthPrincipalIdentity,
+  now = new Date(),
+): boolean {
+  if (principal.tokenType === "basic") {
+    const username = principal.username ?? principal.name;
+    return store.users.some(
+      (entry) =>
+        entry.username === username &&
+        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
+    );
+  }
+
+  if (principal.tokenType === "apikey" || principal.tokenType === undefined) {
+    return store.apiKeys.some(
+      (entry) =>
+        entry.name === principal.name &&
+        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
+    );
+  }
+
+  return true;
 }
 
 export function hashApiKey(key: string): string {
@@ -148,6 +191,7 @@ export class FileAuthStore implements AuthStoreSource {
   private snapshot: AuthStore;
   private observedFingerprint: string;
   private readonly deprecated = new Set<string>();
+  private readonly reloadListeners = new Set<AuthStoreReloadListener>();
 
   constructor(file: string, options: FileAuthStoreOptions = {}) {
     this.file = path.resolve(file);
@@ -155,6 +199,12 @@ export class FileAuthStore implements AuthStoreSource {
     this.snapshot = readValidated(this.file);
     this.observedFingerprint = fingerprint(this.file);
     this.logLegacyTokens(this.snapshot);
+    activeAuthStore = this;
+  }
+
+  onReload(listener: AuthStoreReloadListener): () => void {
+    this.reloadListeners.add(listener);
+    return () => this.reloadListeners.delete(listener);
   }
 
   getSnapshot(): AuthStore {
@@ -177,6 +227,15 @@ export class FileAuthStore implements AuthStoreSource {
       const next = readValidated(this.file);
       this.snapshot = next;
       this.logLegacyTokens(next);
+      for (const listener of this.reloadListeners) {
+        try {
+          listener(next);
+        } catch (error) {
+          this.log(
+            `[duckbrain] auth store reload listener failed: ${formatValidation(error)}`,
+          );
+        }
+      }
     } catch (error) {
       this.log(
         `[duckbrain] auth store reload failed; retaining last good snapshot: ${formatValidation(error)}`,

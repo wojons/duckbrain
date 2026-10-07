@@ -22,6 +22,12 @@
 import fs from "fs";
 import path from "path";
 import type { AuthPrincipal } from "../../auth/middleware";
+import {
+  getActiveAuthStore,
+  resolvesPrincipal,
+  type AuthStore,
+  type AuthStoreSource,
+} from "../../auth/storeSchema";
 import { authorizeTableAccess } from "../../auth/roles";
 import { getConfig, resolveNamespacesPath } from "../../config";
 import {
@@ -124,6 +130,8 @@ export interface RealtimeHubOptions {
   maxReplayEvents?: number;
   maxReplayCommits?: number;
   retentionDays?: number;
+  /** Auth store whose reloads must revoke no-longer-valid subscribers. */
+  authStore?: AuthStoreSource;
   log?: (message: string) => void;
 }
 
@@ -156,6 +164,8 @@ export class RealtimeHub {
   private readonly maxReplayCommits: number;
   private readonly retentionDays: number;
   private readonly log: (message: string) => void;
+  private readonly authStore: AuthStoreSource | undefined;
+  private readonly unsubscribeAuthReload: (() => void) | undefined;
   private readonly feeds = new Map<string, FeedState>();
   private nextSubscriberId = 1;
 
@@ -180,6 +190,10 @@ export class RealtimeHub {
       options.maxReplayCommits ?? config.realtime.maxReplayCommits;
     this.retentionDays = options.retentionDays ?? config.realtime.retentionDays;
     this.log = options.log ?? ((message) => console.warn(message));
+    this.authStore = options.authStore ?? getActiveAuthStore();
+    this.unsubscribeAuthReload = this.authStore?.onReload?.((store) => {
+      this.revokeMissingPrincipals(store);
+    });
   }
 
   /** Total live subscribers across every namespace feed. */
@@ -355,6 +369,7 @@ export class RealtimeHub {
   async check(namespace: string): Promise<void> {
     const feed = this.feeds.get(namespace);
     if (!feed) return;
+    await this.refreshAuth();
     await this.runLocked(feed, async () => {
       if (feed.subscribers.size === 0) return;
       const head = resolveHeadSha(feed.repoDir);
@@ -410,6 +425,34 @@ export class RealtimeHub {
     });
   }
 
+  private async refreshAuth(): Promise<void> {
+    if (!this.authStore) return;
+    try {
+      const snapshot = await this.authStore.getSnapshot();
+      this.revokeMissingPrincipals(snapshot);
+    } catch (error) {
+      this.log(
+        `[realtime] auth store refresh failed; retaining live subscriptions: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private revokeMissingPrincipals(store: AuthStore): void {
+    for (const feed of this.feeds.values()) {
+      for (const subscriber of [...feed.subscribers]) {
+        if (
+          subscriber.principal !== undefined &&
+          !resolvesPrincipal(store, subscriber.principal)
+        ) {
+          // Keep all stream teardown and wire emission in the existing path.
+          this.revoke(subscriber);
+        }
+      }
+    }
+  }
+
   /** Immediate check triggered by the serializer's post-flush notifier. */
   wake(namespace: string): void {
     if (!this.feeds.has(namespace)) return;
@@ -424,6 +467,7 @@ export class RealtimeHub {
 
   /** Close every subscription (server shutdown, tests). */
   closeAll(): void {
+    this.unsubscribeAuthReload?.();
     for (const feed of [...this.feeds.values()]) this.closeFeed(feed);
     for (const feed of [...this.feeds.values()]) {
       if (feed.timer) clearInterval(feed.timer);

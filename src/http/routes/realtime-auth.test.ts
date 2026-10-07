@@ -12,9 +12,14 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import express from "express";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { z } from "zod";
 import { REALTIME_ROUTE_PATH, createRealtimeRoutes } from "./realtime";
 import { RealtimeHub } from "../realtime/hub";
+import { FileAuthStore, hashApiKey } from "../../auth/storeSchema";
+import { createAuthBackend } from "../../auth/middleware";
 import { TableSchemaRegistry } from "../../serialization/registry";
 import {
   configNamespacesPath,
@@ -31,11 +36,14 @@ import {
 const fixtures: RealtimeFixture[] = [];
 const hubs: RealtimeHub[] = [];
 const apps: RunningApp[] = [];
+const authDirs: string[] = [];
 
 afterEach(async () => {
   for (const app of apps.splice(0)) await app.close();
   for (const hub of hubs.splice(0)) hub.closeAll();
   for (const fixture of fixtures.splice(0)) fixture.cleanup();
+  for (const dir of authDirs.splice(0))
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 const genericRow = z.object({ id: z.string() }).passthrough();
@@ -232,4 +240,78 @@ describe("DB-SUPA-5 authorization filtering", () => {
     ]);
     allowed.close();
   }, 30_000);
+
+  it("revokes an idle SSE subscriber when the auth store reloads", async () => {
+    const fixture = createRealtimeFixture("duckbrain-supa5-auth-reload-", {
+      root: configNamespacesPath(),
+      namespace: `auth-reload-${process.pid}-${Date.now()}`,
+      commitOnFlush: false,
+    });
+    fixtures.push(fixture);
+
+    const authDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "duckbrain-supa5-auth-store-"),
+    );
+    authDirs.push(authDir);
+    const authFile = path.join(authDir, "auth.json");
+    const token = "idle-reload-token";
+    fs.writeFileSync(
+      authFile,
+      JSON.stringify({
+        apiKeys: [
+          {
+            keyHash: hashApiKey(token),
+            name: "idle-reader",
+            roles: ["analyst"],
+            namespaces: [fixture.ns],
+          },
+        ],
+      }) + "\n",
+      { mode: 0o600 },
+    );
+    const store = new FileAuthStore(authFile);
+    const principal = await createAuthBackend({
+      type: "apikey",
+      store,
+    }).authenticate({ headers: { "x-api-key": token } } as never);
+
+    const hub = new RealtimeHub({
+      namespacesPath: fixture.root,
+      pollIntervalMs: 25,
+      heartbeatMs: 60 * 60 * 1000,
+      authStore: store,
+    });
+    hubs.push(hub);
+
+    const app = express();
+    app.use(express.json());
+    app.use(principalMiddleware(principal));
+    app.use(REALTIME_ROUTE_PATH, createRealtimeRoutes({ hub }));
+    const running = await startApp(app);
+    apps.push(running);
+
+    const client = await openSseClient(
+      running.port,
+      `/api/ns/${fixture.ns}/changes`,
+    );
+    expect(client.status).toBe(200);
+    await client.waitFor((current) => current.frames().length >= 1);
+    expect(hub.countFor(fixture.ns)).toBe(1);
+
+    // No namespace write or wake call follows this edit. The hub's existing
+    // poll interval must drive the auth-store reload and close the idle feed.
+    fs.writeFileSync(authFile, JSON.stringify({ apiKeys: [] }) + "\n");
+    const next = new Date(Date.now() + 1_000);
+    fs.utimesSync(authFile, next, next);
+
+    await client.waitFor(
+      (current) =>
+        current.frames().some((frame) => frame.event === "duckbrain.revoked.v1"),
+      3_000,
+    );
+    await client.waitFor((current) => current.ended(), 3_000);
+    expect(client.frames().filter((frame) => frame.event === "duckbrain.revoked.v1"))
+      .toHaveLength(1);
+    expect(hub.countFor(fixture.ns)).toBe(0);
+  });
 });
