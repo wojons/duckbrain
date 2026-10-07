@@ -17,7 +17,7 @@
  * the reader (git status stays clean after queryMemoriesAtRef runs).
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -26,8 +26,35 @@ import {
   resolveAsOfRef,
   readManifestAtRef,
   queryMemoriesAtRef,
+  readRowsAtRef,
   type MemoryRowAtRef,
 } from "./asof";
+
+// PERF-011: count git child-process spawns (AC4). ESM module namespaces are
+// not spy-able (Cannot redefine property), so wrap execFileSync with a
+// counting mock instead. spawnSync (cat-file --batch) is intentionally NOT
+// mocked — it must be the single batch process the implementation relies on.
+const { execFileSyncCalls, setExecFileSync } = vi.hoisted(() => {
+  let execFileSyncCalls = 0;
+  return {
+    execFileSyncCalls: () => execFileSyncCalls,
+    setExecFileSync: (n: number) => {
+      execFileSyncCalls = n;
+    },
+  };
+});
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("child_process")>();
+  return {
+    ...actual,
+    execFileSync: ((...a: unknown[]) => {
+      if (a[0] === "git") setExecFileSync(execFileSyncCalls() + 1);
+      return (
+        actual.execFileSync as unknown as (...b: unknown[]) => string
+      )(...a);
+    }) as typeof actual.execFileSync,
+  };
+});
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "asof-unit-"));
 
@@ -370,6 +397,167 @@ describe("RETR-004: queryMemoriesAtRef", () => {
     queryMemoriesAtRef(repo, sha1, {});
     queryMemoriesAtRef(repo, sha2, {});
     expect(git(repo, "status --porcelain")).toBe(before);
+  });
+});
+
+/**
+ * PERF-011: batched-read semantics lock + process-count regression guards.
+ *
+ * The optimization replaced one `git ls-tree` per partition + one `git show`
+ * per chunk with a single whole-tree `git ls-tree -r` + ONE
+ * `git cat-file --batch` process. These tests lock that change:
+ *   - SEMANTICS: identical results between per-chunk `git show` reads and the
+ *     batched reader on a multi-partition fixture with duplicate ids across
+ *     chunks and tombstones (dedup / tombstone / filter / order / limit).
+ *   - PROCESS COUNT: a multi-chunk read spawns <= 3 git child processes
+ *     (manifest+tree+batch), vs one-per-chunk before.
+ */
+describe("PERF-011: batched as-of reads (semantics lock + process count)", () => {
+  const repoB = path.join(TMP, "batch");
+  let shaB: string;
+  /** Read rows the OLD way: one `git show` per chunk (semantics reference). */
+  function readRowsOldWay(dir: string, ref: string): MemoryRowAtRef[] {
+    const manifestRaw = git(dir, `show ${ref}:manifest.json`);
+    const partitions = (JSON.parse(manifestRaw) as { partitions: string[] })
+      .partitions;
+    const rows: MemoryRowAtRef[] = [];
+    for (const partition of partitions) {
+      const listing = git(
+        dir,
+        `ls-tree -r --name-only ${ref} -- ${partition}`,
+      );
+      for (const line of listing.split("\n")) {
+        const file = line.trim();
+        if (file === "" || !file.endsWith(".jsonl")) continue;
+        const content = git(dir, `show ${ref}:${file}`);
+        for (const jsonLine of content.split("\n")) {
+          if (jsonLine.trim() === "") continue;
+          try {
+            const rec = JSON.parse(jsonLine) as Record<string, unknown>;
+            if (typeof rec.id !== "string" || rec.id === "") continue;
+            rows.push({
+              id: rec.id,
+              key: typeof rec.key === "string" ? rec.key : "",
+              domain: typeof rec.domain === "string" ? rec.domain : "",
+              timestamp:
+                typeof rec.timestamp === "string" ? rec.timestamp : "",
+              author: typeof rec.author === "string" ? rec.author : "",
+              action: typeof rec.action === "string" ? rec.action : "add",
+              embedding_text:
+                typeof rec.embedding_text === "string"
+                  ? rec.embedding_text
+                  : "",
+              attributes:
+                typeof rec.attributes === "object" && rec.attributes !== null
+                  ? (rec.attributes as Record<string, unknown>)
+                  : {},
+            });
+          } catch {
+            // malformed line — skip
+          }
+        }
+      }
+    }
+    return rows;
+  }
+
+  beforeAll(() => {
+    initRepo(repoB);
+    // 3 partitions x 2 chunks; duplicate ids across chunks, tombstones,
+    // a malformed line, and mixed timestamps for ordering checks.
+    writeJsonl(repoB, "concept/2026-07/current.jsonl", [
+      row("b-dup", "/b/k1", "2026-07-01T08:00:00.000Z", {
+        embedding_text: "old",
+      }),
+      row("b-live-1", "/b/live1", "2026-07-05T08:00:00.000Z"),
+      "{ broken json line",
+    ]);
+    writeJsonl(repoB, "concept/2026-08/current.jsonl", [
+      row("b-dup", "/b/k1", "2026-07-20T08:00:00.000Z", {
+        embedding_text: "new",
+      }),
+      row("b-dead", "/b/dead", "2026-07-06T08:00:00.000Z", {
+        action: "tombstone",
+      }),
+    ]);
+    writeJsonl(repoB, "person/2026-07/current.jsonl", [
+      row("b-person-1", "/p/one", "2026-07-10T08:00:00.000Z", {
+        domain: "person",
+      }),
+      row("b-tomb", "/p/tomb", "2026-07-11T08:00:00.000Z", {
+        action: "tombstone",
+      }),
+      row("b-tomb", "/p/tomb", "2026-07-02T08:00:00.000Z"), // older add: still dead
+    ]);
+    writeJsonl(repoB, "person/2026-08/current.jsonl", [
+      row("b-person-2", "/p/two", "2026-07-15T08:00:00.000Z", {
+        domain: "person",
+      }),
+    ]);
+    writeJsonl(repoB, "message/2026-07/current.jsonl", [
+      row(
+        "b-chat",
+        "/chats/view/2026-05-24/part-1",
+        "2026-07-12T08:00:00.000Z",
+        { domain: "message" },
+      ),
+    ]);
+    writeManifest(repoB, [
+      "concept/2026-07",
+      "concept/2026-08",
+      "person/2026-07",
+      "person/2026-08",
+      "message/2026-07",
+    ]);
+    shaB = commitAll(repoB, "batch fixture", D2);
+  });
+
+  it("returns identical rows to the per-chunk reader (old-way reference)", () => {
+    expect(readRowsAtRef(repoB, shaB)).toEqual(readRowsOldWay(repoB, shaB));
+  });
+
+  it("locks dedup/tombstone/filter/order/limit semantics on the fixture", () => {
+    const cases: Array<{ filters: Parameters<typeof queryMemoriesAtRef>[2]; wantIds: string[]; wantTotal: number }> = [
+      { filters: {}, wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1", "b-live-1"], wantTotal: 5 },
+      { filters: { domain: "person" }, wantIds: ["b-person-2", "b-person-1"], wantTotal: 2 },
+      { filters: { key: "/b/k1" }, wantIds: ["b-dup"], wantTotal: 1 },
+      { filters: { after: "2026-07-10T00:00:00.000Z" }, wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1"], wantTotal: 4 },
+      { filters: { limit: 2 }, wantIds: ["b-dup", "b-person-2"], wantTotal: 5 },
+      { filters: { offset: 1, limit: 2 }, wantIds: ["b-person-2", "b-chat"], wantTotal: 5 },
+    ];
+    for (const c of cases) {
+      const got = queryMemoriesAtRef(repoB, shaB, c.filters);
+      expect(got.memories.map((m) => m.id)).toEqual(c.wantIds);
+      expect(got.total).toBe(c.wantTotal);
+    }
+    // dedup kept the LATEST b-dup record.
+    const k1 = queryMemoriesAtRef(repoB, shaB, { key: "/b/k1" });
+    expect(k1.memories[0].embedding_text).toBe("new");
+    // tombstones (latest-record tombstone AND tombstoned-by-older-add) gone.
+    expect(queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/p/tomb" }).total).toBe(0);
+    expect(queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/b/dead" }).total).toBe(0);
+  });
+
+  it("spawns <= 3 git child processes for a multi-chunk read (AC4)", () => {
+    setExecFileSync(0);
+    readRowsAtRef(repoB, shaB);
+    const calls = execFileSyncCalls();
+    expect(calls).toBeLessThanOrEqual(3);
+    expect(calls).toBeGreaterThan(0);
+  });
+
+  it("prints a deterministic batch-vs-per-chunk timing comparison (perf notice)", () => {
+    const t0 = performance.now();
+    const rowsNew = readRowsAtRef(repoB, shaB);
+    const newMs = performance.now() - t0;
+    const t1 = performance.now();
+    const rowsOld = readRowsOldWay(repoB, shaB);
+    const oldMs = performance.now() - t1;
+    // Informational only — no hard latency assert (CI-safe).
+    console.log(
+      `[PERF-011] fixture (5 chunks, 8 rows): batched ${newMs.toFixed(1)}ms vs per-chunk ${oldMs.toFixed(1)}ms; rows ${rowsNew.length}/${rowsOld.length}`,
+    );
+    expect(rowsNew).toEqual(rowsOld);
   });
 });
 

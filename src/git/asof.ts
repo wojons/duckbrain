@@ -38,7 +38,7 @@
  * This module NEVER writes: no checkout, no worktree, no index mutation.
  */
 
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { isValidIso8601 } from "../utils/timerange";
@@ -173,16 +173,75 @@ export function resolveAsOfRef(rawRef: string, repoDir: string): string {
 }
 
 /**
- * Read the namespace manifest as it existed at a ref.
+ * PERF-011: batch-read every blob path in ONE `git cat-file --batch` process.
  *
- * @returns The manifest, or null when the namespace had no manifest at that
- *   ref (i.e. it did not exist at that point in history).
+ * Input: a list of ref-relative paths. Output: a map path → file content
+ * (blob text; missing paths and non-blob entries are simply absent). Binaries
+ * are not expected (chunks and manifests are JSONL/JSON text), but a corrupt
+ * or binary blob is tolerated by treating only the FIRST line as its path —
+ * pathological content just degrades to that path being unparseable, never a
+ * crash (spawnSync errors / empty git output yield an empty map).
+ *
+ * This is the latency fix: the old reader spawned one `git show` per chunk
+ * (hundreds of child processes on prod-scale namespaces); cat-file --batch
+ * reads all of them from a single git process over one pipe round-trip.
  */
-export function readManifestAtRef(
+export function catFileBatch(
   repoDir: string,
+  paths: string[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  if (paths.length === 0) return out;
+  try {
+    const res = spawnSync("git", ["cat-file", "--batch"], {
+      cwd: repoDir,
+      input: paths.join("\n") + "\n",
+      // NOTE: no `encoding` option — stdout/stdin are Buffers by default.
+      // (encoding: "buffer" is not a valid encoding and makes spawnSync
+      // throw ERR_UNKNOWN_ENCODING on Node 22.)
+      maxBuffer: 1024 * 1024 * 1024,
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    if (res.error || res.status !== 0 || !res.stdout) return out;
+    const buf = res.stdout;
+    let pos = 0;
+    // cat-file --batch answers requests IN ORDER:
+    //   hit:     "<oid> SP blob SP <size> LF <content> LF"
+    //   missing: "<request> LF missing LF"
+    // Hits do NOT echo the requested path, so responses are matched to the
+    // requests by position (git preserves request order).
+    for (const request of paths) {
+      if (pos >= buf.length) break;
+      const nl1 = buf.indexOf(0x0a, pos);
+      if (nl1 === -1) break;
+      const header = buf.toString("utf-8", pos, nl1);
+      const m = /^[0-9a-f]{40} blob (\d+)$/.exec(header.trim());
+      if (m) {
+        const len = Number(m[1]);
+        const contentStart = nl1 + 1;
+        const contentEnd = contentStart + len;
+        if (contentEnd > buf.length) break; // truncated output — stop safely
+        out.set(request, buf.toString("utf-8", contentStart, contentEnd));
+        pos = contentEnd + 1; // trailing newline after the blob body
+      } else {
+        // Missing / non-blob: consume the "<request>\nmissing\n" pair.
+        const nl2 = buf.indexOf(0x0a, nl1 + 1);
+        if (nl2 === -1) break;
+        pos = nl2 + 1;
+      }
+    }
+  } catch {
+    // Fall through: an unusable batch read returns whatever was parsed.
+  }
+  return out;
+}
+
+/** Shared manifest parse (warn + degrade to empty on corrupt input). */
+function parseManifestRaw(
+  raw: string,
   ref: string,
+  repoDir: string,
 ): Manifest | null {
-  const raw = gitOut(repoDir, ["show", `${ref}:manifest.json`]);
   if (raw === "") return null;
   try {
     const parsed = JSON.parse(raw) as Partial<Manifest>;
@@ -201,37 +260,69 @@ export function readManifestAtRef(
 }
 
 /**
- * Read every memory row present in the namespace at a ref.
+ * Read the namespace manifest as it existed at a ref, from a pre-fetched
+ * batch of file contents (PERF-011 hot path — avoids a dedicated git call).
+ */
+export function readManifestAtRef(
+  repoDir: string,
+  ref: string,
+  preloaded?: Map<string, string>,
+): Manifest | null {
+  const raw =
+    preloaded?.get("manifest.json") ??
+    gitOut(repoDir, ["show", `${ref}:manifest.json`]);
+  return parseManifestRaw(raw, ref, repoDir);
+}
+
+/**
+ * Read every memory row present in the namespace at a ref (PERF-011).
  *
- * Walks the manifest at that ref, lists each partition's chunk files with
- * `git ls-tree`, and reads every *.jsonl chunk with `git show`. Malformed
- * lines are skipped (mirrors read_json ignore_errors=true); chunks that
- * vanish between listing and reading are skipped.
+ * Walks the manifest at that ref, lists ALL chunk files in ONE
+ * `git ls-tree -r` over the whole tree (instead of one per partition),
+ * and reads the manifest + every *.jsonl chunk in ONE
+ * `git cat-file --batch` process (instead of one `git show` per file).
+ * Malformed lines are skipped (mirrors read_json ignore_errors=true);
+ * chunks that vanish between listing and reading are skipped.
  *
  * @throws Error when the manifest lists an unsafe (escaping) partition path.
  */
 export function readRowsAtRef(repoDir: string, ref: string): MemoryRowAtRef[] {
-  const manifest = readManifestAtRef(repoDir, ref);
+  // PERF-011: one whole-tree ls-tree + ONE cat-file --batch for the manifest
+  // and every chunk (cat-file resolves REVISIONS, hence the ref: prefix).
+  const revOf = (file: string): string => `${ref}:${file}`;
+  const allPaths = new Set<string>(["manifest.json"]);
+  const listing = gitOut(repoDir, ["ls-tree", "-r", "--name-only", ref]);
+  for (const line of listing.split("\n")) {
+    const file = line.trim();
+    if (file === "" || !file.endsWith(".jsonl")) continue;
+    try {
+      assertSafeRepoPath(file);
+      allPaths.add(file);
+    } catch {
+      // A manifest-independent tree entry cannot be validated — skip it.
+    }
+  }
+  const contents = catFileBatch(repoDir, [...allPaths].map(revOf));
+
+  const manifestRaw = contents.get(revOf("manifest.json"));
+  const manifest =
+    manifestRaw !== undefined
+      ? parseManifestRaw(manifestRaw, ref, repoDir)
+      : readManifestAtRef(repoDir, ref);
   if (!manifest) return [];
 
   const rows: MemoryRowAtRef[] = [];
   for (const partition of manifest.partitions) {
     assertSafeRepoPath(partition);
-    const listing = gitOut(repoDir, [
-      "ls-tree",
-      "-r",
-      "--name-only",
-      ref,
-      "--",
-      partition,
-    ]);
-    for (const line of listing.split("\n")) {
-      const file = line.trim();
-      if (file === "" || !file.endsWith(".jsonl")) continue;
-      assertSafeRepoPath(file);
-
-      const content = gitOut(repoDir, ["show", `${ref}:${file}`]);
-      if (content === "") continue; // chunk not present at ref — skip
+    // Manifests may carry trailing slashes (historical format) — normalize
+    // so the tree-path prefix match stays exact (matches git pathspec
+    // semantics of the previous per-partition `ls-tree -- <partition>`).
+    const prefix = `${partition.replace(/\/+$/, "")}/`;
+    for (const file of allPaths) {
+      if (file === "manifest.json") continue;
+      if (!file.startsWith(prefix)) continue;
+      const content = contents.get(revOf(file));
+      if (content === undefined || content === "") continue;
 
       for (const line2 of content.split("\n")) {
         const jsonLine = line2.trim();
