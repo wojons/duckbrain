@@ -412,8 +412,11 @@ describe("reapOrphanDaemons kill path (DB-GAP-059)", () => {
     }
     const report = reapOrphanDaemons({ dryRun: true });
     // Live /proc between two scans is not stable: processes spawn and die in
-    // between (CI race, 46 vs 45). Assert approximate equality instead.
-    expect(Math.abs(report.scanned - processes.length)).toBeLessThanOrEqual(2);
+    // between (CI race, 46 vs 45; under fleet load the churn exceeds any fixed
+    // constant). Assert approximate equality with a proportional tolerance
+    // (10% of the baseline, floor 8) instead.
+    const procTolerance = Math.max(8, Math.ceil(processes.length * 0.1));
+    expect(Math.abs(report.scanned - processes.length)).toBeLessThanOrEqual(procTolerance);
     // The managed unit is protected, so it can never be a victim.
     for (const victim of report.victims) {
       expect(victim).not.toBe(process.pid);
