@@ -68,6 +68,8 @@ Commands:
   query              Read-only SQL over a namespace (SELECT ... or --template)
   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
   s3                 Native S3 sync/query (status|sync|query|config)
+  git                Git identity tools (repair-identity: remove synthetic
+                     local user.name/user.email pins; bare: identity health)
   help               Show this help
 
 HTTP Options:
@@ -341,6 +343,12 @@ async function main() {
         }
         break;
       }
+
+      case "git":
+        await (await import("../src/cli/git-identity.js")).runGitIdentityCLI(
+          commandArgs,
+        );
+        break;
 
       case "embeddings":
         await runEmbeddingsCLI(commandArgs);

@@ -56,10 +56,11 @@
  * always tell the two cases apart.
  */
 
-import { execFile, execSync } from "child_process";
+import { execFile, execFileSync, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
+import { requireGitIdentity } from "./identity";
 import type { S3Config } from "../s3/config";
 
 // PERF-004 — lazy S3 loading. The AWS SDK (@aws-sdk/client-s3, ~91ms measured)
@@ -495,20 +496,14 @@ async function asyncCommit(
           await gitAsync(["init"], namespacePath);
         }
 
-        // Ensure git user identity is set (newly inited repos + pre-existing ones)
-        try {
-          await gitAsync(["config", "user.email"], namespacePath);
-        } catch {
-          await gitAsync(
-            ["config", "user.email", "duckbrain@localhost.localdomain"],
-            namespacePath,
-          );
-        }
-        try {
-          await gitAsync(["config", "user.name"], namespacePath);
-        } catch {
-          await gitAsync(["config", "user.name", "DuckBrain"], namespacePath);
-        }
+        // GIT-IDENTITY-001: never invent an identity, and never WRITE one
+        // into the repo config (local config outranks global, so a write is
+        // a permanent pin). Resolve it (repo-local -> global -> env) and
+        // fail loudly with an actionable hint when nothing is configured;
+        // the resolved identity is passed to the commit invocation via `-c`
+        // (per-invocation only). The commit below is best-effort — the JSONL
+        // record is durable, so a failed commit only costs history.
+        const identity = requireGitIdentity(namespacePath);
 
         // Stage all changes
         await gitAsync(["add", "-A"], namespacePath);
@@ -524,7 +519,18 @@ async function asyncCommit(
           staged = true;
         }
         if (staged) {
-          await gitAsync(["commit", "-m", message], namespacePath);
+          await gitAsync(
+            [
+              "-c",
+              `user.name=${identity.name}`,
+              "-c",
+              `user.email=${identity.email}`,
+              "commit",
+              "-m",
+              message,
+            ],
+            namespacePath,
+          );
         }
       }),
     );
@@ -658,26 +664,11 @@ function immediateCommit(namespacePath: string, message: string): void {
         execSync("git init", { cwd: namespacePath, stdio: "pipe" });
       }
 
-      // Ensure git user identity is set (newly inited repos + pre-existing ones)
-      try {
-        execSync("git config user.email", {
-          cwd: namespacePath,
-          stdio: "pipe",
-        });
-      } catch {
-        execSync('git config user.email "duckbrain@localhost.localdomain"', {
-          cwd: namespacePath,
-          stdio: "pipe",
-        });
-      }
-      try {
-        execSync("git config user.name", { cwd: namespacePath, stdio: "pipe" });
-      } catch {
-        execSync('git config user.name "DuckBrain"', {
-          cwd: namespacePath,
-          stdio: "pipe",
-        });
-      }
+      // GIT-IDENTITY-001 (sync exit-flush twin of the async site): resolve —
+      // never invent — the identity, and never write it into the repo
+      // config; it is passed to the commit invocation via `-c`. A missing
+      // identity fails this best-effort commit loudly in the warning below.
+      const identity = requireGitIdentity(namespacePath);
 
       // Stage all changes
       execSync("git add -A", { cwd: namespacePath, stdio: "pipe" });
@@ -691,10 +682,19 @@ function immediateCommit(namespacePath: string, message: string): void {
         // Exit code 0 = no staged changes, nothing to commit
       } catch {
         // Exit code 1 = there ARE staged changes
-        execSync(`git commit -m "${message}"`, {
-          cwd: namespacePath,
-          stdio: "pipe",
-        });
+        execFileSync(
+          "git",
+          [
+            "-c",
+            `user.name=${identity.name}`,
+            "-c",
+            `user.email=${identity.email}`,
+            "commit",
+            "-m",
+            message,
+          ],
+          { cwd: namespacePath, stdio: "pipe" },
+        );
       }
     });
     // Native S3 sync hook (object store) + gated push hook (PUSH-001: default
