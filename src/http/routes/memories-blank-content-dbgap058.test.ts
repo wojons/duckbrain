@@ -28,6 +28,7 @@ import os from "os";
 import path from "path";
 import { createServer, Server } from "http";
 import { createHttpServer } from "../../cli/http";
+import { drainAsyncCommits } from "../../git/autocommit";
 import {
   BLANK_CONTENT_MESSAGE,
   isBlankContent,
@@ -138,13 +139,30 @@ beforeAll(async () => {
   });
 });
 
-afterAll(() => {
-  server?.close();
+afterAll(async () => {
+  // INT-CI-023: an unawaited close returns while the last POST's async
+  // auto-commit chain / audit ledger append can still be writing inside
+  // SCRATCH_ROOT, and fs.rmSync then throws ENOTEMPTY (suite-level CI FAIL
+  // with all tests green, runs 37571206935 + 37571830301). Await the close
+  // and drain in-flight async commits BEFORE deleting the scratch tree;
+  // mirrors the empty-content dbgap056 teardown. A bounded-retry rm is the
+  // final belt-and-suspenders — cleanup of a temp dir must never red a test.
+  if (server) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  await drainAsyncCommits();
   if (PREV_NS_PATH === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
   else process.env.DUCKBRAIN_NAMESPACES_PATH = PREV_NS_PATH;
   if (PREV_CONFIG_PATH === undefined) delete process.env.DUCKBRAIN_CONFIG_PATH;
   else process.env.DUCKBRAIN_CONFIG_PATH = PREV_CONFIG_PATH;
-  fs.rmSync(SCRATCH_ROOT, { recursive: true, force: true });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.rmSync(SCRATCH_ROOT, { recursive: true, force: true });
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
 });
 
 describe("DB-GAP-058: the shared write-content policy", () => {
