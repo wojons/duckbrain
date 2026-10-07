@@ -10,8 +10,8 @@
  *
  *  1. the synchronous child-process primitives (`execSync` / `spawnSync`) are
  *     patched to STALL the event loop for 1500ms whenever product code calls
- *     them, and a heartbeat timer on the SAME loop must keep firing (<250ms
- *     gaps) while the namespace commit+push path runs. Pre-fix the write path
+ *     them, and a heartbeat timer on the SAME loop must keep firing (<1000ms
+ *     gaps; see HEARTBEAT_BUDGET_MS) while the namespace commit+push path runs. Pre-fix the write path
  *     calls `execSync`, so the heartbeat gap is >=1500ms. Post-fix the write
  *     path never touches a sync primitive, so it stays small.
  *  2. the tripwire counter also proves criterion 2 directly: no serving-path
@@ -40,8 +40,19 @@ vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
 /** Stall duration the patched sync primitive burns on its first call. */
 const SYNC_STALL_MS = 1500;
-/** Upper bound a heartbeat gap may reach while the commit+push path runs. */
-const HEARTBEAT_BUDGET_MS = 250;
+/**
+ * Upper bound a heartbeat gap may reach while the commit+push path runs.
+ *
+ * INT-CI-022: 250 → 1000. The product guarantee under test is "the write path
+ * never touches a synchronous spawn" — criterion 2 pins `syncCalls` at
+ * exactly 0 and stays strict. The timing bound only has to separate a correct
+ * async loop from the held-loop signature of a synchronous one (>= 1500ms,
+ * SYNC_STALL_MS). Under CI parallelism a correct run measured a 342ms max gap
+ * — timer preemption under load, not product blocking — so the bound is raised
+ * to 1000ms: generous for host-load jitter, still well below the 1500ms
+ * pre-fix baseline, so the RED arm (pre-fix code path) still fails loudly.
+ */
+const HEARTBEAT_BUDGET_MS = 1000;
 /** Heartbeat sampling cadence. */
 const HEARTBEAT_INTERVAL_MS = 50;
 
