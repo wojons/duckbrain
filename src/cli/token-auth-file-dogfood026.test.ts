@@ -14,8 +14,9 @@
  *     prod ~/.duckbrain/auth.json mtime + sha256 unchanged.
  *  2. Mint with --auth-file=<path> (equals form) and --auth-file <path>
  *     (space form) → same isolation.
- *  3. A missing explicit --auth-file is FATAL (nonzero exit + clear error),
- *     prod untouched — never a silent fallback to the prod store.
+ *  3. A missing explicit --auth-file is CREATED on first mint (DF-0925-06 —
+ *     it is a write-target; parent dir created too), prod untouched. The
+ *     HTTP serve path keeps its fatal refusal for a missing --auth-file.
  *  4. A missing DUCKBRAIN_AUTH_FILE path is CREATED on first mint (the env
  *     override is a write-target redirect for scratch workflows).
  *
@@ -195,22 +196,24 @@ describe("DOGFOOD-026 token command auth-store isolation", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it("missing explicit --auth-file exits nonzero with a clear error; prod untouched", async () => {
+  it("missing explicit --auth-file is CREATED on first mint (DF-0925-06); prod untouched", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dogfood026-missing-"));
-    const missing = path.join(dir, "does-not-exist.json");
+    const fresh = path.join(dir, "sub", "does-not-exist.json");
     const prodBefore = snapshotProdAuth();
 
     const { code, stdout, stderr } = await runTokenCli([
       "--name=dogfood026-missing",
-      `--auth-file=${missing}`,
+      `--auth-file=${fresh}`,
     ]);
 
-    expect(code).not.toBe(0);
-    expect(stderr).toContain("--auth-file not found");
-    expect(stderr).toContain(missing);
-    // No token minted, nothing written anywhere.
-    expect(stdout).not.toMatch(/^[0-9a-f]{64}$/m);
-    expect(fs.existsSync(missing)).toBe(false);
+    // DF-0925-06: an explicit --auth-file is a write-target; a missing file
+    // (and its parent dir) is created rather than refused. The prod store is
+    // still never touched. The HTTP serve path keeps its fatal refusal.
+    expect(stderr).not.toContain("--auth-file not found");
+    expect(code).toBe(0);
+    expect(stdout).toContain(`Token saved to ${fresh}`);
+    const store = JSON.parse(fs.readFileSync(fresh, "utf-8"));
+    expect(store.apiKeys).toHaveLength(1);
     expect(snapshotProdAuth()).toEqual(prodBefore);
     fs.rmSync(dir, { recursive: true, force: true });
   });

@@ -586,14 +586,15 @@ independent versions (verified 12/12 distinct ids, 2026-09-26).
 ## Testing your changes safely
 
 ```bash
-mkdir -p /tmp/db-test /tmp/db-test-home && cp ~/.duckbrain/auth.json /tmp/db-test-home/ 2>/dev/null || true
+mkdir -p /tmp/db-test /tmp/db-test-home
 # Scratch daemon with ISOLATED auth store (DB-GAP-043): --auth-file redirects
 # the auth store, so the scratch daemon can NEVER clobber the production
-# ~/.duckbrain/auth.json. The file must pre-exist with users/apiKeys.
+# ~/.duckbrain/auth.json. Mint the scratch token FIRST — a missing --auth-file
+# is created on first mint, parent dirs included (DF-0925-06).
+node bin/duckbrain.js token --name=scratch --namespace=dogfood-ns --auth-file=/tmp/db-test-home/auth.json
+# Then start the daemon (the store now exists — http still refuses a missing one):
 DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999 \
   --auth=apikey --auth-file=/tmp/db-test-home/auth.json
-# Mint tokens for the scratch daemon into its own store:
-node bin/duckbrain.js token --name=scratch --namespace=dogfood-ns --auth-file=/tmp/db-test-home/auth.json
 # Env alternative: DUCKBRAIN_AUTH_FILE=/tmp/db-test-home/auth.json (both http and token honor it).
 # Then point every curl/CLI call at :3999 and /tmp/db-test (with -H 'X-API-Key: <token>' — auth is ON).
 # Never write to the live :3000 daemon's
