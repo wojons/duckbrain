@@ -2472,11 +2472,3 @@ tasks:
   status: complete
   created_at: '2026-10-07T05:59:17.283586+00:00'
   completed_at: '2026-10-07T06:33:51.139655+00:00'
-- id: README-8
-  title: README duckbrain CLI commands not runnable from fresh clone (no bin on PATH)
-  criteria:
-  - README documents a working way to obtain/run the duckbrain CLI after a repo clone;
-    verified by actually running the documented command
-  status: complete
-  created_at: '2026-10-07T08:21:48.092398+00:00'
-  completed_at: '2026-10-07T08:27:51.025229+00:00'
