@@ -154,6 +154,27 @@ afterEach(() => {
 });
 
 describe("DOGFOOD-005: rememberTool implicit-namespace write inits git", () => {
+  // CI runners have no global git identity (CI-GITID-028); give the fixture
+  // repos an explicit local identity so raw `git commit` in these rigs works.
+  beforeEach(() => {
+    fs.mkdirSync(NS_ROOT, { recursive: true });
+    for (const dir of fs
+      .readdirSync(NS_ROOT, { withFileTypes: true })
+      .filter((d) => d.isDirectory())) {
+      const repo = path.join(NS_ROOT, dir.name);
+      if (fs.existsSync(path.join(repo, ".git"))) {
+        try {
+          execSync(
+            'git config --local user.name "DuckBrain Test" && git config --local user.email "duckbrain-test@example.com"',
+            { cwd: repo, stdio: "pipe" },
+          );
+        } catch {
+          /* not a git repo yet — fine */
+        }
+      }
+    }
+  });
+
   it("writing via rememberTool to a new namespace creates .git + initial commit", async () => {
     const nsName = "dogfood005-remember";
     const ns = path.join(NS_ROOT, nsName);

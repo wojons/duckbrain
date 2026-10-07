@@ -33,8 +33,11 @@ import {
   checkGitIdentityHealth,
 } from "./identity";
 
+// CI runners have no global git identity (CI-GITID-028): give fixture
+// commits an explicit identity instead of relying on host config.
+const CI_IDENT = ["-c", "user.name=DuckBrain Test", "-c", "user.email=duckbrain-test@example.com"];
 function git(args: string[], cwd?: string): string {
-  const fullArgs = cwd ? ["-C", cwd, ...args] : args;
+  const fullArgs = cwd ? ["-C", cwd, ...CI_IDENT, ...args] : CI_IDENT.concat(args);
   return execFileSync("git", fullArgs, {
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],

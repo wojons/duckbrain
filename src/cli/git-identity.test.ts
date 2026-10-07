@@ -12,8 +12,11 @@ import path from "path";
 import { execFileSync } from "child_process";
 import { runGitIdentityCLI } from "./git-identity";
 
+// CI runners have no global git identity (CI-GITID-028): give fixture
+// commits an explicit identity instead of relying on host config.
+const CI_IDENT = ["-c", "user.name=DuckBrain Test", "-c", "user.email=duckbrain-test@example.com"];
 function git(args: string[], cwd: string): string {
-  return execFileSync("git", ["-C", cwd, ...args], {
+  return execFileSync("git", ["-C", cwd, ...CI_IDENT, ...args], {
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
   }).trim();
