@@ -1,0 +1,75 @@
+{
+  "task_id": "DOC-9",
+  "task_title": "Document multi-host git-sync CLI verbs (pull/push/remote/servers)",
+  "task_criteria": [
+    "grep -cE 'duckbrain (pull|push|remote|servers)' across docs/ and skills/ >= 4; each verb has usage line + worked example + explicit non-goals; pnpm tsc --noEmit unchanged (docs-only)"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e2abdc544e6cc440a46a00ce0850da878221b428",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:56PM INF scanned ~41556305 bytes (41.56 MB) in 4.29s\n5:56PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1028228 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T221705.201649Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts (4 tests) 482ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-pagination-gap024.test.ts > GAP-024: pagination response correctness \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' to be '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -15829,11 +15829,12 @@\n      \"auger-pytest-9a0f2e106583\": \"/home/kara/duckbrain/namespaces/auger-pytest-9a0f2e106583\",\n      \"auger-pytest-dcf9b682f814\": \"/home/kara/duckbrain/namespaces/auger-pytest-dcf9b682f814\",\n      \"auger-pytest-93d49d9c15d0\": \"/home/kara/duckbrain/namespaces/auger-pytest-93d49d9c15d0\",\n      \"auger-pytest-1a756c685900\": \"/home/kara/duckbrain/namespaces/auger-pytest-1a756c685900\",\n      \"auger-pytest-90dd5f9db068\": \"/home/kara/duckbrain/namespaces/auger-pytest-90dd5f9db068\",\n-     \"auger-pytest-e342a679b5bd\": \"/home/kara/duckbrain/namespaces/auger-pytest-e342a679b5bd\"\n+     \"auger-pytest-e342a679b5bd\": \"/home/kara/duckbrain/namespaces/auger-pytest-e342a679b5bd\",\n+     \"auger-pytest-5eb8b129896a\": \"/home/kara/duckbrain/namespaces/auger-pytest-5eb8b129896a\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-pagination-gap024.test.ts:136:30\n    134|     server.close();\n    135|     // GAP-022 AC1: config file must be byte-identical after the test \u2026\n    136|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    137|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    138|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 213 passed (214)\n      Tests  1748 passed (1748)\n   Start at  17:56:10\n   Duration  83.88s (tests 71%, import 25%, transform 2%, setup 1%, worker 1%)\n\n     Import  341 modules were evaluated 845 times \u00b7 74.24s total, 25% of tracked time\n             ~5.38s faster with isolate: false \u2014 shared modules are evaluated once per worker instead of once per file\n             learn more: https://vitest.dev/guide/improving-performance#test-isolation\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T221705.201649Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DOC-9\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T22:57:34.363558",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T22:57:34.394398+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 6981,
+        "truncated": false,
+        "source": "git show e2abdc544e6c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1058,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-9"
+  }
+}

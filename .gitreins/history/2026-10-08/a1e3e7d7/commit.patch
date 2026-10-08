@@ -1,0 +1,361 @@
+commit 6508742e7f1d3b60da753d707b21b2121562bf3f
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 22:15:05 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 22:15:05 2026 -0500
+
+    feat(http): serve built UI from daemon + README web UI quickstart (DF-0924-08)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md                               |  31 ++++-
+ src/cli/http-ui-static-df092408.test.ts | 203 ++++++++++++++++++++++++++++++++
+ src/cli/http.ts                         |  71 +++++++++++
+ 3 files changed, 304 insertions(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 14edf88..468888c 100644
+--- a/README.md
++++ b/README.md
+@@ -177,13 +177,42 @@ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-sock
+ 
+ **Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
+ 
+-**Web UI Only:**
++**Web UI quickstart (serve the built UI from the daemon):**
++
++The HTTP daemon serves the compiled Web UI itself once `packages/ui/dist` exists — no dev server needed. Three steps:
++
++```bash
++# 1. build the UI (first time, and after UI changes)
++pnpm install
++pnpm build
++
++# 2. start the daemon (--auth=none = explicit local-only unauthenticated mode;
++#    the default is apikey — see "Verify the install" above)
++pnpm start http --port=3000 --auth=none
++
++# 3. open it
++#    http://localhost:3000
++```
++
++Deep links work too (`http://localhost:3000/namespaces`, etc.) — the daemon serves `index.html` for any non-`/api` path. API routes (`/api/*`, `/health`, `/namespaces`, `/mcp`, …) always take precedence over the static files. If you skip step 1, `GET /` returns a `UI_NOT_BUILT` JSON hint pointing back here instead of a page.
++
++**Web UI dev mode (hot reload):**
+ 
+ ```bash
++# terminal 1 — the API daemon
++pnpm start http --port=3000 --auth=none
++
++# terminal 2 — the Vite dev server (hot reload); proxies /api to the daemon
+ cd packages/ui
+ pnpm run dev
+ ```
+ 
++In dev mode the UI runs on its own port (default `http://localhost:8989`) and proxies API calls to the daemon. If the daemon runs on a different port, point the proxy at it with `DUCKBRAIN_API_PORT`:
++
++```bash
++DUCKBRAIN_API_PORT=4123 pnpm run dev
++```
++
+ ### Daily consolidation digest
+ 
+ `duckbrain consolidate` scans one UTC day's JSONL deltas across all namespaces, dedupes repeated content, and prints per-namespace stats and previews plus a digest block (unlike the embeddings commands, it tolerates a missing `default` namespace — the dry-run just reports 0 namespaces). Dry-run by default; `--write-digest` (or `DUCKBRAIN_API_KEY` set) POSTs the digest as a memory in the `duckbrain` namespace (key `/project/duckbrain/digest/<date>`):
+diff --git a/src/cli/http-ui-static-df092408.test.ts b/src/cli/http-ui-static-df092408.test.ts
+new file mode 100644
+index 0000000..21f408d
+--- /dev/null
++++ b/src/cli/http-ui-static-df092408.test.ts
+@@ -0,0 +1,203 @@
++/**
++ * DF-0924-08 — the HTTP daemon serves the built Web UI.
++ *
++ * Two states are asserted against a real listening server (not a hand-built
++ * app — the wiring under test lives in createHttpServer's mount order):
++ *
++ * 1. dist present  → GET / returns the built index.html (200, text/html),
++ *                    a deep link (SPA fallback) returns index.html too,
++ *                    and every API route still wins over the static mount.
++ * 2. dist missing  → GET / returns a 404 JSON with code UI_NOT_BUILT and a
++ *                    pointer at the README build step.
++ *
++ * The dist directory is pinned via DUCKBRAIN_UI_DIST_DIR to a fixture
++ * directory created in beforeAll, so the test never depends on whether
++ * packages/ui has been built on this checkout.
++ */
++import { afterAll, beforeAll, describe, expect, it } from "vitest";
++import fs from "fs";
++import http from "http";
++import os from "os";
++import path from "path";
++import type { AddressInfo } from "net";
++import type { Server } from "http";
++import { createHttpServer, resolveUiDistDir } from "./http";
++
++let server: Server;
++let port: number;
++let fixtureDist: string;
++let savedEnv: string | undefined;
++
++const INDEX_HTML = "<!doctype html><html><body>fixture ui</body></html>\n";
++const ASSET_JS = "console.log('fixture');\n";
++
++function get(
++  requestPath: string,
++): Promise<{ status: number | undefined; headers: http.IncomingHttpHeaders; body: string }> {
++  return new Promise((resolve, reject) => {
++    const req = http.request(
++      { host: "127.0.0.1", port, path: requestPath, method: "GET" },
++      (res) => {
++        const chunks: Buffer[] = [];
++        res.on("data", (c: Buffer) => chunks.push(c));
++        res.on("end", () =>
++          resolve({
++            status: res.statusCode,
++            headers: res.headers,
++            body: Buffer.concat(chunks).toString("utf-8"),
++          }),
++        );
++      },
++    );
++    req.on("error", reject);
++    req.end();
++  });
++}
++
++beforeAll(async () => {
++  // Fixture dist with a plausible vite layout: index.html + hashed asset.
++  fixtureDist = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-ui-dist-"));
++  fs.writeFileSync(path.join(fixtureDist, "index.html"), INDEX_HTML);
++  fs.mkdirSync(path.join(fixtureDist, "assets"), { recursive: true });
++  fs.writeFileSync(path.join(fixtureDist, "assets", "app-abc123.js"), ASSET_JS);
++
++  // Point the resolver at the fixture BEFORE createHttpServer mounts the
++  // static layer (it resolves the dir + existsSync inside the factory).
++  savedEnv = process.env.DUCKBRAIN_UI_DIST_DIR;
++  process.env.DUCKBRAIN_UI_DIST_DIR = fixtureDist;
++
++  const app = createHttpServer({ authConfig: { type: "none" } });
++  server = await new Promise<Server>((resolve) => {
++    const candidate = app.listen(0, "127.0.0.1", () => resolve(candidate));
++  });
++  port = (server.address() as AddressInfo).port;
++});
++
++afterAll(async () => {
++  await new Promise<void>((resolve) => server.close(() => resolve()));
++  if (savedEnv === undefined) delete process.env.DUCKBRAIN_UI_DIST_DIR;
++  else process.env.DUCKBRAIN_UI_DIST_DIR = savedEnv;
++  fs.rmSync(fixtureDist, { recursive: true, force: true });
++});
++
++describe("DF-0924-08 built UI serving", () => {
++  it("resolveUiDistDir honors DUCKBRAIN_UI_DIST_DIR", () => {
++    expect(resolveUiDistDir()).toBe(path.resolve(fixtureDist));
++  });
++
++  it("serves index.html at / with 200 and text/html", async () => {
++    const res = await get("/");
++    expect(res.status).toBe(200);
++    expect(res.headers["content-type"]).toContain("text/html");
++    expect(res.body).toBe(INDEX_HTML);
++  });
++
++  it("serves built assets from dist", async () => {
++    const res = await get("/assets/app-abc123.js");
++    expect(res.status).toBe(200);
++    expect(res.body).toBe(ASSET_JS);
++  });
++
++  it("SPA fallback: deep link returns index.html, not 404", async () => {
++    const res = await get("/namespaces/some-view");
++    expect(res.status).toBe(200);
++    expect(res.headers["content-type"]).toContain("text/html");
++    expect(res.body).toBe(INDEX_HTML);
++  });
++
++  it("API routes still win over the static mount", async () => {
++    // /health is the unauthenticated liveness route.
++    const health = await get("/health");
++    expect(health.status).toBe(200);
++    expect(() => JSON.parse(health.body)).not.toThrow();
++    expect(JSON.parse(health.body).uptime).toBeGreaterThan(0);
++
++    // An unknown /api path must stay a JSON 404, not the SPA index.
++    const apiMiss = await get("/api/definitely-not-a-route");
++    expect(apiMiss.status).toBe(404);
++    expect(apiMiss.headers["content-type"]).toContain("application/json");
++    expect(JSON.parse(apiMiss.body).error).toBeDefined();
++
++    // A route registered AFTER the static mount must still answer.
++    const mcpGet = await get("/mcp");
++    expect(mcpGet.status).toBe(405);
++    expect(mcpGet.headers["allow"]).toBe("POST");
++  });
++
++  it("unknown non-API path falls through to the SPA index", async () => {
++    const res = await get("/totally-unknown-page");
++    expect(res.status).toBe(200);
++    expect(res.body).toBe(INDEX_HTML);
++  });
++});
++
++describe("DF-0924-08 missing dist", () => {
++  /**
++   * Second app instance with the dist pin aimed at an empty (nonexistent)
++   * directory — the exact fresh-clone state.
++   */
++  let bareServer: Server;
++  let barePort: number;
++
++  beforeAll(async () => {
++    process.env.DUCKBRAIN_UI_DIST_DIR = path.join(
++      os.tmpdir(),
++      `duckbrain-ui-missing-${Date.now()}`,
++    );
++    const app = createHttpServer({ authConfig: { type: "none" } });
++    bareServer = await new Promise<Server>((resolve) => {
++      const candidate = app.listen(0, "127.0.0.1", () => resolve(candidate));
++    });
++    barePort = (bareServer.address() as AddressInfo).port;
++  });
++
++  afterAll(async () => {
++    await new Promise<void>((resolve) => bareServer.close(() => resolve()));
++    // Restore the fixture pin for any later describes.
++    process.env.DUCKBRAIN_UI_DIST_DIR = fixtureDist;
++  });
++
++  it("GET / returns a helpful UI_NOT_BUILT JSON hint", async () => {
++    const res = await new Promise<{
++      status: number | undefined;
++      body: string;
++    }>((resolve, reject) => {
++      const req = http.request(
++        { host: "127.0.0.1", port: barePort, path: "/", method: "GET" },
++        (r) => {
++          const chunks: Buffer[] = [];
++          r.on("data", (c: Buffer) => chunks.push(c));
++          r.on("end", () =>
++            resolve({
++              status: r.statusCode,
++              body: Buffer.concat(chunks).toString("utf-8"),
++            }),
++          );
++        },
++      );
++      req.on("error", reject);
++      req.end();
++    });
++    expect(res.status).toBe(404);
++    const body = JSON.parse(res.body);
++    expect(body.code).toBe("UI_NOT_BUILT");
++    expect(body.error).toContain("pnpm build");
++  });
++
++  it("API routes still work without dist", async () => {
++    const res = await new Promise<{ status: number | undefined }>(
++      (resolve, reject) => {
++        const req = http.request(
++          { host: "127.0.0.1", port: barePort, path: "/health", method: "GET" },
++          (r) => {
++            r.resume();
++            r.on("end", () => resolve({ status: r.statusCode }));
++          },
++        );
++        req.on("error", reject);
++        req.end();
++      },
++    );
++    expect(res.status).toBe(200);
++  });
++});
+diff --git a/src/cli/http.ts b/src/cli/http.ts
+index 407d76f..ca7daae 100644
+--- a/src/cli/http.ts
++++ b/src/cli/http.ts
+@@ -73,6 +73,37 @@ import {
+   type EmbeddingHealthResult,
+ } from "../embedding/health.js";
+ 
++/**
++ * DF-0924-08: resolve the built Web UI directory (packages/ui/dist).
++ *
++ * Resolution is module-location based, which covers both run shapes without
++ * env knobs:
++ * - precompiled: dist/src/cli/http.js → walk up to the repo root (3 levels)
++ * - dev (tsx):   src/cli/http.ts       → walk up to the repo root (2 levels)
++ * Returns <root>/packages/ui/dist either way. UI_DIST_DIR is injectable ONLY
++ * for tests (used by src/cli/http-ui-static.test.ts to pin a fixture dist
++ * without depending on build state).
++ */
++export function resolveUiDistDir(): string {
++  if (process.env.DUCKBRAIN_UI_DIST_DIR) {
++    return path.resolve(process.env.DUCKBRAIN_UI_DIST_DIR);
++  }
++  const dir = path.resolve(__dirname);
++  // <root>/packages/ui/dist — scan upward for the packages/ui/dist marker so
++  // the walk count never has to change if this file moves a level.
++  let probe = dir;
++  for (let i = 0; i < 6; i++) {
++    const candidate = path.join(probe, "packages", "ui", "dist");
++    if (fs.existsSync(candidate)) return candidate;
++    const parent = path.dirname(probe);
++    if (parent === probe) break;
++    probe = parent;
++  }
++  // Fallback (no dist on disk anywhere up the tree): derive from __dirname
++  // so the caller's existsSync check still has a stable answer.
++  return path.resolve(dir, "../../packages/ui/dist");
++}
++
+ /**
+  * HTTP server configuration options
+  */
+@@ -845,6 +876,46 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
+       });
+   });
+ 
++  // DF-0924-08: serve the built Web UI when packages/ui/dist exists.
++  //
++  // Mounted AFTER every API route (so /api/*, /namespaces, /users, /activity,
++  // /mcp, /health, /stats all win) but BEFORE the JSON 404 handler: any path
++  // not claimed by an API mount falls through to the static assets, and
++  // anything that is not a real file on disk falls through to the SPA index
++  // (express.static ends the chain for misses, the sendFile handler answers).
++  // When dist is missing (fresh clone that skipped `pnpm build`), GET /
++  // returns a pointed JSON hint instead of the bare ROUTE_NOT_FOUND 404.
++  //
++  // This is pre-auth-tail, same as every API route: an apikey-mode daemon
++  // still requires the X-API-Key header for HTML requests, which browsers do
++  // not send — so UI visitors on an apikey daemon get the auth 401 JSON.
++  // That is correct behavior (the UI itself sends the header via
++  // packages/ui/src/lib/api-client.ts), just documented here so nobody
++  // "fixes" it by moving this mount before authMiddleware.
++  const uiDistDir = resolveUiDistDir();
++  if (fs.existsSync(path.join(uiDistDir, "index.html"))) {
++    app.use(express.static(uiDistDir, { index: "index.html" }));
++    // Express 5 (path-to-regexp v8) requires a NAMED wildcard — a bare "*"
++    // throws at mount time. API-prefixed misses fall through to the JSON
++    // notFoundHandler: a wrong API call must stay a machine-readable 404,
++    // never an HTML shell.
++    app.get("/*splat", (req: Request, res: Response, next: NextFunction) => {
++      if (req.path === "/api" || req.path.startsWith("/api/")) {
++        next();
++        return;
++      }
++      res.sendFile(path.join(uiDistDir, "index.html"));
++    });
++  } else {
++    app.get("/", (_req: Request, res: Response) => {
++      res.status(404).json({
++        error:
++          "Web UI not built. Run `pnpm install && pnpm build` in the repo root (builds packages/ui), then restart the daemon. See the README Web UI section.",
++        code: "UI_NOT_BUILT",
++      });
++    });
++  }
++
+   app.use(errorHandler);
+   app.use(notFoundHandler);
+ 

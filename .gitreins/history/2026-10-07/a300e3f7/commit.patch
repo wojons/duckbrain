@@ -1,0 +1,63 @@
+commit 870e37af43392698c5336ef84312a035371def34
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 17:37:48 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 17:37:48 2026 -0500
+
+    fix(test): http.test.ts pidfile race — poll before asserting existence (INT-CI-027)
+    
+    CI run 37693553960 failed on the concurrent-instances pidfile existence
+    check while it passes locally: /health answering does not guarantee the
+    daemon has written its pidfile yet. Add waitForPidFile polling before
+    the asserts in both DOGFOOD-008 tests.
+    
+    ch:trace row=INT-CI-027 spec=none:none test=src/cli/http.test.ts evidence=targeted-file-5x-green+tsc-clean witness=live:npx-vitest-run-8of8-x5 verdict=pending commit=this memory=none
+    
+    Co-authored-by: totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/http.test.ts | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/cli/http.test.ts b/src/cli/http.test.ts
+index 03a1ab0..3d2490c 100644
+--- a/src/cli/http.test.ts
++++ b/src/cli/http.test.ts
+@@ -19,6 +19,19 @@ import {
+ 
+ const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
+ 
++// INT-CI-027: the daemon writes its pidfile asynchronously around the same time
++// /health starts answering, so an immediate existsSync can race it in CI. Poll
++// briefly before asserting.
++async function waitForPidFile(pidFile: string, timeoutMs = 10000): Promise<void> {
++  const deadline = Date.now() + timeoutMs;
++  while (!fs.existsSync(pidFile)) {
++    if (Date.now() > deadline) {
++      throw new Error(`pidfile never appeared: ${pidFile}`);
++    }
++    await new Promise((r) => setTimeout(r, 50));
++  }
++}
++
+ function prepareDataDir(prefix: string): { dataDir: string; nsPath: string } {
+   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+   const nsPath = path.join(dataDir, "namespaces");
+@@ -80,6 +93,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
+       await waitForHealth(port, 30000, child);
+       await assertDaemonIsOurs({ port, child, nsPath, dataDir, sentinel });
+       const pidFile = path.join(dataDir, `duckbrain-http-${port}.pid`);
++      await waitForPidFile(pidFile);
+       expect(fs.existsSync(pidFile)).toBe(true);
+       expect(fs.readFileSync(pidFile, "utf8").trim()).toBe(String(child.pid));
+ 
+@@ -133,6 +147,8 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
+ 
+       const pidFile1 = path.join(dataDir1, `duckbrain-http-${port1}.pid`);
+       const pidFile2 = path.join(dataDir2, `duckbrain-http-${port2}.pid`);
++      await waitForPidFile(pidFile1);
++      await waitForPidFile(pidFile2);
+       expect(fs.existsSync(pidFile1)).toBe(true);
+       expect(fs.existsSync(pidFile2)).toBe(true);
+ 

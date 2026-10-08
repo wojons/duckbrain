@@ -1,0 +1,95 @@
+{
+  "task_id": "DB-GAP-054",
+  "task_title": "Embedding cache binary float32 format (6.4GB -> <=1.5GB)",
+  "task_criteria": [
+    "Binary float32 cache entries (header+buffer) round-trip 4096-dim vectors within float32 tolerance; legacy JSON entries readable/migrated; RED check proves round-trip + cache hits on unchanged content; cache-format note updated"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "f1f40476a3f7a11055132884a69fd36c0951e2a7",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:32PM INF scanned ~41297991 bytes (41.30 MB) in 4.52s\n6:32PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1028499 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-dogfood010.test.ts (3 tests) 3275ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)\nError: ENOTEMPTY: directory not empty, rmdir '/var/tmp/hermes-scratch/duckbrain-dogfood010-veaOhZ'\n \u276f src/http/routes/memories-dogfood010.test.ts:276:10\n    274|     }\n    275|     if (scratchDir) {\n    276|       fs.rmSync(scratchDir, { recursive: true, force: true });\n       |          ^\n    277|     }\n    278|   });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 213 passed (214)\n      Tests  1748 passed (1748)\n   Start at  18:32:20\n   Duration  65.98s (tests 76%, import 20%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  214 workers spawned \u00b7 ~104ms startup each (spawn + environment, per file)\n             at least ~5.45s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nEvaluator error: LLM call failed: 401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions (provider=openai model=deepseek/deepseek-v4-flash url=https://openrouter.ai/api/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nEvaluator error: LLM call failed: 401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions (provider=openai model=deepseek/deepseek-v4-flash url=https://openrouter.ai/api/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Evaluator error: LLM call failed: 401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions (provider=openai model=deepseek/deepseek-v4-flash url=https://openrouter.ai/api/v1/chat/completions key=<GITREINS_LLM_API_KEY>)"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-054\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n\nEvaluator error: LLM call failed: 401 Client Error: Unauthorized for url: https://openrouter.ai/api/v1/chat/completions (provider=openai model=deepseek/deepseek-v4-flash url=https://openrouter.ai/api/v1/chat/completions key=<GITREINS_LLM_API_KEY>)\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-07T23:33:34.943900",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-07T23:33:34.975850+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4261,
+        "truncated": false,
+        "source": "git show f1f40476a3f7"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 631,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-054"
+  }
+}

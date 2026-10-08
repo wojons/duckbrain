@@ -1,0 +1,80 @@
+commit 615c5f68e7591b0a68e17ce09d906a6c4f037d1a
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 18:15:43 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 18:15:43 2026 -0500
+
+    fix(test): GAP-024 pagination suite isolates config via DUCKBRAIN_CONFIG_PATH (INT-CI-028)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/http/routes/memories-pagination-gap024.test.ts | 33 ++++++++++++++++++++--
+ 1 file changed, 31 insertions(+), 2 deletions(-)
+
+diff --git a/src/http/routes/memories-pagination-gap024.test.ts b/src/http/routes/memories-pagination-gap024.test.ts
+index 842f74c..689a408 100644
+--- a/src/http/routes/memories-pagination-gap024.test.ts
++++ b/src/http/routes/memories-pagination-gap024.test.ts
+@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
+ import { createHttpServer } from "../../cli/http";
+ import { createServer, Server } from "http";
+ import fs from "fs";
++import os from "os";
+ import path from "path";
+ 
+ let server: Server;
+@@ -71,6 +72,16 @@ const AUTHOR_OTHER = "other@example.com";
+ 
+ const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
+ 
++// INT-CI-028: the byte-identity assert below (GAP-022 AC1) compares the REAL
++// repo config against itself across this suite's lifetime. When the full
++// vitest suite runs in parallel, a sibling suite (namespace auto-create) can
++// legitimately append a mapping to the real config in that window, failing
++// this suite with a 15k-line config diff (guard c9090ebf, auger-pytest-5eb8…).
++// Fix: redirect DUCKBRAIN_CONFIG_PATH (the GAP-022 override) to a temp copy of
++// the repo config for this suite's duration, so AC1 guards THIS suite's own
++// writes against an isolated snapshot while siblings write to the real file.
++let configRedirect: string | null = null;
++
+ function readRepoConfig(): string | null {
+   // The instance config is untracked (gitignored; see
+   // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
+@@ -101,6 +112,16 @@ describe("GAP-024: pagination response correctness — GET /api/memories", () =>
+     // GAP-022 AC1: the repo config file must be byte-identical after the run
+     configBefore = readRepoConfig();
+ 
++    // INT-CI-028: isolate this suite's config view from sibling suites.
++    if (fs.existsSync(REPO_CONFIG)) {
++      const configDir = fs.mkdtempSync(
++        path.join(os.tmpdir(), "gap024-config-"),
++      );
++      configRedirect = path.join(configDir, "duckbrain.config.json");
++      fs.copyFileSync(REPO_CONFIG, configRedirect);
++      process.env.DUCKBRAIN_CONFIG_PATH = configRedirect;
++    }
++
+     // Seed a real namespace: JSONL partition + manifest (dogfood002 pattern)
+     fs.mkdirSync(PARTITION, { recursive: true });
+     const lines: string[] = [];
+@@ -132,10 +153,18 @@ describe("GAP-024: pagination response correctness — GET /api/memories", () =>
+ 
+   afterAll(() => {
+     server.close();
+-    // GAP-022 AC1: config file must be byte-identical after the test run
+-    expect(readRepoConfig()).toBe(configBefore);
++    // GAP-022 AC1: config file must be byte-identical after the test run —
++    // compared against the ISOLATED copy (INT-CI-028), so a sibling suite
++    // writing to the real repo config during this suite cannot fail us.
++    expect(configRedirect !== null ? fs.readFileSync(configRedirect, "utf-8") : null).toBe(configBefore);
+     fs.rmSync(PARTITION, { recursive: true, force: true });
+     fs.rmSync(MANIFEST, { force: true });
++    // INT-CI-028: restore the real config path for any later suites.
++    if (configRedirect !== null) {
++      fs.rmSync(path.dirname(configRedirect), { recursive: true, force: true });
++      delete process.env.DUCKBRAIN_CONFIG_PATH;
++      configRedirect = null;
++    }
+   });
+ 
+   it("returns the true total with limit=5 (items=5, total=9, hasMore=true)", async () => {

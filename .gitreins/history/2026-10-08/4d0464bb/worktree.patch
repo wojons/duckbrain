@@ -1,0 +1,49 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index bd87a2d..88c5dc5 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2538,3 +2538,44 @@ tasks:
+   status: complete
+   created_at: '2026-10-07T23:09:58.872883+00:00'
+   completed_at: '2026-10-07T23:18:55.350038+00:00'
++- id: DB-GAP-055
++  title: Fix segment rotation to honor 1000-line/1MB bound
++  criteria:
++  - Segments roll only at declared bound (>=1000 lines or >=1MB), numeric ordering
++    with never-reuse guard, consolidation pass reduces scheduler from 77k to <1000
++    files and coding-hermes from 19k to <300 files with record count preserved
++  status: in_progress
++  created_at: '2026-10-08T00:09:36.025884+00:00'
++- id: MUSTER-001
++  title: Add Muster as additional connection surface
++  criteria:
++  - Muster CLI/MCP/daemon front-ends consume DuckBrain OpenAPI spec additively; existing
++    HTTP/MCP paths unchanged; generated CLI performs remember/recall round-trip; daemon
++    proxies over unix socket without exposing API key
++  status: in_progress
++  created_at: '2026-10-08T00:09:36.464247+00:00'
++- id: PERF-005
++  title: Reduce semantic search (?q=) latency from 15-30s to <5s
++  criteria:
++  - Profile whether latency is embedding provider call or DuckDB VSS scan; implement
++    batching/indexing optimization; warm query latency <5s on 245k-row namespace;
++    document expected latency in API reference
++  status: in_progress
++  created_at: '2026-10-08T00:09:36.915773+00:00'
++- id: DF-0924-08
++  title: 'Web UI fresh-user run path: README quickstart + daemon static serving'
++  criteria:
++  - 1) daemon with packages/ui/dist built serves GET / as the UI (curl localhost:<port>/
++    returns HTML 200); 2) README quickstart documents daemon-then-UI two-step with
++    DUCKBRAIN_API_PORT; 3) pnpm tsc --noEmit clean; 4) new/updated tests green
++  status: complete
++  created_at: '2026-10-08T02:53:41.118718+00:00'
++  completed_at: '2026-10-08T03:17:28.452847+00:00'
++- id: README-A2A-001
++  title: Scope README Multi-Agent Ready claim
++  criteria:
++  - README.md Multi-Agent Ready bullet states it is a shared store with per-namespace
++    isolation, with no agent-to-agent protocol claimed; text present on main
++  status: complete
++  created_at: '2026-10-08T03:22:48.495217+00:00'
++  completed_at: '2026-10-08T03:25:02.030778+00:00'

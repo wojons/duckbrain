@@ -1,0 +1,75 @@
+{
+  "task_id": "README-A2A-001",
+  "task_title": "Scope README Multi-Agent Ready claim",
+  "task_criteria": [
+    "README.md Multi-Agent Ready bullet states it is a shared store with per-namespace isolation, with no agent-to-agent protocol claimed; text present on main"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "7bc13caa39d8f6e733303038c9e4816e27700e6e",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n10:25PM INF scanned ~41467657 bytes (41.47 MB) in 8.89s\n10:25PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1032175 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-dogfood010.test.ts (3 tests) 1035ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-dogfood010.test.ts > DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)\nError: ENOTEMPTY: directory not empty, rmdir '/var/tmp/hermes-scratch/duckbrain-dogfood010-tsv62F'\n \u276f src/http/routes/memories-dogfood010.test.ts:276:10\n    274|     }\n    275|     if (scratchDir) {\n    276|       fs.rmSync(scratchDir, { recursive: true, force: true });\n       |          ^\n    277|     }\n    278|   });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 215 passed (216)\n      Tests  1763 passed (1763)\n   Start at  22:25:03\n   Duration  66.59s (tests 78%, import 18%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  216 workers spawned \u00b7 ~96ms startup each (spawn + environment, per file)\n             at least ~5.11s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: README-A2A-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-08T03:26:10.612190",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-08T03:26:10.628891+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1661,
+        "truncated": false,
+        "source": "git show 7bc13caa39d8"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2340,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-A2A-001"
+  }
+}

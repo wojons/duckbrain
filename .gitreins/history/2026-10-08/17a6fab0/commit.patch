@@ -1,0 +1,28 @@
+commit 7bc13caa39d8f6e733303038c9e4816e27700e6e
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 22:23:22 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 22:23:22 2026 -0500
+
+    docs(README): scope Multi-Agent Ready claim to shared-store semantics (README-A2A-001)
+    
+    ch:trace row=README-A2A-001 spec=README.md#features evidence=tree-grep A2A/AgentCard/ACP=0 files + grep -n output witness=none:docs-only change, no live path touched
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 468888c..744676b 100644
+--- a/README.md
++++ b/README.md
+@@ -59,7 +59,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
+ - 🔍 **Vector Search** — Built-in similarity search with DuckDB VSS
+ - 🌳 **Git Version Control** — Full audit trail, branching, time-travel
+ - 🚀 **Multiple Interfaces** — MCP server, HTTP API, CLI, Web UI
+-- 👥 **Multi-Agent Ready** — HTTP mode with worktrees for concurrent access
++- 👥 **Multi-Agent Ready** — shared memory store with per-namespace isolation; HTTP mode with worktrees for concurrent access (no agent-to-agent protocol — agents coordinate through the store, not via wire messaging)
+ - 🎨 **Beautiful Web UI** — Glassmorphism theme, real-time updates
+ - 📱 **Keyboard Shortcuts** — Power-user friendly navigation
+ - ☁️ **Native S3 Storage Tier** — Incremental sync, push-on-commit, SQL over S3 via DuckDB httpfs, multi-host memory

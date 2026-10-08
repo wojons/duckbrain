@@ -1,0 +1,29 @@
+commit 6e9e9c631c3f37752059ef5f294df2131dd6e54d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 7 21:43:57 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 7 21:43:57 2026 -0500
+
+    docs(README): note 8 additional MCP tools in architecture diagram (README-3)
+    
+    ch:trace row=README-3 spec=README.md#mcp-tools test=src/mcp/server-dogfood002.test.ts doc=README.md evidence=.coding-hermes/board/events.jsonl witness=live:stdio tools/list=12 verdict=README-3 commit=
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/README.md b/README.md
+index 59cda63..14edf88 100644
+--- a/README.md
++++ b/README.md
+@@ -300,6 +300,9 @@ See [docs/s3-native.md](docs/s3-native.md#namespace-deletion-delete-disk-vs-clea
+                     │  │   - recall()        │  │
+                     │  │   - forget()        │  │
+                     │  │   - list_keys()     │  │
++                    │  │   (+ 8 more MCP     │  │
++                    │  │     tools — see     │  │
++                    │  │     MCP Tools)      │  │
+                     │  └─────────────────────┘  │
+                     └─────────────┬─────────────┘
+                                   │
