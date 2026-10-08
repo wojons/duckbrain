@@ -300,6 +300,9 @@ See [docs/s3-native.md](docs/s3-native.md#namespace-deletion-delete-disk-vs-clea
                     │  │   - recall()        │  │
                     │  │   - forget()        │  │
                     │  │   - list_keys()     │  │
+                    │  │   (+ 8 more MCP     │  │
+                    │  │     tools — see     │  │
+                    │  │     MCP Tools)      │  │
                     │  └─────────────────────┘  │
                     └─────────────┬─────────────┘
                                   │
