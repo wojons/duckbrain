@@ -114,7 +114,10 @@ Paste in order; the last command must print the memory you stored:
 #    unauthenticated mode; dropping the flag requires API keys, see step 5 note)
 pnpm start http --port=3000 --auth=none &
 
-# 2. wait for health (200, or 503 "degraded" while the embedding probe is unmet — that is not an install failure)
+# 2. wait for health (usually 200; a fresh install may answer 503 "degraded"
+#    while the embedding probe is unmet, or while the keys probe has not
+#    settled yet — that is not an install failure; keep going once /health
+#    answers)
 curl -s http://127.0.0.1:3000/health
 
 # 3. create a scratch namespace (409 "already exists" is fine — keep going)
