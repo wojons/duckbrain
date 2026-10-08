@@ -568,20 +568,19 @@ describe("bound constants pinned to the writer's rotation rule", () => {
     const target = path.join(dir, "current.jsonl");
     const incoming = "x".repeat(500);
 
-    // size + incoming == SEGMENT_MAX_BYTES exactly: the writer appends in place
-    // (its check is `> MAX_BYTES_PER_CHUNK`), so the constants are equal, not
-    // off by one.
+    // Stored bytes include the newline appended by the writer. A line that
+    // makes the final segment exactly SEGMENT_MAX_BYTES still fits.
     writeSegment(dir, "current.jsonl", [
-      "y".repeat(SEGMENT_MAX_BYTES - incoming.length - 1),
+      "y".repeat(SEGMENT_MAX_BYTES - incoming.length - 2),
     ]);
-    expect(fs.statSync(target).size + incoming.length).toBe(SEGMENT_MAX_BYTES);
+    expect(fs.statSync(target).size + incoming.length + 1).toBe(SEGMENT_MAX_BYTES);
     expect(resolveJsonlTargetPath(target, incoming)).toBe(target);
 
     // One byte more: the writer rotates.
     writeSegment(dir, "current.jsonl", [
-      "y".repeat(SEGMENT_MAX_BYTES - incoming.length),
+      "y".repeat(SEGMENT_MAX_BYTES - incoming.length - 1),
     ]);
-    expect(fs.statSync(target).size + incoming.length).toBe(
+    expect(fs.statSync(target).size + incoming.length + 1).toBe(
       SEGMENT_MAX_BYTES + 1,
     );
     expect(resolveJsonlTargetPath(target, incoming)).not.toBe(target);
