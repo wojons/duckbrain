@@ -27,6 +27,8 @@ export interface EmbeddingProvider {
   readonly model: string;
   readonly dimensions: number;
   embed(text: string): Promise<number[]>;
+  /** Optional provider-native batch embedding. Result order matches input. */
+  embedMany?(texts: string[]): Promise<number[][]>;
 }
 
 export interface EmbeddingConfig {
@@ -101,6 +103,40 @@ function makeHttpEmbed(
       }
       return vec;
     },
+  };
+}
+
+/** Ollama's current /api/embed endpoint accepts an input array in one request. */
+function makeOllamaBatchEmbed(
+  id: string,
+  model: string,
+  baseUrl: string | undefined,
+  timeoutMs: number,
+): (texts: string[]) => Promise<number[][]> {
+  const url = `${normBase(baseUrl, "http://localhost:11434")}/api/embed`;
+  return async (texts: string[]): Promise<number[][]> => {
+    if (texts.length === 0) return [];
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, input: texts }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `[${id}] embed HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      );
+    }
+    const data = (await res.json()) as { embeddings?: number[][] };
+    const vectors = data?.embeddings;
+    if (
+      !Array.isArray(vectors) ||
+      vectors.length !== texts.length ||
+      vectors.some((vector) => !Array.isArray(vector) || vector.length === 0)
+    ) {
+      throw new Error(`[${id}] invalid batch embedding response`);
+    }
+    return vectors;
   };
 }
 
@@ -349,7 +385,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "ollama",
     label: "Ollama (local)",
     build(cfg) {
-      return makeHttpEmbed(
+      const single = makeHttpEmbed(
         `ollama/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
@@ -362,6 +398,15 @@ export const PROVIDERS: readonly ProviderCtor[] = [
         // The legacy endpoint's body key is "prompt".
         "prompt",
       );
+      return {
+        ...single,
+        embedMany: makeOllamaBatchEmbed(
+          `ollama/${cfg.model}`,
+          cfg.model,
+          cfg.baseUrl,
+          cfg.timeoutMs,
+        ),
+      };
     },
     async isHealthy(cfg) {
       try {

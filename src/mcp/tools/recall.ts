@@ -365,9 +365,13 @@ async function runSemanticLeg(opts: {
   candidateFilters.historical = validated.historical === true;
   candidateFilters.now = opts.now;
 
+  const timings = process.env.DUCKBRAIN_SEARCH_TIMING === "1";
+  const startedAt = performance.now();
+  let candidateFetchMs = 0;
   const result = await withTimeout(
     (async () => {
       let cands: Awaited<ReturnType<typeof queryMemories>>;
+      const fetchStartedAt = performance.now();
       try {
         cands = await queryMemories(db, partitionPaths, candidateFilters);
       } catch (e: any) {
@@ -379,26 +383,31 @@ async function runSemanticLeg(opts: {
           throw e;
         }
       }
+      candidateFetchMs = performance.now() - fetchStartedAt;
+      const rankStartedAt = performance.now();
       const rankedRes = await semanticSearch(
         cands,
         queryVector,
         cache,
         provider,
-        // DOGFOOD-010: bound on-the-fly embedding of cache misses.
-        // Each embed can take seconds (LM Studio ~2s on this host), so
-        // the default 50 would exceed the 30s budget on a cold cache.
-        // 10 keeps a cold-cache ?q= inside the timeout with real ranked
-        // results; warm caches rank the full candidate pool instantly.
-        // OPS-008: misses now embed through a bounded pool (4 in flight),
-        // so the cap costs ceil(10/4) × RTT instead of the 10 × RTT serial
-        // sum this reasoning originally priced — it still bounds provider
-        // load and cold-cache latency, just no longer the per-embed sum.
+        // PERF-005: keep query-path cache-miss work bounded to two texts.
+        // Profiling showed large corpus entries can make a 10-text batch take
+        // >20s even when query embedding and DuckDB candidate fetch are fast.
+        // Long cold texts are skipped here: a single 11k-character document
+        // took >20s to embed on the local provider in profiling. They remain
+        // searchable when their vector is already cached.
         // DOGFOOD-011: forward the relevance-floor override when set.
         {
-          maxOnTheFlyEmbeds: 10,
+          maxOnTheFlyEmbeds: 2,
+          maxOnTheFlyTextLength: 1500,
           ...(searchMinScore !== undefined ? { minScore: searchMinScore } : {}),
         },
       );
+      if (timings) {
+        console.error(
+          `[search-timing] semantic-candidates=${cands.length} fetch_ms=${candidateFetchMs.toFixed(1)} rank_ms=${(performance.now() - rankStartedAt).toFixed(1)} total_ms=${(performance.now() - startedAt).toFixed(1)}`,
+        );
+      }
       return { cands, rankedRes };
     })(),
     SEMANTIC_TIMEOUT_MS,
@@ -803,7 +812,10 @@ export async function recallTool(
       // (every embed then 400s), while Ollama on the same host may serve the
       // query fine. Explicit provider config stays a hard requirement (the
       // list has exactly one entry then — no fallback).
+      const providerDiscoveryStartedAt = performance.now();
       const providers = await createAutoProviders();
+      const providerDiscoveryMs =
+        performance.now() - providerDiscoveryStartedAt;
       let queryVector: number[] | null = null;
       const embedErrors: string[] = [];
       // The provider that actually produced the query vector — used for
@@ -813,6 +825,7 @@ export async function recallTool(
       // Legacy semantic error, surfaced ONLY when the keyword leg is also
       // unavailable (both-fail contract, DOGFOOD-001/002).
       let semanticError: string | null = null;
+      const queryEmbedStartedAt = performance.now();
       if (providers.length === 0) {
         semanticError =
           "Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'";
@@ -840,10 +853,17 @@ export async function recallTool(
         }
       }
 
+      if (process.env.DUCKBRAIN_SEARCH_TIMING === "1") {
+        console.error(
+          `[search-timing] provider_count=${providers.length} provider_discovery_ms=${providerDiscoveryMs.toFixed(1)} query_embedding_ms=${(performance.now() - queryEmbedStartedAt).toFixed(1)}`,
+        );
+      }
+
       // ---- Keyword leg: rebuilt FTS sidecar (RETR-001). A missing index is
       // NOT an error here — ?q= degrades to semantic-only; the failure is
       // only surfaced when BOTH legs are unavailable.
       let keywordResult: KeywordSearchResult | null = null;
+      const keywordStartedAt = performance.now();
       try {
         keywordResult = await keywordSearch(namespacePath, validated.query, {
           // Fetch at least the fusion top-k; rankFused uses only its top 20,
@@ -867,6 +887,11 @@ export async function recallTool(
         console.error(
           "[recall] Keyword leg unavailable for hybrid — degrading:",
           msg,
+        );
+      }
+      if (process.env.DUCKBRAIN_SEARCH_TIMING === "1") {
+        console.error(
+          `[search-timing] keyword_ms=${(performance.now() - keywordStartedAt).toFixed(1)} keyword_candidates=${keywordResult?.memories.length ?? 0}`,
         );
       }
 
