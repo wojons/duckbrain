@@ -22,18 +22,24 @@ import path from "path";
 import type { AddressInfo } from "net";
 import type { Server } from "http";
 import { createHttpServer, resolveUiDistDir } from "./http";
+import { resetEmbeddingHealthCache } from "../embedding/health";
 
 let server: Server;
 let port: number;
 let fixtureDist: string;
 let savedEnv: string | undefined;
+let savedEmbeddingProvider: string | undefined;
 
 const INDEX_HTML = "<!doctype html><html><body>fixture ui</body></html>\n";
 const ASSET_JS = "console.log('fixture');\n";
 
 function get(
   requestPath: string,
-): Promise<{ status: number | undefined; headers: http.IncomingHttpHeaders; body: string }> {
+): Promise<{
+  status: number | undefined;
+  headers: http.IncomingHttpHeaders;
+  body: string;
+}> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       { host: "127.0.0.1", port, path: requestPath, method: "GET" },
@@ -61,10 +67,16 @@ beforeAll(async () => {
   fs.mkdirSync(path.join(fixtureDist, "assets"), { recursive: true });
   fs.writeFileSync(path.join(fixtureDist, "assets", "app-abc123.js"), ASSET_JS);
 
-  // Point the resolver at the fixture BEFORE createHttpServer mounts the
-  // static layer (it resolves the dir + existsSync inside the factory).
+  // INT-CI-023 hermeticity: the /health handler runs the REAL embedding
+  // health probe. On a dev box LM Studio answers and /health is 200; on CI
+  // no embedding backend exists so /health is 503 degraded (GAP-030) and the
+  // "API routes still win" assertions fail. Pin provider=none (DF-0923-04):
+  // nothing is probed and the aggregate is healthy deterministically.
   savedEnv = process.env.DUCKBRAIN_UI_DIST_DIR;
   process.env.DUCKBRAIN_UI_DIST_DIR = fixtureDist;
+  savedEmbeddingProvider = process.env.DUCKBRAIN_EMBEDDING_PROVIDER;
+  process.env.DUCKBRAIN_EMBEDDING_PROVIDER = "none";
+  resetEmbeddingHealthCache();
 
   const app = createHttpServer({ authConfig: { type: "none" } });
   server = await new Promise<Server>((resolve) => {
@@ -77,6 +89,10 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   if (savedEnv === undefined) delete process.env.DUCKBRAIN_UI_DIST_DIR;
   else process.env.DUCKBRAIN_UI_DIST_DIR = savedEnv;
+  if (savedEmbeddingProvider === undefined)
+    delete process.env.DUCKBRAIN_EMBEDDING_PROVIDER;
+  else process.env.DUCKBRAIN_EMBEDDING_PROVIDER = savedEmbeddingProvider;
+  resetEmbeddingHealthCache();
   fs.rmSync(fixtureDist, { recursive: true, force: true });
 });
 

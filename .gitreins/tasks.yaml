@@ -2579,14 +2579,12 @@ tasks:
   status: complete
   created_at: '2026-10-08T03:22:48.495217+00:00'
   completed_at: '2026-10-08T03:25:02.030778+00:00'
-- id: README-5
-  title: "README-5: fresh-daemon health line \u2014 degraded can come from keys probe\
-    \ too; status code wording"
+- id: DB-GAP-64
+  title: "INT-CI-023 \u2014 http-ui-static tests red in CI (env-dependent 503)"
   criteria:
-  - 'README.md quickstart step 2 accurately describes the fresh-daemon /health outcome:
-    degraded may come from either the embedding probe or the keys probe, and does
-    not claim a code the server may not serve. Verified by reading the line and grepping
-    the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).'
-  status: complete
-  created_at: '2026-10-08T03:37:50.272419+00:00'
-  completed_at: '2026-10-08T03:52:41.087392+00:00'
+  - The file src/cli/http-ui-static-df092408.test.ts passes hermetically on this host
+    with no embedding backend influence (DUCKBRAIN_EMBEDDING_PROVIDER=none pinned
+    + cache reset), npx vitest run of that file is green, tsc --noEmit clean, and
+    no .gitreins/.coding-hermes evidence counted.
+  status: in_progress
+  created_at: '2026-10-08T07:45:16.018129+00:00'
