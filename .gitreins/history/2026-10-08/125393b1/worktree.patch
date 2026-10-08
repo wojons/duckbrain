@@ -1,0 +1,12 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index fde2687..cd5dc1f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2586,5 +2586,6 @@ tasks:
+     with no embedding backend influence (DUCKBRAIN_EMBEDDING_PROVIDER=none pinned
+     + cache reset), npx vitest run of that file is green, tsc --noEmit clean, and
+     no .gitreins/.coding-hermes evidence counted.
+-  status: in_progress
++  status: complete
+   created_at: '2026-10-08T07:45:16.018129+00:00'
++  completed_at: '2026-10-08T08:01:21.505285+00:00'

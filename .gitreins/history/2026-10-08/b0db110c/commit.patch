@@ -1,0 +1,106 @@
+commit 3258f2604a6d276c870b4b86f1c1afe1f8f3652f
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 8 03:00:55 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 8 03:00:55 2026 -0500
+
+    fix(test): INT-CI-023 — pin DUCKBRAIN_EMBEDDING_PROVIDER=none in http-ui-static test (DB-GAP-64)
+    
+    /health runs the real embedding probe; CI has no backend so /health is 503
+    degraded (GAP-030) and the 'API routes still win' assertions failed while the
+    dev box (LM Studio up) passed. Pin provider=none (DF-0923-04) + reset the
+    health cache for deterministic hermeticity. ch:trace row=DB-GAP-64 evidence=npx vitest run src/cli/http-ui-static-df092408.test.ts 8/8 + full unit 216/1763 green witness=none:ci-run-pending verdict=none:judge-pending
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .gitreins/tasks.yaml                    | 18 ++++++++----------
+ src/cli/http-ui-static-df092408.test.ts | 22 +++++++++++++++++++---
+ 2 files changed, 27 insertions(+), 13 deletions(-)
+
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index e4de221..fde2687 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2579,14 +2579,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-08T03:22:48.495217+00:00'
+   completed_at: '2026-10-08T03:25:02.030778+00:00'
+-- id: README-5
+-  title: "README-5: fresh-daemon health line \u2014 degraded can come from keys probe\
+-    \ too; status code wording"
++- id: DB-GAP-64
++  title: "INT-CI-023 \u2014 http-ui-static tests red in CI (env-dependent 503)"
+   criteria:
+-  - 'README.md quickstart step 2 accurately describes the fresh-daemon /health outcome:
+-    degraded may come from either the embedding probe or the keys probe, and does
+-    not claim a code the server may not serve. Verified by reading the line and grepping
+-    the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).'
+-  status: complete
+-  created_at: '2026-10-08T03:37:50.272419+00:00'
+-  completed_at: '2026-10-08T03:52:41.087392+00:00'
++  - The file src/cli/http-ui-static-df092408.test.ts passes hermetically on this host
++    with no embedding backend influence (DUCKBRAIN_EMBEDDING_PROVIDER=none pinned
++    + cache reset), npx vitest run of that file is green, tsc --noEmit clean, and
++    no .gitreins/.coding-hermes evidence counted.
++  status: in_progress
++  created_at: '2026-10-08T07:45:16.018129+00:00'
+diff --git a/src/cli/http-ui-static-df092408.test.ts b/src/cli/http-ui-static-df092408.test.ts
+index 21f408d..a24f03c 100644
+--- a/src/cli/http-ui-static-df092408.test.ts
++++ b/src/cli/http-ui-static-df092408.test.ts
+@@ -22,18 +22,24 @@ import path from "path";
+ import type { AddressInfo } from "net";
+ import type { Server } from "http";
+ import { createHttpServer, resolveUiDistDir } from "./http";
++import { resetEmbeddingHealthCache } from "../embedding/health";
+ 
+ let server: Server;
+ let port: number;
+ let fixtureDist: string;
+ let savedEnv: string | undefined;
++let savedEmbeddingProvider: string | undefined;
+ 
+ const INDEX_HTML = "<!doctype html><html><body>fixture ui</body></html>\n";
+ const ASSET_JS = "console.log('fixture');\n";
+ 
+ function get(
+   requestPath: string,
+-): Promise<{ status: number | undefined; headers: http.IncomingHttpHeaders; body: string }> {
++): Promise<{
++  status: number | undefined;
++  headers: http.IncomingHttpHeaders;
++  body: string;
++}> {
+   return new Promise((resolve, reject) => {
+     const req = http.request(
+       { host: "127.0.0.1", port, path: requestPath, method: "GET" },
+@@ -61,10 +67,16 @@ beforeAll(async () => {
+   fs.mkdirSync(path.join(fixtureDist, "assets"), { recursive: true });
+   fs.writeFileSync(path.join(fixtureDist, "assets", "app-abc123.js"), ASSET_JS);
+ 
+-  // Point the resolver at the fixture BEFORE createHttpServer mounts the
+-  // static layer (it resolves the dir + existsSync inside the factory).
++  // INT-CI-023 hermeticity: the /health handler runs the REAL embedding
++  // health probe. On a dev box LM Studio answers and /health is 200; on CI
++  // no embedding backend exists so /health is 503 degraded (GAP-030) and the
++  // "API routes still win" assertions fail. Pin provider=none (DF-0923-04):
++  // nothing is probed and the aggregate is healthy deterministically.
+   savedEnv = process.env.DUCKBRAIN_UI_DIST_DIR;
+   process.env.DUCKBRAIN_UI_DIST_DIR = fixtureDist;
++  savedEmbeddingProvider = process.env.DUCKBRAIN_EMBEDDING_PROVIDER;
++  process.env.DUCKBRAIN_EMBEDDING_PROVIDER = "none";
++  resetEmbeddingHealthCache();
+ 
+   const app = createHttpServer({ authConfig: { type: "none" } });
+   server = await new Promise<Server>((resolve) => {
+@@ -77,6 +89,10 @@ afterAll(async () => {
+   await new Promise<void>((resolve) => server.close(() => resolve()));
+   if (savedEnv === undefined) delete process.env.DUCKBRAIN_UI_DIST_DIR;
+   else process.env.DUCKBRAIN_UI_DIST_DIR = savedEnv;
++  if (savedEmbeddingProvider === undefined)
++    delete process.env.DUCKBRAIN_EMBEDDING_PROVIDER;
++  else process.env.DUCKBRAIN_EMBEDDING_PROVIDER = savedEmbeddingProvider;
++  resetEmbeddingHealthCache();
+   fs.rmSync(fixtureDist, { recursive: true, force: true });
+ });
+ 

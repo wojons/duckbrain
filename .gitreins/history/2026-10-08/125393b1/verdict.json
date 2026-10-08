@@ -1,0 +1,95 @@
+{
+  "task_id": "DB-GAP-64",
+  "task_title": "INT-CI-023 \u2014 http-ui-static tests red in CI (env-dependent 503)",
+  "task_criteria": [
+    "The file src/cli/http-ui-static-df092408.test.ts passes hermetically on this host with no embedding backend influence (DUCKBRAIN_EMBEDDING_PROVIDER=none pinned + cache reset), npx vitest run of that file is green, tsc --noEmit clean, and no .gitreins/.coding-hermes evidence counted."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "3258f2604a6d276c870b4b86f1c1afe1f8f3652f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:01AM INF scanned ~41601737 bytes (41.60 MB) in 7.56s\n3:01AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1033986 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  216 passed (216)\n      Tests  1763 passed (1763)\n   Start at  03:01:22\n   Duration  68.76s (tests 78%, import 18%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  216 workers spawned \u00b7 ~103ms startup each (spawn + environment, per file)\n             at least ~5.47s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\nnpm notice\nnpm notice New major version of npm available! 10.9.8 -> 12.2.0\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0\nnpm notice To update run: npm install -g npm@12.2.0\nnpm notice\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [],
+            "summary": "Evaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-GAP-64\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n\nEvaluator error: LLM call failed: 402 Client Error: Payment Required for url: https://api.deepseek.com/v1/chat/completions (provider=openai model=deepseek-v4-flash url=https://api.deepseek.com/v1/chat/completions key=<GITREINS_LLM_API_KEY>)\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-08T08:02:41.098619",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-08T08:02:41.123057+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5250,
+        "truncated": false,
+        "source": "git show 3258f2604a6d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 532,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-64"
+  }
+}
