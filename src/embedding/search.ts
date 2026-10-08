@@ -69,6 +69,8 @@ export interface SemanticSearchOptions {
    * degrades to the historical serial behavior rather than embedding nothing.
    */
   embedConcurrency?: number;
+  /** Skip cold candidate texts above this bound; cached vectors still rank. */
+  maxOnTheFlyTextLength?: number;
 }
 
 export interface RankedMemory extends SearchCandidate {
@@ -115,7 +117,10 @@ export async function semanticSearch(
   provider: EmbeddingProvider | null,
   opts: SemanticSearchOptions = {},
 ): Promise<RankedMemory[]> {
+  const timingEnabled = process.env.DUCKBRAIN_SEARCH_TIMING === "1";
+  const searchStartedAt = performance.now();
   const maxOnTheFly = opts.maxOnTheFlyEmbeds ?? 50;
+  const maxTextLength = opts.maxOnTheFlyTextLength ?? Number.POSITIVE_INFINITY;
   const minScore = opts.minScore ?? DEFAULT_MIN_SCORE;
   // OPS-008: same clamp as the rebuild pool (rebuild.ts) — a 0/negative
   // override degrades to serial embedding, it never spawns zero workers.
@@ -155,6 +160,11 @@ export async function semanticSearch(
     // the candidate cannot be ranked, exactly as before.
     if (!embedder) continue;
 
+    // PERF-005: long uncached documents can dominate request latency at the
+    // provider. Leave them unranked until they have a cache entry rather than
+    // letting one oversized input hold the whole search open.
+    if (text.length > maxTextLength) continue;
+
     if (!queued.has(contentHash)) {
       // Cap applies to the unique miss texts actually handed to the pool, so
       // no more than maxOnTheFly embedding requests are ever issued.
@@ -165,6 +175,7 @@ export async function semanticSearch(
     pending.push({ cand, contentHash });
   }
 
+  const cacheResolveMs = performance.now() - searchStartedAt;
   // Pass 2 (OPS-008): embed the miss set through a bounded worker pool — the
   // same shape as rebuildNamespace (rebuild.ts): a shared index, N workers,
   // Promise.all over the workers. Each text's failure is contained inside its
@@ -173,30 +184,51 @@ export async function semanticSearch(
   // AbortSignal.timeout (providers.ts) is the only latency budget — a slow
   // embed cannot hold the pool past it, and no retry loop is added here.
   const fresh = new Map<string, number[]>();
+  const embedStartedAt = performance.now();
   if (embedder && misses.length > 0) {
     const providerId = embedder.id;
-    let nextIdx = 0;
-
-    const worker = async (): Promise<void> => {
-      while (true) {
-        const idx = nextIdx++;
-        if (idx >= misses.length) return;
-        const miss = misses[idx];
-        try {
-          const vector = await embedder.embed(miss.text);
+    let batched = false;
+    if (embedder.embedMany) {
+      try {
+        const vectors = await embedder.embedMany(
+          misses.map((miss) => miss.text),
+        );
+        for (let i = 0; i < misses.length; i++) {
+          const miss = misses[i];
+          const vector = vectors[i];
           cache.set(providerId, miss.contentHash, vector);
           fresh.set(miss.contentHash, vector);
-        } catch {
-          // Failure isolation: the miss stays unranked and is NOT cached, so
-          // the next query retries it — the serial `catch { vector = null }`
-          // contract, preserved per text instead of per candidate.
         }
+        batched = true;
+      } catch {
+        // Older Ollama versions may not expose /api/embed. Preserve the
+        // established bounded single-item path as a compatibility fallback.
       }
-    };
+    }
 
-    await Promise.all(Array.from({ length: embedConcurrency }, worker));
+    if (!batched) {
+      let nextIdx = 0;
+      const worker = async (): Promise<void> => {
+        while (true) {
+          const idx = nextIdx++;
+          if (idx >= misses.length) return;
+          const miss = misses[idx];
+          try {
+            const vector = await embedder.embed(miss.text);
+            cache.set(providerId, miss.contentHash, vector);
+            fresh.set(miss.contentHash, vector);
+          } catch {
+            // Failure isolation: the miss stays unranked and is NOT cached,
+            // so the next query retries it.
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: embedConcurrency }, worker));
+    }
   }
 
+  const candidateEmbedMs = performance.now() - embedStartedAt;
   // Pass 3: rank cache hits and newly embedded vectors together. Scoring is
   // deliberately OUTSIDE the pool: cosineSimilarity throws on an empty vector
   // (DOGFOOD-002) and that throw must still surface from semanticSearch
@@ -217,6 +249,12 @@ export async function semanticSearch(
   for (const miss of pending) {
     const vector = fresh.get(miss.contentHash);
     if (vector) push(miss.cand, vector);
+  }
+
+  if (timingEnabled) {
+    console.error(
+      `[search-timing] cache_candidates=${candidates.length} cache_hits=${hits.length} unique_misses=${misses.length} miss_text_chars=${misses.reduce((sum, miss) => sum + miss.text.length, 0)} max_miss_text_chars=${misses.reduce((max, miss) => Math.max(max, miss.text.length), 0)} batch_supported=${Boolean(embedder?.embedMany)} candidate_cache_ms=${cacheResolveMs.toFixed(1)} candidate_embed_ms=${candidateEmbedMs.toFixed(1)} scoring_ms=${(performance.now() - searchStartedAt - cacheResolveMs - candidateEmbedMs).toFixed(1)}`,
+    );
   }
 
   return ranked.sort((a, b) => {

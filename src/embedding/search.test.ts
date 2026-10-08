@@ -119,6 +119,59 @@ describe("semanticSearch", () => {
     expect(cache.has("m", EmbeddingCache.contentHash("bbbbbbbbbb"))).toBe(true);
   });
 
+  it("embeds cache misses as one provider batch when supported", async () => {
+    const batchCalls: string[][] = [];
+    const provider = {
+      id: "m",
+      model: "t",
+      dimensions: 4,
+      async embed() {
+        throw new Error("batch path should be used");
+      },
+      async embedMany(texts: string[]) {
+        batchCalls.push(texts);
+        return texts.map((text) => fakeVec(text.length));
+      },
+    };
+    const cands = [candidate("a", "aaa"), candidate("b", "bbbb")];
+
+    const ranked = await semanticSearch(cands, fakeVec(1), cache, provider);
+
+    expect(batchCalls).toEqual([["aaa", "bbbb"]]);
+    expect(ranked).toHaveLength(2);
+    expect(cache.has("m", EmbeddingCache.contentHash("aaa"))).toBe(true);
+    expect(cache.has("m", EmbeddingCache.contentHash("bbbb"))).toBe(true);
+  });
+
+  it("skips oversized cold texts without embedding or ranking them", async () => {
+    let calls = 0;
+    const provider = {
+      id: "m",
+      model: "t",
+      dimensions: 4,
+      async embed() {
+        calls++;
+        return fakeVec(1);
+      },
+    };
+    const short = candidate("short", "short text");
+    const long = candidate("long", "x".repeat(1501));
+
+    const ranked = await semanticSearch(
+      [short, long],
+      fakeVec(1),
+      cache,
+      provider,
+      {
+        maxOnTheFlyEmbeds: 2,
+        maxOnTheFlyTextLength: 1500,
+      },
+    );
+
+    expect(calls).toBe(1);
+    expect(ranked.map((memory) => memory.id)).toEqual(["short"]);
+  });
+
   it("cachedOnly skips on-the-fly embeds (missing vectors excluded)", async () => {
     const provider = {
       id: "m",

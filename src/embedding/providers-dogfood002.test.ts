@@ -157,6 +157,55 @@ describe("makeHttpEmbed request payload key (GAP-029)", () => {
     expect(openai.input).toBe("ping");
     expect(openai.prompt).toBeUndefined();
   });
+
+  it("sends Ollama batches to /api/embed and preserves input order", async () => {
+    let capturedUrl = "";
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { body?: string }) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse(init?.body ?? "{}");
+        return jsonResponse({
+          embeddings: [
+            [0.1, 0.2],
+            [0.3, 0.4],
+          ],
+        });
+      }),
+    );
+    const provider = createProvider({
+      provider: "ollama",
+      model: "nomic",
+      baseUrl: "http://ollama.test",
+    });
+
+    await expect(provider.embedMany?.(["first", "second"])).resolves.toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
+    expect(capturedUrl).toBe("http://ollama.test/api/embed");
+    expect(capturedBody).toEqual({
+      model: "nomic",
+      input: ["first", "second"],
+    });
+  });
+
+  it("rejects incomplete Ollama batch responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ embeddings: [[0.1]] })),
+    );
+    const provider = createProvider({
+      provider: "ollama",
+      model: "nomic",
+      baseUrl: "http://ollama.test",
+    });
+
+    await expect(provider.embedMany?.(["first", "second"])).rejects.toThrow(
+      /invalid batch embedding response/,
+    );
+  });
 });
 
 describe("createAutoProviders (DOGFOOD-002)", () => {

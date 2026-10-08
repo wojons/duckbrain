@@ -408,6 +408,8 @@ Query memories with filters.
 
 > **Note — semantic search (`?q=`) and embeddings (DB-GAP-036):** `?q=` needs a reachable embedding provider at query time (LM Studio / Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider). When no provider can embed, the endpoint returns **503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start an embedding provider or run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) works offline; its per-namespace index is refreshed automatically when it is missing or older than the newest write (bounded and single-flight — `DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS`, default 5000 source rows), with `duckbrain search-index rebuild` as the escape hatch for namespaces over that bound. Check `GET /health` — its `embedding` block reports provider health.
 
+> **Performance (PERF-005):** On a healthy local Ollama provider, warm semantic requests are expected to complete in under 5 seconds; actual latency depends on model load, provider capacity, network, and namespace size. At most two uncached candidate texts (each no longer than 1,500 characters) are embedded per query in one Ollama `/api/embed` batch; longer uncached texts are omitted from semantic ranking until their embeddings exist in cache. Older Ollama versions fall back to bounded individual embedding calls. Set `DUCKBRAIN_SEARCH_TIMING=1` on the daemon to log provider discovery, query embedding, keyword search, DuckDB candidate fetch, candidate embedding, cache lookup, and scoring durations. `?contains=` remains an offline FTS query and does not call the embedding provider.
+
 **Response:**
 
 ```json
