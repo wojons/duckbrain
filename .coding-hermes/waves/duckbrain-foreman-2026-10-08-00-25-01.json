@@ -1,0 +1,54 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-08-00-25-01",
+  "wave_budget": 5,
+  "status": "recovered",
+  "workers": [
+    {
+      "task_id": "PERF-005",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-005",
+      "branch": "wt/PERF-005",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-25-01-PERF-005.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "MUSTER-001",
+      "worktree": "/home/kara/worktrees/duckbrain-MUSTER-001",
+      "branch": "wt/MUSTER-001",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-25-01-MUSTER-001.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "DB-GAP-055",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-055",
+      "branch": "wt/DB-GAP-055",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-25-01-DB-GAP-055.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "DF-0924-08",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0924-08",
+      "branch": "wt/DF-0924-08",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-25-01-DF-0924-08.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "DF-0925-08",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0925-08",
+      "branch": "wt/DF-0925-08",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-25-01-DF-0925-08.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    }
+  ],
+  "finished_at": "2026-10-08T01:15:00Z",
+  "recovery_notes": "PERF-005+DB-GAP-055 merged, MUSTER-001 failed (brief premise flawed), DF-0924-08+DF-0925-08 zero-commit reaped"
+}
