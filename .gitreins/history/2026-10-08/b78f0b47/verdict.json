@@ -1,0 +1,103 @@
+{
+  "task_id": "README-5",
+  "task_title": "README-5: fresh-daemon health line \u2014 degraded can come from keys probe too; status code wording",
+  "task_criteria": [
+    "README.md quickstart step 2 accurately describes the fresh-daemon /health outcome: degraded may come from either the embedding probe or the keys probe, and does not claim a code the server may not serve. Verified by reading the line and grepping the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null)."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "8fd9e96bcf22a56e709bc687d7a564758c627c53",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n10:48PM INF scanned ~41473048 bytes (41.47 MB) in 7.13s\n10:48PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1032369 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/git/autocommit-ops006.test.ts (5 tests | 1 failed) 46736ms\n   \u276f OPS-006: short-lived CLI processes still commit and push (criterion 4) (1)\n     \u00d7 a `remember` run leaves the commit AND the pushed ref behind after exit 45793ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-ops006.test.ts > OPS-006: short-lived CLI processes still commit and push (criterion 4) > a `remember` run leaves the commit AND the pushed ref behind after exit\nAssertionError: expected null to be +0 // Object.is equality\n\n- Expected:\n0\n\n+ Received:\nnull\n\n \u276f src/git/autocommit-ops006.test.ts:493:25\n    491|       env,\n    492|     );\n    493|     expect(second.code).toBe(0);\n       |                         ^\n    494|\n    495|     // The implicit namespace was git-inited and committed by the time\u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 215 passed (216)\n      Tests  1 failed | 1762 passed (1763)\n   Start at  22:48:33\n   Duration  77.57s (tests 81%, import 16%, transform 2%, worker 1%)\n\n    Isolate  216 workers spawned \u00b7 ~98ms startup each (spawn + environment, per file)\n             at least ~5.19s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 README.md quickstart step 2 accurately describes the fresh-daemon /health outcome: degraded may come from either the embedding probe or the keys probe, and does not claim a code the server may not serve. Verified by reading the line and grepping the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).: README.md:117-120 reads 'usually 200; a fresh install may answer 503 \"degraded\" while the embedding probe is unmet, or while the keys probe has not settled yet'. Code at src/cli/http.ts:364 confirms `const degraded = !embedding.healthy || keysError !== null;` (both probes cause degraded). Line 376 confirms `res.status(degraded ? 503 : 200)` \u2014 both codes the server actually serves. 3 health-related test files pass (33 tests). [resolution 0.66; README.md, src/cli/http.ts]\nREADME.md quickstart step 2 accurately names both degraded causes (embedding probe and keys probe) and uses 'usually 200' / 'may answer 503' wording that matches the real handler's 200/503 codes.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 README.md quickstart step 2 accurately describes the fresh-daemon /health outcome: degraded may come from either the embedding probe or the keys probe, and does not claim a code the server may not serve. Verified by reading the line and grepping the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).: README.md:117-120 reads 'usually 200; a fresh install may answer 503 \"degraded\" while the embedding probe is unmet, or while the keys probe has not settled yet'. Code at src/cli/http.ts:364 confirms `const degraded = !embedding.healthy || keysError !== null;` (both probes cause degraded). Line 376 confirms `res.status(degraded ? 503 : 200)` \u2014 both codes the server actually serves. 3 health-related test files pass (33 tests). [resolution 0.66; README.md, src/cli/http.ts]\nREADME.md quickstart step 2 accurately names both degraded causes (embedding probe and keys probe) and uses 'usually 200' / 'may answer 503' wording that matches the real handler's 200/503 codes.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "README.md quickstart step 2 accurately describes the fresh-daemon /health outcome: degraded may come from either the embedding probe or the keys probe, and does not claim a code the server may not serve. Verified by reading the line and grepping the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).",
+                "status": "PASS",
+                "detail": "README.md:117-120 reads 'usually 200; a fresh install may answer 503 \"degraded\" while the embedding probe is unmet, or while the keys probe has not settled yet'. Code at src/cli/http.ts:364 confirms `const degraded = !embedding.healthy || keysError !== null;` (both probes cause degraded). Line 376 confirms `res.status(degraded ? 503 : 200)` \u2014 both codes the server actually serves. 3 health-related test files pass (33 tests). [resolution 0.66; README.md, src/cli/http.ts]",
+                "resolution_probability": 0.66,
+                "cited_path": "README.md, src/cli/http.ts"
+              }
+            ],
+            "summary": "README.md quickstart step 2 accurately names both degraded causes (embedding probe and keys probe) and uses 'usually 200' / 'may answer 503' wording that matches the real handler's 200/503 codes."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: README-5\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 README.md quickstart step 2 accurately describes the fresh-daemon /health outcome: degraded may come from either the embedding probe or the keys probe, and does not claim a code the server may not serve. Verified by reading the line and grepping the handler (src/cli/http.ts degraded = !embedding.healthy || keysError !== null).: README.md:117-120 reads 'usually 200; a fresh install may answer 503 \"degraded\" while the embedding probe is unmet, or while the keys probe has not settled yet'. Code at src/cli/http.ts:364 confirms `const degraded = !embedding.healthy || keysError !== null;` (both probes cause degraded). Line 376 confirms `res.status(degraded ? 503 : 200)` \u2014 both codes the server actually serves. 3 health-related test files pass (33 tests). [resolution 0.66; README.md, src/cli/http.ts]\nREADME.md quickstart step 2 accurately names both degraded causes (embedding probe and keys probe) and uses 'usually 200' / 'may answer 503' wording that matches the real handler's 200/503 codes.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-08T03:51:52.063286",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-08T03:51:52.096158+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5923,
+        "truncated": false,
+        "source": "git show 8fd9e96bcf22"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 577,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-5"
+  }
+}
