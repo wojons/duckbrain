@@ -1,0 +1,41 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-08-00-07-46",
+  "wave_budget": 3,
+  "status": "closed",
+  "workers": [
+    {
+      "task_id": "DB-GAP-055",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-055",
+      "branch": "wt/DB-GAP-055",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-07-46-DB-GAP-055.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "MUSTER-001",
+      "worktree": "/home/kara/worktrees/duckbrain-MUSTER-001",
+      "branch": "wt/MUSTER-001",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-07-46-MUSTER-001.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    },
+    {
+      "task_id": "PERF-005",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-005",
+      "branch": "wt/PERF-005",
+      "base_sha": "2126bef",
+      "brief_path": "/tmp/duckbrain-foreman-2026-10-08-00-07-46-PERF-005.txt",
+      "gitreins_task": null,
+      "dispatched_at": null
+    }
+  ],
+  "finished_at": "2026-10-07T19:38:05.646730",
+  "failure_reason": "workers never dispatched (dispatched_at=null for all 3); worktrees created but empty (0 commits ahead of main)",
+  "outcome": {
+    "PERF-005": "merged (74ab6db)",
+    "MUSTER-001": "failed (brief premise flawed)",
+    "DB-GAP-055": "merged (30a82dc)"
+  }
+}
