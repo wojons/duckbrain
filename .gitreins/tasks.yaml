@@ -2589,3 +2589,11 @@ tasks:
   status: complete
   created_at: '2026-10-08T07:45:16.018129+00:00'
   completed_at: '2026-10-08T08:03:38.950249+00:00'
+- id: INT-CI-024b
+  title: AGENTS.md test-count assert sync (216/1763)
+  criteria:
+  - AGENTS.md carries the live vitest counts (216 suites, 1763 tests) and scripts/sync-agents-md-counts.sh
+    --check exits 0
+  status: complete
+  created_at: '2026-10-08T09:06:04.456884+00:00'
+  completed_at: '2026-10-08T09:06:33.255953+00:00'
