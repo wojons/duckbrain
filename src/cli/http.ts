@@ -74,6 +74,37 @@ import {
 } from "../embedding/health.js";
 
 /**
+ * DF-0924-08: resolve the built Web UI directory (packages/ui/dist).
+ *
+ * Resolution is module-location based, which covers both run shapes without
+ * env knobs:
+ * - precompiled: dist/src/cli/http.js → walk up to the repo root (3 levels)
+ * - dev (tsx):   src/cli/http.ts       → walk up to the repo root (2 levels)
+ * Returns <root>/packages/ui/dist either way. UI_DIST_DIR is injectable ONLY
+ * for tests (used by src/cli/http-ui-static.test.ts to pin a fixture dist
+ * without depending on build state).
+ */
+export function resolveUiDistDir(): string {
+  if (process.env.DUCKBRAIN_UI_DIST_DIR) {
+    return path.resolve(process.env.DUCKBRAIN_UI_DIST_DIR);
+  }
+  const dir = path.resolve(__dirname);
+  // <root>/packages/ui/dist — scan upward for the packages/ui/dist marker so
+  // the walk count never has to change if this file moves a level.
+  let probe = dir;
+  for (let i = 0; i < 6; i++) {
+    const candidate = path.join(probe, "packages", "ui", "dist");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    probe = parent;
+  }
+  // Fallback (no dist on disk anywhere up the tree): derive from __dirname
+  // so the caller's existsSync check still has a stable answer.
+  return path.resolve(dir, "../../packages/ui/dist");
+}
+
+/**
  * HTTP server configuration options
  */
 export interface HttpServerOptions {
@@ -844,6 +875,46 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         id: null,
       });
   });
+
+  // DF-0924-08: serve the built Web UI when packages/ui/dist exists.
+  //
+  // Mounted AFTER every API route (so /api/*, /namespaces, /users, /activity,
+  // /mcp, /health, /stats all win) but BEFORE the JSON 404 handler: any path
+  // not claimed by an API mount falls through to the static assets, and
+  // anything that is not a real file on disk falls through to the SPA index
+  // (express.static ends the chain for misses, the sendFile handler answers).
+  // When dist is missing (fresh clone that skipped `pnpm build`), GET /
+  // returns a pointed JSON hint instead of the bare ROUTE_NOT_FOUND 404.
+  //
+  // This is pre-auth-tail, same as every API route: an apikey-mode daemon
+  // still requires the X-API-Key header for HTML requests, which browsers do
+  // not send — so UI visitors on an apikey daemon get the auth 401 JSON.
+  // That is correct behavior (the UI itself sends the header via
+  // packages/ui/src/lib/api-client.ts), just documented here so nobody
+  // "fixes" it by moving this mount before authMiddleware.
+  const uiDistDir = resolveUiDistDir();
+  if (fs.existsSync(path.join(uiDistDir, "index.html"))) {
+    app.use(express.static(uiDistDir, { index: "index.html" }));
+    // Express 5 (path-to-regexp v8) requires a NAMED wildcard — a bare "*"
+    // throws at mount time. API-prefixed misses fall through to the JSON
+    // notFoundHandler: a wrong API call must stay a machine-readable 404,
+    // never an HTML shell.
+    app.get("/*splat", (req: Request, res: Response, next: NextFunction) => {
+      if (req.path === "/api" || req.path.startsWith("/api/")) {
+        next();
+        return;
+      }
+      res.sendFile(path.join(uiDistDir, "index.html"));
+    });
+  } else {
+    app.get("/", (_req: Request, res: Response) => {
+      res.status(404).json({
+        error:
+          "Web UI not built. Run `pnpm install && pnpm build` in the repo root (builds packages/ui), then restart the daemon. See the README Web UI section.",
+        code: "UI_NOT_BUILT",
+      });
+    });
+  }
 
   app.use(errorHandler);
   app.use(notFoundHandler);

@@ -177,11 +177,40 @@ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-sock
 
 **Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
 
-**Web UI Only:**
+**Web UI quickstart (serve the built UI from the daemon):**
+
+The HTTP daemon serves the compiled Web UI itself once `packages/ui/dist` exists — no dev server needed. Three steps:
 
 ```bash
+# 1. build the UI (first time, and after UI changes)
+pnpm install
+pnpm build
+
+# 2. start the daemon (--auth=none = explicit local-only unauthenticated mode;
+#    the default is apikey — see "Verify the install" above)
+pnpm start http --port=3000 --auth=none
+
+# 3. open it
+#    http://localhost:3000
+```
+
+Deep links work too (`http://localhost:3000/namespaces`, etc.) — the daemon serves `index.html` for any non-`/api` path. API routes (`/api/*`, `/health`, `/namespaces`, `/mcp`, …) always take precedence over the static files. If you skip step 1, `GET /` returns a `UI_NOT_BUILT` JSON hint pointing back here instead of a page.
+
+**Web UI dev mode (hot reload):**
+
+```bash
+# terminal 1 — the API daemon
+pnpm start http --port=3000 --auth=none
+
+# terminal 2 — the Vite dev server (hot reload); proxies /api to the daemon
 cd packages/ui
 pnpm run dev
+```
+
+In dev mode the UI runs on its own port (default `http://localhost:8989`) and proxies API calls to the daemon. If the daemon runs on a different port, point the proxy at it with `DUCKBRAIN_API_PORT`:
+
+```bash
+DUCKBRAIN_API_PORT=4123 pnpm run dev
 ```
 
 ### Daily consolidation digest
