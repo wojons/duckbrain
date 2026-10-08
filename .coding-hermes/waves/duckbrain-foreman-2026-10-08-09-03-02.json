@@ -1,0 +1,1 @@
+{"scheduler_tick":"duckbrain-foreman-2026-10-08-09-03-02","mode":"serial-fallback","reason":"only one independent pending task (INT-CI-024b); remaining pending rows are owner-gated or multi-commit","workers":0,"picked":["INT-CI-024b"],"wave_budget":11}
