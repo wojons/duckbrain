@@ -183,33 +183,51 @@ export function serializeJsonlLine(record: unknown): string | null {
 /**
  * Resolve the file the next append lands in, applying chunk rotation.
  *
- * Rotation fires when the current file is at MAX_BYTES_PER_CHUNK or
- * MAX_LINES_PER_CHUNK; the rotated target is `getNextChunkName(dirPath)` —
- * a NEW file whose directory entry itself must be fsynced in fsync/direct
- * mode (SUPA-1) or the name can be lost on crash even though the data was
- * fsynced.
+ * Rotation starts a new segment when the active file cannot fit the next line
+ * within MAX_BYTES_PER_CHUNK or MAX_LINES_PER_CHUNK. Callers keep passing
+ * `current.jsonl`; after the first rotation, the newest numeric segment is the
+ * active file. The rotated target is `getNextChunkName(dirPath)` — a NEW file
+ * whose directory entry itself must be fsynced in fsync/direct mode (SUPA-1) or
+ * the name can be lost on crash even though the data was fsynced.
  *
  * @param filePath - Candidate file path (e.g. .../current.jsonl)
  * @param line - The serialized line about to be appended
  * @returns Path the append should target
  */
 export function resolveJsonlTargetPath(filePath: string, line: string): string {
-  if (!fs.existsSync(filePath)) {
+  const dirPath = path.dirname(filePath) + path.sep;
+  const requestedName = path.basename(filePath);
+
+  // Writers continue to pass `current.jsonl` after the first rotation. Always
+  // resume from the newest numeric segment rather than checking the now-full
+  // current.jsonl on every call (which would allocate one segment per write).
+  if (!fs.existsSync(dirPath)) {
     return filePath;
   }
+  const numericChunks = fs
+    .readdirSync(dirPath)
+    .filter((name) => /^\d+\.jsonl$/.test(name))
+    .sort(compareChunkNames);
+  const activePath =
+    requestedName === "current.jsonl" && numericChunks.length > 0
+      ? path.join(dirPath, numericChunks[numericChunks.length - 1])
+      : filePath;
 
-  const stats = fs.statSync(filePath);
-  const lines = countLines(filePath);
+  if (!fs.existsSync(activePath)) {
+    return activePath;
+  }
+
+  const stats = fs.statSync(activePath);
+  const lines = countLines(activePath);
 
   if (
-    stats.size + line.length > MAX_BYTES_PER_CHUNK ||
+    stats.size + Buffer.byteLength(line + "\n", "utf-8") > MAX_BYTES_PER_CHUNK ||
     lines >= MAX_LINES_PER_CHUNK
   ) {
-    const dirPath = path.dirname(filePath) + path.sep;
     return path.join(dirPath, getNextChunkName(dirPath));
   }
 
-  return filePath;
+  return activePath;
 }
 
 /**
