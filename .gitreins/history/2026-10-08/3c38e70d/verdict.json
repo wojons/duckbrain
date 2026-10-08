@@ -1,0 +1,67 @@
+{
+  "task_id": "DB-GAP-64",
+  "task_title": "INT-CI-023 \u2014 http-ui-static tests red in CI (env-dependent 503)",
+  "task_criteria": [
+    "The file src/cli/http-ui-static-df092408.test.ts passes hermetically on this host with no embedding backend influence (DUCKBRAIN_EMBEDDING_PROVIDER=none pinned + cache reset), npx vitest run of that file is green, tsc --noEmit clean, and no .gitreins/.coding-hermes evidence counted."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "3adbfb243b3106b03630f23e68a47bd80a349944",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:14AM INF scanned ~42159113 bytes (42.16 MB) in 5.36s\n3:14AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1034011 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-timerange-retr003.test.ts (9 tests) 289ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-timerange-retr003.test.ts > RETR-003: time-scoped recall \u2014 GET /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' to be '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -15849,12 +15849,11 @@\n      \"auger-pytest-30d126bbef10\": \"/home/kara/duckbrain/namespaces/auger-pytest-30d126bbef10\",\n      \"auger-pytest-e66d700e4899\": \"/home/kara/duckbrain/namespaces/auger-pytest-e66d700e4899\",\n      \"auger-pytest-7353ef9face2\": \"/home/kara/duckbrain/namespaces/auger-pytest-7353ef9face2\",\n      \"auger-pytest-ef5d23bf50cd\": \"/home/kara/duckbrain/namespaces/auger-pytest-ef5d23bf50cd\",\n      \"auger-pytest-a6fd9741a319\": \"/home/kara/duckbrain/namespaces/auger-pytest-a6fd9741a319\",\n-     \"auger-pytest-b67f67d0c51d\": \"/home/kara/duckbrain/namespaces/auger-pytest-b67f67d0c51d\",\n-     \"auger-pytest-ff8d98414f4b\": \"/home/kara/duckbrain/namespaces/auger-pytest-ff8d98414f4b\"\n+     \"auger-pytest-b67f67d0c51d\": \"/home/kara/duckbrain/namespaces/auger-pytest-b67f67d0c51d\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-timerange-retr003.test.ts:131:30\n    129|   afterAll(() => {\n    130|     server.close();\n    131|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    132|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    133|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 215 passed (216)\n      Tests  1763 passed (1763)\n   Start at  03:14:09\n   Duration  66.19s (tests 77%, import 20%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  216 workers spawned \u00b7 ~103ms startup each (spawn + environment, per file)\n             at least ~5.47s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DB-GAP-64\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-08T08:15:16.052336",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-08T08:15:16.098550+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 16838,
+        "truncated": false,
+        "source": "git show 3adbfb243b31"
+      }
+    ],
+    "task_id": "DB-GAP-64"
+  }
+}
