@@ -59,7 +59,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 - 🔍 **Vector Search** — Built-in similarity search with DuckDB VSS
 - 🌳 **Git Version Control** — Full audit trail, branching, time-travel
 - 🚀 **Multiple Interfaces** — MCP server, HTTP API, CLI, Web UI
-- 👥 **Multi-Agent Ready** — HTTP mode with worktrees for concurrent access
+- 👥 **Multi-Agent Ready** — shared memory store with per-namespace isolation; HTTP mode with worktrees for concurrent access (no agent-to-agent protocol — agents coordinate through the store, not via wire messaging)
 - 🎨 **Beautiful Web UI** — Glassmorphism theme, real-time updates
 - 📱 **Keyboard Shortcuts** — Power-user friendly navigation
 - ☁️ **Native S3 Storage Tier** — Incremental sync, push-on-commit, SQL over S3 via DuckDB httpfs, multi-host memory
