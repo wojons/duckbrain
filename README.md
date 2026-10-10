@@ -450,6 +450,7 @@ Full documentation is available at:
 - 🧠 [Embeddings & Semantic Search](docs/guide/embeddings.md)
 - ☁️ [Native S3 Storage Tier](docs/s3-native.md)
 - 🎓 [DuckBrain Usage Skill](skills/duckbrain-usage/SKILL.md)
+- 🛠️ [DuckBrain Background Workflows](skills/duckbrain-background-workflows/SKILL.md) — rationale and integration pattern for memory capture, sync, health, synthesis, and backup
 - 🏗️ [Architecture](.planning/PROJECT.md)
 
 ## Contributing

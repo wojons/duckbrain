@@ -16,7 +16,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.13.0
+version: 1.14.0
 category: software-development
 ---
 
@@ -26,6 +26,23 @@ DuckBrain gives AI agents persistent, queryable, version-controlled memory.
 Append-only JSONL per namespace + DuckDB query layer + per-namespace git repos
 + optional embeddings (vector search). Interfaces: **MCP server (stdio/HTTP),
 REST API, CLI, Web UI**.
+
+## Durable-memory contract
+
+DuckBrain exists so material decisions, verified findings, completed work, and
+explicit follow-ups remain available after the current conversation or agent
+ends. Before answering from project history, user preferences, or prior work,
+read the relevant namespace and check freshness; when the memory is unavailable
+or stale, say so and verify against current sources. After meaningful work,
+write a concise, sourced record to the correct namespace and read it back.
+Do not default silently to `default`, and do not turn every tool call or raw
+chat turn into a memory row.
+
+For the **why, job boundaries, and harness pattern** for session capture,
+project sync, health checks, dreaming, cron-output archives, and S3 backup,
+see [`duckbrain-background-workflows`](../duckbrain-background-workflows/SKILL.md).
+That guide describes stable design intent; inspect the host's live scheduler
+for current job IDs, schedules, enabled state, and run results.
 
 ## Entry points
 
