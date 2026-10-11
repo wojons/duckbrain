@@ -77,15 +77,24 @@ const PARTITION = path.join(NS, "event", "2026-08");
 const JSONL = path.join(PARTITION, "current.jsonl");
 const MANIFEST = path.join(NS, "manifest.json");
 
-const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
+// INT-FLAKE-RETR-AFTERSALL: snapshot the config FILE this test process
+// actually uses — the per-worker DUCKBRAIN_CONFIG_PATH redirect from
+// src/test-setup.ts — NOT the repo-root duckbrain.config.json. Under the full
+// parallel suite, a sibling worker can legitimately mutate the real repo
+// config between this suite's beforeAll and afterAll, failing the byte-equality
+// assert on someone else's write (afterAll config-snapshot race, 2 occurrences
+// 2026-10-11). Reading the env redirect keeps GAP-022 AC1 intact: these routes
+// must never create or mutate the instance config the test process owns.
+const CONFIG_PATH = process.env.DUCKBRAIN_CONFIG_PATH!;
 
-function readRepoConfig(): string | null {
+function readTestConfig(): string | null {
   // The instance config is untracked (gitignored; see
-  // duckbrain.config.example.json) — a fresh clone has none. Missing = null;
-  // the afterAll assert then requires it to STILL be missing (GAP-022 AC1:
-  // tests must never create or mutate the repo-root instance config).
-  return fs.existsSync(REPO_CONFIG)
-    ? fs.readFileSync(REPO_CONFIG, "utf-8")
+  // duckbrain.config.example.json) and the env redirect points at a fresh
+  // temp dir — a fresh worker has NO file there. Missing = null; the afterAll
+  // assert then requires it to STILL be missing (GAP-022 AC1: tests must
+  // never create or mutate the instance config).
+  return fs.existsSync(CONFIG_PATH)
+    ? fs.readFileSync(CONFIG_PATH, "utf-8")
     : null;
 }
 
@@ -122,7 +131,7 @@ describe("RETR-011: fact versioning — GET /api/memories", () => {
   let configBefore: string | null;
 
   beforeAll(async () => {
-    configBefore = readRepoConfig();
+    configBefore = readTestConfig();
 
     fs.mkdirSync(PARTITION, { recursive: true });
     const lines: string[] = [];
@@ -151,7 +160,7 @@ describe("RETR-011: fact versioning — GET /api/memories", () => {
 
   afterAll(() => {
     server.close();
-    expect(readRepoConfig()).toBe(configBefore);
+    expect(readTestConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });
@@ -212,7 +221,7 @@ describe("RETR-011: fact versioning — POST /api/memories", () => {
   let configBefore: string | null;
 
   beforeAll(async () => {
-    configBefore = readRepoConfig();
+    configBefore = readTestConfig();
 
     fs.mkdirSync(PARTITION, { recursive: true });
     const lines: string[] = [];
@@ -241,7 +250,7 @@ describe("RETR-011: fact versioning — POST /api/memories", () => {
 
   afterAll(() => {
     server.close();
-    expect(readRepoConfig()).toBe(configBefore);
+    expect(readTestConfig()).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
   });
