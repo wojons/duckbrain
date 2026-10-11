@@ -28,8 +28,8 @@ DuckBrain can be configured through environment variables and a JSON configurati
 | `AUTH_TYPE` | — | **Not implemented.** No code reads this variable. HTTP auth is configured via the auth file (`~/.duckbrain/auth.json`, overridable with `--auth-file` / `DUCKBRAIN_AUTH_FILE` — see [Deployment Guide](deployment)) |
 | `AUTH_TOKEN` | — | **Not implemented.** No code reads this variable; see `DUCKBRAIN_AUTH_FILE` above |
 | `DUCKBRAIN_AUTH_FILE` | — | Path to the auth file (users/apiKeys) read by the HTTP server. Precedence: explicit `--auth-file` > this env var > `~/.duckbrain/auth.json` |
-| `DUCKBRAIN_S3_ACCESS_KEY_ID` | — | S3 access key ID for direct S3 storage credentials (read at `src/s3/query.ts`). Falls back to `AWS_ACCESS_KEY_ID` if unset. Use when S3 credentials differ from the AWS CLI/SDK default chain |
-| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | — | S3 secret access key paired with `DUCKBRAIN_S3_ACCESS_KEY_ID` (read at `src/s3/query.ts`). Falls back to `AWS_SECRET_ACCESS_KEY` if unset |
+| `DUCKBRAIN_S3_ACCESS_KEY_ID` | — | S3 access key ID for direct S3 storage credentials (read at `src/s3/query.ts`). Precedence: `AWS_ACCESS_KEY_ID` > this variable. Use when S3 credentials differ from the AWS CLI/SDK default chain and `AWS_ACCESS_KEY_ID` is not already set |
+| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | — | S3 secret access key paired with `DUCKBRAIN_S3_ACCESS_KEY_ID` (read at `src/s3/query.ts`). Precedence: `AWS_SECRET_ACCESS_KEY` > this variable |
 | `DUCKBRAIN_GIT_AUTHOR_NAME` | — | Last-resort override for the git author name stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.name` > global git config `user.name` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"DuckBrain Test"` via this env var |
 | `DUCKBRAIN_GIT_AUTHOR_EMAIL` | — | Last-resort override for the git author email stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.email` > global git config `user.email` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"duckbrain-test@example.com"` via this env var |
 | `NODE_ENV` | — | Set to `production` for production deployments |
@@ -43,7 +43,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
 ```json
 {
   "defaultNamespace": "default",
-  "authorEmail": "duckbrain@localhost.localdomain",
+  "authorEmail": "you@example.com",
   "namespacesPath": "./namespaces",
   "gitBatching": {
     "maxLines": 100,
@@ -70,7 +70,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `defaultNamespace` | string | `"default"` | Default namespace for operations when none is specified |
-| `authorEmail` | string | `"duckbrain@localhost.localdomain"` | Author email for attributing memories (used for git commits) |
+| `authorEmail` | string | — (optional) | Optional author email. **Not consulted at runtime** — memory attribution resolves through the git identity chain (see [Git User Configuration](#git-user-configuration)) |
 | `namespacesPath` | string | `"./namespaces"` | Path to the directory containing namespace subdirectories |
 | `gitBatching` | object | (see below) | Git commit batching settings |
 | `storage` | object | (see below) | Storage chunk settings |
@@ -249,4 +249,8 @@ git config --global user.email "your-email@example.com"
 git config --global user.name "Your Name"
 ```
 
-DuckBrain uses the git author email for memory attribution. If not configured, it falls back to `duckbrain@localhost.localdomain`.
+DuckBrain uses the git author email for memory attribution. Resolution
+order: repo-local git config > global git config > `DUCKBRAIN_GIT_AUTHOR_EMAIL`
+(see the environment table above). If nothing resolves, DuckBrain refuses to
+invent an identity and fails with an actionable setup error (GIT-IDENTITY-001)
+— it never writes a synthetic author.

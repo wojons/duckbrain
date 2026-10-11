@@ -47,7 +47,7 @@ work for most flags).
 | `--namespace=NAME` | Select namespace (default: config `defaultNamespace`) |
 | `--socket=NAME` | Use remote connection via Unix socket |
 | `--version`, `-v` | Print the CLI version and exit |
-| `--help`, `-h` | Show help for the command (top-level help when bare) |
+| `--help`, `-h` | Show help for the command (top-level help when bare). Some subcommand-style verbs (`remember`, `service`, `search-index`) reject `--help` and print their usage with the valid flag list instead |
 
 Namespace resolution order: explicit `--namespace` / parameter >
 `DUCKBRAIN_NAMESPACE` env var > config `defaultNamespace` > `"default"`.
