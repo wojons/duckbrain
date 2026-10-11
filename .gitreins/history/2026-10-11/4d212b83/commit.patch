@@ -1,0 +1,261 @@
+commit a6363a4e0f5943681cbfb816184627f7a5369b15
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 17:53:41 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 17:53:41 2026 -0500
+
+    docs: fix rerun-found doc defects (S3 precedence, git identity, --help). Addresses DOC-14.
+    
+    - configuration.md: DUCKBRAIN_S3_* precedence corrected to AWS_* > DUCKBRAIN_S3_*
+      (src/s3/query.ts:107-110 reads AWS first — doc had it inverted)
+    - configuration.md: removed stale synthetic git identity fallback
+      (duckbrain@localhost.localdomain); source (GIT-IDENTITY-001, src/git/identity.ts)
+      throws an actionable setup error when no identity resolves; authorEmail is
+      optional with no runtime consumer
+    - cli-reference.md: --help global-option row now notes remember/service/search-index
+      reject the flag and print usage instead
+    + docs/audits/2026-10-11-doc14-rerun.md: fresh rerun artifact — resolve-links
+      BROKEN_LINKS 3->0 confirmed at f70a1841, derive-surface rerun, every DOC-12 CLI
+      verb checked against live executable help, every DOC-13 env var against source.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/audits/2026-10-11-doc14-rerun.md | 172 ++++++++++++++++++++++++++++++++++
+ docs/guide/cli-reference.md           |   2 +-
+ docs/guide/configuration.md           |  14 ++-
+ 3 files changed, 182 insertions(+), 6 deletions(-)
+
+diff --git a/docs/audits/2026-10-11-doc14-rerun.md b/docs/audits/2026-10-11-doc14-rerun.md
+new file mode 100644
+index 00000000..57e3f088
+--- /dev/null
++++ b/docs/audits/2026-10-11-doc14-rerun.md
+@@ -0,0 +1,172 @@
++# DOC-14 — Documentation audit re-evaluation (fresh rerun artifact)
++
++- Date: 2026-10-11
++- Repository: /home/kara/duckbrain, branch `main`
++- Pre-work HEAD: `f70a1841c2017b79c6795608b859feb9ab8667d5` (= origin/main at dispatch)
++- Dependencies: DOC-11 (`a126b3ee`), DOC-12 (`b649aabe`), DOC-13 (`49a145ac`) — all present
++- Scripts: `/home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py`,
++  `/home/kara/.hermes/stand-in/docs/duckbrain/derive-surface.py` (read in full before running; neither mutates the repo or the stand-in corpus)
++
++## 1. Prescribed script reruns (exact commands and results)
++
++```
++$ cd /home/kara/duckbrain && git rev-parse HEAD
++f70a1841c2017b79c6795608b859feb9ab8667d5
++
++$ python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py
++LINK_FILES 42
++BROKEN_LINKS 0
++
++$ python3 /home/kara/.hermes/stand-in/docs/duckbrain/derive-surface.py
++# 4 sections: cli_verbs=78 entries, env=38 entries, routes=20 entries, mcp_names=22 entries
++```
++
++The rerun was executed twice: once against the pristine dispatch tree (captured to
++`/tmp/doc14-surface.txt`, `/tmp/doc14-resolve.txt`) and once after this task's doc
++fixes. The only derive-surface delta between the two runs is the DOC-14 fix itself:
++`DUCKBRAIN_GIT_AUTHOR_EMAIL  src/test-setup.ts:51  doc_hits=1 -> doc_hits=2`
++(the second documentation mention is the corrected Git User Configuration section
++in `docs/guide/configuration.md`). No other env/verb/route/mcp entry changed.
++
++Note on `doc_hits=0` entries remaining in `[env]` (explicitly attributed, not closed):
++- `DUCKBRAIN_ROOT  src/embedding/hooks.ts:54` — an internal variable the installed
++  search-index hook sets for itself (`DUCKBRAIN_ROOT="$(dirname ...)"` inside the
++  generated hook script); not an operator-facing env var. No doc row required.
++- `DUCKBRAIN_GIT_AUTHOR_NAME_ENV` / `DUCKBRAIN_GIT_AUTHOR_EMAIL_ENV`
++  (`src/git/identity.ts:26`, `src/git/attribution.ts:14`) — these are the exported
++  TypeScript CONSTANT names; the actual env vars they name (`DUCKBRAIN_GIT_AUTHOR_*`)
++  are documented with `doc_hits>0`. Not gaps.
++
++## 2. DOC-11 acceptance — broken links: ZERO
++
++Fix under test (commit `a126b3ee`):
++- `docs/guide/getting-started.md:411` `docker` -> `deployment` (target `docs/guide/deployment.md` exists)
++- `docs/guide/getting-started.md:440` `troubleshooting` -> `deployment` (no `troubleshooting.md` exists)
++- `docs/guide/license.md:88` `../LICENSE` -> `../../LICENSE` (LICENSE is at repo root)
++
++Verification:
++```
++$ ls -la docs/guide/deployment.md LICENSE
++-rw-r--r-- 1 kara kara 18256 Oct  6 23:27 docs/guide/deployment.md
++-rw-r--r-- 1 kara kara 11356 Aug  1 05:40 LICENSE
++
++$ python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py
++LINK_FILES 42
++BROKEN_LINKS 0
++```
++The 2026-10-11 pre-fix audit recorded `BROKEN_LINKS 3` (getting-started.md:410/:439,
++license.md:88). Post-fix rerun: **0 broken links across 42 markdown files**.
++
++## 3. DOC-12 acceptance — CLI reference vs executable help
++
++Method: `node bin/duckbrain.js <verb> --help` for every verb section in
++`docs/guide/cli-reference.md`, compared against the documented usage blocks.
++Commands actually run (output captured in this session's terminal log):
++
++| Verb | Live help result | Reference matches |
++|------|------------------|-------------------|
++| (bare) `--help` | top-level command list | yes — all 24 listed verbs + `consolidate` match the reference's Top-level table |
++| `service --help` | "Unknown service action: --help / Use: install, start, stop, restart, or status" | yes (documented actions match) |
++| `search-index --help` | "Actions: rebuild \| status \| install-hooks" | yes |
++| `embeddings --help` | "rebuild \| status \| install-hooks \| providers \| migrate" | yes |
++| `s3 --help` | status/sync/query/config/clear/ghosts usage block | yes — incl. clear's `--yes --requested-by --reason` guard |
++| `git --help` | runs the identity health check (documented quirk) | yes — reference says "`duckbrain git --help` is not recognized — it runs the same health check" |
++| `tables --help` | declare usage + column types varchar\|integer\|bigint\|double\|boolean\|timestamp\|json | yes |
++| `namespace --help` | create\|list\|delete-disk\|clear-s3\|use\|set-remote | yes |
++| `config --help` | "Usage: duckbrain config <show\|set\|get>" | yes |
++| `query --help` | usage + read-only + 1000-row cap | yes |
++| `squash --help` | --stats/--dry-run/--partition/--aggressive/--segments | yes |
++| `token --help` | --name/--namespace/--role/--auth-file | yes |
++| `remember --help` | rejects `--help`, prints usage + full valid flag list | flags all match; `--help` nuance was undocumented — fixed (defect 3 below) |
++| `recall --help` | usage + options block | yes |
++| `search --help` | usage + auto-refresh note | yes |
++| `forget --help` | `forget <id> [--namespace] [--reason]` | yes |
++| `remote --help` | `remote <add\|remove> <namespace> [url]` | yes |
++| `servers --help` | `servers <list\|add\|remove>` | yes |
++| `ssh-test --help` | `ssh-test --host=<user@server>` | yes |
++| `http --help` | usage + options | yes |
++
++Dispatch-table cross-check: `src/cli/human.ts` command map (~line 2225-2248) contains
++exactly the verbs the reference documents, including the `consolidate` entry that the
++top-level help text omits but `duckbrain consolidate --help` serves (verified live —
++usage matches the reference section verbatim).
++
++Probe honesty note: `--help` probes on stateful verbs (`list-keys`, `status`, `pull`,
++`push`, `stdio`) executed the verb against the installed local instance instead of
++printing help — all read-only or idempotent (`push` synced namespace `default`'s
++already-pending ref to its configured S3 remote; no memory data changed). All
++subsequent checks used pure help/source reads.
++
++## 4. DOC-13 acceptance — env vars vs source
++
++Source evidence per documented variable:
++
++| Documented var | Source site | Verified behavior |
++|----------------|-------------|-------------------|
++| `DUCKBRAIN_DATA_DIR` | `src/utils/pidfile.ts:59` `dir \|\| process.env.DUCKBRAIN_DATA_DIR \|\| perUidPidDir()` | doc row matches (pidfile dir; per-uid `os.tmpdir()/duckbrain-<uid>` fallback, mode 0700, `src/utils/pidfile.ts:43-52`) |
++| `DUCKBRAIN_UI_DIST_DIR` | `src/cli/http.ts:94-95` `if (process.env.DUCKBRAIN_UI_DIST_DIR) return path.resolve(...)` | doc row matches (explicit path; upward scan for `packages/ui/dist` when unset) |
++| `DUCKBRAIN_S3_ACCESS_KEY_ID` | `src/s3/query.ts:107` `process.env.AWS_ACCESS_KEY_ID ?? process.env.DUCKBRAIN_S3_ACCESS_KEY_ID` | **doc row had the precedence INVERTED — fixed (defect 1)** |
++| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | `src/s3/query.ts:109-110` `AWS_SECRET_ACCESS_KEY ?? DUCKBRAIN_S3_SECRET_ACCESS_KEY` | **same inversion — fixed (defect 1)** |
++| `DUCKBRAIN_GIT_AUTHOR_NAME` | `src/git/identity.ts:136-140` chain local > global > env, else `identity: null` + setup hint; `requireGitIdentity` (`identity.ts:154-158`) throws | doc row matches (precedence chain + throw) |
++| `DUCKBRAIN_GIT_AUTHOR_EMAIL` | `src/git/identity.ts:177-179` (`resolveAuthorEmail` throws when nothing resolves) | doc row matches |
++| "Test setup seeds" claim | `src/test-setup.ts:50-51` seeds `DuckBrain Test` / `duckbrain-test@example.com` via `process.env.DUCKBRAIN_GIT_AUTHOR_{NAME,EMAIL} ??=` | doc rows match |
++
++Live config evidence: `node bin/duckbrain.js config show` on the installed instance
++prints `"authorEmail": "totalwindupflightsystems@gmail.com"` (a real configured
++identity, no synthetic default).
++
++## 5. Defects found and fixed (all inside the DOC-14 acceptance scope)
++
++### Defect 1 — S3 credential precedence inverted (docs/guide/configuration.md, DOC-13 rows)
++- Doc claimed `DUCKBRAIN_S3_*` is primary and "falls back to `AWS_ACCESS_KEY_ID` if unset".
++- Source truth: `src/s3/query.ts:104-113` — `AWS_ACCESS_KEY_ID ?? DUCKBRAIN_S3_ACCESS_KEY_ID`
++  (the comment on line 104 calls the AWS-first order "the pre-existing precedence, unchanged";
++  the file header at lines 12-14 lists direct env with AWS first).
++- Fix: both rows now state `AWS_* > DUCKBRAIN_S3_*`.
++
++### Defect 2 — stale synthetic git identity fallback (docs/guide/configuration.md, 3 lines)
++- Doc claimed (example config line 46, settings table line 73, Git User Configuration
++  line 252) that author identity falls back to `duckbrain@localhost.localdomain`.
++- Source truth: `src/config/index.ts:75-79` — `authorEmail` is optional with NO default
++  and a GIT-IDENTITY-001 comment pointing at the git identity chain;
++  `src/git/identity.ts` (whole module) removed the synthetic identity and
++  `requireGitIdentity`/`resolveAuthorEmail` THROW with an actionable setup hint when
++  nothing resolves. `initializeConfig` (the only writer of that default shape) has zero
++  callers. The old text also contradicted the DOC-13 rows in the same file.
++- Fix: example shows a placeholder (`you@example.com`), the table row marks the field
++  optional and not consulted at runtime, and the Git User Configuration section now
++  states the real resolution order and the loud failure.
++
++### Defect 3 — `--help` global-option claim too broad (docs/guide/cli-reference.md, DOC-12)
++- Doc's Global options table claimed `--help, -h` works "for the command".
++- Live truth: `remember --help`, `service --help`, `search-index --help` reject the
++  flag and print their usage with the valid flag list instead.
++- Fix: the row now names the nuance.
++
++## 6. Open rows explicitly NOT touched (separate board rows, not closed here)
++
++- **DOC-15** — full config schema additions (e.g. `durability`, `customTools`,
++  `namespaceMappings` blocks in `src/config/index.ts:72+` still undocumented).
++- **DOC-16** — complete recall documentation (`src/mcp/tools/recall.ts:45-180`
++  surface beyond what `docs/api/mcp-tools.md:832L` covers).
++- **DOC-17** — repository traceability doctrine (`docs/traceability-doctrine.md` absent;
++  existing markers at `docs/dogfood/2026-10-03-asof-integration.md:117-120`).
++
++## 7. Checks run and not run
++
++Run: resolve-links.py (pre+post), derive-surface.py (pre+post, env-section diffed),
++executable `--help` on every cli-reference verb section, dispatch-table source
++cross-check, per-variable source reads (files/lines listed above), live
++`config show`, link-target existence checks, post-fix full-diff review.
++Not run: full test suite (docs-only change; repo convention has no docs test gate),
++live daemon start, MCP/HTTP boundary exercise, mutating verbs (except the accidental
++idempotent `push` disclosed in section 3).
++
++## 8. Unverified
++
++- No fresh daemon was started and no live HTTP/MCP boundary was exercised; this rerun
++  proves source/help/docs parity and repository link state only.
++- The behavior of every documented flag beyond its help text/usage was not executed
++  (deliberate: mutating verbs excluded from a docs task).
++
++ch:trace row=DOC-14 spec=none:target-repo-has-no-traceability-doctrine wave=duckbrain-docs-2026-10-11-00-23-08#reevaluation test=resolve-links.py::broken-links+derive-surface.py::doc_hits doc=docs/audits/2026-10-11-doc14-rerun.md prompt=~/.hermes/skills/coding-hermes/coding-hermes-docs-audit/SKILL.md evidence=docs/audits/2026-10-11-doc14-rerun.md witness=none:static-source-help-parity verdict=none:no-independent-judgement commit=THIS
+diff --git a/docs/guide/cli-reference.md b/docs/guide/cli-reference.md
+index dc69909f..896bffa4 100644
+--- a/docs/guide/cli-reference.md
++++ b/docs/guide/cli-reference.md
+@@ -47,7 +47,7 @@ work for most flags).
+ | `--namespace=NAME` | Select namespace (default: config `defaultNamespace`) |
+ | `--socket=NAME` | Use remote connection via Unix socket |
+ | `--version`, `-v` | Print the CLI version and exit |
+-| `--help`, `-h` | Show help for the command (top-level help when bare) |
++| `--help`, `-h` | Show help for the command (top-level help when bare). Some subcommand-style verbs (`remember`, `service`, `search-index`) reject `--help` and print their usage with the valid flag list instead |
+ 
+ Namespace resolution order: explicit `--namespace` / parameter >
+ `DUCKBRAIN_NAMESPACE` env var > config `defaultNamespace` > `"default"`.
+diff --git a/docs/guide/configuration.md b/docs/guide/configuration.md
+index 7f59a146..ec89571f 100644
+--- a/docs/guide/configuration.md
++++ b/docs/guide/configuration.md
+@@ -28,8 +28,8 @@ DuckBrain can be configured through environment variables and a JSON configurati
+ | `AUTH_TYPE` | — | **Not implemented.** No code reads this variable. HTTP auth is configured via the auth file (`~/.duckbrain/auth.json`, overridable with `--auth-file` / `DUCKBRAIN_AUTH_FILE` — see [Deployment Guide](deployment)) |
+ | `AUTH_TOKEN` | — | **Not implemented.** No code reads this variable; see `DUCKBRAIN_AUTH_FILE` above |
+ | `DUCKBRAIN_AUTH_FILE` | — | Path to the auth file (users/apiKeys) read by the HTTP server. Precedence: explicit `--auth-file` > this env var > `~/.duckbrain/auth.json` |
+-| `DUCKBRAIN_S3_ACCESS_KEY_ID` | — | S3 access key ID for direct S3 storage credentials (read at `src/s3/query.ts`). Falls back to `AWS_ACCESS_KEY_ID` if unset. Use when S3 credentials differ from the AWS CLI/SDK default chain |
+-| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | — | S3 secret access key paired with `DUCKBRAIN_S3_ACCESS_KEY_ID` (read at `src/s3/query.ts`). Falls back to `AWS_SECRET_ACCESS_KEY` if unset |
++| `DUCKBRAIN_S3_ACCESS_KEY_ID` | — | S3 access key ID for direct S3 storage credentials (read at `src/s3/query.ts`). Precedence: `AWS_ACCESS_KEY_ID` > this variable. Use when S3 credentials differ from the AWS CLI/SDK default chain and `AWS_ACCESS_KEY_ID` is not already set |
++| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | — | S3 secret access key paired with `DUCKBRAIN_S3_ACCESS_KEY_ID` (read at `src/s3/query.ts`). Precedence: `AWS_SECRET_ACCESS_KEY` > this variable |
+ | `DUCKBRAIN_GIT_AUTHOR_NAME` | — | Last-resort override for the git author name stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.name` > global git config `user.name` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"DuckBrain Test"` via this env var |
+ | `DUCKBRAIN_GIT_AUTHOR_EMAIL` | — | Last-resort override for the git author email stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.email` > global git config `user.email` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"duckbrain-test@example.com"` via this env var |
+ | `NODE_ENV` | — | Set to `production` for production deployments |
+@@ -43,7 +43,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
+ ```json
+ {
+   "defaultNamespace": "default",
+-  "authorEmail": "duckbrain@localhost.localdomain",
++  "authorEmail": "you@example.com",
+   "namespacesPath": "./namespaces",
+   "gitBatching": {
+     "maxLines": 100,
+@@ -70,7 +70,7 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
+ | Field | Type | Default | Description |
+ |-------|------|---------|-------------|
+ | `defaultNamespace` | string | `"default"` | Default namespace for operations when none is specified |
+-| `authorEmail` | string | `"duckbrain@localhost.localdomain"` | Author email for attributing memories (used for git commits) |
++| `authorEmail` | string | — (optional) | Optional author email. **Not consulted at runtime** — memory attribution resolves through the git identity chain (see [Git User Configuration](#git-user-configuration)) |
+ | `namespacesPath` | string | `"./namespaces"` | Path to the directory containing namespace subdirectories |
+ | `gitBatching` | object | (see below) | Git commit batching settings |
+ | `storage` | object | (see below) | Storage chunk settings |
+@@ -249,4 +249,8 @@ git config --global user.email "your-email@example.com"
+ git config --global user.name "Your Name"
+ ```
+ 
+-DuckBrain uses the git author email for memory attribution. If not configured, it falls back to `duckbrain@localhost.localdomain`.
++DuckBrain uses the git author email for memory attribution. Resolution
++order: repo-local git config > global git config > `DUCKBRAIN_GIT_AUTHOR_EMAIL`
++(see the environment table above). If nothing resolves, DuckBrain refuses to
++invent an identity and fails with an actionable setup error (GIT-IDENTITY-001)
++— it never writes a synthetic author.

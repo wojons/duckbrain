@@ -2644,3 +2644,12 @@ tasks:
   status: complete
   created_at: '2026-10-11T21:36:18.011545+00:00'
   completed_at: '2026-10-11T22:04:19.369082+00:00'
+- id: DOC-14
+  title: "P4 \u2014 Re-evaluate the documentation audit findings"
+  criteria:
+  - Run the prescribed docs audit scripts, verify broken links are zero and newly
+    documented CLI/config surfaces match source/help, and commit only task-relevant
+    evidence/docs changes.
+  status: complete
+  created_at: '2026-10-11T22:34:18.121274+00:00'
+  completed_at: '2026-10-11T22:57:18.932021+00:00'

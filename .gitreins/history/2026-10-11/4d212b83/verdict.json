@@ -1,0 +1,102 @@
+{
+  "task_id": "DOC-14",
+  "task_title": "P4 \u2014 Re-evaluate the documentation audit findings",
+  "task_criteria": [
+    "Run the prescribed docs audit scripts, verify broken links are zero and newly documented CLI/config surfaces match source/help, and commit only task-relevant evidence/docs changes."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "a6363a4e0f5943681cbfb816184627f7a5369b15",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:57PM INF scanned ~42027220 bytes (42.03 MB) in 4.98s\n5:57PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049689 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T092409.845440Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  219 passed (219)\n      Tests  1815 passed (1815)\n   Start at  17:57:20\n   Duration  54.87s (tests 76%, import 19%, transform 4%, worker 1%, setup 1%)\n\n    Isolate  219 workers spawned \u00b7 ~81ms startup each (spawn + environment, per file)\n             at least ~4.36s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T092409.845440Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Run the prescribed docs audit scripts, verify broken links are zero and newly documented CLI/config surfaces match source/help, and commit only task-relevant evidence/docs changes.: Prescribed scripts run fresh: resolve-links.py \u2192 'LINK_FILES 43 / BROKEN_LINKS 0' (exit 0); derive-surface.py runs with no doc_hits=0 env entries. CLI surfaces verified live: `node bin/duckbrain.js remember --help` \u2192 \"unknown flag '--help' for 'remember'. Valid flags: ...\", `service --help` \u2192 \"Unknown service action: --help / Use: install, start, stop, restart, or status\", `search-index --help` \u2192 \"Actions: rebuild | status | install-hooks\" \u2014 all match cli-reference.md:50. Config surfaces match source: configuration.md:31-32 S3 precedence 'AWS_* > DUCKBRAIN_S3_*' matches src/s3/query.ts:107-110; configuration.md:33-34,253 git identity chain matches src/git/identity.ts:108-181; authorEmail optional/not-consulted matches src/config/index.ts:79 (zero production callers of initializeConfig). Commit a6363a4e touches exactly 3 task-relevant files (docs/audits/2026-10-11-doc14-rerun.md, docs/guide/cli-reference.md, docs/guide/configuration.md); working tree only has board/task-tracking files. Tests: `npx vitest run --changed f70a1841` \u2192 'No test files found, exiting with code 0' (docs-only); related tests `npx vitest run src/config/namespace-env-df092604.test.ts src/cli/namespace-env-df092604.test.ts` \u2192 'Test Files 2 passed (2) / Tests 14 passed (14)' exit 0.\nDOC-14 is complete: prescribed audit scripts rerun with BROKEN_LINKS 0, CLI/config surfaces verified against live help and source, and only task-relevant docs/evidence files committed.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Run the prescribed docs audit scripts, verify broken links are zero and newly documented CLI/config surfaces match source/help, and commit only task-relevant evidence/docs changes.: Prescribed scripts run fresh: resolve-links.py \u2192 'LINK_FILES 43 / BROKEN_LINKS 0' (exit 0); derive-surface.py runs with no doc_hits=0 env entries. CLI surfaces verified live: `node bin/duckbrain.js remember --help` \u2192 \"unknown flag '--help' for 'remember'. Valid flags: ...\", `service --help` \u2192 \"Unknown service action: --help / Use: install, start, stop, restart, or status\", `search-index --help` \u2192 \"Actions: rebuild | status | install-hooks\" \u2014 all match cli-reference.md:50. Config surfaces match source: configuration.md:31-32 S3 precedence 'AWS_* > DUCKBRAIN_S3_*' matches src/s3/query.ts:107-110; configuration.md:33-34,253 git identity chain matches src/git/identity.ts:108-181; authorEmail optional/not-consulted matches src/config/index.ts:79 (zero production callers of initializeConfig). Commit a6363a4e touches exactly 3 task-relevant files (docs/audits/2026-10-11-doc14-rerun.md, docs/guide/cli-reference.md, docs/guide/configuration.md); working tree only has board/task-tracking files. Tests: `npx vitest run --changed f70a1841` \u2192 'No test files found, exiting with code 0' (docs-only); related tests `npx vitest run src/config/namespace-env-df092604.test.ts src/cli/namespace-env-df092604.test.ts` \u2192 'Test Files 2 passed (2) / Tests 14 passed (14)' exit 0.\nDOC-14 is complete: prescribed audit scripts rerun with BROKEN_LINKS 0, CLI/config surfaces verified against live help and source, and only task-relevant docs/evidence files committed.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Run the prescribed docs audit scripts, verify broken links are zero and newly documented CLI/config surfaces match source/help, and commit only task-relevant evidence/docs changes.",
+                "status": "PASS",
+                "detail": "Prescribed scripts run fresh: resolve-links.py \u2192 'LINK_FILES 43 / BROKEN_LINKS 0' (exit 0); derive-surface.py runs with no doc_hits=0 env entries. CLI surfaces verified live: `node bin/duckbrain.js remember --help` \u2192 \"unknown flag '--help' for 'remember'. Valid flags: ...\", `service --help` \u2192 \"Unknown service action: --help / Use: install, start, stop, restart, or status\", `search-index --help` \u2192 \"Actions: rebuild | status | install-hooks\" \u2014 all match cli-reference.md:50. Config surfaces match source: configuration.md:31-32 S3 precedence 'AWS_* > DUCKBRAIN_S3_*' matches src/s3/query.ts:107-110; configuration.md:33-34,253 git identity chain matches src/git/identity.ts:108-181; authorEmail optional/not-consulted matches src/config/index.ts:79 (zero production callers of initializeConfig). Commit a6363a4e touches exactly 3 task-relevant files (docs/audits/2026-10-11-doc14-rerun.md, docs/guide/cli-reference.md, docs/guide/configuration.md); working tree only has board/task-tracking files. Tests: `npx vitest run --changed f70a1841` \u2192 'No test files found, exiting with code 0' (docs-only); related tests `npx vitest run src/config/namespace-env-df092604.test.ts src/cli/namespace-env-df092604.test.ts` \u2192 'Test Files 2 passed (2) / Tests 14 passed (14)' exit 0.",
+                "resolution_probability": 0.18
+              }
+            ],
+            "summary": "DOC-14 is complete: prescribed audit scripts rerun with BROKEN_LINKS 0, CLI/config surfaces verified against live help and source, and only task-relevant docs/evidence files committed."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-14\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Run the prescribed docs audit scripts, verify broken links are zero and newly documented CLI/config surfaces match source/help, and commit only task-relevant evidence/docs changes.: Prescribed scripts run fresh: resolve-links.py \u2192 'LINK_FILES 43 / BROKEN_LINKS 0' (exit 0); derive-surface.py runs with no doc_hits=0 env entries. CLI surfaces verified live: `node bin/duckbrain.js remember --help` \u2192 \"unknown flag '--help' for 'remember'. Valid flags: ...\", `service --help` \u2192 \"Unknown service action: --help / Use: install, start, stop, restart, or status\", `search-index --help` \u2192 \"Actions: rebuild | status | install-hooks\" \u2014 all match cli-reference.md:50. Config surfaces match source: configuration.md:31-32 S3 precedence 'AWS_* > DUCKBRAIN_S3_*' matches src/s3/query.ts:107-110; configuration.md:33-34,253 git identity chain matches src/git/identity.ts:108-181; authorEmail optional/not-consulted matches src/config/index.ts:79 (zero production callers of initializeConfig). Commit a6363a4e touches exactly 3 task-relevant files (docs/audits/2026-10-11-doc14-rerun.md, docs/guide/cli-reference.md, docs/guide/configuration.md); working tree only has board/task-tracking files. Tests: `npx vitest run --changed f70a1841` \u2192 'No test files found, exiting with code 0' (docs-only); related tests `npx vitest run src/config/namespace-env-df092604.test.ts src/cli/namespace-env-df092604.test.ts` \u2192 'Test Files 2 passed (2) / Tests 14 passed (14)' exit 0.\nDOC-14 is complete: prescribed audit scripts rerun with BROKEN_LINKS 0, CLI/config surfaces verified against live help and source, and only task-relevant docs/evidence files committed.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-11T22:59:53.574633",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-11T22:59:53.606121+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 18384,
+        "truncated": false,
+        "source": "git show a6363a4e0f59"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 19741,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-14"
+  }
+}
