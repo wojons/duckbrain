@@ -31,6 +31,13 @@ import {
   ServerHttpStartInputSchema,
 } from "./tools/server";
 import path from "path";
+import {
+  CustomRuntimeManager,
+  jsonSchemaToZodShape,
+} from "./custom-runtime";
+import { registerCustomTools, customToolCallResult } from "./tools/custom-tool";
+import type { CustomToolFailure, CustomToolResult } from "./custom-runtime";
+import { resolveDuckbrainRoot, getConfig } from "../config/index";
 
 /**
  * MCP Server instance
@@ -207,6 +214,86 @@ export function registerTools(): void {
       inputSchema: ServerHttpStartInputSchema,
     },
     wrapHandler(serverHttpStartTool),
+  );
+
+  // MCP-CUSTOM-RUNTIME-001: integrator-declared custom tools become
+  // first-class MCP tools. A bad customTools config never blocks the
+  // built-ins — every refusal is reported and the surface stays up.
+  const customManager = getCustomRuntimeManager();
+  if (customManager !== undefined) {
+    registerCustomToolsOnServer(customManager);
+  }
+}
+
+/**
+ * MCP-CUSTOM-RUNTIME-001: the custom runtime manager for this process.
+ *
+ * Built once from the resolved config (test seam: `setCustomRuntimeManager`);
+ * `undefined` when the config carries no `customTools` block or the block is
+ * disabled — the custom surface is then simply absent from tools/list.
+ */
+let customRuntimeManager: CustomRuntimeManager | undefined;
+
+/** Test/embedder seam: install or clear the process-wide manager. */
+export function setCustomRuntimeManager(
+  manager: CustomRuntimeManager | undefined,
+): void {
+  customRuntimeManager = manager;
+}
+
+function getCustomRuntimeManager(): CustomRuntimeManager | undefined {
+  if (customRuntimeManager !== undefined) return customRuntimeManager;
+  const config = getConfig(resolveDuckbrainRoot());
+  const block = (config as { customTools?: { enabled?: boolean } }).customTools;
+  if (!block?.enabled) return undefined;
+  customRuntimeManager = new CustomRuntimeManager(config, resolveDuckbrainRoot());
+  return customRuntimeManager;
+}
+
+/**
+ * Wire the manager's tools onto the MCP server: one registerTool per valid
+ * declaration, executing directly through the sandbox on tools/call.
+ */
+function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
+  registerCustomTools(
+    manager,
+    (name, config, handler) => {
+      // The declared JSON Schema becomes the tool's transport-level
+      // inputSchema (via zod): tools/list shows the integrator's contract
+      // and the SDK rejects malformed args before the handler runs. The
+      // runtime re-validates the same schema at execution time.
+      server.registerTool(
+        name,
+        {
+          description: config.description,
+          _meta: config._meta,
+          inputSchema: jsonSchemaToZodShape(config.inputSchema),
+        },
+        async (args: Record<string, unknown>) => {
+          const outcome = (await handler(args)) as
+            | CustomToolResult
+            | CustomToolFailure;
+          return customToolCallResult(outcome) as {
+            content: Array<{ type: "text"; text: string }>;
+            isError?: boolean;
+          };
+        },
+      );
+    },
+    new Set([
+      recallToolMetadata.name,
+      rememberToolDef.name,
+      listKeysToolMetadata.name,
+      forgetToolDef.name,
+      squashToolDef.name,
+      compactionStatsToolDef.name,
+      "create_namespace",
+      "list_namespaces",
+      "switch_namespace",
+      "delete_namespace",
+      "server_status",
+      "server_http_start",
+    ]),
   );
 }
 

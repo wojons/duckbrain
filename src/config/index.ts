@@ -42,6 +42,31 @@ export const DurabilityBlockSchema = z.object({
 export type DurabilityBlock = z.infer<typeof DurabilityBlockSchema>;
 
 /**
+ * MCP-CUSTOM-RUNTIME-001: integrator-declared custom tools, exposed as
+ * first-class MCP tools (tools/list + tools/call, no wrapper).
+ *
+ * Declarations are versioned contracts (`src/mcp/custom-runtime.ts`
+ * validates every field and resolves every module reference at startup).
+ * Disabled by default: the surface only exists when an operator opts in,
+ * and a tool runs ONLY inside the sandboxed runtime (worker thread +
+ * vm/WASM isolation, no host capabilities) — see docs/api/custom-tools.md
+ * for the trust boundary.
+ */
+export const CustomToolsBlockSchema = z.object({
+  /** Master switch — no custom tool exists while false. */
+  enabled: z.boolean().default(false),
+  /** Wall-clock execution budget per call (ms). */
+  timeoutMs: z.number().int().positive().default(5_000),
+  /** Sandbox thread V8 heap ceiling (MB). */
+  maxHeapMb: z.number().int().positive().default(64),
+  /** The tool declarations themselves (validated individually by the
+   *  manager so one bad entry never disables the others). */
+  tools: z.array(z.record(z.string(), z.unknown())).default([]),
+});
+
+export type CustomToolsBlock = z.infer<typeof CustomToolsBlockSchema>;
+
+/**
  * Configuration schema
  */
 export const DuckBrainConfigSchema = z.object({
@@ -82,6 +107,15 @@ export const DuckBrainConfigSchema = z.object({
   durability: DurabilityBlockSchema.default({
     defaultMode: "buffered",
     overrides: {},
+  }),
+
+  /** MCP-CUSTOM-RUNTIME-001 sandboxed custom JS/WASM tools (disabled by
+   *  default; see docs/api/custom-tools.md) */
+  customTools: CustomToolsBlockSchema.default({
+    enabled: false,
+    timeoutMs: 5_000,
+    maxHeapMb: 64,
+    tools: [],
   }),
 
   /**
@@ -758,6 +792,12 @@ export function initializeConfig(
     durability: {
       defaultMode: "buffered",
       overrides: {},
+    },
+    customTools: {
+      enabled: false,
+      timeoutMs: 5_000,
+      maxHeapMb: 64,
+      tools: [],
     },
     namespaces: {
       autoCreate: true,
