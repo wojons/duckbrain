@@ -941,3 +941,4 @@
 {"id":8124,"timestamp":"2026-10-11T08:20:00Z","event_type":"task_completed","task_id":"DOC-13","actor":"foreman","detail":"foreman-direct mechanical docs fix. 6 env vars documented in configuration.md. Judge PASS 25ce192d. Commit 49a145ac pushed."}
 {"ts": "2026-10-11T09:37:01Z", "task_id": "MCP-CUSTOM-RUNTIME-001", "type": "closed", "actor": "duckbrain-foreman", "note": "wave-merged + gitreins judged + pushed bf4edc1d"}
 {"ts": "2026-10-11T09:37:01Z", "task_id": "MCP-CONNECTION-PROFILES-001", "type": "closed", "actor": "duckbrain-foreman", "note": "wave-merged + gitreins judged + pushed f1c79931"}
+{"ts": "2026-10-11T09:44:49Z", "task_id": "INT-FLAKE-RETR-AFTERSALL", "type": "filed", "actor": "duckbrain-foreman", "note": "two occurrences this tick; evidence in .gitreins verdict 070fd6be tier1"}
