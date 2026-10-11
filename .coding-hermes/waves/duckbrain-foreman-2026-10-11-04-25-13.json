@@ -1,0 +1,28 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-11-04-25-13",
+  "wave_budget": 11,
+  "status": "recovered_no_dispatch",
+  "recovered_at": "2026-10-11T04:35:00Z",
+  "recovery_notes": "DISPATCH-LAYER FAILURE: both delegate_task workers ran on session-default model qwen3.7-plus:free (delegate_task inherits session model, ignores brief model/provider). Worker 0 burned 13 terminal calls in 59s all missing required 'command' field — model cannot construct valid terminal tool calls. Worker 1 ran 4 calls in 28s then exited mid-work with no commit. Zero diffs in either worktree. Gitreins tasks deleted. Board rows remain pending. Root cause: delegate_task subagents cannot override model — need hermes chat background dispatch (which also failed: 'Warning: Unknown toolsets: chrome_profiles' then immediate exit with empty -Q log). Both dispatch paths broken this tick.",
+  "tasks": [
+    {
+      "task_id": "MCP-CUSTOM-RUNTIME-001",
+      "status": "dispatch_failed",
+      "failure": "worker model qwen3.7-plus:free cannot construct terminal tool calls (missing required 'command' field × 13)",
+      "worktree": "/home/kara/worktrees/duckbrain-MCP-CUSTOM-RUNTIME-001",
+      "branch": "wt/MCP-CUSTOM-RUNTIME-001",
+      "commit": null,
+      "verdict": null
+    },
+    {
+      "task_id": "MCP-CONNECTION-PROFILES-001",
+      "status": "dispatch_failed",
+      "failure": "worker exited mid-work after 4 tool calls, no commit",
+      "worktree": "/home/kara/worktrees/duckbrain-MCP-CONNECTION-PROFILES-001",
+      "branch": "wt/MCP-CONNECTION-PROFILES-001",
+      "commit": null,
+      "verdict": null
+    }
+  ],
+  "created_at": "2026-10-11T04:25:13Z"
+}
