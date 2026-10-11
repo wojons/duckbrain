@@ -231,6 +231,33 @@ export function registerTools(): void {
   if (customManager !== undefined) {
     registerCustomToolsOnServer(customManager);
   }
+
+  // MCP-CONNECTION-PROFILES-001: profile management tools. Visibility-only
+  // surfaces — they never grant, revoke, or broaden authority (see
+  // src/mcp/profiles.ts for the composition contract and the hard boundary).
+  const profileTools: Array<{
+    name: string;
+    title: string;
+    description: string;
+    inputSchema: z.ZodTypeAny;
+    handler: (input: any) => Promise<any>;
+  }> = [
+    listProfilesToolDef,
+    createProfileToolDef,
+    updateProfileToolDef,
+    selectProfilesToolDef,
+  ];
+  for (const def of profileTools) {
+    server.registerTool(
+      def.name,
+      {
+        title: def.title,
+        description: def.description,
+        inputSchema: def.inputSchema,
+      },
+      wrapHandler(def.handler),
+    );
+  }
 }
 
 /**
@@ -304,32 +331,6 @@ function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
     ]),
   );
 
-  // MCP-CONNECTION-PROFILES-001: profile management tools. Visibility-only
-  // surfaces — they never grant, revoke, or broaden authority (see
-  // src/mcp/profiles.ts for the composition contract and the hard boundary).
-  const profileTools: Array<{
-    name: string;
-    title: string;
-    description: string;
-    inputSchema: z.ZodTypeAny;
-    handler: (input: any) => Promise<any>;
-  }> = [
-    listProfilesToolDef,
-    createProfileToolDef,
-    updateProfileToolDef,
-    selectProfilesToolDef,
-  ];
-  for (const def of profileTools) {
-    server.registerTool(
-      def.name,
-      {
-        title: def.title,
-        description: def.description,
-        inputSchema: def.inputSchema,
-      },
-      wrapHandler(def.handler),
-    );
-  }
 
 }
 
