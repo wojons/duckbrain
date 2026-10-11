@@ -11,7 +11,12 @@
  *   duckbrain stdio
  */
 
-import { server, stopServer, registerTools } from "../mcp/server.js";
+import {
+  server,
+  stopServer,
+  registerTools,
+  installProfilesListInterception,
+} from "../mcp/server.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 /**
@@ -28,6 +33,10 @@ export async function startStdioMode(): Promise<void> {
   try {
     // Register all tools first
     registerTools();
+    // MCP-CONNECTION-PROFILES-001: the tools/list visibility filter must be
+    // active on the stdio surface too (select_profiles shapes THIS
+    // session's discovery).
+    installProfilesListInterception();
 
     // Create stdio transport for MCP protocol
     const transport = new StdioServerTransport();
