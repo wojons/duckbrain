@@ -407,6 +407,7 @@ Examples:
 
 - 📚 [AI Agent Configuration](ai-configure) - Detailed setup for Claude, Cursor, and others
 - 🔧 [Configuration Reference](configuration) - All environment variables and options
+- ⌨️ [CLI Reference](cli-reference) - Every CLI verb and flag in one place
 - 🚀 [Deployment Guide](deployment) - Production deployment with Docker
 - 📖 [MCP Tools Reference](../api/mcp-tools) - Complete API documentation
 
