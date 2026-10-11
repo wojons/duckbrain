@@ -7,6 +7,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { safeJsonStringify } from "../utils/serialize";
+import { z } from "zod";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { closeAllConnections } from "../duckdb/connection.js";
 import { recallTool, recallToolMetadata } from "./tools/recall";
@@ -30,6 +31,13 @@ import {
   serverHttpStartTool,
   ServerHttpStartInputSchema,
 } from "./tools/server";
+import {
+  listProfilesToolDef,
+  createProfileToolDef,
+  updateProfileToolDef,
+  selectProfilesToolDef,
+} from "./tools/profiles";
+import { filterToolsList } from "./profiles";
 import path from "path";
 import {
   CustomRuntimeManager,
@@ -295,14 +303,95 @@ function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
       "server_http_start",
     ]),
   );
+
+  // MCP-CONNECTION-PROFILES-001: profile management tools. Visibility-only
+  // surfaces — they never grant, revoke, or broaden authority (see
+  // src/mcp/profiles.ts for the composition contract and the hard boundary).
+  const profileTools: Array<{
+    name: string;
+    title: string;
+    description: string;
+    inputSchema: z.ZodTypeAny;
+    handler: (input: any) => Promise<any>;
+  }> = [
+    listProfilesToolDef,
+    createProfileToolDef,
+    updateProfileToolDef,
+    selectProfilesToolDef,
+  ];
+  for (const def of profileTools) {
+    server.registerTool(
+      def.name,
+      {
+        title: def.title,
+        description: def.description,
+        inputSchema: def.inputSchema,
+      },
+      wrapHandler(def.handler),
+    );
+  }
+
 }
 
 /**
  * Start the MCP server with stdio transport
  */
+
+/**
+ * MCP-CONNECTION-PROFILES-001: filter tools/list by the ACTIVE profile
+ * selection (visibility only).
+ *
+ * Installed AFTER registerTools() so the SDK's own handlers exist; the SDK's
+ * setRequestHandler contract explicitly replaces the previous handler for a
+ * method, and we wrap the replaced one rather than reimplementing schema
+ * conversion. Dispatch also stays inside Protocol._requestHandlers (the
+ * Map the JSON-RPC layer looks handlers up in), so a handler that reaches
+ * in and replaces ours still sees its replacement called through this
+ * wrapper.
+ *
+ * HARD BOUNDARY: this touches tools/list ONLY. tools/call is untouched —
+ * hidden-but-authorized tools keep the existing authorization contract, and
+ * a profile can never make an unauthorized call succeed.
+ */
+let profilesListInterceptionInstalled = false;
+export function installProfilesListInterception(): void {
+  if (profilesListInterceptionInstalled) return;
+  const protocol = (server as unknown as { server: ProtocolLike }).server;
+  const existing = protocol._requestHandlers.get("tools/list");
+  if (!existing) {
+    throw new Error(
+      "installProfilesListInterception: no tools/list handler found — call registerTools() first",
+    );
+  }
+  protocol._requestHandlers.set("tools/list", async (request: unknown) => {
+    const result = await existing(request, undefined as never);
+    if (
+      result &&
+      typeof result === "object" &&
+      Array.isArray((result as { tools?: unknown }).tools)
+    ) {
+      const filtered = filterToolsList(
+        (result as { tools: Array<{ name: string }> }).tools,
+      );
+      return { ...result, tools: filtered.tools };
+    }
+    return result;
+  });
+  profilesListInterceptionInstalled = true;
+}
+
+/** Structural seam the interception needs from the SDK Protocol class. */
+interface ProtocolLike {
+  _requestHandlers: Map<
+    string,
+    (request: unknown, extra: unknown) => Promise<unknown>
+  >;
+}
+
 export async function startServer(): Promise<void> {
   // Register all tools
   registerTools();
+  installProfilesListInterception();
 
   // Log debug info to stderr
   console.error("DuckBrain MCP server starting...");
