@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 9e1a40ce..0cc55237 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2589,3 +2589,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-08T07:45:16.018129+00:00'
+   completed_at: '2026-10-08T08:03:38.950249+00:00'
++- id: DOC-11
++  title: Repair three broken relative documentation links
++  criteria:
++  - 'Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py:
++    docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439
++    (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command
++    and obtain BROKEN_LINKS 0.'
++  status: complete
++  created_at: '2026-10-11T07:17:38.084842+00:00'
++  completed_at: '2026-10-11T07:20:23.135089+00:00'

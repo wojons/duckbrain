@@ -1,0 +1,52 @@
+commit a126b3ee2b855bd836c64e1b74bbea93965e9149
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 02:19:53 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 02:19:53 2026 -0500
+
+    docs: fix three broken relative links (DOC-11)
+    
+    - getting-started.md:410: docker → deployment (deployment.md exists, docker.md does not)
+    - getting-started.md:439: troubleshooting link replaced with deployment reference (no troubleshooting.md exists)
+    - license.md:88: ../LICENSE → ../../LICENSE (LICENSE is at repo root, not docs/)
+    
+    Audit: BROKEN_LINKS 3 → 0 (resolve-links.py verified)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/guide/getting-started.md | 4 ++--
+ docs/guide/license.md         | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/docs/guide/getting-started.md b/docs/guide/getting-started.md
+index d21ac38d..c0bf064b 100644
+--- a/docs/guide/getting-started.md
++++ b/docs/guide/getting-started.md
+@@ -407,7 +407,7 @@ Examples:
+ 
+ - 📚 [AI Agent Configuration](ai-configure) - Detailed setup for Claude, Cursor, and others
+ - 🔧 [Configuration Reference](configuration) - All environment variables and options
+-- 🚀 [Deployment Guide](docker) - Production deployment with Docker
++- 🚀 [Deployment Guide](deployment) - Production deployment with Docker
+ - 📖 [MCP Tools Reference](../api/mcp-tools) - Complete API documentation
+ 
+ ## Troubleshooting
+@@ -436,7 +436,7 @@ chmod +x /path/to/duckbrain/bin/duckbrain.js
+ duckbrain init my-project
+ ```
+ 
+-See [Troubleshooting](troubleshooting) for more solutions.
++See the [Deployment Guide](deployment) for production setup and common issues.
+ 
+ ## Getting Help
+ 
+diff --git a/docs/guide/license.md b/docs/guide/license.md
+index 1421d61e..9dbc4928 100644
+--- a/docs/guide/license.md
++++ b/docs/guide/license.md
+@@ -85,4 +85,4 @@ This product includes software developed by the DuckBrain Contributors
+ For license questions or inquiries about commercial use of brand assets:
+ 
+ - 📧 [Contact the maintainers](https://github.com/wojons/duckbrain/issues)
+-- 📖 View the full license text: [`LICENSE`](../LICENSE) in the repository root
++- 📖 View the full license text: [`LICENSE`](../../LICENSE) in the repository root

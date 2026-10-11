@@ -1,0 +1,103 @@
+{
+  "task_id": "DOC-11",
+  "task_title": "Repair three broken relative documentation links",
+  "task_criteria": [
+    "Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py: docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439 (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command and obtain BROKEN_LINKS 0."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "a126b3ee2b855bd836c64e1b74bbea93965e9149",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n2:20AM INF scanned ~42193923 bytes (42.19 MB) in 3.92s\n2:20AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049324 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  216 passed (216)\n      Tests  1763 passed (1763)\n   Start at  02:20:24\n   Duration  53.10s (tests 77%, import 19%, transform 2%, worker 1%, setup 1%)\n\n    Isolate  216 workers spawned \u00b7 ~83ms startup each (spawn + environment, per file)\n             at least ~4.42s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261007T231315.238398Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py: docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439 (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command and obtain BROKEN_LINKS 0.: Commit a126b3ee in /home/kara/duckbrain fixes all three links: getting-started.md:410 `[Deployment Guide](docker)` -> `(deployment)` (docs/guide/deployment.md exists); getting-started.md:439 `[Troubleshooting](troubleshooting)` -> `[Deployment Guide](deployment)` (no troubleshooting.md exists); license.md:88 `../LICENSE` -> `../../LICENSE` (LICENSE is at repo root, not docs/). Pre-state confirmed via `git show a126b3ee^` showing the exact three broken targets. Audit command `python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py` (exit_code 0) outputs `LINK_FILES 39` / `BROKEN_LINKS 0`. [resolution 0.05; /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py, docs/guide/getting-started.md:410, docs/guide/license.md:88]\nAll three broken relative links were repaired in commit a126b3ee and the audit command now reports BROKEN_LINKS 0.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py: docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439 (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command and obtain BROKEN_LINKS 0.: Commit a126b3ee in /home/kara/duckbrain fixes all three links: getting-started.md:410 `[Deployment Guide](docker)` -> `(deployment)` (docs/guide/deployment.md exists); getting-started.md:439 `[Troubleshooting](troubleshooting)` -> `[Deployment Guide](deployment)` (no troubleshooting.md exists); license.md:88 `../LICENSE` -> `../../LICENSE` (LICENSE is at repo root, not docs/). Pre-state confirmed via `git show a126b3ee^` showing the exact three broken targets. Audit command `python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py` (exit_code 0) outputs `LINK_FILES 39` / `BROKEN_LINKS 0`. [resolution 0.05; /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py, docs/guide/getting-started.md:410, docs/guide/license.md:88]\nAll three broken relative links were repaired in commit a126b3ee and the audit command now reports BROKEN_LINKS 0.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py: docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439 (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command and obtain BROKEN_LINKS 0.",
+                "status": "PASS",
+                "detail": "Commit a126b3ee in /home/kara/duckbrain fixes all three links: getting-started.md:410 `[Deployment Guide](docker)` -> `(deployment)` (docs/guide/deployment.md exists); getting-started.md:439 `[Troubleshooting](troubleshooting)` -> `[Deployment Guide](deployment)` (no troubleshooting.md exists); license.md:88 `../LICENSE` -> `../../LICENSE` (LICENSE is at repo root, not docs/). Pre-state confirmed via `git show a126b3ee^` showing the exact three broken targets. Audit command `python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py` (exit_code 0) outputs `LINK_FILES 39` / `BROKEN_LINKS 0`. [resolution 0.05; /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py, docs/guide/getting-started.md:410, docs/guide/license.md:88]",
+                "resolution_probability": 0.05,
+                "cited_path": "/home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py, docs/guide/getting-started.md:410, docs/guide/license.md:88"
+              }
+            ],
+            "summary": "All three broken relative links were repaired in commit a126b3ee and the audit command now reports BROKEN_LINKS 0."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-11\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py: docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439 (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command and obtain BROKEN_LINKS 0.: Commit a126b3ee in /home/kara/duckbrain fixes all three links: getting-started.md:410 `[Deployment Guide](docker)` -> `(deployment)` (docs/guide/deployment.md exists); getting-started.md:439 `[Troubleshooting](troubleshooting)` -> `[Deployment Guide](deployment)` (no troubleshooting.md exists); license.md:88 `../LICENSE` -> `../../LICENSE` (LICENSE is at repo root, not docs/). Pre-state confirmed via `git show a126b3ee^` showing the exact three broken targets. Audit command `python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py` (exit_code 0) outputs `LINK_FILES 39` / `BROKEN_LINKS 0`. [resolution 0.05; /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py, docs/guide/getting-started.md:410, docs/guide/license.md:88]\nAll three broken relative links were repaired in commit a126b3ee and the audit command now reports BROKEN_LINKS 0.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-11T07:21:40.940457",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-11T07:21:40.959664+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2356,
+        "truncated": false,
+        "source": "git show a126b3ee2b85"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 832,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-11"
+  }
+}

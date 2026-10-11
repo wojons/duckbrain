@@ -2589,3 +2589,22 @@ tasks:
   status: complete
   created_at: '2026-10-08T07:45:16.018129+00:00'
   completed_at: '2026-10-08T08:03:38.950249+00:00'
+- id: DOC-11
+  title: Repair three broken relative documentation links
+  criteria:
+  - 'Fix or remove the three broken links identified by python3 /home/kara/.hermes/stand-in/docs/duckbrain/resolve-links.py:
+    docs/guide/getting-started.md:410 (docker), docs/guide/getting-started.md:439
+    (troubleshooting), docs/guide/license.md:88 (../LICENSE). Rerun the audit command
+    and obtain BROKEN_LINKS 0.'
+  status: complete
+  created_at: '2026-10-11T07:17:38.084842+00:00'
+  completed_at: '2026-10-11T07:20:23.135089+00:00'
+- id: DOC-12
+  title: Document the complete CLI verb and nested-command surface
+  criteria:
+  - docs/guide/cli-reference.md exists AND covers every top-level and nested CLI verb
+    from `node bin/duckbrain.js --help`, `git --help`, `s3 --help`, `config --help`,
+    `namespace --help` with runnable examples and safety semantics
+  status: complete
+  created_at: '2026-10-11T08:02:25.761382+00:00'
+  completed_at: '2026-10-11T08:06:47.756062+00:00'
