@@ -1,0 +1,89 @@
+commit 3bb6b52196560655df62f1cd237579a00f7805a4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 04:16:37 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 04:16:37 2026 -0500
+
+    fix(mcp): move profile tool registration into registerTools during MCP-* merge resolution
+    
+    The conflict resolution placed the profile-tools block inside
+    registerCustomToolsOnServer instead of registerTools, so the four profile
+    tools never appeared on tools/list (caught by src/mcp/tools/profiles.test.ts
+    in-process round trip).
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/mcp/server.ts | 53 +++++++++++++++++++++++++++--------------------------
+ 1 file changed, 27 insertions(+), 26 deletions(-)
+
+diff --git a/src/mcp/server.ts b/src/mcp/server.ts
+index ed27fb12..96eb156f 100644
+--- a/src/mcp/server.ts
++++ b/src/mcp/server.ts
+@@ -231,6 +231,33 @@ export function registerTools(): void {
+   if (customManager !== undefined) {
+     registerCustomToolsOnServer(customManager);
+   }
++
++  // MCP-CONNECTION-PROFILES-001: profile management tools. Visibility-only
++  // surfaces — they never grant, revoke, or broaden authority (see
++  // src/mcp/profiles.ts for the composition contract and the hard boundary).
++  const profileTools: Array<{
++    name: string;
++    title: string;
++    description: string;
++    inputSchema: z.ZodTypeAny;
++    handler: (input: any) => Promise<any>;
++  }> = [
++    listProfilesToolDef,
++    createProfileToolDef,
++    updateProfileToolDef,
++    selectProfilesToolDef,
++  ];
++  for (const def of profileTools) {
++    server.registerTool(
++      def.name,
++      {
++        title: def.title,
++        description: def.description,
++        inputSchema: def.inputSchema,
++      },
++      wrapHandler(def.handler),
++    );
++  }
+ }
+ 
+ /**
+@@ -304,32 +331,6 @@ function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
+     ]),
+   );
+ 
+-  // MCP-CONNECTION-PROFILES-001: profile management tools. Visibility-only
+-  // surfaces — they never grant, revoke, or broaden authority (see
+-  // src/mcp/profiles.ts for the composition contract and the hard boundary).
+-  const profileTools: Array<{
+-    name: string;
+-    title: string;
+-    description: string;
+-    inputSchema: z.ZodTypeAny;
+-    handler: (input: any) => Promise<any>;
+-  }> = [
+-    listProfilesToolDef,
+-    createProfileToolDef,
+-    updateProfileToolDef,
+-    selectProfilesToolDef,
+-  ];
+-  for (const def of profileTools) {
+-    server.registerTool(
+-      def.name,
+-      {
+-        title: def.title,
+-        description: def.description,
+-        inputSchema: def.inputSchema,
+-      },
+-      wrapHandler(def.handler),
+-    );
+-  }
+ 
+ }
+ 

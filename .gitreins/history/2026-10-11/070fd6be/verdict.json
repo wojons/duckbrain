@@ -1,0 +1,102 @@
+{
+  "task_id": "MCP-CONNECTION-PROFILES-001",
+  "task_title": "Multi-profile MCP connection state (visibility, not authorization)",
+  "task_criteria": [
+    "A connection can select multiple profiles composing tool visibility deterministically; profiles never change authorization; tests cover multi-profile, concurrent selections, and denied hidden-tool calls"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "3bb6b52196560655df62f1cd237579a00f7805a4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:19AM INF scanned ~42007070 bytes (42.01 MB) in 5.03s\n4:19AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049426 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T081735.051729Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts (6 tests) 514ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af Failed Suites 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/memories-validuntil-retr011.test.ts > RETR-011: fact versioning \u2014 POST /api/memories\nAssertionError: expected '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' to be '{\\n  \"defaultNamespace\": \"eduos.dexda\u2026' // Object.is equality\n\n- Expected\n+ Received\n\n@@ -15932,12 +15932,11 @@\n      \"auger-pytest-474e4012d6d7\": \"/home/kara/duckbrain/namespaces/auger-pytest-474e4012d6d7\",\n      \"auger-pytest-bbecc4521bb6\": \"/home/kara/duckbrain/namespaces/auger-pytest-bbecc4521bb6\",\n      \"auger-pytest-5fdcf3160ad6\": \"/home/kara/duckbrain/namespaces/auger-pytest-5fdcf3160ad6\",\n      \"auger-pytest-0d954308435b\": \"/home/kara/duckbrain/namespaces/auger-pytest-0d954308435b\",\n      \"auger-pytest-e69dd0847c98\": \"/home/kara/duckbrain/namespaces/auger-pytest-e69dd0847c98\",\n-     \"auger-pytest-d3cf182ab31e\": \"/home/kara/duckbrain/namespaces/auger-pytest-d3cf182ab31e\",\n-     \"auger-pytest-f1a92f6902dd\": \"/home/kara/duckbrain/namespaces/auger-pytest-f1a92f6902dd\"\n+     \"auger-pytest-d3cf182ab31e\": \"/home/kara/duckbrain/namespaces/auger-pytest-d3cf182ab31e\"\n    },\n    \"embedding\": {\n      \"provider\": \"auto\",\n      \"model\": \"text-embedding-qwen3-embedding-0.6b\",\n      \"dimensions\": 384,\n\n \u276f src/http/routes/memories-validuntil-retr011.test.ts:244:30\n    242|   afterAll(() => {\n    243|     server.close();\n    244|     expect(readRepoConfig()).toBe(configBefore);\n       |                              ^\n    245|     fs.rmSync(PARTITION, { recursive: true, force: true });\n    246|     fs.rmSync(MANIFEST, { force: true });\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 218 passed (219)\n      Tests  1815 passed (1815)\n   Start at  04:19:32\n   Duration  121.12s (tests 90%, import 8%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T081735.051729Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A connection can select multiple profiles composing tool visibility deterministically; profiles never change authorization; tests cover multi-profile, concurrent selections, and denied hidden-tool calls: Code: src/mcp/profiles.ts composeVisibility() (~L322-370) folds a multi-profile selection into an order-independent SET UNION of directives (Set-based; hidden beats exclusive); filterToolsList() (~L378) filters tools/list only. src/mcp/server.ts:357-381 installProfilesListInterception() wraps ONLY the 'tools/list' handler (comment L353 'HARD BOUNDARY: this touches tools/list ONLY'); grep for profiles/Profile in src/auth/ and the tools/call path returns nothing, so profiles never affect authorization. src/mcp/tools/profiles.ts exposes list/create/update/select_profiles; src/cli/http.ts:832-857 binds the request-scoped X-DuckBrain-Profiles header and clears it in finally. Tests (fresh runs): `npx vitest run src/mcp/profiles.test.ts src/mcp/tools/profiles.test.ts` -> 'Test Files 2 passed (2) / Tests 28 passed (28)' exit 0, incl. 'multi-profile overlap: union of directives; order-independent' (profiles.test.ts:186), 'multi-profile exclusive: any exclusive directive narrows, hidden still wins' (:217), 'composition output has NO authorization representation' (:311). `npx vitest run --config vitest.integration.config.ts tests/mcp-connection-profiles.int.test.ts` -> 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0, incl. 'two concurrent connections carry DIFFERENT selections without cross-talk' (Promise.all of 3 header-scoped tools/list, :222) and 'denied call DESPITE the profile advertising the tool: profiles cannot broaden authority' (:250, unauth 401 despite profile; hidden-but-authorized call still executes :236). `npx vitest run src/mcp/` -> 'Test Files 21 passed (21) / Tests 197 passed (197)' exit 0. All three required dimensions (multi-profile, concurrent selections, denied hidden-tool calls) are covered and green.\nMulti-profile visibility composition is deterministic and order-independent, tools/call never consults profiles, and unit + live-HTTP integration tests covering multi-profile, concurrent selections, and denied hidden-tool calls all pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A connection can select multiple profiles composing tool visibility deterministically; profiles never change authorization; tests cover multi-profile, concurrent selections, and denied hidden-tool calls: Code: src/mcp/profiles.ts composeVisibility() (~L322-370) folds a multi-profile selection into an order-independent SET UNION of directives (Set-based; hidden beats exclusive); filterToolsList() (~L378) filters tools/list only. src/mcp/server.ts:357-381 installProfilesListInterception() wraps ONLY the 'tools/list' handler (comment L353 'HARD BOUNDARY: this touches tools/list ONLY'); grep for profiles/Profile in src/auth/ and the tools/call path returns nothing, so profiles never affect authorization. src/mcp/tools/profiles.ts exposes list/create/update/select_profiles; src/cli/http.ts:832-857 binds the request-scoped X-DuckBrain-Profiles header and clears it in finally. Tests (fresh runs): `npx vitest run src/mcp/profiles.test.ts src/mcp/tools/profiles.test.ts` -> 'Test Files 2 passed (2) / Tests 28 passed (28)' exit 0, incl. 'multi-profile overlap: union of directives; order-independent' (profiles.test.ts:186), 'multi-profile exclusive: any exclusive directive narrows, hidden still wins' (:217), 'composition output has NO authorization representation' (:311). `npx vitest run --config vitest.integration.config.ts tests/mcp-connection-profiles.int.test.ts` -> 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0, incl. 'two concurrent connections carry DIFFERENT selections without cross-talk' (Promise.all of 3 header-scoped tools/list, :222) and 'denied call DESPITE the profile advertising the tool: profiles cannot broaden authority' (:250, unauth 401 despite profile; hidden-but-authorized call still executes :236). `npx vitest run src/mcp/` -> 'Test Files 21 passed (21) / Tests 197 passed (197)' exit 0. All three required dimensions (multi-profile, concurrent selections, denied hidden-tool calls) are covered and green.\nMulti-profile visibility composition is deterministic and order-independent, tools/call never consults profiles, and unit + live-HTTP integration tests covering multi-profile, concurrent selections, and denied hidden-tool calls all pass.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A connection can select multiple profiles composing tool visibility deterministically; profiles never change authorization; tests cover multi-profile, concurrent selections, and denied hidden-tool calls",
+                "status": "PASS",
+                "detail": "Code: src/mcp/profiles.ts composeVisibility() (~L322-370) folds a multi-profile selection into an order-independent SET UNION of directives (Set-based; hidden beats exclusive); filterToolsList() (~L378) filters tools/list only. src/mcp/server.ts:357-381 installProfilesListInterception() wraps ONLY the 'tools/list' handler (comment L353 'HARD BOUNDARY: this touches tools/list ONLY'); grep for profiles/Profile in src/auth/ and the tools/call path returns nothing, so profiles never affect authorization. src/mcp/tools/profiles.ts exposes list/create/update/select_profiles; src/cli/http.ts:832-857 binds the request-scoped X-DuckBrain-Profiles header and clears it in finally. Tests (fresh runs): `npx vitest run src/mcp/profiles.test.ts src/mcp/tools/profiles.test.ts` -> 'Test Files 2 passed (2) / Tests 28 passed (28)' exit 0, incl. 'multi-profile overlap: union of directives; order-independent' (profiles.test.ts:186), 'multi-profile exclusive: any exclusive directive narrows, hidden still wins' (:217), 'composition output has NO authorization representation' (:311). `npx vitest run --config vitest.integration.config.ts tests/mcp-connection-profiles.int.test.ts` -> 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0, incl. 'two concurrent connections carry DIFFERENT selections without cross-talk' (Promise.all of 3 header-scoped tools/list, :222) and 'denied call DESPITE the profile advertising the tool: profiles cannot broaden authority' (:250, unauth 401 despite profile; hidden-but-authorized call still executes :236). `npx vitest run src/mcp/` -> 'Test Files 21 passed (21) / Tests 197 passed (197)' exit 0. All three required dimensions (multi-profile, concurrent selections, denied hidden-tool calls) are covered and green.",
+                "resolution_probability": 0.36
+              }
+            ],
+            "summary": "Multi-profile visibility composition is deterministic and order-independent, tools/call never consults profiles, and unit + live-HTTP integration tests covering multi-profile, concurrent selections, and denied hidden-tool calls all pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: MCP-CONNECTION-PROFILES-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A connection can select multiple profiles composing tool visibility deterministically; profiles never change authorization; tests cover multi-profile, concurrent selections, and denied hidden-tool calls: Code: src/mcp/profiles.ts composeVisibility() (~L322-370) folds a multi-profile selection into an order-independent SET UNION of directives (Set-based; hidden beats exclusive); filterToolsList() (~L378) filters tools/list only. src/mcp/server.ts:357-381 installProfilesListInterception() wraps ONLY the 'tools/list' handler (comment L353 'HARD BOUNDARY: this touches tools/list ONLY'); grep for profiles/Profile in src/auth/ and the tools/call path returns nothing, so profiles never affect authorization. src/mcp/tools/profiles.ts exposes list/create/update/select_profiles; src/cli/http.ts:832-857 binds the request-scoped X-DuckBrain-Profiles header and clears it in finally. Tests (fresh runs): `npx vitest run src/mcp/profiles.test.ts src/mcp/tools/profiles.test.ts` -> 'Test Files 2 passed (2) / Tests 28 passed (28)' exit 0, incl. 'multi-profile overlap: union of directives; order-independent' (profiles.test.ts:186), 'multi-profile exclusive: any exclusive directive narrows, hidden still wins' (:217), 'composition output has NO authorization representation' (:311). `npx vitest run --config vitest.integration.config.ts tests/mcp-connection-profiles.int.test.ts` -> 'Test Files 1 passed (1) / Tests 6 passed (6)' exit 0, incl. 'two concurrent connections carry DIFFERENT selections without cross-talk' (Promise.all of 3 header-scoped tools/list, :222) and 'denied call DESPITE the profile advertising the tool: profiles cannot broaden authority' (:250, unauth 401 despite profile; hidden-but-authorized call still executes :236). `npx vitest run src/mcp/` -> 'Test Files 21 passed (21) / Tests 197 passed (197)' exit 0. All three required dimensions (multi-profile, concurrent selections, denied hidden-tool calls) are covered and green.\nMulti-profile visibility composition is deterministic and order-independent, tools/call never consults profiles, and unit + live-HTTP integration tests covering multi-profile, concurrent selections, and denied hidden-tool calls all pass.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-11T09:23:19.124346",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-11T09:23:19.138440+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2793,
+        "truncated": false,
+        "source": "git show 3bb6b5219656"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1679,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "MCP-CONNECTION-PROFILES-001"
+  }
+}

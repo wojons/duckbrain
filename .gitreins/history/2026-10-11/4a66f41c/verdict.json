@@ -1,0 +1,103 @@
+{
+  "task_id": "DOC-13",
+  "task_title": "Document process-read DUCKBRAIN env vars",
+  "task_criteria": [
+    "docs/guide/configuration.md documents each of DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_DATA_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID, DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, DUCKBRAIN_GIT_AUTHOR_EMAIL with source location, default, and precedence"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "49a145ac88a13a77b413cb3b6e74b80e45066232",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:23AM INF scanned ~42235438 bytes (42.24 MB) in 5.92s\n3:23AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049374 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T081735.051729Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  216 passed (216)\n      Tests  1763 passed (1763)\n   Start at  03:22:58\n   Duration  61.94s (tests 77%, import 19%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  216 workers spawned \u00b7 ~96ms startup each (spawn + environment, per file)\n             at least ~5.11s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261011T081735.051729Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/guide/configuration.md documents each of DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_DATA_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID, DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, DUCKBRAIN_GIT_AUTHOR_EMAIL with source location, default, and precedence: All 6 vars present in the Environment Variables table of docs/guide/configuration.md (lines 14, 17, 31, 32, 33, 34), each with a Default column value and a Description citing source location + precedence. Verified against code: DUCKBRAIN_DATA_DIR (line 14) \u2192 src/utils/pidfile.ts:59 `dir || process.env.DUCKBRAIN_DATA_DIR || perUidPidDir()`, default 'per-uid/pid dir' \u2713; DUCKBRAIN_UI_DIST_DIR (line 17) \u2192 src/cli/http.ts:88-89 env override else upward scan for packages/ui/dist \u2713; DUCKBRAIN_S3_ACCESS_KEY_ID (line 31) \u2192 src/s3/query.ts:107 `AWS_ACCESS_KEY_ID ?? DUCKBRAIN_S3_ACCESS_KEY_ID` (docs 'Falls back to AWS_ACCESS_KEY_ID') \u2713; DUCKBRAIN_S3_SECRET_ACCESS_KEY (line 32) \u2192 src/s3/query.ts:109-110 \u2713; DUCKBRAIN_GIT_AUTHOR_NAME (line 33) \u2192 src/git/identity.ts:121-137 precedence repo-local > global > env > null(throws) \u2713; DUCKBRAIN_GIT_AUTHOR_EMAIL (line 34) \u2192 src/git/identity.ts:124-137 same precedence \u2713. Test-setup seed values in docs match src/test-setup.ts:50-51. Tests run fresh: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` \u2192 exit_code 0, 'Test Files 2 passed (2), Tests 16 passed (16)'; `npx vitest run src/cli/http-ui-static-df092408.test.ts src/config/df100301-data-dir-dead.test.ts` \u2192 exit_code 0, 'Tests 12 passed (12)'; `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts src/s3/cli-query.test.ts` \u2192 exit_code 0, 'Tests 14 passed (14)'. [resolution 0.38; docs/guide/configuration.md]\nAll six process-read DUCKBRAIN env vars are documented in docs/guide/configuration.md with source locations, defaults, and precedence that match the actual code, and all related tests pass.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/guide/configuration.md documents each of DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_DATA_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID, DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, DUCKBRAIN_GIT_AUTHOR_EMAIL with source location, default, and precedence: All 6 vars present in the Environment Variables table of docs/guide/configuration.md (lines 14, 17, 31, 32, 33, 34), each with a Default column value and a Description citing source location + precedence. Verified against code: DUCKBRAIN_DATA_DIR (line 14) \u2192 src/utils/pidfile.ts:59 `dir || process.env.DUCKBRAIN_DATA_DIR || perUidPidDir()`, default 'per-uid/pid dir' \u2713; DUCKBRAIN_UI_DIST_DIR (line 17) \u2192 src/cli/http.ts:88-89 env override else upward scan for packages/ui/dist \u2713; DUCKBRAIN_S3_ACCESS_KEY_ID (line 31) \u2192 src/s3/query.ts:107 `AWS_ACCESS_KEY_ID ?? DUCKBRAIN_S3_ACCESS_KEY_ID` (docs 'Falls back to AWS_ACCESS_KEY_ID') \u2713; DUCKBRAIN_S3_SECRET_ACCESS_KEY (line 32) \u2192 src/s3/query.ts:109-110 \u2713; DUCKBRAIN_GIT_AUTHOR_NAME (line 33) \u2192 src/git/identity.ts:121-137 precedence repo-local > global > env > null(throws) \u2713; DUCKBRAIN_GIT_AUTHOR_EMAIL (line 34) \u2192 src/git/identity.ts:124-137 same precedence \u2713. Test-setup seed values in docs match src/test-setup.ts:50-51. Tests run fresh: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` \u2192 exit_code 0, 'Test Files 2 passed (2), Tests 16 passed (16)'; `npx vitest run src/cli/http-ui-static-df092408.test.ts src/config/df100301-data-dir-dead.test.ts` \u2192 exit_code 0, 'Tests 12 passed (12)'; `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts src/s3/cli-query.test.ts` \u2192 exit_code 0, 'Tests 14 passed (14)'. [resolution 0.38; docs/guide/configuration.md]\nAll six process-read DUCKBRAIN env vars are documented in docs/guide/configuration.md with source locations, defaults, and precedence that match the actual code, and all related tests pass.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/guide/configuration.md documents each of DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_DATA_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID, DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, DUCKBRAIN_GIT_AUTHOR_EMAIL with source location, default, and precedence",
+                "status": "PASS",
+                "detail": "All 6 vars present in the Environment Variables table of docs/guide/configuration.md (lines 14, 17, 31, 32, 33, 34), each with a Default column value and a Description citing source location + precedence. Verified against code: DUCKBRAIN_DATA_DIR (line 14) \u2192 src/utils/pidfile.ts:59 `dir || process.env.DUCKBRAIN_DATA_DIR || perUidPidDir()`, default 'per-uid/pid dir' \u2713; DUCKBRAIN_UI_DIST_DIR (line 17) \u2192 src/cli/http.ts:88-89 env override else upward scan for packages/ui/dist \u2713; DUCKBRAIN_S3_ACCESS_KEY_ID (line 31) \u2192 src/s3/query.ts:107 `AWS_ACCESS_KEY_ID ?? DUCKBRAIN_S3_ACCESS_KEY_ID` (docs 'Falls back to AWS_ACCESS_KEY_ID') \u2713; DUCKBRAIN_S3_SECRET_ACCESS_KEY (line 32) \u2192 src/s3/query.ts:109-110 \u2713; DUCKBRAIN_GIT_AUTHOR_NAME (line 33) \u2192 src/git/identity.ts:121-137 precedence repo-local > global > env > null(throws) \u2713; DUCKBRAIN_GIT_AUTHOR_EMAIL (line 34) \u2192 src/git/identity.ts:124-137 same precedence \u2713. Test-setup seed values in docs match src/test-setup.ts:50-51. Tests run fresh: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` \u2192 exit_code 0, 'Test Files 2 passed (2), Tests 16 passed (16)'; `npx vitest run src/cli/http-ui-static-df092408.test.ts src/config/df100301-data-dir-dead.test.ts` \u2192 exit_code 0, 'Tests 12 passed (12)'; `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts src/s3/cli-query.test.ts` \u2192 exit_code 0, 'Tests 14 passed (14)'. [resolution 0.38; docs/guide/configuration.md]",
+                "resolution_probability": 0.38,
+                "cited_path": "docs/guide/configuration.md"
+              }
+            ],
+            "summary": "All six process-read DUCKBRAIN env vars are documented in docs/guide/configuration.md with source locations, defaults, and precedence that match the actual code, and all related tests pass."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-13\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/guide/configuration.md documents each of DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_DATA_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID, DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, DUCKBRAIN_GIT_AUTHOR_EMAIL with source location, default, and precedence: All 6 vars present in the Environment Variables table of docs/guide/configuration.md (lines 14, 17, 31, 32, 33, 34), each with a Default column value and a Description citing source location + precedence. Verified against code: DUCKBRAIN_DATA_DIR (line 14) \u2192 src/utils/pidfile.ts:59 `dir || process.env.DUCKBRAIN_DATA_DIR || perUidPidDir()`, default 'per-uid/pid dir' \u2713; DUCKBRAIN_UI_DIST_DIR (line 17) \u2192 src/cli/http.ts:88-89 env override else upward scan for packages/ui/dist \u2713; DUCKBRAIN_S3_ACCESS_KEY_ID (line 31) \u2192 src/s3/query.ts:107 `AWS_ACCESS_KEY_ID ?? DUCKBRAIN_S3_ACCESS_KEY_ID` (docs 'Falls back to AWS_ACCESS_KEY_ID') \u2713; DUCKBRAIN_S3_SECRET_ACCESS_KEY (line 32) \u2192 src/s3/query.ts:109-110 \u2713; DUCKBRAIN_GIT_AUTHOR_NAME (line 33) \u2192 src/git/identity.ts:121-137 precedence repo-local > global > env > null(throws) \u2713; DUCKBRAIN_GIT_AUTHOR_EMAIL (line 34) \u2192 src/git/identity.ts:124-137 same precedence \u2713. Test-setup seed values in docs match src/test-setup.ts:50-51. Tests run fresh: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` \u2192 exit_code 0, 'Test Files 2 passed (2), Tests 16 passed (16)'; `npx vitest run src/cli/http-ui-static-df092408.test.ts src/config/df100301-data-dir-dead.test.ts` \u2192 exit_code 0, 'Tests 12 passed (12)'; `npx vitest run src/s3/query-scheme-s3queryscheme001.test.ts src/s3/cli-query.test.ts` \u2192 exit_code 0, 'Tests 14 passed (14)'. [resolution 0.38; docs/guide/configuration.md]\nAll six process-read DUCKBRAIN env vars are documented in docs/guide/configuration.md with source locations, defaults, and precedence that match the actual code, and all related tests pass.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-11T08:25:12.442656",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-11T08:25:12.459114+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4912,
+        "truncated": false,
+        "source": "git show 49a145ac88a1"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 759,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-13"
+  }
+}

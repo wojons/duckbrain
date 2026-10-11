@@ -1,0 +1,46 @@
+commit 49a145ac88a13a77b413cb3b6e74b80e45066232
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 03:17:54 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 03:22:32 2026 -0500
+
+    docs: document 6 process-read DUCKBRAIN env vars (DOC-13)
+    
+    Add DUCKBRAIN_DATA_DIR, DUCKBRAIN_UI_DIST_DIR, DUCKBRAIN_S3_ACCESS_KEY_ID,
+    DUCKBRAIN_S3_SECRET_ACCESS_KEY, DUCKBRAIN_GIT_AUTHOR_NAME, and
+    DUCKBRAIN_GIT_AUTHOR_EMAIL to the configuration reference with source
+    locations, defaults, and precedence rules.
+    
+    Closes DOC-13.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/guide/configuration.md | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/docs/guide/configuration.md b/docs/guide/configuration.md
+index ae4c0044..7f59a146 100644
+--- a/docs/guide/configuration.md
++++ b/docs/guide/configuration.md
+@@ -11,8 +11,10 @@ DuckBrain can be configured through environment variables and a JSON configurati
+ | `DUCKBRAIN_HOME_ROOT` | — | Explicit install-root override for the DuckBrain home directory (read at `src/config/index.ts`). Set when the derived install root cannot be resolved (e.g. non-standard layouts) |
+ | `DUCKBRAIN_DURABILITY_MODE` | — | Runtime override of the namespace durability write mode (SUPA-1). A malformed value fails config load through the schema enum — never a silent fallback to buffered, because a silently-buffered namespace means acked writes are not durable. Never persisted into `duckbrain.config.json`. Precedence: `durability.overrides[ns]` > this env var > config default |
+ | `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories. Env-only, never persisted into `duckbrain.config.json` (BUG-037) |
++| `DUCKBRAIN_DATA_DIR` | per-uid/pid dir | Base directory for HTTP server pidfiles and transient data (read at `src/utils/pidfile.ts`). When unset, falls back to a per-uid+pid directory under the system temp dir. Override to place pidfiles in a stable location (e.g. systemd `RuntimeDirectory`) |
+ | `DUCKBRAIN_API_PORT` | `3000` | HTTP API server port |
+ | `DUCKBRAIN_UI_PORT` | — | **Not implemented.** The Web UI (packages/ui) is a separate Vite app; no code reads this variable |
++| `DUCKBRAIN_UI_DIST_DIR` | — | Explicit path to the built Web UI static assets directory (read at `src/cli/http.ts`). When unset, the server scans upward from its own location for `packages/ui/dist`. Set when the UI build output lives in a non-standard location (e.g. packaged deployments) |
+ | `DUCKBRAIN_HTTP_SOCKET` | — | Unix socket path for HTTP server (used by `service install` unit) |
+ | `DUCKBRAIN_HTTP_SOCKET_MODE` | — | Socket file permissions octal string (e.g. `0660`), used by `service install` unit |
+ | `DUCKBRAIN_LOG_LEVEL` | — | **Not implemented.** No code reads this variable |
+@@ -26,6 +28,10 @@ DuckBrain can be configured through environment variables and a JSON configurati
+ | `AUTH_TYPE` | — | **Not implemented.** No code reads this variable. HTTP auth is configured via the auth file (`~/.duckbrain/auth.json`, overridable with `--auth-file` / `DUCKBRAIN_AUTH_FILE` — see [Deployment Guide](deployment)) |
+ | `AUTH_TOKEN` | — | **Not implemented.** No code reads this variable; see `DUCKBRAIN_AUTH_FILE` above |
+ | `DUCKBRAIN_AUTH_FILE` | — | Path to the auth file (users/apiKeys) read by the HTTP server. Precedence: explicit `--auth-file` > this env var > `~/.duckbrain/auth.json` |
++| `DUCKBRAIN_S3_ACCESS_KEY_ID` | — | S3 access key ID for direct S3 storage credentials (read at `src/s3/query.ts`). Falls back to `AWS_ACCESS_KEY_ID` if unset. Use when S3 credentials differ from the AWS CLI/SDK default chain |
++| `DUCKBRAIN_S3_SECRET_ACCESS_KEY` | — | S3 secret access key paired with `DUCKBRAIN_S3_ACCESS_KEY_ID` (read at `src/s3/query.ts`). Falls back to `AWS_SECRET_ACCESS_KEY` if unset |
++| `DUCKBRAIN_GIT_AUTHOR_NAME` | — | Last-resort override for the git author name stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.name` > global git config `user.name` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"DuckBrain Test"` via this env var |
++| `DUCKBRAIN_GIT_AUTHOR_EMAIL` | — | Last-resort override for the git author email stamped on namespace commits (read at `src/git/identity.ts`). Precedence: repo-local git config `user.email` > global git config `user.email` > this env var > **null (throws setup error)**. Production deployments should configure git identity via `git config` rather than relying on env vars. Test setup seeds `"duckbrain-test@example.com"` via this env var |
+ | `NODE_ENV` | — | Set to `production` for production deployments |
+ 
+ ---
