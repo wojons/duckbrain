@@ -85,4 +85,4 @@ This product includes software developed by the DuckBrain Contributors
 For license questions or inquiries about commercial use of brand assets:
 
 - 📧 [Contact the maintainers](https://github.com/wojons/duckbrain/issues)
-- 📖 View the full license text: [`LICENSE`](../LICENSE) in the repository root
+- 📖 View the full license text: [`LICENSE`](../../LICENSE) in the repository root

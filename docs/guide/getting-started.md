@@ -407,7 +407,7 @@ Examples:
 
 - 📚 [AI Agent Configuration](ai-configure) - Detailed setup for Claude, Cursor, and others
 - 🔧 [Configuration Reference](configuration) - All environment variables and options
-- 🚀 [Deployment Guide](docker) - Production deployment with Docker
+- 🚀 [Deployment Guide](deployment) - Production deployment with Docker
 - 📖 [MCP Tools Reference](../api/mcp-tools) - Complete API documentation
 
 ## Troubleshooting
@@ -436,7 +436,7 @@ chmod +x /path/to/duckbrain/bin/duckbrain.js
 duckbrain init my-project
 ```
 
-See [Troubleshooting](troubleshooting) for more solutions.
+See the [Deployment Guide](deployment) for production setup and common issues.
 
 ## Getting Help
 
