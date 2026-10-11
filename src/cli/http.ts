@@ -20,7 +20,12 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import http from "http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Mutex } from "async-mutex";
-import { server, stopServer, registerTools } from "../mcp/server.js";
+import {
+  server,
+  stopServer,
+  registerTools,
+  installProfilesListInterception,
+} from "../mcp/server.js";
 import {
   authMiddleware,
   AuthConfig,
@@ -40,6 +45,7 @@ import {
 } from "../http/middleware/errorHandler.js";
 import { listNamespacesTool } from "../mcp/tools/namespace.js";
 import { probeKeysStore } from "../mcp/tools/list_keys.js";
+import { parseProfilesHeader, setRequestSelection } from "../mcp/profiles.js";
 import { createMemoryRoutes } from "../http/routes/memories.js";
 import { createKeyRoutes } from "../http/routes/keys.js";
 import { createNamespaceRoutes } from "../http/routes/namespaces.js";
@@ -804,6 +810,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // "Already connected to a transport".
   if (!mcpToolsRegistered) {
     registerTools();
+    installProfilesListInterception();
     mcpToolsRegistered = true;
   }
   const mcpMutex = new Mutex();
@@ -821,6 +828,12 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       // setting the module-scope slot here and clearing it in finally is
       // single-flight safe (see getMcpRequestPrincipal below).
       mcpRequestPrincipal = getPrincipal(req);
+      // MCP-CONNECTION-PROFILES-001: bind the REQUEST-scoped profile
+      // selection (X-DuckBrain-Profiles header) for this request only.
+      // Visibility state, never authorization — tools/call ignores it.
+      setRequestSelection(
+        parseProfilesHeader(req.headers["x-duckbrain-profiles"]),
+      );
       // SUPA-4 (audit-every-denial): expose the SAME request-scoped denial
       // auditor the REST middlewares audit through (the auth middleware
       // installed it on this request) so an MCP tool refusal writes its
@@ -840,6 +853,8 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
         await transport.close().catch(() => {});
         mcpRequestPrincipal = undefined;
         mcpRequestAuditDenial = undefined;
+        // Profile selection is request-scoped like the principal slot.
+        setRequestSelection(undefined);
       }
     });
 

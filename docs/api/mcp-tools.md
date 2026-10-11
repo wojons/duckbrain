@@ -4,20 +4,29 @@ DuckBrain exposes Model Context Protocol (MCP) tools that AI agents can use to s
 
 ## Available Tools
 
-| Tool | Description |
-|------|-------------|
-| [`remember`](#remember) | Store a new memory |
-| [`recall`](#recall) | Query memories by key, domain, or similarity |
-| [`list_keys`](#list_keys) | List available memory keys (guard against hallucinations) |
-| [`forget`](#forget) | Mark a memory as tombstoned |
-| [`squash`](#squash) | Compact old memory partitions |
-| [`get_compaction_stats`](#get_compaction_stats) | Repository compaction statistics |
-| [`create_namespace`](#create_namespace) | Create a new namespace |
-| [`list_namespaces`](#list_namespaces) | List all available namespaces |
-| [`switch_namespace`](#switch_namespace) | Switch the active namespace |
-| [`delete_namespace`](#delete_namespace) | Delete a namespace (requires confirmation) |
-| [`server_status`](#server_status) | Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints |
-| [`server_http_start`](#server_http_start) | Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit) |
+| Tool                                            | Description                                                                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`remember`](#remember)                         | Store a new memory                                                                                               |
+| [`recall`](#recall)                             | Query memories by key, domain, or similarity                                                                     |
+| [`list_keys`](#list_keys)                       | List available memory keys (guard against hallucinations)                                                        |
+| [`forget`](#forget)                             | Mark a memory as tombstoned                                                                                      |
+| [`squash`](#squash)                             | Compact old memory partitions                                                                                    |
+| [`get_compaction_stats`](#get_compaction_stats) | Repository compaction statistics                                                                                 |
+| [`create_namespace`](#create_namespace)         | Create a new namespace                                                                                           |
+| [`list_namespaces`](#list_namespaces)           | List all available namespaces                                                                                    |
+| [`switch_namespace`](#switch_namespace)         | Switch the active namespace                                                                                      |
+| [`delete_namespace`](#delete_namespace)         | Delete a namespace (requires confirmation)                                                                       |
+| [`server_status`](#server_status)               | Check whether the HTTP server is listening (TCP port and/or Unix socket), report PID and MCP-over-HTTP endpoints |
+| [`server_http_start`](#server_http_start)       | Trigger the HTTP server to start as a detached background process (port, socket, permissions, auth, rate-limit)  |
+| [`list_profiles`](#list_profiles)               | Inspect available connection profiles (tool-visibility presets) and the active selection                         |
+| [`create_profile`](#create_profile)             | Create a named profile of tool-visibility directives                                                             |
+| [`update_profile`](#update_profile)             | Update a profile you own (full directive replacement)                                                            |
+| [`select_profiles`](#select_profiles)           | Activate profiles for this connection/session                                                                    |
+
+> **Profiles are visibility presets, not security boundaries.** Selecting
+> profiles changes `tools/list` advertising only — every `tools/call` remains
+> subject to authentication, namespace grants, and tool/runtime safeguards.
+> See [Connection Profiles](../guide/connection-profiles.md).
 
 ## Tool Details
 
@@ -118,6 +127,7 @@ Query memories with flexible filtering.
 **Examples:**
 
 **By key prefix:**
+
 ```json
 {
   "keyPrefix": "/projects/myapp/"
@@ -125,6 +135,7 @@ Query memories with flexible filtering.
 ```
 
 **By domain:**
+
 ```json
 {
   "domain": "concept"
@@ -132,6 +143,7 @@ Query memories with flexible filtering.
 ```
 
 **Semantic search:**
+
 ```json
 {
   "query": "database connection pooling",
@@ -140,6 +152,7 @@ Query memories with flexible filtering.
 ```
 
 **Combined:**
+
 ```json
 {
   "keyPrefix": "/projects/myapp/architecture/",
@@ -149,12 +162,14 @@ Query memories with flexible filtering.
 ```
 
 **Time travel (RETR-004):**
+
 ```json
 {
   "keyPrefix": "/projects/myapp/",
   "asOf": "2026-08-10"
 }
 ```
+
 Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state.
 
 **Returns:**
@@ -299,6 +314,7 @@ Compact old memory partitions to reduce repository size. Converts JSONL to Parqu
 **Examples:**
 
 **Preview what would be compacted:**
+
 ```json
 {
   "dryRun": true
@@ -306,6 +322,7 @@ Compact old memory partitions to reduce repository size. Converts JSONL to Parqu
 ```
 
 **Compact one partition with history rewrite:**
+
 ```json
 {
   "partition": "concept/time/2025-01",
@@ -459,7 +476,7 @@ Switch the active (default) namespace.
 
 ```typescript
 {
-  name: string;         // Namespace name to switch to
+  name: string; // Namespace name to switch to
 }
 ```
 
@@ -484,8 +501,8 @@ Delete a namespace. Requires explicit confirmation. The `default` namespace and 
 
 ```typescript
 {
-  name: string;         // Namespace name to delete
-  confirm: boolean;     // Must be true to confirm deletion (required)
+  name: string; // Namespace name to delete
+  confirm: boolean; // Must be true to confirm deletion (required)
 }
 ```
 
@@ -557,7 +574,10 @@ Check whether the DuckBrain HTTP server is listening. Reports TCP port and/or Un
   "socketListening": true,
   "pid": 4719,
   "pidFile": "/tmp/duckbrain-http-3000.pid",
-  "endpoints": ["http://127.0.0.1:3000/mcp", "unix:/tmp/duckbrain.sock -> POST /mcp"]
+  "endpoints": [
+    "http://127.0.0.1:3000/mcp",
+    "unix:/tmp/duckbrain.sock -> POST /mcp"
+  ]
 }
 ```
 
@@ -616,6 +636,104 @@ Start the DuckBrain HTTP server as a detached background process if it is not al
 
 ---
 
+### `list_profiles`
+
+Inspect available connection profiles and the active selection for this
+connection. Profiles are tool-visibility presets (see
+[Connection Profiles](../guide/connection-profiles.md) for the full model).
+
+**Parameters:** none (empty object).
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  profiles: Array<{
+    name: string;
+    owner: string;
+    description?: string;
+    directives: Array<{ tool: string; visibility: "hidden" | "exclusive" | "default" }>;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  builtInTools: string[];          // every built-in tool name
+  registeredCustomTools: string[]; // custom tools registered on THIS server (when present)
+  activeSelection: string[] | undefined;
+  note: string;                    // the visibility-not-authorization contract
+}
+```
+
+---
+
+### `create_profile`
+
+Create a named profile of tool-visibility directives. Any connection may
+create profiles — profiles do not control authorization, so creation
+requires no privilege. Creates never overwrite: use `update_profile`.
+
+**Parameters:**
+
+```typescript
+{
+  name: string;          // unique profile name
+  owner: string;         // owner label (only the owner can update later)
+  description?: string;  // human-readable purpose
+  directives: Array<{ tool: string; visibility: "hidden" | "exclusive" | "default" }>;
+}
+```
+
+**Returns:** `{ success, profile, preview, note }` where `preview` shows
+`visibleTools`, `hiddenTools`, and `unknownProfiles` as they would apply to
+the new profile alone.
+
+---
+
+### `update_profile`
+
+Update a profile you own — a FULL replacement of its directives (not a
+merge). Overwriting another owner's profile is refused: profiles are
+per-agent connection state, and one agent must not mutate another's.
+
+**Parameters:**
+
+```typescript
+{
+  name: string;          // profile to update
+  owner: string;         // must match the stored owner
+  description?: string;
+  directives: Array<{ tool: string; visibility: "hidden" | "exclusive" | "default" }>;
+}
+```
+
+**Returns:** `{ success, profile, preview, note }` or
+`{ success: false, error }` (missing profile / foreign owner).
+
+---
+
+### `select_profiles`
+
+Activate one or more profiles for THIS connection/session. Selection is
+session state: it filters `tools/list` for this connection only and never
+touches another connection's state. Never grants or restricts authority.
+
+**Parameters:**
+
+```typescript
+{
+  profiles: string[];    // profile names; empty array clears the selection
+}
+```
+
+**Returns:** `{ success, selected, scope: "connection", preview, note }`.
+
+Over MCP-over-HTTP, a client can also pass the selection per request with
+the `X-DuckBrain-Profiles` header (comma-separated profile names), which
+takes precedence over the connection slot for that single request — see
+[Connection Profiles](../guide/connection-profiles.md).
+
+---
+
 ## Memory Key Conventions
 
 Use consistent hierarchical keys for better organization:
@@ -642,14 +760,14 @@ Use consistent hierarchical keys for better organization:
 
 The `domain` field is an enum with six values:
 
-| Domain | Use For |
-|--------|---------|
-| `person` | People, contacts, team members |
-| `event` | Meetings, incidents, milestones |
-| `concept` | Ideas, architecture, design decisions |
-| `message` | Communication records, notes from conversations |
-| `config` | Configuration values and settings |
-| `raw_note` | Unstructured notes and observations |
+| Domain     | Use For                                         |
+| ---------- | ----------------------------------------------- |
+| `person`   | People, contacts, team members                  |
+| `event`    | Meetings, incidents, milestones                 |
+| `concept`  | Ideas, architecture, design decisions           |
+| `message`  | Communication records, notes from conversations |
+| `config`   | Configuration values and settings               |
+| `raw_note` | Unstructured notes and observations             |
 
 ## Error Handling
 
