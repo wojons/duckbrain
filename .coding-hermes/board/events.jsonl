@@ -935,3 +935,4 @@
 {"id": 8120, "timestamp": "2026-10-11T01:01:45Z", "event_type": "task_created", "task_id": "DOC-15", "actor": "foreman", "detail": "{\"id\":\"DOC-15\",\"status\":\"pending\"}", "tick_number": null}
 {"id": 8121, "timestamp": "2026-10-11T01:04:39Z", "event_type": "task_created", "task_id": "DOC-16", "actor": "foreman", "detail": "{\"id\":\"DOC-16\",\"status\":\"pending\"}", "tick_number": null}
 {"id": 8122, "timestamp": "2026-10-11T01:05:42Z", "event_type": "task_created", "task_id": "DOC-17", "actor": "foreman", "detail": "{\"id\":\"DOC-17\",\"status\":\"pending\"}", "tick_number": null}
+{"event_type":"dispatch_failed","task_id":"MCP-CONNECTION-PROFILES-001","tick_id":"2026-10-11-04-51-08","reason":"worker glm-5.3-flash/zai-glm-default ran 6min with zero file output — model not producing code","worktree":"/home/kara/worktrees/duckbrain-MCP-CONNECTION-PROFILES-001","branch":"wt/MCP-CONNECTION-PROFILES-001","timestamp":"2026-10-11T04:51:08Z"}
