@@ -942,3 +942,4 @@
 {"ts": "2026-10-11T09:37:01Z", "task_id": "MCP-CUSTOM-RUNTIME-001", "type": "closed", "actor": "duckbrain-foreman", "note": "wave-merged + gitreins judged + pushed bf4edc1d"}
 {"ts": "2026-10-11T09:37:01Z", "task_id": "MCP-CONNECTION-PROFILES-001", "type": "closed", "actor": "duckbrain-foreman", "note": "wave-merged + gitreins judged + pushed f1c79931"}
 {"ts": "2026-10-11T09:44:49Z", "task_id": "INT-FLAKE-RETR-AFTERSALL", "type": "filed", "actor": "duckbrain-foreman", "note": "two occurrences this tick; evidence in .gitreins verdict 070fd6be tier1"}
+{"id": 8125, "timestamp": "2026-10-11T22:08:08Z", "event_type": "task_completed", "task_id": "INT-FLAKE-RETR-AFTERSALL", "actor": "foreman", "detail": "{\"status\":\"complete\"}"}
