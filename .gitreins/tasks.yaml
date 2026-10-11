@@ -2635,3 +2635,12 @@ tasks:
   status: complete
   created_at: '2026-10-11T09:16:52.386282+00:00'
   completed_at: '2026-10-11T09:26:48.192211+00:00'
+- id: INT-FLAKE-RETR-AFTERSALL
+  title: Fix flaky RETR HTTP afterAll repo-config snapshot race
+  criteria:
+  - 'Make RETR-011 and RETR-003 HTTP route tests deterministic under the full Vitest
+    suite: concurrent namespace/config writes must not cause afterAll snapshot assertions
+    to fail; targeted tests and TypeScript checks pass.'
+  status: complete
+  created_at: '2026-10-11T21:36:18.011545+00:00'
+  completed_at: '2026-10-11T22:04:19.369082+00:00'
