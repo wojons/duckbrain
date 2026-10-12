@@ -120,9 +120,9 @@ pnpm run dev
 
 These were needed to stand the repo up on a bare Debian 13 host (fresh-host leg, 2026-09-17) — a normal `pnpm install` + `pnpm start` does not require them.
 
-### Global git identity (required by the git-backed memory store)
+### Git identity (optional for the store — needed for authorship and history)
 
-Each namespace is its own git repo and DuckBrain auto-commits after every write; the mainline test fixtures assume a global git identity exists:
+Each namespace is its own git repo and DuckBrain auto-commits after every write. The git identity chain (repo-local `user.name`/`user.email` → global → the `DUCKBRAIN_GIT_AUTHOR_NAME` / `DUCKBRAIN_GIT_AUTHOR_EMAIL` env pair) is what stamps memory authorship and the commits, and DuckBrain refuses to invent an identity (GIT-IDENTITY-001) — so a host with nothing configured fails **unauthenticated** (`--auth=none`) writes with an actionable setup error, and skips the namespace git commits (best-effort: the JSONL record is durable either way). A **keyed** daemon (`--auth=apikey`, the default) stamps the API key's name (`<key-name>@duckbrain.local`) instead, so it writes fine with no git identity at all. The mainline test fixtures assume an identity exists.
 
 ```bash
 git config --global user.name  "Your Name"
