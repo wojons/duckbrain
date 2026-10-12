@@ -6,41 +6,60 @@
   "base_sha": "4d329b9c70243b47c69f35979fd855a15c20129d",
   "wave_budget": 10,
   "wave_size": 2,
-  "budget_math": "WAVE_BUDGET=10 ceiling; eligible independent rows after premise audit = 2 (DF-0925-08, QA-DUCKBRAIN-009 — disjoint file sets, no depends_on). RELEASE-CUT-001 / ROLLOUT-DUCKBRAIN-001 / REVIEW-DUCKBRAIN-005 are owner-gated decisions; DF-0923-05 file-overlaps README.md with DF-0925-08 (not wave-eligible); MUSTER-002 filed foreman-direct (board-only). Skill caps wave at 3 and sizes to wall-clock — 2 workers + 2 post-merge judges + merged-tree gates fill this tick.",
+  "budget_math": "WAVE_BUDGET=10 ceiling; eligible independent rows after premise audit = 2 (DF-0925-08, QA-DUCKBRAIN-009 \u2014 disjoint file sets, no depends_on). RELEASE-CUT-001 / ROLLOUT-DUCKBRAIN-001 / REVIEW-DUCKBRAIN-005 are owner-gated decisions; DF-0923-05 file-overlaps README.md with DF-0925-08 (not wave-eligible); MUSTER-002 filed foreman-direct (board-only). Skill caps wave at 3 and sizes to wall-clock \u2014 2 workers + 2 post-merge judges + merged-tree gates fill this tick.",
   "created_at": "2026-10-12T19:25:00Z",
-  "status": "dispatching",
+  "status": "closed",
   "workers": [
     {
       "task_id": "DF-0925-08",
       "worktree": "/home/kara/worktrees/duckbrain-DF-0925-08",
       "branch": "wt/DF-0925-08",
       "base_sha": "4d329b9c70243b47c69f35979fd855a15c20129d",
-      "files_scope": ["README.md", "docs/s3-native.md", "skills/duckbrain-usage/SKILL.md", "src/s3/cli.ts", "src/s3/*.test.ts"],
+      "files_scope": [
+        "README.md",
+        "docs/s3-native.md",
+        "skills/duckbrain-usage/SKILL.md",
+        "src/s3/cli.ts",
+        "src/s3/*.test.ts"
+      ],
       "model": "deepseek-v4-flash",
       "provider": "deepseek",
       "brief": "/tmp/brief-DF-0925-08.txt",
-      "status": "pending",
-      "commit": null,
-      "merge_commit": null,
-      "verdict": null,
-      "result": null
+      "status": "landed",
+      "commit": "3b7e1181 (rebased onto b2b78754)",
+      "merge_commit": "fd19f4f0",
+      "verdict": "97cab0ca PASS (tier1 PASS + tier2 PASS COMPLETE)",
+      "result": "closed on board; acceptance a+b+c verified by foreman probes (grep 1/2/2, union test 8/8, identity premise refuted and corrected to measured matrix)"
     },
     {
       "task_id": "QA-DUCKBRAIN-009",
       "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-009",
       "branch": "wt/QA-DUCKBRAIN-009",
       "base_sha": "458bb1c1 (zero-commit branch; ff to 4d329b9c at dispatch; untracked partial work .qa/chaos-probes/shutdown.sh + src/qa/chaos-shutdown-probe.test.ts preserved)",
-      "files_scope": [".qa/chaos-probes/shutdown.sh", "src/qa/chaos-shutdown-probe.test.ts"],
+      "files_scope": [
+        ".qa/chaos-probes/shutdown.sh",
+        "src/qa/chaos-shutdown-probe.test.ts"
+      ],
       "model": "deepseek-v4-flash",
       "provider": "deepseek",
       "brief": "/tmp/brief-QA-DUCKBRAIN-009.txt",
-      "status": "pending",
-      "commit": null,
-      "merge_commit": null,
-      "verdict": null,
-      "result": null
+      "status": "landed",
+      "commit": "c063daa0 (rebased onto b2b78754)",
+      "merge_commit": "ec2e05db",
+      "verdict": "e6c4c44e PASS (tier1 PASS; tier2 SKIPPED after wedge recovery)",
+      "result": "closed on board; probe 6/6 + red-proof + normalize-order/no-down-v verified by foreman; live compose deliberately not run on controller host"
     }
   ],
-  "merge_order": ["DF-0925-08", "QA-DUCKBRAIN-009"],
-  "notes": "Merge serially with merged-tree gates (vitest + tsc + prettier + integration). GitReins tasks created in the MAIN checkout (task complete runs post-merge there). Workers never push; push is foreman-only post-merge. Orphan branches wt/SCHED-GAP-1574 and docs/duckbrain-background-workflows (no board rows) are retained as evidence this tick — disposition deferred."
+  "merge_order": [
+    "DF-0925-08",
+    "QA-DUCKBRAIN-009"
+  ],
+  "notes": "Merge serially with merged-tree gates (vitest + tsc + prettier + integration). GitReins tasks created in the MAIN checkout (task complete runs post-merge there). Workers never push; push is foreman-only post-merge. Orphan branches wt/SCHED-GAP-1574 and docs/duckbrain-background-workflows (no board rows) are retained as evidence this tick \u2014 disposition deferred.",
+  "finished_at": "2026-10-12T21:35:00Z",
+  "recovery_notes": [
+    "QA tier2 judge WEDGED (tick-588 class: group-reaped poll shell (sleep 29; cat /tmp/full2.log; pgrep) with 36-byte stub log, under fleet load) \u2014 killed by exact PID (503498 poll shell, 4129530 judge), recovered with gitreins judge QA-DUCKBRAIN-009 --skip-tier2 -> verdict e6c4c44e PASS. tasks.yaml status had already been flipped by the killed complete call; no re-flip needed.",
+    "Merged-tree full battery surfaced 2 pre-existing gate reds NOT caused by the wave (attribution proven by worktree/baseline contrast): tests/http-e2e.int.test.ts 404-vs-SPA env-dependent conflict (filed+fixed same tick: INT-CI-029, commit 1d4f4a24) and prettier drift 45 files at baseline (filed: STYLE-002; the wave's own 3 touched files prettier-cleaned in-tick).",
+    "Wave branches were rebased onto main tip before merge per the staleness rule (they carried only my board-only pre-dispatch commit as delta); merged-tree gates re-ran after each merge (unit 220/1823 then 220/1829 + tsc clean; integration suite 75/76 -> 76/76 after the INT-CI-029 fix on the single file).",
+    "Orphan branches wt/SCHED-GAP-1574 and docs/duckbrain-background-workflows (no board rows, 6 days old, 1 commit each, not contained in main) retained as evidence; disposition deferred."
+  ]
 }

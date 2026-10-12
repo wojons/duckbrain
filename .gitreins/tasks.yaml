@@ -2672,3 +2672,25 @@ tasks:
   status: complete
   created_at: '2026-10-12T01:23:54.059192+00:00'
   completed_at: '2026-10-12T01:30:43.659647+00:00'
+- id: DF-0925-08
+  title: 'S3 surface gaps: document s3daily wiring for new namespaces, correct README
+    git-identity claim, union-list s3 status'
+  criteria:
+  - s3daily remote-add one-time command documented in README.md + docs/s3-native.md
+    + skills/duckbrain-usage; README fresh-host git-identity claim corrected; s3 status
+    enumerates on-disk namespaces unioned with config registrations with a covering
+    test; pnpm tsc --noEmit clean; full vitest suite green
+  status: complete
+  created_at: '2026-10-12T19:13:02.969776+00:00'
+  completed_at: '2026-10-12T19:44:18.215256+00:00'
+- id: QA-DUCKBRAIN-009
+  title: 'chaos-shutdown cell fix: project-owned .qa/chaos-probes/shutdown.sh normalizes
+    compose state before the shutdown cycle'
+  criteria:
+  - shutdown probe normalizes prior compose state (down before fresh up, never -v)
+    and exercises stop/start/kill/recovery with assert_running/assert_stopped checks;
+    rc contract 0/1/2/124 honored; vitest fake-docker test passes; bash -n clean;
+    full suite green; tsc clean
+  status: complete
+  created_at: '2026-10-12T19:13:03.543828+00:00'
+  completed_at: '2026-10-12T19:56:19.127395+00:00'

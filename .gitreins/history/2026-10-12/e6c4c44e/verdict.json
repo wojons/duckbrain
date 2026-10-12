@@ -1,0 +1,75 @@
+{
+  "task_id": "QA-DUCKBRAIN-009",
+  "task_title": "chaos-shutdown cell fix: project-owned .qa/chaos-probes/shutdown.sh normalizes compose state before the shutdown cycle",
+  "task_criteria": [
+    "shutdown probe normalizes prior compose state (down before fresh up, never -v) and exercises stop/start/kill/recovery with assert_running/assert_stopped checks; rc contract 0/1/2/124 honored; vitest fake-docker test passes; bash -n clean; full suite green; tsc clean"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "ec2e05db91a115c1c0bd89d492541b207ffcc937",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:22PM INF scanned ~42069827 bytes (42.07 MB) in 3.88s\n3:22PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1050990 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T104147.594962Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  221 passed (221)\n      Tests  1829 passed (1829)\n   Start at  15:21:57\n   Duration  146.56s (tests 78%, import 18%, transform 2%, setup 1%)\n\n    Isolate  221 workers spawned \u00b7 ~206ms startup each (spawn + environment, per file)\n             at least ~11.16s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T104147.594962Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-009\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-12T20:24:24.586882",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T20:24:24.611832+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 647,
+        "truncated": false,
+        "source": "git show ec2e05db91a1"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 28082,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-009"
+  }
+}

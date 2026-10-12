@@ -1,0 +1,14 @@
+commit ec2e05db91a115c1c0bd89d492541b207ffcc937
+Merge: fd19f4f0 c063daa0
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Oct 12 14:33:18 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Oct 12 14:33:18 2026 -0500
+
+    Merge wt/QA-DUCKBRAIN-009: project-owned chaos-shutdown probe (QA-DUCKBRAIN-009)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ .qa/chaos-probes/shutdown.sh        | 204 ++++++++++++++++++++++++++++++++
+ src/qa/chaos-shutdown-probe.test.ts | 228 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 432 insertions(+)

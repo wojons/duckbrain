@@ -1,0 +1,370 @@
+diff --git a/.coding-hermes/board/tasks.jsonl b/.coding-hermes/board/tasks.jsonl
+index 2194f10f..cd8d71fb 100644
+--- a/.coding-hermes/board/tasks.jsonl
++++ b/.coding-hermes/board/tasks.jsonl
+@@ -354,3 +354,5 @@
+ {"title": "P4 \u2014 Add the repository-local traceability doctrine", "status": "complete", "priority": "P4", "complexity": 1, "reasoning": "Type: missing-reference / repository governance. Policy severity: P4 by the 2026-09-30 doc-severity ruling; this is documentation coverage, not an emergency. Reader: developer, operator, integrator, and foreman/auditor. Source/marker evidence: repository-local doctrine path is absent; exact command `test -f docs/traceability-doctrine.md || printf 'MISSING docs/traceability-doctrine.md\\\\n'` produced `MISSING docs/traceability-doctrine.md`. Exact recursive scan command `grep -RIn --exclude-dir=.git --exclude-dir=node_modules --exclude='*.db' --exclude='*.jsonl' 'traceability-doctrine\\\\|ch:trace' docs README.md AGENTS.md 2>/dev/null | sed -n '1,80p'` found only four existing marker lines at docs/dogfood/2026-10-03-asof-integration.md:117-120 and no doctrine file. Audit artifact: /home/kara/.hermes/stand-in/docs/duckbrain/audit-rerun-2026-10-11.md. Artifact: docs/traceability-doctrine.md. Acceptance: add the repository-local doctrine defining marker fields, evidence/witness rules, commit/verdict binding, and close-out footer; rerun the recursive marker scan and validate every marker against the new contract. ch:trace row=DOC-17 spec=none:target-repo-has-no-traceability-doctrine wave=duckbrain-docs-2026-10-11-00-23-08#surface test=/home/kara/.hermes/stand-in/docs/duckbrain/traceability-presence.sh::repository-doctrine-scan doc=docs/traceability-doctrine.md prompt=~/.hermes/skills/coding-hermes-traceability/SKILL.md evidence=/home/kara/.hermes/stand-in/docs/duckbrain/audit-rerun-2026-10-11.md witness=none:repository-doctrine-file-absent verdict=none:no-independent-judgement commit=none:no-code-change memory=none", "detail": {"fingerprint": "5499147b1a88882a205cd31995cbcf914db876d9f6478ba8584b05d3363eac99"}, "id": "DOC-17", "created_at": "2026-10-11 01:05:42", "updated_at": "2026-10-11 01:05:42", "worker_status": "complete", "completed_at": "2026-10-12T00:05:00Z", "commit_hash": null, "files_changed": [], "lines_added": 0, "lines_removed": 0, "guard_result": null, "ci_result": null, "foreman_note": null, "capability_tags": ["docs", "traceability"], "depends_on": [], "worker_summary": "Foreman-direct docs-only fix (P4 complexity 1, Exception 2/3 docs precedent). docs/traceability-doctrine.md created: 161 lines defining ch:trace marker system, evidence floor tiers (T0-T3), GitReins verdict binding, close-out footer format, and five-link traceability chain. grep -RIn 'traceability-doctrine|ch:trace' docs README.md AGENTS.md succeeds (all markers verified). Judge PASS 049f779b (tier1 PASS). Commit 094e7cf2 pushed, 0 unpushed.", "verdict": "049f779b-tier1", "resolution": "foreman-direct; criteria met"}
+ {"id": "INT-FLAKE-RETR-AFTERSALL", "title": "Flaky afterAll repo-config snapshot race in RETR http route tests", "status": "complete", "priority": "P2", "created_at": "2026-10-11T09:44:49Z", "updated_at": "2026-10-11T22:08:08Z", "reasoning": "Seen twice on 2026-10-11 (RETR-011 and RETR-003): afterAll `expect(readRepoConfig()).toBe(configBefore)` fails when a parallel vitest worker's namespace-dir creation lands between snapshot and assert (auger-pytest-* keys differ). Passes in isolation and in 2 of 4 full-suite runs. Fix: scope the config snapshot to the test's own partition keys or serialize against namespace-mutating suites.", "commit_hash": "fefb6487", "guard_result": "PASS", "ci_result": "GREEN", "worker_summary": "Two RETR HTTP test files now snapshot the per-worker DUCKBRAIN_CONFIG_PATH; focused pair 5x 15/15, full suite 219/1815, tsc clean.", "foreman_note": "Worker commit fefb6487 pushed. GitReins task complete marked the task complete, but the Tier-2 evaluator remained running and produced no verdict artifact; record Tier-2 as unavailable, not PASS. ch:trace row=INT-FLAKE-RETR-AFTERSALL spec=none wave=none test=src/http/routes/memories-validuntil-retr011.test.ts+src/http/routes/memories-timerange-retr003.test.ts doc=none prompt=/tmp/duckbrain-INT-FLAKE-RETR-AFTERSALL-brief.md evidence=gh:run-38177936987+worker-log witness=live:origin/main-fefb6487 verdict=none:tier2-evaluator-unavailable commit=fefb6487 memory=/project/duckbrain/foreman/tick-2026-10-11-21-33-53"}
+ {"id": "MUSTER-002", "title": "Precondition for the muster connection surface (MUSTER-001 successor): the namespace OpenAPI spec does NOT cover the memory endpoints, and the muster proxy has no credential injection \u2014 fix the spec coverage first, then integrate", "priority": "P3", "status": "pending", "created_at": "2026-10-12T19:20:00Z", "created_by": "foreman", "complexity": 3, "type": "task", "description": "MUSTER-001 worker refusal (2026-10-07) was correct: its premise was flawed. Verified findings from that dispatch: (1) the OpenAPI spec served at /api/ns/:ns/openapi.json (createNamespaceOpenApiRoutes, src/cli/http.ts) does NOT cover the memory endpoints (POST /api/memories, GET /api/memories, GET /api/memories/key/*key) \u2014 a spec-driven generator (openapi-cli/openapi-mcp) therefore produces nothing useful over the memory surface; (2) muster's openapi-daemon unix-socket proxy lacks credential injection, so the MUSTER-001 acceptance criterion 'no client needs the API key or the HTTP base URL directly' is not achievable as written. Corrected-premise successor: STEP 1 (this row) extend/repair the published namespace OpenAPI spec so it covers the memory surface end to end and is validated against the live routes (spec-vs-route conformance test). STEP 2 (separate row, after STEP 1): point muster at the corrected spec for the generated CLI/MCP/proxy surfaces, additive-only as the owner directed, with credential-injection handled explicitly (either a small sidecar that injects x-api-key, or a documented acceptance that clients authenticate through the proxy config). Owner directive still stands (2026-09-24): additional connection surface, additive, never replacing HTTP/MCP.", "acceptance_criteria": ["The served namespace OpenAPI spec documents POST /api/memories, GET /api/memories and GET /api/memories/key/*key with request/response shapes matching the live routes (conformance test asserts route-vs-spec parity, not just that the file parses).", "openapi-cli generate over the corrected spec produces typed commands covering the memory surface (the MUSTER-001 criterion re-tested against the fixed spec).", "Existing HTTP/MCP surfaces unchanged (additive rule): full suite green, no new required dependency."], "source": "MUSTER-001 worker refusal + foreman reconciliation 2026-10-12 (tick duckbrain-foreman-2026-10-12-19-00-31)", "reasoning": "Filed per the MUSTER-001 worker_summary instruction ('File new row with corrected premise'). MUSTER-001 stays failed-as-recorded; this row carries the corrected premise so the owner directive is not lost. Premise evidence: worker pass 2026-10-07 read the served spec and the muster proxy source at /home/kara/muster.", "ch_trace": "ch:trace row=MUSTER-002 spec=src/cli/http.ts#createNamespaceOpenApiRoutes test=none:not-yet doc=none:none evidence=MUSTER-001-worker-refusal-2026-10-07 witness=none:premise-filed-not-yet-executed verdict=none:not-started commit=none:none memory=none"}
++{"id": "INT-CI-029", "title": "Integration gate red: tests/http-e2e.int.test.ts 'should reject unknown routes with 404' fails whenever packages/ui/dist exists (SPA fallback serves 200) \u2014 env-dependent test-vs-feature conflict from DF-0924-08", "priority": "P2", "status": "pending", "created_at": "2026-10-12T19:55:00Z", "created_by": "foreman", "complexity": 1, "type": "task", "description": "Found by wave W1's merged-tree battery (tick duckbrain-foreman-2026-10-12-19-00-31): full integration config 1 failed / 75 passed; the failure is tests/http-e2e.int.test.ts:115 'should reject unknown routes with 404' (AssertionError: expected 200 to be 404 on GET /nonexistent). ENV-DEPENDENT, proven by contrast at the same code: passes 13/13 in a git worktree (no packages/ui/dist), fails in the main tree where packages/ui/dist is built \u2014 the DF-0924-08 SPA fallback (express.static + named-wildcard fallback, src/cli/http.ts) intentionally serves index.html with 200 for unknown non-API GETs so client-side deep links work ('SPA deep link 200' was an acceptance criterion of DF-0924-08). CI never catches it because CI does not build packages/ui before tests (same env-split class as INT-CI-023/DB-GAP-64). CONFLICT: the test predates the static mount and asserts the old behavior for ALL unknown routes; the feature says unknown API routes 404 while unknown app paths fall through to the SPA. Fix direction (one file, tests/http-e2e.int.test.ts): scope the 404 assertion to unknown API routes (/api/nonexistent -> 404) and assert the app-path behavior explicitly (200 index.html when dist present, UI_NOT_BUILT/404 JSON when not) instead of assuming a bare 404.", "acceptance_criteria": ["tests/http-e2e.int.test.ts passes in a tree WITH packages/ui/dist built (the main-tree case) and without (worktree case) \u2014 the assertions no longer depend on dist presence.", "Unknown API routes still assert 404 (the API contract DF-0924-08 preserved).", "Full integration config green locally with dist present."], "source": "wave W1 merged-tree battery 2026-10-12 (battery log /tmp/battery-2026-10-12.log)", "reasoning": "Filed so the red gate does not rot; not caused by wave W1 (attribution: DF-0925-08 and QA-DUCKBRAIN-009 diffs touch src/s3, docs and .qa/ only; the failing assertion is the SPA fallback from 2026-10-08).", "ch_trace": "ch:trace row=INT-CI-029 spec=none:none test=tests/http-e2e.int.test.ts evidence=/tmp/battery-2026-10-12.log+worktree-13of13-contrast witness=live:main-tree-red-with-dist+worktree-green-without-dist verdict=none:not-started commit=none:none memory=none"}
++{"id": "STYLE-002", "title": "P3 \u2014 Prettier drift recurrence + growth: 45 files now fail `npx prettier --check src/` (STYLE-001 fixed the 9-file DOGFOOD-era set; the drift came back and grew)", "priority": "P3", "status": "pending", "created_at": "2026-10-12T19:57:00Z", "created_by": "foreman", "complexity": 1, "type": "task", "description": "Wave W1's merged-tree battery (2026-10-12) ran the full battery composition including `npx prettier --check src/` and it reported 'Code style issues found in 47 files'. Attribution: 45 of them fail already at the pre-wave baseline (measured in a worktree at b2b78754: 45 files, including src/testing/orphan-daemon-reaper.ts, src/testing/race-safe-daemon.ts, src/test/red-proof-gate.test.ts and others); the remaining 2 were wave W1's new test files and were fixed in-tick (prettier --write on src/s3/cli-status-union-df092508.test.ts + src/qa/chaos-shutdown-probe.test.ts + the DF-0925-08 edit's drift in src/s3/cli.ts \u2014 all three now prettier-clean). STYLE-001 (complete) is the class owner for the original 9 DOGFOOD-era files; this row is the recurrence/growth, not a duplicate: the drift is now 5x that set and likely re-introduced by unformatted worker commits since (possibly aided by a formatter version change around DEPS-DUCKBRAIN-2026-10-04 \u2014 verify the prettier version pin before mass-reformatting: a version-drift reformat of unchanged files is churn, and the fleet has a named pitfall for it).", "acceptance_criteria": ["`npx prettier --check src/` exits 0 on the repo, either by formatting the drifted files or by pinning/aligning the prettier version to the one the existing style was written against (state which was done).", "The battery composition's prettier leg is green again so future full batteries stop tripping it.", "STYLE-001 cross-referenced so the class stays single-owner."], "source": "wave W1 merged-tree battery 2026-10-12 (/tmp/battery-2026-10-12.log)", "reasoning": "Filed because the full-battery prettier leg is a named gate in the project's battery composition and it is currently red on baseline files \u2014 a work tick's green unit suite hides it unless the full battery runs.", "ch_trace": "ch:trace row=STYLE-002 spec=none:none test=none:none doc=none:none evidence=/tmp/battery-2026-10-12.log witness=live:prettier-check-45-files-at-baseline-b2b78754 verdict=none:not-started commit=none:none memory=none"}
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 24916292..6f4c0f33 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2672,3 +2672,24 @@ tasks:
+   status: complete
+   created_at: '2026-10-12T01:23:54.059192+00:00'
+   completed_at: '2026-10-12T01:30:43.659647+00:00'
++- id: DF-0925-08
++  title: 'S3 surface gaps: document s3daily wiring for new namespaces, correct README
++    git-identity claim, union-list s3 status'
++  criteria:
++  - s3daily remote-add one-time command documented in README.md + docs/s3-native.md
++    + skills/duckbrain-usage; README fresh-host git-identity claim corrected; s3 status
++    enumerates on-disk namespaces unioned with config registrations with a covering
++    test; pnpm tsc --noEmit clean; full vitest suite green
++  status: complete
++  created_at: '2026-10-12T19:13:02.969776+00:00'
++  completed_at: '2026-10-12T19:44:18.215256+00:00'
++- id: QA-DUCKBRAIN-009
++  title: 'chaos-shutdown cell fix: project-owned .qa/chaos-probes/shutdown.sh normalizes
++    compose state before the shutdown cycle'
++  criteria:
++  - shutdown probe normalizes prior compose state (down before fresh up, never -v)
++    and exercises stop/start/kill/recovery with assert_running/assert_stopped checks;
++    rc contract 0/1/2/124 honored; vitest fake-docker test passes; bash -n clean;
++    full suite green; tsc clean
++  status: in_progress
++  created_at: '2026-10-12T19:13:03.543828+00:00'
+diff --git a/src/qa/chaos-shutdown-probe.test.ts b/src/qa/chaos-shutdown-probe.test.ts
+index 9bfac75f..c8d32069 100644
+--- a/src/qa/chaos-shutdown-probe.test.ts
++++ b/src/qa/chaos-shutdown-probe.test.ts
+@@ -1,10 +1,18 @@
+-import { spawnSync } from 'node:child_process';
+-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+-import { tmpdir } from 'node:os';
+-import { join } from 'node:path';
+-import { describe, expect, it } from 'vitest';
+-
+-const probePath = join(process.cwd(), '.qa/chaos-probes/shutdown.sh');
++import { spawnSync } from "node:child_process";
++import {
++  chmodSync,
++  existsSync,
++  mkdirSync,
++  mkdtempSync,
++  readFileSync,
++  statSync,
++  writeFileSync,
++} from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { describe, expect, it } from "vitest";
++
++const probePath = join(process.cwd(), ".qa/chaos-probes/shutdown.sh");
+ 
+ /**
+  * QA-DUCKBRAIN-009 — the battery's chaos-shutdown cell failed on the SECOND
+@@ -82,7 +90,8 @@ esac
+ const LIFECYCLE_VERB = /^compose (up|down|stop|start|kill)(\s|$)/;
+ const VOLUME_REMOVAL = /(^|\s)(-v|--volumes)(\s|$)/;
+ 
+-const lifecycleVerbs = (calls: string[]): string[] => calls.filter((call) => LIFECYCLE_VERB.test(call));
++const lifecycleVerbs = (calls: string[]): string[] =>
++  calls.filter((call) => LIFECYCLE_VERB.test(call));
+ 
+ interface Sandbox {
+   statePath: string;
+@@ -91,50 +100,51 @@ interface Sandbox {
+ }
+ 
+ function makeSandbox(): Sandbox {
+-  const sandbox = mkdtempSync(join(tmpdir(), 'duckbrain-shutdown-probe-'));
+-  const binPath = join(sandbox, 'bin');
++  const sandbox = mkdtempSync(join(tmpdir(), "duckbrain-shutdown-probe-"));
++  const binPath = join(sandbox, "bin");
+   mkdirSync(binPath, { recursive: true });
+-  const dockerPath = join(binPath, 'docker');
++  const dockerPath = join(binPath, "docker");
+   writeFileSync(dockerPath, FAKE_DOCKER, { mode: 0o755 });
+   chmodSync(dockerPath, 0o755);
+-  const callsPath = join(sandbox, 'calls');
+-  const statePath = join(sandbox, 'state');
++  const callsPath = join(sandbox, "calls");
++  const statePath = join(sandbox, "state");
+   return {
+     statePath,
+     env: (extra: Record<string, string> = {}) => ({
+       ...process.env,
+-      PATH: `${binPath}:${process.env.PATH ?? ''}`,
++      PATH: `${binPath}:${process.env.PATH ?? ""}`,
+       CALLS_PATH: callsPath,
+       STATE_PATH: statePath,
+       ...extra,
+     }),
+     calls: () =>
+       existsSync(callsPath)
+-        ? readFileSync(callsPath, 'utf8')
+-            .trim()
+-            .split('\n')
+-            .filter(Boolean)
++        ? readFileSync(callsPath, "utf8").trim().split("\n").filter(Boolean)
+         : [],
+   };
+ }
+ 
+ function runProbe(env: NodeJS.ProcessEnv): { status: number; stdout: string } {
+-  const result = spawnSync('bash', [probePath], { cwd: process.cwd(), env, encoding: 'utf8' });
+-  return { status: result.status ?? -1, stdout: String(result.stdout ?? '') };
++  const result = spawnSync("bash", [probePath], {
++    cwd: process.cwd(),
++    env,
++    encoding: "utf8",
++  });
++  return { status: result.status ?? -1, stdout: String(result.stdout ?? "") };
+ }
+ 
+-describe('chaos-shutdown probe (.qa/chaos-probes/shutdown.sh)', () => {
+-  it('is committed executable and its bash syntax parses', () => {
++describe("chaos-shutdown probe (.qa/chaos-probes/shutdown.sh)", () => {
++  it("is committed executable and its bash syntax parses", () => {
+     expect(statSync(probePath).mode & 0o111).toBeGreaterThan(0);
+-    const syntax = spawnSync('bash', ['-n', probePath], { encoding: 'utf8' });
++    const syntax = spawnSync("bash", ["-n", probePath], { encoding: "utf8" });
+     expect(syntax.status).toBe(0);
+   });
+ 
+-  it('normalizes before the first up, keeps the data volume, and state-verifies every leg', () => {
++  it("normalizes before the first up, keeps the data volume, and state-verifies every leg", () => {
+     const box = makeSandbox();
+     const { status, stdout } = runProbe(box.env());
+     expect(status).toBe(0);
+-    expect(stdout).toContain('SHUTDOWN_PROBE=OK');
++    expect(stdout).toContain("SHUTDOWN_PROBE=OK");
+ 
+     const calls = box.calls();
+     const verbs = lifecycleVerbs(calls);
+@@ -145,84 +155,89 @@ describe('chaos-shutdown probe (.qa/chaos-probes/shutdown.sh)', () => {
+     //     stop -> start -> kill -> start -> down -> up (the row's second up) ->
+     //     down, plus the EXIT-trap teardown.
+     expect(verbs).toEqual([
+-      'compose down --remove-orphans',
+-      'compose up -d',
+-      'compose stop',
+-      'compose start',
+-      'compose kill',
+-      'compose start',
+-      'compose down --remove-orphans',
+-      'compose up -d',
+-      'compose down --remove-orphans',
+-      'compose down --remove-orphans',
++      "compose down --remove-orphans",
++      "compose up -d",
++      "compose stop",
++      "compose start",
++      "compose kill",
++      "compose start",
++      "compose down --remove-orphans",
++      "compose up -d",
++      "compose down --remove-orphans",
++      "compose down --remove-orphans",
+     ]);
+-    expect(verbs.indexOf('compose up -d')).toBeGreaterThan(verbs.indexOf('compose down --remove-orphans'));
++    expect(verbs.indexOf("compose up -d")).toBeGreaterThan(
++      verbs.indexOf("compose down --remove-orphans"),
++    );
+ 
+     // (ii) the named data volume (duckbrain-data) must survive every leg.
+     expect(calls.filter((call) => VOLUME_REMOVAL.test(call))).toEqual([]);
+ 
+     // (iii) plain `up -d` only: the deploy leg builds, this probe must not.
+-    expect(calls.filter((call) => call.startsWith('compose up'))).toEqual(['compose up -d', 'compose up -d']);
++    expect(calls.filter((call) => call.startsWith("compose up"))).toEqual([
++      "compose up -d",
++      "compose up -d",
++    ]);
+ 
+     // every stop/kill leg is state-verified, not trusted from verb rc
+-    expect(stdout).toContain('SIGTERM_STOP=verified');
+-    expect(stdout).toContain('RESTART=verified');
+-    expect(stdout).toContain('SIGKILL_STOP=verified');
+-    expect(stdout).toContain('KILL_RECOVER=verified');
+-    expect(stdout).toContain('DOWN=verified');
++    expect(stdout).toContain("SIGTERM_STOP=verified");
++    expect(stdout).toContain("RESTART=verified");
++    expect(stdout).toContain("SIGKILL_STOP=verified");
++    expect(stdout).toContain("KILL_RECOVER=verified");
++    expect(stdout).toContain("DOWN=verified");
+ 
+     // the image preflight was consulted (auto-build would blow the budget)
+-    expect(calls).toContain('compose config --images');
+-    expect(calls).toContain('image inspect duckbrain:qa');
++    expect(calls).toContain("compose config --images");
++    expect(calls).toContain("image inspect duckbrain:qa");
+ 
+-    expect(readFileSync(box.statePath, 'utf8')).toBe('down');
++    expect(readFileSync(box.statePath, "utf8")).toBe("down");
+   });
+ 
+-  it('grades a container that survives stop as misbehavior (rc 1, not a hollow OK)', () => {
++  it("grades a container that survives stop as misbehavior (rc 1, not a hollow OK)", () => {
+     const box = makeSandbox();
+-    const { status, stdout } = runProbe(box.env({ FAKE_STUCK_STOP: '1' }));
++    const { status, stdout } = runProbe(box.env({ FAKE_STUCK_STOP: "1" }));
+     expect(status).toBe(1);
+-    expect(stdout).toContain('SIGTERM stop NOT verified');
++    expect(stdout).toContain("SIGTERM stop NOT verified");
+     // the chain aborted at the failed leg: no start/kill/second-up ran
+     expect(lifecycleVerbs(box.calls())).toEqual([
+-      'compose down --remove-orphans',
+-      'compose up -d',
+-      'compose stop',
+-      'compose down --remove-orphans',
++      "compose down --remove-orphans",
++      "compose up -d",
++      "compose stop",
++      "compose down --remove-orphans",
+     ]);
+   }, 30_000);
+ 
+-  it('exits 2 without running a compose lifecycle verb when the image is not built', () => {
++  it("exits 2 without running a compose lifecycle verb when the image is not built", () => {
+     const box = makeSandbox();
+-    const { status, stdout } = runProbe(box.env({ FAKE_IMAGE_MISSING: '1' }));
++    const { status, stdout } = runProbe(box.env({ FAKE_IMAGE_MISSING: "1" }));
+     expect(status).toBe(2);
+-    expect(stdout).toContain('environment gap');
+-    expect(stdout).toContain('compose images not built');
++    expect(stdout).toContain("environment gap");
++    expect(stdout).toContain("compose images not built");
+     // gates run BEFORE the trap is installed: an environment gap never touches
+     // the project (the safety property for hosts whose Docker context is not ours)
+     expect(lifecycleVerbs(box.calls())).toEqual([]);
+   });
+ 
+-  it('exits 2 when the compose plugin is unavailable', () => {
++  it("exits 2 when the compose plugin is unavailable", () => {
+     const box = makeSandbox();
+-    const { status, stdout } = runProbe(box.env({ FAKE_COMPOSE_MISSING: '1' }));
++    const { status, stdout } = runProbe(box.env({ FAKE_COMPOSE_MISSING: "1" }));
+     expect(status).toBe(2);
+-    expect(stdout).toContain('docker compose unavailable');
++    expect(stdout).toContain("docker compose unavailable");
+     expect(lifecycleVerbs(box.calls())).toEqual([]);
+   });
+ 
+-  it('attributes a foreign port collision to the environment, not to shutdown logic', () => {
++  it("attributes a foreign port collision to the environment, not to shutdown logic", () => {
+     const box = makeSandbox();
+-    const { status, stdout } = runProbe(box.env({ FAKE_PORT_COLLISION: '1' }));
++    const { status, stdout } = runProbe(box.env({ FAKE_PORT_COLLISION: "1" }));
+     expect(status).toBe(2);
+-    expect(stdout).toContain('environment gap');
+-    expect(stdout).toContain('port is already allocated');
++    expect(stdout).toContain("environment gap");
++    expect(stdout).toContain("port is already allocated");
+     // normalization ran, up collided on a foreign holder, the trap cleaned up —
+     // and no stop/start/kill was graded against the repo.
+     expect(lifecycleVerbs(box.calls())).toEqual([
+-      'compose down --remove-orphans',
+-      'compose up -d',
+-      'compose down --remove-orphans',
++      "compose down --remove-orphans",
++      "compose up -d",
++      "compose down --remove-orphans",
+     ]);
+   });
+ });
+diff --git a/src/s3/cli-status-union-df092508.test.ts b/src/s3/cli-status-union-df092508.test.ts
+index 77110e43..f59e8cd7 100644
+--- a/src/s3/cli-status-union-df092508.test.ts
++++ b/src/s3/cli-status-union-df092508.test.ts
+@@ -167,7 +167,9 @@ describe("DF-0925-08: s3 status lists the registry/census UNION", () => {
+ 
+     expect(lines).toContain("S3 config: ENABLED");
+     // The registry half is still served…
+-    expect(perNamespaceRows(lines).filter((r) => /^ {2}cfg-ns: /.test(r))).toHaveLength(1);
++    expect(
++      perNamespaceRows(lines).filter((r) => /^ {2}cfg-ns: /.test(r)),
++    ).toHaveLength(1);
+     // …and nothing was created on disk by a read-only status call.
+     expect(fs.existsSync(missing)).toBe(false);
+   });
+@@ -175,9 +177,12 @@ describe("DF-0925-08: s3 status lists the registry/census UNION", () => {
+ 
+ describe("DF-0925-08: unionNamespaceList (order + dedupe)", () => {
+   it("appends on-disk-only names after the config names, deduped", () => {
+-    expect(
+-      unionNamespaceList(["a", "b"], ["b", "c", "a", "d"]),
+-    ).toEqual(["a", "b", "c", "d"]);
++    expect(unionNamespaceList(["a", "b"], ["b", "c", "a", "d"])).toEqual([
++      "a",
++      "b",
++      "c",
++      "d",
++    ]);
+   });
+ 
+   it("returns the on-disk names when the registry is empty", () => {
+diff --git a/src/s3/cli.ts b/src/s3/cli.ts
+index 1d0891d1..090cb812 100644
+--- a/src/s3/cli.ts
++++ b/src/s3/cli.ts
+@@ -118,9 +118,7 @@ export async function s3Status(
+   // INSTEAD of the other). An explicit namespace argument still resolves to
+   // exactly that namespace.
+   const configNames = nsArg ? [nsArg] : Object.keys(cfg.namespaceMappings);
+-  const onDiskNames = nsArg
+-    ? []
+-    : [...censusOnDiskNamespaces(nsRoot).keys()];
++  const onDiskNames = nsArg ? [] : [...censusOnDiskNamespaces(nsRoot).keys()];
+   const resolved = unionNamespaceList(configNames, onDiskNames);
+   const registered = new Set(configNames);
+ 
+diff --git a/tests/http-e2e.int.test.ts b/tests/http-e2e.int.test.ts
+index 3bf5b308..28621744 100644
+--- a/tests/http-e2e.int.test.ts
++++ b/tests/http-e2e.int.test.ts
+@@ -11,6 +11,7 @@ import {
+   curl,
+   DAEMON_READY_TIMEOUT_MS,
+ } from "./helpers";
++import { resolveUiDistDir } from "../src/cli/http";
+ 
+ const port = getRandomPort();
+ let server: ChildProcess;
+@@ -110,11 +111,30 @@ describe("HTTP Server E2E Integration", () => {
+     expect(res.headers).toContain("/api/memories");
+   });
+ 
+-  it("should reject unknown routes with 404", async () => {
+-    const res = await curl(`http://127.0.0.1:${port}/nonexistent`);
++  // INT-CI-029: the 404 contract is API-scoped since DF-0924-08. Unknown
++  // /api/* routes must stay machine-readable 404s; unknown APP paths fall
++  // through to the SPA index (200) when the UI is built so client-side deep
++  // links work, and 404 when it is not. The pre-SPA test asserted 404 for
++  // every unknown route and only passed where packages/ui/dist happened to be
++  // absent (env-dependent red — CI never builds the UI before tests).
++  it("should reject unknown API routes with 404", async () => {
++    const res = await curl(`http://127.0.0.1:${port}/api/nonexistent`);
+     expect(res.status).toBe(404);
+   });
+ 
++  it("serves the SPA fallback for unknown app paths only when the UI is built (INT-CI-029)", async () => {
++    const uiBuilt = fs.existsSync(
++      path.join(resolveUiDistDir(), "index.html"),
++    );
++    const res = await curl(`http://127.0.0.1:${port}/nonexistent`);
++    if (uiBuilt) {
++      // SPA fallback answers the app shell for any non-API GET.
++      expect(res.status).toBe(200);
++    } else {
++      expect(res.status).toBe(404);
++    }
++  });
++
+   it("should bind to localhost only by default", async () => {
+     const localPort = getRandomPort();
+     // Deliberately NO authType: the point here is the default bind address,
