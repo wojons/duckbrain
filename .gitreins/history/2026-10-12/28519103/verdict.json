@@ -1,0 +1,103 @@
+{
+  "task_id": "DOC-15",
+  "task_title": "Document shipped config schema sections",
+  "task_criteria": [
+    "docs/guide/configuration.md documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys, types, defaults, runtime/persisted behavior, and API links; every key matches src/config/index.ts"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "1c25cbb9113ddfbba431527509808070b5344a19",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:42AM INF scanned ~42034126 bytes (42.03 MB) in 4.29s\n5:42AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1050295 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T104147.594962Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  219 passed (219)\n      Tests  1815 passed (1815)\n   Start at  05:42:14\n   Duration  56.18s (tests 79%, import 17%, transform 2%, worker 1%)\n\n    Isolate  219 workers spawned \u00b7 ~79ms startup each (spawn + environment, per file)\n             at least ~4.26s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T104147.594962Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/guide/configuration.md documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys, types, defaults, runtime/persisted behavior, and API links; every key matches src/config/index.ts: All four sections present and accurate. namespaces (docs L128-147): autoCreate boolean default true = schema index.ts:130-134. serialization (docs L149-162): maxPendingRows integer 10000, maxPendingBytes integer 33554432 (32 MiB) = schema index.ts:137-149; docs correctly note no env override. realtime (docs L164-189): enabled bool true, pollIntervalMs int 1000, heartbeatMs int 15000, maxSubscribers int 100, maxQueueEvents int 256, maxQueueBytes int 1048576, maxReplayEvents int 10000, maxReplayCommits int 10000, retentionDays number 7 \u2014 all match schema index.ts:159-194; env overrides DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS confirmed runtime-only at index.ts:666-694. ddl.inferenceCompat (docs L191-217): shippedAt string '2026-09-17T00:00:00.000Z', graceDays number 90, minMinorReleases int 2, minorReleasesShipped int>=0 0 \u2014 match schema index.ts:208-231; CONFIG_INVALID on unparseable shippedAt confirmed at inferenceCompat.ts:62-67. Runtime/persisted claims verified: updateConfig merges against readFileConfig not env-overridden (index.ts:746-767). Error codes verified: SERIALIZER_QUEUE_FULL+Retry-After:1 (namespaceWriter.ts:482,555; memories.ts:94), SUBSCRIBER_LIMIT 503 (cursor.ts:35), CHANGE_CURSOR_GONE 410 (cursor.ts:31), duckbrain.overflow.v1 (wire.ts:50), NAMESPACE_NOT_FOUND (remember.ts:295). API links resolve: docs/specs/SUPA-2-serialization.md, SUPA-5-realtime.md, SUPA-6-ddl.md exist; anchors #realtime-change-feed-supa-5 and #declared-tables-supa-3supa-6 match http-api.md L1125/L867; custom-tools.md exists. Tests: `npx vitest run src/config/` exit_code 0 \u2014 'Test Files 6 passed (6), Tests 37 passed (37)'. [resolution 0.28; docs/guide/configuration.md, src/config/index.ts]\ndocs/guide/configuration.md fully and accurately documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys/types/defaults/runtime-persisted behavior and working API links, all matching src/config/index.ts, with config tests passing.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/guide/configuration.md documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys, types, defaults, runtime/persisted behavior, and API links; every key matches src/config/index.ts: All four sections present and accurate. namespaces (docs L128-147): autoCreate boolean default true = schema index.ts:130-134. serialization (docs L149-162): maxPendingRows integer 10000, maxPendingBytes integer 33554432 (32 MiB) = schema index.ts:137-149; docs correctly note no env override. realtime (docs L164-189): enabled bool true, pollIntervalMs int 1000, heartbeatMs int 15000, maxSubscribers int 100, maxQueueEvents int 256, maxQueueBytes int 1048576, maxReplayEvents int 10000, maxReplayCommits int 10000, retentionDays number 7 \u2014 all match schema index.ts:159-194; env overrides DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS confirmed runtime-only at index.ts:666-694. ddl.inferenceCompat (docs L191-217): shippedAt string '2026-09-17T00:00:00.000Z', graceDays number 90, minMinorReleases int 2, minorReleasesShipped int>=0 0 \u2014 match schema index.ts:208-231; CONFIG_INVALID on unparseable shippedAt confirmed at inferenceCompat.ts:62-67. Runtime/persisted claims verified: updateConfig merges against readFileConfig not env-overridden (index.ts:746-767). Error codes verified: SERIALIZER_QUEUE_FULL+Retry-After:1 (namespaceWriter.ts:482,555; memories.ts:94), SUBSCRIBER_LIMIT 503 (cursor.ts:35), CHANGE_CURSOR_GONE 410 (cursor.ts:31), duckbrain.overflow.v1 (wire.ts:50), NAMESPACE_NOT_FOUND (remember.ts:295). API links resolve: docs/specs/SUPA-2-serialization.md, SUPA-5-realtime.md, SUPA-6-ddl.md exist; anchors #realtime-change-feed-supa-5 and #declared-tables-supa-3supa-6 match http-api.md L1125/L867; custom-tools.md exists. Tests: `npx vitest run src/config/` exit_code 0 \u2014 'Test Files 6 passed (6), Tests 37 passed (37)'. [resolution 0.28; docs/guide/configuration.md, src/config/index.ts]\ndocs/guide/configuration.md fully and accurately documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys/types/defaults/runtime-persisted behavior and working API links, all matching src/config/index.ts, with config tests passing.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/guide/configuration.md documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys, types, defaults, runtime/persisted behavior, and API links; every key matches src/config/index.ts",
+                "status": "PASS",
+                "detail": "All four sections present and accurate. namespaces (docs L128-147): autoCreate boolean default true = schema index.ts:130-134. serialization (docs L149-162): maxPendingRows integer 10000, maxPendingBytes integer 33554432 (32 MiB) = schema index.ts:137-149; docs correctly note no env override. realtime (docs L164-189): enabled bool true, pollIntervalMs int 1000, heartbeatMs int 15000, maxSubscribers int 100, maxQueueEvents int 256, maxQueueBytes int 1048576, maxReplayEvents int 10000, maxReplayCommits int 10000, retentionDays number 7 \u2014 all match schema index.ts:159-194; env overrides DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS confirmed runtime-only at index.ts:666-694. ddl.inferenceCompat (docs L191-217): shippedAt string '2026-09-17T00:00:00.000Z', graceDays number 90, minMinorReleases int 2, minorReleasesShipped int>=0 0 \u2014 match schema index.ts:208-231; CONFIG_INVALID on unparseable shippedAt confirmed at inferenceCompat.ts:62-67. Runtime/persisted claims verified: updateConfig merges against readFileConfig not env-overridden (index.ts:746-767). Error codes verified: SERIALIZER_QUEUE_FULL+Retry-After:1 (namespaceWriter.ts:482,555; memories.ts:94), SUBSCRIBER_LIMIT 503 (cursor.ts:35), CHANGE_CURSOR_GONE 410 (cursor.ts:31), duckbrain.overflow.v1 (wire.ts:50), NAMESPACE_NOT_FOUND (remember.ts:295). API links resolve: docs/specs/SUPA-2-serialization.md, SUPA-5-realtime.md, SUPA-6-ddl.md exist; anchors #realtime-change-feed-supa-5 and #declared-tables-supa-3supa-6 match http-api.md L1125/L867; custom-tools.md exists. Tests: `npx vitest run src/config/` exit_code 0 \u2014 'Test Files 6 passed (6), Tests 37 passed (37)'. [resolution 0.28; docs/guide/configuration.md, src/config/index.ts]",
+                "resolution_probability": 0.28,
+                "cited_path": "docs/guide/configuration.md, src/config/index.ts"
+              }
+            ],
+            "summary": "docs/guide/configuration.md fully and accurately documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys/types/defaults/runtime-persisted behavior and working API links, all matching src/config/index.ts, with config tests passing."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-15\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/guide/configuration.md documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys, types, defaults, runtime/persisted behavior, and API links; every key matches src/config/index.ts: All four sections present and accurate. namespaces (docs L128-147): autoCreate boolean default true = schema index.ts:130-134. serialization (docs L149-162): maxPendingRows integer 10000, maxPendingBytes integer 33554432 (32 MiB) = schema index.ts:137-149; docs correctly note no env override. realtime (docs L164-189): enabled bool true, pollIntervalMs int 1000, heartbeatMs int 15000, maxSubscribers int 100, maxQueueEvents int 256, maxQueueBytes int 1048576, maxReplayEvents int 10000, maxReplayCommits int 10000, retentionDays number 7 \u2014 all match schema index.ts:159-194; env overrides DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS confirmed runtime-only at index.ts:666-694. ddl.inferenceCompat (docs L191-217): shippedAt string '2026-09-17T00:00:00.000Z', graceDays number 90, minMinorReleases int 2, minorReleasesShipped int>=0 0 \u2014 match schema index.ts:208-231; CONFIG_INVALID on unparseable shippedAt confirmed at inferenceCompat.ts:62-67. Runtime/persisted claims verified: updateConfig merges against readFileConfig not env-overridden (index.ts:746-767). Error codes verified: SERIALIZER_QUEUE_FULL+Retry-After:1 (namespaceWriter.ts:482,555; memories.ts:94), SUBSCRIBER_LIMIT 503 (cursor.ts:35), CHANGE_CURSOR_GONE 410 (cursor.ts:31), duckbrain.overflow.v1 (wire.ts:50), NAMESPACE_NOT_FOUND (remember.ts:295). API links resolve: docs/specs/SUPA-2-serialization.md, SUPA-5-realtime.md, SUPA-6-ddl.md exist; anchors #realtime-change-feed-supa-5 and #declared-tables-supa-3supa-6 match http-api.md L1125/L867; custom-tools.md exists. Tests: `npx vitest run src/config/` exit_code 0 \u2014 'Test Files 6 passed (6), Tests 37 passed (37)'. [resolution 0.28; docs/guide/configuration.md, src/config/index.ts]\ndocs/guide/configuration.md fully and accurately documents namespaces, serialization, realtime, and ddl.inferenceCompat with keys/types/defaults/runtime-persisted behavior and working API links, all matching src/config/index.ts, with config tests passing.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-12T10:44:09.895389",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T10:44:09.913626+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 13576,
+        "truncated": false,
+        "source": "git show 1c25cbb9113d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 717,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-15"
+  }
+}
