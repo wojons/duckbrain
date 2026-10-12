@@ -495,9 +495,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
   // a row stored with a null pk is unreachable via PATCH/DELETE (?pk=eq.<v>).
 
   it("400s a POST omitting the declared primary key (AUG-045)", async () => {
-    const before = (
-      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
-    ).body.length;
+    const before = (await httpRequest(createApp(), "GET", `${BASE}/widgets`))
+      .body.length;
     const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
       body: { name: "pk-less", qty: 1, tags: null },
     });
@@ -506,9 +505,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     expect(res.body.error).toContain("'id'");
     expect(res.body.error).toContain("'widgets'");
     // Zero rows inserted.
-    const after = (
-      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
-    ).body.length;
+    const after = (await httpRequest(createApp(), "GET", `${BASE}/widgets`))
+      .body.length;
     expect(after).toBe(before);
   });
 
@@ -539,9 +537,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
   });
 
   it("rejects a batch where one row lacks the pk and inserts NONE of it (AUG-045)", async () => {
-    const before = (
-      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
-    ).body.length;
+    const before = (await httpRequest(createApp(), "GET", `${BASE}/widgets`))
+      .body.length;
     const res = await httpRequest(createApp(), "POST", `${BASE}/widgets`, {
       body: [
         { id: 41, name: "good", qty: 1, tags: null },
@@ -556,9 +553,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
       `${BASE}/widgets?id=eq.41`,
     );
     expect(read.body).toHaveLength(0);
-    const after = (
-      await httpRequest(createApp(), "GET", `${BASE}/widgets`)
-    ).body.length;
+    const after = (await httpRequest(createApp(), "GET", `${BASE}/widgets`))
+      .body.length;
     expect(after).toBe(before);
   });
 
@@ -693,6 +689,8 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.1.0");
     expect(Object.keys(res.body.paths).sort()).toEqual([
+      "/api/memories",
+      "/api/memories/key/{key}",
       `/api/ns/${FIXTURE_NS}/tables/lane_scores`,
       `/api/ns/${FIXTURE_NS}/tables/widgets`,
     ]);
@@ -704,6 +702,96 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     expect(widgets.post).toBeDefined();
     expect(widgets.patch).toBeDefined();
     expect(widgets.delete).toBeDefined();
+
+    const memoryList = res.body.paths["/api/memories"].get;
+    expect(memoryList.parameters.map((p: any) => p.name)).toEqual(
+      expect.arrayContaining([
+        "prefix",
+        "domain",
+        "q",
+        "contains",
+        "limit",
+        "offset",
+        "namespace",
+        "attr.<name>",
+      ]),
+    );
+    expect(
+      memoryList.parameters.find((p: any) => p.name === "limit").schema,
+    ).toEqual({
+      type: "integer",
+      minimum: 0,
+      maximum: 1000,
+      default: 50,
+    });
+    expect(
+      memoryList.responses["200"].content["application/json"].schema,
+    ).toEqual({ $ref: "#/components/schemas/MemoryListResponse" });
+
+    const memoryCreate = res.body.paths["/api/memories"].post;
+    expect(memoryCreate.parameters).toEqual([
+      expect.objectContaining({ name: "namespace", in: "query" }),
+    ]);
+    expect(memoryCreate.requestBody.required).toBe(true);
+    expect(
+      memoryCreate.requestBody.content["application/json"].schema.required,
+    ).toEqual(["key", "domain", "content"]);
+    expect(
+      Object.keys(
+        memoryCreate.requestBody.content["application/json"].schema.properties,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "key",
+        "domain",
+        "content",
+        "attributes",
+        "valid_from",
+        "valid_until",
+        "validFrom",
+        "validUntil",
+        "namespace",
+      ]),
+    );
+    expect(
+      memoryCreate.responses["201"].content["application/json"].schema,
+    ).toEqual({ $ref: "#/components/schemas/MemoryResponse" });
+
+    const memoryByKey = res.body.paths["/api/memories/key/{key}"].get;
+    expect(memoryByKey.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "key", in: "path", required: true }),
+        expect.objectContaining({ name: "namespace", in: "query" }),
+      ]),
+    );
+    expect(
+      memoryByKey.responses["200"].content["application/json"].schema,
+    ).toEqual({ $ref: "#/components/schemas/MemoryResponse" });
+    expect(res.body.components.schemas.MemoryResponse.required).toEqual(
+      expect.arrayContaining([
+        "id",
+        "key",
+        "domain",
+        "content",
+        "attributes",
+        "timestamp",
+        "author",
+        "isTombstone",
+        "action",
+      ]),
+    );
+    expect(res.body.components.schemas.MemoryListResponse.required).toEqual(
+      expect.arrayContaining([
+        "items",
+        "total",
+        "offset",
+        "limit",
+        "hasMore",
+        "nextOffset",
+        "count",
+        "memories",
+      ]),
+    );
   });
 
   it("403s a restricted token without a namespace grant (mirror of memories-auth)", async () => {

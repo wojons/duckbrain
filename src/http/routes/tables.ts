@@ -302,6 +302,143 @@ function tablePathItem(declaration: TableDeclaration): Record<string, unknown> {
   };
 }
 
+const memoryResponseSchema = {
+  type: "object",
+  required: [
+    "id",
+    "key",
+    "domain",
+    "content",
+    "attributes",
+    "timestamp",
+    "author",
+    "isTombstone",
+    "action",
+  ],
+  properties: {
+    id: { type: "string", format: "uuid" },
+    key: { type: "string", pattern: "^/" },
+    domain: {
+      type: "string",
+      enum: ["person", "event", "concept", "message", "config", "raw_note"],
+    },
+    content: { type: "string" },
+    attributes: { type: "object", additionalProperties: true },
+    timestamp: { type: "string", format: "date-time" },
+    valid_from: { type: "string", format: "date-time" },
+    valid_until: { type: "string", format: "date-time" },
+    author: { type: "string", format: "email" },
+    isTombstone: { type: "boolean" },
+    action: { type: "string", enum: ["add", "update", "tombstone"] },
+    score: { type: "number" },
+    snippet: { type: "string" },
+    highlightedSnippet: { type: "string" },
+    namespace: { type: "string" },
+    namespace_autocreated: { type: "boolean", const: true },
+  },
+};
+
+const memoryRequestSchema = {
+  type: "object",
+  required: ["key", "domain", "content"],
+  properties: {
+    key: { type: "string", pattern: "^/" },
+    domain: {
+      type: "string",
+      enum: ["person", "event", "concept", "message", "config", "raw_note"],
+    },
+    content: { type: "string" },
+    attributes: { type: "object", additionalProperties: true },
+    valid_from: { type: "string", format: "date-time" },
+    valid_until: { type: "string", format: "date-time" },
+    validFrom: { type: "string", format: "date-time" },
+    validUntil: { type: "string", format: "date-time" },
+    namespace: { type: "string" },
+  },
+};
+
+const apiErrorSchema = {
+  type: "object",
+  required: ["error"],
+  properties: {
+    error: { type: "string" },
+    code: { type: "string" },
+    fields: { type: "object", additionalProperties: { type: "string" } },
+  },
+};
+
+const memoryNamespaceParameter = {
+  name: "namespace",
+  in: "query",
+  required: false,
+  description:
+    "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+  schema: { type: "string" },
+};
+
+const memoryListParameters = [
+  { name: "prefix", in: "query", schema: { type: "string" } },
+  {
+    name: "domain",
+    in: "query",
+    schema: {
+      type: "string",
+      enum: ["person", "event", "concept", "message", "config", "raw_note"],
+    },
+  },
+  { name: "author", in: "query", schema: { type: "string" } },
+  { name: "q", in: "query", schema: { type: "string" } },
+  { name: "contains", in: "query", schema: { type: "string" } },
+  {
+    name: "allNamespaces",
+    in: "query",
+    schema: { type: "boolean", default: false },
+  },
+  {
+    name: "after",
+    in: "query",
+    schema: { type: "string", format: "date-time" },
+  },
+  {
+    name: "before",
+    in: "query",
+    schema: { type: "string", format: "date-time" },
+  },
+  { name: "between", in: "query", schema: { type: "string" } },
+  { name: "as_of", in: "query", schema: { type: "string" } },
+  {
+    name: "historical",
+    in: "query",
+    schema: { type: "boolean", default: false },
+  },
+  {
+    name: "limit",
+    in: "query",
+    schema: { type: "integer", minimum: 0, maximum: 1000, default: 50 },
+  },
+  {
+    name: "offset",
+    in: "query",
+    schema: { type: "integer", minimum: 0, default: 0 },
+  },
+  {
+    name: "attr.<name>",
+    in: "query",
+    description: "Attribute filter; replace <name> with the attribute name.",
+    schema: { type: "string" },
+  },
+  memoryNamespaceParameter,
+];
+
+function memoryErrorResponse(description: string) {
+  return {
+    description,
+    content: {
+      "application/json": { schema: { $ref: "#/components/schemas/ApiError" } },
+    },
+  };
+}
+
 function generateOpenApi(ns: string): Record<string, unknown> {
   const tables = listTables(ns);
   const paths: Record<string, unknown> = {};
@@ -309,16 +446,142 @@ function generateOpenApi(ns: string): Record<string, unknown> {
     paths[`/api/ns/${ns}/tables/${declaration.name}`] =
       tablePathItem(declaration);
   }
+
+  // These are the existing global memory routes. They intentionally keep
+  // their namespace query/body semantics; the namespace in this document
+  // scopes the declared table paths above and does not rewrite memory calls.
+  paths["/api/memories"] = {
+    get: {
+      operationId: "listMemories",
+      summary: "List memories",
+      description:
+        "Query memories. Namespace selection remains the existing optional namespace query parameter.",
+      parameters: memoryListParameters,
+      responses: {
+        "200": {
+          description: "A paginated memory list.",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/MemoryListResponse" },
+            },
+          },
+        },
+        "400": memoryErrorResponse("Invalid query parameters."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "503": memoryErrorResponse("Semantic search is unavailable."),
+        "500": memoryErrorResponse("The memory query failed."),
+      },
+    },
+    post: {
+      operationId: "createMemory",
+      summary: "Create a memory",
+      description:
+        "Create a memory. The namespace query parameter takes precedence over the optional body namespace field.",
+      parameters: [memoryNamespaceParameter],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": { schema: memoryRequestSchema },
+        },
+      },
+      responses: {
+        "201": {
+          description: "The created memory.",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+          },
+        },
+        "400": memoryErrorResponse("The request body is invalid."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "404": memoryErrorResponse("The target namespace does not exist."),
+        "500": memoryErrorResponse("The memory could not be created."),
+      },
+    },
+  };
+  paths["/api/memories/key/{key}"] = {
+    get: {
+      operationId: "getMemoryByKey",
+      summary: "Get the latest memory by key",
+      parameters: [
+        {
+          name: "key",
+          in: "path",
+          required: true,
+          description:
+            "Filesystem-style memory key without the leading slash; slash-separated segments are accepted.",
+          schema: { type: "string" },
+        },
+        memoryNamespaceParameter,
+      ],
+      responses: {
+        "200": {
+          description: "The latest non-tombstoned memory for the key.",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+          },
+        },
+        "404": memoryErrorResponse("No memory exists for the key."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "500": memoryErrorResponse("The memory lookup failed."),
+      },
+    },
+  };
+
   return {
     openapi: "3.1.0",
     info: {
       title: `DuckBrain tables — namespace '${ns}'`,
       version: "1.0.0",
       description:
-        "Generated from the declared table registry (namespaces/<ns>/tables/*.table.json). PostgREST-style filters/order/paging on every table.",
+        "Generated from the declared table registry (namespaces/<ns>/tables/*.table.json). PostgREST-style filters/order/paging on every table. This namespace document also describes the global memory routes; those routes retain their existing namespace query/body behavior.",
     },
     paths,
-    components: {},
+    components: {
+      schemas: {
+        MemoryResponse: memoryResponseSchema,
+        MemoryRequest: memoryRequestSchema,
+        MemoryListResponse: {
+          type: "object",
+          required: [
+            "items",
+            "total",
+            "offset",
+            "limit",
+            "hasMore",
+            "nextOffset",
+            "count",
+            "memories",
+          ],
+          properties: {
+            items: {
+              type: "array",
+              items: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+            total: { type: "integer", minimum: 0 },
+            offset: { type: "integer", minimum: 0 },
+            limit: { type: "integer", minimum: 0 },
+            hasMore: { type: "boolean" },
+            nextOffset: { type: ["integer", "null"], minimum: 0 },
+            count: { type: "integer", minimum: 0 },
+            memories: {
+              type: "array",
+              items: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+          },
+        },
+        ApiError: apiErrorSchema,
+      },
+    },
   };
 }
 
@@ -478,11 +741,7 @@ function createTableRoutes(): Router {
       if (declaration.primary) {
         for (const row of coerced) {
           const pkValue = row[declaration.primary];
-          if (
-            pkValue === undefined ||
-            pkValue === null ||
-            pkValue === ""
-          ) {
+          if (pkValue === undefined || pkValue === null || pkValue === "") {
             throw new ApiError(
               `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
               400,
