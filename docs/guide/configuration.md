@@ -1,6 +1,6 @@
 # Configuration Reference
 
-DuckBrain can be configured through environment variables and a JSON configuration file. Environment variables take precedence over the config file.
+DuckBrain can be configured through environment variables and a JSON configuration file. Environment variables take precedence only for settings whose source code implements an override; all other settings are taken from the JSON file or their schema defaults.
 
 ## Environment Variables
 
@@ -8,6 +8,7 @@ DuckBrain can be configured through environment variables and a JSON configurati
 |----------|---------|-------------|
 | `DUCKBRAIN_HOME` | — | **Not implemented.** No code reads this variable (no non-test read in `src/`, `bin/`, `packages/` or `scripts/`); the DuckBrain home directory is derived from `DUCKBRAIN_CONFIG_PATH` / `DUCKBRAIN_HOME_ROOT` / the install layout (`resolveDuckbrainRoot`, `src/config/index.ts`) |
 | `DUCKBRAIN_NAMESPACE` | `default` | Active namespace for operations — the per-process isolation knob an agent sets so one DuckBrain instance serves one namespace per agent. Runtime override of the config file's `defaultNamespace` (read at `src/config/index.ts` — `applyEnvOverrides`, DF-0926-04); a blank/whitespace value is treated as unset. Never persisted: `updateConfig` merges against the file config (GAP-007), so an env-pinned agent cannot rewrite a shared `duckbrain.config.json`. Precedence: explicit parameter (MCP arg / CLI `--namespace` / HTTP `?namespace=`) > this env var > config `defaultNamespace` > `"default"` |
+| `DUCKBRAIN_NAMESPACES_AUTOCREATE` | `true` | Runtime-only override of `namespaces.autoCreate`. Accepts only the exact strings `true` or `false`; any other non-empty value fails config loading. It is never written to `duckbrain.config.json`. Set `false` to reject writes to a namespace that does not already exist; unset preserves the JSON value or the `true` schema default. |
 | `DUCKBRAIN_HOME_ROOT` | — | Explicit install-root override for the DuckBrain home directory (read at `src/config/index.ts`). Set when the derived install root cannot be resolved (e.g. non-standard layouts) |
 | `DUCKBRAIN_DURABILITY_MODE` | — | Runtime override of the namespace durability write mode (SUPA-1). A malformed value fails config load through the schema enum — never a silent fallback to buffered, because a silently-buffered namespace means acked writes are not durable. Never persisted into `duckbrain.config.json`. Precedence: `durability.overrides[ns]` > this env var > config default |
 | `DUCKBRAIN_NAMESPACES_PATH` | `./namespaces` | Directory containing namespace repositories. Env-only, never persisted into `duckbrain.config.json` (BUG-037) |
@@ -54,6 +55,32 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
     "maxLinesPerChunk": 1000,
     "maxBytesPerChunk": 1048576
   },
+  "namespaces": {
+    "autoCreate": true
+  },
+  "serialization": {
+    "maxPendingRows": 10000,
+    "maxPendingBytes": 33554432
+  },
+  "realtime": {
+    "enabled": true,
+    "pollIntervalMs": 1000,
+    "heartbeatMs": 15000,
+    "maxSubscribers": 100,
+    "maxQueueEvents": 256,
+    "maxQueueBytes": 1048576,
+    "maxReplayEvents": 10000,
+    "maxReplayCommits": 10000,
+    "retentionDays": 7
+  },
+  "ddl": {
+    "inferenceCompat": {
+      "shippedAt": "2026-09-17T00:00:00.000Z",
+      "graceDays": 90,
+      "minMinorReleases": 2,
+      "minorReleasesShipped": 0
+    }
+  },
   "squash": {
     "maxAgeDays": 30,
     "thresholdRecords": 1000,
@@ -74,6 +101,10 @@ DuckBrain reads configuration from `duckbrain.config.json` in the current direct
 | `namespacesPath` | string | `"./namespaces"` | Path to the directory containing namespace subdirectories |
 | `gitBatching` | object | (see below) | Git commit batching settings |
 | `storage` | object | (see below) | Storage chunk settings |
+| `namespaces` | object | `{ "autoCreate": true }` | Namespace-creation policy for writes |
+| `serialization` | object | (see below) | Per-namespace pending-write queue bounds |
+| `realtime` | object | (see below) | Committed change-feed (SSE) settings |
+| `ddl` | object | (see below) | Bounded declaration-inference compatibility settings |
 | `squash` | object | (see below) | Compaction and squash settings |
 | `namespaceMappings` | object | `{}` | Alias-to-path mappings for namespaces |
 
@@ -93,6 +124,97 @@ Controls how the CLI worker batches git commits. Note: MCP tools always commit s
 |-------|------|---------|-------------|
 | `maxLinesPerChunk` | number | `1000` | Maximum lines per JSONL chunk file |
 | `maxBytesPerChunk` | number | `1048576` | Maximum bytes per JSONL chunk file (1 MB) |
+
+### namespaces Settings
+
+`namespaces.autoCreate` controls only **writes** to a namespace that does not
+yet exist. Reads (`recall`, search, and `list_keys`) never create namespaces.
+Omitting this block applies the schema default shown below.
+
+| Field | Type | Default | Validation | Configuration and runtime behavior |
+|-------|------|---------|------------|------------------------------------|
+| `autoCreate` | boolean | `true` | Must be a boolean | Applied from `duckbrain.config.json` and persisted there when configuration is written. With `true`, a write to a missing namespace creates its directory and initializes its repository; the write reports/logs that auto-creation occurred. With `false`, the same write is rejected as `NAMESPACE_NOT_FOUND` and creates nothing. `DUCKBRAIN_NAMESPACES_AUTOCREATE` is the only override: it is runtime-only, accepts only `true` or `false`, and is never persisted. |
+
+Use strict mode when a misspelled namespace must fail rather than create an
+unexpected repository:
+
+```json
+{
+  "namespaces": {
+    "autoCreate": false
+  }
+}
+```
+
+### serialization Settings
+
+These bounds apply to each namespace's pending data-write queue. Both fields
+are read from `duckbrain.config.json` (and persisted there when configuration
+is written); there is no environment-variable override for this block. Omit the
+block to use both schema defaults.
+
+| Field | Type | Default | Validation | Configuration and runtime behavior |
+|-------|------|---------|------------|------------------------------------|
+| `maxPendingRows` | integer | `10000` | Positive integer | Config-file setting, not runtime-only. Limits queued data rows for one namespace. When the bound is reached, a new write is rejected with `SERIALIZER_QUEUE_FULL` and `Retry-After: 1`; it is neither written nor silently dropped. |
+| `maxPendingBytes` | integer | `33554432` (32 MiB) | Positive integer | Config-file setting, not runtime-only. Limits queued serialized data bytes for one namespace. Crossing this bound has the same `SERIALIZER_QUEUE_FULL` behavior and leaves the queue intact. |
+
+See the [serialization contract](../specs/SUPA-2-serialization) for the
+single-writer, ordering, audit, and overflow rules.
+
+### realtime Settings
+
+This block configures the committed, resumable SSE feed at
+`GET /api/ns/:ns/changes`. All fields are applied from
+`duckbrain.config.json` and persisted there when configuration is written.
+Omitting the block uses the schema defaults. Only the two timing fields have
+environment overrides; no other realtime field has one.
+
+| Field | Type | Default | Validation | Configuration and runtime behavior |
+|-------|------|---------|------------|------------------------------------|
+| `enabled` | boolean | `true` | Must be a boolean | Config-file setting, not runtime-only. Enables the realtime route; when `false`, the feed is unavailable. No environment override. |
+| `pollIntervalMs` | integer | `1000` | Positive integer | Config-file setting. Maximum interval between HEAD observations for a subscribed namespace, which bounds how long a new committed change can go unnoticed. `DUCKBRAIN_REALTIME_POLL_MS` can replace it for the current process only; the override must be a positive integer number of milliseconds and is never persisted. |
+| `heartbeatMs` | integer | `15000` | Positive integer | Config-file setting. Interval for idle `: heartbeat` SSE comments while a subscriber is keeping up. `DUCKBRAIN_REALTIME_HEARTBEAT_MS` can replace it for the current process only; the override must be a positive integer number of milliseconds and is never persisted. |
+| `maxSubscribers` | integer | `100` | Positive integer | Config-file setting, not runtime-only. Maximum concurrent subscribers per process; a new subscription over the cap receives `503 SUBSCRIBER_LIMIT`. No environment override. |
+| `maxQueueEvents` | integer | `256` | Positive integer | Config-file setting, not runtime-only. Per-subscriber queued-event bound. A slow subscriber over this bound receives `duckbrain.overflow.v1` and is disconnected; healthy subscribers continue. No environment override. |
+| `maxQueueBytes` | integer | `1048576` (1 MiB) | Positive integer | Config-file setting, not runtime-only. Per-subscriber queued-payload-byte bound, with the same isolated overflow event and disconnect behavior as `maxQueueEvents`. No environment override. |
+| `maxReplayEvents` | integer | `10000` | Positive integer | Config-file setting, not runtime-only. Maximum committed events replayed for one resume cursor. A cursor outside the replayable window requires a full resync (`410 CHANGE_CURSOR_GONE`). No environment override. |
+| `maxReplayCommits` | integer | `10000` | Positive integer | Config-file setting, not runtime-only. Maximum first-parent commits retained for cursor resolution. A cursor whose required commit is no longer retained requires a full resync (`410 CHANGE_CURSOR_GONE`). No environment override. |
+| `retentionDays` | number | `7` | Positive number | Config-file setting, not runtime-only. Maximum age in days for a cursor's commit. This is a positive number rather than an integer-only field. A cursor outside the retention window requires a full resync (`410 CHANGE_CURSOR_GONE`). No environment override. |
+
+The feed publishes only changes whose namespace git commit has completed; it
+does not expose pending writes. Clients must persist opaque cursors and tolerate
+at-least-once delivery. For subscription grammar, replay/resync procedure,
+overflow handling, and API errors, see the [Realtime Change Feed API
+reference](../api/http-api#realtime-change-feed-supa-5) and the [SUPA-5
+realtime specification](../specs/SUPA-5-realtime).
+
+### ddl.inferenceCompat Settings
+
+`ddl.inferenceCompat` is a temporary migration policy for schema inference. It
+does not enable generic per-query inference: generic declared-table reads and
+writes use declared types and headers. While the compatibility window is open,
+only create-time inference through DDL `inferFrom` remains available. All
+fields are applied from `duckbrain.config.json` and persisted there when
+configuration is written; there are no environment-variable overrides. Omit
+this block to use the schema defaults.
+
+| Field | Type | Default | Validation | Configuration and runtime behavior |
+|-------|------|---------|------------|------------------------------------|
+| `shippedAt` | string | `"2026-09-17T00:00:00.000Z"` | Schema accepts a string; runtime requires it to parse as a valid instant | Config-file setting, not runtime-only. Starts the compatibility clock. An unparseable value causes a runtime `CONFIG_INVALID` error when the inference window is resolved. No environment override. |
+| `graceDays` | number | `90` | Positive number | Config-file setting, not runtime-only. The time condition for closing the window is met only after this many days from `shippedAt`. No environment override. |
+| `minMinorReleases` | integer | `2` | Positive integer | Config-file setting, not runtime-only. The release-count condition for closing the window is met only after this many minor releases have shipped. No environment override. |
+| `minorReleasesShipped` | integer | `0` | Integer greater than or equal to `0` | Config-file setting, not runtime-only. Records progress toward the release-count condition. No environment override. |
+
+The window closes only when **both** conditions are true: the configured number
+of minor releases has shipped and the grace period has ended (two releases or
+90 days by default, whichever is later). Once it closes, generic inference is
+rejected with `409 SCHEMA_DECLARATION_REQUIRED`; it does not silently extend.
+While open, compatibility accesses are counted and warned once per
+namespace/file per process so operators can find undeclared data before the
+deadline. See [Declared Tables](../api/http-api#declared-tables-supa-3supa-6)
+and the [SUPA-6 declared DDL specification](../specs/SUPA-6-ddl).
+
+For the existing configurable custom behavior surface, see [Custom MCP Tools](../api/custom-tools).
 
 ### squash Settings
 
