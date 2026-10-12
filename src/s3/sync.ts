@@ -374,13 +374,10 @@ async function withDeadline<T>(
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => {
-        onTimeout(seconds);
-        reject(new Error(`sync deadline exceeded after ${seconds}s`));
-      },
-      seconds * 1000,
-    );
+    timer = setTimeout(() => {
+      onTimeout(seconds);
+      reject(new Error(`sync deadline exceeded after ${seconds}s`));
+    }, seconds * 1000);
   });
   try {
     return await Promise.race([p, deadline]);
@@ -424,9 +421,7 @@ export async function syncNamespace(
         ? pushNamespace(cfg, ns, namespacesPath)
         : pullNamespace(cfg, ns, namespacesPath);
     return await withDeadline(inner, deadlineS, (s) => {
-      console.warn(
-        `[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`,
-      );
+      console.warn(`[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`);
     });
   } finally {
     releaseLock(lock);

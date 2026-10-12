@@ -283,7 +283,9 @@ export async function runEmbeddingsCLI(args: string[]): Promise<void> {
       break;
     default:
       console.error(`Unknown embeddings action: ${opts.action}`);
-      console.error("Actions: rebuild | status | install-hooks | providers | migrate");
+      console.error(
+        "Actions: rebuild | status | install-hooks | providers | migrate",
+      );
       process.exitCode = 1;
   }
 }

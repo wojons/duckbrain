@@ -19,7 +19,9 @@ vi.mock("./client", async (importOriginal) => {
     ...actual,
     buildClient: () => ({}) as import("@aws-sdk/client-s3").S3Client,
     listRemoteObjects: async (_c: unknown, _b: string, prefix: string) =>
-      new Map([[prefix + "stub.jsonl", { key: prefix + "stub.jsonl", size: 3 }]]),
+      new Map([
+        [prefix + "stub.jsonl", { key: prefix + "stub.jsonl", size: 3 }],
+      ]),
     putObject: async (_c: unknown, _b: string, key: string): Promise<void> => {
       if (key.includes("/hung/")) {
         await new Promise<void>(() => {}); // never resolves — the hang
@@ -72,9 +74,7 @@ describe("namespaceDeadlineSeconds", () => {
 
 describe("syncAllNamespaces per-namespace deadline (S3-GIT-007)", () => {
   it("times out a hung namespace, skips it, completes the rest, and returns", async () => {
-    const warn = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     fs.mkdirSync(path.join(tmp, "namespaces", "good"), { recursive: true });
     fs.mkdirSync(path.join(tmp, "namespaces", "hung"), { recursive: true });
     fs.writeFileSync(path.join(tmp, "namespaces", "good", "a.jsonl"), "{}\n");
@@ -89,7 +89,9 @@ describe("syncAllNamespaces per-namespace deadline (S3-GIT-007)", () => {
     expect(stats[0].uploaded).toBe(1);
     const warnings = warn.mock.calls.map((c) => String(c[0]));
     expect(
-      warnings.some((s) => /sync hung timed out after 1s \(S3-GIT-007\)/.test(s)),
+      warnings.some((s) =>
+        /sync hung timed out after 1s \(S3-GIT-007\)/.test(s),
+      ),
     ).toBe(true);
     // the deadline rejection flows into the existing per-ns try/catch
     expect(

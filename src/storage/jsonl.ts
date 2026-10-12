@@ -221,7 +221,8 @@ export function resolveJsonlTargetPath(filePath: string, line: string): string {
   const lines = countLines(activePath);
 
   if (
-    stats.size + Buffer.byteLength(line + "\n", "utf-8") > MAX_BYTES_PER_CHUNK ||
+    stats.size + Buffer.byteLength(line + "\n", "utf-8") >
+      MAX_BYTES_PER_CHUNK ||
     lines >= MAX_LINES_PER_CHUNK
   ) {
     return path.join(dirPath, getNextChunkName(dirPath));

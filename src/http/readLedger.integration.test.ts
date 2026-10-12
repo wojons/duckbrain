@@ -20,11 +20,7 @@ import { createServer, Server } from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import {
-  READS_DIR,
-  READS_FILE,
-  flushReadLedgerForTests,
-} from "./readLedger";
+import { READS_DIR, READS_FILE, flushReadLedgerForTests } from "./readLedger";
 
 let server: Server;
 let port: number;
@@ -61,7 +57,11 @@ function httpRequest(
       });
       res.on("end", () => {
         try {
-          resolve({ status: res.statusCode, body: JSON.parse(data), text: data });
+          resolve({
+            status: res.statusCode,
+            body: JSON.parse(data),
+            text: data,
+          });
         } catch {
           resolve({ status: res.statusCode, body: data, text: data });
         }
@@ -177,7 +177,9 @@ describe("OBS-DUCKBRAIN-001: read ledger over the real HTTP app", () => {
     );
     expect(status).toBe(200);
     expect(body.total).toBe(2);
-    const route = body.routes.find((r: any) => r.route === "GET /api/memories/key/:key");
+    const route = body.routes.find(
+      (r: any) => r.route === "GET /api/memories/key/:key",
+    );
     expect(route.count).toBe(2);
     expect(route.statuses).toEqual({ "200": 1, "404": 1 });
 
@@ -252,16 +254,17 @@ describe("OBS-DUCKBRAIN-001: read ledger over the real HTTP app", () => {
         ],
       }),
     );
-    const { createHttpServer: createAuthedServer } = await import(
-      "../cli/http.js"
-    );
+    const { createHttpServer: createAuthedServer } =
+      await import("../cli/http.js");
     const authedApp = createAuthedServer({
       authType: "apikey",
       authFile,
       namespacesPath: scratchDir,
     });
     const authedServer = createServer(authedApp);
-    await new Promise<void>((resolve) => authedServer.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      authedServer.listen(0, "127.0.0.1", resolve),
+    );
     const authedPort = (authedServer.address() as any).port;
     try {
       const origPort = port;

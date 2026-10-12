@@ -306,12 +306,15 @@ describe("DB-SUPA-5 authorization filtering", () => {
 
     await client.waitFor(
       (current) =>
-        current.frames().some((frame) => frame.event === "duckbrain.revoked.v1"),
+        current
+          .frames()
+          .some((frame) => frame.event === "duckbrain.revoked.v1"),
       3_000,
     );
     await client.waitFor((current) => current.ended(), 3_000);
-    expect(client.frames().filter((frame) => frame.event === "duckbrain.revoked.v1"))
-      .toHaveLength(1);
+    expect(
+      client.frames().filter((frame) => frame.event === "duckbrain.revoked.v1"),
+    ).toHaveLength(1);
     expect(hub.countFor(fixture.ns)).toBe(0);
   });
 });

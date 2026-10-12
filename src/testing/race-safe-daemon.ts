@@ -166,7 +166,10 @@ export function waitForClose(
  * namespace root and nowhere else, and GET /api/namespaces censuses
  * directories on disk, so a foreign listener can never fake it.
  */
-export function createSentinelNamespace(nsPath: string, prefix = "scratch-sentinel-"): string {
+export function createSentinelNamespace(
+  nsPath: string,
+  prefix = "scratch-sentinel-",
+): string {
   const sentinel = `${prefix}${crypto.randomBytes(4).toString("hex")}`;
   fs.mkdirSync(path.join(nsPath, sentinel), { recursive: true });
   return sentinel;
@@ -235,7 +238,9 @@ async function probeNamespaces(
  * the residual proof is liveness: our child is still running, so it bound the
  * port (EADDRINUSE would have killed it).
  */
-export async function assertDaemonIsOurs(daemon: DaemonIdentity): Promise<void> {
+export async function assertDaemonIsOurs(
+  daemon: DaemonIdentity,
+): Promise<void> {
   if (daemon.child.exitCode !== null || daemon.child.signalCode !== null) {
     throw new Error(
       `scratch daemon on port ${daemon.port} exited (code ${daemon.child.exitCode}) ` +

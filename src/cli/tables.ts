@@ -329,9 +329,7 @@ function printNextSteps(
 ): void {
   console.log("");
   console.log("Next steps:");
-  console.log(
-    "  1. Start the HTTP server (if it is not already running):",
-  );
+  console.log("  1. Start the HTTP server (if it is not already running):");
   console.log("       duckbrain http --auth=none");
   console.log("  2. Insert a row:");
   console.log(
@@ -431,9 +429,13 @@ async function declareIntoSchemaJson(options: {
     // the declare already completed before it was written, so recovery
     // finalizes it without touching the file again.
     writeJsonAtomic(
-      path.join(nsDir, DDL_DIR, `declare-${Date.now().toString(36)}-${crypto
-        .randomBytes(4)
-        .toString("hex")}.json`),
+      path.join(
+        nsDir,
+        DDL_DIR,
+        `declare-${Date.now().toString(36)}-${crypto
+          .randomBytes(4)
+          .toString("hex")}.json`,
+      ),
       {
         operation: "createTable",
         ns,
@@ -446,8 +448,7 @@ async function declareIntoSchemaJson(options: {
           columns: candidate.columns,
           storagePath: candidate.storage.path,
         },
-        oldSchemaHash:
-          previousText === null ? null : sha256Hex(previousText),
+        oldSchemaHash: previousText === null ? null : sha256Hex(previousText),
         newSchemaHash: switched.hash,
         detail:
           "declared via `duckbrain tables declare` (no generation published)",

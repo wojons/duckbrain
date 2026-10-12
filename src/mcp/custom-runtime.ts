@@ -197,7 +197,9 @@ function fail(
   error: string,
   tool?: string,
 ): CustomToolFailure {
-  return tool === undefined ? { success: false, error, code } : { success: false, error, code, tool };
+  return tool === undefined
+    ? { success: false, error, code }
+    : { success: false, error, code, tool };
 }
 
 /**
@@ -226,7 +228,10 @@ export function resolveCustomModule(
     if (runtime === "wasm") {
       // Validate base64 so a typo produces MODULE_INVALID, not a trap later.
       const buf = Buffer.from(inline, "base64");
-      if (buf.length === 0 || buf.toString("base64").replace(/=+$/, "") !== inline.replace(/=+$/, "")) {
+      if (
+        buf.length === 0 ||
+        buf.toString("base64").replace(/=+$/, "") !== inline.replace(/=+$/, "")
+      ) {
         return fail("MODULE_INVALID", "inline wasm module is not valid base64");
       }
       return { payload: inline };
@@ -526,7 +531,11 @@ function failureFromOutcome(
         toolName,
       );
     case "trap":
-      return fail("RUNTIME_TRAP", `custom tool '${toolName}' failed: ${outcome.message}`, toolName);
+      return fail(
+        "RUNTIME_TRAP",
+        `custom tool '${toolName}' failed: ${outcome.message}`,
+        toolName,
+      );
     case "schema":
       return fail("SCHEMA_INVALID", outcome.message, toolName);
     case "unserializable":
@@ -640,7 +649,10 @@ export async function executeInSandbox(
       new Promise<ExecOutcome>((resolve) =>
         // Backstop: if neither message nor exit ever arrives (broken
         // worker), the parent still resolves.
-        setTimeout(() => resolve({ type: "timeout" }), timeoutMs + TERMINATE_GRACE_MS),
+        setTimeout(
+          () => resolve({ type: "timeout" }),
+          timeoutMs + TERMINATE_GRACE_MS,
+        ),
       ),
     ]);
     return failureFromOutcome(outcome, def.name, timeoutMs);
@@ -675,7 +687,9 @@ export function jsonSchemaToZodShape(
     required?: unknown;
   };
   const required = new Set<string>(
-    Array.isArray(s.required) ? s.required.filter((v): v is string => typeof v === "string") : [],
+    Array.isArray(s.required)
+      ? s.required.filter((v): v is string => typeof v === "string")
+      : [],
   );
   const one = (type: unknown, description: unknown): z.ZodTypeAny => {
     let base: z.ZodTypeAny;
@@ -705,8 +719,7 @@ export function jsonSchemaToZodShape(
   };
   if (s.properties && typeof s.properties === "object") {
     for (const [key, prop] of Object.entries(s.properties)) {
-      const propSchema =
-        prop !== null && typeof prop === "object" ? prop : {};
+      const propSchema = prop !== null && typeof prop === "object" ? prop : {};
       const field = one(propSchema.type, propSchema.description);
       shape[key] = required.has(key) ? field : field.optional();
     }
@@ -764,7 +777,9 @@ export class CustomRuntimeManager {
       if (!parsed.success) {
         this.invalid.push({
           index,
-          reason: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+          reason: parsed.error.issues
+            .map((i) => `${i.path.join(".")}: ${i.message}`)
+            .join("; "),
         });
         return;
       }
@@ -772,15 +787,25 @@ export class CustomRuntimeManager {
       // Reserved prefixes: custom tools must never shadow the built-ins or
       // each other — duplicates are reported, not silently overwritten.
       if (this.tools.has(def.name)) {
-        this.invalid.push({ index, reason: `duplicate tool name '${def.name}'` });
+        this.invalid.push({
+          index,
+          reason: `duplicate tool name '${def.name}'`,
+        });
         return;
       }
-      const resolved = resolveCustomModule(def.module, def.runtime, this.rootDir);
+      const resolved = resolveCustomModule(
+        def.module,
+        def.runtime,
+        this.rootDir,
+      );
       if ("code" in resolved && resolved.code !== undefined) {
         this.invalid.push({ index, reason: resolved.error });
         return;
       }
-      this.tools.set(def.name, { def, payload: (resolved as { payload: string }).payload });
+      this.tools.set(def.name, {
+        def,
+        payload: (resolved as { payload: string }).payload,
+      });
     });
   }
 
@@ -832,7 +857,11 @@ export class CustomRuntimeManager {
 
     const schemaError = validateArgsAgainstJsonSchema(args, def.inputSchema);
     if (schemaError !== undefined) {
-      return fail("SCHEMA_INVALID", `invalid arguments for '${name}': ${schemaError}`, name);
+      return fail(
+        "SCHEMA_INVALID",
+        `invalid arguments for '${name}': ${schemaError}`,
+        name,
+      );
     }
 
     return executeInSandbox(def, registered.payload, args, this.runtimeOptions);

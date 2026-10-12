@@ -110,7 +110,9 @@ describe("readLedger store: append + read-back", () => {
     const sealed = names.filter((n) => readsSegmentNumber(n) !== null);
     expect(sealed.length).toBeGreaterThanOrEqual(2);
     expect(sealed).toEqual([...sealed].sort()); // zero-padded: lexicographic == numeric
-    expect(fs.statSync(path.join(dir, READS_FILE)).size).toBeLessThanOrEqual(300);
+    expect(fs.statSync(path.join(dir, READS_FILE)).size).toBeLessThanOrEqual(
+      300,
+    );
 
     // No row is ever lost to rotation — the reads.0001 rm-overwrite failure
     // mode (single .1 slot) cannot happen by construction.
@@ -145,21 +147,35 @@ describe("readLedger store: append + read-back", () => {
 
 describe("normalizeReadRoute", () => {
   it("records the documented read routes, GET and HEAD", () => {
-    expect(normalizeReadRoute("GET", "/api/memories")).toBe("GET /api/memories");
-    expect(normalizeReadRoute("HEAD", "/api/memories")).toBe("HEAD /api/memories");
+    expect(normalizeReadRoute("GET", "/api/memories")).toBe(
+      "GET /api/memories",
+    );
+    expect(normalizeReadRoute("HEAD", "/api/memories")).toBe(
+      "HEAD /api/memories",
+    );
     expect(normalizeReadRoute("GET", "/api/memories/key//a/b/secret-key")).toBe(
       "GET /api/memories/key/:key",
     );
-    expect(normalizeReadRoute("GET", "/api/memories/abc123")).toBe("GET /api/memories/:id");
+    expect(normalizeReadRoute("GET", "/api/memories/abc123")).toBe(
+      "GET /api/memories/:id",
+    );
     expect(normalizeReadRoute("GET", "/api/keys")).toBe("GET /api/keys");
-    expect(normalizeReadRoute("GET", "/api/keys/flat")).toBe("GET /api/keys/flat");
-    expect(normalizeReadRoute("GET", "/api/namespaces")).toBe("GET /api/namespaces");
-    expect(normalizeReadRoute("GET", "/api/ns/research/tables")).toBe("GET /api/ns/:ns/tables");
+    expect(normalizeReadRoute("GET", "/api/keys/flat")).toBe(
+      "GET /api/keys/flat",
+    );
+    expect(normalizeReadRoute("GET", "/api/namespaces")).toBe(
+      "GET /api/namespaces",
+    );
+    expect(normalizeReadRoute("GET", "/api/ns/research/tables")).toBe(
+      "GET /api/ns/:ns/tables",
+    );
     expect(normalizeReadRoute("GET", "/api/ns/research/tables/notes")).toBe(
       "GET /api/ns/:ns/tables/:table",
     );
     expect(normalizeReadRoute("GET", "/activity")).toBe("GET /activity");
-    expect(normalizeReadRoute("GET", "/api/events/research")).toBe("GET /api/events/:ns");
+    expect(normalizeReadRoute("GET", "/api/events/research")).toBe(
+      "GET /api/events/:ns",
+    );
     expect(normalizeReadRoute("GET", "/api/events/research/stats")).toBe(
       "GET /api/events/:ns/stats",
     );
@@ -187,11 +203,16 @@ describe("normalizeReadRoute", () => {
     expect(normalizeReadRoute("GET", "/namespaces")).toBeNull(); // legacy mount not in the read set
     expect(normalizeReadRoute("GET", "/api/unknown")).toBeNull();
     expect(normalizeReadRoute("GET", "/api/ns/research/changes")).toBeNull(); // realtime SSE
-    expect(normalizeReadRoute("GET", "/api/ns/research/openapi.json")).toBeNull();
+    expect(
+      normalizeReadRoute("GET", "/api/ns/research/openapi.json"),
+    ).toBeNull();
   });
 
   it("never lets a query string reach the recorded route", () => {
-    const route = normalizeReadRoute("GET", "/api/memories?q=top+secret&token=x");
+    const route = normalizeReadRoute(
+      "GET",
+      "/api/memories?q=top+secret&token=x",
+    );
     expect(route).toBe("GET /api/memories");
     expect(route).not.toContain("secret");
     expect(route).not.toContain("token");
@@ -202,10 +223,14 @@ describe("readRowNamespace", () => {
   it("prefers the path namespace, then ?namespace=, else null", () => {
     expect(readRowNamespace("/api/events/research", {})).toBe("research");
     expect(readRowNamespace("/api/ns/research/tables", {})).toBe("research");
-    expect(readRowNamespace("/api/memories", { namespace: "alpha" })).toBe("alpha");
+    expect(readRowNamespace("/api/memories", { namespace: "alpha" })).toBe(
+      "alpha",
+    );
     expect(readRowNamespace("/api/memories", {})).toBeNull();
     expect(readRowNamespace("/api/memories", { namespace: "" })).toBeNull();
-    expect(readRowNamespace("/api/memories", { namespace: ["a", "b"] })).toBeNull();
+    expect(
+      readRowNamespace("/api/memories", { namespace: ["a", "b"] }),
+    ).toBeNull();
   });
 
   it("URL-decodes path namespaces and survives malformed encoding", () => {
@@ -218,10 +243,38 @@ describe("aggregateReadRows (query over arbitrary windows)", () => {
   const seed = async (): Promise<void> => {
     const store = createReadLedgerStore(nsRoot());
     const rows = [
-      { ts: "2026-01-01T00:00:00.000Z", route: "GET /api/memories", method: "GET", ns: null, status: 200, dur_ms: 10 },
-      { ts: "2026-03-01T00:00:00.000Z", route: "GET /api/memories", method: "GET", ns: "alpha", status: 200, dur_ms: 20 },
-      { ts: "2026-05-01T00:00:00.000Z", route: "GET /activity", method: "GET", ns: null, status: 404, dur_ms: 5 },
-      { ts: "2026-09-30T23:59:59.000Z", route: "GET /api/keys", method: "GET", ns: null, status: 200, dur_ms: 7 },
+      {
+        ts: "2026-01-01T00:00:00.000Z",
+        route: "GET /api/memories",
+        method: "GET",
+        ns: null,
+        status: 200,
+        dur_ms: 10,
+      },
+      {
+        ts: "2026-03-01T00:00:00.000Z",
+        route: "GET /api/memories",
+        method: "GET",
+        ns: "alpha",
+        status: 200,
+        dur_ms: 20,
+      },
+      {
+        ts: "2026-05-01T00:00:00.000Z",
+        route: "GET /activity",
+        method: "GET",
+        ns: null,
+        status: 404,
+        dur_ms: 5,
+      },
+      {
+        ts: "2026-09-30T23:59:59.000Z",
+        route: "GET /api/keys",
+        method: "GET",
+        ns: null,
+        status: 200,
+        dur_ms: 7,
+      },
     ];
     for (const row of rows) await store.append(row);
     await flushReadLedgerForTests();
@@ -281,7 +334,9 @@ describe("aggregateReadRows (query over arbitrary windows)", () => {
     expect(all.total).toBe(4);
     // Granted "alpha" → the alpha row stays AND every null-ns row stays
     // (they carry no namespace name at all, so nothing can be leaked).
-    const granted = aggregateReadRows(nsRoot(), { visibleNamespaces: ["alpha"] });
+    const granted = aggregateReadRows(nsRoot(), {
+      visibleNamespaces: ["alpha"],
+    });
     expect(granted.total).toBe(4);
     expect(granted.total).toBe(all.total);
     // Ungranted "beta" → exactly the one alpha-foreign row disappears.

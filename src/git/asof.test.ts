@@ -49,9 +49,9 @@ vi.mock("child_process", async (importOriginal) => {
     ...actual,
     execFileSync: ((...a: unknown[]) => {
       if (a[0] === "git") setExecFileSync(execFileSyncCalls() + 1);
-      return (
-        actual.execFileSync as unknown as (...b: unknown[]) => string
-      )(...a);
+      return (actual.execFileSync as unknown as (...b: unknown[]) => string)(
+        ...a,
+      );
     }) as typeof actual.execFileSync,
   };
 });
@@ -422,10 +422,7 @@ describe("PERF-011: batched as-of reads (semantics lock + process count)", () =>
       .partitions;
     const rows: MemoryRowAtRef[] = [];
     for (const partition of partitions) {
-      const listing = git(
-        dir,
-        `ls-tree -r --name-only ${ref} -- ${partition}`,
-      );
+      const listing = git(dir, `ls-tree -r --name-only ${ref} -- ${partition}`);
       for (const line of listing.split("\n")) {
         const file = line.trim();
         if (file === "" || !file.endsWith(".jsonl")) continue;
@@ -439,8 +436,7 @@ describe("PERF-011: batched as-of reads (semantics lock + process count)", () =>
               id: rec.id,
               key: typeof rec.key === "string" ? rec.key : "",
               domain: typeof rec.domain === "string" ? rec.domain : "",
-              timestamp:
-                typeof rec.timestamp === "string" ? rec.timestamp : "",
+              timestamp: typeof rec.timestamp === "string" ? rec.timestamp : "",
               author: typeof rec.author === "string" ? rec.author : "",
               action: typeof rec.action === "string" ? rec.action : "add",
               embedding_text:
@@ -517,13 +513,33 @@ describe("PERF-011: batched as-of reads (semantics lock + process count)", () =>
   });
 
   it("locks dedup/tombstone/filter/order/limit semantics on the fixture", () => {
-    const cases: Array<{ filters: Parameters<typeof queryMemoriesAtRef>[2]; wantIds: string[]; wantTotal: number }> = [
-      { filters: {}, wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1", "b-live-1"], wantTotal: 5 },
-      { filters: { domain: "person" }, wantIds: ["b-person-2", "b-person-1"], wantTotal: 2 },
+    const cases: Array<{
+      filters: Parameters<typeof queryMemoriesAtRef>[2];
+      wantIds: string[];
+      wantTotal: number;
+    }> = [
+      {
+        filters: {},
+        wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1", "b-live-1"],
+        wantTotal: 5,
+      },
+      {
+        filters: { domain: "person" },
+        wantIds: ["b-person-2", "b-person-1"],
+        wantTotal: 2,
+      },
       { filters: { key: "/b/k1" }, wantIds: ["b-dup"], wantTotal: 1 },
-      { filters: { after: "2026-07-10T00:00:00.000Z" }, wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1"], wantTotal: 4 },
+      {
+        filters: { after: "2026-07-10T00:00:00.000Z" },
+        wantIds: ["b-dup", "b-person-2", "b-chat", "b-person-1"],
+        wantTotal: 4,
+      },
       { filters: { limit: 2 }, wantIds: ["b-dup", "b-person-2"], wantTotal: 5 },
-      { filters: { offset: 1, limit: 2 }, wantIds: ["b-person-2", "b-chat"], wantTotal: 5 },
+      {
+        filters: { offset: 1, limit: 2 },
+        wantIds: ["b-person-2", "b-chat"],
+        wantTotal: 5,
+      },
     ];
     for (const c of cases) {
       const got = queryMemoriesAtRef(repoB, shaB, c.filters);
@@ -534,8 +550,12 @@ describe("PERF-011: batched as-of reads (semantics lock + process count)", () =>
     const k1 = queryMemoriesAtRef(repoB, shaB, { key: "/b/k1" });
     expect(k1.memories[0].embedding_text).toBe("new");
     // tombstones (latest-record tombstone AND tombstoned-by-older-add) gone.
-    expect(queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/p/tomb" }).total).toBe(0);
-    expect(queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/b/dead" }).total).toBe(0);
+    expect(
+      queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/p/tomb" }).total,
+    ).toBe(0);
+    expect(
+      queryMemoriesAtRef(repoB, shaB, { keyPrefix: "/b/dead" }).total,
+    ).toBe(0);
   });
 
   it("spawns <= 3 git child processes for a multi-chunk read (AC4)", () => {

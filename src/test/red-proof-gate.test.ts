@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isDurabilityError, DurabilityError } from "../storage/durability-errors.js";
+import {
+  isDurabilityError,
+  DurabilityError,
+} from "../storage/durability-errors.js";
 
 /**
  * Red-proof gate for DuckBrain CI (TESTQ-001).

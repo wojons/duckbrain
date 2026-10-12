@@ -20,8 +20,7 @@ export async function runGitIdentityCLI(args: string[]): Promise<void> {
   if (subcommand === "repair-identity") {
     const namespacesPath = resolveNamespacesPath();
     console.log(`Scanning namespaces root: ${namespacesPath}`);
-    const { scanned, repaired } =
-      repairNamespaceGitIdentities(namespacesPath);
+    const { scanned, repaired } = repairNamespaceGitIdentities(namespacesPath);
 
     console.log(
       `Scanned ${scanned.length} namespace repo(s): ${

@@ -107,8 +107,7 @@ export function createReadLedgerStore(
 ): ReadLedgerStore {
   const root = path.resolve(namespacesPath);
   const maxBytes = options.maxBytes ?? READS_MAX_BYTES;
-  const log =
-    options.log ?? ((message: string) => console.error(message));
+  const log = options.log ?? ((message: string) => console.error(message));
 
   return {
     append(input: ReadRowInput): Promise<void> {
@@ -137,20 +136,21 @@ export function createReadLedgerStore(
             (max, name) => Math.max(max, readsSegmentNumber(name) ?? 0),
             0,
           );
-          await fs.promises.rename(file, path.join(dir, readsSegmentName(highest + 1)));
+          await fs.promises.rename(
+            file,
+            path.join(dir, readsSegmentName(highest + 1)),
+          );
         }
         await fs.promises.appendFile(file, line, {
           encoding: "utf-8",
           mode: 0o600,
         });
       };
-      readLedgerTail = readLedgerTail
-        .then(run)
-        .catch((error) => {
-          log(
-            `[duckbrain] read ledger append failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
+      readLedgerTail = readLedgerTail.then(run).catch((error) => {
+        log(
+          `[duckbrain] read ledger append failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
       return readLedgerTail;
     },
   };
@@ -241,7 +241,8 @@ export function normalizeReadRoute(
 
   // memories
   if (/^\/api\/memories$/.test(p)) return route("/api/memories");
-  if (/^\/api\/memories\/key\/.+$/.test(p)) return route("/api/memories/key/:key");
+  if (/^\/api\/memories\/key\/.+$/.test(p))
+    return route("/api/memories/key/:key");
   if (/^\/api\/memories\/[^/]+$/.test(p)) return route("/api/memories/:id");
   // keys
   if (/^\/api\/keys$/.test(p)) return route("/api/keys");
@@ -256,7 +257,8 @@ export function normalizeReadRoute(
   // activity feed
   if (/^\/activity$/.test(p)) return route("/activity");
   // legacy events feed (SSE subscription + its stats probe)
-  if (/^\/api\/events\/[^/]+\/stats$/.test(p)) return route("/api/events/:ns/stats");
+  if (/^\/api\/events\/[^/]+\/stats$/.test(p))
+    return route("/api/events/:ns/stats");
   if (/^\/api\/events\/[^/]+$/.test(p)) return route("/api/events/:ns");
   return null;
 }
@@ -348,7 +350,12 @@ export function aggregateReadRows(
 
   const perRoute = new Map<
     string,
-    { route: string; method: string; count: number; statuses: Record<string, number> }
+    {
+      route: string;
+      method: string;
+      count: number;
+      statuses: Record<string, number>;
+    }
   >();
   const byStatus: Record<string, number> = {};
   let total = 0;

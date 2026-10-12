@@ -86,7 +86,9 @@ describe("parseProcStat / cmdlineFromProc (DB-GAP-059)", () => {
 
   it("joins a NUL-separated cmdline", () => {
     expect(
-      cmdlineFromProc("node\0--import\0tsx\0bin/duckbrain.ts\0http\0--port=21000\0"),
+      cmdlineFromProc(
+        "node\0--import\0tsx\0bin/duckbrain.ts\0http\0--port=21000\0",
+      ),
     ).toBe("node --import tsx bin/duckbrain.ts http --port=21000");
     expect(cmdlineFromProc("")).toBe("");
   });
@@ -107,30 +109,32 @@ describe("isDaemonShaped / portFromCmdline (DB-GAP-059)", () => {
   it("accepts both real daemon shapes", () => {
     expect(isDaemonShaped(MANAGED_CMDLINE)).toBe(true);
     expect(isDaemonShaped(SCRATCH_CMDLINE)).toBe(true);
-    expect(isDaemonShaped("/usr/bin/node /opt/db/bin/duckbrain.ts http --port 8080")).toBe(
-      true,
-    );
+    expect(
+      isDaemonShaped("/usr/bin/node /opt/db/bin/duckbrain.ts http --port 8080"),
+    ).toBe(true);
   });
 
   it("rejects the stdio MCP server (no http subcommand, no port)", () => {
     expect(isDaemonShaped("node bin/duckbrain.js stdio")).toBe(false);
-    expect(isDaemonShaped("/home/kara/.local/bin/node bin/duckbrain.js stdio")).toBe(
-      false,
-    );
+    expect(
+      isDaemonShaped("/home/kara/.local/bin/node bin/duckbrain.js stdio"),
+    ).toBe(false);
   });
 
   it("rejects carriers that merely quote the daemon shape", () => {
     // The incident's own audit was polluted by exactly these two shapes.
     expect(isDaemonShaped("pgrep -af duckbrain http --port=21000")).toBe(false);
-    expect(isDaemonShaped('grep -rn "duckbrain http --port=21000" .')).toBe(false);
+    expect(isDaemonShaped('grep -rn "duckbrain http --port=21000" .')).toBe(
+      false,
+    );
     expect(
       isDaemonShaped(
         'bash -lic set +m; hermes chat -q "node --import tsx bin/duckbrain.ts http --port=21000"',
       ),
     ).toBe(false);
-    expect(isDaemonShaped("python3 /home/kara/duckbrain_sync.py --port 3000")).toBe(
-      false,
-    );
+    expect(
+      isDaemonShaped("python3 /home/kara/duckbrain_sync.py --port 3000"),
+    ).toBe(false);
   });
 
   it("rejects daemon-shaped argv missing the http subcommand or a port", () => {
@@ -144,7 +148,9 @@ describe("isDaemonShaped / portFromCmdline (DB-GAP-059)", () => {
     expect(portFromCmdline(MANAGED_CMDLINE)).toBe(3000);
     expect(portFromCmdline("node bin/duckbrain.js http")).toBeNull();
     expect(portFromCmdline("node bin/duckbrain.js http --port=abc")).toBeNull();
-    expect(portFromCmdline("node bin/duckbrain.js http --port=99999")).toBeNull();
+    expect(
+      portFromCmdline("node bin/duckbrain.js http --port=99999"),
+    ).toBeNull();
   });
 });
 
@@ -275,15 +281,25 @@ describe("planDaemonReap (DB-GAP-059)", () => {
   });
 
   it("ignores non-daemon processes entirely", () => {
-    const stdio = proc({ pid: 4002, ppid: 1, cmdline: "node bin/duckbrain.js stdio" });
-    const carrier = proc({ pid: 4003, ppid: 1, cmdline: "grep duckbrain http --port=1" });
+    const stdio = proc({
+      pid: 4002,
+      ppid: 1,
+      cmdline: "node bin/duckbrain.js stdio",
+    });
+    const carrier = proc({
+      pid: 4003,
+      ppid: 1,
+      cmdline: "grep duckbrain http --port=1",
+    });
     const { victims, spared } = planDaemonReap([stdio, carrier], own);
     expect(victims).toEqual([]);
     expect(spared).toEqual([]);
   });
 
   it("reports isOrphaned for both reparenting targets", () => {
-    expect(isOrphaned(proc({ pid: 1, ppid: 1, cmdline: SCRATCH_CMDLINE }))).toBe(true);
+    expect(
+      isOrphaned(proc({ pid: 1, ppid: 1, cmdline: SCRATCH_CMDLINE })),
+    ).toBe(true);
     expect(
       isOrphaned(
         proc({
@@ -294,7 +310,9 @@ describe("planDaemonReap (DB-GAP-059)", () => {
         }),
       ),
     ).toBe(true);
-    expect(isOrphaned(proc({ pid: 3, ppid: 4, cmdline: SCRATCH_CMDLINE }))).toBe(false);
+    expect(
+      isOrphaned(proc({ pid: 3, ppid: 4, cmdline: SCRATCH_CMDLINE })),
+    ).toBe(false);
   });
 });
 
@@ -347,7 +365,11 @@ describe("reapOrphanDaemons kill path (DB-GAP-059)", () => {
     // The seam supplies the shape read from /proc: this process is detached
     // (own session/process group) and reparents to the user manager once its
     // spawner exits — modelled here as ppid 1.
-    const fake = proc({ pid, ppid: 1, cmdline: `${process.execPath} ${script} http --port=${port}` });
+    const fake = proc({
+      pid,
+      ppid: 1,
+      cmdline: `${process.execPath} ${script} http --port=${port}`,
+    });
     const report = reapOrphanDaemons({ processes: [fake], tmpDir: dir });
 
     expect(report.victims).toEqual([pid]);
@@ -357,9 +379,7 @@ describe("reapOrphanDaemons kill path (DB-GAP-059)", () => {
     expect(fs.existsSync(scratch)).toBe(false);
     expect(fs.existsSync(foreign)).toBe(true);
     expect(pidIsReaped(pid)).toBe(true);
-    expect(report.observed).toEqual([
-      { pid, argvPort: port, listening: [] },
-    ]);
+    expect(report.observed).toEqual([{ pid, argvPort: port, listening: [] }]);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
@@ -379,7 +399,11 @@ describe("reapOrphanDaemons kill path (DB-GAP-059)", () => {
       ppid: process.pid,
       cmdline: `${process.execPath} ${script} http --port=21600`,
     });
-    const report = reapOrphanDaemons({ processes: [fake], tmpDir: dir, dryRun: true });
+    const report = reapOrphanDaemons({
+      processes: [fake],
+      tmpDir: dir,
+      dryRun: true,
+    });
     expect(report.victims).toEqual([]);
     expect(report.spared[0].reason).toMatch(/live parent/);
     expect(pidIsReaped(pid)).toBe(false);
@@ -416,7 +440,9 @@ describe("reapOrphanDaemons kill path (DB-GAP-059)", () => {
     // constant). Assert approximate equality with a proportional tolerance
     // (10% of the baseline, floor 8) instead.
     const procTolerance = Math.max(8, Math.ceil(processes.length * 0.1));
-    expect(Math.abs(report.scanned - processes.length)).toBeLessThanOrEqual(procTolerance);
+    expect(Math.abs(report.scanned - processes.length)).toBeLessThanOrEqual(
+      procTolerance,
+    );
     // The managed unit is protected, so it can never be a victim.
     for (const victim of report.victims) {
       expect(victim).not.toBe(process.pid);

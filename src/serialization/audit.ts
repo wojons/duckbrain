@@ -26,7 +26,10 @@ export const AuditEntrySchema = z.object({
    * serializer appends for an accepted write. Legacy rows and denial rows
    * omit it.
    */
-  contentHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  contentHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   tombstone: z.boolean().optional(),
   schemaVersion: z.number().int().positive().optional(),
 });

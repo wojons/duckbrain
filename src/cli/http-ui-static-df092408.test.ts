@@ -33,9 +33,7 @@ let savedEmbeddingProvider: string | undefined;
 const INDEX_HTML = "<!doctype html><html><body>fixture ui</body></html>\n";
 const ASSET_JS = "console.log('fixture');\n";
 
-function get(
-  requestPath: string,
-): Promise<{
+function get(requestPath: string): Promise<{
   status: number | undefined;
   headers: http.IncomingHttpHeaders;
   body: string;

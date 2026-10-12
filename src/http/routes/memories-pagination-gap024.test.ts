@@ -156,7 +156,9 @@ describe("GAP-024: pagination response correctness — GET /api/memories", () =>
     // GAP-022 AC1: config file must be byte-identical after the test run —
     // compared against the ISOLATED copy (INT-CI-028), so a sibling suite
     // writing to the real repo config during this suite cannot fail us.
-    expect(configRedirect !== null ? fs.readFileSync(configRedirect, "utf-8") : null).toBe(configBefore);
+    expect(
+      configRedirect !== null ? fs.readFileSync(configRedirect, "utf-8") : null,
+    ).toBe(configBefore);
     fs.rmSync(PARTITION, { recursive: true, force: true });
     fs.rmSync(MANIFEST, { force: true });
     // INT-CI-028: restore the real config path for any later suites.

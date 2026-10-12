@@ -35,9 +35,16 @@ import {
 
 // CI runners have no global git identity (CI-GITID-028): give fixture
 // commits an explicit identity instead of relying on host config.
-const CI_IDENT = ["-c", "user.name=DuckBrain Test", "-c", "user.email=duckbrain-test@example.com"];
+const CI_IDENT = [
+  "-c",
+  "user.name=DuckBrain Test",
+  "-c",
+  "user.email=duckbrain-test@example.com",
+];
 function git(args: string[], cwd?: string): string {
-  const fullArgs = cwd ? ["-C", cwd, ...CI_IDENT, ...args] : CI_IDENT.concat(args);
+  const fullArgs = cwd
+    ? ["-C", cwd, ...CI_IDENT, ...args]
+    : CI_IDENT.concat(args);
   return execFileSync("git", fullArgs, {
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
@@ -168,7 +175,10 @@ describe("GIT-IDENTITY-001: repairNamespaceGitIdentities", () => {
     // Only `pinned` carries the synthetic local pin; `clean` relies on the
     // host's global identity and must be left untouched.
     git(["config", "--local", "user.name", "DuckBrain"], pinned);
-    git(["config", "--local", "user.email", "duckbrain@localhost.localdomain"], pinned);
+    git(
+      ["config", "--local", "user.email", "duckbrain@localhost.localdomain"],
+      pinned,
+    );
 
     const headBefore = git(["rev-parse", "HEAD"], pinned);
 
@@ -218,9 +228,13 @@ describe("GIT-IDENTITY-001: identity resolution helpers", () => {
   });
 
   it("isSyntheticIdentity matches only the full fabricated pair", () => {
-    expect(isSyntheticIdentity("DuckBrain", "duckbrain@localhost.localdomain")).toBe(true);
+    expect(
+      isSyntheticIdentity("DuckBrain", "duckbrain@localhost.localdomain"),
+    ).toBe(true);
     expect(isSyntheticIdentity("DuckBrain", "duckbrain@localhost")).toBe(true);
-    expect(isSyntheticIdentity("Real User", "duckbrain@localhost.localdomain")).toBe(false);
+    expect(
+      isSyntheticIdentity("Real User", "duckbrain@localhost.localdomain"),
+    ).toBe(false);
     expect(isSyntheticIdentity("DuckBrain", "real@example.com")).toBe(false);
     expect(isSyntheticIdentity(null, null)).toBe(false);
   });

@@ -104,7 +104,8 @@ export function resolvesPrincipal(
     return store.users.some(
       (entry) =>
         entry.username === username &&
-        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
+        (entry.expiresAt === undefined ||
+          Date.parse(entry.expiresAt) > now.getTime()),
     );
   }
 
@@ -112,7 +113,8 @@ export function resolvesPrincipal(
     return store.apiKeys.some(
       (entry) =>
         entry.name === principal.name &&
-        (entry.expiresAt === undefined || Date.parse(entry.expiresAt) > now.getTime()),
+        (entry.expiresAt === undefined ||
+          Date.parse(entry.expiresAt) > now.getTime()),
     );
   }
 

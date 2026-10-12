@@ -123,10 +123,7 @@ function postMemory(reqPath: string, body: Record<string, unknown>) {
  */
 function useConfig(defaultNamespace: string | null): void {
   delete process.env.DUCKBRAIN_NAMESPACE;
-  const raw =
-    defaultNamespace === null
-      ? {}
-      : { defaultNamespace };
+  const raw = defaultNamespace === null ? {} : { defaultNamespace };
   fs.writeFileSync(SCRATCH_CONFIG_PATH, JSON.stringify(raw, null, 2));
 }
 

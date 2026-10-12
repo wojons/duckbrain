@@ -67,7 +67,9 @@ afterAll(() => {
 
 /* ------------------------------------------------------------ helpers */
 
-function baseDef(overrides: Partial<CustomToolDefinition> = {}): CustomToolDefinition {
+function baseDef(
+  overrides: Partial<CustomToolDefinition> = {},
+): CustomToolDefinition {
   return {
     name: "echo_tool",
     description: "returns its arguments",
@@ -141,7 +143,8 @@ async function harness(
   );
 
   const client = new Client({ name: "test-client", version: "0.0.0" });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
 
@@ -166,11 +169,10 @@ function payload(result: unknown): Record<string, unknown> {
 /** A real WASM module exporting add(i32,i32)->i32. */
 const WASM_ADD_BASE64 = Buffer.from(
   Uint8Array.from([
-    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-    0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f,
-    0x03, 0x02, 0x01, 0x00,
-    0x07, 0x07, 0x01, 0x03, 0x61, 0x64, 0x64, 0x00, 0x00,
-    0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x6a, 0x0b,
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x60,
+    0x02, 0x7f, 0x7f, 0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 0x07, 0x07, 0x01,
+    0x03, 0x61, 0x64, 0x64, 0x00, 0x00, 0x0a, 0x09, 0x01, 0x07, 0x00, 0x20,
+    0x00, 0x20, 0x01, 0x6a, 0x0b,
   ]),
 ).toString("base64");
 
@@ -209,7 +211,13 @@ describe("MCP-CUSTOM-RUNTIME-001: custom-tool contract validation", () => {
     // A minimal object schema is fine.
     expect(
       CustomToolDefinitionSchema.safeParse(
-        baseDef({ inputSchema: { type: "object", properties: { a: { type: "string" } }, required: ["a"] } }),
+        baseDef({
+          inputSchema: {
+            type: "object",
+            properties: { a: { type: "string" } },
+            required: ["a"],
+          },
+        }),
       ).success,
     ).toBe(true);
   });
@@ -230,7 +238,13 @@ describe("MCP-CUSTOM-RUNTIME-001: custom-tool contract validation", () => {
   it("one invalid declaration does not disable the valid ones", () => {
     const manager = new CustomRuntimeManager(
       configWithTools([
-        { name: "bad-name!", description: "x", version: "1", runtime: "javascript", module: "inline:1" },
+        {
+          name: "bad-name!",
+          description: "x",
+          version: "1",
+          runtime: "javascript",
+          module: "inline:1",
+        },
         baseDef(),
       ]),
       SCRATCH,
@@ -244,10 +258,18 @@ describe("MCP-CUSTOM-RUNTIME-001: custom-tool contract validation", () => {
     const missing = resolveCustomModule("nope.js", "javascript", SCRATCH);
     expect("code" in missing && missing.code).toBe("MODULE_NOT_FOUND");
 
-    const escaping = resolveCustomModule("../outside.js", "javascript", SCRATCH);
+    const escaping = resolveCustomModule(
+      "../outside.js",
+      "javascript",
+      SCRATCH,
+    );
     expect("code" in escaping && escaping.code).toBe("MODULE_INVALID");
 
-    const badB64 = resolveCustomModule("inline:!!!not-base64!!!", "wasm", SCRATCH);
+    const badB64 = resolveCustomModule(
+      "inline:!!!not-base64!!!",
+      "wasm",
+      SCRATCH,
+    );
     expect("code" in badB64 && badB64.code).toBe("MODULE_INVALID");
 
     // A module inside a subdirectory of the root is fine.
@@ -264,12 +286,24 @@ describe("MCP-CUSTOM-RUNTIME-001: custom-tool contract validation", () => {
       properties: { a: { type: "string" }, n: { type: "integer" } },
       required: ["a"],
     };
-    expect(validateArgsAgainstJsonSchema({ a: "x", n: 3 }, schema)).toBeUndefined();
-    expect(validateArgsAgainstJsonSchema({}, schema)).toContain("missing required argument: a");
-    expect(validateArgsAgainstJsonSchema({ a: 5 }, schema)).toContain("'a' must be of type string");
-    expect(validateArgsAgainstJsonSchema({ a: "x", n: 1.5 }, schema)).toContain("'n' must be of type integer");
-    expect(validateArgsAgainstJsonSchema([1, 2], schema)).toContain("JSON object");
-    expect(validateArgsAgainstJsonSchema("str", schema)).toContain("JSON object");
+    expect(
+      validateArgsAgainstJsonSchema({ a: "x", n: 3 }, schema),
+    ).toBeUndefined();
+    expect(validateArgsAgainstJsonSchema({}, schema)).toContain(
+      "missing required argument: a",
+    );
+    expect(validateArgsAgainstJsonSchema({ a: 5 }, schema)).toContain(
+      "'a' must be of type string",
+    );
+    expect(validateArgsAgainstJsonSchema({ a: "x", n: 1.5 }, schema)).toContain(
+      "'n' must be of type integer",
+    );
+    expect(validateArgsAgainstJsonSchema([1, 2], schema)).toContain(
+      "JSON object",
+    );
+    expect(validateArgsAgainstJsonSchema("str", schema)).toContain(
+      "JSON object",
+    );
   });
 });
 
@@ -326,12 +360,21 @@ describe("MCP-CUSTOM-RUNTIME-001: JS + WASM through the real tools/list+call pat
       }),
     ]);
     try {
-      const result = await h.client.callTool({ name: "greet", arguments: { name: "duck" } });
+      const result = await h.client.callTool({
+        name: "greet",
+        arguments: { name: "duck" },
+      });
       expect((result as { isError?: boolean }).isError).toBeUndefined();
-      expect(payload(result)).toEqual({ success: true, result: { greeting: "hello duck" } });
+      expect(payload(result)).toEqual({
+        success: true,
+        result: { greeting: "hello duck" },
+      });
 
       // Defaulted argument path.
-      const fallback = await h.client.callTool({ name: "greet", arguments: {} });
+      const fallback = await h.client.callTool({
+        name: "greet",
+        arguments: {},
+      });
       expect(payload(fallback).result).toEqual({ greeting: "hello world" });
     } finally {
       await h.close();
@@ -366,7 +409,9 @@ describe("MCP-CUSTOM-RUNTIME-001: JS + WASM through the real tools/list+call pat
       const parsed = payload(result);
       // i32.add of the coerced args or a trap — either is a STRUCTURED
       // outcome; the wire contract is what this test pins down.
-      expect(parsed.success === true || parsed.code === "RUNTIME_TRAP").toBe(true);
+      expect(parsed.success === true || parsed.code === "RUNTIME_TRAP").toBe(
+        true,
+      );
       expect(h.manager.has("wasm_add")).toBe(true);
     } finally {
       await h.close();
@@ -426,8 +471,12 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
       // zod schema (converted from the declared JSON Schema) BEFORE any
       // handler runs: the SDK surfaces it as an isError result carrying the
       // MCP-standard -32602 invalid-params text, not a tool execution.
-      const wire = await h.client.callTool({ name: "echo_tool", arguments: {} });
-      const wireText = (wire as { content: Array<{ text: string }> }).content[0].text;
+      const wire = await h.client.callTool({
+        name: "echo_tool",
+        arguments: {},
+      });
+      const wireText = (wire as { content: Array<{ text: string }> }).content[0]
+        .text;
       expect(wireText).toContain("-32602");
       expect(wireText).toContain("Invalid arguments for tool echo_tool");
       expect(wireText).not.toContain("success");
@@ -444,7 +493,10 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
       baseDef({ module: "inline: throw new Error('kaboom');" }),
     ]);
     try {
-      const result = await h.client.callTool({ name: "echo_tool", arguments: {} });
+      const result = await h.client.callTool({
+        name: "echo_tool",
+        arguments: {},
+      });
       expect((result as { isError?: boolean }).isError).toBe(true);
       const parsed = payload(result);
       expect(parsed.code).toBe("RUNTIME_TRAP");
@@ -492,7 +544,10 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
     );
     try {
       const started = Date.now();
-      const result = await h.client.callTool({ name: "spinner", arguments: {} });
+      const result = await h.client.callTool({
+        name: "spinner",
+        arguments: {},
+      });
       const elapsed = Date.now() - started;
       expect((result as { isError?: boolean }).isError).toBe(true);
       expect(payload(result)).toMatchObject({ code: "TIMEOUT" });
@@ -537,7 +592,10 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
       SCRATCH,
     );
     const outcome = await manager.exec("greedy", {});
-    expect(outcome).toMatchObject({ success: false, code: "CAPABILITY_DECLARED" });
+    expect(outcome).toMatchObject({
+      success: false,
+      code: "CAPABILITY_DECLARED",
+    });
     // Prove the module never ran: the capability refusal happens first.
     expect(JSON.stringify(outcome)).not.toContain("executedMarker");
   });
@@ -558,7 +616,10 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
       }),
     ]);
     try {
-      const result = await h.client.callTool({ name: "escaper", arguments: {} });
+      const result = await h.client.callTool({
+        name: "escaper",
+        arguments: {},
+      });
       const parsed = payload(result);
       expect(parsed.success).toBe(true);
       const probes = parsed.result as Record<string, string>;
@@ -589,11 +650,17 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
 
   it("unserializable result -> RESULT_UNSERIALIZABLE", async () => {
     const h = await harness([
-      baseDef({ name: "returner", module: "inline: return 9007199254740993n;" }),
+      baseDef({
+        name: "returner",
+        module: "inline: return 9007199254740993n;",
+      }),
     ]);
     try {
       const outcome = await h.manager.exec("returner", {});
-      expect(outcome).toMatchObject({ success: false, code: "RESULT_UNSERIALIZABLE" });
+      expect(outcome).toMatchObject({
+        success: false,
+        code: "RESULT_UNSERIALIZABLE",
+      });
     } finally {
       await h.close();
     }
@@ -650,9 +717,13 @@ describe("MCP-CUSTOM-RUNTIME-001: reserved names and built-in compatibility", ()
       const result = registerCustomTools(
         manager,
         (name) => {
-          server2.registerTool(name, { description: "host owns this" }, async () => ({
-            content: [{ type: "text" as const, text: "host" }],
-          }));
+          server2.registerTool(
+            name,
+            { description: "host owns this" },
+            async () => ({
+              content: [{ type: "text" as const, text: "host" }],
+            }),
+          );
           hostHasIt = true;
           return {};
         },

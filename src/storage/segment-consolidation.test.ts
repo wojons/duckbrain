@@ -573,7 +573,9 @@ describe("bound constants pinned to the writer's rotation rule", () => {
     writeSegment(dir, "current.jsonl", [
       "y".repeat(SEGMENT_MAX_BYTES - incoming.length - 2),
     ]);
-    expect(fs.statSync(target).size + incoming.length + 1).toBe(SEGMENT_MAX_BYTES);
+    expect(fs.statSync(target).size + incoming.length + 1).toBe(
+      SEGMENT_MAX_BYTES,
+    );
     expect(resolveJsonlTargetPath(target, incoming)).toBe(target);
 
     // One byte more: the writer rotates.

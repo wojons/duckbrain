@@ -47,5 +47,7 @@ process.env.DUCKBRAIN_CONFIG_PATH = path.join(
 // exercises the autocommit/attribution path hits the new GIT-IDENTITY-001
 // loud error. Seed the documented env override knobs with a stable test
 // identity (same mechanism production documents for headless hosts).
-process.env.DUCKBRAIN_GIT_AUTHOR_NAME = process.env.DUCKBRAIN_GIT_AUTHOR_NAME ?? "DuckBrain Test";
-process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL ?? "duckbrain-test@example.com";
+process.env.DUCKBRAIN_GIT_AUTHOR_NAME =
+  process.env.DUCKBRAIN_GIT_AUTHOR_NAME ?? "DuckBrain Test";
+process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL =
+  process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL ?? "duckbrain-test@example.com";

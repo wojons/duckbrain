@@ -28,7 +28,10 @@ const SSH_VERSION_RE = /(\d+\.\d+\.\d+)/;
 
 function packageVersion(): string {
   const pkg = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, "..", "..", "package.json"), "utf8"),
+    fs.readFileSync(
+      path.resolve(__dirname, "..", "..", "package.json"),
+      "utf8",
+    ),
   ) as { version: string };
   return pkg.version;
 }

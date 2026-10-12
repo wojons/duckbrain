@@ -107,9 +107,7 @@ export class EmbeddingCache {
   get(modelId: string, contentHash: string): number[] | null {
     // New binary format first; legacy JSON kept as a read-only fallback so
     // old caches keep working until migrated.
-    const bin = this.readBin(
-      this.entryPathExt(modelId, contentHash, ".bin"),
-    );
+    const bin = this.readBin(this.entryPathExt(modelId, contentHash, ".bin"));
     if (bin) return bin;
     return this.readLegacyJson(
       this.entryPathExt(modelId, contentHash, ".json"),

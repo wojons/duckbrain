@@ -23,10 +23,7 @@ import { createServer, type Server } from "http";
 import { runTablesCli, TablesCliError } from "./tables";
 import { createHttpServer } from "./http";
 import { removeTempDirSafely } from "../testing/race-safe-daemon";
-import {
-  invalidateTableRegistry,
-  listTables,
-} from "../schema/table-registry";
+import { invalidateTableRegistry, listTables } from "../schema/table-registry";
 import {
   invalidateNamespaceSchema,
   loadNamespaceSchema,
@@ -235,7 +232,9 @@ describe("duckbrain tables declare (SUPA6-DECLARE-GAP-001)", () => {
     ]);
     expect(code).toBe(0);
     expect(
-      fs.existsSync(path.join(tmpRoot, NS, "tables", "legacy_items.table.json")),
+      fs.existsSync(
+        path.join(tmpRoot, NS, "tables", "legacy_items.table.json"),
+      ),
     ).toBe(true);
     // REAL legacy validator: listTables throws on an invalid declaration.
     invalidateTableRegistry(NS);
@@ -276,9 +275,7 @@ describe("duckbrain tables declare (SUPA6-DECLARE-GAP-001)", () => {
       `${BASE}/openapi.json`,
     );
     expect(openapi.status).toBe(200);
-    expect(Object.keys(openapi.body.paths)).toContain(
-      `${BASE}/tables/widgets`,
-    );
+    expect(Object.keys(openapi.body.paths)).toContain(`${BASE}/tables/widgets`);
 
     const post = await httpRequest(
       createHttpServer({ authType: "none" }),

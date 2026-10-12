@@ -44,7 +44,11 @@ async function runGuard(env: Record<string, string>): Promise<GuardResult> {
     return { code: 0, stdout, stderr };
   } catch (err) {
     const e = err as { code?: number; stdout?: string; stderr?: string };
-    return { code: e.code ?? -1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
+    return {
+      code: e.code ?? -1,
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+    };
   }
 }
 
@@ -176,9 +180,17 @@ describe("ops inventory doc contract", () => {
   it("covers 11 scheduled rows across all three surfaces", () => {
     // 6 hermes-cron + 1 crontab + 4 systemd --user (live-verified 2026-10-07).
     expect(scheduled.length).toBe(11);
-    expect(scheduled.some((r) => (r["Schedule surface"] ?? "").includes("hermes-cron"))).toBe(true);
-    expect(scheduled.some((r) => (r["Schedule surface"] ?? "").includes("crontab"))).toBe(true);
-    expect(scheduled.some((r) => (r["Schedule surface"] ?? "").includes("systemd"))).toBe(true);
+    expect(
+      scheduled.some((r) =>
+        (r["Schedule surface"] ?? "").includes("hermes-cron"),
+      ),
+    ).toBe(true);
+    expect(
+      scheduled.some((r) => (r["Schedule surface"] ?? "").includes("crontab")),
+    ).toBe(true);
+    expect(
+      scheduled.some((r) => (r["Schedule surface"] ?? "").includes("systemd")),
+    ).toBe(true);
   });
 
   it("every scheduled hermes-cron row carries a 12-hex cron id", () => {

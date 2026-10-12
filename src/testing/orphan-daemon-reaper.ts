@@ -114,7 +114,11 @@ export interface ReapReport {
    * precondition: a starved daemon still holds its listening socket, and a
    * half-dead one is still a leak).
    */
-  observed: Array<{ pid: number; argvPort: number | null; listening: number[] }>;
+  observed: Array<{
+    pid: number;
+    argvPort: number | null;
+    listening: number[];
+  }>;
   /** Non-fatal errors from the scan/kill/reclaim steps. */
   errors: string[];
 }
@@ -149,7 +153,10 @@ export function parseProcStat(
 ): { state: string; ppid: number; pgrp: number } | null {
   const close = content.lastIndexOf(")");
   if (close < 0) return null;
-  const fields = content.slice(close + 2).trim().split(/\s+/);
+  const fields = content
+    .slice(close + 2)
+    .trim()
+    .split(/\s+/);
   const state = fields[0];
   const ppid = Number.parseInt(fields[1] ?? "", 10);
   const pgrp = Number.parseInt(fields[2] ?? "", 10);
@@ -252,7 +259,10 @@ function readTextFile(file: string): string | null {
 }
 
 /** True when /proc/<ppid> is a systemd `--user` manager (reparenting target). */
-export function isSystemdUserManager(ppid: number, procRoot = "/proc"): boolean {
+export function isSystemdUserManager(
+  ppid: number,
+  procRoot = "/proc",
+): boolean {
   const comm = readTextFile(path.join(procRoot, String(ppid), "comm"));
   if (!comm || comm.trim() !== "systemd") return false;
   const cmdline = readTextFile(path.join(procRoot, String(ppid), "cmdline"));
@@ -266,7 +276,10 @@ export function isSystemdUserManager(ppid: number, procRoot = "/proc"): boolean 
 }
 
 /** TCP ports a pid is LISTENing on (best-effort; [] when unreadable). */
-export function listeningPortsForPid(pid: number, procRoot = "/proc"): number[] {
+export function listeningPortsForPid(
+  pid: number,
+  procRoot = "/proc",
+): number[] {
   const fdDir = path.join(procRoot, String(pid), "fd");
   let links: string[];
   try {
@@ -376,7 +389,10 @@ export function managedUnitDaemons(): {
 }
 
 /** The process's cgroup path (`/proc/<pid>/cgroup`, last `:`-separated field). */
-export function cgroupPathForPid(pid: number, procRoot = "/proc"): string | null {
+export function cgroupPathForPid(
+  pid: number,
+  procRoot = "/proc",
+): string | null {
   const content = readTextFile(path.join(procRoot, String(pid), "cgroup"));
   if (!content) return null;
   const first = content.split("\n").find((line) => line.includes(":"));
@@ -599,7 +615,9 @@ export function reapOrphanDaemons(options: ReapOptions = {}): ReapReport {
     }
 
     const ownPgrp = (() => {
-      const stat = readTextFile(path.join("/proc", String(process.pid), "stat"));
+      const stat = readTextFile(
+        path.join("/proc", String(process.pid), "stat"),
+      );
       return stat ? parseProcStat(stat)?.pgrp : undefined;
     })();
 

@@ -23,10 +23,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import {
-  asyncHandler,
-  ValidationError,
-} from "../middleware/errorHandler";
+import { asyncHandler, ValidationError } from "../middleware/errorHandler";
 import {
   aggregateReadRows,
   flushReadLedgerForTests,
@@ -37,19 +34,23 @@ import { getPrincipal } from "../../auth/middleware";
 import { resolveNamespacesPath } from "../../config/index";
 
 /** Query-parameter parse result: a typed value, or null = "param absent". */
-type OptionalParam<T> = { ok: true; value: T | null } | { ok: false; error: string };
+type OptionalParam<T> =
+  { ok: true; value: T | null } | { ok: false; error: string };
 
-function parseOptionalIso(
-  raw: unknown,
-  name: string,
-): OptionalParam<string> {
+function parseOptionalIso(raw: unknown, name: string): OptionalParam<string> {
   if (raw === undefined) return { ok: true, value: null };
   if (typeof raw !== "string" || raw.trim() === "") {
-    return { ok: false, error: `Query parameter '${name}' must be a non-empty ISO 8601 timestamp` };
+    return {
+      ok: false,
+      error: `Query parameter '${name}' must be a non-empty ISO 8601 timestamp`,
+    };
   }
   const parsed = Date.parse(raw);
   if (Number.isNaN(parsed)) {
-    return { ok: false, error: `Query parameter '${name}' is not a valid ISO 8601 timestamp: '${raw}'` };
+    return {
+      ok: false,
+      error: `Query parameter '${name}' is not a valid ISO 8601 timestamp: '${raw}'`,
+    };
   }
   return { ok: true, value: new Date(parsed).toISOString() };
 }
@@ -60,7 +61,10 @@ function parseOptionalString(
 ): OptionalParam<string> {
   if (raw === undefined) return { ok: true, value: null };
   if (typeof raw !== "string" || raw.trim() === "") {
-    return { ok: false, error: `Query parameter '${name}' must be a non-empty string` };
+    return {
+      ok: false,
+      error: `Query parameter '${name}' must be a non-empty string`,
+    };
   }
   return { ok: true, value: raw };
 }

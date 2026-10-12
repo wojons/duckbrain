@@ -22,7 +22,10 @@ const BIN_PATH = path.resolve(__dirname, "..", "..", "bin", "duckbrain.js");
 // INT-CI-027: the daemon writes its pidfile asynchronously around the same time
 // /health starts answering, so an immediate existsSync can race it in CI. Poll
 // briefly before asserting.
-async function waitForPidFile(pidFile: string, timeoutMs = 10000): Promise<void> {
+async function waitForPidFile(
+  pidFile: string,
+  timeoutMs = 10000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!fs.existsSync(pidFile)) {
     if (Date.now() > deadline) {

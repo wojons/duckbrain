@@ -105,7 +105,10 @@ describe("resolveNamespacePath (GAP-063b)", () => {
       // Point config discovery at the temp root: DUCKBRAIN_CONFIG_PATH makes
       // resolveDuckbrainRoot() return `tmp`, so getConfig reads our temp config.
       const prev = process.env.DUCKBRAIN_CONFIG_PATH;
-      process.env.DUCKBRAIN_CONFIG_PATH = path.join(tmp, "duckbrain.config.json");
+      process.env.DUCKBRAIN_CONFIG_PATH = path.join(
+        tmp,
+        "duckbrain.config.json",
+      );
       try {
         const { name, nsPath } = resolveNamespacePath("mapped-ns");
         expect(name).toBe("mapped-ns");

@@ -28,9 +28,7 @@ import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import { executeSegmentConsolidation } from "../storage/segment-consolidation";
 import { getConfig, setConfig, registerNamespace } from "../config/index";
-import {
-  deleteNamespaceFromDisk,
-} from "../namespaces/lifecycle";
+import { deleteNamespaceFromDisk } from "../namespaces/lifecycle";
 // PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
 // @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
 // so read-only CLI paths (recall/list-keys/status) never load the SDK.

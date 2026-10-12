@@ -42,7 +42,9 @@ describe("GIT-IDENTITY-001: attribution has no synthetic fallback", () => {
 
   it("getAuthorEmail() THROWS with an actionable hint when nothing resolves", async () => {
     const { getAuthorEmail } = await import("./attribution.js");
-    expect(() => getAuthorEmail()).toThrow(/No git author identity is configured/);
+    expect(() => getAuthorEmail()).toThrow(
+      /No git author identity is configured/,
+    );
   });
 
   it("the thrown hint names the documented env override knobs", async () => {

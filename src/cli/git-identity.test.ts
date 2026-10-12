@@ -14,7 +14,12 @@ import { runGitIdentityCLI } from "./git-identity";
 
 // CI runners have no global git identity (CI-GITID-028): give fixture
 // commits an explicit identity instead of relying on host config.
-const CI_IDENT = ["-c", "user.name=DuckBrain Test", "-c", "user.email=duckbrain-test@example.com"];
+const CI_IDENT = [
+  "-c",
+  "user.name=DuckBrain Test",
+  "-c",
+  "user.email=duckbrain-test@example.com",
+];
 function git(args: string[], cwd: string): string {
   return execFileSync("git", ["-C", cwd, ...CI_IDENT, ...args], {
     encoding: "utf-8",
@@ -71,7 +76,10 @@ describe("duckbrain git repair-identity", () => {
       git(["commit", "-m", "seed"], dir);
     }
     git(["config", "--local", "user.name", "DuckBrain"], pinned);
-    git(["config", "--local", "user.email", "duckbrain@localhost.localdomain"], pinned);
+    git(
+      ["config", "--local", "user.email", "duckbrain@localhost.localdomain"],
+      pinned,
+    );
     const headBefore = git(["rev-parse", "HEAD"], pinned);
 
     const first = await capture(() => runGitIdentityCLI(["repair-identity"]));

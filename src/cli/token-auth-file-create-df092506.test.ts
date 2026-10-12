@@ -45,36 +45,36 @@ function snapshotProdAuth(): { exists: boolean; sha256: string | null } {
   if (!fs.existsSync(PROD_AUTH_PATH)) return { exists: false, sha256: null };
   return {
     exists: true,
-    sha256: crypto.createHash("sha256").update(fs.readFileSync(PROD_AUTH_PATH)).digest("hex"),
+    sha256: crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(PROD_AUTH_PATH))
+      .digest("hex"),
   };
 }
 
 describe("DF-0925-06: missing --auth-file is created for token minting", () => {
-  it(
-    "mints a token into a fresh --auth-file path including a missing parent dir",
-    async () => {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "df092506-create-"));
-      const fresh = path.join(dir, "sub", "nested", "auth.json");
-      const prodBefore = snapshotProdAuth();
+  it("mints a token into a fresh --auth-file path including a missing parent dir", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "df092506-create-"));
+    const fresh = path.join(dir, "sub", "nested", "auth.json");
+    const prodBefore = snapshotProdAuth();
 
-      const { code, stdout, stderr } = await runTokenCli([
-        "--name=df092506-create",
-        `--auth-file=${fresh}`,
-      ]);
+    const { code, stdout, stderr } = await runTokenCli([
+      "--name=df092506-create",
+      `--auth-file=${fresh}`,
+    ]);
 
-      expect(stderr).not.toContain("--auth-file not found");
-      expect(code).toBe(0);
-      expect(stdout).toContain(`Token saved to ${fresh}`);
-      expect(fs.existsSync(fresh)).toBe(true);
-      const store = JSON.parse(fs.readFileSync(fresh, "utf-8"));
-      expect(Array.isArray(store.apiKeys)).toBe(true);
-      expect(store.apiKeys).toHaveLength(1);
-      expect(store.apiKeys[0].name).toBe("df092506-create");
-      expect(store.apiKeys[0].keyHash).toMatch(/^\$sha256\$[0-9a-f]{64}$/);
-      expect(snapshotProdAuth()).toEqual(prodBefore);
-      fs.rmSync(dir, { recursive: true, force: true });
-    },
-  );
+    expect(stderr).not.toContain("--auth-file not found");
+    expect(code).toBe(0);
+    expect(stdout).toContain(`Token saved to ${fresh}`);
+    expect(fs.existsSync(fresh)).toBe(true);
+    const store = JSON.parse(fs.readFileSync(fresh, "utf-8"));
+    expect(Array.isArray(store.apiKeys)).toBe(true);
+    expect(store.apiKeys).toHaveLength(1);
+    expect(store.apiKeys[0].name).toBe("df092506-create");
+    expect(store.apiKeys[0].keyHash).toMatch(/^\$sha256\$[0-9a-f]{64}$/);
+    expect(snapshotProdAuth()).toEqual(prodBefore);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 
   it("still fails loudly for an existing but unparseable --auth-file", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "df092506-badjson-"));

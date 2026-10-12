@@ -31,11 +31,7 @@ export interface GitIdentity {
   email: string;
 }
 
-export type GitIdentitySource =
-  | "repo-local"
-  | "global"
-  | "env"
-  | "none";
+export type GitIdentitySource = "repo-local" | "global" | "env" | "none";
 
 export interface ResolvedGitIdentity {
   identity: GitIdentity | null;
@@ -96,7 +92,10 @@ export const SYNTHETIC_LOCAL_IDENTITY = {
 } as const;
 
 /** Does this name/email pair match the historical synthetic pin? */
-export function isSyntheticIdentity(name: string | null, email: string | null): boolean {
+export function isSyntheticIdentity(
+  name: string | null,
+  email: string | null,
+): boolean {
   const nameMatch = isNonEmpty(name) && name.trim() === SYNTHETIC_NAME;
   const emailMatch =
     isNonEmpty(email) && /^duckbrain[@]localhost/i.test(email.trim());
@@ -124,13 +123,19 @@ export function resolveGitIdentity(
     ? readGitConfig("user.email", repoPath, "local", env)
     : null;
   if (isNonEmpty(nameLocal) && isNonEmpty(emailLocal)) {
-    return { identity: { name: nameLocal.trim(), email: emailLocal.trim() }, source: "repo-local" };
+    return {
+      identity: { name: nameLocal.trim(), email: emailLocal.trim() },
+      source: "repo-local",
+    };
   }
 
   const nameGlobal = readGitConfig("user.name", undefined, "global", env);
   const emailGlobal = readGitConfig("user.email", undefined, "global", env);
   if (isNonEmpty(nameGlobal) && isNonEmpty(emailGlobal)) {
-    return { identity: { name: nameGlobal.trim(), email: emailGlobal.trim() }, source: "global" };
+    return {
+      identity: { name: nameGlobal.trim(), email: emailGlobal.trim() },
+      source: "global",
+    };
   }
 
   const nameEnv = readEnv(env, DUCKBRAIN_GIT_AUTHOR_NAME_ENV);
@@ -170,10 +175,13 @@ export function resolveAuthorEmail(
   repoPath?: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const local = repoPath ? readGitConfig("user.email", repoPath, "local") : null;
+  const local = repoPath
+    ? readGitConfig("user.email", repoPath, "local")
+    : null;
   if (isNonEmpty(local) && isPlausibleEmail(local.trim())) return local.trim();
   const global = readGitConfig("user.email", undefined, "global");
-  if (isNonEmpty(global) && isPlausibleEmail(global.trim())) return global.trim();
+  if (isNonEmpty(global) && isPlausibleEmail(global.trim()))
+    return global.trim();
   const envValue = readEnv(env, DUCKBRAIN_GIT_AUTHOR_EMAIL_ENV);
   if (envValue && isPlausibleEmail(envValue)) return envValue;
   throw new Error(buildSetupHint());
@@ -201,8 +209,8 @@ export function buildSetupHint(): string {
     "No git author identity is configured. DuckBrain refuses to invent one " +
     "(GIT-IDENTITY-001: a synthetic 'DuckBrain <duckbrain at localhost>' pin used to be " +
     "written into every namespace repo). Fix it with ONE of:\n" +
-    "  git config --global user.name \"Your Name\"\n" +
-    "  git config --global user.email \"you@example.com\"\n" +
+    '  git config --global user.name "Your Name"\n' +
+    '  git config --global user.email "you@example.com"\n' +
     `  (or per-namespace: git -C <namespace repo> config user.name/user.email)\n` +
     `  (or env: ${DUCKBRAIN_GIT_AUTHOR_NAME_ENV} / ${DUCKBRAIN_GIT_AUTHOR_EMAIL_ENV})`
   );
@@ -218,9 +226,7 @@ export function buildSetupHint(): string {
  * writes config. Call repairNamespaceGitIdentities() (or the `duckbrain git
  * repair-identity` CLI command) to clean flagged pins.
  */
-export function checkGitIdentityHealth(
-  namespacesPath?: string,
-): {
+export function checkGitIdentityHealth(namespacesPath?: string): {
   ok: boolean;
   resolvedIdentity: GitIdentity | null;
   syntheticPins: string[];
@@ -324,11 +330,15 @@ export function repairNamespaceGitIdentities(namespacesPath: string): {
 
     for (const key of ["user.email", "user.name"]) {
       try {
-        execFileSync("git", ["-C", repoPath, "config", "--local", "--unset", key], {
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-          timeout: 5000,
-        });
+        execFileSync(
+          "git",
+          ["-C", repoPath, "config", "--local", "--unset", key],
+          {
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+            timeout: 5000,
+          },
+        );
       } catch (error) {
         // --unset exits 5 when the key is already gone (concurrent repair or
         // a partial previous run); any other failure is a real error.

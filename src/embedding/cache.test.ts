@@ -121,7 +121,12 @@ describe("EmbeddingCache", () => {
     expect(maxDiff).toBeLessThanOrEqual(1e-6);
     // new-format file must exist on disk and the JSON legacy file must not
     const key = keyFor("lmstudio/qwen3", hash);
-    const binPath = path.join(tmpDir, "lmstudio_qwen3", key.slice(0, 2), `${key}.bin`);
+    const binPath = path.join(
+      tmpDir,
+      "lmstudio_qwen3",
+      key.slice(0, 2),
+      `${key}.bin`,
+    );
     expect(fs.existsSync(binPath)).toBe(true);
     // magic check
     const buf = fs.readFileSync(binPath);

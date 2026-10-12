@@ -39,10 +39,7 @@ import {
 } from "./tools/profiles";
 import { filterToolsList } from "./profiles";
 import path from "path";
-import {
-  CustomRuntimeManager,
-  jsonSchemaToZodShape,
-} from "./custom-runtime";
+import { CustomRuntimeManager, jsonSchemaToZodShape } from "./custom-runtime";
 import { registerCustomTools, customToolCallResult } from "./tools/custom-tool";
 import type { CustomToolFailure, CustomToolResult } from "./custom-runtime";
 import { resolveDuckbrainRoot, getConfig } from "../config/index";
@@ -281,7 +278,10 @@ function getCustomRuntimeManager(): CustomRuntimeManager | undefined {
   const config = getConfig(resolveDuckbrainRoot());
   const block = (config as { customTools?: { enabled?: boolean } }).customTools;
   if (!block?.enabled) return undefined;
-  customRuntimeManager = new CustomRuntimeManager(config, resolveDuckbrainRoot());
+  customRuntimeManager = new CustomRuntimeManager(
+    config,
+    resolveDuckbrainRoot(),
+  );
   return customRuntimeManager;
 }
 
@@ -306,8 +306,7 @@ function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
         },
         async (args: Record<string, unknown>) => {
           const outcome = (await handler(args)) as
-            | CustomToolResult
-            | CustomToolFailure;
+            CustomToolResult | CustomToolFailure;
           return customToolCallResult(outcome) as {
             content: Array<{ type: "text"; text: string }>;
             isError?: boolean;
@@ -330,8 +329,6 @@ function registerCustomToolsOnServer(manager: CustomRuntimeManager): void {
       "server_http_start",
     ]),
   );
-
-
 }
 
 /**

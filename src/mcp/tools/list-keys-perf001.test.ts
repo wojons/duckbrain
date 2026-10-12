@@ -129,11 +129,17 @@ function rmNamespaceDir(): void {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
-      fs.rmSync(nsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 25 });
+      fs.rmSync(nsPath, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 25,
+      });
       return;
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") throw err;
+      if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM")
+        throw err;
       lastErr = err;
       sleepSync(50 * (attempt + 1));
     }
