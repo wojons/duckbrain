@@ -167,7 +167,9 @@ describe("DF-0925-08: s3 status lists the registry/census UNION", () => {
 
     expect(lines).toContain("S3 config: ENABLED");
     // The registry half is still served…
-    expect(perNamespaceRows(lines).filter((r) => /^ {2}cfg-ns: /.test(r))).toHaveLength(1);
+    expect(
+      perNamespaceRows(lines).filter((r) => /^ {2}cfg-ns: /.test(r)),
+    ).toHaveLength(1);
     // …and nothing was created on disk by a read-only status call.
     expect(fs.existsSync(missing)).toBe(false);
   });
@@ -175,9 +177,12 @@ describe("DF-0925-08: s3 status lists the registry/census UNION", () => {
 
 describe("DF-0925-08: unionNamespaceList (order + dedupe)", () => {
   it("appends on-disk-only names after the config names, deduped", () => {
-    expect(
-      unionNamespaceList(["a", "b"], ["b", "c", "a", "d"]),
-    ).toEqual(["a", "b", "c", "d"]);
+    expect(unionNamespaceList(["a", "b"], ["b", "c", "a", "d"])).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 
   it("returns the on-disk names when the registry is empty", () => {

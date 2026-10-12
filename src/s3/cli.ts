@@ -118,9 +118,7 @@ export async function s3Status(
   // INSTEAD of the other). An explicit namespace argument still resolves to
   // exactly that namespace.
   const configNames = nsArg ? [nsArg] : Object.keys(cfg.namespaceMappings);
-  const onDiskNames = nsArg
-    ? []
-    : [...censusOnDiskNamespaces(nsRoot).keys()];
+  const onDiskNames = nsArg ? [] : [...censusOnDiskNamespaces(nsRoot).keys()];
   const resolved = unionNamespaceList(configNames, onDiskNames);
   const registered = new Set(configNames);
 
