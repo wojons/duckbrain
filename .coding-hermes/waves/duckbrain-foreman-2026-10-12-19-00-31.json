@@ -1,0 +1,46 @@
+{
+  "tick": "duckbrain-foreman-2026-10-12-19-00-31",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "base_ref": "origin/main",
+  "base_sha": "4d329b9c70243b47c69f35979fd855a15c20129d",
+  "wave_budget": 10,
+  "wave_size": 2,
+  "budget_math": "WAVE_BUDGET=10 ceiling; eligible independent rows after premise audit = 2 (DF-0925-08, QA-DUCKBRAIN-009 — disjoint file sets, no depends_on). RELEASE-CUT-001 / ROLLOUT-DUCKBRAIN-001 / REVIEW-DUCKBRAIN-005 are owner-gated decisions; DF-0923-05 file-overlaps README.md with DF-0925-08 (not wave-eligible); MUSTER-002 filed foreman-direct (board-only). Skill caps wave at 3 and sizes to wall-clock — 2 workers + 2 post-merge judges + merged-tree gates fill this tick.",
+  "created_at": "2026-10-12T19:25:00Z",
+  "status": "dispatching",
+  "workers": [
+    {
+      "task_id": "DF-0925-08",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0925-08",
+      "branch": "wt/DF-0925-08",
+      "base_sha": "4d329b9c70243b47c69f35979fd855a15c20129d",
+      "files_scope": ["README.md", "docs/s3-native.md", "skills/duckbrain-usage/SKILL.md", "src/s3/cli.ts", "src/s3/*.test.ts"],
+      "model": "deepseek-v4-flash",
+      "provider": "deepseek",
+      "brief": "/tmp/brief-DF-0925-08.txt",
+      "status": "pending",
+      "commit": null,
+      "merge_commit": null,
+      "verdict": null,
+      "result": null
+    },
+    {
+      "task_id": "QA-DUCKBRAIN-009",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-009",
+      "branch": "wt/QA-DUCKBRAIN-009",
+      "base_sha": "458bb1c1 (zero-commit branch; ff to 4d329b9c at dispatch; untracked partial work .qa/chaos-probes/shutdown.sh + src/qa/chaos-shutdown-probe.test.ts preserved)",
+      "files_scope": [".qa/chaos-probes/shutdown.sh", "src/qa/chaos-shutdown-probe.test.ts"],
+      "model": "deepseek-v4-flash",
+      "provider": "deepseek",
+      "brief": "/tmp/brief-QA-DUCKBRAIN-009.txt",
+      "status": "pending",
+      "commit": null,
+      "merge_commit": null,
+      "verdict": null,
+      "result": null
+    }
+  ],
+  "merge_order": ["DF-0925-08", "QA-DUCKBRAIN-009"],
+  "notes": "Merge serially with merged-tree gates (vitest + tsc + prettier + integration). GitReins tasks created in the MAIN checkout (task complete runs post-merge there). Workers never push; push is foreman-only post-merge. Orphan branches wt/SCHED-GAP-1574 and docs/duckbrain-background-workflows (no board rows) are retained as evidence this tick — disposition deferred."
+}
