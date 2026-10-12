@@ -94,6 +94,28 @@ remote), so a bare `git push` would no-op/fail — the daemon resolves the
 current branch and pushes `git push --set-upstream s3daily <branch>` so later
 bare pushes resolve too.
 
+**⚠️ Required one-time setup per namespace (DF-0925-08).** The auto-push can
+only target a remote that EXISTS, and nothing in DuckBrain creates it: a
+namespace whose `git remote` is empty (or holds only unrelated remotes) is
+silently skipped by `selectPushRemote`, so its git history never reaches S3 —
+while the JSONL/manifest half of `pushOnCommit` keeps syncing normally, which
+is what makes the gap easy to miss (S3 shows data objects but no git bundles).
+Wire the remote once per namespace, relative to `namespacesPath` (config
+`namespacesPath`, default `./namespaces`):
+
+```bash
+cd namespaces/<ns>                            # <namespacesPath>/<ns>
+git remote add s3daily s3://duckbrain/current/git/<ns>
+git remote get-url s3daily                    # verify: prints the s3:// URL
+```
+
+`git remote add` fails loudly when the remote already exists (`fatal: remote
+s3daily already exists`) — treat that failure as the check, not as an error to
+work around. Verify with
+`git -C <namespacesPath>/<ns> remote get-url s3daily`; a namespace without it
+is not being mirrored. This applies to namespaces created through the HTTP/MCP
+API too: they exist as directories and are never auto-wired.
+
 **Credentials/endpoint (`buildPushEnv`):** the helper injects `s3.endpoint` as
 `AWS_ENDPOINT_URL` and `s3.region` as `AWS_DEFAULT_REGION` (provider-agnostic);
 credentials come from the caller's AWS env / `~/.aws`
@@ -239,10 +261,11 @@ big-data scans without transferring everything.
 
 1. `duckbrain.config.json` → `"s3": { "enabled": true, "endpoint": "https://s3.<your-region>.your-provider.com", "bucket": "my-duckbrain", "prefix": "duckbrain", "pushOnCommit": true }`
 2. Export credentials in the daemon/CLI env: `AWS_PROFILE=<your-profile>` (or `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`).
-3. `duckbrain s3 status` → verify listing works.
-4. `duckbrain s3 sync all push` → first full push.
-5. `duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"` → SQL over S3.
-6. Restart the MCP/HTTP daemon so autocommit picks up `pushOnCommit`.
+3. Wire each namespace's git mirror ONCE — the auto-push is a no-op without it (DF-0925-08): `git remote add s3daily s3://duckbrain/current/git/<ns>` inside `<namespacesPath>/<ns>`, verified with `git -C <namespacesPath>/<ns> remote get-url s3daily`.
+4. `duckbrain s3 status` → verify listing works (and that your namespaces appear).
+5. `duckbrain s3 sync all push` → first full push.
+6. `duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"` → SQL over S3.
+7. Restart the MCP/HTTP daemon so autocommit picks up `pushOnCommit`.
 
 ## Fresh-machine DR restore
 

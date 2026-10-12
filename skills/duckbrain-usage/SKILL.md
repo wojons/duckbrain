@@ -327,9 +327,20 @@ Two independent paths — know which one you mean:
    within ~30s (debounce) + `intervalSec`. Delta-only, byte-exact. This is
    what `s3 query` reads.
 2. **Git-mirror autopush** (AUTOPUSH-001): pushes the namespace GIT repo to
-   the `s3daily` remote per commit. Requires `git remote add s3daily
-   s3://duckbrain/current/git/<ns>` — NO command/docs create this for a new
-   namespace (DF-0925-08); without the remote it silently does nothing.
+   the `s3daily` remote per commit. ONE-TIME setup per namespace — nothing
+   creates this remote for you, and without it the git half silently does
+   nothing (DF-0925-08; documented in README + docs/s3-native.md + here):
+
+   ```bash
+   cd <namespacesPath>/<ns>       # default namespacesPath: ./namespaces
+   git remote add s3daily s3://duckbrain/current/git/<ns>
+   git remote get-url s3daily     # verify: prints the s3:// remote URL
+   ```
+
+   `git remote add` failing with `remote s3daily already exists` means the
+   namespace is already wired. A namespace whose `git remote` output lacks
+   `s3daily` is not mirrored — its S3 prefix shows JSONL/manifest objects but
+   no git bundles.
 
 ```bash
 # query the bucket WITHOUT restoring (httpfs; Hetzner needs forcePathStyle)
@@ -487,8 +498,12 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
 22. **The `s3daily` git-mirror remote is never wired for new namespaces
     (DF-0925-08).** Autopush's git-half needs
     `git remote add s3daily s3://duckbrain/current/git/<ns>` per namespace;
-    nothing in README/docs/skill says so, so git history never reaches S3
-    and the JSONL manifest tier is the only thing actually syncing.
+    nothing CREATES it, so an unwired namespace's git history never reaches S3
+    (its JSONL manifest tier keeps syncing — that half is independent). Now
+    documented in README.md (Native S3 flow), docs/s3-native.md (required
+    one-time setup + activation checklist step 3) and the S3 section above;
+    the remote is per-namespace state, so wiring is still a manual ops step —
+    verify with `git -C <namespacesPath>/<ns> remote get-url s3daily`.
 23. **The examples/ tree is stale against the real API (DF-0926-01..05,
     verified 2026-09-26).** `pnpm start -- <cmd>` fails (`Unknown command: --`
     — use `node bin/duckbrain.js <cmd>`); `client.js` is ESM in a CJS repo

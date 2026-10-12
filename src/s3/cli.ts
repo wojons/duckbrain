@@ -15,6 +15,7 @@ import { getConfig } from "../config";
 import { safeJsonStringify } from "../utils/serialize";
 import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
 import { loadManifest } from "./manifest";
+import { censusOnDiskNamespaces } from "../namespaces/census";
 import {
   walkLocal,
   syncNamespace,
@@ -61,6 +62,42 @@ function requireEnabled(configDir: string) {
   return cfg.s3;
 }
 
+/**
+ * DF-0925-08: the `s3 status` namespace list is the UNION of the config
+ * registry (`namespaceMappings`) and the on-disk namespaces root.
+ *
+ * The registry is not the whole truth: a namespace created through the HTTP /
+ * MCP API exists as a directory under the namespaces root that may carry NO
+ * mapping (the DB-GAP-057 registry split-brain shape). The previous
+ * implementation listed the CONFIG keys whenever any mapping existed and only
+ * scanned the directory when that list was empty — so such a namespace, which
+ * exists, accepts writes and is actively pushed to S3, was invisible on its
+ * own status surface.
+ *
+ * This reuses the same census the DB-GAP-057 listing surfaces share
+ * (`src/namespaces/census.ts`), so every registry surface agrees about what
+ * exists. Config-registered names keep their order; on-disk-only names are
+ * appended once, so a name present in both halves is listed exactly once.
+ */
+export function unionNamespaceList(
+  configNames: string[],
+  onDiskNames: string[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of configNames) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  for (const name of onDiskNames) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
 export async function s3Status(
   configDir: string,
   nsArg?: string,
@@ -77,29 +114,15 @@ export async function s3Status(
   );
   console.log(`  pathStyle: ${s3.forcePathStyle}`);
 
-  const nsList = nsArg
-    ? [nsArg]
-    : Object.values(cfg.namespaceMappings).length > 0
-      ? Object.keys(cfg.namespaceMappings)
-      : [];
-
-  const resolved = nsList.length > 0 ? nsList : [];
-  if (resolved.length === 0) {
-    // no mappings configured — scan the namespaces dir
-    const fs = await import("fs");
-    let dirs: string[] = [];
-    try {
-      dirs = fs
-        .readdirSync(nsRoot, { withFileTypes: true })
-        .filter((e: any) => e.isDirectory() && !e.name.startsWith("."))
-        .map((e: any) => e.name);
-    } catch {
-      // Absent namespaces root (fresh machine before a restore) — status
-      // still prints the config/endpoint block, just lists no namespaces.
-      dirs = [];
-    }
-    resolved.push(...dirs);
-  }
+  // DF-0925-08: union the config registry with the on-disk census (never one
+  // INSTEAD of the other). An explicit namespace argument still resolves to
+  // exactly that namespace.
+  const configNames = nsArg ? [nsArg] : Object.keys(cfg.namespaceMappings);
+  const onDiskNames = nsArg
+    ? []
+    : [...censusOnDiskNamespaces(nsRoot).keys()];
+  const resolved = unionNamespaceList(configNames, onDiskNames);
+  const registered = new Set(configNames);
 
   const client = buildClient(s3);
   for (const ns of resolved.slice(0, 20)) {
@@ -118,7 +141,7 @@ export async function s3Status(
       console.warn(`  (list failed for ${ns}: ${(err as Error).message})`);
     }
     console.log(
-      `  ${ns}: local=${localCount} remote=${remoteCount >= 0 ? remoteCount : "?"} lastSync=${manifest?.lastSyncAt ?? "never"}`,
+      `  ${ns}: local=${localCount} remote=${remoteCount >= 0 ? remoteCount : "?"} lastSync=${manifest?.lastSyncAt ?? "never"}${registered.has(ns) ? "" : " (on-disk only — no config mapping)"}`,
     );
   }
 }

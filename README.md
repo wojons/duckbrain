@@ -90,7 +90,7 @@ Add `$HOME/.local/bin` to your shell profile so `pnpm` remains on `PATH` in new 
 
 `duckbrain.config.json` is instance-local and untracked — the repo ships `duckbrain.config.example.json` as the template; the defaults work out of the box.
 
-**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **global git identity** (`git config --global user.name` / `user.email`) is required by the git-backed memory store; the **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`. Memory author attribution also reads `git config user.email` — if it holds a bare-host address with no dot in the domain (e.g. `dogfood@localhost`), that value is skipped and memories are attributed to the built-in default `duckbrain@localhost.localdomain` instead.
+**Fresh-host extras** (labelled by feature, full detail in the [Getting Started Guide](docs/guide/getting-started.md)): a **git identity** (`git config --global user.name` / `user.email` — or a per-namespace `git -C <namespace> config user.name user.email`, or the `DUCKBRAIN_GIT_AUTHOR_NAME` / `DUCKBRAIN_GIT_AUTHOR_EMAIL` env pair) is **not required to run, write or read the memory store**, but it is what stamps memory authorship: on an **unauthenticated** daemon (`--auth=none`, which the verify snippet below uses) a write has nothing else to attribute it to, so with no identity configured the write fails with an actionable setup error instead of inventing an author, and the per-namespace git history commits are skipped (best-effort — the JSONL record is durable either way); a **keyed** daemon (`--auth=apikey`, the default) stamps the API key's name (`<key-name>@duckbrain.local`) on the row instead and needs no git identity at all. A `user.email` that is a bare host address with no dot in the domain (e.g. `dogfood@localhost`) is treated as unset — the memory schema requires a TLD-bearing address, and DuckBrain refuses to substitute a fabricated one (GIT-IDENTITY-001). The **S3 storage tier** needs `git-remote-s3` + AWS CLI (in a Python venv); the **integration test suite** needs `sshpass`.
 
 ```bash
 # Clone the repository
@@ -259,6 +259,16 @@ duckbrain s3 status          # verify bucket listing works
 duckbrain s3 sync all push   # first full push (subsequent pushes are delta-only)
 duckbrain s3 query "SELECT count(*) FROM read_json_auto('s3://duckbrain/<ns>/event/2026-08/current.jsonl')"  # SQL over S3
 ```
+
+**One-time per-namespace wiring for the git mirror.** `pushOnCommit` has two independent halves: the JSONL/manifest delta sync (automatic as soon as the daemon picks up the config) and the git-mirror auto-push (AUTOPUSH-001), which pushes each namespace's git repo to the canonical `s3daily` remote. Nothing creates that remote for you, and a namespace with no remotes is silently skipped — so its git history never reaches S3 while the JSONL tier syncs fine. Wire each namespace once (paths relative to `namespacesPath`, default `./namespaces`):
+
+```bash
+cd namespaces/<ns>
+git remote add s3daily s3://duckbrain/current/git/<ns>
+git remote get-url s3daily   # verify: prints the s3:// remote URL
+```
+
+After that the daemon runs `git push --set-upstream s3daily <branch>` on every commit flush (~30s debounce); a namespace whose `git remote` output does not list `s3daily` is not being mirrored. See [docs/s3-native.md](docs/s3-native.md#in-daemon-auto-push-to-the-canonical-s3daily-remote) for the mechanism.
 
 Restart the MCP/HTTP daemon after activating so autocommit picks up `pushOnCommit`. See [docs/s3-native.md](docs/s3-native.md) for the full design.
 
