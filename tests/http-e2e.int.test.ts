@@ -11,6 +11,7 @@ import {
   curl,
   DAEMON_READY_TIMEOUT_MS,
 } from "./helpers";
+import { resolveUiDistDir } from "../src/cli/http";
 
 const port = getRandomPort();
 let server: ChildProcess;
@@ -110,9 +111,28 @@ describe("HTTP Server E2E Integration", () => {
     expect(res.headers).toContain("/api/memories");
   });
 
-  it("should reject unknown routes with 404", async () => {
-    const res = await curl(`http://127.0.0.1:${port}/nonexistent`);
+  // INT-CI-029: the 404 contract is API-scoped since DF-0924-08. Unknown
+  // /api/* routes must stay machine-readable 404s; unknown APP paths fall
+  // through to the SPA index (200) when the UI is built so client-side deep
+  // links work, and 404 when it is not. The pre-SPA test asserted 404 for
+  // every unknown route and only passed where packages/ui/dist happened to be
+  // absent (env-dependent red — CI never builds the UI before tests).
+  it("should reject unknown API routes with 404", async () => {
+    const res = await curl(`http://127.0.0.1:${port}/api/nonexistent`);
     expect(res.status).toBe(404);
+  });
+
+  it("serves the SPA fallback for unknown app paths only when the UI is built (INT-CI-029)", async () => {
+    const uiBuilt = fs.existsSync(
+      path.join(resolveUiDistDir(), "index.html"),
+    );
+    const res = await curl(`http://127.0.0.1:${port}/nonexistent`);
+    if (uiBuilt) {
+      // SPA fallback answers the app shell for any non-API GET.
+      expect(res.status).toBe(200);
+    } else {
+      expect(res.status).toBe(404);
+    }
   });
 
   it("should bind to localhost only by default", async () => {
