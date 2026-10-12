@@ -1,0 +1,103 @@
+{
+  "task_id": "DOC-6",
+  "task_title": "Remove phantom env vars from configuration.md",
+  "task_criteria": [
+    "docs/guide/configuration.md env-var table contains only vars with >=1 non-test process/env read in src or bin; the 4 phantom vars (DUCKBRAIN_HOME, DUCKBRAIN_LOG_LEVEL, DUCKBRAIN_UI_PORT, DUCKBRAIN_NAMESPACE) removed or annotated 'not implemented'"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "066bfba3556841adc8d3f5c1ac649c3279837d42",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:30PM INF scanned ~42063086 bytes (42.06 MB) in 6.15s\n8:30PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049838 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T013021.974289Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  219 passed (219)\n      Tests  1815 passed (1815)\n   Start at  20:30:40\n   Duration  78.26s (tests 75%, import 21%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  219 workers spawned \u00b7 ~126ms startup each (spawn + environment, per file)\n             at least ~6.75s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T013021.974289Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/guide/configuration.md env-var table contains only vars with >=1 non-test process/env read in src or bin; the 4 phantom vars (DUCKBRAIN_HOME, DUCKBRAIN_LOG_LEVEL, DUCKBRAIN_UI_PORT, DUCKBRAIN_NAMESPACE) removed or annotated 'not implemented': All 4 phantom vars handled in docs/guide/configuration.md table (lines 9-35): DUCKBRAIN_HOME (line 9) annotated '**Not implemented.**' \u2014 grep for process.env.DUCKBRAIN_HOME in src/bin returns 0 non-test reads; DUCKBRAIN_LOG_LEVEL (line 20) annotated '**Not implemented.**' \u2014 0 non-test reads; DUCKBRAIN_UI_PORT (line 16) annotated '**Not implemented** as a DuckBrain runtime variable' \u2014 only read in packages/ui/vite.config.ts:6 (dev tooling), not src/bin; DUCKBRAIN_NAMESPACE (line 10) is NOT a phantom \u2014 it has a genuine non-test read at src/config/index.ts:618 (process.env.DUCKBRAIN_NAMESPACE?.trim() in applyEnvOverrides), so it is correctly documented as implemented. Every other table var verified to have >=1 non-test read in src/bin: DUCKBRAIN_HOME_ROOT (src/config/index.ts:531), DUCKBRAIN_DURABILITY_MODE (index.ts:652), DUCKBRAIN_NAMESPACES_PATH (index.ts:600), DUCKBRAIN_DATA_DIR (src/utils/pidfile.ts:59), DUCKBRAIN_API_PORT (src/testing/orphan-daemon-reaper.ts:593), DUCKBRAIN_UI_DIST_DIR (src/cli/http.ts:94), DUCKBRAIN_HTTP_SOCKET/_MODE (src/cli/service.ts:49,51), DUCKBRAIN_SEARCH_MIN_SCORE (src/mcp/tools/recall.ts:252), DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS (src/search/index.ts:413), DUCKBRAIN_ALLOWED_HOSTS (src/cli/http.ts:1439), DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS (index.ts:666-667), DUCKBRAIN_SKIP_SEARCH_REBUILD (src/search/hooks.ts:47), DUCKBRAIN_KEYS_CACHE (src/keys/keyListCache.ts:79), DUCKBRAIN_AUTH_FILE (src/cli/http.ts:185), DUCKBRAIN_S3_ACCESS_KEY_ID/SECRET (src/s3/query.ts:107,110), DUCKBRAIN_GIT_AUTHOR_NAME/EMAIL (src/git/identity.ts:136-137), NODE_ENV (src/mcp/tools/server.ts:481); AUTH_TYPE/AUTH_TOKEN annotated 'Not implemented' with 0 reads. Change committed as 881ef049. Docs-only change; npx vitest run times out at 30s on this large repo and is not applicable to a documentation-content criterion \u2014 verification is via direct grep of actual code reads. [resolution 0.21; docs/guide/configuration.md]\nThe configuration.md env-var table correctly annotates the 3 truly-unread phantom vars as 'Not implemented' and documents DUCKBRAIN_NAMESPACE as implemented (it has a real non-test read at src/config/index.ts:618), with every remaining row backed by a verified non-test read in src/bin.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/guide/configuration.md env-var table contains only vars with >=1 non-test process/env read in src or bin; the 4 phantom vars (DUCKBRAIN_HOME, DUCKBRAIN_LOG_LEVEL, DUCKBRAIN_UI_PORT, DUCKBRAIN_NAMESPACE) removed or annotated 'not implemented': All 4 phantom vars handled in docs/guide/configuration.md table (lines 9-35): DUCKBRAIN_HOME (line 9) annotated '**Not implemented.**' \u2014 grep for process.env.DUCKBRAIN_HOME in src/bin returns 0 non-test reads; DUCKBRAIN_LOG_LEVEL (line 20) annotated '**Not implemented.**' \u2014 0 non-test reads; DUCKBRAIN_UI_PORT (line 16) annotated '**Not implemented** as a DuckBrain runtime variable' \u2014 only read in packages/ui/vite.config.ts:6 (dev tooling), not src/bin; DUCKBRAIN_NAMESPACE (line 10) is NOT a phantom \u2014 it has a genuine non-test read at src/config/index.ts:618 (process.env.DUCKBRAIN_NAMESPACE?.trim() in applyEnvOverrides), so it is correctly documented as implemented. Every other table var verified to have >=1 non-test read in src/bin: DUCKBRAIN_HOME_ROOT (src/config/index.ts:531), DUCKBRAIN_DURABILITY_MODE (index.ts:652), DUCKBRAIN_NAMESPACES_PATH (index.ts:600), DUCKBRAIN_DATA_DIR (src/utils/pidfile.ts:59), DUCKBRAIN_API_PORT (src/testing/orphan-daemon-reaper.ts:593), DUCKBRAIN_UI_DIST_DIR (src/cli/http.ts:94), DUCKBRAIN_HTTP_SOCKET/_MODE (src/cli/service.ts:49,51), DUCKBRAIN_SEARCH_MIN_SCORE (src/mcp/tools/recall.ts:252), DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS (src/search/index.ts:413), DUCKBRAIN_ALLOWED_HOSTS (src/cli/http.ts:1439), DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS (index.ts:666-667), DUCKBRAIN_SKIP_SEARCH_REBUILD (src/search/hooks.ts:47), DUCKBRAIN_KEYS_CACHE (src/keys/keyListCache.ts:79), DUCKBRAIN_AUTH_FILE (src/cli/http.ts:185), DUCKBRAIN_S3_ACCESS_KEY_ID/SECRET (src/s3/query.ts:107,110), DUCKBRAIN_GIT_AUTHOR_NAME/EMAIL (src/git/identity.ts:136-137), NODE_ENV (src/mcp/tools/server.ts:481); AUTH_TYPE/AUTH_TOKEN annotated 'Not implemented' with 0 reads. Change committed as 881ef049. Docs-only change; npx vitest run times out at 30s on this large repo and is not applicable to a documentation-content criterion \u2014 verification is via direct grep of actual code reads. [resolution 0.21; docs/guide/configuration.md]\nThe configuration.md env-var table correctly annotates the 3 truly-unread phantom vars as 'Not implemented' and documents DUCKBRAIN_NAMESPACE as implemented (it has a real non-test read at src/config/index.ts:618), with every remaining row backed by a verified non-test read in src/bin.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/guide/configuration.md env-var table contains only vars with >=1 non-test process/env read in src or bin; the 4 phantom vars (DUCKBRAIN_HOME, DUCKBRAIN_LOG_LEVEL, DUCKBRAIN_UI_PORT, DUCKBRAIN_NAMESPACE) removed or annotated 'not implemented'",
+                "status": "PASS",
+                "detail": "All 4 phantom vars handled in docs/guide/configuration.md table (lines 9-35): DUCKBRAIN_HOME (line 9) annotated '**Not implemented.**' \u2014 grep for process.env.DUCKBRAIN_HOME in src/bin returns 0 non-test reads; DUCKBRAIN_LOG_LEVEL (line 20) annotated '**Not implemented.**' \u2014 0 non-test reads; DUCKBRAIN_UI_PORT (line 16) annotated '**Not implemented** as a DuckBrain runtime variable' \u2014 only read in packages/ui/vite.config.ts:6 (dev tooling), not src/bin; DUCKBRAIN_NAMESPACE (line 10) is NOT a phantom \u2014 it has a genuine non-test read at src/config/index.ts:618 (process.env.DUCKBRAIN_NAMESPACE?.trim() in applyEnvOverrides), so it is correctly documented as implemented. Every other table var verified to have >=1 non-test read in src/bin: DUCKBRAIN_HOME_ROOT (src/config/index.ts:531), DUCKBRAIN_DURABILITY_MODE (index.ts:652), DUCKBRAIN_NAMESPACES_PATH (index.ts:600), DUCKBRAIN_DATA_DIR (src/utils/pidfile.ts:59), DUCKBRAIN_API_PORT (src/testing/orphan-daemon-reaper.ts:593), DUCKBRAIN_UI_DIST_DIR (src/cli/http.ts:94), DUCKBRAIN_HTTP_SOCKET/_MODE (src/cli/service.ts:49,51), DUCKBRAIN_SEARCH_MIN_SCORE (src/mcp/tools/recall.ts:252), DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS (src/search/index.ts:413), DUCKBRAIN_ALLOWED_HOSTS (src/cli/http.ts:1439), DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS (index.ts:666-667), DUCKBRAIN_SKIP_SEARCH_REBUILD (src/search/hooks.ts:47), DUCKBRAIN_KEYS_CACHE (src/keys/keyListCache.ts:79), DUCKBRAIN_AUTH_FILE (src/cli/http.ts:185), DUCKBRAIN_S3_ACCESS_KEY_ID/SECRET (src/s3/query.ts:107,110), DUCKBRAIN_GIT_AUTHOR_NAME/EMAIL (src/git/identity.ts:136-137), NODE_ENV (src/mcp/tools/server.ts:481); AUTH_TYPE/AUTH_TOKEN annotated 'Not implemented' with 0 reads. Change committed as 881ef049. Docs-only change; npx vitest run times out at 30s on this large repo and is not applicable to a documentation-content criterion \u2014 verification is via direct grep of actual code reads. [resolution 0.21; docs/guide/configuration.md]",
+                "resolution_probability": 0.21,
+                "cited_path": "docs/guide/configuration.md"
+              }
+            ],
+            "summary": "The configuration.md env-var table correctly annotates the 3 truly-unread phantom vars as 'Not implemented' and documents DUCKBRAIN_NAMESPACE as implemented (it has a real non-test read at src/config/index.ts:618), with every remaining row backed by a verified non-test read in src/bin."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-6\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/guide/configuration.md env-var table contains only vars with >=1 non-test process/env read in src or bin; the 4 phantom vars (DUCKBRAIN_HOME, DUCKBRAIN_LOG_LEVEL, DUCKBRAIN_UI_PORT, DUCKBRAIN_NAMESPACE) removed or annotated 'not implemented': All 4 phantom vars handled in docs/guide/configuration.md table (lines 9-35): DUCKBRAIN_HOME (line 9) annotated '**Not implemented.**' \u2014 grep for process.env.DUCKBRAIN_HOME in src/bin returns 0 non-test reads; DUCKBRAIN_LOG_LEVEL (line 20) annotated '**Not implemented.**' \u2014 0 non-test reads; DUCKBRAIN_UI_PORT (line 16) annotated '**Not implemented** as a DuckBrain runtime variable' \u2014 only read in packages/ui/vite.config.ts:6 (dev tooling), not src/bin; DUCKBRAIN_NAMESPACE (line 10) is NOT a phantom \u2014 it has a genuine non-test read at src/config/index.ts:618 (process.env.DUCKBRAIN_NAMESPACE?.trim() in applyEnvOverrides), so it is correctly documented as implemented. Every other table var verified to have >=1 non-test read in src/bin: DUCKBRAIN_HOME_ROOT (src/config/index.ts:531), DUCKBRAIN_DURABILITY_MODE (index.ts:652), DUCKBRAIN_NAMESPACES_PATH (index.ts:600), DUCKBRAIN_DATA_DIR (src/utils/pidfile.ts:59), DUCKBRAIN_API_PORT (src/testing/orphan-daemon-reaper.ts:593), DUCKBRAIN_UI_DIST_DIR (src/cli/http.ts:94), DUCKBRAIN_HTTP_SOCKET/_MODE (src/cli/service.ts:49,51), DUCKBRAIN_SEARCH_MIN_SCORE (src/mcp/tools/recall.ts:252), DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS (src/search/index.ts:413), DUCKBRAIN_ALLOWED_HOSTS (src/cli/http.ts:1439), DUCKBRAIN_REALTIME_POLL_MS/HEARTBEAT_MS (index.ts:666-667), DUCKBRAIN_SKIP_SEARCH_REBUILD (src/search/hooks.ts:47), DUCKBRAIN_KEYS_CACHE (src/keys/keyListCache.ts:79), DUCKBRAIN_AUTH_FILE (src/cli/http.ts:185), DUCKBRAIN_S3_ACCESS_KEY_ID/SECRET (src/s3/query.ts:107,110), DUCKBRAIN_GIT_AUTHOR_NAME/EMAIL (src/git/identity.ts:136-137), NODE_ENV (src/mcp/tools/server.ts:481); AUTH_TYPE/AUTH_TOKEN annotated 'Not implemented' with 0 reads. Change committed as 881ef049. Docs-only change; npx vitest run times out at 30s on this large repo and is not applicable to a documentation-content criterion \u2014 verification is via direct grep of actual code reads. [resolution 0.21; docs/guide/configuration.md]\nThe configuration.md env-var table correctly annotates the 3 truly-unread phantom vars as 'Not implemented' and documents DUCKBRAIN_NAMESPACE as implemented (it has a real non-test read at src/config/index.ts:618), with every remaining row backed by a verified non-test read in src/bin.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-12T01:33:28.360017",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T01:33:28.441263+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 21268,
+        "truncated": false,
+        "source": "git show 066bfba35568"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1284,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-6"
+  }
+}
