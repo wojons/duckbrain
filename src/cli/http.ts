@@ -78,6 +78,7 @@ import {
   getEmbeddingHealth,
   type EmbeddingHealthResult,
 } from "../embedding/health.js";
+import { startNamespaceWarmup } from "../http/namespace-warmup.js";
 
 /**
  * DF-0924-08: resolve the built Web UI directory (packages/ui/dist).
@@ -1124,6 +1125,12 @@ export async function startHttpMode(
     const httpServer = await listenTcp(app, port, host);
     servers.push(httpServer);
     console.error(`[duckbrain] HTTP server started at http://${host}:${port}`);
+
+    // AUG-096: warm per-namespace DuckDB singletons + first partition scans
+    // in the background. Fire-and-forget AFTER the bind — never delays
+    // listen(), never affects traffic (failure-tolerant by contract,
+    // DUCKBRAIN_WARM_NAMESPACES=0 disables).
+    startNamespaceWarmup().catch(() => {});
 
     // Graceful shutdown
     const shutdown = () => {
