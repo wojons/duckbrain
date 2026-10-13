@@ -492,3 +492,61 @@ fresh box (the 500 detour included); ~2 min once identity is set.
 diagnostics Run 15, skills/duckbrain-usage v1.14.0 (pitfall 31), 4 board
 rows, this entry. No code changes. Foreman NOT woken (active family, rows
 pending on its board).
+
+## Run 16 — 2026-10-13 tick (duckbrain-dogfood-2026-10-13-10-33-01) — second sibling run, angle: prod live-service durability
+
+NOTE: a sibling dogfood tick landed mid-run as **Run 15 (b762e367)** covering
+the AUG-096 warm-up surface + a bunker install leg. This run re-proved and
+cross-cites run 15's findings (DF-1013-01..03, PERF-012 all visible in the
+pending set) and took the UNTOUCHED surface: the live prod daemon under real
+cross-namespace search load.
+
+**Angle:** the live service (daemon 32de0244, up 3 days, 813 namespaces,
+5556-row default ns) driven as a real fleet consumer — hybrid `?q=` recall,
+`allNamespaces=true` keyword unions, compaction, health.
+
+**Verdict: 🟡 PROMISING-BUT-ROUGH (live-service durability).** Single-namespace
+reads and hybrid recall work and are warm-cache fast; the cross-namespace
+surface BROKE IN PRODUCTION during my run — 53/813 FTS sidecars emerged from
+boot warm-up empty, ~20 more lost their fts index, and every `contains= +
+allNamespaces=true` request hard-failed with a DuckDB catalog error for ~40
+minutes until manually repaired.
+
+**Findings (rows on tasks.jsonl):**
+- DF-1013-04 (P1): concurrent sidecar rebuilds corrupt the FTS cache
+  fleet-wide. 53 sidecars at 12288 bytes with ZERO tables (meta.json still
+  claims rowCount>0, indexedAt = boot warm-up window 05:34-05:37), ~20 with a
+  memories table but no fts schema. `keywordSearchAllNamespaces` treats any
+  non-MissingError as fatal → one corrupt sidecar kills the ENTIRE union
+  (400 with a DuckDB error). Repaired by per-namespace rebuilds; union then
+  worked. Fix: cross-process single-flight + per-namespace failure facets.
+- PERF-013 (P2): hybrid `?q=` on prod default ns p50 ~6s warm, tail >14s;
+  search-timing shows the latency IS provider RTT (batch_supported=false —
+  OpenRouter accepts an input array; measured batching 2 texts 7.7s vs 1 text
+  7.1s, so batch is free). allNamespaces union 40.9s for 813 namespaces after
+  repair (serial per-namespace DuckDB opens, query.ts:487). Plain list 0.10s.
+  Re-proved run 15's PERF-012 cold→warm win incidentally: no FTS rebuilds
+  appeared in any of my 14 warm probes.
+- Also re-proved (no new rows): run 15's DF-1013-02 (corrupt-namespace
+  warmup grading) is consistent with the corruption census above — the warmup
+  "idx=rebuilt" success lines are exactly when the empty sidecars were born.
+
+**Install leg: SKIPPED-install-bunker with citation** — run 15 executed the
+leg live THIS RUN-DAY at the same HEAD (bunker-mvp agent 6ddbc631, quickstart
+verbatim, green modulo DF-1013-01) and destroyed the agent; deps unchanged
+since (git log between b762e367 and HEAD = board/log commits only). Per the
+skill's explicit-skip rule a same-premise same-day proof is cited, not
+re-run; nothing new this run would have added beyond agent churn.
+
+**Perf:** numbers above + in PERF-013. Profile not justified beyond the
+search-timing breakdown: the wall time is embed-provider RTT, not compute.
+
+**Time-to-first-success:** n/a this angle (live service already running);
+repair-to-recovery for the union surface was ~25 min of manual rebuilds,
+which is itself the durability evidence.
+
+**Left behind:** 2 board rows (DF-1013-04, PERF-013), this entry. No code
+changes; the sidecar repairs were operator-cache-maintenance through the
+product's own CLI (`search-index rebuild --namespace=<ns>`), not source
+edits. Foreman NOT woken (run 15 left rows pending on the active board; the
+foreman works them on its next tick).
