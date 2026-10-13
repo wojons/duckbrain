@@ -70,38 +70,82 @@ const SCRATCH_KEY = "sk-scr-dbgap057";
 
 /* ---------------------------------------------------------------- helpers */
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 /**
- * INT-CI-030: wait until the daemon's AUG-096 boot warm-up has finished its
- * first enumeration pass (or is disabled). Returns once a warm-up summary
- * line has been observed on the health/quiet window, or after a bounded
- * timeout — the sentinel deletion that follows must not race the walk.
+ * INT-CI-030/INT-CI-031: wait until the daemon's AUG-096 boot warm-up has
+ * FINISHED. The daemon logs exactly one summary line to stderr when the
+ * whole pass (enumeration + every per-namespace leg) completes
+ * (`[duckbrain] Namespace warm-up: N namespace(s) warmed in ...ms`, see
+ * logNamespaceWarmup) — we own the child's stdio (spawn 'pipe' + the
+ * daemonStderrLog collector in beforeAll), so that line is the
+ * deterministic completion signal. Two identical censuses (the old
+ * heuristic) cannot prove completion: they observe NAMES only, while a
+ * still-in-flight warm-up leg can (re)materialize a directory — which is
+ * exactly the drift row that broke AC-1 in CI.
+ *
+ * Bounded: when warm-up is disabled (DUCKBRAIN_WARM_NAMESPACES=0) the
+ * summary line never appears; the clean-drift wait that follows the
+ * sentinel removal is the guard that actually protects the assertion.
  */
-async function waitForWarmupQuiet(port: number, key: string): Promise<void> {
-  // Warm-up is fire-and-forget; give it a bounded window (fits the 60s
-  // beforeAll budget). The daemon warms with a bounded budget itself and
-  // logs one summary line when done, but the summary goes to the child's
-  // stdio, not ours — poll the census instead: once a full listNamespaces
-  // pass over the root has completed, the warm-up walk that could
-  // re-materialize a deleted sentinel directory has already run.
-  const deadline = Date.now() + 15000;
-  let lastNames = "";
+const WARMUP_SUMMARY_MARKER = "[duckbrain] Namespace warm-up:";
+
+async function waitForWarmupQuiet(
+  _port: number,
+  _key: string,
+  daemonStderrLog: () => string,
+): Promise<void> {
+  const deadline = Date.now() + 25000;
   while (Date.now() < deadline) {
+    if (daemonStderrLog().includes(WARMUP_SUMMARY_MARKER)) return;
+    await sleep(200);
+  }
+  // Warm-up disabled or summary line lost — fall through; the caller's
+  // clean-drift wait covers any late materialization.
+}
+
+/**
+ * INT-CI-031: after removing the sentinel, require the drift object to be
+ * ABSENT on two consecutive GET /api/namespaces censuses. If a warm-up leg
+ * still in flight re-materialized the sentinel (its `.search`/`.embeddings`
+ * sidecar writes land AFTER our rmSync), re-remove it and keep polling —
+ * bounded, and a hard failure with a named cause if the census never goes
+ * clean (better than letting AC-1 fail on an opaque drift row).
+ */
+async function waitForCleanDrift(
+  port: number,
+  key: string,
+  sentinelPath: string,
+): Promise<void> {
+  const deadline = Date.now() + 15000;
+  let cleanStreak = 0;
+  while (Date.now() < deadline) {
+    // Re-remove each round: cheap, and heals a late warm-up write.
+    fs.rmSync(sentinelPath, { recursive: true, force: true });
     try {
       const res = await fetch(`http://127.0.0.1:${port}/api/namespaces`, {
         headers: { "X-API-Key": key },
       });
       if (res.ok) {
         const body: any = await res.json();
-        const names = body.namespaces.map((n: any) => n.name).sort().join(",");
-        // Two identical consecutive censuses => the enumeration settled.
-        if (names === lastNames) return;
-        lastNames = names;
+        if (body.drift === undefined) {
+          cleanStreak++;
+          if (cleanStreak >= 2) return;
+        } else {
+          cleanStreak = 0;
+        }
       }
     } catch {
-      // daemon still booting; keep polling
+      // transient fetch failure; keep polling
     }
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
   }
+  throw new Error(
+    "INT-CI-031: drift never went clean after sentinel removal " +
+      `(warm-up kept re-materializing ${sentinelPath}?)`,
+  );
 }
 
 function writeScratchAuthFile(dir: string): string {
@@ -188,6 +232,11 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
   let dataDir: string;
   let nsPath: string;
   let daemon: ChildProcess | undefined;
+  // INT-CI-031: full stderr capture of the child — the warm-up summary line
+  // (logNamespaceWarmup) is the deterministic completion signal for
+  // waitForWarmupQuiet.
+  let daemonStderr = "";
+  const daemonStderrLog = (): string => daemonStderr;
 
   beforeAll(async () => {
     port = await findFreePort();
@@ -244,6 +293,13 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
       // why the split-brain survived the whole suite.
       { env, stdio: "pipe", cwd: scratchRoot },
     );
+    // INT-CI-031: collect the child's stderr — waitForWarmupQuiet greps it
+    // for the AUG-096 warm-up summary line instead of guessing via census
+    // name comparisons.
+    daemon.stderr?.setEncoding("utf8");
+    daemon.stderr?.on("data", (chunk: string) => {
+      daemonStderr += chunk;
+    });
     await waitForHealth(port, 30000, daemon);
     await assertDaemonIsOurs({
       port,
@@ -253,24 +309,24 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
       sentinel,
       token: SCRATCH_KEY,
     });
-    // The sentinel is an UNMAPPED directory — keep it only long enough to
-    // prove ownership, then remove it so the drift census below measures
-    // only what AC-1/AC-2 create (a leftover sentinel would surface as
-    // onDiskOnly drift and break the clean-scratch assertion).
-    //
-    // INT-CI-030: the removal RACES the daemon's AUG-096 boot warm-up.
-    // The daemon (started just above) asynchronously warms every on-disk
-    // census namespace, and on a loaded host that walk can read the
-    // sentinel directory and materialize its DuckDB singleton/connection
-    // state AFTER our rmSync lands (warm-up re-walks the root), leaving a
-    // `scratch-sentinel-*` directory behind — which GET /api/namespaces
-    // then truthfully reports as onDiskOnly drift. Wait for the warm-up
-    // pass to finish BEFORE deleting the sentinel (warm-up logs one
-    // summary line; absence is fine when warm-up is disabled or already
-    // done). The daemon is our own child on 127.0.0.1 — bounded, local.
-    await waitForWarmupQuiet(port, SCRATCH_KEY);
+    // INT-CI-031: wait for the warm-up pass to actually COMPLETE (summary
+    // line on the child's stderr — we own the pipe), then remove the
+    // sentinel and REQUIRE the drift census to go clean (re-removing the
+    // sentinel if a late warm-up leg re-materializes it). The old
+    // two-identical-census wait observed names only; a leg in flight could
+    // still recreate the sentinel's `.search`/`.embeddings` sidecars after
+    // both polls and after rmSync, flipping AC-1's clean-drift assertion in
+    // loaded CI (GitHub run 38397048091: `drift {onDiskOnly: 1}`). Warm-up
+    // can write THREE things into a namespace dir (rebuildNamespaceIndex:
+    // .gitignore + .search/; EmbeddingCache.forNamespace: .embeddings/) —
+    // all under the (already removed) sentinel path, so the clean-drift
+    // wait below is what makes the assertion race-safe.
+    await waitForWarmupQuiet(port, SCRATCH_KEY, daemonStderrLog);
     fs.rmSync(path.join(nsPath, sentinel), { recursive: true, force: true });
-  }, 60000);
+    await waitForCleanDrift(port, SCRATCH_KEY, path.join(nsPath, sentinel));
+    // INT-CI-031: 90s — health (≤30s) + warm-up summary wait (≤25s) +
+    // clean-drift wait (≤15s) can stack on a loaded CI host.
+  }, 90000);
 
   afterAll(async () => {
     if (daemon) {
