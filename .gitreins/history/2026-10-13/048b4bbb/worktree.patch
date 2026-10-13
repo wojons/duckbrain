@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index e3480cf7..f621a51e 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2711,3 +2711,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-13T08:20:04.611369+00:00'
+   completed_at: '2026-10-13T10:41:43.136705+00:00'
++- id: INT-CI-031
++  title: 'P1 CI red on main: DB-GAP-057 namespace create-to-list census assertion
++    fails (onDiskOnly 1 expected undefined)'
++  criteria:
++  - src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused
++    runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or
++    truthful race-safe assertion; no other suite regressed
++  status: complete
++  created_at: '2026-10-13T21:56:37.544705+00:00'
++  completed_at: '2026-10-13T22:14:48.122130+00:00'

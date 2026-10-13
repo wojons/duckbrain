@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-031",
+  "task_title": "P1 CI red on main: DB-GAP-057 namespace create-to-list census assertion fails (onDiskOnly 1 expected undefined)",
+  "task_criteria": [
+    "src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or truthful race-safe assertion; no other suite regressed"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "d1edc33f7ca5b5b3dc53f75bd3e0471811449de1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:22PM INF scanned ~42573265 bytes (42.57 MB) in 7.42s\n5:22PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053349 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T215610.669515Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\u23af\u23af\u23af\u23af\u23af\u23af Unhandled Errors \u23af\u23af\u23af\u23af\u23af\u23af\n\nVitest caught 1 unhandled error during the test run.\nThis might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.\n\n\u23af\u23af\u23af\u23af Unhandled Rejection \u23af\u23af\u23af\u23af\u23af\nEnvironmentTeardownError: [vitest-worker]: Closing rpc while \"onUserConsoleLog\" was pending\nThis error originated in \"src/cli/tables.test.ts\" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n\n Test Files  222 passed (222)\n      Tests  1844 passed (1844)\n     Errors  1 error\n   Start at  17:22:17\n   Duration  83.03s (tests 78%, import 18%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  222 workers spawned \u00b7 ~116ms startup each (spawn + environment, per file)\n             at least ~6.30s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T215610.669515Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or truthful race-safe assertion; no other suite regressed: FOCUSED (3 consecutive, clean scratch env): `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` -> each run 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; verbose reporter confirms 'AC-1: POST 201 -> immediate GET lists the namespace' PASS (test at namespaces-dbgap057.test.ts:348). Hermetic: beforeAll mkdtemp scratchRoot+dataDir, deletes DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/AUTH_FILE from child env, pins DUCKBRAIN_HOME_ROOT. TSC: `npx tsc --noEmit` -> exit 0, no output (run twice). FULL SUITE: run A 'Test Files 222 passed (222) / Tests 1844 passed (1844)' EXIT=0; run C identical 222/1844 EXIT=0. Run B showed '1 failed | 221 passed, 1844 tests passed' EXIT=1, the sole failure being src/http/routes/memories-dogfood010.test.ts ENOTEMPTY at its own afterAll fs.rmSync (line 276) \u2014 a file d1edc33f does NOT touch (git show --stat: 1 file changed, only namespaces-dbgap057.test.ts, 91+/35-), which does not import race-safe-daemon, and which is the documented pre-existing flake (race-safe-daemon.ts:20-27 and 300-306: 'SIGTERM makes the daemon flush + commit, which spawns git children that can still be writing inside <ns>/.git ... so a single rmSync throws ENOTEMPTY from rmdir (a third, pre-existing flake source)'); dogfood010 passed 5/5 focused runs. Not a regression. RACE-SAFE ASSERTION: real and load-bearing \u2014 waitForWarmupQuiet now greps the child's captured stderr (daemonStderrLog collector wired at lines 296-299) for the warm-up summary marker, and new waitForCleanDrift (lines 117-140) polls GET /api/namespaces re-removing the sentinel each round until drift===undefined on TWO consecutive censuses, hard-failing with a named cause otherwise; beforeAll timeout 60s->90s. The assertion was NOT weakened: AC-1 still requires body.drift toBeUndefined (line 375). Mechanism verified in source: logNamespaceWarmup() runs in startNamespaceWarmup().then() AFTER warmManifestNamespaces() resolves (namespace-warmup.ts:455-458), i.e. after Promise.all(workers) in mapWithConcurrency \u2014 a true completion signal. Empirically reproduced the CI failure shape (probe: sentinel removed right after health -> drift {onDiskOnly:1} persisted 3.6s+ as the warm-up leg re-materialized the sentinel dir) and confirmed the fixed sequence reaches AND HOLDS a clean census across 9 probes including a 4900-row slow-leg case (marker 1191ms, clean 1522ms, still clean at 6544ms). No other suite regressed: the change is test-only, one file, and 1844/1844 tests passed in every full-suite run. [resolution 0.11; src/http/routes/namespaces-dbgap057.test.ts]\nAC-1 passes 3/3 consecutive focused runs, tsc is clean, the full suite is green (1844/1844; the one intermittent failure is a documented pre-existing ENOTEMPTY flake in an untouched file), and the new waitForCleanDrift re-remove loop is a genuine, empirically verified race-safe assertion that does not weaken the drift contract.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or truthful race-safe assertion; no other suite regressed: FOCUSED (3 consecutive, clean scratch env): `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` -> each run 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; verbose reporter confirms 'AC-1: POST 201 -> immediate GET lists the namespace' PASS (test at namespaces-dbgap057.test.ts:348). Hermetic: beforeAll mkdtemp scratchRoot+dataDir, deletes DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/AUTH_FILE from child env, pins DUCKBRAIN_HOME_ROOT. TSC: `npx tsc --noEmit` -> exit 0, no output (run twice). FULL SUITE: run A 'Test Files 222 passed (222) / Tests 1844 passed (1844)' EXIT=0; run C identical 222/1844 EXIT=0. Run B showed '1 failed | 221 passed, 1844 tests passed' EXIT=1, the sole failure being src/http/routes/memories-dogfood010.test.ts ENOTEMPTY at its own afterAll fs.rmSync (line 276) \u2014 a file d1edc33f does NOT touch (git show --stat: 1 file changed, only namespaces-dbgap057.test.ts, 91+/35-), which does not import race-safe-daemon, and which is the documented pre-existing flake (race-safe-daemon.ts:20-27 and 300-306: 'SIGTERM makes the daemon flush + commit, which spawns git children that can still be writing inside <ns>/.git ... so a single rmSync throws ENOTEMPTY from rmdir (a third, pre-existing flake source)'); dogfood010 passed 5/5 focused runs. Not a regression. RACE-SAFE ASSERTION: real and load-bearing \u2014 waitForWarmupQuiet now greps the child's captured stderr (daemonStderrLog collector wired at lines 296-299) for the warm-up summary marker, and new waitForCleanDrift (lines 117-140) polls GET /api/namespaces re-removing the sentinel each round until drift===undefined on TWO consecutive censuses, hard-failing with a named cause otherwise; beforeAll timeout 60s->90s. The assertion was NOT weakened: AC-1 still requires body.drift toBeUndefined (line 375). Mechanism verified in source: logNamespaceWarmup() runs in startNamespaceWarmup().then() AFTER warmManifestNamespaces() resolves (namespace-warmup.ts:455-458), i.e. after Promise.all(workers) in mapWithConcurrency \u2014 a true completion signal. Empirically reproduced the CI failure shape (probe: sentinel removed right after health -> drift {onDiskOnly:1} persisted 3.6s+ as the warm-up leg re-materialized the sentinel dir) and confirmed the fixed sequence reaches AND HOLDS a clean census across 9 probes including a 4900-row slow-leg case (marker 1191ms, clean 1522ms, still clean at 6544ms). No other suite regressed: the change is test-only, one file, and 1844/1844 tests passed in every full-suite run. [resolution 0.11; src/http/routes/namespaces-dbgap057.test.ts]\nAC-1 passes 3/3 consecutive focused runs, tsc is clean, the full suite is green (1844/1844; the one intermittent failure is a documented pre-existing ENOTEMPTY flake in an untouched file), and the new waitForCleanDrift re-remove loop is a genuine, empirically verified race-safe assertion that does not weaken the drift contract.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or truthful race-safe assertion; no other suite regressed",
+                "status": "PASS",
+                "detail": "FOCUSED (3 consecutive, clean scratch env): `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` -> each run 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; verbose reporter confirms 'AC-1: POST 201 -> immediate GET lists the namespace' PASS (test at namespaces-dbgap057.test.ts:348). Hermetic: beforeAll mkdtemp scratchRoot+dataDir, deletes DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/AUTH_FILE from child env, pins DUCKBRAIN_HOME_ROOT. TSC: `npx tsc --noEmit` -> exit 0, no output (run twice). FULL SUITE: run A 'Test Files 222 passed (222) / Tests 1844 passed (1844)' EXIT=0; run C identical 222/1844 EXIT=0. Run B showed '1 failed | 221 passed, 1844 tests passed' EXIT=1, the sole failure being src/http/routes/memories-dogfood010.test.ts ENOTEMPTY at its own afterAll fs.rmSync (line 276) \u2014 a file d1edc33f does NOT touch (git show --stat: 1 file changed, only namespaces-dbgap057.test.ts, 91+/35-), which does not import race-safe-daemon, and which is the documented pre-existing flake (race-safe-daemon.ts:20-27 and 300-306: 'SIGTERM makes the daemon flush + commit, which spawns git children that can still be writing inside <ns>/.git ... so a single rmSync throws ENOTEMPTY from rmdir (a third, pre-existing flake source)'); dogfood010 passed 5/5 focused runs. Not a regression. RACE-SAFE ASSERTION: real and load-bearing \u2014 waitForWarmupQuiet now greps the child's captured stderr (daemonStderrLog collector wired at lines 296-299) for the warm-up summary marker, and new waitForCleanDrift (lines 117-140) polls GET /api/namespaces re-removing the sentinel each round until drift===undefined on TWO consecutive censuses, hard-failing with a named cause otherwise; beforeAll timeout 60s->90s. The assertion was NOT weakened: AC-1 still requires body.drift toBeUndefined (line 375). Mechanism verified in source: logNamespaceWarmup() runs in startNamespaceWarmup().then() AFTER warmManifestNamespaces() resolves (namespace-warmup.ts:455-458), i.e. after Promise.all(workers) in mapWithConcurrency \u2014 a true completion signal. Empirically reproduced the CI failure shape (probe: sentinel removed right after health -> drift {onDiskOnly:1} persisted 3.6s+ as the warm-up leg re-materialized the sentinel dir) and confirmed the fixed sequence reaches AND HOLDS a clean census across 9 probes including a 4900-row slow-leg case (marker 1191ms, clean 1522ms, still clean at 6544ms). No other suite regressed: the change is test-only, one file, and 1844/1844 tests passed in every full-suite run. [resolution 0.11; src/http/routes/namespaces-dbgap057.test.ts]",
+                "resolution_probability": 0.11,
+                "cited_path": "src/http/routes/namespaces-dbgap057.test.ts"
+              }
+            ],
+            "summary": "AC-1 passes 3/3 consecutive focused runs, tsc is clean, the full suite is green (1844/1844; the one intermittent failure is a documented pre-existing ENOTEMPTY flake in an untouched file), and the new waitForCleanDrift re-remove loop is a genuine, empirically verified race-safe assertion that does not weaken the drift contract."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-031\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/http/routes/namespaces-dbgap057.test.ts AC-1 passes 3 consecutive focused runs in a clean scratch env AND full vitest suite green AND tsc clean; fix or truthful race-safe assertion; no other suite regressed: FOCUSED (3 consecutive, clean scratch env): `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` -> each run 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; verbose reporter confirms 'AC-1: POST 201 -> immediate GET lists the namespace' PASS (test at namespaces-dbgap057.test.ts:348). Hermetic: beforeAll mkdtemp scratchRoot+dataDir, deletes DUCKBRAIN_CONFIG_PATH/NAMESPACES_PATH/AUTH_FILE from child env, pins DUCKBRAIN_HOME_ROOT. TSC: `npx tsc --noEmit` -> exit 0, no output (run twice). FULL SUITE: run A 'Test Files 222 passed (222) / Tests 1844 passed (1844)' EXIT=0; run C identical 222/1844 EXIT=0. Run B showed '1 failed | 221 passed, 1844 tests passed' EXIT=1, the sole failure being src/http/routes/memories-dogfood010.test.ts ENOTEMPTY at its own afterAll fs.rmSync (line 276) \u2014 a file d1edc33f does NOT touch (git show --stat: 1 file changed, only namespaces-dbgap057.test.ts, 91+/35-), which does not import race-safe-daemon, and which is the documented pre-existing flake (race-safe-daemon.ts:20-27 and 300-306: 'SIGTERM makes the daemon flush + commit, which spawns git children that can still be writing inside <ns>/.git ... so a single rmSync throws ENOTEMPTY from rmdir (a third, pre-existing flake source)'); dogfood010 passed 5/5 focused runs. Not a regression. RACE-SAFE ASSERTION: real and load-bearing \u2014 waitForWarmupQuiet now greps the child's captured stderr (daemonStderrLog collector wired at lines 296-299) for the warm-up summary marker, and new waitForCleanDrift (lines 117-140) polls GET /api/namespaces re-removing the sentinel each round until drift===undefined on TWO consecutive censuses, hard-failing with a named cause otherwise; beforeAll timeout 60s->90s. The assertion was NOT weakened: AC-1 still requires body.drift toBeUndefined (line 375). Mechanism verified in source: logNamespaceWarmup() runs in startNamespaceWarmup().then() AFTER warmManifestNamespaces() resolves (namespace-warmup.ts:455-458), i.e. after Promise.all(workers) in mapWithConcurrency \u2014 a true completion signal. Empirically reproduced the CI failure shape (probe: sentinel removed right after health -> drift {onDiskOnly:1} persisted 3.6s+ as the warm-up leg re-materialized the sentinel dir) and confirmed the fixed sequence reaches AND HOLDS a clean census across 9 probes including a 4900-row slow-leg case (marker 1191ms, clean 1522ms, still clean at 6544ms). No other suite regressed: the change is test-only, one file, and 1844/1844 tests passed in every full-suite run. [resolution 0.11; src/http/routes/namespaces-dbgap057.test.ts]\nAC-1 passes 3/3 consecutive focused runs, tsc is clean, the full suite is green (1844/1844; the one intermittent failure is a documented pre-existing ENOTEMPTY flake in an untouched file), and the new waitForCleanDrift re-remove loop is a genuine, empirically verified race-safe assertion that does not weaken the drift contract.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-13T22:37:52.226421",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-13T22:37:52.244762+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 10567,
+        "truncated": false,
+        "source": "git show d1edc33f7ca5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 803,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-031"
+  }
+}
