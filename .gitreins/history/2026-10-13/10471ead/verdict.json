@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-030",
+  "task_title": "Local-env test failures: PUSH-001 push-gate suite (pushCount 1 got 0) + durability-kill9 SIGKILL-replay duplicates in CI + dogfood010 timeout",
+  "task_criteria": [
+    "autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "5209281fb8c31e9bf2d26044ffab35a8a88e1044",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n7:18AM INF scanned ~42570616 bytes (42.57 MB) in 4.58s\n7:18AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053257 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T120420.663063Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  222 passed (222)\n      Tests  1844 passed (1844)\n   Start at  07:18:35\n   Duration  97.51s (tests 86%, import 12%, transform 2%)\n\n    Isolate  222 workers spawned \u00b7 ~91ms startup each (spawn + environment, per file)\n             at least ~4.96s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T120420.663063Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: All four conjuncts verified. (1) push-gate green locally x3: `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times -> each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0 (07:20:28/30/33). Fix at src/git/autocommit-push-gate.test.ts:48-58 sets GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM to empty scratch files, isolating the host's core.hooksPath override. (2) durability-kill9 fixed+explained: src/storage/durability-kill9.test.ts:250-266 skips the rebuildable `.search/` index in jsonlFiles() with the root cause documented in a comment; corroborated by production doctrine src/search/index.ts:4,32,112 (isSkippedSourceDir excludes .search/.embeddings/.git) and rows.tmp.jsonl creation at src/search/index.ts:294. Durability assertions (length 1, record keys, git commit counts at lines 327-352, 386-391, 425-433) are intact. `npx vitest run src/storage/durability-kill9.test.ts` -> 'Tests 3 passed (3)', exit 0. (3) dogfood010 timeout explained: board task b66d2f83 documents it as a one-off 15015ms timeout, and commit 7332afcd message states 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` -> 'Tests 3 passed (3)', exit 0. (4) CI green on main: `gh run view 38395710660 --json conclusion,headSha` -> {\"conclusion\":\"success\",\"headSha\":\"5209281fb8c31e9bf2d26044ffab35a8a88e1044\"} (jobs: test 3m18s \u2713, docker 1m21s \u2713); both INT-CI-030 commits 7332afcd and 0ae1b0fd are ancestors of 5209281f (git merge-base --is-ancestor confirmed). That run's log shows '\u2713 src/git/autocommit-push-gate.test.ts (12 tests)', '\u2713 src/storage/durability-kill9.test.ts (3 tests)', '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)', 'Test Files 222 passed (222)', 'Tests 1844 passed (1844)', plus the previously-red suites now green (namespaces-dbgap057 \u27136, namespace-warmup-aug096 \u271315, namespace-env-df092604 \u27136, ddl-views \u27132). Combined local run of the three named suites: 'Test Files 3 passed (3) / Tests 18 passed (18)', exit 0. The earlier FAIL verdict (fdcc7ea1) was recorded on 7332afcd before 0ae1b0fd fixed the dbgap057 rig; that suite now passes 6/6 locally and in CI. [resolution 0.08; autocommit-push-gate.test.ts]\nAll four sub-conditions of INT-CI-030 are met: push-gate green 3x locally, durability-kill9 fixed with documented root cause, dogfood010 timeout explained as one-off, and CI on main (run 38395710660 @ 5209281f) is green with 222/222 files and 1844/1844 tests passing.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: All four conjuncts verified. (1) push-gate green locally x3: `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times -> each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0 (07:20:28/30/33). Fix at src/git/autocommit-push-gate.test.ts:48-58 sets GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM to empty scratch files, isolating the host's core.hooksPath override. (2) durability-kill9 fixed+explained: src/storage/durability-kill9.test.ts:250-266 skips the rebuildable `.search/` index in jsonlFiles() with the root cause documented in a comment; corroborated by production doctrine src/search/index.ts:4,32,112 (isSkippedSourceDir excludes .search/.embeddings/.git) and rows.tmp.jsonl creation at src/search/index.ts:294. Durability assertions (length 1, record keys, git commit counts at lines 327-352, 386-391, 425-433) are intact. `npx vitest run src/storage/durability-kill9.test.ts` -> 'Tests 3 passed (3)', exit 0. (3) dogfood010 timeout explained: board task b66d2f83 documents it as a one-off 15015ms timeout, and commit 7332afcd message states 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` -> 'Tests 3 passed (3)', exit 0. (4) CI green on main: `gh run view 38395710660 --json conclusion,headSha` -> {\"conclusion\":\"success\",\"headSha\":\"5209281fb8c31e9bf2d26044ffab35a8a88e1044\"} (jobs: test 3m18s \u2713, docker 1m21s \u2713); both INT-CI-030 commits 7332afcd and 0ae1b0fd are ancestors of 5209281f (git merge-base --is-ancestor confirmed). That run's log shows '\u2713 src/git/autocommit-push-gate.test.ts (12 tests)', '\u2713 src/storage/durability-kill9.test.ts (3 tests)', '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)', 'Test Files 222 passed (222)', 'Tests 1844 passed (1844)', plus the previously-red suites now green (namespaces-dbgap057 \u27136, namespace-warmup-aug096 \u271315, namespace-env-df092604 \u27136, ddl-views \u27132). Combined local run of the three named suites: 'Test Files 3 passed (3) / Tests 18 passed (18)', exit 0. The earlier FAIL verdict (fdcc7ea1) was recorded on 7332afcd before 0ae1b0fd fixed the dbgap057 rig; that suite now passes 6/6 locally and in CI. [resolution 0.08; autocommit-push-gate.test.ts]\nAll four sub-conditions of INT-CI-030 are met: push-gate green 3x locally, durability-kill9 fixed with documented root cause, dogfood010 timeout explained as one-off, and CI on main (run 38395710660 @ 5209281f) is green with 222/222 files and 1844/1844 tests passing.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main",
+                "status": "PASS",
+                "detail": "All four conjuncts verified. (1) push-gate green locally x3: `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times -> each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0 (07:20:28/30/33). Fix at src/git/autocommit-push-gate.test.ts:48-58 sets GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM to empty scratch files, isolating the host's core.hooksPath override. (2) durability-kill9 fixed+explained: src/storage/durability-kill9.test.ts:250-266 skips the rebuildable `.search/` index in jsonlFiles() with the root cause documented in a comment; corroborated by production doctrine src/search/index.ts:4,32,112 (isSkippedSourceDir excludes .search/.embeddings/.git) and rows.tmp.jsonl creation at src/search/index.ts:294. Durability assertions (length 1, record keys, git commit counts at lines 327-352, 386-391, 425-433) are intact. `npx vitest run src/storage/durability-kill9.test.ts` -> 'Tests 3 passed (3)', exit 0. (3) dogfood010 timeout explained: board task b66d2f83 documents it as a one-off 15015ms timeout, and commit 7332afcd message states 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` -> 'Tests 3 passed (3)', exit 0. (4) CI green on main: `gh run view 38395710660 --json conclusion,headSha` -> {\"conclusion\":\"success\",\"headSha\":\"5209281fb8c31e9bf2d26044ffab35a8a88e1044\"} (jobs: test 3m18s \u2713, docker 1m21s \u2713); both INT-CI-030 commits 7332afcd and 0ae1b0fd are ancestors of 5209281f (git merge-base --is-ancestor confirmed). That run's log shows '\u2713 src/git/autocommit-push-gate.test.ts (12 tests)', '\u2713 src/storage/durability-kill9.test.ts (3 tests)', '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)', 'Test Files 222 passed (222)', 'Tests 1844 passed (1844)', plus the previously-red suites now green (namespaces-dbgap057 \u27136, namespace-warmup-aug096 \u271315, namespace-env-df092604 \u27136, ddl-views \u27132). Combined local run of the three named suites: 'Test Files 3 passed (3) / Tests 18 passed (18)', exit 0. The earlier FAIL verdict (fdcc7ea1) was recorded on 7332afcd before 0ae1b0fd fixed the dbgap057 rig; that suite now passes 6/6 locally and in CI. [resolution 0.08; autocommit-push-gate.test.ts]",
+                "resolution_probability": 0.08,
+                "cited_path": "autocommit-push-gate.test.ts"
+              }
+            ],
+            "summary": "All four sub-conditions of INT-CI-030 are met: push-gate green 3x locally, durability-kill9 fixed with documented root cause, dogfood010 timeout explained as one-off, and CI on main (run 38395710660 @ 5209281f) is green with 222/222 files and 1844/1844 tests passing."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-030\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: All four conjuncts verified. (1) push-gate green locally x3: `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times -> each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0 (07:20:28/30/33). Fix at src/git/autocommit-push-gate.test.ts:48-58 sets GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM to empty scratch files, isolating the host's core.hooksPath override. (2) durability-kill9 fixed+explained: src/storage/durability-kill9.test.ts:250-266 skips the rebuildable `.search/` index in jsonlFiles() with the root cause documented in a comment; corroborated by production doctrine src/search/index.ts:4,32,112 (isSkippedSourceDir excludes .search/.embeddings/.git) and rows.tmp.jsonl creation at src/search/index.ts:294. Durability assertions (length 1, record keys, git commit counts at lines 327-352, 386-391, 425-433) are intact. `npx vitest run src/storage/durability-kill9.test.ts` -> 'Tests 3 passed (3)', exit 0. (3) dogfood010 timeout explained: board task b66d2f83 documents it as a one-off 15015ms timeout, and commit 7332afcd message states 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` -> 'Tests 3 passed (3)', exit 0. (4) CI green on main: `gh run view 38395710660 --json conclusion,headSha` -> {\"conclusion\":\"success\",\"headSha\":\"5209281fb8c31e9bf2d26044ffab35a8a88e1044\"} (jobs: test 3m18s \u2713, docker 1m21s \u2713); both INT-CI-030 commits 7332afcd and 0ae1b0fd are ancestors of 5209281f (git merge-base --is-ancestor confirmed). That run's log shows '\u2713 src/git/autocommit-push-gate.test.ts (12 tests)', '\u2713 src/storage/durability-kill9.test.ts (3 tests)', '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)', 'Test Files 222 passed (222)', 'Tests 1844 passed (1844)', plus the previously-red suites now green (namespaces-dbgap057 \u27136, namespace-warmup-aug096 \u271315, namespace-env-df092604 \u27136, ddl-views \u27132). Combined local run of the three named suites: 'Test Files 3 passed (3) / Tests 18 passed (18)', exit 0. The earlier FAIL verdict (fdcc7ea1) was recorded on 7332afcd before 0ae1b0fd fixed the dbgap057 rig; that suite now passes 6/6 locally and in CI. [resolution 0.08; autocommit-push-gate.test.ts]\nAll four sub-conditions of INT-CI-030 are met: push-gate green 3x locally, durability-kill9 fixed with documented root cause, dogfood010 timeout explained as one-off, and CI on main (run 38395710660 @ 5209281f) is green with 222/222 files and 1844/1844 tests passing.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-13T12:23:08.420913",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-13T12:23:08.437171+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1390,
+        "truncated": false,
+        "source": "git show 5209281fb8c3"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 416,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-030"
+  }
+}

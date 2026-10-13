@@ -1,0 +1,38 @@
+commit 5209281fb8c31e9bf2d26044ffab35a8a88e1044
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 13 07:13:20 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 13 07:13:20 2026 -0500
+
+    chore(gap-012): sync AGENTS.md test counts to live suite (222 suites / 1844 tests)
+    
+    CI run 38394966288 red on the GAP-012 count assert only; test job itself
+    green — the INT-CI-030 fix run passed its tests.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index bec914cc..f02c1119 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (221 suites, 1829 tests)
++- **Test Framework:** Vitest (222 suites, 1844 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1829 tests, 221 suites
++pnpm test          # 1844 tests, 222 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

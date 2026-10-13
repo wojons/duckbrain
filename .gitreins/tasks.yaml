@@ -2711,12 +2711,3 @@ tasks:
   status: complete
   created_at: '2026-10-13T08:20:04.611369+00:00'
   completed_at: '2026-10-13T10:41:43.136705+00:00'
-- id: INT-CI-030
-  title: 'Local-env test failures: PUSH-001 push-gate suite (pushCount 1 got 0) +
-    durability-kill9 SIGKILL-replay duplicates in CI + dogfood010 timeout'
-  criteria:
-  - autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or
-    explained+robust; dogfood010 timeout explained; CI green on main
-  status: complete
-  created_at: '2026-10-13T10:52:20.204900+00:00'
-  completed_at: '2026-10-13T11:18:48.273577+00:00'

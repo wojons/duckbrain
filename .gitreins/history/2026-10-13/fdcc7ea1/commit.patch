@@ -1,0 +1,87 @@
+commit 7332afcd6be9a1bb0431ca4bcd07f5e56a10b3ee
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 13 06:17:18 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 13 06:17:18 2026 -0500
+
+    fix(int-ci-030): hermetic git config for push-gate tests; kill9 walk skips .search index
+    
+    - PUSH-001 (autocommit-push-gate.test.ts): the host GLOBAL git config
+      (core.hooksPath=<agent hooks dir>) is also read by git receive-pack on
+      file:// pushes, overriding the bare remote own hooks/post-receive push
+      counter - pushCount() read 0 on this host while CI stayed green. Point
+      GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM at empty scratch files for the test
+      process so both ends of the push are hermetic.
+    - durability-kill9.test.ts: jsonlFiles() counted the rebuildable .search/
+      index stub (rows.tmp.jsonl, created at daemon boot by aug-096 commit
+      32de0244) as a second partition file - the length 1 got 2 duplicates and
+      the empty files[0] in the graceful case. Skip .search alongside
+      .git/_audit. Durability guarantee untouched; root cause documented in a
+      test comment per INT-CI-030 AC-2.
+    
+    Guard attribution (TS-only diff vs Python-scoped gitreins guard, per
+    ts-only-commit-vs-python-scoped-guard): diff mode maps engine/foo.py to
+    tests/test_foo.py only, so this two-.ts staged set is unmatchable; the
+    commit-time run was secrets=clean + tests SKIP (DEGRADED PASS, hook exit 1).
+    Gates run manually in lieu of the skipped lane:
+    - pnpm vitest run src/git/autocommit-push-gate.test.ts: 12 passed, 3
+      consecutive runs on this host (AC-1)
+    - pnpm vitest run src/storage/durability-kill9.test.ts: 3 passed
+    - pnpm vitest run src/http/routes/memories-dogfood010.test.ts: 3 passed x5
+      runs (one-off CI timeout documented, no change)
+    - pnpm tsc --noEmit: clean (AC-4)
+    - pnpm test:run (full): 1841 passed, 3 failed - all 3 pre-existing baseline
+      reds (namespace-warmup-aug096 + ddl-views), reproduced at clean HEAD (AC-5)
+    
+    Verified: push-gate 3x green; kill9 green locally; dogfood010 5x green.
+---
+ src/git/autocommit-push-gate.test.ts | 13 +++++++++++++
+ src/storage/durability-kill9.test.ts | 11 ++++++++++-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/src/git/autocommit-push-gate.test.ts b/src/git/autocommit-push-gate.test.ts
+index cf5bd0f3..b166a669 100644
+--- a/src/git/autocommit-push-gate.test.ts
++++ b/src/git/autocommit-push-gate.test.ts
+@@ -45,6 +45,19 @@ let hookLog: string;
+ let cfgPath: string;
+ let cfgSnapshot: string | null;
+ 
++// INT-CI-030 / PUSH-001: isolate the test process from the host's GLOBAL git
++// config. On this dev host ~/.gitconfig sets core.hooksPath=<agent hooks dir>;
++// git receive-pack (spawned locally for file:// pushes) also reads global
++// config, so that override replaces the bare remote's own hooks/post-receive
++// counter and pushCount() silently reads 0 while CI (no such global config)
++// stays green. Pointing GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM at empty files
++// makes both sides of the push hermetic without touching production code.
++const scratchGitConfig = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-pushgate-cfg-"));
++process.env.GIT_CONFIG_GLOBAL = path.join(scratchGitConfig, "global");
++process.env.GIT_CONFIG_SYSTEM = path.join(scratchGitConfig, "system");
++fs.writeFileSync(process.env.GIT_CONFIG_GLOBAL, "");
++fs.writeFileSync(process.env.GIT_CONFIG_SYSTEM, "");
++
+ beforeEach(() => {
+   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-pushgate-"));
+   nsDir = path.join(tmp, "ns");
+diff --git a/src/storage/durability-kill9.test.ts b/src/storage/durability-kill9.test.ts
+index a7394e04..8c638ec9 100644
+--- a/src/storage/durability-kill9.test.ts
++++ b/src/storage/durability-kill9.test.ts
+@@ -250,7 +250,16 @@ function jsonlFiles(nsDir: string): string[] {
+   const found: string[] = [];
+   const walk = (dir: string) => {
+     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+-      if (entry.name === ".git" || entry.name === "_audit") continue;
++      // ".search" skipped for the same reason as ".git"/"_audit": it is the
++      // REBUILDABLE search index (excluded by the namespace's own .gitignore).
++      // Root cause of the INT-CI-030 CI duplicates: commit 32de0244 (aug-096)
++      // warms the search index at daemon boot, so every namespace now gains a
++      // `.search/rows.tmp.jsonl` stub before any kill. jsonlFiles() counted it
++      // as a second partition file (length 1 → 2), and since it sorts before
++      // `concept/`, files[0] was the empty stub — producing BOTH observed
++      // failures: the 2-file length assertion and the graceful case reading
++      // `[]` instead of the acked record. Durability itself was never wrong.
++      if (entry.name === ".git" || entry.name === "_audit" || entry.name === ".search") continue;
+       const full = path.join(dir, entry.name);
+       if (entry.isDirectory()) walk(full);
+       else if (entry.name.endsWith(".jsonl")) found.push(full);

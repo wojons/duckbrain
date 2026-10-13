@@ -1,0 +1,103 @@
+{
+  "task_id": "INT-CI-030",
+  "task_title": "Local-env test failures: PUSH-001 push-gate suite (pushCount 1 got 0) + durability-kill9 SIGKILL-replay duplicates in CI + dogfood010 timeout",
+  "task_criteria": [
+    "autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "7332afcd6be9a1bb0431ca4bcd07f5e56a10b3ee",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:26AM INF scanned ~42562985 bytes (42.56 MB) in 4.89s\n6:26AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053227 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T112524.500243Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/namespaces-dbgap057.test.ts (6 tests | 1 failed) 1628ms\n   \u276f DB-GAP-057: live daemon create \u2192 immediate list (scratch root) (2)\n     \u00d7 AC-1: POST 201 \u2192 immediate GET lists the namespace (the auger failure shape) 52ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/namespaces-dbgap057.test.ts > DB-GAP-057: live daemon create \u2192 immediate list (scratch root) > AC-1: POST 201 \u2192 immediate GET lists the namespace (the auger failure shape)\nAssertionError: expected { onDiskOnly: 1, directoryMissing: +0 } to be undefined\n\n- Expected:\nundefined\n\n+ Received:\n{\n  \"directoryMissing\": 0,\n  \"onDiskOnly\": 1,\n}\n\n \u276f src/http/routes/namespaces-dbgap057.test.ts:275:24\n    273|     // healthy-rows-omit-fields REG-GONE-001 style, pinned here at the\n    274|     // response level).\n    275|     expect(body.drift).toBeUndefined();\n       |                        ^\n    276|   });\n    277|\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 221 passed (222)\n      Tests  1 failed | 1843 passed (1844)\n   Start at  06:26:32\n   Duration  98.93s (tests 82%, import 13%, transform 3%, setup 1%)\n\n    Isolate  222 workers spawned \u00b7 ~102ms startup each (spawn + environment, per file)\n             at least ~5.56s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261013T112729.155819Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: Three of four sub-conditions verified, but the final conjunct 'CI green on main' is NOT met. (1) push-gate green locally x3: VERIFIED \u2014 `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times, each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0. (2) durability-kill9 fixed: VERIFIED \u2014 `npx vitest run src/storage/durability-kill9.test.ts` => 'Tests 3 passed (3)', exit 0; fix in commit 7332afcd skips the rebuildable `.search/` index in jsonlFiles() (src/storage/durability-kill9.test.ts:250-266) with root cause documented in a test comment; CI run 38389191818 shows '\u2713 src/storage/durability-kill9.test.ts (3 tests)'. (3) dogfood010 timeout explained: VERIFIED \u2014 commit 7332afcd message documents it as a 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` => 'Tests 3 passed (3)' locally and CI run 38389191818 shows '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)'. (4) CI green on main: FAILED \u2014 HEAD == origin/main == 7332afcd, and `gh run list --branch main` shows the latest run 38389191818 (headSha 7332afcd) conclusion='failure'; `gh run view 38389191818` shows job 'test' X at 'Run tests' with 'Test Files 2 failed | 220 passed (222)': src/cli/namespace-env-df092604.test.ts ('Error: ENOENT ... .search/rows.tmp.jsonl' at line 102) and src/http/routes/namespaces-dbgap057.test.ts ('AssertionError: expected { onDiskOnly: 1, directoryMissing: +0 } to be undefined'). These are the same `.search/rows.tmp.jsonl` stub root cause the INT-CI-030 fix addressed only in durability-kill9.test.ts, now surfacing in two other suites, so CI on main is red and the criterion is not satisfied.\npush-gate is green 3x locally, durability-kill9 is fixed and dogfood010's timeout is explained, but CI on main (run 38389191818 on HEAD 7332afcd) is still failing with 2 unrelated test files, so the 'CI green on main' requirement is unmet.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: Three of four sub-conditions verified, but the final conjunct 'CI green on main' is NOT met. (1) push-gate green locally x3: VERIFIED \u2014 `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times, each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0. (2) durability-kill9 fixed: VERIFIED \u2014 `npx vitest run src/storage/durability-kill9.test.ts` => 'Tests 3 passed (3)', exit 0; fix in commit 7332afcd skips the rebuildable `.search/` index in jsonlFiles() (src/storage/durability-kill9.test.ts:250-266) with root cause documented in a test comment; CI run 38389191818 shows '\u2713 src/storage/durability-kill9.test.ts (3 tests)'. (3) dogfood010 timeout explained: VERIFIED \u2014 commit 7332afcd message documents it as a 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` => 'Tests 3 passed (3)' locally and CI run 38389191818 shows '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)'. (4) CI green on main: FAILED \u2014 HEAD == origin/main == 7332afcd, and `gh run list --branch main` shows the latest run 38389191818 (headSha 7332afcd) conclusion='failure'; `gh run view 38389191818` shows job 'test' X at 'Run tests' with 'Test Files 2 failed | 220 passed (222)': src/cli/namespace-env-df092604.test.ts ('Error: ENOENT ... .search/rows.tmp.jsonl' at line 102) and src/http/routes/namespaces-dbgap057.test.ts ('AssertionError: expected { onDiskOnly: 1, directoryMissing: +0 } to be undefined'). These are the same `.search/rows.tmp.jsonl` stub root cause the INT-CI-030 fix addressed only in durability-kill9.test.ts, now surfacing in two other suites, so CI on main is red and the criterion is not satisfied.\npush-gate is green 3x locally, durability-kill9 is fixed and dogfood010's timeout is explained, but CI on main (run 38389191818 on HEAD 7332afcd) is still failing with 2 unrelated test files, so the 'CI green on main' requirement is unmet.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main",
+                "status": "FAIL",
+                "detail": "Three of four sub-conditions verified, but the final conjunct 'CI green on main' is NOT met. (1) push-gate green locally x3: VERIFIED \u2014 `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times, each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0. (2) durability-kill9 fixed: VERIFIED \u2014 `npx vitest run src/storage/durability-kill9.test.ts` => 'Tests 3 passed (3)', exit 0; fix in commit 7332afcd skips the rebuildable `.search/` index in jsonlFiles() (src/storage/durability-kill9.test.ts:250-266) with root cause documented in a test comment; CI run 38389191818 shows '\u2713 src/storage/durability-kill9.test.ts (3 tests)'. (3) dogfood010 timeout explained: VERIFIED \u2014 commit 7332afcd message documents it as a 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` => 'Tests 3 passed (3)' locally and CI run 38389191818 shows '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)'. (4) CI green on main: FAILED \u2014 HEAD == origin/main == 7332afcd, and `gh run list --branch main` shows the latest run 38389191818 (headSha 7332afcd) conclusion='failure'; `gh run view 38389191818` shows job 'test' X at 'Run tests' with 'Test Files 2 failed | 220 passed (222)': src/cli/namespace-env-df092604.test.ts ('Error: ENOENT ... .search/rows.tmp.jsonl' at line 102) and src/http/routes/namespaces-dbgap057.test.ts ('AssertionError: expected { onDiskOnly: 1, directoryMissing: +0 } to be undefined'). These are the same `.search/rows.tmp.jsonl` stub root cause the INT-CI-030 fix addressed only in durability-kill9.test.ts, now surfacing in two other suites, so CI on main is red and the criterion is not satisfied.",
+                "resolution_probability": 0.07,
+                "cited_path": "autocommit-push-gate.test.ts"
+              }
+            ],
+            "summary": "push-gate is green 3x locally, durability-kill9 is fixed and dogfood010's timeout is explained, but CI on main (run 38389191818 on HEAD 7332afcd) is still failing with 2 unrelated test files, so the 'CI green on main' requirement is unmet."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: INT-CI-030\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or explained+robust; dogfood010 timeout explained; CI green on main: Three of four sub-conditions verified, but the final conjunct 'CI green on main' is NOT met. (1) push-gate green locally x3: VERIFIED \u2014 `npx vitest run src/git/autocommit-push-gate.test.ts` run 3 consecutive times, each 'Test Files 1 passed (1) / Tests 12 passed (12)', exit 0. (2) durability-kill9 fixed: VERIFIED \u2014 `npx vitest run src/storage/durability-kill9.test.ts` => 'Tests 3 passed (3)', exit 0; fix in commit 7332afcd skips the rebuildable `.search/` index in jsonlFiles() (src/storage/durability-kill9.test.ts:250-266) with root cause documented in a test comment; CI run 38389191818 shows '\u2713 src/storage/durability-kill9.test.ts (3 tests)'. (3) dogfood010 timeout explained: VERIFIED \u2014 commit 7332afcd message documents it as a 'one-off CI timeout documented, no change'; `npx vitest run src/http/routes/memories-dogfood010.test.ts` => 'Tests 3 passed (3)' locally and CI run 38389191818 shows '\u2713 src/http/routes/memories-dogfood010.test.ts (3 tests)'. (4) CI green on main: FAILED \u2014 HEAD == origin/main == 7332afcd, and `gh run list --branch main` shows the latest run 38389191818 (headSha 7332afcd) conclusion='failure'; `gh run view 38389191818` shows job 'test' X at 'Run tests' with 'Test Files 2 failed | 220 passed (222)': src/cli/namespace-env-df092604.test.ts ('Error: ENOENT ... .search/rows.tmp.jsonl' at line 102) and src/http/routes/namespaces-dbgap057.test.ts ('AssertionError: expected { onDiskOnly: 1, directoryMissing: +0 } to be undefined'). These are the same `.search/rows.tmp.jsonl` stub root cause the INT-CI-030 fix addressed only in durability-kill9.test.ts, now surfacing in two other suites, so CI on main is red and the criterion is not satisfied.\npush-gate is green 3x locally, durability-kill9 is fixed and dogfood010's timeout is explained, but CI on main (run 38389191818 on HEAD 7332afcd) is still failing with 2 unrelated test files, so the 'CI green on main' requirement is unmet.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-13T11:30:14.127221",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-13T11:30:14.154550+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5144,
+        "truncated": false,
+        "source": "git show 7332afcd6be9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 262176,
+        "truncated": true,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-030"
+  }
+}
