@@ -70,6 +70,40 @@ const SCRATCH_KEY = "sk-scr-dbgap057";
 
 /* ---------------------------------------------------------------- helpers */
 
+/**
+ * INT-CI-030: wait until the daemon's AUG-096 boot warm-up has finished its
+ * first enumeration pass (or is disabled). Returns once a warm-up summary
+ * line has been observed on the health/quiet window, or after a bounded
+ * timeout — the sentinel deletion that follows must not race the walk.
+ */
+async function waitForWarmupQuiet(port: number, key: string): Promise<void> {
+  // Warm-up is fire-and-forget; give it a bounded window (fits the 60s
+  // beforeAll budget). The daemon warms with a bounded budget itself and
+  // logs one summary line when done, but the summary goes to the child's
+  // stdio, not ours — poll the census instead: once a full listNamespaces
+  // pass over the root has completed, the warm-up walk that could
+  // re-materialize a deleted sentinel directory has already run.
+  const deadline = Date.now() + 15000;
+  let lastNames = "";
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/namespaces`, {
+        headers: { "X-API-Key": key },
+      });
+      if (res.ok) {
+        const body: any = await res.json();
+        const names = body.namespaces.map((n: any) => n.name).sort().join(",");
+        // Two identical consecutive censuses => the enumeration settled.
+        if (names === lastNames) return;
+        lastNames = names;
+      }
+    } catch {
+      // daemon still booting; keep polling
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 function writeScratchAuthFile(dir: string): string {
   const authFile = path.join(dir, "scratch-auth.json");
   fs.writeFileSync(
@@ -223,6 +257,18 @@ describe("DB-GAP-057: live daemon create → immediate list (scratch root)", () 
     // prove ownership, then remove it so the drift census below measures
     // only what AC-1/AC-2 create (a leftover sentinel would surface as
     // onDiskOnly drift and break the clean-scratch assertion).
+    //
+    // INT-CI-030: the removal RACES the daemon's AUG-096 boot warm-up.
+    // The daemon (started just above) asynchronously warms every on-disk
+    // census namespace, and on a loaded host that walk can read the
+    // sentinel directory and materialize its DuckDB singleton/connection
+    // state AFTER our rmSync lands (warm-up re-walks the root), leaving a
+    // `scratch-sentinel-*` directory behind — which GET /api/namespaces
+    // then truthfully reports as onDiskOnly drift. Wait for the warm-up
+    // pass to finish BEFORE deleting the sentinel (warm-up logs one
+    // summary line; absence is fine when warm-up is disabled or already
+    // done). The daemon is our own child on 127.0.0.1 — bounded, local.
+    await waitForWarmupQuiet(port, SCRATCH_KEY);
     fs.rmSync(path.join(nsPath, sentinel), { recursive: true, force: true });
   }, 60000);
 
