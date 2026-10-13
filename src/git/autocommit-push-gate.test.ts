@@ -45,6 +45,19 @@ let hookLog: string;
 let cfgPath: string;
 let cfgSnapshot: string | null;
 
+// INT-CI-030 / PUSH-001: isolate the test process from the host's GLOBAL git
+// config. On this dev host ~/.gitconfig sets core.hooksPath=<agent hooks dir>;
+// git receive-pack (spawned locally for file:// pushes) also reads global
+// config, so that override replaces the bare remote's own hooks/post-receive
+// counter and pushCount() silently reads 0 while CI (no such global config)
+// stays green. Pointing GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM at empty files
+// makes both sides of the push hermetic without touching production code.
+const scratchGitConfig = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-pushgate-cfg-"));
+process.env.GIT_CONFIG_GLOBAL = path.join(scratchGitConfig, "global");
+process.env.GIT_CONFIG_SYSTEM = path.join(scratchGitConfig, "system");
+fs.writeFileSync(process.env.GIT_CONFIG_GLOBAL, "");
+fs.writeFileSync(process.env.GIT_CONFIG_SYSTEM, "");
+
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-pushgate-"));
   nsDir = path.join(tmp, "ns");

@@ -250,7 +250,16 @@ function jsonlFiles(nsDir: string): string[] {
   const found: string[] = [];
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git" || entry.name === "_audit") continue;
+      // ".search" skipped for the same reason as ".git"/"_audit": it is the
+      // REBUILDABLE search index (excluded by the namespace's own .gitignore).
+      // Root cause of the INT-CI-030 CI duplicates: commit 32de0244 (aug-096)
+      // warms the search index at daemon boot, so every namespace now gains a
+      // `.search/rows.tmp.jsonl` stub before any kill. jsonlFiles() counted it
+      // as a second partition file (length 1 → 2), and since it sorts before
+      // `concept/`, files[0] was the empty stub — producing BOTH observed
+      // failures: the 2-file length assertion and the graceful case reading
+      // `[]` instead of the acked record. Durability itself was never wrong.
+      if (entry.name === ".git" || entry.name === "_audit" || entry.name === ".search") continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.name.endsWith(".jsonl")) found.push(full);
