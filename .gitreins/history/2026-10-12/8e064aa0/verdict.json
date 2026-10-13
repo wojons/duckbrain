@@ -1,0 +1,75 @@
+{
+  "task_id": "STYLE-002",
+  "task_title": "Fix 42-file prettier drift in src/ (STYLE-002 recurrence)",
+  "task_criteria": [
+    "npx prettier --check src/ exits 0; tsc --noEmit clean; full vitest suite green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "b66d2f83b87f834ce6f8721d554d5f3c7f03b29f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:53PM INF scanned ~42397660 bytes (42.40 MB) in 4.28s\n6:53PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1051214 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/git/autocommit-push-gate.test.ts (12 tests | 4 failed) 2510ms\n   \u276f PUSH-001 pushNamespace (sync exit path, real git via file:// remote) (5)\n     \u00d7 AC-b/c: gate on \u2192 first call pushes; immediate re-commit skips 625ms\n     \u00d7 AC-d: after the interval with a new HEAD \u2192 pushes again 483ms\n     \u00d7 failed push leaves lastPushedHead null \u2192 retry allowed at next gate-open 304ms\n   \u276f PUSH-001 commitNamespace + exit-flush (serving-path integration) (2)\n     \u00d7 gate fully open \u2192 commit flush pushes through the file:// remote 255ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 4 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > AC-b/c: gate on \u2192 first call pushes; immediate re-commit skips\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:179:25\n    177|     });\n    178|     pushNamespace(nsDir);\n    179|     expect(pushCount()).toBe(1);\n       |                         ^\n    180|\n    181|     // New commit inside the interval floor \u2192 skipped (no second push).\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > AC-d: after the interval with a new HEAD \u2192 pushes again\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:198:25\n    196|     });\n    197|     pushNamespace(nsDir);\n    198|     expect(pushCount()).toBe(1);\n       |                         ^\n    199|\n    200|     // New HEAD + elapsed interval \u2192 second push.\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > failed push leaves lastPushedHead null \u2192 retry allowed at next gate-open\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:223:25\n    221|     });\n    222|     pushNamespace(nsDir);\n    223|     expect(pushCount()).toBe(1);\n       |                         ^\n    224|\n    225|     // Point the remote at a non-repo dir: push fails, nothing recorde\u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[3/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 commitNamespace + exit-flush (serving-path integration) > gate fully open \u2192 commit flush pushes through the file:// remote\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:272:25\n    270|     commitNamespace(nsDir, \"test flush gated\");\n    271|     flushNamespaceCommit(nsDir);\n    272|     expect(pushCount()).toBe(1);\n       |                         ^\n    273|     // A second flush at the same HEAD inside the interval \u2192 still one\u2026\n    274|     fs.writeFileSync(path.join(nsDir, \"data.jsonl\"), '{\"z\":9}\\n');\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[4/4]\u23af\n\n\n Test Files  1 failed | 220 passed (221)\n      Tests  4 failed | 1825 passed (1829)\n   Start at  18:53:53\n   Duration  56.99s (tests 81%, import 17%, transform 2%, worker 1%)\n\n    Isolate  221 workers spawned \u00b7 ~79ms startup each (spawn + environment, per file)\n             at least ~4.28s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: STYLE-002\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-12T23:54:50.875901",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T23:54:50.903003+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 16197,
+        "truncated": false,
+        "source": "git show b66d2f83b87f"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 599,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "STYLE-002"
+  }
+}

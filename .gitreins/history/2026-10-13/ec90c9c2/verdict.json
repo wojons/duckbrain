@@ -1,0 +1,102 @@
+{
+  "task_id": "AUG-096",
+  "task_title": "namespace-scoped semantic query 3.6-5s vs 0.1-0.2s unscoped \u2014 warm the per-namespace DuckDB scratch connection at boot",
+  "task_criteria": [
+    "GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest namespaces; tests cover warm-up + no regression on scoped/unscoped search"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "32de02448f8c1f5fcbfac9213d19f181c4a1d1ca",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:42AM INF scanned ~42420603 bytes (42.42 MB) in 4.04s\n5:42AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053177 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/git/autocommit-push-gate.test.ts (12 tests | 4 failed) 2379ms\n   \u276f PUSH-001 pushNamespace (sync exit path, real git via file:// remote) (5)\n     \u00d7 AC-b/c: gate on \u2192 first call pushes; immediate re-commit skips 474ms\n     \u00d7 AC-d: after the interval with a new HEAD \u2192 pushes again 392ms\n     \u00d7 failed push leaves lastPushedHead null \u2192 retry allowed at next gate-open 277ms\n   \u276f PUSH-001 commitNamespace + exit-flush (serving-path integration) (2)\n     \u00d7 gate fully open \u2192 commit flush pushes through the file:// remote 233ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 4 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > AC-b/c: gate on \u2192 first call pushes; immediate re-commit skips\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:179:25\n    177|     });\n    178|     pushNamespace(nsDir);\n    179|     expect(pushCount()).toBe(1);\n       |                         ^\n    180|\n    181|     // New commit inside the interval floor \u2192 skipped (no second push).\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > AC-d: after the interval with a new HEAD \u2192 pushes again\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:198:25\n    196|     });\n    197|     pushNamespace(nsDir);\n    198|     expect(pushCount()).toBe(1);\n       |                         ^\n    199|\n    200|     // New HEAD + elapsed interval \u2192 second push.\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 pushNamespace (sync exit path, real git via file:// remote) > failed push leaves lastPushedHead null \u2192 retry allowed at next gate-open\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:223:25\n    221|     });\n    222|     pushNamespace(nsDir);\n    223|     expect(pushCount()).toBe(1);\n       |                         ^\n    224|\n    225|     // Point the remote at a non-repo dir: push fails, nothing recorde\u2026\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[3/4]\u23af\n\n FAIL  src/git/autocommit-push-gate.test.ts > PUSH-001 commitNamespace + exit-flush (serving-path integration) > gate fully open \u2192 commit flush pushes through the file:// remote\nAssertionError: expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n \u276f src/git/autocommit-push-gate.test.ts:272:25\n    270|     commitNamespace(nsDir, \"test flush gated\");\n    271|     flushNamespaceCommit(nsDir);\n    272|     expect(pushCount()).toBe(1);\n       |                         ^\n    273|     // A second flush at the same HEAD inside the interval \u2192 still one\u2026\n    274|     fs.writeFileSync(path.join(nsDir, \"data.jsonl\"), '{\"z\":9}\\n');\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[4/4]\u23af\n\n\n Test Files  1 failed | 221 passed (222)\n      Tests  4 failed | 1840 passed (1844)\n   Start at  05:42:43\n   Duration  64.97s (tests 82%, import 16%, transform 2%, worker 1%)\n\n    Isolate  222 workers spawned \u00b7 ~84ms startup each (spawn + environment, per file)\n             at least ~4.56s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest namespaces; tests cover warm-up + no regression on scoped/unscoped search: Implementation is present and plausible: src/http/namespace-warmup.ts warmNamespace() creates the singleton DuckDB connection, forces a limit-1 partition scan, runs the SAME ensureFreshIndex seam the ?q= path calls (src/search/query.ts:382 keywordSearch), and inits EmbeddingCache.forNamespace; wired fire-and-forget at src/cli/http.ts:1129 startNamespaceWarmup() after listen(); enumeration uses listNamespaces (manifest.json dirs) primary + censusOnDiskNamespaces fallback, so all manifest namespaces are covered. The scoped ?q= E2E test (src/http/namespace-warmup-aug096.test.ts:444) passes in isolation (`npx vitest run ... -t \"SCOPED\"` -> 1 passed) and asserts autoBuildCount/indexedAt/fts.duckdb mtime unchanged + no rows.tmp.jsonl. HOWEVER the criterion's test requirement is not met: (1) the delivered test file is reproducibly FLAKY \u2014 `npx vitest run src/http/namespace-warmup-aug096.test.ts` gave 15/15 pass on run 1 but 13 passed | 2 failed on runs 2, 3 and 4; the failures are 'per-namespace timeout knob...' (AssertionError expected false to be true at line 611, waraug-quick.warmed) and 'concurrency knob is honored...' (Test timed out in 15000ms at line 617), caused by the 1500ms DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS bound sitting below real DuckDB warm-up latency (log: waraug-quick=1500ms SKIPPED). The broader run `npx vitest run src/http src/search src/duckdb` -> Test Files 1 failed | 73 passed (74); Tests 2 failed | 604 passed (606), the only failures being these 2 new tests. (2) There is NO unscoped-search test in the new file \u2014 grep for 'unscoped'/'regression' in src/http/namespace-warmup-aug096.test.ts returns nothing; only the scoped leg is covered by this change's tests, so 'no regression on scoped/unscoped search' is not covered as required. (3) No test asserts startHttpMode actually wires startNamespaceWarmup at boot.\nWarm-up implementation and scoped E2E test exist and the scoped test passes, but the criterion fails because the new test file is reproducibly flaky (2/15 fail in 3 of 4 runs, including the broader suite) and contains no unscoped-search regression test.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest namespaces; tests cover warm-up + no regression on scoped/unscoped search: Implementation is present and plausible: src/http/namespace-warmup.ts warmNamespace() creates the singleton DuckDB connection, forces a limit-1 partition scan, runs the SAME ensureFreshIndex seam the ?q= path calls (src/search/query.ts:382 keywordSearch), and inits EmbeddingCache.forNamespace; wired fire-and-forget at src/cli/http.ts:1129 startNamespaceWarmup() after listen(); enumeration uses listNamespaces (manifest.json dirs) primary + censusOnDiskNamespaces fallback, so all manifest namespaces are covered. The scoped ?q= E2E test (src/http/namespace-warmup-aug096.test.ts:444) passes in isolation (`npx vitest run ... -t \"SCOPED\"` -> 1 passed) and asserts autoBuildCount/indexedAt/fts.duckdb mtime unchanged + no rows.tmp.jsonl. HOWEVER the criterion's test requirement is not met: (1) the delivered test file is reproducibly FLAKY \u2014 `npx vitest run src/http/namespace-warmup-aug096.test.ts` gave 15/15 pass on run 1 but 13 passed | 2 failed on runs 2, 3 and 4; the failures are 'per-namespace timeout knob...' (AssertionError expected false to be true at line 611, waraug-quick.warmed) and 'concurrency knob is honored...' (Test timed out in 15000ms at line 617), caused by the 1500ms DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS bound sitting below real DuckDB warm-up latency (log: waraug-quick=1500ms SKIPPED). The broader run `npx vitest run src/http src/search src/duckdb` -> Test Files 1 failed | 73 passed (74); Tests 2 failed | 604 passed (606), the only failures being these 2 new tests. (2) There is NO unscoped-search test in the new file \u2014 grep for 'unscoped'/'regression' in src/http/namespace-warmup-aug096.test.ts returns nothing; only the scoped leg is covered by this change's tests, so 'no regression on scoped/unscoped search' is not covered as required. (3) No test asserts startHttpMode actually wires startNamespaceWarmup at boot.\nWarm-up implementation and scoped E2E test exist and the scoped test passes, but the criterion fails because the new test file is reproducibly flaky (2/15 fail in 3 of 4 runs, including the broader suite) and contains no unscoped-search regression test.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest namespaces; tests cover warm-up + no regression on scoped/unscoped search",
+                "status": "FAIL",
+                "detail": "Implementation is present and plausible: src/http/namespace-warmup.ts warmNamespace() creates the singleton DuckDB connection, forces a limit-1 partition scan, runs the SAME ensureFreshIndex seam the ?q= path calls (src/search/query.ts:382 keywordSearch), and inits EmbeddingCache.forNamespace; wired fire-and-forget at src/cli/http.ts:1129 startNamespaceWarmup() after listen(); enumeration uses listNamespaces (manifest.json dirs) primary + censusOnDiskNamespaces fallback, so all manifest namespaces are covered. The scoped ?q= E2E test (src/http/namespace-warmup-aug096.test.ts:444) passes in isolation (`npx vitest run ... -t \"SCOPED\"` -> 1 passed) and asserts autoBuildCount/indexedAt/fts.duckdb mtime unchanged + no rows.tmp.jsonl. HOWEVER the criterion's test requirement is not met: (1) the delivered test file is reproducibly FLAKY \u2014 `npx vitest run src/http/namespace-warmup-aug096.test.ts` gave 15/15 pass on run 1 but 13 passed | 2 failed on runs 2, 3 and 4; the failures are 'per-namespace timeout knob...' (AssertionError expected false to be true at line 611, waraug-quick.warmed) and 'concurrency knob is honored...' (Test timed out in 15000ms at line 617), caused by the 1500ms DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS bound sitting below real DuckDB warm-up latency (log: waraug-quick=1500ms SKIPPED). The broader run `npx vitest run src/http src/search src/duckdb` -> Test Files 1 failed | 73 passed (74); Tests 2 failed | 604 passed (606), the only failures being these 2 new tests. (2) There is NO unscoped-search test in the new file \u2014 grep for 'unscoped'/'regression' in src/http/namespace-warmup-aug096.test.ts returns nothing; only the scoped leg is covered by this change's tests, so 'no regression on scoped/unscoped search' is not covered as required. (3) No test asserts startHttpMode actually wires startNamespaceWarmup at boot.",
+                "resolution_probability": 0.06
+              }
+            ],
+            "summary": "Warm-up implementation and scoped E2E test exist and the scoped test passes, but the criterion fails because the new test file is reproducibly flaky (2/15 fail in 3 of 4 runs, including the broader suite) and contains no unscoped-search regression test."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: AUG-096\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest namespaces; tests cover warm-up + no regression on scoped/unscoped search: Implementation is present and plausible: src/http/namespace-warmup.ts warmNamespace() creates the singleton DuckDB connection, forces a limit-1 partition scan, runs the SAME ensureFreshIndex seam the ?q= path calls (src/search/query.ts:382 keywordSearch), and inits EmbeddingCache.forNamespace; wired fire-and-forget at src/cli/http.ts:1129 startNamespaceWarmup() after listen(); enumeration uses listNamespaces (manifest.json dirs) primary + censusOnDiskNamespaces fallback, so all manifest namespaces are covered. The scoped ?q= E2E test (src/http/namespace-warmup-aug096.test.ts:444) passes in isolation (`npx vitest run ... -t \"SCOPED\"` -> 1 passed) and asserts autoBuildCount/indexedAt/fts.duckdb mtime unchanged + no rows.tmp.jsonl. HOWEVER the criterion's test requirement is not met: (1) the delivered test file is reproducibly FLAKY \u2014 `npx vitest run src/http/namespace-warmup-aug096.test.ts` gave 15/15 pass on run 1 but 13 passed | 2 failed on runs 2, 3 and 4; the failures are 'per-namespace timeout knob...' (AssertionError expected false to be true at line 611, waraug-quick.warmed) and 'concurrency knob is honored...' (Test timed out in 15000ms at line 617), caused by the 1500ms DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS bound sitting below real DuckDB warm-up latency (log: waraug-quick=1500ms SKIPPED). The broader run `npx vitest run src/http src/search src/duckdb` -> Test Files 1 failed | 73 passed (74); Tests 2 failed | 604 passed (606), the only failures being these 2 new tests. (2) There is NO unscoped-search test in the new file \u2014 grep for 'unscoped'/'regression' in src/http/namespace-warmup-aug096.test.ts returns nothing; only the scoped leg is covered by this change's tests, so 'no regression on scoped/unscoped search' is not covered as required. (3) No test asserts startHttpMode actually wires startNamespaceWarmup at boot.\nWarm-up implementation and scoped E2E test exist and the scoped test passes, but the criterion fails because the new test file is reproducibly flaky (2/15 fail in 3 of 4 runs, including the broader suite) and contains no unscoped-search regression test.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-13T10:52:27.147605",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-13T10:52:27.173723+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 46244,
+        "truncated": false,
+        "source": "git show 32de02448f8c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1565,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "AUG-096"
+  }
+}

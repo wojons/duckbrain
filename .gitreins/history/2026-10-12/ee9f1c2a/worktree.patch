@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d378ed7f..df75274d 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2694,3 +2694,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-12T19:13:03.543828+00:00'
+   completed_at: '2026-10-12T19:56:19.127395+00:00'
++- id: MUSTER-002-REJUDGE
++  title: "Repair namespace OpenAPI memory route coverage \u2014 re-judge on committed\
++    \ code"
++  criteria:
++  - Served namespace OpenAPI spec documents POST GET list and GET key memory routes
++    with matching shapes and a conformance test; existing HTTP/MCP surfaces remain
++    unchanged and full suite is green
++  status: complete
++  created_at: '2026-10-12T22:36:46.345202+00:00'
++  completed_at: '2026-10-12T22:36:47.032573+00:00'

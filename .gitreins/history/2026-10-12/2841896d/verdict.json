@@ -1,0 +1,103 @@
+{
+  "task_id": "DOC-16",
+  "task_title": "Document complete MCP recall input surface",
+  "task_criteria": [
+    "docs/api/mcp-tools.md documents every field in RecallInputSchema (src/mcp/tools/recall.ts:50-170): key, id, keyPrefix, domain, author, query, contains, limit, offset, namespace, allNamespaces, after, before, between, asOf, attr, historical \u2014 with defaults, mutual exclusions, examples"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "066bfba3556841adc8d3f5c1ac649c3279837d42",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:30PM INF scanned ~42063086 bytes (42.06 MB) in 7.33s\n8:30PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1049828 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T013021.974289Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  219 passed (219)\n      Tests  1815 passed (1815)\n   Start at  20:30:45\n   Duration  75.12s (tests 74%, import 22%, transform 3%, worker 1%, setup 1%)\n\n    Isolate  219 workers spawned \u00b7 ~128ms startup each (spawn + environment, per file)\n             at least ~6.90s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T013021.974289Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/mcp-tools.md documents every field in RecallInputSchema (src/mcp/tools/recall.ts:50-170): key, id, keyPrefix, domain, author, query, contains, limit, offset, namespace, allNamespaces, after, before, between, asOf, attr, historical \u2014 with defaults, mutual exclusions, examples: docs/api/mcp-tools.md (commit 066bfba3, +195 lines) contains a 'Field reference' table (lines 150-170) listing all 17 fields with Type/Default/Description: key, id, keyPrefix, domain, author, query, contains, limit (default 10), offset (default 0), namespace (default active namespace), allNamespaces (default false), after, before, between, asOf, attr, historical (default false). A mutual-exclusions table (lines ~183-189) documents between+after/before refused, asOf+query/contains refused, query+contains refused, allNamespaces without contains refused, allNamespaces+namespace refused, key\u2192id\u2192keyPrefix\u2192domain precedence, and after>before refused. Examples (lines 195-350) cover keyPrefix, domain, key, id, author, namespace, query, contains, allNamespaces, combined, after/before, between, paging offset, limit:0 count-only, attr, historical, and asOf. Verified against src/mcp/tools/recall.ts:50-170 schema (defaults .default(10)/.default(0), optional booleans, exclusion logic at lines 532-538 and 601-607) \u2014 docs match code. Test suite (npx vitest run) timed out at 30s; this is a docs-only change with no code modified. [resolution 0.24; docs/api/mcp-tools.md, src/mcp/tools/recall.ts:50-170]\ndocs/api/mcp-tools.md fully documents all 17 RecallInputSchema fields with defaults, mutual exclusions, and examples, matching the source schema.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/mcp-tools.md documents every field in RecallInputSchema (src/mcp/tools/recall.ts:50-170): key, id, keyPrefix, domain, author, query, contains, limit, offset, namespace, allNamespaces, after, before, between, asOf, attr, historical \u2014 with defaults, mutual exclusions, examples: docs/api/mcp-tools.md (commit 066bfba3, +195 lines) contains a 'Field reference' table (lines 150-170) listing all 17 fields with Type/Default/Description: key, id, keyPrefix, domain, author, query, contains, limit (default 10), offset (default 0), namespace (default active namespace), allNamespaces (default false), after, before, between, asOf, attr, historical (default false). A mutual-exclusions table (lines ~183-189) documents between+after/before refused, asOf+query/contains refused, query+contains refused, allNamespaces without contains refused, allNamespaces+namespace refused, key\u2192id\u2192keyPrefix\u2192domain precedence, and after>before refused. Examples (lines 195-350) cover keyPrefix, domain, key, id, author, namespace, query, contains, allNamespaces, combined, after/before, between, paging offset, limit:0 count-only, attr, historical, and asOf. Verified against src/mcp/tools/recall.ts:50-170 schema (defaults .default(10)/.default(0), optional booleans, exclusion logic at lines 532-538 and 601-607) \u2014 docs match code. Test suite (npx vitest run) timed out at 30s; this is a docs-only change with no code modified. [resolution 0.24; docs/api/mcp-tools.md, src/mcp/tools/recall.ts:50-170]\ndocs/api/mcp-tools.md fully documents all 17 RecallInputSchema fields with defaults, mutual exclusions, and examples, matching the source schema.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/mcp-tools.md documents every field in RecallInputSchema (src/mcp/tools/recall.ts:50-170): key, id, keyPrefix, domain, author, query, contains, limit, offset, namespace, allNamespaces, after, before, between, asOf, attr, historical \u2014 with defaults, mutual exclusions, examples",
+                "status": "PASS",
+                "detail": "docs/api/mcp-tools.md (commit 066bfba3, +195 lines) contains a 'Field reference' table (lines 150-170) listing all 17 fields with Type/Default/Description: key, id, keyPrefix, domain, author, query, contains, limit (default 10), offset (default 0), namespace (default active namespace), allNamespaces (default false), after, before, between, asOf, attr, historical (default false). A mutual-exclusions table (lines ~183-189) documents between+after/before refused, asOf+query/contains refused, query+contains refused, allNamespaces without contains refused, allNamespaces+namespace refused, key\u2192id\u2192keyPrefix\u2192domain precedence, and after>before refused. Examples (lines 195-350) cover keyPrefix, domain, key, id, author, namespace, query, contains, allNamespaces, combined, after/before, between, paging offset, limit:0 count-only, attr, historical, and asOf. Verified against src/mcp/tools/recall.ts:50-170 schema (defaults .default(10)/.default(0), optional booleans, exclusion logic at lines 532-538 and 601-607) \u2014 docs match code. Test suite (npx vitest run) timed out at 30s; this is a docs-only change with no code modified. [resolution 0.24; docs/api/mcp-tools.md, src/mcp/tools/recall.ts:50-170]",
+                "resolution_probability": 0.24,
+                "cited_path": "docs/api/mcp-tools.md, src/mcp/tools/recall.ts:50-170"
+              }
+            ],
+            "summary": "docs/api/mcp-tools.md fully documents all 17 RecallInputSchema fields with defaults, mutual exclusions, and examples, matching the source schema."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DOC-16\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/mcp-tools.md documents every field in RecallInputSchema (src/mcp/tools/recall.ts:50-170): key, id, keyPrefix, domain, author, query, contains, limit, offset, namespace, allNamespaces, after, before, between, asOf, attr, historical \u2014 with defaults, mutual exclusions, examples: docs/api/mcp-tools.md (commit 066bfba3, +195 lines) contains a 'Field reference' table (lines 150-170) listing all 17 fields with Type/Default/Description: key, id, keyPrefix, domain, author, query, contains, limit (default 10), offset (default 0), namespace (default active namespace), allNamespaces (default false), after, before, between, asOf, attr, historical (default false). A mutual-exclusions table (lines ~183-189) documents between+after/before refused, asOf+query/contains refused, query+contains refused, allNamespaces without contains refused, allNamespaces+namespace refused, key\u2192id\u2192keyPrefix\u2192domain precedence, and after>before refused. Examples (lines 195-350) cover keyPrefix, domain, key, id, author, namespace, query, contains, allNamespaces, combined, after/before, between, paging offset, limit:0 count-only, attr, historical, and asOf. Verified against src/mcp/tools/recall.ts:50-170 schema (defaults .default(10)/.default(0), optional booleans, exclusion logic at lines 532-538 and 601-607) \u2014 docs match code. Test suite (npx vitest run) timed out at 30s; this is a docs-only change with no code modified. [resolution 0.24; docs/api/mcp-tools.md, src/mcp/tools/recall.ts:50-170]\ndocs/api/mcp-tools.md fully documents all 17 RecallInputSchema fields with defaults, mutual exclusions, and examples, matching the source schema.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-12T01:33:07.417808",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T01:33:07.455540+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 21268,
+        "truncated": false,
+        "source": "git show 066bfba35568"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1284,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DOC-16"
+  }
+}

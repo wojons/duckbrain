@@ -16,7 +16,7 @@ description: >-
   with current-state; Web UI is DOA on hardened deployments — hardcodes ns
   'default' + sends zero credentials, DF-0924-05). Load this
   before integrating DuckBrain into anything or answering "does DuckBrain work?".
-version: 1.13.0
+version: 1.14.0
 category: software-development
 ---
 
@@ -565,6 +565,21 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     commit for a just-written memory does not exist yet; an as_of at/before
     your write instant correctly 400s "No commit found at or before".
     Wait ≥32s after the write before freezing the timestamp you will query.
+
+31. **AUG-096 boot warm-up is default-ON (verify 2026-10-13).** A fresh
+    daemon warms EVERY namespace (DuckDB singleton + FTS sidecar rebuild)
+    fire-and-forget after listen(); `DUCKBRAIN_WARM_NAMESPACES=0` opts out.
+    Verify with `DUCKBRAIN_SEARCH_TIMING=1`: `keyword_ms` ≈130 = warm
+    sidecar, ≈3500 = the request paid the inline rebuild. Measured: first
+    scoped `?q=` search on fresh boot 5.72s cold → 2.19s warm (prod
+    embedding config; residual is provider RTT — batch_supported=false,
+    PERF-012). Two traps: (a) a corrupt manifest.json is graded
+    `warmed ... idx=rebuilt` at boot — only the API's request-time 500 tells
+    the truth (DF-1013-02); (b) the REST `?q=` response carries no
+    freshness/rebuild diagnostics at all (DF-1013-03) — stderr is the only
+    observable. Benchmarks: `bin/duckbrain.js` prefers a precompiled
+    `dist/` — after pulling new commits run `pnpm build:cli` first or you
+    bench week-old code.
 
 ## HTTP examples quickstart (the working path, 2026-09-26)
 

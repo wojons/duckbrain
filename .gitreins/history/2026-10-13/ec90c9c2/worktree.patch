@@ -1,0 +1,33 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d378ed7f..581336eb 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2694,3 +2694,28 @@ tasks:
+   status: complete
+   created_at: '2026-10-12T19:13:03.543828+00:00'
+   completed_at: '2026-10-12T19:56:19.127395+00:00'
++- id: STYLE-002
++  title: Fix 42-file prettier drift in src/ (STYLE-002 recurrence)
++  criteria:
++  - npx prettier --check src/ exits 0; tsc --noEmit clean; full vitest suite green
++  status: complete
++  created_at: '2026-10-12T23:40:00.486850+00:00'
++  completed_at: '2026-10-12T23:44:59.999857+00:00'
++- id: AUG-096
++  title: "namespace-scoped semantic query 3.6-5s vs 0.1-0.2s unscoped \u2014 warm\
++    \ the per-namespace DuckDB scratch connection at boot"
++  criteria:
++  - GET /api/memories?namespace=X&q= on a namespace with zero prior traffic must not
++    pay a >1s cold-scan penalty vs the same query unscoped; warm-up covers all manifest
++    namespaces; tests cover warm-up + no regression on scoped/unscoped search
++  status: complete
++  created_at: '2026-10-13T08:20:04.611369+00:00'
++  completed_at: '2026-10-13T10:41:43.136705+00:00'
++- id: INT-CI-030
++  title: 'Local-env test failures: PUSH-001 push-gate suite (pushCount 1 got 0) +
++    durability-kill9 SIGKILL-replay duplicates in CI + dogfood010 timeout'
++  criteria:
++  - autocommit-push-gate.test.ts green locally x3; durability-kill9 either fixed or
++    explained+robust; dogfood010 timeout explained; CI green on main
++  status: in_progress
++  created_at: '2026-10-13T10:52:20.204900+00:00'

@@ -447,3 +447,48 @@ read-back following positioning.md examples verbatim).
 **Left behind:** docs/dogfood/2026-10-03-asof-integration.md, diagnostics Run
 14, skills/duckbrain-usage v1.13.0 (pitfalls 28-30), 4 board rows, this entry.
 No code changes. Foreman NOT woken (already active, tick 614 today).
+
+## Run 15 — 2026-10-13 tick (duckbrain-dogfood-2026-10-13-10-33-01)
+
+**Angle:** AUG-096 boot warm-up (commits 07f5b3f8 + 32de0244, landed that
+morning) — surface never exercised before because it did not exist at
+run-14 time. Install premise also stale (deps bumped 592e181f since the
+10-03 proof) → both legs fresh.
+
+**Promise statement:** "A fresh user can start a DuckBrain HTTP daemon and
+get warm first-request scoped semantic search, because the daemon warms
+per-namespace DuckDB connections and FTS sidecars at boot."
+
+**Verdict: ✅ SHIPPABLE-ON-THIS-SURFACE** (engine excellent; one P1 on the
+fresh-install quickstart path, not on the warm-up itself).
+
+**Top findings:**
+- DF-1013-01 (P1): README verify snippet fails at step 4 on a fresh box
+  (write 500, no git identity) while README:93 claims identity is not
+  required to write — docs contradict themselves; env identity unblocks.
+- DF-1013-02 (P2): corrupt manifest.json namespace graded warmed/idx=rebuilt
+  at boot with 0 skipped — warm-up failure contract not met for this cell.
+- DF-1013-03 (P2): REST ?q= response carries none of the promised
+  searchRebuilt/searchFreshness fields — observability is stderr-only.
+- PERF-012 (P2): AUG-096 measured win — cold first scoped search 5.72s →
+  2.19s warm under prod embedding config (3.5s FTS rebuild out of the
+  request path); residual = provider RTT (batch_supported=false).
+
+**Perf:** numbers above + in PERF-012 (exact commands and search-timing
+breakdowns). Nothing else user-noticeable: exact-key reads 7ms.
+
+**Install leg: EXECUTED PASS** (not skipped) on bunker-mvp (las-03/02/04
+unreachable; mvp alive per the sibling-host rule), agent 6ddbc631, Ubuntu
+24.04.4, fresh clone at published HEAD 32de0244, nvm+corepack quickstart
+verbatim 19s install. Quickstart write leg hit DF-1013-01 (filed, not
+rescued silently); with env identity write/read/search all green and the
+AUG-096 warm-up ran on second boot. Destroyed; residue recheck at +95s
+clean.
+
+**Time-to-first-success:** ~10 min to a working write/read loop on the
+fresh box (the 500 detour included); ~2 min once identity is set.
+
+**Left behind:** docs/dogfood/2026-10-13-aug096-warmup-integration.md,
+diagnostics Run 15, skills/duckbrain-usage v1.14.0 (pitfall 31), 4 board
+rows, this entry. No code changes. Foreman NOT woken (active family, rows
+pending on its board).

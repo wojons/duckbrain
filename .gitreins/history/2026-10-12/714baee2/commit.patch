@@ -1,0 +1,185 @@
+commit 094e7cf261fced89833ba4cf3373788dc0998c7a
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 21:06:39 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 21:06:39 2026 -0500
+
+    docs: add repository-local traceability doctrine (DOC-17)
+    
+    Define ch:trace marker system for board task provenance tracking.
+    Documents marker fields, evidence floor tiers (T0-T3), GitReins
+    verdict binding, close-out footer format, and the five-link
+    traceability chain.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/traceability-doctrine.md | 161 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 161 insertions(+)
+
+diff --git a/docs/traceability-doctrine.md b/docs/traceability-doctrine.md
+new file mode 100644
+index 00000000..f8912bbf
+--- /dev/null
++++ b/docs/traceability-doctrine.md
+@@ -0,0 +1,161 @@
++# Traceability Doctrine
++
++**Version:** 1.0.0  
++**Effective:** 2026-10-12  
++**Scope:** All duckbrain development artifacts — board rows, audit docs, dogfood reports, and verification outputs.
++
++---
++
++## Purpose
++
++This document defines the **traceability marker system** (`ch:trace`) used across duckbrain to link board tasks, implementation artifacts, test results, and verification evidence. Every meaningful change must carry a marker that allows a reader to reconstruct:
++
++- **What** was done (row ID, spec anchor)
++- **Why** it was done (reasoning stored on the board row)
++- **How** it was verified (test paths, evidence files, witness locators)
++- **What the outcome was** (verdict, commit hash, CI result)
++
++Without a `ch:trace` marker, a change has no auditable provenance and should be considered orphaned.
++
++---
++
++## ch:trace Marker Format
++
++Every marker is a single line of the form:
++
++```
++ch:trace row=<ID> spec=<path> test=<test> evidence=<files> witness=<locator> verdict=<value> commit=<sha>
++```
++
++### Required Fields
++
++| Field | Purpose | Format | Example |
++|-------|---------|--------|---------|
++| `row` | Board task ID this change addresses | `<PREFIX>-<N>` or `<PREFIX>-<N>-<sub>` | `DOC-17`, `INT-CI-023`, `GAP-063b` |
++| `spec` | Source file + line/section anchor, or `none:<context>` if no code spec | `<file>#<line>` or `none:<context>` | `src/config/index.ts:90-224`, `none:target-repo-has-no-traceability-doctrine` |
++| `test` | Test file or `none::<reason>` if no test | `<file>::<test_name>` or `none::<reason>` | `src/test/setup.test.ts`, `none::docs-only-change` |
++| `evidence` | File(s) that prove the work was done | Comma-separated file paths | `docs/traceability-doctrine.md`, `src/config/index.ts` |
++| `verdict` | Verification outcome or verdict artifact ID | `<sha>` for gitreins verdict, `none:<reason>` if none | `abc12345-tier1`, `none:docs-only-change-no-runtime-surface` |
++| `commit` | Commit SHA that carries the change | Full 40-char SHA (or `THIS` for self-referencing in doc) | `4057d1dfabc...` |
++
++### Optional Fields
++
++| Field | Purpose | Format | Example |
++|-------|---------|--------|---------|
++| `wave` | Wave or tick that produced this work | `<wave-name>#<step>` | `duckbrain-docs-2026-10-11-00-23-08#reevaluation` |
++| `doc` | Documentation files changed | File paths | `docs/guide/configuration.md` |
++| `prompt` | Skill, prompt, or specification that guided the work | File or path | `~/.hermes/skills/coding-hermes/coding-hermes-docs-audit/SKILL.md` |
++| `memory` | DuckBrain key for the narration record | `/project/<name>/...` | `/project/duckbrain/foreman/tick-2026-10-12-DOC-17` |
++
++### Field Grammar
++
++- `ch:trace` prefix is case-sensitive
++- Fields are space-separated `key=value` pairs
++- Values may contain colons (use `none:<context>` to signal absence of evidence)
++- Values do not need quoting unless they contain spaces (rare)
++- The line may contain any subset of required + optional fields — no field is strictly mandatory at write time, but **a complete marker requires all required fields** for the change to be considered fully traced.
++
++---
++
++## Evidence Floor
++
++Not all verification is equal. The **evidence floor** establishes the minimum level of proof required for a claim of completion:
++
++| Tier | Description | What Proves It |
++|------|-------------|----------------|
++| **T0 — Exists** | A file or function exists | `grep` or `ls` found it |
++| **T1 — Imports** | The code is referenced | `import` or call site exists |
++| **T2 — Unit tests** | Tests exist and pass locally | `npx vitest run <file>` exits 0 |
++| **T3 — Invoked** | The thing was actually exercised | `curl` to endpoint, `node bin/duckbrain.js --help`, `gitreins guard` run |
++
++**T3 is the minimum for "done."** T0–T2 alone (file exists, imports are present, unit tests pass) never close a row on their own. A claim that only reaches T2 must carry a `witness=none:<reason>` explaining why T3 is unavailable (e.g. `none:no-live-daemon-started`).
++
++### Evidence vs Witness
++
++- **Evidence** is what was produced — files, outputs, test results. It lives on disk and can be diffed.
++- **Witness** is where you can independently verify the evidence — a URL, a commit SHA, a file path on disk, or a named reason if nothing verifiable exists.
++
++A marker without a `witness` field (or with `witness=none:` but no reason) is **incomplete**.
++
++---
++
++## GitReins Verdict Binding
++
++When a change goes through GitReins:
++
++1. The verdict directory lives at `.gitreins/history/<date>/<short-sha>/verdict.json`
++2. The `verdict` field in the marker must reference the verdict SHA or file
++3. If the Tier-2 evaluator fails or times out, the verdict must record the **actual** Tier-1 result and note Tier-2 as unavailable — never collapse `FAIL/PASS` across tiers
++
++**Rule:** A no-op guard that reports `no staged files` is degraded evidence, not a content pass. Report this as `verdict=degraded:no-staged-files` in the marker.
++
++---
++
++## Close-Out Footer Format
++
++Board close-out commits must follow this footer structure:
++
++```
++Close-out: <ROW_ID>
++
++STATUS: complete (verified at HEAD <sha>)
++TIER: <evidence tier reached>
++EVIDENCE:
++  - <evidence file or command with exit code>
++  - <second evidence item>
++
++CHANGE: <brief description of what was modified>
++
++witness: <verifiable locator>
++```
++
++The footer is embedded in the commit message (not as a file) and serves as the closure record when no separate verdict file exists.
++
++---
++
++## Examples from the Repository
++
++### Full marker (all fields populated)
++
++```
++ch:trace row=DOC-14 spec=none:target-repo-has-no-traceability-doctrine wave=duckbrain-docs-2026-10-11-00-23-08#reevaluation test=resolve-links.py::broken-links+derive-surface.py::doc_hits doc=docs/audits/2026-10-11-doc14-rerun.md prompt=~/.hermes/skills/coding-hermes/coding-hermes-docs-audit/SKILL.md evidence=docs/audits/2026-10-11-doc14-rerun.md witness=none:static-source-help-parity verdict=none:no-independent-judgement commit=THIS
++```
++
++### Docs-only marker (no code, no live verification)
++
++```
++ch:trace row=DOC-6 spec=docs/guide/configuration.md test=none::docs-only-change-no-runtime-surface evidence=docs/guide/configuration.md witness=none:docs-only-change verdict=abc12345-tier1 commit=4057d1df
++```
++
++### Test-fix marker
++
++```
++ch:trace row=INT-FLAKE-RETR-AFTERSALL spec=src/http/routes/memories-validuntil-retr011.test.ts test=src/http/routes/memories-validuntil-retr011.test.ts+src/http/routes/memories-timerange-retr003.test.ts evidence=.gitreins/history/2026-10-11/070fd6be/verdict.json witness=live:origin/main-fefb6487 verdict=none:tier2-evaluator-unavailable commit=fefb6487
++```
++
++---
++
++## Maintenance Rules
++
++1. **Every change to a file named in a `ch:trace` marker must update that marker.** If the evidence file moves, the marker moves with it.
++2. **Markers go in the same commit as the work they trace**, or in the immediately preceding close-out commit. They must never float in a separate commit without the work.
++3. **The `witness` field is never left blank.** If no verifiable locator exists, write `witness=none:<specific reason>` — never `witness=` with no value.
++4. **Recursive audit command:** Verify all markers conform to this doctrine:
++   ```
++   grep -RIn --exclude-dir=.git --exclude-dir=node_modules --exclude='*.db' --exclude='*.jsonl' 'traceability-doctrine\|ch:trace' docs README.md AGENTS.md
++   ```
++5. **New markers must include the `wave` or `prompt` field** when the work was produced by a skill, prompt, or wave, so future readers can reproduce the work.
++
++---
++
++## Traceability Chain
++
++A complete traceability chain has five links. A broken link means the work is not fully auditable:
++
++1. **Board Row** → the task exists on the board with title, reasoning, and acceptance criteria
++2. **Implementation** → the change is committed with a `ch:trace` marker
++3. **Verification** → tests pass, guard passes, or evidence is explicitly unavailable with a reason
++4. **GitReins Judgment** → Tier-1 (secrets/lint/tests) and Tier-2 (code review) verdicts recorded
++5. **Board Closure** → the board row is updated with commit hash, guard result, and close-out event
++
++If link 5 is missing, the work is **implemented but not closed**. If links 3–5 are all missing, the work is **shipped with no provenance** — the highest severity traceability gap.

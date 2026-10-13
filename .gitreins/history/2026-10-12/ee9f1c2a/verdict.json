@@ -1,0 +1,102 @@
+{
+  "task_id": "MUSTER-002-REJUDGE",
+  "task_title": "Repair namespace OpenAPI memory route coverage \u2014 re-judge on committed code",
+  "task_criteria": [
+    "Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "0e502a5eed64b428b948600ab7e01272ccd3e805",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:36PM INF scanned ~42356185 bytes (42.36 MB) in 4.15s\n5:36PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1051097 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  221 passed (221)\n      Tests  1829 passed (1829)\n   Start at  17:36:48\n   Duration  63.67s (tests 80%, import 17%, transform 2%, worker 1%)\n\n    Isolate  221 workers spawned \u00b7 ~87ms startup each (spawn + environment, per file)\n             at least ~4.71s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: Served spec: GET /api/ns/:ns/openapi.json -> generateOpenApi (src/http/routes/tables.ts:442, mounted at :914-928) now emits paths['/api/memories'].get (listMemories, memoryListParameters incl. prefix/domain/author/q/contains/allNamespaces/after/before/between/as_of/historical/limit/offset/attr.<name>/namespace -> 200 $ref MemoryListResponse, tables.ts:455-478), paths['/api/memories'].post (createMemory, memoryRequestSchema required [key,domain,content] -> 201 $ref MemoryResponse, tables.ts:479-508), and paths['/api/memories/key/{key}'].get (getMemoryByKey, path key + namespace query -> 200 $ref MemoryResponse, tables.ts:509-540), with components.schemas MemoryResponse/MemoryRequest/MemoryListResponse/ApiError (tables.ts:548-583). Shapes match the live routes in src/http/routes/memories.ts: router.get('/') list, router.post('/') create, router.get('/key/*key') key lookup; transformMemory (memories.ts:292-329) emits id,key,domain,content,attributes,timestamp,valid_from,valid_until,author,isTombstone,action,score,snippet,highlightedSnippet,namespace; list response (memories.ts:538-548) emits items,total,offset,limit,hasMore,nextOffset,count,memories. Conformance test: src/http/routes/tables-supa3.test.ts (commit e828d125) asserts the exact path set ['/api/memories','/api/memories/key/{key}',...], param names, limit schema {integer,min 0,max 1000,default 50}, requestBody.required, 201/200 $refs, and component required arrays. Ran `npx vitest run src/http/routes/tables-supa3.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 34 passed (34)'. Unchanged surfaces: `git diff e828d125^ e828d125 --name-only` = only src/http/routes/tables.ts + src/http/routes/tables-supa3.test.ts (no MCP files); the only deletions in tables.ts are the info.description string, `components: {}` -> populated schemas, and a prettier reformat of the pk check \u2014 no route handler behavior changed. Full suite: `npx vitest run` -> exit_code 0, 'Test Files 221 passed (221) / Tests 1829 passed (1829)', Duration 88.38s.\nThe served namespace OpenAPI document now documents the memory list/create/key routes with shapes matching the live handlers, a passing conformance test covers them, no HTTP/MCP surface was altered, and the full 221-file/1829-test suite is green.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: Served spec: GET /api/ns/:ns/openapi.json -> generateOpenApi (src/http/routes/tables.ts:442, mounted at :914-928) now emits paths['/api/memories'].get (listMemories, memoryListParameters incl. prefix/domain/author/q/contains/allNamespaces/after/before/between/as_of/historical/limit/offset/attr.<name>/namespace -> 200 $ref MemoryListResponse, tables.ts:455-478), paths['/api/memories'].post (createMemory, memoryRequestSchema required [key,domain,content] -> 201 $ref MemoryResponse, tables.ts:479-508), and paths['/api/memories/key/{key}'].get (getMemoryByKey, path key + namespace query -> 200 $ref MemoryResponse, tables.ts:509-540), with components.schemas MemoryResponse/MemoryRequest/MemoryListResponse/ApiError (tables.ts:548-583). Shapes match the live routes in src/http/routes/memories.ts: router.get('/') list, router.post('/') create, router.get('/key/*key') key lookup; transformMemory (memories.ts:292-329) emits id,key,domain,content,attributes,timestamp,valid_from,valid_until,author,isTombstone,action,score,snippet,highlightedSnippet,namespace; list response (memories.ts:538-548) emits items,total,offset,limit,hasMore,nextOffset,count,memories. Conformance test: src/http/routes/tables-supa3.test.ts (commit e828d125) asserts the exact path set ['/api/memories','/api/memories/key/{key}',...], param names, limit schema {integer,min 0,max 1000,default 50}, requestBody.required, 201/200 $refs, and component required arrays. Ran `npx vitest run src/http/routes/tables-supa3.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 34 passed (34)'. Unchanged surfaces: `git diff e828d125^ e828d125 --name-only` = only src/http/routes/tables.ts + src/http/routes/tables-supa3.test.ts (no MCP files); the only deletions in tables.ts are the info.description string, `components: {}` -> populated schemas, and a prettier reformat of the pk check \u2014 no route handler behavior changed. Full suite: `npx vitest run` -> exit_code 0, 'Test Files 221 passed (221) / Tests 1829 passed (1829)', Duration 88.38s.\nThe served namespace OpenAPI document now documents the memory list/create/key routes with shapes matching the live handlers, a passing conformance test covers them, no HTTP/MCP surface was altered, and the full 221-file/1829-test suite is green.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green",
+                "status": "PASS",
+                "detail": "Served spec: GET /api/ns/:ns/openapi.json -> generateOpenApi (src/http/routes/tables.ts:442, mounted at :914-928) now emits paths['/api/memories'].get (listMemories, memoryListParameters incl. prefix/domain/author/q/contains/allNamespaces/after/before/between/as_of/historical/limit/offset/attr.<name>/namespace -> 200 $ref MemoryListResponse, tables.ts:455-478), paths['/api/memories'].post (createMemory, memoryRequestSchema required [key,domain,content] -> 201 $ref MemoryResponse, tables.ts:479-508), and paths['/api/memories/key/{key}'].get (getMemoryByKey, path key + namespace query -> 200 $ref MemoryResponse, tables.ts:509-540), with components.schemas MemoryResponse/MemoryRequest/MemoryListResponse/ApiError (tables.ts:548-583). Shapes match the live routes in src/http/routes/memories.ts: router.get('/') list, router.post('/') create, router.get('/key/*key') key lookup; transformMemory (memories.ts:292-329) emits id,key,domain,content,attributes,timestamp,valid_from,valid_until,author,isTombstone,action,score,snippet,highlightedSnippet,namespace; list response (memories.ts:538-548) emits items,total,offset,limit,hasMore,nextOffset,count,memories. Conformance test: src/http/routes/tables-supa3.test.ts (commit e828d125) asserts the exact path set ['/api/memories','/api/memories/key/{key}',...], param names, limit schema {integer,min 0,max 1000,default 50}, requestBody.required, 201/200 $refs, and component required arrays. Ran `npx vitest run src/http/routes/tables-supa3.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 34 passed (34)'. Unchanged surfaces: `git diff e828d125^ e828d125 --name-only` = only src/http/routes/tables.ts + src/http/routes/tables-supa3.test.ts (no MCP files); the only deletions in tables.ts are the info.description string, `components: {}` -> populated schemas, and a prettier reformat of the pk check \u2014 no route handler behavior changed. Full suite: `npx vitest run` -> exit_code 0, 'Test Files 221 passed (221) / Tests 1829 passed (1829)', Duration 88.38s.",
+                "resolution_probability": 0.13
+              }
+            ],
+            "summary": "The served namespace OpenAPI document now documents the memory list/create/key routes with shapes matching the live handlers, a passing conformance test covers them, no HTTP/MCP surface was altered, and the full 221-file/1829-test suite is green."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: MUSTER-002-REJUDGE\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: Served spec: GET /api/ns/:ns/openapi.json -> generateOpenApi (src/http/routes/tables.ts:442, mounted at :914-928) now emits paths['/api/memories'].get (listMemories, memoryListParameters incl. prefix/domain/author/q/contains/allNamespaces/after/before/between/as_of/historical/limit/offset/attr.<name>/namespace -> 200 $ref MemoryListResponse, tables.ts:455-478), paths['/api/memories'].post (createMemory, memoryRequestSchema required [key,domain,content] -> 201 $ref MemoryResponse, tables.ts:479-508), and paths['/api/memories/key/{key}'].get (getMemoryByKey, path key + namespace query -> 200 $ref MemoryResponse, tables.ts:509-540), with components.schemas MemoryResponse/MemoryRequest/MemoryListResponse/ApiError (tables.ts:548-583). Shapes match the live routes in src/http/routes/memories.ts: router.get('/') list, router.post('/') create, router.get('/key/*key') key lookup; transformMemory (memories.ts:292-329) emits id,key,domain,content,attributes,timestamp,valid_from,valid_until,author,isTombstone,action,score,snippet,highlightedSnippet,namespace; list response (memories.ts:538-548) emits items,total,offset,limit,hasMore,nextOffset,count,memories. Conformance test: src/http/routes/tables-supa3.test.ts (commit e828d125) asserts the exact path set ['/api/memories','/api/memories/key/{key}',...], param names, limit schema {integer,min 0,max 1000,default 50}, requestBody.required, 201/200 $refs, and component required arrays. Ran `npx vitest run src/http/routes/tables-supa3.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 34 passed (34)'. Unchanged surfaces: `git diff e828d125^ e828d125 --name-only` = only src/http/routes/tables.ts + src/http/routes/tables-supa3.test.ts (no MCP files); the only deletions in tables.ts are the info.description string, `components: {}` -> populated schemas, and a prettier reformat of the pk check \u2014 no route handler behavior changed. Full suite: `npx vitest run` -> exit_code 0, 'Test Files 221 passed (221) / Tests 1829 passed (1829)', Duration 88.38s.\nThe served namespace OpenAPI document now documents the memory list/create/key routes with shapes matching the live handlers, a passing conformance test covers them, no HTTP/MCP surface was altered, and the full 221-file/1829-test suite is green.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-12T22:43:11.570787",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T22:43:11.627584+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 23807,
+        "truncated": false,
+        "source": "git show 0e502a5eed64"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 765,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "MUSTER-002-REJUDGE"
+  }
+}

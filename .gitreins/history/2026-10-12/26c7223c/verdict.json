@@ -1,0 +1,102 @@
+{
+  "task_id": "MUSTER-002",
+  "task_title": "Repair namespace OpenAPI memory route coverage",
+  "task_criteria": [
+    "Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e828d12548bed49c081da5fb526472f6105b2f8f",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:51PM INF scanned ~42353579 bytes (42.35 MB) in 5.4s\n4:51PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1051052 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  221 passed (221)\n      Tests  1829 passed (1829)\n   Start at  16:51:51\n   Duration  86.85s (tests 83%, import 14%, transform 2%, setup 1%)\n\n    Isolate  221 workers spawned \u00b7 ~97ms startup each (spawn + environment, per file)\n             at least ~5.26s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261012T215103.651352Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: The namespace OpenAPI spec does NOT document any memory routes. generateOpenApi() at src/http/routes/tables.ts:305-323 only iterates listTables(ns) and populates paths[`/api/ns/${ns}/tables/${declaration.name}`]; grep -c 'memor' src/http/routes/tables.ts returns 0 (zero memory references). The memory routes exist elsewhere (GET list src/http/routes/memories.ts:248, GET key src/http/routes/memories.ts:450, POST src/http/routes/memories.ts:526) but are never added to the served spec. No conformance test exists: the only test referencing openapi.json is src/http/routes/tables-supa3.test.ts:594-611, which asserts Object.keys(res.body.paths).sort() EQUALS exactly the two table paths \u2014 proving memory routes are absent (and would break if added). No test file mentions memory+openapi. The 'full suite is green' sub-clause does hold: `npx vitest run` => Test Files 178 passed (178), Tests 1412 passed (1412), EXIT=0, so existing HTTP/MCP surfaces are unchanged \u2014 but the task's core deliverable (memory route coverage in the namespace OpenAPI spec plus a conformance test) is entirely missing.\nFull suite is green (178 files/1412 tests, EXIT=0) and existing surfaces are unchanged, but the namespace OpenAPI spec still documents only table routes and has no memory-route coverage or conformance test, so the task is incomplete.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: The namespace OpenAPI spec does NOT document any memory routes. generateOpenApi() at src/http/routes/tables.ts:305-323 only iterates listTables(ns) and populates paths[`/api/ns/${ns}/tables/${declaration.name}`]; grep -c 'memor' src/http/routes/tables.ts returns 0 (zero memory references). The memory routes exist elsewhere (GET list src/http/routes/memories.ts:248, GET key src/http/routes/memories.ts:450, POST src/http/routes/memories.ts:526) but are never added to the served spec. No conformance test exists: the only test referencing openapi.json is src/http/routes/tables-supa3.test.ts:594-611, which asserts Object.keys(res.body.paths).sort() EQUALS exactly the two table paths \u2014 proving memory routes are absent (and would break if added). No test file mentions memory+openapi. The 'full suite is green' sub-clause does hold: `npx vitest run` => Test Files 178 passed (178), Tests 1412 passed (1412), EXIT=0, so existing HTTP/MCP surfaces are unchanged \u2014 but the task's core deliverable (memory route coverage in the namespace OpenAPI spec plus a conformance test) is entirely missing.\nFull suite is green (178 files/1412 tests, EXIT=0) and existing surfaces are unchanged, but the namespace OpenAPI spec still documents only table routes and has no memory-route coverage or conformance test, so the task is incomplete.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green",
+                "status": "FAIL",
+                "detail": "The namespace OpenAPI spec does NOT document any memory routes. generateOpenApi() at src/http/routes/tables.ts:305-323 only iterates listTables(ns) and populates paths[`/api/ns/${ns}/tables/${declaration.name}`]; grep -c 'memor' src/http/routes/tables.ts returns 0 (zero memory references). The memory routes exist elsewhere (GET list src/http/routes/memories.ts:248, GET key src/http/routes/memories.ts:450, POST src/http/routes/memories.ts:526) but are never added to the served spec. No conformance test exists: the only test referencing openapi.json is src/http/routes/tables-supa3.test.ts:594-611, which asserts Object.keys(res.body.paths).sort() EQUALS exactly the two table paths \u2014 proving memory routes are absent (and would break if added). No test file mentions memory+openapi. The 'full suite is green' sub-clause does hold: `npx vitest run` => Test Files 178 passed (178), Tests 1412 passed (1412), EXIT=0, so existing HTTP/MCP surfaces are unchanged \u2014 but the task's core deliverable (memory route coverage in the namespace OpenAPI spec plus a conformance test) is entirely missing.",
+                "resolution_probability": 0.15
+              }
+            ],
+            "summary": "Full suite is green (178 files/1412 tests, EXIT=0) and existing surfaces are unchanged, but the namespace OpenAPI spec still documents only table routes and has no memory-route coverage or conformance test, so the task is incomplete."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: MUSTER-002\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Served namespace OpenAPI spec documents POST GET list and GET key memory routes with matching shapes and a conformance test; existing HTTP/MCP surfaces remain unchanged and full suite is green: The namespace OpenAPI spec does NOT document any memory routes. generateOpenApi() at src/http/routes/tables.ts:305-323 only iterates listTables(ns) and populates paths[`/api/ns/${ns}/tables/${declaration.name}`]; grep -c 'memor' src/http/routes/tables.ts returns 0 (zero memory references). The memory routes exist elsewhere (GET list src/http/routes/memories.ts:248, GET key src/http/routes/memories.ts:450, POST src/http/routes/memories.ts:526) but are never added to the served spec. No conformance test exists: the only test referencing openapi.json is src/http/routes/tables-supa3.test.ts:594-611, which asserts Object.keys(res.body.paths).sort() EQUALS exactly the two table paths \u2014 proving memory routes are absent (and would break if added). No test file mentions memory+openapi. The 'full suite is green' sub-clause does hold: `npx vitest run` => Test Files 178 passed (178), Tests 1412 passed (1412), EXIT=0, so existing HTTP/MCP surfaces are unchanged \u2014 but the task's core deliverable (memory route coverage in the namespace OpenAPI spec plus a conformance test) is entirely missing.\nFull suite is green (178 files/1412 tests, EXIT=0) and existing surfaces are unchanged, but the namespace OpenAPI spec still documents only table routes and has no memory-route coverage or conformance test, so the task is incomplete.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-12T21:57:23.025718",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-12T21:57:23.058819+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 16352,
+        "truncated": false,
+        "source": "git show e828d12548be"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 22704,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "MUSTER-002"
+  }
+}

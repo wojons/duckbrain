@@ -807,3 +807,64 @@ Lessons specific to this run:
   `( setsid bash ~/x.sh > ~/x.log 2>&1 & )` — the `&`-inside-ssh-one-liner
   form kills the job when ssh exits (log stays 0 bytes; not a silent no-op,
   a never-ran).
+
+## Run 15 (2026-10-13) — AUG-096 boot warm-up: the surface born that morning
+
+**Angle choice.** HEAD moved to 32de0244 (AUG-096: per-namespace DuckDB +
+FTS-sidecar warm-up at daemon boot) the same morning; no prior run had
+touched the surface because it did not exist when run 14 executed. Deps HAD
+changed since run 14's install proof (592e181f: aws-sdk + MCP SDK bumps), so
+the install premise was stale too — both legs ran fresh.
+
+**Real use.** Scratch instance (isolated namespaces root with read-only
+copies of the 8 biggest prod namespaces, 20 MB, plus a deliberately corrupt
+namespace; isolated auth file + config per GAP-007), driven as a real HTTP
+client through the exact operation the feature targets: the first scoped
+`?q=` search on a fresh boot. A/B: cold arm (opt-out env, `.search`
+sidecars deleted) vs warmed arm, under BOTH embedding configs — the daemon
+default (lmstudio local) and the prod daemon's actual config (openai/
+OpenRouter, passed through from the live daemon's environ, never printed).
+
+**Numbers (the feature works).** Prod-emb config: cold first search 5.72s =
+inline FTS rebuild 3511.7ms + query embed 781ms + candidate embeds 1324ms;
+warmed boot 2.19s. The 3.5s rebuild left the request path (~62% cold cut) —
+exactly what AUG-096 promised. Warm-up pass: 9 namespaces 1.46s (fresh
+indexes) / 44.4s (lmstudio rebuild-all), always after `HTTP server ready`.
+Residual 2.2s is provider RTT (batch_supported=false on OpenRouter), not
+index state — PERF-012 carries the numbers and the batch-embed direction.
+
+**What the edges taught (rows filed).**
+- DF-1013-01 (P1): README verify snippet step 4 (first write) fails 500
+  without a git identity on the fresh box — while README line 93 claims
+  identity is "not required to run, write or read". Run 14 never re-exercised
+  the quickstart (DF-1003-02 said so honestly); run 15 closed that gap and
+  the gap was real. The snippet's own 404 hint then misattributes the
+  failure to a missed namespace create. Env identity (DUCKBRAIN_GIT_AUTHOR_*)
+  unblocks it — but a fresh user following the README verbatim is stuck.
+- DF-1013-02 (P2): the corrupt namespace is graded `warmed ... connection-
+  only idx=rebuilt` with 0 skipped at boot; only the request-time 500
+  ("Unexpected token 'o' ... is not valid JSON") tells the truth. The
+  module's own failure-tolerant contract (warn + skip) is not met for this
+  cell.
+- DF-1013-03 (P2): the commit message promises searchRebuilt/searchFreshness/
+  searchSkipReason "reported per namespace" — those fields exist only in the
+  warm-up stderr summary; the REST ?q= response carries none of them. A
+  client cannot see index freshness at all.
+
+**Install leg (bunker-mvp, agent 6ddbc631, Ubuntu 24.04.4).** Fresh clone of
+github.com/wojons/duckbrain at 32de0244, nvm node 22.23.3 + corepack pnpm
+12.4.2, clone 3s + install 19s total (faster than las-03's 2026-10-03 run).
+README quickstart verbatim: daemon up, health 200, namespace create 201,
+first write 500 (DF-1013-01), read-back 404; with env identity: write 201,
+read-back full row, search 200. Second boot: AUG-096 warm-up ran (1 ns,
+1052ms, idx rebuilt). Agent destroyed, residue rechecked after 95s: clean.
+Scripted-consumer lesson: a non-interactive ssh shell has no nvm node —
+`. ~/.nvm/nvm.sh` must be inside the staged script (documented quickstart
+works because it sources nvm before use).
+
+**Honest holes.** The MCP-over-HTTP and stdio surfaces were not re-driven
+this run (angle was the warm-up surface + install). The corrupt-namespace
+500 body shape (raw JSON parse error text) was observed but not filed as its
+own row — subsumed by DF-1013-02's fix direction. /tmp/dfduck scratch
+artifacts (scripts, logs, token file) remain local-only and are NOT committed
+(secrets hygiene: the scratch auth file and key never entered the repo).

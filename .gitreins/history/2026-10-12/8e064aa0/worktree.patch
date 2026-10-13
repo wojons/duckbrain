@@ -1,0 +1,15 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index d378ed7f..055c3efe 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2694,3 +2694,10 @@ tasks:
+   status: complete
+   created_at: '2026-10-12T19:13:03.543828+00:00'
+   completed_at: '2026-10-12T19:56:19.127395+00:00'
++- id: STYLE-002
++  title: Fix 42-file prettier drift in src/ (STYLE-002 recurrence)
++  criteria:
++  - npx prettier --check src/ exits 0; tsc --noEmit clean; full vitest suite green
++  status: complete
++  created_at: '2026-10-12T23:40:00.486850+00:00'
++  completed_at: '2026-10-12T23:44:59.999857+00:00'

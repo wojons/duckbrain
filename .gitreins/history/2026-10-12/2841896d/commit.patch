@@ -1,0 +1,267 @@
+commit 066bfba3556841adc8d3f5c1ac649c3279837d42
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 11 20:30:31 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 11 20:30:31 2026 -0500
+
+    docs: document complete MCP recall input surface (DOC-16)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/mcp-tools.md | 206 +++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 195 insertions(+), 11 deletions(-)
+
+diff --git a/docs/api/mcp-tools.md b/docs/api/mcp-tools.md
+index d329ec24..18158a52 100644
+--- a/docs/api/mcp-tools.md
++++ b/docs/api/mcp-tools.md
+@@ -114,15 +114,81 @@ Query memories with flexible filtering.
+ 
+ ```typescript
+ {
+-  key?: string;         // Exact key lookup
+-  keyPrefix?: string;   // Prefix glob query (e.g., "/projects/")
+-  domain?: string;      // Filter by domain (person, event, concept, message, config, raw_note)
+-  query?: string;       // Semantic search query (uses DuckDB VSS extension)
+-  limit?: number;       // Max results (default: 10)
+-  namespace?: string;   // Namespace to query (default: current active namespace)
+-  asOf?: string;        // RETR-004: ISO-8601 date or git ref (commit/branch/tag) — read namespace state as it existed at that point in git history. Cannot combine with query/contains (semantic/keyword search has no historical state).
+-}
+-```
++  // Lookup — at most ONE of these applies (precedence: key → id → keyPrefix → domain)
++  key?: string;            // Exact key lookup
++  id?: string;             // Exact memory UUID lookup
++  keyPrefix?: string;      // Prefix glob query (e.g., "/projects/")
++  domain?: string;         // Domain filter: person | event | concept | message | config | raw_note
++  author?: string;         // Exact author filter (e.g. "agent-alpha@duckbrain.local")
++
++  // Search — query and contains are mutually exclusive
++  query?: string;          // Semantic search (hybrid semantic + keyword fusion, RETR-002)
++  contains?: string;       // Keyword-only filter (offline FTS over content/key/attributes, RETR-001)
++
++  // Paging
++  limit?: number;          // Max results to return (default: 10; 0 = count-only empty page)
++  offset?: number;         // Row offset for paging (default: 0, non-negative integer)
++
++  // Namespace scope — namespace and allNamespaces are mutually exclusive
++  namespace?: string;      // Namespace to query (default: the ACTIVE namespace)
++  allNamespaces?: boolean; // With contains=: union keyword hits over EVERY namespace
++
++  // Time range — one inclusive window; between is shorthand for after + before
++  after?: string;          // ISO-8601: only rows at or after this instant
++  before?: string;         // ISO-8601: only rows at or before this instant
++  between?: string;        // ISO-8601 "START,END" — shorthand for after=START & before=END
++  asOf?: string;           // ISO-8601 date or git ref: read the namespace state at that point in git history
++
++  // Attribute and validity-view filters
++  attr?: Record<string, string>; // Attribute filters: only rows matching EVERY name → value pair
++  historical?: boolean;    // false (default) = current view (validity-filtered); true = all rows
++}
++```
++
++**Field reference:**
++
++| Field                   | Type                      | Default           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
++| ----------------------- | ------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| `key`                   | `string`                  | —                 | Exact key lookup. Highest-precedence lookup filter: when combined with `id`/`keyPrefix`/`domain`, only `key` is applied and the others are silently ignored.                                                                                                                                                                                                                                                                                                                 |
++| `id`                    | `string`                  | —                 | Exact memory UUID lookup. Applied only when `key` is absent.                                                                                                                                                                                                                                                                                                                                                                                                                 |
++| `keyPrefix`             | `string`                  | —                 | Prefix glob (e.g. `/projects/myapp/`). Applied only when neither `key` nor `id` is present.                                                                                                                                                                                                                                                                                                                                                                                  |
++| `domain`                | `string`                  | —                 | Domain filter: `person`, `event`, `concept`, `message`, `config`, `raw_note`. Applied only when none of `key`/`id`/`keyPrefix` is present.                                                                                                                                                                                                                                                                                                                                    |
++| `author`                | `string`                  | —                 | Exact author filter (the author email recorded on the row). ANDed with the lookup filter — it does not compete with `key`/`id`/`keyPrefix`/`domain`.                                                                                                                                                                                                                                                                                                                         |
++| `query`                 | `string`                  | —                 | Semantic search over content embeddings — **hybrid** since RETR-002: the keyword leg (FTS sidecar) runs alongside the semantic leg and both are fused (Reciprocal Rank Fusion), degrading to keyword-only or semantic-only when one leg is unavailable. Requires a reachable embedding provider. Mutually exclusive with `contains`.                                                                                            |
++| `contains`              | `string`                  | —                 | Keyword-only full-text filter over content/key/attributes — offline, no embedding provider needed (exact-token matches rank first). Mutually exclusive with `query`.                                                                                                                                                                                                                                                                                                           |
++| `limit`                 | `number`                  | `10`              | Max results to return. `limit: 0` is a valid request for an empty page that still reports the true `total` (count-only).                                                                                                                                                                                                                                                                                                                                                       |
++| `offset`                | `number`                  | `0`               | Row offset for paging (non-negative integer). Applied to the ORDERED result set as `[offset, offset+limit)`. On the ranked paths (semantic / hybrid / keyword) the page is taken from a bounded candidate pool (cap 1000) — an offset beyond the pool returns an empty page, never an out-of-order row. `total` is never affected by `limit`/`offset`.                                                                                                                            |
++| `namespace`             | `string`                  | active namespace  | Namespace to query. Omitting it queries the ACTIVE namespace (the sticky `config.defaultNamespace` that `switch_namespace` persists) — the response echoes the namespace actually queried. Mutually exclusive with `allNamespaces`.                                                                                                                                                                                                            |
++| `allNamespaces`         | `boolean`                 | `false`           | RETR-007 cross-namespace keyword search: with `contains=`, searches EVERY manifest namespace and unions the keyword hits, each carrying its own `namespace` facet. Meaningless without `contains` — that combination is refused. Mutually exclusive with `namespace`. Requires an unrestricted token (a namespace-scoped token is refused).                                                                                                                                    |
++| `after`                 | `string`                  | —                 | ISO-8601 date/datetime: only rows at or after this instant (inclusive). A date-only value means the START of that day (UTC). Mutually exclusive with `between`.                                                                                                                                                                                                                                                                                                               |
++| `before`                | `string`                  | —                 | ISO-8601 date/datetime: only rows at or before this instant (inclusive). A date-only value means the END of that day (UTC), so `before: "2026-08-12"` includes all of 2026-08-12. Mutually exclusive with `between`.                                                                                                                                                                                                                                                          |
++| `between`               | `string`                  | —                 | ISO-8601 range as `"START,END"` (two comma-separated values) — shorthand for `after: "START"` + `before: "END"`. Mutually exclusive with `after`/`before`.                                                                                                                                                                                                                                                                                                                     |
++| `asOf`                  | `string`                  | —                 | RETR-004 memory-as-of: an ISO-8601 date (resolved to the nearest commit at-or-before it) or a git ref (commit hash, branch, tag). Reads rows straight from the namespace git history — never a checkout or a write. Mutually exclusive with `query`/`contains`.                                                                                                                                                                                                                |
++| `attr`                  | `Record<string, string>`  | —                 | RETR-006 attribute filters: only rows whose `attributes` JSON matches EVERY `name → value` pair (exact match, ANDed with each other and with every other filter). Values must be STRINGS (`{"tick": "403"}`, not `{"tick": 403}`); numeric/boolean attributes match by their string form, so `{"tick": "403"}` matches both `403` and `"403"`. A row lacking the attribute does not match. An empty record is a no-op.                                                       |
++| `historical`            | `boolean`                 | `false`           | RETR-011 view selector. `false`/absent = CURRENT view: rows whose validity window does not contain "now" are excluded (`valid_until` in the past = expired; `valid_from` in the future = not yet valid). `true` = HISTORICAL view: every row regardless of validity — expired facts stay visible. Has no effect on `asOf` reads (those are inherently historical git-state reads).                                                                                               |
++
++**Time-range semantics (RETR-003):**
++
++- All bounds are **inclusive** (`after` = "since", `before` = "until").
++- Accepted ISO-8601 shapes: `YYYY-MM-DD` or a datetime `YYYY-MM-DDTHH:MM[:SS[.fff]]` with an optional `Z` / `±HH:MM` offset. Naive datetimes (no `Z`, no offset) are treated as **UTC**, not host-local.
++- Date-only bounds are widened to the whole day: `after: "2026-08-10"` → `2026-08-10T00:00:00.000Z`, `before: "2026-08-12"` → `2026-08-12T23:59:59.999Z`.
++- The window matches both the row `timestamp` and the chat-archive key date facet (`/chats/<view>/<YYYY-MM-DD>`) — those rows' timestamps are ingestion time while the message date lives in the key.
++- Invalid values (bad ISO date, a malformed `between`, or `after` later than `before`) never crash the tool: they come back as `{ memories: [], count: 0, error: "Invalid time filter: …" }` **before** any namespace work.
++- The three time params are ANDed with every other filter and they **do** combine with `asOf` (they window the historical row set read at that ref).
++
++**Mutual exclusions and precedence:**
++
++| Combination                              | Behaviour                                                                                                                                                                          |
++| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| `between` + `after`/`before`             | Refused — `Invalid time filter: Use either 'between' or 'after'/'before' — combining them is not supported`.                                                                       |
++| `asOf` + `query`/`contains`              | Refused — `as_of cannot be combined with 'query' or 'contains' — memory-as-of reads the git state at that ref and does not run semantic or keyword search`.                        |
++| `query` + `contains`                     | Refused — `Use either 'query' (hybrid semantic+keyword fusion, RETR-002) or 'contains' (keyword-only) — combining both filters is not supported`.                                   |
++| `allNamespaces` without `contains`       | Refused — `allNamespaces only applies to keyword search — combine it with 'contains' (plain recall is single-namespace)`.                                                          |
++| `allNamespaces` + `namespace`            | Refused — `allNamespaces cannot be combined with a specific namespace — omit namespace for a cross-namespace search`.                                                              |
++| `key` + `id` + `keyPrefix` + `domain`    | Not an error: the first one present wins, in the order `key` → `id` → `keyPrefix` → `domain`. The others are ignored — pass only the one you mean.                                  |
++| `after` later than `before`              | Refused — `Invalid time filter: after (<instant>) must not be later than before (<instant>)`.                                                                                       |
++
++Refusals are returned in the tool result's `error` field (not as a transport error), matching the [Error Handling](#error-handling) contract — see the note there on MCP in-band errors.
+ 
+ **Examples:**
+ 
+@@ -142,6 +208,31 @@ Query memories with flexible filtering.
+ }
+ ```
+ 
++**By exact key (`key`), by UUID (`id`), or by author:**
++
++```json
++{ "key": "/projects/myapp/database" }
++```
++
++```json
++{ "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
++```
++
++```json
++{ "author": "agent-alpha@duckbrain.local", "domain": "concept", "limit": 50 }
++```
++
++**Targeting a namespace (`namespace`):**
++
++```json
++{
++  "keyPrefix": "/projects/myapp/",
++  "namespace": "my-project"
++}
++```
++
++Omitting `namespace` queries the ACTIVE namespace instead of `default` — the response always echoes the namespace actually queried.
++
+ **Semantic search:**
+ 
+ ```json
+@@ -151,6 +242,26 @@ Query memories with flexible filtering.
+ }
+ ```
+ 
++**Keyword search (offline, no embedding provider):**
++
++```json
++{
++  "contains": "connection pooling",
++  "domain": "concept"
++}
++```
++
++**Cross-namespace keyword search (RETR-007):**
++
++```json
++{
++  "contains": "PgBouncer",
++  "allNamespaces": true
++}
++```
++
++Unions keyword hits over every namespace and tags each hit with its own `namespace`. Do not pass `namespace` alongside `allNamespaces`.
++
+ **Combined:**
+ 
+ ```json
+@@ -161,6 +272,72 @@ Query memories with flexible filtering.
+ }
+ ```
+ 
++`domain` is ignored here — `keyPrefix` takes precedence.
++
++**Time-scoped (RETR-003):**
++
++```json
++{
++  "domain": "message",
++  "after": "2026-08-10",
++  "before": "2026-08-12"
++}
++```
++
++```json
++{
++  "domain": "message",
++  "between": "2026-08-10,2026-08-12"
++}
++```
++
++Both forms return the same rows (2026-08-10 through 2026-08-12 inclusive). Never combine `between` with `after`/`before`.
++
++**Paging:**
++
++```json
++{
++  "domain": "concept",
++  "limit": 20,
++  "offset": 40
++}
++```
++
++Returns the third page of 20 (`[40, 60)` of the ordered match set) with the unlimited `total` alongside.
++
++**Count-only (empty page):**
++
++```json
++{
++  "domain": "concept",
++  "limit": 0
++}
++```
++
++Returns `{ "memories": [], "count": 0, "total": 137 }` — the true match count without fetching rows.
++
++**Attribute filter (RETR-006):**
++
++```json
++{
++  "domain": "config",
++  "attr": { "tick": "403" }
++}
++```
++
++Matches rows whose `attributes.tick` is `403` or `"403"`.
++
++**Historical view (RETR-011):**
++
++```json
++{
++  "keyPrefix": "/projects/myapp/",
++  "historical": true
++}
++```
++
++Includes rows whose validity window has passed (`valid_until` in the past) or has not started yet (`valid_from` in the future) — the default current view hides those.
++
+ **Time travel (RETR-004):**
+ 
+ ```json
+@@ -170,7 +347,7 @@ Query memories with flexible filtering.
+ }
+ ```
+ 
+-Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state.
++Reads the namespace state as it existed at the nearest commit at-or-before 2026-08-10. Accepts ISO dates or git refs (commit hashes, branch names, tags). Cannot combine with `query` or `contains` — semantic/keyword search indexes have no historical state. `asOf` **does** combine with `key`/`id`/`keyPrefix`/`domain`/`author`/`after`/`before`/`between`/`attr`/`limit`/`offset`, which filter the historical row set.
+ 
+ **Returns:**
+ 
+@@ -186,9 +363,16 @@ Reads the namespace state as it existed at the nearest commit at-or-before 2026-
+     author: string;
+     action: "add" | "update" | "tombstone";
+   }>;
++  count: number;        // Rows in THIS response (= memories.length, bounded by limit)
++  total?: number;       // True match count, unlimited by limit/offset (GAP-024) — the
++                        // number to page against. Present on every successful result
++                        // (list, keyword contains=, semantic/hybrid query, as-of,
++                        // count-only limit=0); on the ranked (query/contains) paths it
++                        // is the ranked candidate-pool size, not the namespace row count
+   error?: string;
+   namespace?: string;   // Namespace ACTUALLY queried — resolved from the arg,
+-                        // or the active namespace when omitted (DOGFOOD-017)
++                        // or the active namespace when omitted (DOGFOOD-017);
++                        // "all" for an allNamespaces union
+ }
+ ```
+ 
