@@ -71,6 +71,26 @@ export interface SemanticSearchOptions {
   embedConcurrency?: number;
   /** Skip cold candidate texts above this bound; cached vectors still rank. */
   maxOnTheFlyTextLength?: number;
+  /**
+   * DF-1013-03: request-time diagnostics collector. When set, the same
+   * numbers the DUCKBRAIN_SEARCH_TIMING=1 stderr line computes are handed
+   * to the caller instead of (only) being logged — so the REST ?debug=search
+   * surface and the stderr summary cannot disagree. Never changes ranking.
+   */
+  onTiming?: (timing: SearchTiming) => void;
+}
+
+/**
+ * DF-1013-03: the timing numbers semanticSearch measures, mirroring the
+ * `[search-timing]` stderr line field-for-field (cache_candidates,
+ * cache_hits, unique_misses, candidate_embed_ms, scoring_ms).
+ */
+export interface SearchTiming {
+  cacheCandidates: number;
+  cacheHits: number;
+  uniqueMisses: number;
+  candidateEmbedMs: number;
+  scoringMs: number;
 }
 
 export interface RankedMemory extends SearchCandidate {
@@ -255,6 +275,19 @@ export async function semanticSearch(
     console.error(
       `[search-timing] cache_candidates=${candidates.length} cache_hits=${hits.length} unique_misses=${misses.length} miss_text_chars=${misses.reduce((sum, miss) => sum + miss.text.length, 0)} max_miss_text_chars=${misses.reduce((max, miss) => Math.max(max, miss.text.length), 0)} batch_supported=${Boolean(embedder?.embedMany)} candidate_cache_ms=${cacheResolveMs.toFixed(1)} candidate_embed_ms=${candidateEmbedMs.toFixed(1)} scoring_ms=${(performance.now() - searchStartedAt - cacheResolveMs - candidateEmbedMs).toFixed(1)}`,
     );
+  }
+
+  // DF-1013-03: hand the same numbers to a request-time collector when one
+  // is registered — the REST ?debug=search surface reads THESE, so the
+  // response diagnostics and the stderr line cannot disagree.
+  if (opts.onTiming) {
+    opts.onTiming({
+      cacheCandidates: candidates.length,
+      cacheHits: hits.length,
+      uniqueMisses: misses.length,
+      candidateEmbedMs: candidateEmbedMs,
+      scoringMs: performance.now() - searchStartedAt - cacheResolveMs - candidateEmbedMs,
+    });
   }
 
   return ranked.sort((a, b) => {

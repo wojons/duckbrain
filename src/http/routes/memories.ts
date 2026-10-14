@@ -227,6 +227,9 @@ const LIST_QUERY_PARAMS = [
   // RETR-007: cross-namespace keyword search (read below via
   // params.allNamespaces).
   "allNamespaces",
+  // DF-1013-03: opt-in search diagnostics — ?debug=search adds a
+  // `searchDebug` object to the response; any other value is refused.
+  "debug",
 ] as const;
 
 /** RETR-006: attribute filters are a documented PREFIX, not a fixed name. */
@@ -392,6 +395,28 @@ router.get(
       namespace: resolveRequestNamespace(req),
     };
 
+    // DF-1013-03: opt-in search diagnostics. The only supported value is
+    // "search" — any other spelling is refused loudly (400) rather than
+    // silently ignored, matching the DF-0926-02 unknown-param doctrine.
+    let debugSearch = false;
+    if (req.query.debug !== undefined) {
+      if (req.query.debug !== "search") {
+        throw new ValidationError(
+          `Invalid debug value '${req.query.debug}'. The only supported value is 'search' (?debug=search adds search diagnostics to the response).`,
+        );
+      }
+      // Diagnostics only exist on the ?q= search path — refusing the
+      // combination up front keeps "debug asked but no diagnostics
+      // returned" from ever looking like a broken surface.
+      if (req.query.q === undefined) {
+        throw new ValidationError(
+          "?debug=search requires ?q= — search diagnostics are produced by the semantic/keyword search path only.",
+        );
+      }
+      debugSearch = true;
+    }
+    params.debug = debugSearch;
+
     // RETR-006: attribute filters — every ?attr.<name>=<value> query param
     // (prefix-stripped) becomes one name→value filter. Only string-valued
     // params are forwarded; non-string (array/object) values are dropped.
@@ -499,6 +524,10 @@ router.get(
       ...(Object.keys(attr).length > 0 ? { attr } : {}),
       // RETR-011: forward the view selector (absent = current view).
       ...(params.historical ? { historical: true } : {}),
+      // DF-1013-03: opt-in search diagnostics. ?debug=search collects the
+      // search-leg timing at request time; the plain path never sees the
+      // flag so its call shape is unchanged.
+      ...(params.debug ? { searchDebug: true } : {}),
     });
 
     if (result.error) {
@@ -552,7 +581,18 @@ router.get(
       memories: page,
     };
 
-    res.json(response);
+    // DF-1013-03: append the opt-in diagnostics AFTER the canonical
+    // envelope is complete — the plain-path shape is byte-identical to
+    // before; only ?debug=search responses carry the extra key.
+    const responseBody = debugSearch
+      ? {
+          ...response,
+          searchDebug: (result as { searchDebug?: Record<string, unknown> })
+            .searchDebug,
+        }
+      : response;
+
+    res.json(responseBody);
   }),
 );
 

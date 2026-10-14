@@ -403,12 +403,52 @@ Query memories with filters.
 | `limit` | 50 | Max results to return |
 | `offset` | 0 | Pagination offset |
 | `namespace` | `default` | Namespace to query |
+| `debug` | — | DF-1013-03: opt-in diagnostics. `?debug=search` (the only accepted value, and only together with `q=`) appends a `searchDebug` object to the response — see the note below. Any other value, or `debug=search` without `q=`, is a 400 `VALIDATION_ERROR` |
 
 > **Note — unknown query parameters (DF-0926-02):** this endpoint accepts exactly the parameters in the table above (`attr.<name>` as a repeatable prefix). Any OTHER query parameter is refused with **400 `VALIDATION_ERROR`** whose message names the offending parameter and lists the valid ones — it is never silently ignored. In particular `?key=` and `?query=` are not parameters of this endpoint: `?key=…` returns a 400 pointing at `GET /api/memories/key/:key` (or `?prefix=` to filter the list), and `?query=…` returns a 400 pointing at `?q=` / `?contains=`. Before the fix these two were accepted and dropped, so a client that believed it had recalled one key — or run one search — received HTTP 200 with the unfiltered list.
 
 > **Note — semantic search (`?q=`) and embeddings (DB-GAP-036):** `?q=` needs a reachable embedding provider at query time (LM Studio / Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider). When no provider can embed, the endpoint returns **503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start an embedding provider or run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) works offline; its per-namespace index is refreshed automatically when it is missing or older than the newest write (bounded and single-flight — `DUCKBRAIN_SEARCH_AUTOBUILD_MAX_ROWS`, default 5000 source rows), with `duckbrain search-index rebuild` as the escape hatch for namespaces over that bound. Check `GET /health` — its `embedding` block reports provider health.
 
 > **Performance (PERF-005):** On a healthy local Ollama provider, warm semantic requests are expected to complete in under 5 seconds; actual latency depends on model load, provider capacity, network, and namespace size. At most two uncached candidate texts (each no longer than 1,500 characters) are embedded per query in one Ollama `/api/embed` batch; longer uncached texts are omitted from semantic ranking until their embeddings exist in cache. Older Ollama versions fall back to bounded individual embedding calls. Set `DUCKBRAIN_SEARCH_TIMING=1` on the daemon to log provider discovery, query embedding, keyword search, DuckDB candidate fetch, candidate embedding, cache lookup, and scoring durations. `?contains=` remains an offline FTS query and does not call the embedding provider.
+
+> **Search diagnostics (DF-1013-03):** add `&debug=search` to a `?q=` request to receive a `searchDebug` object at the top level of the response. Without the flag the response shape is exactly the envelope above — `searchDebug` is never present. The object reports what `DUCKBRAIN_SEARCH_TIMING=1` logs to stderr, per request:
+>
+> - `indexFreshness` — the keyword (FTS) index state as observed BEFORE this request's rebuild: `missing` | `stale` | `fresh` (the same classification the boot warm-up summary reports per namespace as `searchFreshness`)
+> - `indexRebuilt` — `true` when THIS request rebuilt the FTS sidecar (i.e. the first slow query paid the inline rebuild; matches the warm-up summary's `searchRebuilt` semantics)
+> - `indexSkipReason` — present when the index could not be made usable (over-bound row-count refusal or rebuild failure; the warm-up summary's `searchSkipReason`)
+> - `keywordCandidates` — rows the keyword leg ranked
+> - `semanticCandidates` — rows the semantic leg fetched from DuckDB
+> - `cacheHits` / `uniqueMisses` — candidate vectors found in the embedding cache vs. texts that needed an embed
+> - `embedMs` / `queryEmbedMs` — candidate-embed and query-embed wall time in ms
+>
+> Fields a request's degradation ladder did not reach are omitted (e.g. `cacheHits`/`embedMs` are absent when the keyword leg was unavailable and the response degraded to keyword-only). The freshness fields read the SAME `ensureFreshIndex`/`indexFreshness` state the warm-up summary observes, so `indexFreshness` on a response agrees with the last warm-up line for that namespace.
+>
+> ```bash
+> curl "http://localhost:3000/api/memories?q=pgbouncer&debug=search"
+> ```
+>
+> ```json
+> {
+>   "items": [],
+>   "total": 0,
+>   "offset": 0,
+>   "limit": 50,
+>   "hasMore": false,
+>   "nextOffset": null,
+>   "count": 0,
+>   "memories": [],
+>   "searchDebug": {
+>     "indexFreshness": "fresh",
+>     "indexRebuilt": false,
+>     "keywordCandidates": 0,
+>     "semanticCandidates": 12,
+>     "cacheHits": 12,
+>     "uniqueMisses": 0,
+>     "embedMs": 0.4,
+>     "queryEmbedMs": 18.2
+>   }
+> }
+> ```
 
 **Response:**
 

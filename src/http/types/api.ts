@@ -191,6 +191,12 @@ export interface QueryParams {
   historical?: boolean;
   /** Namespace to query */
   namespace?: string;
+  /**
+  * DF-1013-03: opt-in search diagnostics (?debug=search). Internal — the
+  * route parses the ?debug= value itself; when set, recallTool collects
+  * the search-leg timing and the response carries a `searchDebug` object.
+  */
+  debug?: boolean;
 }
 
 /**

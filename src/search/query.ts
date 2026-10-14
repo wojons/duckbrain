@@ -113,6 +113,31 @@ export interface KeywordSearchOptions {
    *  keyword leg finding nothing for stopword-only queries so the
    *  semantic leg fuses alone. */
   includeStopwordLiterals?: boolean;
+  /**
+   * DF-1013-03: request-time diagnostics collector. When set, the
+   * ensureFreshIndex freshness observation (pre-rebuild state, the same
+   * classification the warm-up summary reports per namespace), whether THIS
+   * call rebuilt the sidecar, any skip reason, and the keyword candidate
+   * count are handed to the caller instead of living only in the
+   * ensureFreshIndex return that the ranked result discards.
+   */
+  onTiming?: (timing: KeywordSearchTiming) => void;
+}
+
+/**
+ * DF-1013-03: keyword-leg diagnostics, agreeing with the warm-up summary's
+ * searchFreshness/searchRebuilt/searchSkipReason for the same namespace
+ * (both read the same ensureFreshIndex / indexFreshness state).
+ */
+export interface KeywordSearchTiming {
+  /** Freshness as observed BEFORE this call's (possible) rebuild. */
+  indexFreshness: string;
+  /** True when THIS call performed the rebuild. */
+  indexRebuilt: boolean;
+  /** Set when the index could not be made usable (refusal/failure). */
+  skipReason?: string;
+  /** Keyword candidate rows the leg ranked. */
+  keywordCandidates: number;
 }
 
 function escapeSqlLiteral(s: string): string {
@@ -395,6 +420,21 @@ export async function keywordSearch(
     );
   }
 
+  // DF-1013-03: report the pre-rebuild freshness, the rebuild decision and
+  // the skip reason at request time (the same numbers the boot warm-up
+  // summary reports per namespace — both observe the same indexFreshness
+  // state of the same sidecar). Emitted after the candidate fetch so the
+  // candidate count is known too.
+  let keywordTiming: KeywordSearchTiming | null = null;
+  if (opts.onTiming) {
+    keywordTiming = {
+      indexFreshness: ensured.freshness.state,
+      indexRebuilt: ensured.rebuilt,
+      ...(ensured.reason ? { skipReason: ensured.reason } : {}),
+      keywordCandidates: 0,
+    };
+  }
+
   const rows = await collectKeywordCandidates(
     namespacePath,
     query,
@@ -410,6 +450,10 @@ export async function keywordSearch(
 
   const total = ranked.length;
   const top = limit > 0 ? ranked.slice(0, limit) : [];
+  if (keywordTiming) {
+    keywordTiming.keywordCandidates = ranked.length;
+    opts.onTiming?.(keywordTiming);
+  }
   const memories: KeywordHit[] = top.map((hit) => ({
     id: hit.row.id,
     key: hit.row.key,

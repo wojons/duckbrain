@@ -23,12 +23,13 @@ import {
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
-import { semanticSearch, type RankedMemory } from "../../embedding/search";
+import { semanticSearch, type RankedMemory, type SearchTiming } from "../../embedding/search";
 import {
   keywordSearch,
   keywordSearchAllNamespaces,
   type KeywordHit,
   type KeywordSearchResult,
+  type KeywordSearchTiming,
 } from "../../search/query";
 import { resolveNamespacesPath } from "../../config/index";
 import { rankFused, FUSION_TOP_K } from "../../search/fusion";
@@ -167,6 +168,14 @@ const RecallInputSchema = z.object({
     .describe(
       "View selector: false (default) = current (validity-filtered); true = historical (all rows, expired facts included)",
     ),
+  /**
+   * DF-1013-03: opt-in request-time search diagnostics (the REST
+   * ?debug=search surface forwards this). Internal plumbing — NOT part of
+   * the MCP tool's advertised argument surface; when set, the recall
+   * output carries a `searchDebug` object and nothing about the ranked
+   * result changes.
+   */
+  searchDebug: z.boolean().optional(),
 });
 
 /**
@@ -214,6 +223,85 @@ interface RecallOutput {
   /** Denial reason, 'namespace_scope' — the same reason REST audits */
   reason?: string;
   error?: string;
+  /**
+   * DF-1013-03: request-time search diagnostics, present ONLY when the
+   * caller asked for them (recallInput.searchDebug === true — the REST
+   * ?debug=search surface). Never present on the plain path, so the
+   * existing response shape is unchanged.
+   */
+  searchDebug?: RecallSearchDebug;
+}
+
+/**
+ * DF-1013-03: diagnostics on the ?q= search legs, opt-in via
+ * ?debug=search. indexFreshness/indexRebuilt/indexSkipReason observe the
+ * SAME ensureFreshIndex state the boot warm-up summary reports per
+ * namespace (searchFreshness/searchRebuilt/searchSkipReason).
+ */
+export interface RecallSearchDebug {
+  /** Keyword-leg FTS sidecar freshness BEFORE this request's rebuild. */
+  indexFreshness?: "missing" | "stale" | "fresh";
+  /** True when THIS request rebuilt the FTS sidecar. */
+  indexRebuilt?: boolean;
+  /** Set when the index could not be made usable (refusal/failure). */
+  indexSkipReason?: string;
+  /** Keyword-leg candidate count. */
+  keywordCandidates?: number;
+  /** Semantic-leg candidate count (rows fetched from DuckDB). */
+  semanticCandidates?: number;
+  /** Semantic-leg cache hits (vectors already in the embedding cache). */
+  cacheHits?: number;
+  /** Semantic-leg unique cache misses that needed an embed. */
+  uniqueMisses?: number;
+  /** Semantic-leg candidate-embed time (ms). */
+  embedMs?: number;
+  /** Query-embedding time (ms) — the ?q= text's own vector. */
+  queryEmbedMs?: number;
+}
+
+/**
+ * DF-1013-03: mutable per-request collector for the search-leg diagnostics
+ * above (recallTool creates one when searchDebug is set and forwards the
+ * pieces into it as the legs run).
+ */
+class SearchDebugCollector {
+  queryEmbedMs?: number;
+  indexFreshness?: RecallSearchDebug["indexFreshness"];
+  indexRebuilt?: boolean;
+  indexSkipReason?: string;
+  keywordCandidates?: number;
+  semanticCandidates?: number;
+  cacheHits?: number;
+  uniqueMisses?: number;
+  embedMs?: number;
+
+  toDebug(): RecallSearchDebug {
+    return {
+      ...(this.indexFreshness !== undefined
+        ? { indexFreshness: this.indexFreshness }
+        : {}),
+      ...(this.indexRebuilt !== undefined
+        ? { indexRebuilt: this.indexRebuilt }
+        : {}),
+      ...(this.indexSkipReason !== undefined
+        ? { indexSkipReason: this.indexSkipReason }
+        : {}),
+      ...(this.keywordCandidates !== undefined
+        ? { keywordCandidates: this.keywordCandidates }
+        : {}),
+      ...(this.semanticCandidates !== undefined
+        ? { semanticCandidates: this.semanticCandidates }
+        : {}),
+      ...(this.cacheHits !== undefined ? { cacheHits: this.cacheHits } : {}),
+      ...(this.uniqueMisses !== undefined
+        ? { uniqueMisses: this.uniqueMisses }
+        : {}),
+      ...(this.embedMs !== undefined ? { embedMs: this.embedMs } : {}),
+      ...(this.queryEmbedMs !== undefined
+        ? { queryEmbedMs: this.queryEmbedMs }
+        : {}),
+    };
+  }
 }
 
 /**
@@ -324,6 +412,8 @@ async function runSemanticLeg(opts: {
   /** RETR-011: the fixed "now" instant the validity window is compared
    *  against (set once per request in recallTool) */
   now: string;
+  /** DF-1013-03: request-time diagnostics collector (null when off). */
+  debug: SearchDebugCollector | null;
 }): Promise<{ ranked: RankedMemory[]; candidatesCount: number }> {
   const {
     namespacePath,
@@ -335,6 +425,7 @@ async function runSemanticLeg(opts: {
     provider,
     queryVector,
     searchMinScore,
+    debug,
   } = opts;
 
   // Fetch candidates WITHOUT the DuckDB embedding filter (that column
@@ -401,6 +492,18 @@ async function runSemanticLeg(opts: {
           maxOnTheFlyEmbeds: 2,
           maxOnTheFlyTextLength: 1500,
           ...(searchMinScore !== undefined ? { minScore: searchMinScore } : {}),
+          // DF-1013-03: the same timing numbers the DUCKBRAIN_SEARCH_TIMING
+          // stderr line computes, collected at request time.
+          ...(debug
+            ? {
+                onTiming: (t: SearchTiming) => {
+                  debug.semanticCandidates = t.cacheCandidates;
+                  debug.cacheHits = t.cacheHits;
+                  debug.uniqueMisses = t.uniqueMisses;
+                  debug.embedMs = t.candidateEmbedMs;
+                },
+              }
+            : {}),
         },
       );
       if (timings) {
@@ -443,6 +546,11 @@ export async function recallTool(
 
   const validated = parseResult.data;
   console.error("[recall] Validated input:", validated);
+
+  // DF-1013-03: when the caller opted into diagnostics (REST ?debug=search
+  // → searchDebug: true), collect the search-leg timing at request time so
+  // the response can expose what DUCKBRAIN_SEARCH_TIMING=1 logs to stderr.
+  const debug = validated.searchDebug ? new SearchDebugCollector() : null;
 
   // RETR-011: one fixed "now" instant for the whole request — the validity
   // window is compared against the same instant across the list, keyword,
@@ -858,6 +966,9 @@ export async function recallTool(
           `[search-timing] provider_count=${providers.length} provider_discovery_ms=${providerDiscoveryMs.toFixed(1)} query_embedding_ms=${(performance.now() - queryEmbedStartedAt).toFixed(1)}`,
         );
       }
+      if (debug) {
+        debug.queryEmbedMs = performance.now() - queryEmbedStartedAt;
+      }
 
       // ---- Keyword leg: rebuilt FTS sidecar (RETR-001). A missing index is
       // NOT an error here — ?q= degrades to semantic-only; the failure is
@@ -881,6 +992,20 @@ export async function recallTool(
           // surface expired / not-yet-valid rows in the current view.
           historical: validated.historical === true,
           now,
+          // DF-1013-03: collect the keyword leg's index freshness /
+          // rebuild decision at request time when diagnostics are on.
+          ...(debug
+            ? {
+                onTiming: (t: KeywordSearchTiming) => {
+                  debug.indexFreshness = t.indexFreshness as NonNullable<
+                    SearchDebugCollector["indexFreshness"]
+                  >;
+                  debug.indexRebuilt = t.indexRebuilt;
+                  if (t.skipReason) debug.indexSkipReason = t.skipReason;
+                  debug.keywordCandidates = t.keywordCandidates;
+                },
+              }
+            : {}),
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -916,6 +1041,7 @@ export async function recallTool(
             queryVector,
             searchMinScore,
             now,
+            debug,
           });
           semanticRanked = leg.ranked;
         } catch (e: any) {
@@ -936,6 +1062,7 @@ export async function recallTool(
             count: top.length,
             total: keywordResult.total,
             namespace: resolvedNamespace,
+            ...(debug ? { searchDebug: debug.toDebug() } : {}),
           };
         }
 
@@ -977,6 +1104,7 @@ export async function recallTool(
           // top-k contributions (≤ 2 × FUSION_TOP_K).
           total: fused.length,
           namespace: resolvedNamespace,
+          ...(debug ? { searchDebug: debug.toDebug() } : {}),
         };
       }
 
@@ -997,6 +1125,7 @@ export async function recallTool(
             queryVector,
             searchMinScore,
             now,
+            debug,
           });
         } catch (e: any) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -1018,6 +1147,7 @@ export async function recallTool(
           count: top.length,
           total: leg.candidatesCount,
           namespace: resolvedNamespace,
+          ...(debug ? { searchDebug: debug.toDebug() } : {}),
         };
       }
 
@@ -1036,6 +1166,7 @@ export async function recallTool(
           // MAX_CANDIDATES), unlimited by limit.
           total: keywordResult.total,
           namespace: resolvedNamespace,
+          ...(debug ? { searchDebug: debug.toDebug() } : {}),
         };
       }
 
@@ -1049,6 +1180,7 @@ export async function recallTool(
         error:
           semanticError ??
           "Search failed: neither the semantic nor the keyword search backend is available",
+        ...(debug ? { searchDebug: debug.toDebug() } : {}),
       };
     }
 
