@@ -369,13 +369,56 @@ describe("AUG-096 namespace warm-up", () => {
     delete process.env.DUCKBRAIN_WARM_NAMESPACES;
   });
 
-  it("a corrupted manifest degrades to connection-only warm-up (no throw)", async () => {
+  it("DF-1013-02: an unparseable manifest is a warm-up FAILURE (warmed:false, error, evicted)", async () => {
     const nsPath = createEmptyNamespace("waraug-corrupt");
-    fs.writeFileSync(path.join(nsPath, "manifest.json"), "{not json at all");
+    fs.writeFileSync(path.join(nsPath, "manifest.json"), "not json {{");
     const result = await warmNamespace(nsPath);
-    expect(result.warmed).toBe(true);
+    expect(result.warmed).toBe(false);
     expect(result.scanned).toBe(false);
-    expect(getConnectionAge(nsPath)).not.toBeNull();
+    expect(result.error).toContain("manifest.json is corrupt");
+    // The half-open connection was evicted so the first REAL request
+    // starts clean (same contract as any other warm-up failure).
+    expect(getConnectionAge(nsPath)).toBeNull();
+  });
+
+  it("DF-1013-02: a corrupt-manifest namespace logs one skipped line and counts in the skipped total", async () => {
+    createDataNamespace("waraug-fine");
+    createEmptyNamespace("broken-ns");
+    fs.writeFileSync(
+      path.join(resolveNamespacesPath(), "broken-ns", "manifest.json"),
+      "not json {{",
+    );
+    await closeAllConnections();
+
+    const consoleErrors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      consoleErrors.push(args.map(String).join(" "));
+    });
+
+    const results = await startNamespaceWarmup();
+    const byName = new Map(results.map((r) => [r.namespace, r]));
+    expect(byName.get("broken-ns")?.warmed).toBe(false);
+    expect(byName.get("waraug-fine")?.warmed).toBe(true);
+
+    // Exactly ONE individual failure-warning line, in the documented
+    // 'failed in Nms and was skipped' format, naming the namespace.
+    const failureLines = consoleErrors.filter(
+      (line) =>
+        line.includes("'broken-ns'") &&
+        line.includes("failed in") &&
+        line.includes("skipped"),
+    );
+    expect(failureLines).toHaveLength(1);
+
+    // The summary line counts it in the skipped total (count derived from
+    // results — the shared root may hold other failing namespaces).
+    const failureCount = results.filter((r) => !r.warmed).length;
+    const summary = consoleErrors.find(
+      (line) =>
+        line.includes(`${failureCount} skipped`) &&
+        /broken-ns=\d+ms SKIPPED/.test(line),
+    );
+    expect(summary).toBeTruthy();
   });
 
   it("warmManifestNamespaces tolerates enumeration failure (returns [] — never throws)", async () => {

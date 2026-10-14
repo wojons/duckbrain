@@ -162,10 +162,13 @@ export interface NamespaceWarmResult {
  * refused/failed rebuild records `searchSkipReason` and the request path
  * keeps its pre-existing rebuild-before-answer behavior.
  *
- * The manifest is parsed defensively — a corrupted manifest yields zero
- * partitions (connection-only warm-up), exactly like the request path's
- * `JSON.parse(fs.readFileSync(manifestPath))` falling back to `[]` in
- * recallTool; a warm-up must never be stricter than the request it fronts.
+ * The manifest is validated: a PRESENT but unparseable manifest.json is a
+ * warm-up FAILURE (warmed:false, error string, connection evicted) — DF-1013-02.
+ * Grading a corrupt namespace as warmed lied at boot while the API correctly
+ * rejects the namespace at request time; the failure is now warned and
+ * SKIPPED per the failure-tolerant contract. An ABSENT manifest stays
+ * legitimate connection-only warm-up (manifest namespaces always carry one;
+ * bare directories are enumerated only via the census fallback).
  *
  * @param namespacePath - Absolute namespace directory (singleton cache key)
  */
@@ -199,10 +202,17 @@ export async function warmNamespace(
         partitionPaths = (manifest.partitions ?? []).map((p: string) =>
           path.join(namespacePath, p),
         );
-      } catch {
-        // Corrupted manifest → connection-only warm-up (request path does
-        // the same fallback).
-        partitionPaths = [];
+      } catch (error) {
+        // PRESENT but unparseable manifest = warm-up FAILURE (DF-1013-02):
+        // grading this namespace "warmed" lied at boot — the API rejects it
+        // at request time. Throw into the outer handler: it evicts the
+        // half-open connection and returns warmed:false + error, which
+        // logNamespaceWarmup() renders as a skipped warning.
+        throw new Error(
+          `manifest.json is corrupt (unparseable): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     }
 
