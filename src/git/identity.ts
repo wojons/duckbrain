@@ -15,8 +15,14 @@
  *   2. global git config
  *   3. documented env override (DUCKBRAIN_GIT_AUTHOR_NAME / DUCKBRAIN_GIT_AUTHOR_EMAIL)
  *
- * If nothing resolves, callers FAIL LOUDLY with an actionable error — a
- * fabricated identity never reaches a repo config, a commit, or a memory row.
+ * If nothing resolves, callers fail over to a DETERMINISTIC anonymous
+ * identity (DF-1013-01: `Anonymous <anonymous@duckbrain.local>`) so the
+ * documented promise "a git identity is not required to run, write or read
+ * the memory store" holds on a fresh box; the fabricated identity never
+ * reaches a repo config — it is applied per-invocation only (via `-c` on the
+ * commit, or as the memory-row author). resolveGitIdentity() stays PURE and
+ * reports null so doctor surfaces (checkGitIdentityHealth) can still tell
+ * the user no real identity is configured.
  */
 
 import { execFileSync } from "child_process";
@@ -91,6 +97,20 @@ export const SYNTHETIC_LOCAL_IDENTITY = {
   email: "duckbrain" + "@localhost" + ".localdomain",
 } as const;
 
+/**
+ * DF-1013-01: deterministic fallback author for hosts with NO git identity.
+ * The README promises identity "is not required to run, write or read" — the
+ * write path honours that by stamping this pair instead of failing. It is
+ * plausible-email-shaped (passes the memory schema's zod email rule) and is
+ * never written into any repo config. `--auth=apikey` principals keep their
+ * `<key-name>@duckbrain.local` stamp; this only covers the unauthenticated /
+ * stdio-local path.
+ */
+export const ANONYMOUS_IDENTITY = {
+  name: "Anonymous",
+  email: "anonymous@duckbrain.local",
+} as const;
+
 /** Does this name/email pair match the historical synthetic pin? */
 export function isSyntheticIdentity(
   name: string | null,
@@ -152,14 +172,15 @@ export function resolveGitIdentity(
 }
 
 /**
- * Resolve the git author identity for a namespace repo, THROWING a loud,
- * actionable error when nothing resolves. This is the single resolution
- * point for the commit path and the memory-row author fallback.
+ * Resolve the git author identity for a namespace repo. Single resolution
+ * point for the commit path and the memory-row author fallback. When
+ * nothing resolves, falls back to the deterministic ANONYMOUS_IDENTITY
+ * (DF-1013-01) instead of throwing — a no-identity box writes fine.
  */
 export function requireGitIdentity(repoPath: string): GitIdentity {
   const resolved = resolveGitIdentity(repoPath);
   if (resolved.identity) return resolved.identity;
-  throw new Error(resolved.error ?? buildSetupHint());
+  return { ...ANONYMOUS_IDENTITY };
 }
 
 /**
@@ -168,40 +189,42 @@ export function requireGitIdentity(repoPath: string): GitIdentity {
  * Same ordered chain as resolveGitIdentity, but a partially-configured
  * identity (e.g. user.name set, user.email unset) still resolves the email
  * side independently; a candidate email that is empty, whitespace, or not a
- * plausible TLD-bearing email is treated as unset. THROWS when nothing
- * resolves — no synthetic fallback pair exists anymore.
+ * plausible TLD-bearing email is treated as unset. Falls back to the
+ * deterministic ANONYMOUS_IDENTITY email (DF-1013-01) when nothing
+ * resolves — a no-identity box writes fine.
  */
 export function resolveAuthorEmail(
   repoPath?: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const local = repoPath
-    ? readGitConfig("user.email", repoPath, "local")
+    ? readGitConfig("user.email", repoPath, "local", env)
     : null;
   if (isNonEmpty(local) && isPlausibleEmail(local.trim())) return local.trim();
-  const global = readGitConfig("user.email", undefined, "global");
+  const global = readGitConfig("user.email", undefined, "global", env);
   if (isNonEmpty(global) && isPlausibleEmail(global.trim()))
     return global.trim();
   const envValue = readEnv(env, DUCKBRAIN_GIT_AUTHOR_EMAIL_ENV);
   if (envValue && isPlausibleEmail(envValue)) return envValue;
-  throw new Error(buildSetupHint());
+  return ANONYMOUS_IDENTITY.email;
 }
 
 /**
  * Resolve ONLY the author name for memory-row attribution. Same chain, same
- * no-fallback contract; throws when nothing resolves.
+ * deterministic ANONYMOUS_IDENTITY fallback (DF-1013-01) when nothing
+ * resolves.
  */
 export function resolveAuthorName(
   repoPath?: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const local = repoPath ? readGitConfig("user.name", repoPath, "local") : null;
+  const local = repoPath ? readGitConfig("user.name", repoPath, "local", env) : null;
   if (isNonEmpty(local)) return local.trim();
-  const global = readGitConfig("user.name", undefined, "global");
+  const global = readGitConfig("user.name", undefined, "global", env);
   if (isNonEmpty(global)) return global.trim();
   const envValue = readEnv(env, DUCKBRAIN_GIT_AUTHOR_NAME_ENV);
   if (envValue) return envValue;
-  throw new Error(buildSetupHint());
+  return ANONYMOUS_IDENTITY.name;
 }
 
 export function buildSetupHint(): string {

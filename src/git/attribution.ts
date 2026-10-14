@@ -3,10 +3,10 @@
  *
  * Retrieves author information from git config for attributing memory writes.
  * GIT-IDENTITY-001: the resolution chain (repo-local -> global -> documented
- * env override) lives in ./identity.ts and there is NO synthetic fallback —
- * when nothing is configured the resolvers THROW with an actionable setup
- * hint instead of silently attributing rows to 'DuckBrain
- * <duckbrain at localhost…>'.
+ * env override) lives in ./identity.ts. DF-1013-01: when nothing is
+ * configured the resolvers fall back to the deterministic anonymous author
+ * (`Anonymous <anonymous@duckbrain.local>`) instead of failing — the README
+ * promises identity is not required to write.
  */
 
 import { z } from "zod";
@@ -41,7 +41,7 @@ const EmailSchema = z.string().email();
  * `root@box` fail the schema's email validation (zod requires a dot in the
  * domain part); they are treated as unset.
  *
- * GIT-IDENTITY-001: throws an actionable error when nothing resolves — the
+ * DF-1013-01: falls back to the anonymous author when nothing resolves — the
  * synthetic default pair is gone.
  *
  * @returns Author email address
@@ -63,7 +63,7 @@ export function getAuthorEmail(): string {
  * Get author name from git config (repo-local -> global) or the documented
  * env override.
  *
- * GIT-IDENTITY-001: throws an actionable error when nothing resolves.
+ * DF-1013-01: falls back to the anonymous author when nothing resolves.
  *
  * @returns Author name
  */

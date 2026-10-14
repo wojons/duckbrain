@@ -3,10 +3,13 @@
  *
  * CI-001 (historical): on hosts without git user.email configured and
  * without GIT_AUTHOR_EMAIL set, getAuthorEmail() used to return a hardcoded
- * default. GIT-IDENTITY-001 removed that default entirely — resolution now
- * goes repo-local -> global -> DUCKBRAIN_GIT_AUTHOR_EMAIL and THROWS with an
- * actionable hint when nothing resolves. A memory row must never carry a
- * fabricated author ('DuckBrain <duckbrain@localhost.localdomain>').
+ * default. GIT-IDENTITY-001 removed that default; resolution goes
+ * repo-local -> global -> DUCKBRAIN_GIT_AUTHOR_EMAIL. DF-1013-01: when
+ * nothing resolves, the DETERMINISTIC anonymous author
+ * (`Anonymous <anonymous@duckbrain.local>`) is used so a no-identity box
+ * writes fine — the README promises identity is not required. The
+ * historical synthetic pin ('DuckBrain <duckbrain@localhost.localdomain>')
+ * still can never be returned.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
@@ -40,23 +43,16 @@ describe("GIT-IDENTITY-001: attribution has no synthetic fallback", () => {
     process.env = { ...OLD_ENV };
   });
 
-  it("getAuthorEmail() THROWS with an actionable hint when nothing resolves", async () => {
+  it("getAuthorEmail() falls back to the anonymous author when nothing resolves", async () => {
     const { getAuthorEmail } = await import("./attribution.js");
-    expect(() => getAuthorEmail()).toThrow(
-      /No git author identity is configured/,
-    );
+    expect(getAuthorEmail()).toBe("anonymous@duckbrain.local");
   });
 
-  it("the thrown hint names the documented env override knobs", async () => {
-    const { getAuthorEmail } = await import("./attribution.js");
-    try {
-      getAuthorEmail();
-      expect.unreachable("getAuthorEmail must throw without identity");
-    } catch (error) {
-      const message = (error as Error).message;
-      expect(message).toContain("DUCKBRAIN_GIT_AUTHOR_EMAIL");
-      expect(message).toContain("git config --global user.email");
-    }
+  it("the fallback author is deterministic and schema-valid", async () => {
+    const { getAuthorEmail, getAuthorName } = await import("./attribution.js");
+    expect(getAuthorEmail()).toBe(getAuthorEmail());
+    expect(emailSchema.safeParse(getAuthorEmail()).success).toBe(true);
+    expect(getAuthorName()).toBe("Anonymous");
   });
 
   it("the DUCKBRAIN_GIT_AUTHOR_EMAIL env override is honored", async () => {
@@ -70,16 +66,9 @@ describe("GIT-IDENTITY-001: attribution has no synthetic fallback", () => {
 
   it("no synthetic 'duckbrain@localhost' value can ever be returned", async () => {
     const { getAuthorEmail } = await import("./attribution.js");
-    let email: string | null = null;
-    try {
-      email = getAuthorEmail();
-    } catch {
-      // Throwing is a valid outcome — the assertion below still holds.
-    }
-    if (email !== null) {
-      expect(email).not.toContain("duckbrain@localhost");
-    }
-    expect(emailSchema.safeParse(email).success).toBe(false);
+    const email = getAuthorEmail();
+    expect(email).not.toContain("duckbrain@localhost");
+    expect(emailSchema.safeParse(email).success).toBe(true);
   });
 
   it("remember-tool style memory built from a resolved env author validates", async () => {
@@ -143,7 +132,7 @@ describe("DF-0930-01: bare-host git email is treated as unset", () => {
     }) as typeof execFileSync);
     const { getAuthorEmail } = await import("./attribution.js");
 
-    expect(() => getAuthorEmail()).toThrow(/No git author identity/);
+    expect(getAuthorEmail()).toBe("anonymous@duckbrain.local");
   });
 
   it("git email root@box (no dot in domain) is treated as unset", async () => {
@@ -162,7 +151,7 @@ describe("DF-0930-01: bare-host git email is treated as unset", () => {
     }) as typeof execFileSync);
     const { getAuthorEmail } = await import("./attribution.js");
 
-    expect(() => getAuthorEmail()).toThrow(/No git author identity/);
+    expect(getAuthorEmail()).toBe("anonymous@duckbrain.local");
   });
 
   it("valid git email test@example.com is used as-is", async () => {

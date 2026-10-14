@@ -28,6 +28,8 @@ import {
 import {
   isSyntheticIdentity,
   repairNamespaceGitIdentities,
+  resolveAuthorEmail,
+  resolveAuthorName,
   resolveGitIdentity,
   requireGitIdentity,
   checkGitIdentityHealth,
@@ -117,13 +119,19 @@ describe("GIT-IDENTITY-001: autocommit never invents an identity", () => {
     const savedSeedEmail = process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
     delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
     delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
-
-    // The identity resolution itself must fail LOUDLY with the actionable hint.
-    let thrown: Error | null = null;
     try {
-      requireGitIdentity(nsPath);
-    } catch (error) {
-      thrown = error as Error;
+      // The identity resolution must fail over to the deterministic
+      // anonymous identity (DF-1013-01) — no-identity boxes write fine, and
+      // the fallback is applied per-invocation only (no repo-config pin).
+      const identity = requireGitIdentity(nsPath);
+      expect(identity).toEqual({
+        name: "Anonymous",
+        email: "anonymous@duckbrain.local",
+      });
+
+      // And no pin may appear in the repo config.
+      expect(localConfig(nsPath, "user.name")).toBeNull();
+      expect(localConfig(nsPath, "user.email")).toBeNull();
     } finally {
       if (savedGitConfigGlobal === undefined) {
         delete process.env.GIT_CONFIG_GLOBAL;
@@ -141,15 +149,8 @@ describe("GIT-IDENTITY-001: autocommit never invents an identity", () => {
         process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = savedSeedEmail;
       }
     }
-    expect(thrown).not.toBeNull();
-    expect(thrown?.message).toContain("No git author identity is configured");
-    expect(thrown?.message).toContain("DUCKBRAIN_GIT_AUTHOR_EMAIL");
 
-    // And no synthetic pin may appear in the repo config.
-    expect(localConfig(nsPath, "user.name")).toBeNull();
-    expect(localConfig(nsPath, "user.email")).toBeNull();
-
-    // Sanity: resolution with the same isolation reports nothing available.
+    // Sanity: pure resolution with the same isolation reports nothing available.
     const isolated = resolveGitIdentity(nsPath, {
       ...process.env,
       GIT_CONFIG_GLOBAL: emptyGitconfig,
@@ -158,6 +159,67 @@ describe("GIT-IDENTITY-001: autocommit never invents an identity", () => {
     });
     expect(isolated.identity).toBeNull();
     expect(isolated.error).toContain("No git author identity is configured");
+  });
+
+  it("(b2) resolveAuthorEmail/Name fall back to the anonymous author with no identity", async () => {
+    const emptyHome = path.join(tmpRoot, "empty-home-b2");
+    fs.mkdirSync(emptyHome, { recursive: true });
+    const emptyGitconfig = path.join(emptyHome, ".gitconfig-empty");
+    fs.writeFileSync(emptyGitconfig, "");
+    const isolatedEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: emptyGitconfig,
+      DUCKBRAIN_GIT_AUTHOR_NAME: "",
+      DUCKBRAIN_GIT_AUTHOR_EMAIL: "",
+    };
+    expect(resolveAuthorEmail(nsPath, isolatedEnv)).toBe(
+      "anonymous@duckbrain.local",
+    );
+    expect(resolveAuthorName(nsPath, isolatedEnv)).toBe("Anonymous");
+    // Still no config pin anywhere.
+    expect(localConfig(nsPath, "user.name")).toBeNull();
+    expect(localConfig(nsPath, "user.email")).toBeNull();
+  });
+
+  it("(b3) a no-identity autocommit lands, attributed to the anonymous author", async () => {
+    const emptyHome = path.join(tmpRoot, "empty-home-b3");
+    fs.mkdirSync(emptyHome, { recursive: true });
+    const emptyGitconfig = path.join(emptyHome, ".gitconfig-empty");
+    fs.writeFileSync(emptyGitconfig, "");
+    git(["init"], nsPath);
+    fs.writeFileSync(path.join(nsPath, "a.jsonl"), "row\n");
+
+    const savedGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
+    const savedSeedName = process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+    const savedSeedEmail = process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+    process.env.GIT_CONFIG_GLOBAL = emptyGitconfig;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+    delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+    try {
+      await settle();
+    } finally {
+      if (savedGitConfigGlobal === undefined) {
+        delete process.env.GIT_CONFIG_GLOBAL;
+      } else {
+        process.env.GIT_CONFIG_GLOBAL = savedGitConfigGlobal;
+      }
+      if (savedSeedName === undefined) {
+        delete process.env.DUCKBRAIN_GIT_AUTHOR_NAME;
+      } else {
+        process.env.DUCKBRAIN_GIT_AUTHOR_NAME = savedSeedName;
+      }
+      if (savedSeedEmail === undefined) {
+        delete process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL;
+      } else {
+        process.env.DUCKBRAIN_GIT_AUTHOR_EMAIL = savedSeedEmail;
+      }
+    }
+    expect(git(["rev-list", "--count", "HEAD"], nsPath)).toBe("1");
+    expect(git(["log", "-1", "--format=%an <%ae>"], nsPath)).toBe(
+      "Anonymous <anonymous@duckbrain.local>",
+    );
+    expect(localConfig(nsPath, "user.name")).toBeNull();
+    expect(localConfig(nsPath, "user.email")).toBeNull();
   });
 });
 
