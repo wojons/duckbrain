@@ -1,0 +1,877 @@
+commit c95dd5e00995e4023a4efc3c023eb4e84cbf7ead
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 14 07:44:44 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 14 07:44:44 2026 -0500
+
+    feat(df-1013-03): opt-in ?debug=search diagnostics on REST q= path
+    
+    Per-namespace searchFreshness/searchRebuilt/searchSkipReason existed only
+    in the boot warm-up stderr summary; GET /api/memories?q= carried no signal
+    about whether a first query paid an inline FTS rebuild or used a warm
+    index, and DUCKBRAIN_SEARCH_TIMING=1 logs to stderr only.
+    
+    - ?debug=search (only accepted value; requires q=) appends a `searchDebug`
+      object to the response: indexFreshness/indexRebuilt/indexSkipReason,
+      keywordCandidates/semanticCandidates, cacheHits/uniqueMisses,
+      embedMs/queryEmbedMs. Without the flag the response shape is unchanged.
+    - Timing data is collected through onTiming collectors on semanticSearch
+      (src/embedding/search.ts) and keywordSearch (src/search/query.ts) — the
+      same ensureFreshness state the warm-up summary reports, so the two
+      surfaces cannot disagree.
+    - AC-2 test proves warmNamespace().searchFreshness ("missing"→rebuild)
+      agrees with the request-time searchDebug.indexFreshness ("fresh") for
+      the same namespace.
+    - Docs: docs/api/http-api.md documents the flag, field semantics, and an
+      example response; the allow-list/docs drift test stays green.
+    
+    Addresses DF-1013-03.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/http-api.md                               |  40 +++
+ src/embedding/search.ts                            |  33 +++
+ .../routes/memories-debug-search-df101303.test.ts  | 307 +++++++++++++++++++++
+ src/http/routes/memories.ts                        |  42 ++-
+ src/http/types/api.ts                              |   6 +
+ src/mcp/tools/recall.ts                            | 134 ++++++++-
+ src/search/query.ts                                |  44 +++
+ 7 files changed, 604 insertions(+), 2 deletions(-)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index a8edc07c..671a7438 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -403,6 +403,7 @@ Query memories with filters.
+ | `limit` | 50 | Max results to return |
+ | `offset` | 0 | Pagination offset |
+ | `namespace` | `default` | Namespace to query |
++| `debug` | — | DF-1013-03: opt-in diagnostics. `?debug=search` (the only accepted value, and only together with `q=`) appends a `searchDebug` object to the response — see the note below. Any other value, or `debug=search` without `q=`, is a 400 `VALIDATION_ERROR` |
+ 
+ > **Note — unknown query parameters (DF-0926-02):** this endpoint accepts exactly the parameters in the table above (`attr.<name>` as a repeatable prefix). Any OTHER query parameter is refused with **400 `VALIDATION_ERROR`** whose message names the offending parameter and lists the valid ones — it is never silently ignored. In particular `?key=` and `?query=` are not parameters of this endpoint: `?key=…` returns a 400 pointing at `GET /api/memories/key/:key` (or `?prefix=` to filter the list), and `?query=…` returns a 400 pointing at `?q=` / `?contains=`. Before the fix these two were accepted and dropped, so a client that believed it had recalled one key — or run one search — received HTTP 200 with the unfiltered list.
+ 
+@@ -410,6 +411,45 @@ Query memories with filters.
+ 
+ > **Performance (PERF-005):** On a healthy local Ollama provider, warm semantic requests are expected to complete in under 5 seconds; actual latency depends on model load, provider capacity, network, and namespace size. At most two uncached candidate texts (each no longer than 1,500 characters) are embedded per query in one Ollama `/api/embed` batch; longer uncached texts are omitted from semantic ranking until their embeddings exist in cache. Older Ollama versions fall back to bounded individual embedding calls. Set `DUCKBRAIN_SEARCH_TIMING=1` on the daemon to log provider discovery, query embedding, keyword search, DuckDB candidate fetch, candidate embedding, cache lookup, and scoring durations. `?contains=` remains an offline FTS query and does not call the embedding provider.
+ 
++> **Search diagnostics (DF-1013-03):** add `&debug=search` to a `?q=` request to receive a `searchDebug` object at the top level of the response. Without the flag the response shape is exactly the envelope above — `searchDebug` is never present. The object reports what `DUCKBRAIN_SEARCH_TIMING=1` logs to stderr, per request:
++>
++> - `indexFreshness` — the keyword (FTS) index state as observed BEFORE this request's rebuild: `missing` | `stale` | `fresh` (the same classification the boot warm-up summary reports per namespace as `searchFreshness`)
++> - `indexRebuilt` — `true` when THIS request rebuilt the FTS sidecar (i.e. the first slow query paid the inline rebuild; matches the warm-up summary's `searchRebuilt` semantics)
++> - `indexSkipReason` — present when the index could not be made usable (over-bound row-count refusal or rebuild failure; the warm-up summary's `searchSkipReason`)
++> - `keywordCandidates` — rows the keyword leg ranked
++> - `semanticCandidates` — rows the semantic leg fetched from DuckDB
++> - `cacheHits` / `uniqueMisses` — candidate vectors found in the embedding cache vs. texts that needed an embed
++> - `embedMs` / `queryEmbedMs` — candidate-embed and query-embed wall time in ms
++>
++> Fields a request's degradation ladder did not reach are omitted (e.g. `cacheHits`/`embedMs` are absent when the keyword leg was unavailable and the response degraded to keyword-only). The freshness fields read the SAME `ensureFreshIndex`/`indexFreshness` state the warm-up summary observes, so `indexFreshness` on a response agrees with the last warm-up line for that namespace.
++>
++> ```bash
++> curl "http://localhost:3000/api/memories?q=pgbouncer&debug=search"
++> ```
++>
++> ```json
++> {
++>   "items": [],
++>   "total": 0,
++>   "offset": 0,
++>   "limit": 50,
++>   "hasMore": false,
++>   "nextOffset": null,
++>   "count": 0,
++>   "memories": [],
++>   "searchDebug": {
++>     "indexFreshness": "fresh",
++>     "indexRebuilt": false,
++>     "keywordCandidates": 0,
++>     "semanticCandidates": 12,
++>     "cacheHits": 12,
++>     "uniqueMisses": 0,
++>     "embedMs": 0.4,
++>     "queryEmbedMs": 18.2
++>   }
++> }
++> ```
++
+ **Response:**
+ 
+ ```json
+diff --git a/src/embedding/search.ts b/src/embedding/search.ts
+index fbc72eaa..a8b9fb78 100644
+--- a/src/embedding/search.ts
++++ b/src/embedding/search.ts
+@@ -71,6 +71,26 @@ export interface SemanticSearchOptions {
+   embedConcurrency?: number;
+   /** Skip cold candidate texts above this bound; cached vectors still rank. */
+   maxOnTheFlyTextLength?: number;
++  /**
++   * DF-1013-03: request-time diagnostics collector. When set, the same
++   * numbers the DUCKBRAIN_SEARCH_TIMING=1 stderr line computes are handed
++   * to the caller instead of (only) being logged — so the REST ?debug=search
++   * surface and the stderr summary cannot disagree. Never changes ranking.
++   */
++  onTiming?: (timing: SearchTiming) => void;
++}
++
++/**
++ * DF-1013-03: the timing numbers semanticSearch measures, mirroring the
++ * `[search-timing]` stderr line field-for-field (cache_candidates,
++ * cache_hits, unique_misses, candidate_embed_ms, scoring_ms).
++ */
++export interface SearchTiming {
++  cacheCandidates: number;
++  cacheHits: number;
++  uniqueMisses: number;
++  candidateEmbedMs: number;
++  scoringMs: number;
+ }
+ 
+ export interface RankedMemory extends SearchCandidate {
+@@ -257,6 +277,19 @@ export async function semanticSearch(
+     );
+   }
+ 
++  // DF-1013-03: hand the same numbers to a request-time collector when one
++  // is registered — the REST ?debug=search surface reads THESE, so the
++  // response diagnostics and the stderr line cannot disagree.
++  if (opts.onTiming) {
++    opts.onTiming({
++      cacheCandidates: candidates.length,
++      cacheHits: hits.length,
++      uniqueMisses: misses.length,
++      candidateEmbedMs: candidateEmbedMs,
++      scoringMs: performance.now() - searchStartedAt - cacheResolveMs - candidateEmbedMs,
++    });
++  }
++
+   return ranked.sort((a, b) => {
+     if (b.score !== a.score) return b.score - a.score;
+     // RETR-005: equal-similarity ties break by recency — a fresh memory
+diff --git a/src/http/routes/memories-debug-search-df101303.test.ts b/src/http/routes/memories-debug-search-df101303.test.ts
+new file mode 100644
+index 00000000..4a9158f9
+--- /dev/null
++++ b/src/http/routes/memories-debug-search-df101303.test.ts
+@@ -0,0 +1,307 @@
++/**
++ * DF-1013-03 End-to-End Tests: opt-in ?debug=search diagnostics on
++ * GET /api/memories?q=.
++ *
++ * Commit 32de0244 claimed per-namespace searchRebuilt/searchFreshness/
++ * searchSkipReason are "reported per namespace", but those fields exist
++ * only in the boot warm-up stderr summary (NamespaceWarmResult) — the REST
++ * ?q= response carried items/total/offset/limit/hasMore/nextOffset/count/
++ * memories and nothing else, so a client could not tell whether a slow
++ * first query paid an inline FTS rebuild or used a warm index, and
++ * DUCKBRAIN_SEARCH_TIMING=1 logs to stderr only.
++ *
++ * The fix adds `&debug=search` (opt-in) which appends a `searchDebug`
++ * object to the response. These tests pin:
++ *
++ *  1. WITHOUT the flag the response shape is unchanged — `searchDebug` is
++ *     absent (and the route still rejects unknown params).
++ *  2. WITH the flag the diagnostics expose index freshness, whether THIS
++ *     request rebuilt the sidecar, candidate counts, and embed timing —
++ *     collected on a REAL rebuilt FTS sidecar + REAL DuckDB namespace
++ *     under the DUCKBRAIN_NAMESPACES_PATH temp root (only the embedding
++ *     provider is mocked, like RETR-002).
++ *  3. The warm-up summary and the request-time debug field AGREE for the
++ *     same namespace: warmNamespace reports searchFreshness from
++ *     ensureFreshIndex, the ?debug=search response reports indexFreshness
++ *     from the SAME seam, and a warm-then-query sequence must agree.
++ *  4. ?debug=search without ?q= is a clean 400 (the diagnostics only
++ *     exist on the search path), and a wrong debug value is refused.
++ */
++
++import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
++import { createHttpServer } from "../../cli/http";
++import { createServer, Server } from "http";
++import fs from "fs";
++import path from "path";
++import type { EmbeddingProvider } from "../../embedding/providers";
++import { EmbeddingCache } from "../../embedding/cache";
++import {
++  warmNamespace,
++  type NamespaceWarmResult,
++} from "../namespace-warmup";
++
++// Mock ONLY the provider registry: recallTool must run its real DuckDB +
++// FTS sidecar path (deterministic bag-of-words vectors, same shape as the
++// RETR-002 fixture).
++vi.mock("../../embedding/providers", async () => {
++  const actual = await vi.importActual<
++    typeof import("../../embedding/providers")
++  >("../../embedding/providers");
++  function bowVector(text: string): number[] {
++    const vec = new Array<number>(384).fill(0);
++    const words = text.toLowerCase().split(/\W+/).filter(Boolean);
++    for (const w of words) {
++      let h = 0;
++      for (let i = 0; i < w.length; i++) {
++        h = (h * 31 + w.charCodeAt(i)) >>> 0;
++      }
++      vec[h % 384] = 1;
++    }
++    return vec;
++  }
++  const fakeProvider: EmbeddingProvider = {
++    id: "test/fake",
++    model: "fake",
++    dimensions: 384,
++    async embed(text: string): Promise<number[]> {
++      return bowVector(text);
++    },
++  };
++  return {
++    ...actual,
++    createAutoProviders: vi.fn().mockResolvedValue([fakeProvider]),
++    createAutoProvider: vi.fn().mockResolvedValue(fakeProvider),
++  };
++});
++
++const NS_ROOT = process.env.DUCKBRAIN_NAMESPACES_PATH!;
++const NS_NAME = "debug-search-df101303";
++const NS = path.join(NS_ROOT, NS_NAME);
++const PARTITION = path.join(NS, "concept", "2026-08");
++const JSONL = path.join(PARTITION, "current.jsonl");
++const MANIFEST = path.join(NS, "manifest.json");
++
++const DOCS = [
++  {
++    id: "d1",
++    key: "/notes/pgbouncer",
++    text: "pgbouncer connection pooling notes",
++  },
++  { id: "d2", key: "/notes/duckdb", text: "duckdb columnar engine notes" },
++  { id: "d3", key: "/notes/git", text: "git plumbing internals" },
++];
++
++let server: Server;
++let port: number;
++
++interface HttpResponse {
++  status: number;
++  body: any;
++}
++
++function httpRequest(p: string): Promise<HttpResponse> {
++  return new Promise((resolve, reject) => {
++    const http = require("http");
++    const req = http.request(
++      {
++        hostname: "127.0.0.1",
++        port,
++        path: p,
++        method: "GET",
++        headers: { Host: "localhost", "Content-Type": "application/json" },
++      },
++      (res: any) => {
++        let data = "";
++        res.on("data", (chunk: Buffer) => {
++          data += chunk.toString();
++        });
++        res.on("end", () => {
++          try {
++            resolve({ status: res.statusCode, body: JSON.parse(data) });
++          } catch {
++            resolve({ status: res.statusCode, body: data });
++          }
++        });
++      },
++    );
++    req.on("error", reject);
++    req.end();
++  });
++}
++
++describe("DF-1013-03: opt-in ?debug=search diagnostics on GET /api/memories?q=", () => {
++  beforeAll(async () => {
++    delete process.env.DUCKBRAIN_SEARCH_MIN_SCORE;
++
++    fs.mkdirSync(PARTITION, { recursive: true });
++    fs.writeFileSync(
++      JSONL,
++      DOCS.map((d) =>
++        JSON.stringify({
++          id: d.id,
++          key: d.key,
++          domain: "concept",
++          timestamp: "2026-08-10T00:00:00.000Z",
++          author: "df101303@test.local",
++          action: "add",
++          embedding_text: d.text,
++          attributes: {},
++        }),
++      ).join("\n") + "\n",
++      "utf8",
++    );
++    fs.writeFileSync(
++      MANIFEST,
++      JSON.stringify({
++        partitions: ["concept/2026-08"],
++        lastUpdated: new Date().toISOString(),
++      }),
++    );
++
++    const cache = EmbeddingCache.forNamespace(NS);
++    for (const d of DOCS) {
++      cache.set("test/fake", EmbeddingCache.contentHash(d.text), [
++        0.1, 0.2, 0.3,
++      ]);
++    }
++
++    const app = createHttpServer({ authType: "none" });
++    server = createServer(app);
++    await new Promise<void>((resolve) => {
++      server.listen(0, "127.0.0.1", () => {
++        const addr = server.address();
++        if (addr && typeof addr !== "string") port = addr.port;
++        resolve();
++      });
++    });
++  }, 30000);
++
++  afterAll(() => {
++    if (server) server.close();
++    fs.rmSync(NS, { recursive: true, force: true });
++  });
++
++  it("WITHOUT ?debug=search the response shape is unchanged — no searchDebug key", async () => {
++    const { status, body } = await httpRequest(
++      `/api/memories?q=pgbouncer&namespace=${NS_NAME}&limit=10`,
++    );
++
++    expect(status).toBe(200);
++    expect(Array.isArray(body.items)).toBe(true);
++    expect(body.items.length).toBeGreaterThan(0);
++    // The exact canonical envelope keys — nothing added.
++    expect(Object.keys(body).sort()).toEqual(
++      [
++        "count",
++        "hasMore",
++        "items",
++        "limit",
++        "memories",
++        "nextOffset",
++        "offset",
++        "total",
++      ].sort(),
++    );
++    expect(body.searchDebug).toBeUndefined();
++  });
++
++  it("WITH ?debug=search the diagnostics expose freshness, rebuild, candidates and embed timing", async () => {
++    const { status, body } = await httpRequest(
++      `/api/memories?q=pgbouncer&namespace=${NS_NAME}&limit=10&debug=search`,
++    );
++
++    expect(status).toBe(200);
++    const dbg = body.searchDebug;
++    expect(dbg).toBeDefined();
++
++    // A sidecar was rebuilt in beforeAll, and no write happened since —
++    // the keyword leg must see it as fresh and NOT rebuild again.
++    expect(dbg.indexFreshness).toBe("fresh");
++    expect(dbg.indexRebuilt).toBe(false);
++    // Real candidate counts from both legs (the fixture has 3 docs).
++    expect(dbg.keywordCandidates).toBeGreaterThanOrEqual(0);
++    expect(dbg.semanticCandidates).toBeGreaterThan(0);
++    // Every candidate's vector was pre-seeded → all cache hits, no misses.
++    expect(dbg.cacheHits).toBe(dbg.semanticCandidates);
++    expect(dbg.uniqueMisses).toBe(0);
++    expect(typeof dbg.embedMs).toBe("number");
++    expect(dbg.embedMs).toBeGreaterThanOrEqual(0);
++    expect(typeof dbg.queryEmbedMs).toBe("number");
++
++    // The canonical envelope survives the addition.
++    expect(body.items.length).toBeGreaterThan(0);
++    expect(body.total).toBeGreaterThan(0);
++  });
++
++  it("AC-2: the warm-up summary and the request-time debug field agree for the same namespace", async () => {
++    // Fresh namespace dir with REAL content for the warm-up leg: the
++    // sidecar is deleted so warm-up must observe missing → rebuild and
++    // report both (warm-up refuses to index an empty namespace dir).
++    const warmNS = path.join(NS_ROOT, `${NS_NAME}-warm`);
++    fs.rmSync(warmNS, { recursive: true, force: true });
++    fs.mkdirSync(path.join(warmNS, "concept", "2026-08"), { recursive: true });
++    fs.writeFileSync(
++      path.join(warmNS, "concept", "2026-08", "current.jsonl"),
++      DOCS.map((d) =>
++        JSON.stringify({
++          id: d.id,
++          key: d.key,
++          domain: "concept",
++          timestamp: "2026-08-10T00:00:00.000Z",
++          author: "df101303@test.local",
++          action: "add",
++          embedding_text: d.text,
++          attributes: {},
++        }),
++      ).join("\n") + "\n",
++      "utf8",
++    );
++    fs.writeFileSync(
++      path.join(warmNS, "manifest.json"),
++      JSON.stringify({
++        partitions: ["concept/2026-08"],
++        lastUpdated: new Date().toISOString(),
++      }),
++    );
++
++    const warm: NamespaceWarmResult = await warmNamespace(warmNS);
++    expect(warm.warmed).toBe(true);
++    // The warm-up summary observed the sidecar missing BEFORE rebuilding it.
++    expect(warm.searchFreshness).toBe("missing");
++    expect(warm.searchRebuilt).toBe(true);
++
++    // The request path must agree: the SAME freshness state, no second
++    // rebuild (warm-up left the index fresh).
++    const { status, body } = await httpRequest(
++      `/api/memories?q=pgbouncer&namespace=${NS_NAME}-warm&limit=10&debug=search`,
++    );
++    expect(status).toBe(200);
++    expect(body.searchDebug).toBeDefined();
++    expect(body.searchDebug.indexFreshness).toBe("fresh");
++    expect(body.searchDebug.indexRebuilt).toBe(false);
++
++    fs.rmSync(warmNS, { recursive: true, force: true });
++  });
++
++  it("?debug=search without ?q= is a clean 400 VALIDATION_ERROR", async () => {
++    const { status, body } = await httpRequest(
++      `/api/memories?namespace=${NS_NAME}&debug=search`,
++    );
++
++    expect(status).toBe(400);
++    expect(body.code).toBe("VALIDATION_ERROR");
++    expect(body.error).toContain("?debug=search requires ?q=");
++    expect(body.items).toBeUndefined();
++  });
++
++  it("an invalid ?debug= value is refused, never silently ignored", async () => {
++    const { status, body } = await httpRequest(
++      `/api/memories?q=pgbouncer&namespace=${NS_NAME}&debug=true`,
++    );
++
++    expect(status).toBe(400);
++    expect(body.code).toBe("VALIDATION_ERROR");
++    expect(body.error).toContain("'true'");
++    expect(body.error).toContain("search");
++  });
++});
+diff --git a/src/http/routes/memories.ts b/src/http/routes/memories.ts
+index 2db45e9f..f1ea2e57 100644
+--- a/src/http/routes/memories.ts
++++ b/src/http/routes/memories.ts
+@@ -227,6 +227,9 @@ const LIST_QUERY_PARAMS = [
+   // RETR-007: cross-namespace keyword search (read below via
+   // params.allNamespaces).
+   "allNamespaces",
++  // DF-1013-03: opt-in search diagnostics — ?debug=search adds a
++  // `searchDebug` object to the response; any other value is refused.
++  "debug",
+ ] as const;
+ 
+ /** RETR-006: attribute filters are a documented PREFIX, not a fixed name. */
+@@ -392,6 +395,28 @@ router.get(
+       namespace: resolveRequestNamespace(req),
+     };
+ 
++    // DF-1013-03: opt-in search diagnostics. The only supported value is
++    // "search" — any other spelling is refused loudly (400) rather than
++    // silently ignored, matching the DF-0926-02 unknown-param doctrine.
++    let debugSearch = false;
++    if (req.query.debug !== undefined) {
++      if (req.query.debug !== "search") {
++        throw new ValidationError(
++          `Invalid debug value '${req.query.debug}'. The only supported value is 'search' (?debug=search adds search diagnostics to the response).`,
++        );
++      }
++      // Diagnostics only exist on the ?q= search path — refusing the
++      // combination up front keeps "debug asked but no diagnostics
++      // returned" from ever looking like a broken surface.
++      if (req.query.q === undefined) {
++        throw new ValidationError(
++          "?debug=search requires ?q= — search diagnostics are produced by the semantic/keyword search path only.",
++        );
++      }
++      debugSearch = true;
++    }
++    params.debug = debugSearch;
++
+     // RETR-006: attribute filters — every ?attr.<name>=<value> query param
+     // (prefix-stripped) becomes one name→value filter. Only string-valued
+     // params are forwarded; non-string (array/object) values are dropped.
+@@ -499,6 +524,10 @@ router.get(
+       ...(Object.keys(attr).length > 0 ? { attr } : {}),
+       // RETR-011: forward the view selector (absent = current view).
+       ...(params.historical ? { historical: true } : {}),
++      // DF-1013-03: opt-in search diagnostics. ?debug=search collects the
++      // search-leg timing at request time; the plain path never sees the
++      // flag so its call shape is unchanged.
++      ...(params.debug ? { searchDebug: true } : {}),
+     });
+ 
+     if (result.error) {
+@@ -552,7 +581,18 @@ router.get(
+       memories: page,
+     };
+ 
+-    res.json(response);
++    // DF-1013-03: append the opt-in diagnostics AFTER the canonical
++    // envelope is complete — the plain-path shape is byte-identical to
++    // before; only ?debug=search responses carry the extra key.
++    const responseBody = debugSearch
++      ? {
++          ...response,
++          searchDebug: (result as { searchDebug?: Record<string, unknown> })
++            .searchDebug,
++        }
++      : response;
++
++    res.json(responseBody);
+   }),
+ );
+ 
+diff --git a/src/http/types/api.ts b/src/http/types/api.ts
+index 4cf18ce6..22f44a94 100644
+--- a/src/http/types/api.ts
++++ b/src/http/types/api.ts
+@@ -191,6 +191,12 @@ export interface QueryParams {
+   historical?: boolean;
+   /** Namespace to query */
+   namespace?: string;
++  /**
++  * DF-1013-03: opt-in search diagnostics (?debug=search). Internal — the
++  * route parses the ?debug= value itself; when set, recallTool collects
++  * the search-leg timing and the response carries a `searchDebug` object.
++  */
++  debug?: boolean;
+ }
+ 
+ /**
+diff --git a/src/mcp/tools/recall.ts b/src/mcp/tools/recall.ts
+index 1befb8bf..997b2aea 100644
+--- a/src/mcp/tools/recall.ts
++++ b/src/mcp/tools/recall.ts
+@@ -23,12 +23,13 @@ import {
+ import { EmbeddingCache } from "../../embedding/cache";
+ import { createAutoProviders } from "../../embedding/providers";
+ import type { EmbeddingProvider } from "../../embedding/providers";
+-import { semanticSearch, type RankedMemory } from "../../embedding/search";
++import { semanticSearch, type RankedMemory, type SearchTiming } from "../../embedding/search";
+ import {
+   keywordSearch,
+   keywordSearchAllNamespaces,
+   type KeywordHit,
+   type KeywordSearchResult,
++  type KeywordSearchTiming,
+ } from "../../search/query";
+ import { resolveNamespacesPath } from "../../config/index";
+ import { rankFused, FUSION_TOP_K } from "../../search/fusion";
+@@ -167,6 +168,14 @@ const RecallInputSchema = z.object({
+     .describe(
+       "View selector: false (default) = current (validity-filtered); true = historical (all rows, expired facts included)",
+     ),
++  /**
++   * DF-1013-03: opt-in request-time search diagnostics (the REST
++   * ?debug=search surface forwards this). Internal plumbing — NOT part of
++   * the MCP tool's advertised argument surface; when set, the recall
++   * output carries a `searchDebug` object and nothing about the ranked
++   * result changes.
++   */
++  searchDebug: z.boolean().optional(),
+ });
+ 
+ /**
+@@ -214,6 +223,85 @@ interface RecallOutput {
+   /** Denial reason, 'namespace_scope' — the same reason REST audits */
+   reason?: string;
+   error?: string;
++  /**
++   * DF-1013-03: request-time search diagnostics, present ONLY when the
++   * caller asked for them (recallInput.searchDebug === true — the REST
++   * ?debug=search surface). Never present on the plain path, so the
++   * existing response shape is unchanged.
++   */
++  searchDebug?: RecallSearchDebug;
++}
++
++/**
++ * DF-1013-03: diagnostics on the ?q= search legs, opt-in via
++ * ?debug=search. indexFreshness/indexRebuilt/indexSkipReason observe the
++ * SAME ensureFreshIndex state the boot warm-up summary reports per
++ * namespace (searchFreshness/searchRebuilt/searchSkipReason).
++ */
++export interface RecallSearchDebug {
++  /** Keyword-leg FTS sidecar freshness BEFORE this request's rebuild. */
++  indexFreshness?: "missing" | "stale" | "fresh";
++  /** True when THIS request rebuilt the FTS sidecar. */
++  indexRebuilt?: boolean;
++  /** Set when the index could not be made usable (refusal/failure). */
++  indexSkipReason?: string;
++  /** Keyword-leg candidate count. */
++  keywordCandidates?: number;
++  /** Semantic-leg candidate count (rows fetched from DuckDB). */
++  semanticCandidates?: number;
++  /** Semantic-leg cache hits (vectors already in the embedding cache). */
++  cacheHits?: number;
++  /** Semantic-leg unique cache misses that needed an embed. */
++  uniqueMisses?: number;
++  /** Semantic-leg candidate-embed time (ms). */
++  embedMs?: number;
++  /** Query-embedding time (ms) — the ?q= text's own vector. */
++  queryEmbedMs?: number;
++}
++
++/**
++ * DF-1013-03: mutable per-request collector for the search-leg diagnostics
++ * above (recallTool creates one when searchDebug is set and forwards the
++ * pieces into it as the legs run).
++ */
++class SearchDebugCollector {
++  queryEmbedMs?: number;
++  indexFreshness?: RecallSearchDebug["indexFreshness"];
++  indexRebuilt?: boolean;
++  indexSkipReason?: string;
++  keywordCandidates?: number;
++  semanticCandidates?: number;
++  cacheHits?: number;
++  uniqueMisses?: number;
++  embedMs?: number;
++
++  toDebug(): RecallSearchDebug {
++    return {
++      ...(this.indexFreshness !== undefined
++        ? { indexFreshness: this.indexFreshness }
++        : {}),
++      ...(this.indexRebuilt !== undefined
++        ? { indexRebuilt: this.indexRebuilt }
++        : {}),
++      ...(this.indexSkipReason !== undefined
++        ? { indexSkipReason: this.indexSkipReason }
++        : {}),
++      ...(this.keywordCandidates !== undefined
++        ? { keywordCandidates: this.keywordCandidates }
++        : {}),
++      ...(this.semanticCandidates !== undefined
++        ? { semanticCandidates: this.semanticCandidates }
++        : {}),
++      ...(this.cacheHits !== undefined ? { cacheHits: this.cacheHits } : {}),
++      ...(this.uniqueMisses !== undefined
++        ? { uniqueMisses: this.uniqueMisses }
++        : {}),
++      ...(this.embedMs !== undefined ? { embedMs: this.embedMs } : {}),
++      ...(this.queryEmbedMs !== undefined
++        ? { queryEmbedMs: this.queryEmbedMs }
++        : {}),
++    };
++  }
+ }
+ 
+ /**
+@@ -324,6 +412,8 @@ async function runSemanticLeg(opts: {
+   /** RETR-011: the fixed "now" instant the validity window is compared
+    *  against (set once per request in recallTool) */
+   now: string;
++  /** DF-1013-03: request-time diagnostics collector (null when off). */
++  debug: SearchDebugCollector | null;
+ }): Promise<{ ranked: RankedMemory[]; candidatesCount: number }> {
+   const {
+     namespacePath,
+@@ -335,6 +425,7 @@ async function runSemanticLeg(opts: {
+     provider,
+     queryVector,
+     searchMinScore,
++    debug,
+   } = opts;
+ 
+   // Fetch candidates WITHOUT the DuckDB embedding filter (that column
+@@ -401,6 +492,18 @@ async function runSemanticLeg(opts: {
+           maxOnTheFlyEmbeds: 2,
+           maxOnTheFlyTextLength: 1500,
+           ...(searchMinScore !== undefined ? { minScore: searchMinScore } : {}),
++          // DF-1013-03: the same timing numbers the DUCKBRAIN_SEARCH_TIMING
++          // stderr line computes, collected at request time.
++          ...(debug
++            ? {
++                onTiming: (t: SearchTiming) => {
++                  debug.semanticCandidates = t.cacheCandidates;
++                  debug.cacheHits = t.cacheHits;
++                  debug.uniqueMisses = t.uniqueMisses;
++                  debug.embedMs = t.candidateEmbedMs;
++                },
++              }
++            : {}),
+         },
+       );
+       if (timings) {
+@@ -444,6 +547,11 @@ export async function recallTool(
+   const validated = parseResult.data;
+   console.error("[recall] Validated input:", validated);
+ 
++  // DF-1013-03: when the caller opted into diagnostics (REST ?debug=search
++  // → searchDebug: true), collect the search-leg timing at request time so
++  // the response can expose what DUCKBRAIN_SEARCH_TIMING=1 logs to stderr.
++  const debug = validated.searchDebug ? new SearchDebugCollector() : null;
++
+   // RETR-011: one fixed "now" instant for the whole request — the validity
+   // window is compared against the same instant across the list, keyword,
+   // semantic-candidate and count paths, so a request never sees a row flip
+@@ -858,6 +966,9 @@ export async function recallTool(
+           `[search-timing] provider_count=${providers.length} provider_discovery_ms=${providerDiscoveryMs.toFixed(1)} query_embedding_ms=${(performance.now() - queryEmbedStartedAt).toFixed(1)}`,
+         );
+       }
++      if (debug) {
++        debug.queryEmbedMs = performance.now() - queryEmbedStartedAt;
++      }
+ 
+       // ---- Keyword leg: rebuilt FTS sidecar (RETR-001). A missing index is
+       // NOT an error here — ?q= degrades to semantic-only; the failure is
+@@ -881,6 +992,20 @@ export async function recallTool(
+           // surface expired / not-yet-valid rows in the current view.
+           historical: validated.historical === true,
+           now,
++          // DF-1013-03: collect the keyword leg's index freshness /
++          // rebuild decision at request time when diagnostics are on.
++          ...(debug
++            ? {
++                onTiming: (t: KeywordSearchTiming) => {
++                  debug.indexFreshness = t.indexFreshness as NonNullable<
++                    SearchDebugCollector["indexFreshness"]
++                  >;
++                  debug.indexRebuilt = t.indexRebuilt;
++                  if (t.skipReason) debug.indexSkipReason = t.skipReason;
++                  debug.keywordCandidates = t.keywordCandidates;
++                },
++              }
++            : {}),
+         });
+       } catch (error) {
+         const msg = error instanceof Error ? error.message : String(error);
+@@ -916,6 +1041,7 @@ export async function recallTool(
+             queryVector,
+             searchMinScore,
+             now,
++            debug,
+           });
+           semanticRanked = leg.ranked;
+         } catch (e: any) {
+@@ -936,6 +1062,7 @@ export async function recallTool(
+             count: top.length,
+             total: keywordResult.total,
+             namespace: resolvedNamespace,
++            ...(debug ? { searchDebug: debug.toDebug() } : {}),
+           };
+         }
+ 
+@@ -977,6 +1104,7 @@ export async function recallTool(
+           // top-k contributions (≤ 2 × FUSION_TOP_K).
+           total: fused.length,
+           namespace: resolvedNamespace,
++          ...(debug ? { searchDebug: debug.toDebug() } : {}),
+         };
+       }
+ 
+@@ -997,6 +1125,7 @@ export async function recallTool(
+             queryVector,
+             searchMinScore,
+             now,
++            debug,
+           });
+         } catch (e: any) {
+           const msg = e instanceof Error ? e.message : String(e);
+@@ -1018,6 +1147,7 @@ export async function recallTool(
+           count: top.length,
+           total: leg.candidatesCount,
+           namespace: resolvedNamespace,
++          ...(debug ? { searchDebug: debug.toDebug() } : {}),
+         };
+       }
+ 
+@@ -1036,6 +1166,7 @@ export async function recallTool(
+           // MAX_CANDIDATES), unlimited by limit.
+           total: keywordResult.total,
+           namespace: resolvedNamespace,
++          ...(debug ? { searchDebug: debug.toDebug() } : {}),
+         };
+       }
+ 
+@@ -1049,6 +1180,7 @@ export async function recallTool(
+         error:
+           semanticError ??
+           "Search failed: neither the semantic nor the keyword search backend is available",
++        ...(debug ? { searchDebug: debug.toDebug() } : {}),
+       };
+     }
+ 
+diff --git a/src/search/query.ts b/src/search/query.ts
+index b64ae152..18c1884a 100644
+--- a/src/search/query.ts
++++ b/src/search/query.ts
+@@ -113,6 +113,31 @@ export interface KeywordSearchOptions {
+    *  keyword leg finding nothing for stopword-only queries so the
+    *  semantic leg fuses alone. */
+   includeStopwordLiterals?: boolean;
++  /**
++   * DF-1013-03: request-time diagnostics collector. When set, the
++   * ensureFreshIndex freshness observation (pre-rebuild state, the same
++   * classification the warm-up summary reports per namespace), whether THIS
++   * call rebuilt the sidecar, any skip reason, and the keyword candidate
++   * count are handed to the caller instead of living only in the
++   * ensureFreshIndex return that the ranked result discards.
++   */
++  onTiming?: (timing: KeywordSearchTiming) => void;
++}
++
++/**
++ * DF-1013-03: keyword-leg diagnostics, agreeing with the warm-up summary's
++ * searchFreshness/searchRebuilt/searchSkipReason for the same namespace
++ * (both read the same ensureFreshIndex / indexFreshness state).
++ */
++export interface KeywordSearchTiming {
++  /** Freshness as observed BEFORE this call's (possible) rebuild. */
++  indexFreshness: string;
++  /** True when THIS call performed the rebuild. */
++  indexRebuilt: boolean;
++  /** Set when the index could not be made usable (refusal/failure). */
++  skipReason?: string;
++  /** Keyword candidate rows the leg ranked. */
++  keywordCandidates: number;
+ }
+ 
+ function escapeSqlLiteral(s: string): string {
+@@ -395,6 +420,21 @@ export async function keywordSearch(
+     );
+   }
+ 
++  // DF-1013-03: report the pre-rebuild freshness, the rebuild decision and
++  // the skip reason at request time (the same numbers the boot warm-up
++  // summary reports per namespace — both observe the same indexFreshness
++  // state of the same sidecar). Emitted after the candidate fetch so the
++  // candidate count is known too.
++  let keywordTiming: KeywordSearchTiming | null = null;
++  if (opts.onTiming) {
++    keywordTiming = {
++      indexFreshness: ensured.freshness.state,
++      indexRebuilt: ensured.rebuilt,
++      ...(ensured.reason ? { skipReason: ensured.reason } : {}),
++      keywordCandidates: 0,
++    };
++  }
++
+   const rows = await collectKeywordCandidates(
+     namespacePath,
+     query,
+@@ -410,6 +450,10 @@ export async function keywordSearch(
+ 
+   const total = ranked.length;
+   const top = limit > 0 ? ranked.slice(0, limit) : [];
++  if (keywordTiming) {
++    keywordTiming.keywordCandidates = ranked.length;
++    opts.onTiming?.(keywordTiming);
++  }
+   const memories: KeywordHit[] = top.map((hit) => ({
+     id: hit.row.id,
+     key: hit.row.key,

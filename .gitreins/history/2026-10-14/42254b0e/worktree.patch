@@ -1,0 +1,30 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index e3480cf7..49f7b75c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2711,3 +2711,25 @@ tasks:
+   status: complete
+   created_at: '2026-10-13T08:20:04.611369+00:00'
+   completed_at: '2026-10-13T10:41:43.136705+00:00'
++- id: DF-1013-01
++  title: no-identity writes honored with deterministic anonymous author
++  criteria:
++  - writes succeed with no git identity configured, deterministic author, README contradiction
++    removed, no-identity tests green
++  status: in_progress
++  created_at: '2026-10-14T13:47:18.195472+00:00'
++- id: DF-1013-02
++  title: corrupt manifest graded as warmup failure
++  criteria:
++  - namespace with unparseable manifest.json reports failed/skipped at warm-up, counted
++    in skipped total, corrupt-manifest test cell green
++  status: complete
++  created_at: '2026-10-14T13:47:18.529438+00:00'
++  completed_at: '2026-10-14T13:47:30.504702+00:00'
++- id: DF-1013-03
++  title: opt-in ?debug=search diagnostics on REST q= path
++  criteria:
++  - documented debug param exposes freshness/rebuild/candidates/embedMs; response
++    shape unchanged without flag; warmup/request agreement test green
++  status: in_progress
++  created_at: '2026-10-14T13:47:18.955994+00:00'

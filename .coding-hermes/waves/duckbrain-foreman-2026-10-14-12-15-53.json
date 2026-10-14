@@ -1,0 +1,12 @@
+{
+  "tick": "duckbrain-foreman-2026-10-14-12-15-53",
+  "budget": 8,
+  "composed_at": "2026-10-14T12:20:00Z",
+  "tasks": [
+    {"id": "DF-1013-01", "priority": "P1", "worktree": "/home/kara/worktrees/duckbrain-DF-1013-01", "branch": "wt/DF-1013-01", "base_sha": "c6615d72", "brief": "/tmp/df-wave/DF-1013-01.md"},
+    {"id": "DF-1013-02", "priority": "P2", "worktree": "/home/kara/worktrees/duckbrain-DF-1013-02", "branch": "wt/DF-1013-02", "base_sha": "c6615d72", "brief": "/tmp/df-wave/DF-1013-02.md"},
+    {"id": "DF-1013-03", "priority": "P2", "worktree": "/home/kara/worktrees/duckbrain-DF-1013-03", "branch": "wt/DF-1013-03", "base_sha": "c6615d72", "brief": "/tmp/df-wave/DF-1013-03.md"}
+  ],
+  "independence_check": "no depends_on edges on any row (verified from tasks.jsonl); DF-1013-04 deferred (overlaps DF-1013-03 search surface); README/src disjoint across picked rows (01: git author+README; 02: namespace-warmup.ts; 03: search REST+docs)",
+  "deferred": ["DF-1013-04 (next tick, search-surface overlap)", "PERF-012/013", "SUP-DEPS-20261013-DB"]
+}

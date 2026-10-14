@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-1013-01",
+  "task_title": "no-identity writes honored with deterministic anonymous author",
+  "task_criteria": [
+    "writes succeed with no git identity configured, deterministic author, README contradiction removed, no-identity tests green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "d2fe335edf9eb9b1d83c0446a8ba3e6cc28652e4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:05AM INF scanned ~42578780 bytes (42.58 MB) in 5.66s\n9:05AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053565 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261014T124345.164402Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\nstderr | src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\n[duckbrain] Namespace warm-up: namespace 'broken-ns' failed in 0ms and was skipped: manifest.json is corrupt (unparseable): Unexpected token 'o', \"not json {{\" is not valid JSON\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-a' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-b' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-corrupt' failed in 0ms and was skipped: manifest.json is corrupt (unparseable): Unexpected token 'o', \"not json {{\" is not valid JSON\n[duckbrain] Namespace warm-up: namespace 'waraug-quick' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-slow' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: 9 namespace(s) warmed, 6 skipped, 9561ms total [broken-ns=0ms SKIPPED, waraug-broken=281ms scanned idx=fresh, waraug-budget-a=1500ms SKIPPED, waraug-budget-b=1500ms SKIPPED, waraug-corrupt=0ms SKIPPED, waraug-data=403ms scanned idx=fresh, waraug-e2e=422ms scanned idx=fresh, waraug-fine=349ms scanned idx=fresh, waraug-guarded=334ms scanned idx=fresh, waraug-healthy=251ms scanned idx=fresh, waraug-manifested=280ms scanned idx=fresh, waraug-quick=1500ms SKIPPED, waraug-scan=718ms scanned idx=fresh, waraug-search-build=523ms scanned idx=fresh, waraug-slow=1500ms SKIPPED]\n\n \u276f src/http/namespace-warmup-aug096.test.ts (16 tests | 2 failed) 62914ms\n   \u276f AUG-096 namespace warm-up (16)\n     \u00d7 per-namespace timeout knob: a hung warm is reported after the bound without failing the pass 3144ms\n     \u00d7 concurrency knob is honored (never more than DUCKBRAIN_WARM_CONCURRENCY in flight) 15013ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 2 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\nAssertionError: expected false to be true // Object.is equality\n\n- Expected\n+ Received\n\n- true\n+ false\n\n \u276f src/http/namespace-warmup-aug096.test.ts:654:48\n    652|     expect(byName.get(\"waraug-slow\")?.warmed).toBe(false);\n    653|     expect(String(byName.get(\"waraug-slow\")?.error)).toContain(\"timed \u2026\n    654|     expect(byName.get(\"waraug-quick\")?.warmed).toBe(true);\n       |                                                ^\n    655|     expect(byName.get(\"waraug-quick\")?.scanned).toBe(true);\n    656|     expect(slow).toBeTruthy();\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/2]\u23af\n\n FAIL  src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > concurrency knob is honored (never more than DUCKBRAIN_WARM_CONCURRENCY in flight)\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/namespace-warmup-aug096.test.ts:660:3\n    658|   }, 30_000);\n    659|\n    660|   it(\"concurrency knob is honored (never more than DUCKBRAIN_WARM_CONC\u2026\n       |   ^\n    661|     const names = [\n    662|       \"waraug-conc-a\",\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/2]\u23af\n\n\n Test Files  1 failed | 222 passed (223)\n      Tests  2 failed | 1850 passed (1852)\n   Start at  09:05:09\n   Duration  172.32s (tests 91%, import 6%, transform 2%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261014T124345.164402Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 writes succeed with no git identity configured, deterministic author, README contradiction removed, no-identity tests green: PASS: (1) src/git/identity.ts:109-112 ANONYMOUS_IDENTITY = {name:\"Anonymous\", email:\"anonymous@duckbrain.local\"}; requireGitIdentity (line 180-184) returns it instead of throwing; resolveAuthorEmail (line 196-210) and resolveAuthorName (217-228) fall back to it. (2) Write path: src/mcp/tools/remember.ts:232 uses getAuthorEmail() -> attribution.ts:49 -> resolveEmail() -> anonymous fallback; src/http/routes/memories.ts:759 passes principal author only when authenticated, else rememberTool falls back. (3) autocommit.ts:506 and :671 use requireGitIdentity and pass identity via `-c user.name/user.email` per-invocation, never writing repo config. (4) README.md:93 and :137 no longer contradict the no-identity promise \u2014 they document the anonymous stamp. (5) Tests: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` => exit 0, \"Test Files 2 passed (2) / Tests 18 passed (18)\"; verbose run shows (b2) resolver fallback to anonymous and (b3) no-identity autocommit lands attributed \"Anonymous <anonymous@duckbrain.local>\" with no local config pin, all green. zod email check on anonymous@duckbrain.local => true. Full-suite run was started in background but did not complete within the tool's 30s-per-call cap before the time budget expired; targeted no-identity tests are green.\nPartial verdict \u2014 all verified criteria passed",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 writes succeed with no git identity configured, deterministic author, README contradiction removed, no-identity tests green: PASS: (1) src/git/identity.ts:109-112 ANONYMOUS_IDENTITY = {name:\"Anonymous\", email:\"anonymous@duckbrain.local\"}; requireGitIdentity (line 180-184) returns it instead of throwing; resolveAuthorEmail (line 196-210) and resolveAuthorName (217-228) fall back to it. (2) Write path: src/mcp/tools/remember.ts:232 uses getAuthorEmail() -> attribution.ts:49 -> resolveEmail() -> anonymous fallback; src/http/routes/memories.ts:759 passes principal author only when authenticated, else rememberTool falls back. (3) autocommit.ts:506 and :671 use requireGitIdentity and pass identity via `-c user.name/user.email` per-invocation, never writing repo config. (4) README.md:93 and :137 no longer contradict the no-identity promise \u2014 they document the anonymous stamp. (5) Tests: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` => exit 0, \"Test Files 2 passed (2) / Tests 18 passed (18)\"; verbose run shows (b2) resolver fallback to anonymous and (b3) no-identity autocommit lands attributed \"Anonymous <anonymous@duckbrain.local>\" with no local config pin, all green. zod email check on anonymous@duckbrain.local => true. Full-suite run was started in background but did not complete within the tool's 30s-per-call cap before the time budget expired; targeted no-identity tests are green.\nPartial verdict \u2014 all verified criteria passed",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "writes succeed with no git identity configured, deterministic author, README contradiction removed, no-identity tests green",
+                "status": "PASS",
+                "detail": "PASS: (1) src/git/identity.ts:109-112 ANONYMOUS_IDENTITY = {name:\"Anonymous\", email:\"anonymous@duckbrain.local\"}; requireGitIdentity (line 180-184) returns it instead of throwing; resolveAuthorEmail (line 196-210) and resolveAuthorName (217-228) fall back to it. (2) Write path: src/mcp/tools/remember.ts:232 uses getAuthorEmail() -> attribution.ts:49 -> resolveEmail() -> anonymous fallback; src/http/routes/memories.ts:759 passes principal author only when authenticated, else rememberTool falls back. (3) autocommit.ts:506 and :671 use requireGitIdentity and pass identity via `-c user.name/user.email` per-invocation, never writing repo config. (4) README.md:93 and :137 no longer contradict the no-identity promise \u2014 they document the anonymous stamp. (5) Tests: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` => exit 0, \"Test Files 2 passed (2) / Tests 18 passed (18)\"; verbose run shows (b2) resolver fallback to anonymous and (b3) no-identity autocommit lands attributed \"Anonymous <anonymous@duckbrain.local>\" with no local config pin, all green. zod email check on anonymous@duckbrain.local => true. Full-suite run was started in background but did not complete within the tool's 30s-per-call cap before the time budget expired; targeted no-identity tests are green.",
+                "resolution_probability": 0.28
+              }
+            ],
+            "summary": "Partial verdict \u2014 all verified criteria passed"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1013-01\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 writes succeed with no git identity configured, deterministic author, README contradiction removed, no-identity tests green: PASS: (1) src/git/identity.ts:109-112 ANONYMOUS_IDENTITY = {name:\"Anonymous\", email:\"anonymous@duckbrain.local\"}; requireGitIdentity (line 180-184) returns it instead of throwing; resolveAuthorEmail (line 196-210) and resolveAuthorName (217-228) fall back to it. (2) Write path: src/mcp/tools/remember.ts:232 uses getAuthorEmail() -> attribution.ts:49 -> resolveEmail() -> anonymous fallback; src/http/routes/memories.ts:759 passes principal author only when authenticated, else rememberTool falls back. (3) autocommit.ts:506 and :671 use requireGitIdentity and pass identity via `-c user.name/user.email` per-invocation, never writing repo config. (4) README.md:93 and :137 no longer contradict the no-identity promise \u2014 they document the anonymous stamp. (5) Tests: `npx vitest run src/git/identity.test.ts src/git/attribution.test.ts` => exit 0, \"Test Files 2 passed (2) / Tests 18 passed (18)\"; verbose run shows (b2) resolver fallback to anonymous and (b3) no-identity autocommit lands attributed \"Anonymous <anonymous@duckbrain.local>\" with no local config pin, all green. zod email check on anonymous@duckbrain.local => true. Full-suite run was started in background but did not complete within the tool's 30s-per-call cap before the time budget expired; targeted no-identity tests are green.\nPartial verdict \u2014 all verified criteria passed\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-14T15:38:10.202546",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-14T15:38:10.895129+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 538,
+        "truncated": false,
+        "source": "git show d2fe335edf9e"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1322,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1013-01"
+  }
+}

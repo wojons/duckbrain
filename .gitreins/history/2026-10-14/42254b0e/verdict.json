@@ -1,0 +1,103 @@
+{
+  "task_id": "DF-1013-02",
+  "task_title": "corrupt manifest graded as warmup failure",
+  "task_criteria": [
+    "namespace with unparseable manifest.json reports failed/skipped at warm-up, counted in skipped total, corrupt-manifest test cell green"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "c95dd5e00995e4023a4efc3c023eb4e84cbf7ead",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:47AM INF scanned ~42568925 bytes (42.57 MB) in 4.58s\n8:47AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053560 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261014T124345.164402Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\nstderr | src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-a' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-b' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-quick' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-slow' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: 9 namespace(s) warmed, 4 skipped, 6556ms total [waraug-broken=99ms scanned idx=fresh, waraug-budget-a=1500ms SKIPPED, waraug-budget-b=1500ms SKIPPED, waraug-corrupt=0ms connection-only idx=fresh, waraug-data=105ms scanned idx=fresh, waraug-e2e=65ms scanned idx=fresh, waraug-guarded=53ms scanned idx=fresh, waraug-healthy=35ms scanned idx=fresh, waraug-manifested=51ms scanned idx=fresh, waraug-quick=1500ms SKIPPED, waraug-scan=119ms scanned idx=fresh, waraug-search-build=29ms scanned idx=fresh, waraug-slow=1500ms SKIPPED]\n\n \u276f src/http/namespace-warmup-aug096.test.ts (15 tests | 1 failed) 39970ms\n   \u276f AUG-096 namespace warm-up (15)\n     \u00d7 per-namespace timeout knob: a hung warm is reported after the bound without failing the pass 1885ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\nAssertionError: expected false to be true // Object.is equality\n\n- Expected\n+ Received\n\n- true\n+ false\n\n \u276f src/http/namespace-warmup-aug096.test.ts:611:48\n    609|     expect(byName.get(\"waraug-slow\")?.warmed).toBe(false);\n    610|     expect(String(byName.get(\"waraug-slow\")?.error)).toContain(\"timed \u2026\n    611|     expect(byName.get(\"waraug-quick\")?.warmed).toBe(true);\n       |                                                ^\n    612|     expect(byName.get(\"waraug-quick\")?.scanned).toBe(true);\n    613|     expect(slow).toBeTruthy();\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 222 passed (223)\n      Tests  1 failed | 1850 passed (1851)\n   Start at  08:47:31\n   Duration  103.24s (tests 85%, import 12%, transform 2%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261014T124345.164402Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 namespace with unparseable manifest.json reports failed/skipped at warm-up, counted in skipped total, corrupt-manifest test cell green: The fix is NOT present in the evaluated working tree. HEAD is c95dd5e0 (main); `git merge-base --is-ancestor 83b3e0f2 HEAD` returns NO \u2014 commit 83b3e0f2 'fix(df-1013-02): corrupt manifest graded as warmup failure (not warmed)' exists only on the unmerged branch wt/DF-1013-02 (worktree /home/kara/worktrees/duckbrain-DF-1013-02). In the evaluated tree, src/http/namespace-warmup.ts:203-207 still contains the OLD `catch { partitionPaths = []; }` (connection-only warm-up), and `grep -n 'manifest.json is corrupt' src/http/namespace-warmup.ts src/http/namespace-warmup-aug096.test.ts` exits 1 (no matches). Running `npx vitest run src/http/namespace-warmup-aug096.test.ts --reporter=verbose` on HEAD shows the old grading: log line 'waraug-corrupt=0ms connection-only idx=fresh' with '0 skipped' \u2014 the corrupt namespace is reported WARMED, not failed/skipped. The only corrupt-manifest test cell in the tree is the old one at src/http/namespace-warmup-aug096.test.ts:372 ('a corrupted manifest degrades to connection-only warm-up (no throw)') which asserts `result.warmed).toBe(true)` \u2014 the opposite of the criterion. For reference, on branch wt/DF-1013-02 the fix does work (16/16 tests pass; logs 'namespace \\'broken-ns\\' failed in 0ms and was skipped: manifest.json is corrupt (unparseable)' and '2 skipped ... broken-ns=0ms SKIPPED'), but that code was never merged into the evaluated tree, so the criterion is unmet here.\nThe DF-1013-02 fix (commit 83b3e0f2) lives only on the unmerged branch wt/DF-1013-02; the evaluated HEAD c95dd5e0 still grades a corrupt manifest as warmed with 0 skipped and its corrupt-manifest test asserts warmed:true, so the criterion fails.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 namespace with unparseable manifest.json reports failed/skipped at warm-up, counted in skipped total, corrupt-manifest test cell green: The fix is NOT present in the evaluated working tree. HEAD is c95dd5e0 (main); `git merge-base --is-ancestor 83b3e0f2 HEAD` returns NO \u2014 commit 83b3e0f2 'fix(df-1013-02): corrupt manifest graded as warmup failure (not warmed)' exists only on the unmerged branch wt/DF-1013-02 (worktree /home/kara/worktrees/duckbrain-DF-1013-02). In the evaluated tree, src/http/namespace-warmup.ts:203-207 still contains the OLD `catch { partitionPaths = []; }` (connection-only warm-up), and `grep -n 'manifest.json is corrupt' src/http/namespace-warmup.ts src/http/namespace-warmup-aug096.test.ts` exits 1 (no matches). Running `npx vitest run src/http/namespace-warmup-aug096.test.ts --reporter=verbose` on HEAD shows the old grading: log line 'waraug-corrupt=0ms connection-only idx=fresh' with '0 skipped' \u2014 the corrupt namespace is reported WARMED, not failed/skipped. The only corrupt-manifest test cell in the tree is the old one at src/http/namespace-warmup-aug096.test.ts:372 ('a corrupted manifest degrades to connection-only warm-up (no throw)') which asserts `result.warmed).toBe(true)` \u2014 the opposite of the criterion. For reference, on branch wt/DF-1013-02 the fix does work (16/16 tests pass; logs 'namespace \\'broken-ns\\' failed in 0ms and was skipped: manifest.json is corrupt (unparseable)' and '2 skipped ... broken-ns=0ms SKIPPED'), but that code was never merged into the evaluated tree, so the criterion is unmet here.\nThe DF-1013-02 fix (commit 83b3e0f2) lives only on the unmerged branch wt/DF-1013-02; the evaluated HEAD c95dd5e0 still grades a corrupt manifest as warmed with 0 skipped and its corrupt-manifest test asserts warmed:true, so the criterion fails.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "namespace with unparseable manifest.json reports failed/skipped at warm-up, counted in skipped total, corrupt-manifest test cell green",
+                "status": "FAIL",
+                "detail": "The fix is NOT present in the evaluated working tree. HEAD is c95dd5e0 (main); `git merge-base --is-ancestor 83b3e0f2 HEAD` returns NO \u2014 commit 83b3e0f2 'fix(df-1013-02): corrupt manifest graded as warmup failure (not warmed)' exists only on the unmerged branch wt/DF-1013-02 (worktree /home/kara/worktrees/duckbrain-DF-1013-02). In the evaluated tree, src/http/namespace-warmup.ts:203-207 still contains the OLD `catch { partitionPaths = []; }` (connection-only warm-up), and `grep -n 'manifest.json is corrupt' src/http/namespace-warmup.ts src/http/namespace-warmup-aug096.test.ts` exits 1 (no matches). Running `npx vitest run src/http/namespace-warmup-aug096.test.ts --reporter=verbose` on HEAD shows the old grading: log line 'waraug-corrupt=0ms connection-only idx=fresh' with '0 skipped' \u2014 the corrupt namespace is reported WARMED, not failed/skipped. The only corrupt-manifest test cell in the tree is the old one at src/http/namespace-warmup-aug096.test.ts:372 ('a corrupted manifest degrades to connection-only warm-up (no throw)') which asserts `result.warmed).toBe(true)` \u2014 the opposite of the criterion. For reference, on branch wt/DF-1013-02 the fix does work (16/16 tests pass; logs 'namespace \\'broken-ns\\' failed in 0ms and was skipped: manifest.json is corrupt (unparseable)' and '2 skipped ... broken-ns=0ms SKIPPED'), but that code was never merged into the evaluated tree, so the criterion is unmet here.",
+                "resolution_probability": 0.29,
+                "cited_path": "manifest.json"
+              }
+            ],
+            "summary": "The DF-1013-02 fix (commit 83b3e0f2) lives only on the unmerged branch wt/DF-1013-02; the evaluated HEAD c95dd5e0 still grades a corrupt manifest as warmed with 0 skipped and its corrupt-manifest test asserts warmed:true, so the criterion fails."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1013-02\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 namespace with unparseable manifest.json reports failed/skipped at warm-up, counted in skipped total, corrupt-manifest test cell green: The fix is NOT present in the evaluated working tree. HEAD is c95dd5e0 (main); `git merge-base --is-ancestor 83b3e0f2 HEAD` returns NO \u2014 commit 83b3e0f2 'fix(df-1013-02): corrupt manifest graded as warmup failure (not warmed)' exists only on the unmerged branch wt/DF-1013-02 (worktree /home/kara/worktrees/duckbrain-DF-1013-02). In the evaluated tree, src/http/namespace-warmup.ts:203-207 still contains the OLD `catch { partitionPaths = []; }` (connection-only warm-up), and `grep -n 'manifest.json is corrupt' src/http/namespace-warmup.ts src/http/namespace-warmup-aug096.test.ts` exits 1 (no matches). Running `npx vitest run src/http/namespace-warmup-aug096.test.ts --reporter=verbose` on HEAD shows the old grading: log line 'waraug-corrupt=0ms connection-only idx=fresh' with '0 skipped' \u2014 the corrupt namespace is reported WARMED, not failed/skipped. The only corrupt-manifest test cell in the tree is the old one at src/http/namespace-warmup-aug096.test.ts:372 ('a corrupted manifest degrades to connection-only warm-up (no throw)') which asserts `result.warmed).toBe(true)` \u2014 the opposite of the criterion. For reference, on branch wt/DF-1013-02 the fix does work (16/16 tests pass; logs 'namespace \\'broken-ns\\' failed in 0ms and was skipped: manifest.json is corrupt (unparseable)' and '2 skipped ... broken-ns=0ms SKIPPED'), but that code was never merged into the evaluated tree, so the criterion is unmet here.\nThe DF-1013-02 fix (commit 83b3e0f2) lives only on the unmerged branch wt/DF-1013-02; the evaluated HEAD c95dd5e0 still grades a corrupt manifest as warmed with 0 skipped and its corrupt-manifest test asserts warmed:true, so the criterion fails.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-14T13:51:57.516350",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-14T13:51:57.540705+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 35768,
+        "truncated": false,
+        "source": "git show c95dd5e00995"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1273,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1013-02"
+  }
+}
