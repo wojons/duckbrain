@@ -109,7 +109,8 @@ Examples:
   duckbrain echo "project notes body" | duckbrain remember /notes/alpha --domain=raw_note
   duckbrain recall --prefix=/projects/
   duckbrain search "GAP-020"
-  duckbrain search-index rebuild
+  duckbrain search-index rebuild --namespace=default
+  duckbrain search-index rebuild --all   # confirm the ALL-namespaces rebuild
   duckbrain list-keys --depth=3 --limit=20
   duckbrain forget abc-123 --reason="obsolete"
   duckbrain status --namespace=default

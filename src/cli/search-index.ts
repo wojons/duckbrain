@@ -2,8 +2,9 @@
  * `duckbrain search-index` CLI — keyword search index management (RETR-001)
  *
  * Subcommands:
- *   rebuild [--namespace=X] [--detached] [--log=PATH]
- *                                       Rebuild the FTS sidecar for one or all namespaces
+ *   rebuild [--namespace=X] [--detached] [--log=PATH] [--all|--yes]
+ *                                       Rebuild the FTS sidecar for one namespace, or ALL
+ *                                       namespaces when --all/--yes is passed (DF-1013-04 guard)
  *   status  [--namespace=X]             Show index status for a namespace
  *   install-hooks [--namespace=X]       Install git hooks that rebuild on clone/pull/rewrite
  *
@@ -35,6 +36,9 @@ interface SearchIndexArgs {
   namespace?: string;
   detached?: boolean;
   log?: string;
+  /** DF-1013-04: explicit confirmation for the rebuild-ALL verb. */
+  all?: boolean;
+  yes?: boolean;
 }
 
 export function parseArgs(args: string[]): SearchIndexArgs {
@@ -53,6 +57,10 @@ export function parseArgs(args: string[]): SearchIndexArgs {
       out.log = rest[++i];
     } else if (a.startsWith("--log=")) {
       out.log = a.slice("--log=".length);
+    } else if (a === "--all") {
+      out.all = true;
+    } else if (a === "--yes") {
+      out.yes = true;
     }
   }
   return out;
@@ -121,6 +129,20 @@ async function cmdRebuild(opts: SearchIndexArgs): Promise<void> {
   // No --namespace: rebuild every namespace under the namespaces root.
   // GAP-062: with no --namespace, scan the root derived from the config file's
   // own directory — never the caller's cwd.
+  //
+  // DF-1013-04: the bare verb silently rebuilt ALL 813 live namespaces
+  // (>180s of real DuckDB rebuild work) — an easy accidental trigger. It now
+  // refuses unless the operator passes --yes (or --all, the explicit opt-in)
+  // with the namespace count stated up front.
+  if (!opts.yes && !opts.all) {
+    const root = resolveNamespacesPath();
+    const count = listNamespaces(root).length;
+    console.error(
+      `Refusing to rebuild ALL ${count} namespace(s) under ${root} — pass --all (or --yes) to confirm, or --namespace=<name> to rebuild one.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   const root = resolveNamespacesPath();
   const namespaces = listNamespaces(root);
   if (namespaces.length === 0) {

@@ -53,6 +53,9 @@ export interface SearchOutput {
   namespacesSearched?: string[];
   /** RETR-007: namespaces skipped — no rebuilt index (all-namespaces union) */
   namespacesSkipped?: string[];
+  /** DF-1013-04: per-namespace failures on the all-namespaces union (corrupt
+   *  sidecar etc.) — the union itself succeeded. */
+  namespaceErrors?: Array<{ namespace: string; error: string }>;
   error?: string;
 }
 
@@ -129,6 +132,9 @@ export async function searchTool(input: unknown): Promise<SearchOutput> {
         : {}),
       ...(result.namespacesSkipped
         ? { namespacesSkipped: result.namespacesSkipped }
+        : {}),
+      ...(result.namespaceErrors
+        ? { namespaceErrors: result.namespaceErrors }
         : {}),
     };
   } catch (error) {
