@@ -32,6 +32,110 @@ import {
 } from "./manifest";
 import type { S3Config } from "./config";
 import { isPidAlive } from "../utils/pidfile";
+import { createHash } from "crypto";
+
+/**
+ * S3-GIT-008 — content identity.
+ *
+ * Chosen approach (why this shape):
+ *  - LOCAL identity is always sha256 of the file bytes. Weak hashes were the
+ *    root cause of S3-GIT-008 (size+mtimeMs alone silently equated two
+ *    different payloads), so identity is cryptographic, not heuristic.
+ *  - The sha256 is PERSISTED per file in the sync manifest at upload time and
+ *    compared on later passes — this is the primary remote comparison and
+ *    needs no network round-trips.
+ *  - Remote objects are NOT fetched+hashed speculatively. The ETag serves at
+ *    two strengths: (a) a single-part ETag IS the object's md5, so the md5
+ *    comparison is authoritative in BOTH directions — a match against the
+ *    local md5 proves byte equality, a mismatch proves divergence; (b) a
+ *    multipart ETag (`<hex>-<parts>` — the dash means the hex prefix is a
+ *    per-part md5 composite, NOT the object checksum) carries no comparable
+ *    checksum, so it is only matched against the ETag our own manifest
+ *    recorded at the last successful transfer (a version token): unchanged
+ *    listed ETag + intact local identity ⇒ remote untouched; changed ETag ⇒
+ *    the object was rewritten server-side and must be repaired even though
+ *    we can never compare its checksum. A dash-containing ETag is therefore
+ *    NEVER treated as a content checksum — equality is only ever judged
+ *    against a value we recorded ourselves from the same server.
+ *  - When no evidence tier can decide (no identity record, no usable ETag),
+ *    the caller downloads (pull) or re-uploads (push) — a redundant transfer
+ *    is the accepted cost of never equating different payloads.
+ */
+
+/** sha256 (hex) of a buffer — the local content-identity function. */
+export function sha256Hex(buf: Buffer): string {
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+/** ETag is a usable md5 checksum only when single-part (no '-') and hex. */
+function etagChecksum(etag: string | undefined): string | null {
+  if (!etag) return null;
+  const hex = etag.replace(/"/g, "").trim();
+  if (hex.length !== 32) return null;
+  if (hex.includes("-")) return null; // multipart ETag — NOT a checksum
+  return /^[0-9a-fA-F]{32}$/.test(hex) ? hex.toLowerCase() : null;
+}
+
+/** md5 (hex, lowercase) of a buffer — matches a single-part S3 ETag. */
+function md5Hex(buf: Buffer): string {
+  return createHash("md5").update(buf).digest("hex");
+}
+
+/**
+ * Remote identity verdict for `localBytes` vs the listed remote object.
+ * Two outcomes — "same" is only ever returned when sameness is PROVEN;
+ * every unproven case ("transfer") makes the caller act conservatively:
+ * re-upload on push, download (repair) on pull.
+ *
+ * Evidence tiers, strongest first:
+ *  1. USABLE md5 ETag (single-part, 32-hex, no '-'): authoritative — a match
+ *     against the local md5 pins the remote bytes byte-for-byte → "same";
+ *     a mismatch proves divergence → "transfer". (A dash-containing ETag is
+ *     NEVER compared as a checksum: the hex prefix of `<hex>-<parts>` is a
+ *     per-part md5 composite, not the object checksum.)
+ *  2. Recorded ETag from our own manifest (written at the last successful
+ *     transfer): a VERSION TOKEN, not a checksum. Listed ETag EQUALS it while
+ *     the recorded sha256 still matches the local bytes ⇒ the object is
+ *     untouched since we transferred those exact bytes → "same". Any other
+ *     combination (rewritten ETag — including a multipart one we could never
+ *     checksum-compare — or locally diverged bytes) → "transfer".
+ *  3. Manifest sha256 identity alone (legacy pre-008 records): "same" only
+ *     when the wire shows NO ETag at all; an unverifiable ETag on the wire
+ *     means the object MIGHT have been rewritten since our last sync, and we
+ *     have no recorded ETag to compare → repair conservatively. (One-time
+ *     migration cost: the first pass after the upgrade re-transfers affected
+ *     files and records their ETags, after which tier 1/2 decide.)
+ */
+function remoteIdentity(
+  localBytes: Buffer,
+  manifestMeta: FileMeta | undefined,
+  remoteObj: RemoteObject,
+): "same" | "transfer" {
+  // Tier 1: usable (single-part) ETag as a real checksum.
+  const checksum = etagChecksum(remoteObj.etag);
+  if (checksum) return checksum === md5Hex(localBytes) ? "same" : "transfer";
+
+  // Tier 2: our own recorded ETag as a version token.
+  if (manifestMeta?.etag !== undefined) {
+    const listed = (remoteObj.etag ?? "").replace(/"/g, "").trim();
+    const identityStillHolds =
+      manifestMeta.sha256 === undefined ||
+      manifestMeta.sha256 === sha256Hex(localBytes);
+    return listed === manifestMeta.etag && identityStillHolds
+      ? "same"
+      : "transfer";
+  }
+
+  // Tier 3: legacy manifest sha256 identity, only with no ETag on the wire.
+  if (
+    remoteObj.etag === undefined &&
+    manifestMeta?.sha256 !== undefined &&
+    manifestMeta.sha256 === sha256Hex(localBytes)
+  ) {
+    return "same";
+  }
+  return "transfer";
+}
 
 /** Directories never synced (per-namespace repo internals). */
 const EXCLUDED_DIRS = new Set([
@@ -110,10 +214,27 @@ export interface SyncDeltas {
   toUpload: LocalFile[];
   toDownload: { key: string; relPath: string; size: number }[];
   skipped: number;
+  /**
+   * S3-GIT-008: which files the `skipped` count refers to. Only these were
+   * proven present-and-identical on the remote this pass, so only these may
+   * be carried forward into the saved manifest.
+   */
+  skippedRelPaths: string[];
 }
 
 /**
  * Compute push/pull deltas from local walk + remote listing + last manifest.
+ *
+ * S3-GIT-008: `localContents` (relPath → bytes, sampled by the caller at the
+ * SAME moment as the walk) carries content identity. Deltas are decided by
+ * content, never by size+mtime alone:
+ *  - push uploads when the local bytes' identity diverges from what the
+ *    manifest recorded as last-synced (same-size corruption included), or
+ *    when the remote side cannot be proven current;
+ *  - pull downloads when the remote side is not provably identical to the
+ *    local bytes (md5 ETag hint when available; multipart '-' ETags are never
+ *    trusted as checksums and force the download).
+ *
  * Pure function (unit-tested offline).
  */
 export function computeDeltas(
@@ -122,23 +243,53 @@ export function computeDeltas(
   local: Map<string, LocalFile>,
   remote: Map<string, RemoteObject>,
   manifest: S3SyncManifest | null,
+  localContents?: Map<string, Buffer>,
 ): SyncDeltas {
   const prefix = `${cfg.prefix}/${ns}/`;
   const toUpload: LocalFile[] = [];
   const toDownload: { key: string; relPath: string; size: number }[] = [];
+  const skippedRelPaths: string[] = [];
   let skipped = 0;
 
   for (const [relPath, file] of local) {
     const key = `${prefix}${relPath}`;
     const remoteObj = remote.get(key);
     const prev = manifest?.files?.[relPath];
+    const content = localContents?.get(relPath);
+
+    // ---- local-side change detection (content identity, not size+mtime) ----
     const localUnchanged =
       prev !== undefined &&
       prev.size === file.size &&
-      prev.mtimeMs === file.mtimeMs;
-    if (localUnchanged && remoteObj && remoteObj.size === file.size) {
+      prev.mtimeMs === file.mtimeMs &&
+      (prev.sha256 === undefined ||
+        (content !== undefined && prev.sha256 === sha256Hex(content)));
+
+    if (content === undefined) {
+      // No bytes available → fall back to the historical metadata-only
+      // comparison (best effort, no fabricated identity).
+      if (localUnchanged && remoteObj && remoteObj.size === file.size) {
+        skipped++;
+        skippedRelPaths.push(relPath);
+      } else {
+        toUpload.push(file);
+      }
+      continue;
+    }
+
+    if (remoteObj === undefined) {
+      toUpload.push(file); // never synced remotely
+      continue;
+    }
+
+    const identity = remoteIdentity(content, prev, remoteObj);
+    if (identity === "same" && remoteObj.size === file.size) {
       skipped++;
+      skippedRelPaths.push(relPath);
     } else {
+      // Identity unknown (incl. same-size divergent content) → re-upload;
+      // or identity byte-equal but metadata disagrees — refresh remote
+      // metadata so the recorded size stops drifting (S3-GIT-008 probe).
       toUpload.push(file);
     }
   }
@@ -147,12 +298,28 @@ export function computeDeltas(
     if (!key.startsWith(prefix)) continue;
     const relPath = key.slice(prefix.length);
     const localFile = local.get(relPath);
-    if (!localFile || localFile.size !== obj.size) {
+
+    if (!localFile) {
       toDownload.push({ key, relPath, size: obj.size });
+      continue;
     }
+
+    const content = localContents?.get(relPath);
+    if (content === undefined) {
+      // No bytes available → fall back to the historical metadata-only rule
+      // (size difference), never a fabricated identity.
+      if (localFile.size !== obj.size) {
+        toDownload.push({ key, relPath, size: obj.size });
+      }
+      continue;
+    }
+    if (remoteIdentity(content, manifest?.files?.[relPath], obj) === "same") {
+      continue; // provably identical — no repair
+    }
+    toDownload.push({ key, relPath, size: obj.size });
   }
 
-  return { toUpload, toDownload, skipped };
+  return { toUpload, toDownload, skipped, skippedRelPaths };
 }
 
 export interface SyncLock {
@@ -235,6 +402,38 @@ export async function listRemoteNamespaces(
   return [...names].sort();
 }
 
+/**
+ * Read every syncable local file's bytes at (approximately) the same moment
+ * as the walk — the content side of the S3-GIT-008 identity comparison.
+ * Files that vanish mid-read are simply absent (deltas fall back to
+ * metadata-only for them, exactly like a vanished walk entry).
+ */
+export function readLocalContents(
+  nsPath: string,
+  local: Map<string, LocalFile>,
+): Map<string, Buffer> {
+  const out = new Map<string, Buffer>();
+  for (const relPath of local.keys()) {
+    try {
+      out.set(relPath, fs.readFileSync(path.join(nsPath, relPath)));
+    } catch {
+      // vanished between walk and read — no identity available
+    }
+  }
+  return out;
+}
+
+/**
+ * Content identity for a file ALREADY IN HAND (no second disk read): sha256
+ * of its bytes plus the ETag the server assigned to those bytes.
+ */
+function fileContentsIdentity(
+  body: Buffer,
+  remoteEtag: string | undefined,
+): Pick<FileMeta, "sha256" | "etag"> {
+  return { sha256: sha256Hex(body), ...(remoteEtag ? { etag: remoteEtag } : {}) };
+}
+
 /** Push a single namespace's deltas to S3. */
 export async function pushNamespace(
   cfg: S3Config,
@@ -252,45 +451,93 @@ export async function pushNamespace(
     listRemoteObjects(client, cfg.bucket, prefix),
     Promise.resolve(loadManifest(namespacesPath, ns)),
   ]);
+  const contents = readLocalContents(nsDir, local);
 
-  const deltas = computeDeltas(cfg, ns, local, remote, manifest);
+  const deltas = computeDeltas(
+    cfg,
+    ns,
+    local,
+    remote,
+    manifest,
+    contents,
+  );
   let uploaded = 0;
+  /**
+   * S3-GIT-008: the manifest records ONLY files whose bytes are provably on
+   * the remote — either uploaded successfully in this pass, or skipped as
+   * unchanged-and-confirmed (identical identity + size) against the remote
+   * listing. A failed PUT must never be recorded as synced, or the next pass
+   * would trust the manifest and skip the retry forever.
+   */
+  const syncedFiles: Record<string, FileMeta> = {};
 
   for (const file of deltas.toUpload) {
+    const content = contents.get(file.relPath);
     let body: Buffer;
-    try {
-      body = fs.readFileSync(path.join(nsDir, file.relPath));
-    } catch {
-      // File vanished between the walk and the read — the namespace was
-      // deleted (or the file removed) mid-push. Skip it SILENTLY: the next
-      // pass must not retry it forever, and the ENOENT storm this once
-      // produced (98 log lines over auger-pytest ghosts, 2026-09-21/22) is
-      // noise, not signal. The manifest is refreshed from the CURRENT walk
-      // below, so the vanished file also drops out of future deltas.
-      continue;
+    if (content !== undefined) {
+      body = content;
+    } else {
+      try {
+        body = fs.readFileSync(path.join(nsDir, file.relPath));
+      } catch {
+        // File vanished between the walk and the read — the namespace was
+        // deleted (or the file removed) mid-push. Skip it SILENTLY: the next
+        // pass must not retry it forever, and the ENOENT storm this once
+        // produced (98 log lines over auger-pytest ghosts, 2026-09-21/22) is
+        // noise, not signal. It is also NOT recorded in the manifest (its
+        // bytes could not be confirmed anywhere).
+        continue;
+      }
     }
+    const key = remoteKeyFor(cfg, ns, file.relPath);
     try {
       const ext = path.extname(file.relPath).toLowerCase();
-      await putObject(
+      // The PUT's own response ETag is the version token for EXACTLY the
+      // bytes just uploaded (the pre-push listing's ETag may be absent or
+      // stale for a fresh/changed object). Recording it is what lets later
+      // passes prove remote sameness without re-uploading.
+      const putEtag = await putObject(
         client,
         cfg.bucket,
-        remoteKeyFor(cfg, ns, file.relPath),
+        key,
         body,
         CONTENT_TYPES[ext] ?? "application/octet-stream",
       );
       uploaded++;
+      // Success ONLY here — after the PUT resolved. A failed PUT must never
+      // be recorded as synced, or the next pass would trust the manifest and
+      // skip the retry forever (S3-GIT-008).
+      syncedFiles[file.relPath] = {
+        size: file.size,
+        mtimeMs: file.mtimeMs,
+        ...fileContentsIdentity(body, putEtag),
+      };
     } catch (err) {
+      // Failed PUT: loud warn, and NOT added to syncedFiles — the next pass
+      // retries this object (S3-GIT-008).
       console.warn(
         `[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`,
       );
     }
   }
 
-  const files: Record<string, FileMeta> = {};
-  for (const [relPath, f] of local) {
-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+  // Carry forward previously-synced files that were skipped this pass as
+  // unchanged (their bytes are already confirmed on the remote), preserving
+  // their recorded identity.
+  for (const relPath of deltas.skippedRelPaths) {
+    const prev = manifest?.files?.[relPath];
+    const f = local.get(relPath);
+    if (prev && f) {
+      syncedFiles[relPath] = {
+        size: f.size,
+        mtimeMs: f.mtimeMs,
+        ...(prev.sha256 !== undefined ? { sha256: prev.sha256 } : {}),
+        ...(prev.etag !== undefined ? { etag: prev.etag } : {}),
+      };
+    }
   }
-  saveManifest(makeManifest(ns, files), namespacesPath);
+
+  saveManifest(makeManifest(ns, syncedFiles), namespacesPath);
 
   return {
     ns,
@@ -302,7 +549,14 @@ export async function pushNamespace(
   };
 }
 
-/** Pull a single namespace's missing/changed files from S3. */
+/**
+ * Pull a single namespace's missing/changed files from S3.
+ *
+ * S3-GIT-008: the delta decision carries content identity, so a same-length
+ * remote update is repaired instead of being silently equated with the
+ * (possibly corrupted) local copy. The saved manifest records the sha256 of
+ * the bytes actually on disk after the pull.
+ */
 export async function pullNamespace(
   cfg: S3Config,
   ns: string,
@@ -314,12 +568,18 @@ export async function pullNamespace(
   const nsDir = namespacePath(namespacesPath, ns);
   const prefix = `${cfg.prefix}/${ns}/`;
 
-  const [local, remote] = await Promise.all([
+  const [local, remote, manifest] = await Promise.all([
     Promise.resolve(walkLocal(nsDir)),
     listRemoteObjects(client, cfg.bucket, prefix),
+    // S3-GIT-008: the pull comparison needs the previously recorded ETags
+    // (version tokens) to prove which remote objects are untouched.
+    Promise.resolve(loadManifest(namespacesPath, ns)),
   ]);
-  const deltas = computeDeltas(cfg, ns, local, remote, null);
+  const contents = readLocalContents(nsDir, local);
+  const deltas = computeDeltas(cfg, ns, local, remote, manifest, contents);
   let downloaded = 0;
+  /** relPaths whose bytes were written to disk this pass. */
+  const repaired = new Set<string>();
 
   for (const item of deltas.toDownload) {
     try {
@@ -328,6 +588,7 @@ export async function pullNamespace(
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       fs.writeFileSync(dest, body);
       downloaded++;
+      repaired.add(item.relPath);
     } catch (err) {
       console.warn(
         `[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`,
@@ -335,11 +596,39 @@ export async function pullNamespace(
     }
   }
 
-  // Refresh manifest from the post-pull local state
+  /**
+   * S3-GIT-008 manifest refresh. The saved manifest now carries content
+   * identity (sha256 of the bytes actually on disk — including every
+   * repaired file) plus, per remote object, the ETag OBSERVED AT LIST TIME
+   * for the bytes we just verified. A file whose download FAILED this pass
+   * keeps its PREVIOUS manifest entry verbatim (or stays absent) — never
+   * marked synced against bytes we could not obtain.
+   */
   const fresh = walkLocal(nsDir);
+  const freshContents = readLocalContents(nsDir, fresh);
   const files: Record<string, FileMeta> = {};
   for (const [relPath, f] of fresh) {
-    files[relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+    const bytes = freshContents.get(relPath);
+    const key = `${prefix}${relPath}`;
+    const listedEtag = remote.get(key)?.etag;
+    const prev = manifest?.files?.[relPath];
+    files[relPath] = {
+      size: f.size,
+      mtimeMs: f.mtimeMs,
+      ...(bytes ? { sha256: sha256Hex(bytes) } : {}),
+      // For repaired files the listed ETag corresponds to the (freshly
+      // verified) remote bytes. For untouched files keep the previously
+      // recorded token; for files that FAILED to download the stale listed
+      // ETag must NOT be adopted — keep the previous entry's token so the
+      // next pass re-examines the object.
+      ...(repaired.has(relPath)
+        ? listedEtag
+          ? { etag: listedEtag }
+          : {}
+        : prev?.etag !== undefined
+          ? { etag: prev.etag }
+          : {}),
+    };
   }
   saveManifest(makeManifest(ns, files), namespacesPath);
 

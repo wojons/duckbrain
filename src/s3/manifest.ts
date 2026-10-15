@@ -12,6 +12,22 @@ import path from "path";
 export interface FileMeta {
   size: number;
   mtimeMs: number;
+  /**
+   * S3-GIT-008: sha256 (hex) of the file bytes at the last successful sync.
+   * Optional so manifests written before this field existed still load; a
+   * manifest without identities converges to hashed ones as files are
+   * successfully pushed/pulled (metadata-only skips never FABRICATE one —
+   * that would bless possibly-corrupted bytes as synced).
+   */
+  sha256?: string;
+  /**
+   * S3-GIT-008: the remote object's ETag as observed at the last successful
+   * transfer. Used as a version token (NOT a checksum — multipart ETags are
+   * not md5): when the listed ETag differs from the recorded one, the object
+   * was rewritten since our last sync and must be re-examined, even when the
+   * new ETag carries no usable checksum.
+   */
+  etag?: string;
 }
 
 export interface S3SyncManifest {

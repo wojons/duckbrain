@@ -78,15 +78,15 @@ export async function listRemoteObjects(
   return out;
 }
 
-/** Upload a local file buffer to a key. */
+/** Upload a local file buffer to a key. Returns the ETag S3 assigned. */
 export async function putObject(
   client: S3Client,
   bucket: string,
   key: string,
   body: Buffer,
   contentType: string,
-): Promise<void> {
-  await client.send(
+): Promise<string | undefined> {
+  const resp = await client.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -94,6 +94,7 @@ export async function putObject(
       ContentType: contentType,
     }),
   );
+  return resp.ETag;
 }
 
 /** Download an object's body as a Buffer. */
