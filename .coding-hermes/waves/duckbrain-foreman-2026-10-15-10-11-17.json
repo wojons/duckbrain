@@ -1,0 +1,1 @@
+{"tick": "duckbrain-foreman-2026-10-15-10-11-17", "created": "2026-10-15T10:25:00Z", "budget": 8, "workers": [{"task_id": "DF-1013-04", "worktree": "/home/kara/worktrees/duckbrain-DF-1013-04", "branch": "wt/DF-1013-04", "base_sha": "72a9b37e"}, {"task_id": "INT-CI-030", "worktree": "/home/kara/worktrees/duckbrain-INT-CI-030", "branch": "wt/INT-CI-030", "base_sha": "72a9b37e"}]}
