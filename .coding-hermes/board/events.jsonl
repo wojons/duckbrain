@@ -984,3 +984,4 @@
 {"id": 8162, "timestamp": "2026-10-15T10:55:11Z", "event_type": "task_updated", "task_id": "DB-SUPA-4", "actor": "foreman", "detail": "{\"status\":\"pending\"}"}
 {"id": 8163, "timestamp": "2026-10-15T10:55:11Z", "event_type": "task_updated", "task_id": "DB-SUPA-8", "actor": "foreman", "detail": "{\"status\":\"pending\"}"}
 {"id": 8164, "timestamp": "2026-10-15T11:20:00Z", "event_type": "task_completed", "task_id": "INT-CI-030", "actor": "foreman", "detail": "verification-only close: fix landed 7332afcd on main (2026-10-13); foreman verified push-gate+dogfood010 15/15 at HEAD; worker RED-proof 4F/8P with isolation removed. Pre-existing red cleared."}
+{"id": 8165, "timestamp": "2026-10-15T11:20:38Z", "event_type": "task_updated", "task_id": "DB-SUPA-8", "actor": "foreman", "detail": "Evidence correction: package.json declares duckbrain@1.0.0, not @wojons/duckbrain; npm view duckbrain@1.0.0 returned E404."}
