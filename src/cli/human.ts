@@ -632,6 +632,17 @@ async function searchCommand(args: string[]): Promise<void> {
         `Note: skipped ${result.namespacesSkipped.length} namespace(s) with no search index: ${result.namespacesSkipped.join(", ")} — run 'duckbrain search-index rebuild' to include them`,
       );
     }
+
+    // DF-1013-04: per-namespace search failures (corrupt sidecar) degrade
+    // to facets — surface them so a silently partial union is not trusted.
+    if (result.namespaceErrors && result.namespaceErrors.length > 0) {
+      console.error(
+        `Note: ${result.namespaceErrors.length} namespace(s) failed keyword search: ` +
+          result.namespaceErrors
+            .map((e) => `${e.namespace} (${e.error})`)
+            .join("; "),
+      );
+    }
   } catch (error) {
     console.error("Error:", error instanceof Error ? error.message : error);
     process.exit(1);

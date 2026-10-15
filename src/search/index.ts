@@ -44,6 +44,102 @@ export const SEARCH_ROW_COLUMNS =
 /** DuckDB connection options — one thread, matching connection.ts. */
 export const DB_CONFIG = { threads: "1" };
 
+/**
+ * DF-1013-04: cross-process single-flight lock for sidecar rebuilds.
+ *
+ * The live fleet runs ELEVEN stdio MCP daemons plus the HTTP daemon, and
+ * every one of them rebuilds the SAME `.search/` sidecars (boot warm-up
+ * + read-path auto-build). `rebuildNamespaceIndex` wipes the sidecar
+ * directory before building, so two concurrent rebuilds interleave:
+ * process A finishes and renames its fresh DB into place, then process B's
+ * `rm -rf` deletes A's completed sidecar before B renames its own — the
+ * observed failure mode (53/813 empty sidecars, ~20 missing fts schema,
+ * every allNamespaces union 400ing, 2026-10-13).
+ *
+ * The fix is an advisory lock file in the NAMESPACE ROOT (outside the
+ * wiped `.search/` directory — a lock inside it would be deleted by the
+ * rebuild's own wipe and let a waiter steal mid-rebuild), taken with
+ * `openSync(..., O_CREAT|O_EXCL)`. A process that loses the race POLLS
+ * until the winner finishes (the winner deletes the lock file last) and
+ * then REUSES the fresh result — never rebuilds again. A lock file is
+ * stale only when its pid is dead, so a crashed rebuilder does not wedge
+ * the namespace forever.
+ */
+export const REBUILD_LOCK_NAME = ".search.rebuild.lock";
+
+/** Poll interval while waiting on another process's rebuild (ms). */
+const REBUILD_LOCK_POLL_MS = 50;
+/** Stale-lock reaper: a lock older than this AND with a dead pid is stolen. */
+const REBUILD_LOCK_STALE_MS = 10 * 60_000;
+
+function readPidFromLockFile(lockPath: string): number | null {
+  try {
+    const raw = fs.readFileSync(lockPath, "utf8");
+    const parsed = JSON.parse(raw) as { pid?: number };
+    return typeof parsed?.pid === "number" && parsed.pid > 0
+      ? parsed.pid
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort liveness probe for the pid recorded in a lock file. */
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    return code === "EPERM"; // exists but not ours
+    // ESRCH (or anything else) = not running.
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Try to acquire the sidecar rebuild lock. Returns true when THIS process
+ * owns it (caller rebuilds), false when another process holds it (caller
+ * should wait for their result instead of rebuilding).
+ */
+function tryAcquireRebuildLock(lockPath: string): boolean {
+  try {
+    const fd = fs.openSync(lockPath, "wx");
+    try {
+      fs.writeFileSync(
+        fd,
+        JSON.stringify({ pid: process.pid, at: new Date().toISOString() }),
+        "utf8",
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "EEXIST") return false;
+    // Existing lock: steal it when stale (holder pid dead + aged).
+    const pid = readPidFromLockFile(lockPath);
+    let ageMs = 0;
+    try {
+      ageMs = Date.now() - fs.statSync(lockPath).mtimeMs;
+    } catch {
+      return false; // vanished — next loop iteration re-races
+    }
+    if (ageMs > REBUILD_LOCK_STALE_MS && pid !== null && !pidAlive(pid)) {
+      try {
+        fs.unlinkSync(lockPath);
+      } catch {
+        // Raced with another reaper — they won, we wait.
+      }
+      return false;
+    }
+    return false;
+  }
+}
+
 export function sidecarDir(namespacePath: string): string {
   return path.join(namespacePath, SEARCH_INDEX_DIR);
 }
@@ -278,6 +374,52 @@ function closeAsync(db: Database): Promise<void> {
  * @returns rebuild stats (rowCount, sourceFiles, durationMs, indexedAt)
  */
 export async function rebuildNamespaceIndex(
+  namespacePath: string,
+): Promise<IndexMeta> {
+  const lockPath = path.join(namespacePath, REBUILD_LOCK_NAME);
+
+  for (;;) {
+    if (tryAcquireRebuildLock(lockPath)) {
+      try {
+        // Single-flight across processes: this call OWNS the sidecar until
+        // the rename + meta land, then releases the lock by deleting it.
+        const meta = await rebuildNamespaceIndexLocked(namespacePath);
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // Lock file already gone (sidecar wipe removed it) — done.
+        }
+        return meta;
+      } catch (error) {
+        // Never leave the lock behind on a failed rebuild: the stale-pid
+        // reaper would cover it eventually, but the next honest rebuild
+        // should not have to wait 10 minutes for that.
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // Best effort.
+        }
+        throw error;
+      }
+    }
+    // Another process is rebuilding THIS namespace: wait for its lock to
+    // clear, then REUSE its result — never rebuild again on top of it.
+    await sleep(REBUILD_LOCK_POLL_MS);
+    if (!fs.existsSync(lockPath)) {
+      // Winner finished: the sidecar is fresh. Report its stats.
+      const meta = readIndexMeta(namespacePath);
+      if (meta) return meta;
+      // Meta missing/unparseable — fall through and race again.
+      continue;
+    }
+  }
+}
+
+/**
+ * The raw rebuild (no locking). Callers MUST hold the sidecar rebuild
+ * lock — use rebuildNamespaceIndex.
+ */
+async function rebuildNamespaceIndexLocked(
   namespacePath: string,
 ): Promise<IndexMeta> {
   const start = Date.now();

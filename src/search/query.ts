@@ -74,6 +74,14 @@ export interface KeywordSearchResult {
   /** RETR-007: namespaces skipped because they have no rebuilt index
    *  (all-namespaces union only; absent on single-namespace results) */
   namespacesSkipped?: string[];
+  /**
+   * DF-1013-04: per-namespace failures OTHER than a missing index (corrupt
+   * sidecar, missing `memories` table, IO error) — one broken sidecar must
+   * not abort the whole union. Each entry carries the namespace name and
+   * the error message; the union still returns results from the healthy
+   * namespaces. Only set on the all-namespaces union.
+   */
+  namespaceErrors?: Array<{ namespace: string; error: string }>;
 }
 
 export interface KeywordSearchOptions {
@@ -527,6 +535,10 @@ export async function keywordSearchAllNamespaces(
 
   const searched: string[] = [];
   const skipped: string[] = [];
+  // DF-1013-04: per-namespace hard failures degrade to a facet instead of
+  // aborting the union — a single corrupt sidecar must not 400 every
+  // cross-namespace search fleet-wide.
+  const namespaceErrors: Array<{ namespace: string; error: string }> = [];
   const rows: IndexRow[] = [];
   for (const ns of nsNames) {
     try {
@@ -539,13 +551,23 @@ export async function keywordSearchAllNamespaces(
       );
       searched.push(ns);
     } catch (error) {
-      // A namespace without a rebuilt index is skipped, not fatal — but
-      // any other failure (corrupt sidecar, IO error) stays loud.
+      // A namespace without a rebuilt index is skipped, not fatal —
+      // RETR-007 contract.
       if (error instanceof SearchIndexMissingError) {
         skipped.push(ns);
         continue;
       }
-      throw error;
+      // DF-1013-04: any other failure (corrupt sidecar — e.g. an empty DB
+      // with no `memories` table from a concurrent-rebuild race, IO error)
+      // is surfaced as a per-namespace facet and the union continues with
+      // the healthy namespaces. The old behavior (rethrow) let ONE broken
+      // sidecar hard-fail every cross-namespace search.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[search] allNamespaces union: namespace '${ns}' failed keyword search ` +
+          `— reported as a namespace error facet, union continues: ${message}`,
+      );
+      namespaceErrors.push({ namespace: ns, error: message });
     }
   }
 
@@ -558,6 +580,7 @@ export async function keywordSearchAllNamespaces(
       total: 0,
       namespacesSearched: [],
       namespacesSkipped: nsNames,
+      ...(namespaceErrors.length > 0 ? { namespaceErrors } : {}),
     };
   }
 
@@ -599,5 +622,6 @@ export async function keywordSearchAllNamespaces(
     total,
     namespacesSearched: searched,
     namespacesSkipped: skipped,
+    ...(namespaceErrors.length > 0 ? { namespaceErrors } : {}),
   };
 }

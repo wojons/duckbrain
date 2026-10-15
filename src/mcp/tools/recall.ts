@@ -224,6 +224,13 @@ interface RecallOutput {
   reason?: string;
   error?: string;
   /**
+   * DF-1013-04: per-namespace keyword-search failures on an allNamespaces
+   * contains= union (corrupt sidecar, missing memories table). The union
+   * itself succeeded — each entry names the namespace that could not be
+   * searched and why. Never present on single-namespace results.
+   */
+  namespaceErrors?: Array<{ namespace: string; error: string }>;
+  /**
    * DF-1013-03: request-time search diagnostics, present ONLY when the
    * caller asked for them (recallInput.searchDebug === true — the REST
    * ?debug=search surface). Never present on the plain path, so the
@@ -799,6 +806,11 @@ export async function recallTool(
         // MAX_CANDIDATES), unlimited by limit/offset.
         total: keywordResult.total,
         namespace: validated.allNamespaces ? "all" : resolvedNamespace,
+        // DF-1013-04: per-namespace search failures (corrupt sidecar) ride
+        // the union as facets — the union itself succeeded.
+        ...(keywordResult.namespaceErrors
+          ? { namespaceErrors: keywordResult.namespaceErrors }
+          : {}),
       };
     } catch (error) {
       return {
