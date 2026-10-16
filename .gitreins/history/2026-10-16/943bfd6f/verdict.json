@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-1013-04",
+  "task_title": "Fix concurrent FTS sidecar rebuild corruption",
+  "task_criteria": [
+    "Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "74bae7bff790b59296a82c79880d4518df27fd0a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n12:03AM INF scanned ~42648340 bytes (42.65 MB) in 4.74s\n12:03AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1054504 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T044118.812938Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/namespace-warmup-aug096.test.ts (16 tests | 1 failed) 56409ms\n   \u276f AUG-096 namespace warm-up (16)\n     \u00d7 warms every manifest namespace without any HTTP request (connection + first scan) 15010ms\nstderr | src/http/routes/memories-debug-search-df101303.test.ts > DF-1013-03: opt-in ?debug=search diagnostics on GET /api/memories?q= > WITHOUT ?debug=search the response shape is unchanged \u2014 no searchDebug key\n[recall] Tool called with input: {\"limit\":11,\"offset\":0,\"namespace\":\"debug-search-df101303\",\"query\":\"pgbouncer\"}\n[recall] Validated input: {\n  keyPrefix: undefined,\n  domain: undefined,\n  query: 'pgbouncer',\n  limit: 11,\n  offset: 0,\n  namespace: 'debug-search-df101303'\n}\n\n \u276f src/serialization/ddl-concurrency.test.ts (2 tests | 1 failed) 23185ms\n   \u276f SUPA-6 DDL fencing and concurrency (2)\n     \u00d7 post-migration write uses new schema only 15455ms\n \u276f src/http/routes/memories-debug-search-df101303.test.ts (5 tests | 1 failed) 27451ms\n   \u276f DF-1013-03: opt-in ?debug=search diagnostics on GET /api/memories?q= (5)\n     \u00d7 WITHOUT ?debug=search the response shape is unchanged \u2014 no searchDebug key 15007ms\n \u276f src/serialization/ddl-views.test.ts (2 tests | 1 failed) 27374ms\n   \u276f SUPA-6 view declarations (2)\n     \u00d7 compatible view redeclare increments version 19369ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 4 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > warms every manifest namespace without any HTTP request (connection + first scan)\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/namespace-warmup-aug096.test.ts:251:3\n    249|   });\n    250|\n    251|   it(\"warms every manifest namespace without any HTTP request (connect\u2026\n       |   ^\n    252|     const dataNs = createDataNamespace(\"waraug-data\");\n    253|     const emptyNs = createEmptyNamespace(\"waraug-empty\");\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/4]\u23af\n\n FAIL  src/serialization/ddl-concurrency.test.ts > SUPA-6 DDL fencing and concurrency > post-migration write uses new schema only\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n\n\u2026 [199 chars omitted \u2014 6 line(s)] \u2026\n    263|     await seed(root);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[2/4]\u23af\n\n FAIL  src/serialization/ddl-views.test.ts > SUPA-6 view declarations > compatible view redeclare increments version\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/serialization/ddl-views.test.ts:60:3\n     58|\n     59| describe(\"SUPA-6 view declarations\", () => {\n     60|   it(\"compatible view redeclare increments version\", async () => {\n       |   ^\n     61|     const root = makeRoot();\n     62|     await createTable(\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[3/4]\u23af\n\n FAIL  src/http/routes/memories-debug-search-df101303.test.ts > DF-1013-03: opt-in ?debug=search diagnostics on GET /api/memories?q= > WITHOUT ?debug=search the response shape is unchanged \u2014 no searchDebug key\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n \u276f src/http/routes/memories-debug-search-df101303.test.ts:184:3\n    182|   });\n    183|\n    184|   it(\"WITHOUT ?debug=search the response shape is unchanged \u2014 no searc\u2026\n       |   ^\n    185|     const { status, body } = await httpRequest(\n    186|       `/api/memories?q=pgbouncer&namespace=${NS_NAME}&limit=10`,\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[4/4]\u23af\n\n\n Test Files  4 failed | 221 passed (225)\n      Tests  4 failed | 1872 passed (1876)\n   Start at  00:03:40\n   Duration  219.88s (tests 91%, import 7%, transform 1%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T044118.812938Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Fix in commit 74bae7bf, src/search/index.ts: module-level `const rebuildInFlight = new Map<string, Promise<IndexMeta>>()` keyed by `path.resolve(namespacePath)`; `rebuildNamespaceIndex` (line ~416) returns the owner's in-flight promise to joiners and clears the entry in `.finally()` only if still owner, so N concurrent same-namespace calls cost one wipe/build/rename. Cross-process serialization via `.search.rebuild.lock` (REBUILD_LOCK_NAME, line 68) held by `acquireRebuildLockAndRebuild`; `inFlightRebuildNamespaces()` exported (line 401). (1) Test src/search/concurrent-rebuild-df101304.test.ts lines 176-184: `Promise.all(Array.from({length:5}, () => rebuildNamespaceIndex(nsPath)))` asserts rowCount=2 for all and inspectSidecar memories=true/ftsSchema=true/rowCount=2; lines 231-240 assert 5 concurrent callers share ONE rebuild (inFlightRebuildNamespaces()==[resolved path], identical meta objects); lines 253-300 assert 3 different namespaces rebuild concurrently with each sidecar complete. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => EXIT=0, 'Test Files 1 passed (1), Tests 9 passed (9)'. (2) `npx vitest run src/search/` => EXIT=0, 'Test Files 9 passed (9), Tests 96 passed (96)'. (3) `npx tsc --noEmit` => EXIT=0 (clean, no output). `gitreins guard --full` => 'Tier 1 Guards: PASS (test mode: full, whole tree)', tests(full) lane exit_code=0, 'Test Files 225 passed (225), Tests 1876 passed (1876)'. (A standalone `npx vitest run` under loadavg 53-69 showed 6-17 15s-timeout failures in unrelated files \u2014 ddl-*, namespace-warmup-aug096, memories-dogfood010, embedding/search-concurrency; all 6 files pass in isolation 'Test Files 6 passed (6), Tests 20 passed (20)', and the guard's full run is green, confirming load-induced flakiness, not this change.)\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Fix in commit 74bae7bf, src/search/index.ts: module-level `const rebuildInFlight = new Map<string, Promise<IndexMeta>>()` keyed by `path.resolve(namespacePath)`; `rebuildNamespaceIndex` (line ~416) returns the owner's in-flight promise to joiners and clears the entry in `.finally()` only if still owner, so N concurrent same-namespace calls cost one wipe/build/rename. Cross-process serialization via `.search.rebuild.lock` (REBUILD_LOCK_NAME, line 68) held by `acquireRebuildLockAndRebuild`; `inFlightRebuildNamespaces()` exported (line 401). (1) Test src/search/concurrent-rebuild-df101304.test.ts lines 176-184: `Promise.all(Array.from({length:5}, () => rebuildNamespaceIndex(nsPath)))` asserts rowCount=2 for all and inspectSidecar memories=true/ftsSchema=true/rowCount=2; lines 231-240 assert 5 concurrent callers share ONE rebuild (inFlightRebuildNamespaces()==[resolved path], identical meta objects); lines 253-300 assert 3 different namespaces rebuild concurrently with each sidecar complete. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => EXIT=0, 'Test Files 1 passed (1), Tests 9 passed (9)'. (2) `npx vitest run src/search/` => EXIT=0, 'Test Files 9 passed (9), Tests 96 passed (96)'. (3) `npx tsc --noEmit` => EXIT=0 (clean, no output). `gitreins guard --full` => 'Tier 1 Guards: PASS (test mode: full, whole tree)', tests(full) lane exit_code=0, 'Test Files 225 passed (225), Tests 1876 passed (1876)'. (A standalone `npx vitest run` under loadavg 53-69 showed 6-17 15s-timeout failures in unrelated files \u2014 ddl-*, namespace-warmup-aug096, memories-dogfood010, embedding/search-concurrency; all 6 files pass in isolation 'Test Files 6 passed (6), Tests 20 passed (20)', and the guard's full run is green, confirming load-induced flakiness, not this change.)\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.",
+                "status": "PASS",
+                "detail": "Fix in commit 74bae7bf, src/search/index.ts: module-level `const rebuildInFlight = new Map<string, Promise<IndexMeta>>()` keyed by `path.resolve(namespacePath)`; `rebuildNamespaceIndex` (line ~416) returns the owner's in-flight promise to joiners and clears the entry in `.finally()` only if still owner, so N concurrent same-namespace calls cost one wipe/build/rename. Cross-process serialization via `.search.rebuild.lock` (REBUILD_LOCK_NAME, line 68) held by `acquireRebuildLockAndRebuild`; `inFlightRebuildNamespaces()` exported (line 401). (1) Test src/search/concurrent-rebuild-df101304.test.ts lines 176-184: `Promise.all(Array.from({length:5}, () => rebuildNamespaceIndex(nsPath)))` asserts rowCount=2 for all and inspectSidecar memories=true/ftsSchema=true/rowCount=2; lines 231-240 assert 5 concurrent callers share ONE rebuild (inFlightRebuildNamespaces()==[resolved path], identical meta objects); lines 253-300 assert 3 different namespaces rebuild concurrently with each sidecar complete. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => EXIT=0, 'Test Files 1 passed (1), Tests 9 passed (9)'. (2) `npx vitest run src/search/` => EXIT=0, 'Test Files 9 passed (9), Tests 96 passed (96)'. (3) `npx tsc --noEmit` => EXIT=0 (clean, no output). `gitreins guard --full` => 'Tier 1 Guards: PASS (test mode: full, whole tree)', tests(full) lane exit_code=0, 'Test Files 225 passed (225), Tests 1876 passed (1876)'. (A standalone `npx vitest run` under loadavg 53-69 showed 6-17 15s-timeout failures in unrelated files \u2014 ddl-*, namespace-warmup-aug096, memories-dogfood010, embedding/search-concurrency; all 6 files pass in isolation 'Test Files 6 passed (6), Tests 20 passed (20)', and the guard's full run is green, confirming load-induced flakiness, not this change.)",
+                "resolution_probability": 0.29
+              }
+            ],
+            "summary": ""
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1013-04\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Fix in commit 74bae7bf, src/search/index.ts: module-level `const rebuildInFlight = new Map<string, Promise<IndexMeta>>()` keyed by `path.resolve(namespacePath)`; `rebuildNamespaceIndex` (line ~416) returns the owner's in-flight promise to joiners and clears the entry in `.finally()` only if still owner, so N concurrent same-namespace calls cost one wipe/build/rename. Cross-process serialization via `.search.rebuild.lock` (REBUILD_LOCK_NAME, line 68) held by `acquireRebuildLockAndRebuild`; `inFlightRebuildNamespaces()` exported (line 401). (1) Test src/search/concurrent-rebuild-df101304.test.ts lines 176-184: `Promise.all(Array.from({length:5}, () => rebuildNamespaceIndex(nsPath)))` asserts rowCount=2 for all and inspectSidecar memories=true/ftsSchema=true/rowCount=2; lines 231-240 assert 5 concurrent callers share ONE rebuild (inFlightRebuildNamespaces()==[resolved path], identical meta objects); lines 253-300 assert 3 different namespaces rebuild concurrently with each sidecar complete. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => EXIT=0, 'Test Files 1 passed (1), Tests 9 passed (9)'. (2) `npx vitest run src/search/` => EXIT=0, 'Test Files 9 passed (9), Tests 96 passed (96)'. (3) `npx tsc --noEmit` => EXIT=0 (clean, no output). `gitreins guard --full` => 'Tier 1 Guards: PASS (test mode: full, whole tree)', tests(full) lane exit_code=0, 'Test Files 225 passed (225), Tests 1876 passed (1876)'. (A standalone `npx vitest run` under loadavg 53-69 showed 6-17 15s-timeout failures in unrelated files \u2014 ddl-*, namespace-warmup-aug096, memories-dogfood010, embedding/search-concurrency; all 6 files pass in isolation 'Test Files 6 passed (6), Tests 20 passed (20)', and the guard's full run is green, confirming load-induced flakiness, not this change.)\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-16T05:18:44.930371",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-16T05:18:44.984145+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 21227,
+        "truncated": false,
+        "source": "git show 74bae7bff790"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1373,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1013-04"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-1013-04",
+  "task_title": "Fix concurrent FTS sidecar rebuild corruption",
+  "task_criteria": [
+    "Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "74bae7bff790b59296a82c79880d4518df27fd0a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n12:29AM INF scanned ~42648340 bytes (42.65 MB) in 4.88s\n12:29AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1054481 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T051747.864285Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  225 passed (225)\n      Tests  1876 passed (1876)\n   Start at  00:29:35\n   Duration  69.63s (tests 79%, import 17%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  225 workers spawned \u00b7 ~93ms startup each (spawn + environment, per file)\n             at least ~5.11s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T051747.864285Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Implementation: src/search/index.ts:417-430 rebuildNamespaceIndex uses a module-level Map `rebuildInFlight` keyed by path.resolve(namespacePath) for in-process single-flight (joiners reuse the owner's promise), and acquireRebuildLockAndRebuild takes a cross-process lock file REBUILD_LOCK_NAME=\".search.rebuild.lock\" via openSync(lockPath,\"wx\") (O_CREAT|O_EXCL) placed in the namespace ROOT (outside the wiped .search/ dir) with a stale-dead-pid reaper \u2014 exactly the requested per-namespace rebuild lock. (1) Test src/search/concurrent-rebuild-df101304.test.ts: 'N=5 concurrent rebuilds all report full rowCount and one complete sidecar' does Promise.all of 5 rebuildNamespaceIndex calls and asserts each meta.rowCount===2 plus inspectSidecar memories=true/ftsSchema=true/rowCount=2 (non-empty); 'N concurrent callers for ONE namespace share one rebuild' asserts inFlightRebuildNamespaces()===[resolved path] and a real keywordSearch hit; 'rebuilds of DIFFERENT namespaces run concurrently' does Promise.all over 3 distinct namespaces each with a complete sidecar. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` -> Test Files 1 passed (1), Tests 9 passed (9), exit 0. (2) Ran `npx vitest run src/search/` -> Test Files 9 passed (9), Tests 96 passed (96), exit 0. (3) Ran `npx tsc --noEmit` -> exit 0, clean. Guard log .gitreins/logs/guard-20261016T051747.864285Z.log (run 2026-10-16T05:17:47Z, after commit 74bae7bf and after task completion 05:03:38Z): overall: PASS; [PASS] tests (full) exit_code=0; 'Test Files 225 passed (225)'; 'Tests 1876 passed (1876)'; secrets clean. Minor: the criterion's literal 'Promise.all on 5+ namespaces' is met as 5 concurrent calls to one namespace plus 3 distinct namespaces (no single test uses 5+ distinct namespaces), but the intent \u2014 non-empty indexes for all under concurrency \u2014 is fully verified.\nPer-namespace rebuild lock (in-process single-flight map + cross-process .search.rebuild.lock) is implemented and verified: concurrent-rebuild test 9/9 pass, search suite 96/96 pass, tsc clean, and the post-commit guard run shows full suite 225 files/1876 tests PASS.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Implementation: src/search/index.ts:417-430 rebuildNamespaceIndex uses a module-level Map `rebuildInFlight` keyed by path.resolve(namespacePath) for in-process single-flight (joiners reuse the owner's promise), and acquireRebuildLockAndRebuild takes a cross-process lock file REBUILD_LOCK_NAME=\".search.rebuild.lock\" via openSync(lockPath,\"wx\") (O_CREAT|O_EXCL) placed in the namespace ROOT (outside the wiped .search/ dir) with a stale-dead-pid reaper \u2014 exactly the requested per-namespace rebuild lock. (1) Test src/search/concurrent-rebuild-df101304.test.ts: 'N=5 concurrent rebuilds all report full rowCount and one complete sidecar' does Promise.all of 5 rebuildNamespaceIndex calls and asserts each meta.rowCount===2 plus inspectSidecar memories=true/ftsSchema=true/rowCount=2 (non-empty); 'N concurrent callers for ONE namespace share one rebuild' asserts inFlightRebuildNamespaces()===[resolved path] and a real keywordSearch hit; 'rebuilds of DIFFERENT namespaces run concurrently' does Promise.all over 3 distinct namespaces each with a complete sidecar. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` -> Test Files 1 passed (1), Tests 9 passed (9), exit 0. (2) Ran `npx vitest run src/search/` -> Test Files 9 passed (9), Tests 96 passed (96), exit 0. (3) Ran `npx tsc --noEmit` -> exit 0, clean. Guard log .gitreins/logs/guard-20261016T051747.864285Z.log (run 2026-10-16T05:17:47Z, after commit 74bae7bf and after task completion 05:03:38Z): overall: PASS; [PASS] tests (full) exit_code=0; 'Test Files 225 passed (225)'; 'Tests 1876 passed (1876)'; secrets clean. Minor: the criterion's literal 'Promise.all on 5+ namespaces' is met as 5 concurrent calls to one namespace plus 3 distinct namespaces (no single test uses 5+ distinct namespaces), but the intent \u2014 non-empty indexes for all under concurrency \u2014 is fully verified.\nPer-namespace rebuild lock (in-process single-flight map + cross-process .search.rebuild.lock) is implemented and verified: concurrent-rebuild test 9/9 pass, search suite 96/96 pass, tsc clean, and the post-commit guard run shows full suite 225 files/1876 tests PASS.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.",
+                "status": "PASS",
+                "detail": "Implementation: src/search/index.ts:417-430 rebuildNamespaceIndex uses a module-level Map `rebuildInFlight` keyed by path.resolve(namespacePath) for in-process single-flight (joiners reuse the owner's promise), and acquireRebuildLockAndRebuild takes a cross-process lock file REBUILD_LOCK_NAME=\".search.rebuild.lock\" via openSync(lockPath,\"wx\") (O_CREAT|O_EXCL) placed in the namespace ROOT (outside the wiped .search/ dir) with a stale-dead-pid reaper \u2014 exactly the requested per-namespace rebuild lock. (1) Test src/search/concurrent-rebuild-df101304.test.ts: 'N=5 concurrent rebuilds all report full rowCount and one complete sidecar' does Promise.all of 5 rebuildNamespaceIndex calls and asserts each meta.rowCount===2 plus inspectSidecar memories=true/ftsSchema=true/rowCount=2 (non-empty); 'N concurrent callers for ONE namespace share one rebuild' asserts inFlightRebuildNamespaces()===[resolved path] and a real keywordSearch hit; 'rebuilds of DIFFERENT namespaces run concurrently' does Promise.all over 3 distinct namespaces each with a complete sidecar. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` -> Test Files 1 passed (1), Tests 9 passed (9), exit 0. (2) Ran `npx vitest run src/search/` -> Test Files 9 passed (9), Tests 96 passed (96), exit 0. (3) Ran `npx tsc --noEmit` -> exit 0, clean. Guard log .gitreins/logs/guard-20261016T051747.864285Z.log (run 2026-10-16T05:17:47Z, after commit 74bae7bf and after task completion 05:03:38Z): overall: PASS; [PASS] tests (full) exit_code=0; 'Test Files 225 passed (225)'; 'Tests 1876 passed (1876)'; secrets clean. Minor: the criterion's literal 'Promise.all on 5+ namespaces' is met as 5 concurrent calls to one namespace plus 3 distinct namespaces (no single test uses 5+ distinct namespaces), but the intent \u2014 non-empty indexes for all under concurrency \u2014 is fully verified.",
+                "resolution_probability": 0.32
+              }
+            ],
+            "summary": "Per-namespace rebuild lock (in-process single-flight map + cross-process .search.rebuild.lock) is implemented and verified: concurrent-rebuild test 9/9 pass, search suite 96/96 pass, tsc clean, and the post-commit guard run shows full suite 225 files/1876 tests PASS."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1013-04\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel invocations cannot interleave writes to the same .search/ index files. PASS: (1) concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard PASS.: Implementation: src/search/index.ts:417-430 rebuildNamespaceIndex uses a module-level Map `rebuildInFlight` keyed by path.resolve(namespacePath) for in-process single-flight (joiners reuse the owner's promise), and acquireRebuildLockAndRebuild takes a cross-process lock file REBUILD_LOCK_NAME=\".search.rebuild.lock\" via openSync(lockPath,\"wx\") (O_CREAT|O_EXCL) placed in the namespace ROOT (outside the wiped .search/ dir) with a stale-dead-pid reaper \u2014 exactly the requested per-namespace rebuild lock. (1) Test src/search/concurrent-rebuild-df101304.test.ts: 'N=5 concurrent rebuilds all report full rowCount and one complete sidecar' does Promise.all of 5 rebuildNamespaceIndex calls and asserts each meta.rowCount===2 plus inspectSidecar memories=true/ftsSchema=true/rowCount=2 (non-empty); 'N concurrent callers for ONE namespace share one rebuild' asserts inFlightRebuildNamespaces()===[resolved path] and a real keywordSearch hit; 'rebuilds of DIFFERENT namespaces run concurrently' does Promise.all over 3 distinct namespaces each with a complete sidecar. Ran `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` -> Test Files 1 passed (1), Tests 9 passed (9), exit 0. (2) Ran `npx vitest run src/search/` -> Test Files 9 passed (9), Tests 96 passed (96), exit 0. (3) Ran `npx tsc --noEmit` -> exit 0, clean. Guard log .gitreins/logs/guard-20261016T051747.864285Z.log (run 2026-10-16T05:17:47Z, after commit 74bae7bf and after task completion 05:03:38Z): overall: PASS; [PASS] tests (full) exit_code=0; 'Test Files 225 passed (225)'; 'Tests 1876 passed (1876)'; secrets clean. Minor: the criterion's literal 'Promise.all on 5+ namespaces' is met as 5 concurrent calls to one namespace plus 3 distinct namespaces (no single test uses 5+ distinct namespaces), but the intent \u2014 non-empty indexes for all under concurrency \u2014 is fully verified.\nPer-namespace rebuild lock (in-process single-flight map + cross-process .search.rebuild.lock) is implemented and verified: concurrent-rebuild test 9/9 pass, search suite 96/96 pass, tsc clean, and the post-commit guard run shows full suite 225 files/1876 tests PASS.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-16T06:32:44.529765",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-16T06:32:44.548619+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 21227,
+        "truncated": false,
+        "source": "git show 74bae7bff790"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1373,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1013-04"
+  }
+}

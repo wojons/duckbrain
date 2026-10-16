@@ -1,0 +1,24 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 0a558c0d..f7de22c0 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2742,3 +2742,19 @@ tasks:
+   status: complete
+   created_at: '2026-10-14T21:22:19.590719+00:00'
+   completed_at: '2026-10-14T21:25:58.865299+00:00'
++- id: DF-1013-04
++  title: Cross-process single-flight sidecar rebuild + corrupt-sidecar-safe allNamespaces
++    union
++  criteria:
++  - concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not
++    kill the union; tests green
++  status: complete
++  created_at: '2026-10-15T10:16:03.255373+00:00'
++  completed_at: '2026-10-15T10:51:54.434952+00:00'
++- id: INT-CI-030
++  title: PUSH-001 file:// push-gate local-env failures + dogfood010 timeout root cause
++  criteria:
++  - push-gate tests green 3 consecutive runs locally; root cause named; tsc clean
++  status: complete
++  created_at: '2026-10-15T10:16:03.882746+00:00'
++  completed_at: '2026-10-15T11:02:33.376397+00:00'

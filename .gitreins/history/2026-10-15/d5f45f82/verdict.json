@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-1013-04",
+  "task_title": "Cross-process single-flight sidecar rebuild + corrupt-sidecar-safe allNamespaces union",
+  "task_criteria": [
+    "concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not kill the union; tests green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "d0abf3699a79416ab906d28cce78ab6e05a3c365",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:56AM INF scanned ~42370100 bytes (42.37 MB) in 5.93s\n6:56AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1053961 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261015T101604.639232Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  224 passed (224)\n      Tests  1858 passed (1858)\n   Start at  06:56:13\n   Duration  93.53s (tests 78%, import 18%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  224 workers spawned \u00b7 ~130ms startup each (spawn + environment, per file)\n             at least ~7.14s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261015T101604.639232Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not kill the union; tests green: Cross-process single-flight: src/search/index.ts:68 defines REBUILD_LOCK_NAME='.search.rebuild.lock' in the NAMESPACE ROOT (outside the wiped .search/ dir); tryAcquireRebuildLock (index.ts:104-141) uses fs.openSync(lockPath,'wx') (O_CREAT|O_EXCL) and reaps only stale locks whose recorded pid is dead (10-min age); rebuildNamespaceIndex (index.ts:376-416) polls REBUILD_LOCK_POLL_MS and REUSES readIndexMeta() of the winner's result instead of rebuilding, so a loser cannot rm -rf a finished sidecar. Corrupt-sidecar-safe union: src/search/query.ts:518-580 keywordSearchAllNamespaces catches every non-SearchIndexMissingError per namespace, pushes {namespace,error} into namespaceErrors and continues the union (SearchIndexMissingError still routes to namespacesSkipped); facets surface via src/cli/human.ts:638, src/mcp/tools/recall.ts:811, src/mcp/tools/search.ts:136. Tests green (actual output): `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; `npx vitest run src/search/` => 'Test Files 9 passed (9) / Tests 93 passed (93)', exit 0; `npx tsc --noEmit` exit 0. RED-proof reproduced: replacing the lock wrapper with a direct call to rebuildNamespaceIndexLocked yields 'Tests 3 failed | 3 passed (6)' (AC1 fails with ENOENT rename of fts.duckdb.tmp / missing rows.tmp.jsonl), and restoring returns 6/6 pass \u2014 the lock is load-bearing. AC2 tests assert the healthy namespace's hits are returned while the corrupt namespace (0-byte DB and valid-but-tableless DB) is reported as a namespaceErrors facet, never a throw.\nCross-process single-flight lock plus corrupt-sidecar union facets are implemented and covered by 6 new tests that pass (93/93 in src/search, tsc clean), with a reproduced RED-proof showing the lock is required.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not kill the union; tests green: Cross-process single-flight: src/search/index.ts:68 defines REBUILD_LOCK_NAME='.search.rebuild.lock' in the NAMESPACE ROOT (outside the wiped .search/ dir); tryAcquireRebuildLock (index.ts:104-141) uses fs.openSync(lockPath,'wx') (O_CREAT|O_EXCL) and reaps only stale locks whose recorded pid is dead (10-min age); rebuildNamespaceIndex (index.ts:376-416) polls REBUILD_LOCK_POLL_MS and REUSES readIndexMeta() of the winner's result instead of rebuilding, so a loser cannot rm -rf a finished sidecar. Corrupt-sidecar-safe union: src/search/query.ts:518-580 keywordSearchAllNamespaces catches every non-SearchIndexMissingError per namespace, pushes {namespace,error} into namespaceErrors and continues the union (SearchIndexMissingError still routes to namespacesSkipped); facets surface via src/cli/human.ts:638, src/mcp/tools/recall.ts:811, src/mcp/tools/search.ts:136. Tests green (actual output): `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; `npx vitest run src/search/` => 'Test Files 9 passed (9) / Tests 93 passed (93)', exit 0; `npx tsc --noEmit` exit 0. RED-proof reproduced: replacing the lock wrapper with a direct call to rebuildNamespaceIndexLocked yields 'Tests 3 failed | 3 passed (6)' (AC1 fails with ENOENT rename of fts.duckdb.tmp / missing rows.tmp.jsonl), and restoring returns 6/6 pass \u2014 the lock is load-bearing. AC2 tests assert the healthy namespace's hits are returned while the corrupt namespace (0-byte DB and valid-but-tableless DB) is reported as a namespaceErrors facet, never a throw.\nCross-process single-flight lock plus corrupt-sidecar union facets are implemented and covered by 6 new tests that pass (93/93 in src/search, tsc clean), with a reproduced RED-proof showing the lock is required.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not kill the union; tests green",
+                "status": "PASS",
+                "detail": "Cross-process single-flight: src/search/index.ts:68 defines REBUILD_LOCK_NAME='.search.rebuild.lock' in the NAMESPACE ROOT (outside the wiped .search/ dir); tryAcquireRebuildLock (index.ts:104-141) uses fs.openSync(lockPath,'wx') (O_CREAT|O_EXCL) and reaps only stale locks whose recorded pid is dead (10-min age); rebuildNamespaceIndex (index.ts:376-416) polls REBUILD_LOCK_POLL_MS and REUSES readIndexMeta() of the winner's result instead of rebuilding, so a loser cannot rm -rf a finished sidecar. Corrupt-sidecar-safe union: src/search/query.ts:518-580 keywordSearchAllNamespaces catches every non-SearchIndexMissingError per namespace, pushes {namespace,error} into namespaceErrors and continues the union (SearchIndexMissingError still routes to namespacesSkipped); facets surface via src/cli/human.ts:638, src/mcp/tools/recall.ts:811, src/mcp/tools/search.ts:136. Tests green (actual output): `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; `npx vitest run src/search/` => 'Test Files 9 passed (9) / Tests 93 passed (93)', exit 0; `npx tsc --noEmit` exit 0. RED-proof reproduced: replacing the lock wrapper with a direct call to rebuildNamespaceIndexLocked yields 'Tests 3 failed | 3 passed (6)' (AC1 fails with ENOENT rename of fts.duckdb.tmp / missing rows.tmp.jsonl), and restoring returns 6/6 pass \u2014 the lock is load-bearing. AC2 tests assert the healthy namespace's hits are returned while the corrupt namespace (0-byte DB and valid-but-tableless DB) is reported as a namespaceErrors facet, never a throw.",
+                "resolution_probability": 0.11
+              }
+            ],
+            "summary": "Cross-process single-flight lock plus corrupt-sidecar union facets are implemented and covered by 6 new tests that pass (93/93 in src/search, tsc clean), with a reproduced RED-proof showing the lock is required."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-1013-04\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not kill the union; tests green: Cross-process single-flight: src/search/index.ts:68 defines REBUILD_LOCK_NAME='.search.rebuild.lock' in the NAMESPACE ROOT (outside the wiped .search/ dir); tryAcquireRebuildLock (index.ts:104-141) uses fs.openSync(lockPath,'wx') (O_CREAT|O_EXCL) and reaps only stale locks whose recorded pid is dead (10-min age); rebuildNamespaceIndex (index.ts:376-416) polls REBUILD_LOCK_POLL_MS and REUSES readIndexMeta() of the winner's result instead of rebuilding, so a loser cannot rm -rf a finished sidecar. Corrupt-sidecar-safe union: src/search/query.ts:518-580 keywordSearchAllNamespaces catches every non-SearchIndexMissingError per namespace, pushes {namespace,error} into namespaceErrors and continues the union (SearchIndexMissingError still routes to namespacesSkipped); facets surface via src/cli/human.ts:638, src/mcp/tools/recall.ts:811, src/mcp/tools/search.ts:136. Tests green (actual output): `npx vitest run src/search/concurrent-rebuild-df101304.test.ts` => 'Test Files 1 passed (1) / Tests 6 passed (6)', exit 0; `npx vitest run src/search/` => 'Test Files 9 passed (9) / Tests 93 passed (93)', exit 0; `npx tsc --noEmit` exit 0. RED-proof reproduced: replacing the lock wrapper with a direct call to rebuildNamespaceIndexLocked yields 'Tests 3 failed | 3 passed (6)' (AC1 fails with ENOENT rename of fts.duckdb.tmp / missing rows.tmp.jsonl), and restoring returns 6/6 pass \u2014 the lock is load-bearing. AC2 tests assert the healthy namespace's hits are returned while the corrupt namespace (0-byte DB and valid-but-tableless DB) is reported as a namespaceErrors facet, never a throw.\nCross-process single-flight lock plus corrupt-sidecar union facets are implemented and covered by 6 new tests that pass (93/93 in src/search, tsc clean), with a reproduced RED-proof showing the lock is required.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-10-15T13:27:54.757088",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-15T13:27:54.817506+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 30137,
+        "truncated": false,
+        "source": "git show d0abf3699a79"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 992,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-1013-04"
+  }
+}

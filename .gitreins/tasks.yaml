@@ -2743,14 +2743,17 @@ tasks:
   created_at: '2026-10-14T21:22:19.590719+00:00'
   completed_at: '2026-10-14T21:25:58.865299+00:00'
 - id: DF-1013-04
-  title: Cross-process single-flight sidecar rebuild + corrupt-sidecar-safe allNamespaces
-    union
+  title: Fix concurrent FTS sidecar rebuild corruption
   criteria:
-  - concurrent rebuilds cannot produce empty sidecars; one corrupt sidecar does not
-    kill the union; tests green
+  - 'Concurrent rebuildNamespaceIndex calls corrupt the FTS cache: 53 of 813 sidecars
+    came out EMPTY. Add per-namespace rebuild lock (or serialize rebuilds) so parallel
+    invocations cannot interleave writes to the same .search/ index files. PASS: (1)
+    concurrent rebuild test (Promise.all on 5+ namespaces) produces non-empty indexes
+    for all; (2) existing search tests still pass; (3) full suite + tsc clean + guard
+    PASS.'
   status: complete
-  created_at: '2026-10-15T10:16:03.255373+00:00'
-  completed_at: '2026-10-15T10:51:54.434952+00:00'
+  created_at: '2026-10-16T04:14:01.694699+00:00'
+  completed_at: '2026-10-16T05:03:38.975163+00:00'
 - id: INT-CI-030
   title: PUSH-001 file:// push-gate local-env failures + dogfood010 timeout root cause
   criteria:
