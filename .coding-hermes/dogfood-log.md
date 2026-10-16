@@ -612,3 +612,85 @@ docs/dogfood/2026-10-16-reproof-integration.md. No code changes; no
 visibility/permission changes; no credentials minted (scratch backend used
 throwaway keys in /tmp). Foreman NOT woken (active family, rows pending on
 its board).
+## Run 17b — 2026-10-16 (same tick duckbrain-dogfood-2026-10-16-12-40-48, second sibling run after context loss) — Verdict: SHIPPABLE-ON-RE-PROOFED-SURFACES + 1 STALE-DEPLOY P1
+
+**Continuation, not a re-sweep.** Earlier turns of this same tick committed run 17
+(a854f01c re-proof of DF-1013-04/S3-GIT-008 + fresh-install leg df-dkb-1016 + CLI sweep
+DF-2026-1/2; 5f9475e0 diagnostics trail). This continuation takes the surfaces run 17 did
+NOT touch: the prod HTTP service as the fleet consumes it, the S3 CLI surface end-to-end
+against a live S3 backend, the DF-1013-01 write path with a service-side author check, the
+?debug=search REST surface (run 17 proved the CLI side), the allNamespaces union, and a
+second independent install leg. Angle separation per the sibling-run law; run 17 is the
+sibling citation.
+
+**Tick-target discrepancy (config note, for the config owner):** the tick header says
+duckbrain-dogfood; the lane's STORED prompt (scheduler DB projects.prompt for lane
+duckbrain-dogfood) is a copied warpfs prompt — 'Workdir: .../dogfood/warpfs Target project:
+warpfs'. Per the dogfood skill the LANE NAME is authority; this run stayed on duckbrain.
+The misseed is recorded here only — not edited, not row-filed against duckbrain.
+
+**Promise statement:** a user (an agent) stores/recalls memories through DuckBrain's REST
+API and MCP tools with git-durable per-namespace history, offline keyword search, semantic
+recall behind an embedding provider, and S3 as a queryable off-box copy.
+
+**Findings (rows on tasks.jsonl):**
+- DF-2026-3 (P1) STALE DEPLOY: prod :3000 (systemd --user duckbrain-http.service, PID
+  3222190 started Oct 10 16:45) serves the Oct 6/7 prebuilt dist — the DF-1013 fix family
+  (merged 10-14/15) is NOT running for the fleet. A/B proof: prod 400s
+  'Unknown query parameter(s): debug' on ?debug=search while a HEAD scratch daemon returns
+  the documented searchDebug object; dist/src/http/routes/memories.js contains 0 'debug'
+  hits; every fix src file is newer than its dist counterpart; running argv still carries
+  --bind-all although the unit file dropped it. Fix = build + restart + verify (steps in
+  the row). Every agent hitting :3000 is on pre-fix code until then.
+- DF-2026-4 (P2) s3 CLI root divergence: `duckbrain s3 status/sync` resolves its namespace
+  root via path.resolve(cwd, cfg.namespacesPath) (s3Command configDir='.') while every
+  other verb resolves through DUCKBRAIN_CONFIG_PATH/DUCKBRAIN_HOME_ROOT. Reproduced: same
+  env, cwd=repo → walk=0/'Namespace not found'; cwd=scratch root → works; leaked-env run
+  silently walked a stale /tmp tree. No resolved-root line is printed. Fix = use
+  resolveDuckbrainRoot like the rest + print the root.
+
+**Re-proof events (dated events on existing rows — no second rows):** DF-1013-03 (REST
+searchDebug + both 400 validation legs at HEAD; contrast = DF-2026-3's stale-prod 400),
+DF-1013-01 (fresh-box no-identity write → author 'Anonymous <anonymous@duckbrain.local>'
+verified in the namespace's OWN git log; control-host contrast stamps the repo identity),
+DF-1013-04 (8 concurrent readers after sidecar deletion → all 200 count=30, 281-317ms
+cluster; >bound arm: fast 500s with the documented escape-hatch message + cross-process
+CLI rebuild won cleanly, sidecar intact 14.4MB), PERF-013 (warm 1.6-2.5s vs ~6s at run
+16, cacheHits 68/70, cold 20.1s; union still 47.9s on stale prod for 813 ns → row stays
+pending on the union leg).
+
+**S3-GIT-008 full battery (new surface this angle, local minio scratch, product CLI only):**
+push uploaded=3; re-push uploaded=0 skipped=3 (manifest sha256 identity, verified
+per-file sha fields); same-length local corruption → pull downloaded=1 and sha256
+restored byte-exact; push with minio down → loud ECONNREFUSED, nothing recorded; push
+after recovery → uploaded=2 (delta retried); `s3 query` via DuckDB httpfs over s3://
+returned the pushed rows (n=6). All six documented legs green at HEAD.
+
+**Install leg (EXECUTED — second independent bunker leg this tick):** fresh agent
+df17-install @ bunker-mvp, README quickstart VERBATIM from a box with git only (node/pnpm
+missing = the documented nvm/corepack path exercised for real): all steps rc=0, TOTAL 37s
+(nvm 2s, node 7s, corepack 3s, clone 5s, pnpm install 7s, daemon+curl chain <1s each),
+read-back verbatim, no identity → anonymous author in git history. Agent destroyed and
+verified absent from the list.
+
+**Perf:** numbers above + in the PERF-013 event. Profile not justified beyond searchDebug:
+residual single-ns latency is embed-provider RTT, not compute; the union leg's 47.9s is
+the only user-noticeable wait and it is already filed (PERF-013).
+
+**Environment traps hit (recorded for the next runner):** (1) the session env carried
+leaked DUCKBRAIN_* vars from an older session (DUCKBRAIN_NAMESPACES_PATH=...df-dkb-1016,
+GIT_AUTHOR_*) — sanitize (unset) before any CLI leg, they silently redirect roots;
+(2) stray-duckbrain-reaper killed two scratch daemons (session-abandoned clause: quiet
+log, non-protected port, >600s) — redirect daemon stdout to a growing log file;
+(3) pkill patterns that name the daemon port trip the self-termination guard — kill via
+the tracked background session instead; (4) this run's own litter (empty df17s3 dirs in
+the prod tree via pull-bootstrap + the stray /tmp tree) was removed and verified.
+
+**Time-to-first-success:** fresh-box quickstart 37s to the green read-back (this leg);
+warm recall first-success ≈ 2s at HEAD.
+
+**Left behind:** 2 board rows (DF-2026-3, DF-2026-4), 4 dated events (DF-1013-01/03/04,
+PERF-013), this entry, docs/dogfood/2026-10-16-run17b-stale-deploy-and-s3.md. No code
+changes; no visibility/permission changes; no credentials minted (minio scratch used
+throwaway local keys, destroyed). Foreman NOT woken (active family; DF-2026-3 is the
+operator's restart decision, filed for the foreman/owner to act on).
