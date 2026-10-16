@@ -868,3 +868,49 @@ this run (angle was the warm-up surface + install). The corrupt-namespace
 own row — subsumed by DF-1013-02's fix direction. /tmp/dfduck scratch
 artifacts (scripts, logs, token file) remain local-only and are NOT committed
 (secrets hygiene: the scratch auth file and key never entered the repo).
+
+## Run 17 (2026-10-16) — re-proof of landed fixes: what "the fix landed" means in real use
+
+Two closed rows (DF-1013-04, S3-GIT-008) had never been re-dogfooded through
+real use — their closes rode test suites. This run drove both at HEAD a9350b94
+with a scratch rclone `serve s3` backend and a scratch namespace; the point
+for the trail is WHAT the re-proofs teach about how the systems work:
+
+- **The sync engine's honesty ladder is now content-based, not
+  metadata-based.** A push decides upload/skip by sha256 identity
+  (manifest-recorded local hash vs remote md5-ETag when single-part), so the
+  three classic silent-loss shapes are closed for real: same-size edits (old:
+  size+mtime equal ⇒ skip), failed pushes recorded as synced (old: manifest
+  covered files whose PUT threw ⇒ skip-forever), and same-size local
+  corruption (old: pull trusted size). Verified by driving all three shapes
+  through `duckbrain s3 sync` against rclone — see
+  docs/dogfood/2026-10-16-reproof-integration.md for the probe table. The
+  manifest is the trust anchor: after any sync suspicion, read
+  `namespaces/.s3state/<ns>.json` — its per-file sha256 must equal
+  `sha256sum` of the local file; a mismatch names the divergent file directly.
+- **The rebuild race is now double-serialized: in-process (a promise registry
+  keyed by RESOLVED namespace path — path.resolve matters, symlinked and
+  literal paths must collapse to one key) plus cross-process
+  (`.search.rebuild.lock`, O_CREAT|O_EXCL).** The corruption in run 16 (empty
+  12288-byte sidecars) was two rebuilds `rm -rf` + rename racing; the lock
+  makes losers WAIT and then REUSE the winner's meta instead of rebuilding on
+  top. Verified: 5 concurrent rebuilds + a live write produced one
+  consistent sidecar, and a mid-race write (350ms in) was indexed in the
+  final rowCount.
+- **Probing S3 surfaces from a fleet box:** port 9099 was a foreign python
+  dashboard; @aws-sdk surfaced it as an opaque "mismatched tags <meta> and
+  </head>" XML parse error, not a connection or auth error — when the S3 SDK
+  throws XML parse errors, suspect a non-S3 impostor on the port FIRST
+  (`ss -tlnp`), and use rclone's env-based remote config (inline `:s3,...:`
+  connection strings mangle endpoint URIs).
+- **Install leg taught nothing new at HEAD a9350b9** — the fresh-box path
+  (nvm → corepack pnpm → clone → pnpm install → documented smoke) is
+  friction-free at 13s/4s/7s; the delta surfaces (search-index rebuild, s3
+  disabled refusal) behave identically fresh. Run 15's frictions stayed
+  fixed.
+- The CLI search zero-hit/no-hint window (DF-2026-2) is the one UX gap this
+  run proved; it is a hint problem, not a correctness one — the sidecar was
+  verifiably healthy underneath the misleading "No memories found".
+
+No code changes; rows DF-2026-1/2 filed; scratch rig and throwaway S3 keys
+stayed in /tmp and never entered the repo.
