@@ -13,6 +13,11 @@
  *   AC1  cross-process single-flight: two CONCURRENT rebuild calls for the
  *        same namespace serialize on a `.search.rebuild.lock` file — the
  *        sidecar always ends up complete (memories table + FTS index).
+ *   AC1b per-namespace IN-PROCESS single-flight: concurrent callers in ONE
+ *        process share a single rebuild of that namespace (keyed by resolved
+ *        namespace path), so they cannot interleave the wipe/build/rename
+ *        either — and rebuilds of DIFFERENT namespaces still run concurrently,
+ *        because the key is the namespace and not a global lock.
  *   AC2  one corrupt sidecar (empty DuckDB file, no `memories` table) in
  *        the namespaces dir does NOT abort the allNamespaces union — the
  *        union returns the healthy namespaces' hits and reports the corrupt
@@ -27,10 +32,11 @@ import duckdb from "duckdb";
 import {
   rebuildNamespaceIndex,
   indexDbPath,
+  inFlightRebuildNamespaces,
   REBUILD_LOCK_NAME,
   SEARCH_INDEX_DIR,
 } from "./index";
-import { keywordSearchAllNamespaces } from "./query";
+import { keywordSearch, keywordSearchAllNamespaces } from "./query";
 
 vi.setConfig({ hookTimeout: 60_000, testTimeout: 60_000 });
 
@@ -71,6 +77,19 @@ function writeNamespace(
   return nsPath;
 }
 
+/** Race a promise against a deadline so a HANG fails the test fast and by name. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`TIMEOUT after ${ms}ms: ${label}`)),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 /** Open a sidecar DB and assert its shape (memories table + FTS schema). */
 async function inspectSidecar(
   dbPath: string,
@@ -78,7 +97,9 @@ async function inspectSidecar(
   const db = new duckdb.Database(dbPath);
   const all = (sql: string): Promise<any[]> =>
     new Promise((resolve, reject) =>
-      db.all(sql, (err: any, rows: any) => (err ? reject(err) : resolve(rows ?? []))),
+      db.all(sql, (err: any, rows: any) =>
+        err ? reject(err) : resolve(rows ?? []),
+      ),
     );
   try {
     const tables = await all(
@@ -199,6 +220,112 @@ describe("DF-1013-04 AC1: concurrent same-namespace rebuilds never corrupt the s
   }, 60_000);
 });
 
+describe("DF-1013-04 AC1b: per-namespace in-process single-flight, never a global lock", () => {
+  it("N concurrent callers for ONE namespace share one rebuild and one result", async () => {
+    // Five calls with no `await` between them: each one registers while the
+    // first is still in flight (registration in rebuildNamespaceIndex is
+    // synchronous), and the registry is keyed by resolved namespace path — so
+    // it must hold exactly ONE entry. Five entries would mean five concurrent
+    // rebuilds of the same `.search/` directory, which is the corruption this
+    // row is about.
+    const pending = Array.from({ length: 5 }, () =>
+      rebuildNamespaceIndex(nsPath),
+    );
+    expect(inFlightRebuildNamespaces()).toEqual([path.resolve(nsPath)]);
+
+    const metas = await Promise.all(pending);
+    // Identical objects: all five observed the SAME rebuild's stats, so the
+    // sidecar was wiped/built/renamed once rather than five times.
+    for (const meta of metas) expect(meta).toBe(metas[0]);
+    expect(metas[0].rowCount).toBe(2);
+
+    // The registry drains once the rebuild settles.
+    expect(inFlightRebuildNamespaces()).toEqual([]);
+
+    // And the shared sidecar is a real QUERYABLE index, not merely a shaped
+    // DuckDB file: the FTS path finds the row by a body token ("corruption"
+    // is not an FTS stopword, so the keyword leg actually runs).
+    const hits = await keywordSearch(nsPath, "corruption", { limit: 10 });
+    expect(hits.memories.map((m) => m.id)).toEqual(["a1"]);
+  }, 60_000);
+
+  it("rebuilds of DIFFERENT namespaces run concurrently — no global lock", async () => {
+    const parallel = [
+      writeNamespace("df101304-par-a", [
+        {
+          id: "pa1",
+          key: "/df101304/par-a",
+          text: "alpha namespace payload",
+          ts: "2026-10-04T00:00:00.000Z",
+        },
+      ]),
+      writeNamespace("df101304-par-b", [
+        {
+          id: "pb1",
+          key: "/df101304/par-b",
+          text: "bravo namespace payload",
+          ts: "2026-10-05T00:00:00.000Z",
+        },
+      ]),
+      writeNamespace("df101304-par-c", [
+        {
+          id: "pc1",
+          key: "/df101304/par-c",
+          text: "charlie namespace payload",
+          ts: "2026-10-06T00:00:00.000Z",
+        },
+      ]),
+    ];
+    try {
+      const pending = parallel.map((ns) => rebuildNamespaceIndex(ns));
+      // Three namespaces in flight at once. A global mutex (or one shared
+      // chain) would show exactly ONE entry here.
+      expect(inFlightRebuildNamespaces().sort()).toEqual(
+        parallel.map((ns) => path.resolve(ns)).sort(),
+      );
+
+      const metas = await Promise.all(pending);
+      expect(metas.map((m) => m.rowCount)).toEqual([1, 1, 1]);
+
+      // Each namespace owns its own COMPLETE sidecar — no cross-namespace
+      // clobbering (separate `.search/` dirs, and not one shared build).
+      for (const ns of parallel) {
+        const shape = await inspectSidecar(indexDbPath(ns));
+        expect(shape.memories).toBe(true);
+        expect(shape.ftsSchema).toBe(true);
+        expect(shape.rowCount).toBe(1);
+      }
+    } finally {
+      for (const ns of parallel) {
+        try {
+          fs.rmSync(ns, { recursive: true, force: true });
+        } catch {
+          // Best effort.
+        }
+      }
+    }
+  }, 90_000);
+
+  it("a missing namespace fails loudly instead of spinning in the lock wait loop", async () => {
+    // Regression found while adding the in-process layer — and a regression
+    // against the pre-DF-1013-04 code, which threw ENOENT from
+    // ensureSearchGitignored. The cross-process wait loop polls `for (;;)`
+    // while the lock file is ABSENT, which is exactly the state a failed
+    // lock-file create leaves behind, so a rebuild for a directory that does
+    // not exist never settled. The bounded race keeps the RED failure fast and
+    // names the timeout instead of eating the file timeout.
+    const ghost = path.join(NS_ROOT, "df101304-missing");
+    fs.rmSync(ghost, { recursive: true, force: true });
+    await expect(
+      withTimeout(
+        rebuildNamespaceIndex(ghost),
+        5_000,
+        "rebuild for a missing namespace",
+      ),
+    ).rejects.toThrow(/namespace directory not found/);
+  }, 30_000);
+});
+
 describe("DF-1013-04 AC2: one corrupt sidecar does not abort the allNamespaces union", () => {
   let corruptNs = "";
   let healthyNs = "";
@@ -240,9 +367,9 @@ describe("DF-1013-04 AC2: one corrupt sidecar does not abort the allNamespaces u
     const result = await keywordSearchAllNamespaces(NS_ROOT, "corrupt sidecar");
     expect(result.total).toBeGreaterThanOrEqual(1);
     expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    expect(result.memories.some((m) => m.namespace === "df101304-healthy")).toBe(
-      true,
-    );
+    expect(
+      result.memories.some((m) => m.namespace === "df101304-healthy"),
+    ).toBe(true);
     expect(result.namespaceErrors).toBeDefined();
     const corrupt = result.namespaceErrors!.find(
       (e) => e.namespace === "df101304-corrupt",

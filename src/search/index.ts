@@ -104,6 +104,11 @@ function sleep(ms: number): Promise<void> {
  * Try to acquire the sidecar rebuild lock. Returns true when THIS process
  * owns it (caller rebuilds), false when another process holds it (caller
  * should wait for their result instead of rebuilding).
+ *
+ * Any OTHER failure to create the lock file (ENOENT on a missing namespace,
+ * EACCES on an unwritable one, EROFS, ENOSPC) is neither "I own it" nor
+ * "someone else owns it": throwing is the only honest answer, because a
+ * `false` here makes rebuildNamespaceIndex's wait loop spin forever.
  */
 function tryAcquireRebuildLock(lockPath: string): boolean {
   try {
@@ -119,7 +124,13 @@ function tryAcquireRebuildLock(lockPath: string): boolean {
     }
     return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== "EEXIST") return false;
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code !== "EEXIST") {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `search index rebuild lock could not be created at ${lockPath}: ${detail}`,
+      );
+    }
     // Existing lock: steal it when stale (holder pid dead + aged).
     const pid = readPidFromLockFile(lockPath);
     let ageMs = 0;
@@ -365,17 +376,74 @@ function closeAsync(db: Database): Promise<void> {
 }
 
 /**
+ * DF-1013-04: in-process single-flight registry, keyed by RESOLVED namespace
+ * path.
+ *
+ * The lock file above serialises rebuilds ACROSS processes; this map does the
+ * same job INSIDE one process, where a lock file is the wrong tool. Two
+ * callers in one process that arrive together would otherwise both run a full
+ * rebuild: the loser polls, sees the winner's lock vanish, and races again.
+ * Joiners here reuse the owner's promise, so N concurrent calls for one
+ * namespace cost exactly ONE wipe+build+rename of the sidecar directory and
+ * every caller observes the same result.
+ *
+ * The key is the namespace path, so rebuilds of DIFFERENT namespaces still run
+ * concurrently — this is deliberately NOT a global mutex.
+ */
+const rebuildInFlight = new Map<string, Promise<IndexMeta>>();
+
+/**
+ * DF-1013-04 observability: the namespaces with a rebuild in flight in THIS
+ * process (resolved paths, insertion order). Empty when nothing is rebuilding.
+ * A length above 1 proves rebuilds are keyed per namespace, not serialised
+ * behind one global lock.
+ */
+export function inFlightRebuildNamespaces(): string[] {
+  return [...rebuildInFlight.keys()];
+}
+
+/**
  * Rebuild the keyword search index for one namespace. Idempotent: the
  * sidecar directory is deleted first, so a re-run always produces the
  * same index. The DuckDB file is built at a temp path and atomically
  * renamed into place so a concurrent reader never sees a half-written
  * index.
  *
+ * Concurrent callers — in this process or another — share ONE rebuild per
+ * namespace, and all of them return that rebuild's stats.
+ *
  * @returns rebuild stats (rowCount, sourceFiles, durationMs, indexedAt)
  */
 export async function rebuildNamespaceIndex(
   namespacePath: string,
 ): Promise<IndexMeta> {
+  const key = path.resolve(namespacePath);
+  const joined = rebuildInFlight.get(key);
+  if (joined) return joined;
+
+  const run = acquireRebuildLockAndRebuild(namespacePath).finally(() => {
+    // Only the owner registers, so this never clears a successor's entry.
+    if (rebuildInFlight.get(key) === run) rebuildInFlight.delete(key);
+  });
+  rebuildInFlight.set(key, run);
+  return run;
+}
+
+/**
+ * Acquire the cross-process lock and run the rebuild, releasing the lock when
+ * done. Callers MUST go through rebuildNamespaceIndex so that same-process
+ * callers share one build instead of racing each other for the lock.
+ */
+async function acquireRebuildLockAndRebuild(
+  namespacePath: string,
+): Promise<IndexMeta> {
+  // A namespace that does not exist cannot be locked: openSync(lockPath, "wx")
+  // fails with ENOENT, which is neither "I own it" nor "someone else owns it",
+  // so the wait loop below would spin forever. Fail loudly instead, mirroring
+  // ensureFreshIndex's wording for the same condition.
+  if (!fs.existsSync(namespacePath)) {
+    throw new Error(`namespace directory not found: ${namespacePath}`);
+  }
   const lockPath = path.join(namespacePath, REBUILD_LOCK_NAME);
 
   for (;;) {
