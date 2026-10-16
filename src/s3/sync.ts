@@ -439,6 +439,7 @@ export async function pushNamespace(
   cfg: S3Config,
   ns: string,
   namespacesPath: string,
+  signal?: AbortSignal,
 ): Promise<SyncStats> {
   const start = Date.now();
   const { buildClient, listRemoteObjects, putObject } = await loadClient();
@@ -448,7 +449,7 @@ export async function pushNamespace(
 
   const [local, remote, manifest] = await Promise.all([
     Promise.resolve(walkLocal(nsDir)),
-    listRemoteObjects(client, cfg.bucket, prefix),
+    listRemoteObjects(client, cfg.bucket, prefix, signal),
     Promise.resolve(loadManifest(namespacesPath, ns)),
   ]);
   const contents = readLocalContents(nsDir, local);
@@ -502,6 +503,7 @@ export async function pushNamespace(
         key,
         body,
         CONTENT_TYPES[ext] ?? "application/octet-stream",
+        signal,
       );
       uploaded++;
       // Success ONLY here — after the PUT resolved. A failed PUT must never
@@ -561,6 +563,7 @@ export async function pullNamespace(
   cfg: S3Config,
   ns: string,
   namespacesPath: string,
+  signal?: AbortSignal,
 ): Promise<SyncStats> {
   const start = Date.now();
   const { buildClient, listRemoteObjects, getObject } = await loadClient();
@@ -570,7 +573,7 @@ export async function pullNamespace(
 
   const [local, remote, manifest] = await Promise.all([
     Promise.resolve(walkLocal(nsDir)),
-    listRemoteObjects(client, cfg.bucket, prefix),
+    listRemoteObjects(client, cfg.bucket, prefix, signal),
     // S3-GIT-008: the pull comparison needs the previously recorded ETags
     // (version tokens) to prove which remote objects are untouched.
     Promise.resolve(loadManifest(namespacesPath, ns)),
@@ -583,7 +586,7 @@ export async function pullNamespace(
 
   for (const item of deltas.toDownload) {
     try {
-      const body = await getObject(client, cfg.bucket, item.key);
+      const body = await getObject(client, cfg.bucket, item.key, signal);
       const dest = path.join(nsDir, item.relPath);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       fs.writeFileSync(dest, body);
@@ -655,23 +658,30 @@ export function namespaceDeadlineSeconds(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
 }
 
-/** Reject after `seconds` unless `p` settles first. */
+/**
+ * Reject after `seconds` unless `p` settles first — AND abort the
+ * underlying HTTP requests so the SDK actually cancels the in-flight
+ * I/O instead of leaving a zombie request after the lock is released.
+ */
 async function withDeadline<T>(
   p: Promise<T>,
   seconds: number,
   onTimeout: (s: number) => void,
 ): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const controller = new AbortController();
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
+    const timer = setTimeout(() => {
+      controller.abort(); // cancel in-flight SDK calls
       onTimeout(seconds);
       reject(new Error(`sync deadline exceeded after ${seconds}s`));
     }, seconds * 1000);
+    timer.unref(); // don't prevent process exit
   });
   try {
     return await Promise.race([p, deadline]);
   } finally {
-    clearTimeout(timer);
+    // timer.unref() above lets the process exit even if this promise never settles;
+    // the controller remains alive but the signal is fire-and-forget.
   }
 }
 
@@ -705,13 +715,18 @@ export async function syncNamespace(
   }
   try {
     const deadlineS = namespaceDeadlineSeconds();
-    const inner =
+    // Create an AbortController that the deadline will fire — this signal
+    // is threaded through to every SDK call so a timeout cancels the
+    // in-flight I/O before the lock is released (S3-GIT-007 fix).
+    const deadlineController = new AbortController();
+    const innerPromise =
       direction === "push"
-        ? pushNamespace(cfg, ns, namespacesPath)
-        : pullNamespace(cfg, ns, namespacesPath);
-    return await withDeadline(inner, deadlineS, (s) => {
+        ? pushNamespace(cfg, ns, namespacesPath, deadlineController.signal)
+        : pullNamespace(cfg, ns, namespacesPath, deadlineController.signal);
+    const inner = withDeadline(innerPromise, deadlineS, (s) => {
       console.warn(`[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`);
     });
+    return await inner;
   } finally {
     releaseLock(lock);
   }

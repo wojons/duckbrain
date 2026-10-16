@@ -58,6 +58,7 @@ export async function listRemoteObjects(
   client: S3Client,
   bucket: string,
   prefix: string,
+  signal?: AbortSignal,
 ): Promise<Map<string, RemoteObject>> {
   const out = new Map<string, RemoteObject>();
   let token: string | undefined;
@@ -67,6 +68,7 @@ export async function listRemoteObjects(
         Bucket: bucket,
         Prefix: prefix,
         ContinuationToken: token,
+        ...(signal ? { signal } : {}),
       }),
     );
     for (const o of resp.Contents ?? []) {
@@ -85,6 +87,7 @@ export async function putObject(
   key: string,
   body: Buffer,
   contentType: string,
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
   const resp = await client.send(
     new PutObjectCommand({
@@ -92,6 +95,7 @@ export async function putObject(
       Key: key,
       Body: body,
       ContentType: contentType,
+      ...(signal ? { signal } : {}),
     }),
   );
   return resp.ETag;
@@ -102,9 +106,14 @@ export async function getObject(
   client: S3Client,
   bucket: string,
   key: string,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
   const resp = await client.send(
-    new GetObjectCommand({ Bucket: bucket, Key: key }),
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ...(signal ? { signal } : {}),
+    }),
   );
   // Body is a streaming blob in Node SDK v3
   const body = resp.Body as unknown as
@@ -119,6 +128,13 @@ export async function deleteObject(
   client: S3Client,
   bucket: string,
   key: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ...(signal ? { signal } : {}),
+    }),
+  );
 }
