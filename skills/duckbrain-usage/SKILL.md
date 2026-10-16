@@ -581,6 +581,28 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     `dist/` — after pulling new commits run `pnpm build:cli` first or you
     bench week-old code.
 
+32. **`remember` CLI requires `--domain=<d>` and won't tell you that
+    (DF-2026-1).** Omitting it fails with the valid-value enum only
+    (`"person"|"event"|"concept"|"message"|"config"|"raw_note"`) — no flag
+    name — and `remember --help` is rejected while `search --help` works.
+    Just pass `--domain=concept` (or `raw_note` for scratch). Same class:
+    after writing a brand-new token, an immediate `search` can print
+    "No memories found" rc=0 for ~1s while the auto-build races your write
+    (DF-2026-2) — re-run, or `search-index rebuild --namespace=<ns>` first
+    when scripting assert-on-first-search.
+
+33. **Probing the S3 tier on a scratch box: `rclone serve s3` is a working
+    userspace S3 endpoint** (verified 2026-10-16, run 17): 
+    `rclone serve s3 <root> --addr 127.0.0.1:PORT --auth-key ACC,SECRET`,
+    then a scratch config with `s3.enabled+endpoint+forcePathStyle:true` and
+    `AWS_ENDPOINT_URL` env — DuckBrain's sync engine runs against it
+    unmodified (path-style SigV4). Two traps: (a) inline `:s3,...:`
+    connection strings mangle `endpoint=` URIs — use `RCLONE_CONFIG_*` env
+    vars instead; (b) check `ss -tln` first — a fleet dashboard can hold your
+    planned port, and @aws-sdk reports the foreign HTML as an opaque
+    "mismatched tags <meta> and </head>" parse error instead of naming the
+    impostor.
+
 ## HTTP examples quickstart (the working path, 2026-09-26)
 
 Boot a scratch daemon and run the on-ramp flow that actually works (explicit

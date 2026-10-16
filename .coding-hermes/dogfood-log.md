@@ -550,3 +550,65 @@ changes; the sidecar repairs were operator-cache-maintenance through the
 product's own CLI (`search-index rebuild --namespace=<ns>`), not source
 edits. Foreman NOT woken (run 15 left rows pending on the active board; the
 foreman works them on its next tick).
+
+## Run 17 — 2026-10-16 tick (duckbrain-dogfood-2026-10-16-12-40-48) — Verdict: SHIPPABLE-ON-RE-PROOFED-SURFACES
+
+**Promise:** a user can store memories in a namespace, search them with a
+keyword index that survives concurrent rebuilds, and mirror a namespace to any
+S3-compatible endpoint with incremental content-verified sync.
+
+**Angle:** the DELTA since run 16 — two landed fixes never re-dogfooded
+through real use: DF-1013-04 (FTS sidecar rebuild serialization, 74bae7bf) and
+S3-GIT-008 (sha256 content-identity sync deltas, cf59f630), both closed
+verification-only. Re-proof at HEAD a9350b94 (local == published origin).
+
+**S3-GIT-008 HOLDS** (scratch namespace `s3repro8` + scratch rclone `serve s3`
+backend on 127.0.0.1:19099 — provider-agnostic for real, rclone is neither AWS
+nor MinIO): same-size+same-mtime content change re-uploaded (uploaded=1,
+skipped=2; pre-fix this was a silent skip); push during a backend outage
+rc=1 recorded NOTHING in the manifest and the recovery push uploaded the
+content (no skip-forever); same-size local corruption repaired by pull
+(downloaded=1); manifest sha256 matches local bytes full-hash.
+
+**DF-1013-04 HOLDS** (2 hook-style `--detached` rebuilds + 3 concurrent CLI
+rebuilds + a live `remember` mid-race): one consistent sidecar,
+meta.rowCount=9 = the exact right count, fts.duckdb 1.85MB with a populated
+memories table — run 16's corruption signature (12288B / zero tables) absent;
+no lingering `.search.rebuild.lock`; search correct during and after.
+
+**Install leg: EXECUTED PASS** (not skipped). bunker-las-01/02/03/04 offline
+(tailscale 3-15d) → bunker-mvp per the sibling-host rule. Agent df-dkb-1016,
+fresh Debian trixie (git+curl only): toolchain 13s, clone 4s, pnpm install 7s,
+documented quickstart smoke green at HEAD a9350b9 (health → namespace → write
+→ exact read-back, anonymous author stamp as documented). Delta smoke on the
+same fresh box: search-index rebuild green (649ms), search scored hit, s3
+status on default config = clean documented "disabled" refusal. Agent
+destroyed; `bunker list` verified empty.
+
+**Perf: no row, said plainly.** Warm numbers for everything this run did:
+s3 status 0.39-0.43s, s3 sync push 0.40-0.45s (engine 32-51ms), search
+0.38-0.42s, remember 0.42-0.46s — all the Node startup floor (user+sys≈wall);
+nothing a user would notice, nothing justified a profile.
+
+**Findings (rows on tasks.jsonl):**
+- DF-2026-1 (P3): `remember` CLI rejection omits `--domain=` from its error
+  and refuses `--help` (sibling `search` accepts it) — the flag contract is
+  undiscoverable at the moment of failure.
+- DF-2026-2 (P3): zero-hit keyword search gives no staleness hint when the
+  namespace partition is newer than the index's indexedAt (legal ~1s
+  auto-build window; bare "No memories found" rc=0 is indistinguishable from
+  a true empty answer).
+- Resolved false alarm (log-only, per the skill): single-token `search zebra`
+  → 0 while `zebra1` → 1 is correct unicode61 whole-token matching (content
+  tokens are zebra1..5); the immediate-search miss was the auto-build racing
+  my write (write→search in the same second hit). Sidecar verified healthy;
+  the residual UX gap is DF-2026-2.
+
+**Time-to-first-success:** n/a this angle (re-proof of closed rows); install
+leg first-success ≈ 30s from `pnpm start` to the green read-back.
+
+**Left behind:** 2 board rows (DF-2026-1/2), this entry,
+docs/dogfood/2026-10-16-reproof-integration.md. No code changes; no
+visibility/permission changes; no credentials minted (scratch backend used
+throwaway keys in /tmp). Foreman NOT woken (active family, rows pending on
+its board).
