@@ -2768,3 +2768,16 @@ tasks:
   status: complete
   created_at: '2026-10-16T23:37:12.454042+00:00'
   completed_at: '2026-10-17T00:10:08.917125+00:00'
+- id: DB-SUPA-2
+  title: 'Serialization layer: route table PATCH/DELETE through NamespaceWriter'
+  criteria:
+  - 'AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace
+    single-writer/fencing path.
+
+    AC2: For update/delete, append accepted audit/change records and tombstone semantics
+    before acknowledging; change feed remains valid after mutation.
+
+    AC3: Add a concurrent cross-process writer test proving no lost updates, plus
+    a post-delete audit/SSE replay test.'
+  status: in_progress
+  created_at: '2026-10-17T09:29:59.769431+00:00'

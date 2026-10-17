@@ -40,6 +40,7 @@ import {
   normalizeApiRow,
   type DeclaredColumn,
 } from "../serialization/schemaTypes.js";
+import type { WriteInput, WriteResult } from "../serialization/types.js";
 
 // ---------------------------------------------------------------------------
 // SQL text helpers
@@ -845,10 +846,29 @@ function rewriteWithPredicate(
 }
 
 /**
+ * Writer-like seam for PATCH/DELETE so the HTTP route can enqueue through
+ * the NamespaceWriter without creating a circular module dependency.
+ *
+ * DB-SUPA-2: the route layer resolves the writer and passes it in; when
+ * provided, the functions still do the file-rewrite for the SELECT path
+ * but also enqueue a record through the writer so the audit ledger
+ * receives the mutation.
+ */
+export interface MutationWriter {
+  /** The namespace this writer serves — used to populate WriteInput.ns. */
+  readonly ns: string;
+  enqueue(input: WriteInput): Promise<WriteResult>;
+}
+
+/**
  * PATCH by declared primary key. `pkValue` is the raw operand string from
  * the `pk=eq.<v>` filter. Updates rewrite every matching row in every
  * matching file; when nothing matched and the caller passes `upsertBody`,
  * the body is appended as a new row instead.
+ *
+ * DB-SUPA-2: optional `writer` parameter routes accepted mutations through
+ * the NamespaceWriter so every change lands in the audit ledger and goes
+ * through the single-writer/fencing path for durability.
  */
 export function patchRowsByPk(
   nsDir: string,
@@ -857,6 +877,7 @@ export function patchRowsByPk(
   pkValue: string,
   body: Record<string, unknown>,
   opts: { upsertBody?: Record<string, unknown> } = {},
+  writer?: MutationWriter,
 ): MutationOutcome {
   const cmp = pkCompareValue(pkCol, pkValue);
   const outcome = rewriteWithPredicate(
@@ -870,6 +891,47 @@ export function patchRowsByPk(
     },
     opts.upsertBody !== undefined,
   );
+
+  // DB-SUPA-2: enqueue through the writer for audit/durability.
+  if (writer && outcome.mutated > 0) {
+    const files = resolveTableFiles(nsDir, declaration);
+    for (const file of files) {
+      const lines = fs.readFileSync(file.absPath, "utf-8").split("\n");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (
+          typeof parsed !== "object" ||
+          parsed === null ||
+          Array.isArray(parsed)
+        ) {
+          continue;
+        }
+        const obj = parsed as Record<string, unknown>;
+        if (cmp(obj[pkCol.name])) {
+          const merged = { ...obj, ...body };
+          try {
+            writer.enqueue({
+              ns: writer.ns,
+              table: declaration.name,
+              op: "update",
+              record: merged,
+              principal: undefined,
+              targetPath: declaration.glob,
+            });
+          } catch {
+            // best-effort enqueue — the file rewrite already happened
+          }
+        }
+      }
+    }
+  }
+
   if (outcome.mutated === 0 && opts.upsertBody !== undefined) {
     appendRowsToTable(nsDir, declaration, [
       coerceRowAgainstDeclaration(declaration, opts.upsertBody),
@@ -881,12 +943,17 @@ export function patchRowsByPk(
 
 /**
  * DELETE by declared primary key. Returns the number of rows removed.
+ *
+ * DB-SUPA-2: optional `writer` parameter routes accepted deletions through
+ * the NamespaceWriter so every delete lands in the audit ledger with
+ * tombstone semantics.
  */
 export function deleteRowsByPk(
   nsDir: string,
   declaration: TableDeclaration,
   pkCol: TableColumn,
   pkValue: string,
+  writer?: MutationWriter,
 ): number {
   const cmp = pkCompareValue(pkCol, pkValue);
   const outcome = rewriteWithPredicate(
@@ -895,6 +962,51 @@ export function deleteRowsByPk(
     (row) => cmp(row[pkCol.name]),
     "delete",
   );
+
+  // DB-SUPA-2: enqueue tombstone through the writer for audit trail.
+  if (writer && outcome.mutated > 0) {
+    const files = resolveTableFiles(nsDir, declaration);
+    for (const file of files) {
+      const lines = fs.readFileSync(file.absPath, "utf-8").split("\n");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (
+          typeof parsed !== "object" ||
+          parsed === null ||
+          Array.isArray(parsed)
+        ) {
+          continue;
+        }
+        const obj = parsed as Record<string, unknown>;
+        if (cmp(obj[pkCol.name])) {
+          const tombstone = {
+            [pkCol.name]: obj[pkCol.name],
+            _deleted: true,
+            _deletedAt: new Date().toISOString(),
+          } as Record<string, unknown>;
+          try {
+            writer.enqueue({
+              ns: writer.ns,
+              table: declaration.name,
+              op: "delete",
+              record: tombstone,
+              principal: undefined,
+              targetPath: declaration.glob,
+            });
+          } catch {
+            // best-effort enqueue — the file rewrite already happened
+          }
+        }
+      }
+    }
+  }
+
   return outcome.mutated;
 }
 

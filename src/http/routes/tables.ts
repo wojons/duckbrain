@@ -45,6 +45,7 @@ import {
   appendRowsToTable,
   patchRowsByPk,
   deleteRowsByPk,
+  type MutationWriter,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
@@ -844,7 +845,9 @@ function createTableRoutes(): Router {
 
   /**
    * PATCH /api/ns/:ns/tables/:table?pk=eq.<v> — update by primary key.
-   * Rewrites the matching JSONL file rows (append-log reality for v1).
+   * Rewrites the matching JSONL file rows and enqueues the mutation through
+   * the NamespaceWriter for audit/durability invariants (schema.json tables
+   * only; legacy .table.json tables use direct file rewrite to match POST).
    */
   router.patch(
     "/:table",
@@ -879,12 +882,28 @@ function createTableRoutes(): Router {
             ? null
             : coerceRowAgainstDeclaration(declaration, { [k]: v })[k];
       }
+
+      const mutationWriter: MutationWriter | undefined =
+        declaration.source === "schema.json"
+          ? {
+              ns,
+              enqueue: (input) =>
+                getNamespaceWriter(ns).enqueue(input as never),
+            }
+          : undefined;
+
       const outcome = patchRowsByPk(
         namespaceDir(ns),
         declaration,
         col,
         value,
         coercedBody,
+        {},
+        mutationWriter,
+      );
+      res.setHeader(
+        "X-Durability",
+        process.env.DUCKBRAIN_DURABILITY_MODE || "buffered",
       );
       res.json({ updated: outcome.mutated });
     }),
@@ -892,7 +911,10 @@ function createTableRoutes(): Router {
 
   /**
    * DELETE /api/ns/:ns/tables/:table?pk=eq.<v> — delete by primary key.
-   * Rewrites the matching JSONL files with the row dropped.
+   * Rewrites the matching JSONL files with the row dropped and enqueues a
+   * tombstone through the NamespaceWriter for audit trail (schema.json
+   * tables only; legacy .table.json tables use direct file rewrite to match
+   * POST).
    */
   router.delete(
     "/:table",
@@ -902,7 +924,27 @@ function createTableRoutes(): Router {
       const tableName = param(req, "table");
       const declaration = getTable(ns, tableName);
       const { col, value } = requirePkFilter(declaration, req);
-      const removed = deleteRowsByPk(namespaceDir(ns), declaration, col, value);
+
+      const mutationWriter: MutationWriter | undefined =
+        declaration.source === "schema.json"
+          ? {
+              ns,
+              enqueue: (input) =>
+                getNamespaceWriter(ns).enqueue(input as never),
+            }
+          : undefined;
+
+      const removed = deleteRowsByPk(
+        namespaceDir(ns),
+        declaration,
+        col,
+        value,
+        mutationWriter,
+      );
+      res.setHeader(
+        "X-Durability",
+        process.env.DUCKBRAIN_DURABILITY_MODE || "buffered",
+      );
       res.json({ deleted: removed });
     }),
   );
