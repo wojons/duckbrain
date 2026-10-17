@@ -72,28 +72,34 @@ function writeLegacyFixture(): void {
 }
 
 function writeSchemaFixture(): void {
+  // DUCKBRAIN_NAMESPACES_PATH env override makes namespaces resolve to tmpRoot
+  // itself (not tmpRoot/namespaces). See applyEnvOverrides() in config/index.ts.
   schemaNsDir = path.join(tmpRoot, SCHEMA_FIXTURE_NS);
   fs.mkdirSync(path.join(schemaNsDir, "tables"), { recursive: true });
 
-  // schema.json for DB-SUPA-2 writer path
+  // schema.json for DB-SUPA-2 writer path.
+  // CLOSED-WORLD schema contract: strict zod schema rejects unknown keys.
+  // See schemaJson.ts TableSchema definition.
+  // DECLARED_TYPES: string, int64, float64, boolean, timestamp, json, bytes
+  // ROW_SHAPES: object, positional
   fs.writeFileSync(
     path.join(schemaNsDir, "schema.json"),
     JSON.stringify({
       schemaVersion: 1,
       tables: {
         widgets: {
-          name: "widgets",
-          columns: [
-            { name: "id", type: "integer" },
-            { name: "name", type: "varchar" },
-            { name: "qty", type: "double" },
-          ],
+          schemaVersion: 1,
+          storage: { path: "tables/widgets.jsonl" },
+          rowShape: "object",
           keyColumns: ["id"],
-          rowShape: "jsonl",
-          storagePath: "tables/widgets.jsonl",
-          source: "schema.json" as const,
+          columns: [
+            { name: "id", type: "int64", nullable: false },
+            { name: "name", type: "string", nullable: true },
+            { name: "qty", type: "float64", nullable: true },
+          ],
         },
       },
+      views: {},
     }),
     "utf-8",
   );
@@ -101,8 +107,9 @@ function writeSchemaFixture(): void {
   fs.writeFileSync(
     path.join(schemaNsDir, "tables", "widgets.jsonl"),
     [
-      JSON.stringify({ id: 1, name: "alpha", qty: 1.5 }),
-      JSON.stringify({ id: 2, name: "beta", qty: 3.0 }),
+      // rowShape=object: each line is a JSON object matching column names
+      JSON.stringify({ id: "1", name: "alpha", qty: 1.5 }),
+      JSON.stringify({ id: "2", name: "beta", qty: 3.0 }),
     ].join("\n") + "\n",
     "utf-8",
   );
@@ -414,8 +421,6 @@ describe("DB-SUPA-2: PATCH/DELETE through NamespaceWriter (schema.json)", () => 
 // ---------------------------------------------------------------------------
 
 describe("DB-SUPA-2: concurrent cross-process PATCH writer", () => {
-  const nsDir = path.join(tmpRoot, CONCURRENT_NS);
-
   beforeEach(() => {
     invalidateTableRegistry(CONCURRENT_NS);
     resetSerializerStateForTests();

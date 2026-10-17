@@ -39,22 +39,113 @@ import {
   type TableDeclaration,
 } from "../../schema/table-registry";
 import {
+  getDeclaredTable,
+} from "../../serialization/schemaRegistry";
+import type { RegisteredTableDeclaration } from "../../serialization/registry";
+import {
   buildSelectPlan,
   executeSelectPlan,
   coerceRowAgainstDeclaration,
   appendRowsToTable,
+  findRowByPk,
   patchRowsByPk,
   deleteRowsByPk,
-  type MutationWriter,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
+import type { AuditEntry } from "../../serialization/audit";
+import {
+  acquireNamespaceWriteLock,
+  releaseNamespaceWriteLock,
+  type NamespaceWriteLock,
+} from "../../serialization/lock";
+import { resolveNamespacesPath } from "../../config";
+import { durabilityHeaderFor } from "../../storage/durability";
 import {
   assertNamespaceDdlUsable,
   partitionForStoragePath,
 } from "../../serialization/ddl";
 import { assertNamespaceSchemaUsable } from "../../serialization/schemaRegistry";
 import { storedRowFromApiRow } from "../../serialization/schemaTypes";
+
+/** Declared column types (schema.json) → legacy DuckDB column types. */
+const DECLARED_TO_LEGACY: Record<string, string> = {
+  string: "varchar",
+  int64: "bigint",
+  float64: "double",
+  boolean: "boolean",
+  timestamp: "timestamp",
+  json: "json",
+  bytes: "varchar",
+};
+
+/**
+ * Bridge a RegisteredTableDeclaration (schema.json) into a TableDeclaration
+ * so that patchRowsByPk / deleteRowsByPk / coerceRowAgainstDeclaration can
+ * operate on it.  The two shapes are not directly compatible — the declared
+ * version carries Zod/row-shape metadata the legacy path doesn't need.
+ */
+function asLegacyDeclaration(
+  decl: RegisteredTableDeclaration,
+): TableDeclaration {
+  return {
+    name: decl.table,
+    format: "jsonl-objects" as const,
+    columns: decl.columns.map((c) => ({
+      name: c.name,
+      type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
+      nullable: c.nullable,
+    })),
+    primary: decl.keyColumns[0] ?? null,
+    glob: decl.storagePath,
+    source: "schema.json" as const,
+  };
+}
+
+/**
+ * DB-SUPA-2: how long a declared-table mutation waits for the namespace write
+ * lock before reporting SERIALIZER_LOCKED.
+ *
+ * The lock itself is unchanged — this only decides how long the request WAITS
+ * for it — but the wait is load-bearing, because the lock is routinely held by
+ * transient in-process actors that are not client-visible contention at all:
+ *
+ *   - the serializer's own flush (`namespaceWriter.flushOnceLocked`), which
+ *     appends the audit row a previous request enqueued, and
+ *   - the commit chain (`autocommit.asyncCommit` → `withNamespaceCommitLock`),
+ *     which holds the namespace lock across `git init`/`add`/`commit`.
+ *
+ * Measured on this suite's fixture (2026-10-17, probe evidence): the first
+ * write to a namespace takes the debounce-bypass branch (no `.git` yet →
+ * immediate async commit), which still holds the lock ~50ms after that
+ * mutation's own 2xx — so the NEXT mutation, one `beforeEach` away, is issued
+ * straight into a live same-process holder. A fail-fast acquire turns that
+ * ordinary self-contention into a spurious 503 for a legitimate client. Retry
+ * with the same shape the commit path already uses (`withNamespaceCommitLock`:
+ * 25ms between attempts, bounded deadline) so only a holder that outlives the
+ * deadline — in practice another process — surfaces as contention.
+ *
+ * Waiting here cannot deadlock: the caller holds neither the lock nor the
+ * in-process commit gate while it waits, and every waiter that does hold the
+ * lock (flush, commit) does only bounded, non-awaiting file work with it.
+ */
+const LOCK_WAIT_RETRY_MS = 25;
+const LOCK_WAIT_DEADLINE_MS = 2_000;
+
+/** Acquire the namespace write lock, waiting (bounded) instead of failing fast. */
+async function acquireNamespaceWriteLockWaiting(
+  ns: string,
+): Promise<NamespaceWriteLock | null> {
+  const deadline = Date.now() + LOCK_WAIT_DEADLINE_MS;
+  for (;;) {
+    const lock = acquireNamespaceWriteLock(resolveNamespacesPath(), ns);
+    if (lock) return lock;
+    if (Date.now() >= deadline) return null;
+    // Yield to the event loop so an in-process holder (the flush's or the
+    // commit's own async work) can make progress and release.
+    await new Promise((resolve) => setTimeout(resolve, LOCK_WAIT_RETRY_MS));
+  }
+}
 
 /** Express 5 types named params as string | string[] (GAP-002 pattern). */
 function param(req: Request, name: string): string {
@@ -844,10 +935,58 @@ function createTableRoutes(): Router {
   }
 
   /**
+   * DB-SUPA-2: record an ACCEPTED table mutation in the namespace's audit
+   * ledger through the SUPA-2 single writer, and resolve only once that
+   * append is durable — a 2xx must never precede its audit record.
+   *
+   * The row is written WITHOUT DB-SUPA-5 change-record markers
+   * (`targetPath`/`contentHash`/`key`/`tombstone`/`schemaVersion`): a change
+   * record's `contentHash` must still resolve to a line present in the
+   * committed data file at the mutation's commit, and this layer's mutations
+   * are in-place file REWRITES — a second PATCH on the same row inside one
+   * commit window replaces the hashed line, which would turn the change
+   * feed's replay into `CHANGELOG_CORRUPT`. A marker-less accepted row is,
+   * per `isChangeRecordCandidate`, legitimate ledger content that replay
+   * skips instead of failing closed. Emitting a full change record for
+   * rewrite-based mutations needs an append-only data path plus read-side
+   * version folding — a redesign, tracked as a follow-up, not a fix.
+   *
+   * A failed append is fail-closed: the caller gets an error naming the
+   * already-applied mutation instead of an unacknowledged 2xx.
+   */
+  async function recordTableMutationAudit(
+    ns: string,
+    table: string,
+    op: "update" | "delete",
+    principal: string | null,
+  ): Promise<void> {
+    const entry: AuditEntry = {
+      ts: new Date().toISOString(),
+      ns,
+      table,
+      op,
+      principal,
+      outcome: "accepted",
+    };
+    try {
+      await getNamespaceWriter(ns).enqueueAudit(entry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const shuttingDown = message.startsWith("SERVER_SHUTTING_DOWN");
+      throw new ApiError(
+        `mutation was applied but its audit record could not be appended: ${message}`,
+        shuttingDown ? 503 : 500,
+        shuttingDown ? "SERVER_SHUTTING_DOWN" : "AUDIT_APPEND_FAILED",
+      );
+    }
+  }
+
+  /**
    * PATCH /api/ns/:ns/tables/:table?pk=eq.<v> — update by primary key.
-   * Rewrites the matching JSONL file rows and enqueues the mutation through
-   * the NamespaceWriter for audit/durability invariants (schema.json tables
-   * only; legacy .table.json tables use direct file rewrite to match POST).
+   * Rewrites the matching JSONL file rows and records the accepted mutation
+   * through the NamespaceWriter so the audit ledger sees it before the 2xx
+   * (schema.json tables only; legacy .table.json tables use direct file
+   * rewrite to match POST).
    */
   router.patch(
     "/:table",
@@ -855,7 +994,24 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      const declaration = getTable(ns, tableName);
+      // Legacy .table.json tables live in the table-registry; schema.json tables
+      // live in the declared-table registry. Try the legacy resolver first, then
+      // fall back to declared tables (supersedes legacy on naming collision).
+      let declaration = getTable(ns, tableName) as
+        | TableDeclaration
+        | undefined;
+      if (!declaration) {
+        const declared = getDeclaredTable(ns, tableName);
+        if (declared) {
+          declaration = asLegacyDeclaration(declared);
+        } else {
+          throw new ApiError(
+            `Table '${tableName}' not found in namespace '${ns}'`,
+            404,
+            "NOT_FOUND",
+          );
+        }
+      }
       const { col, value } = requirePkFilter(declaration, req);
       const body = req.body;
       if (typeof body !== "object" || body === null || Array.isArray(body)) {
@@ -865,7 +1021,8 @@ function createTableRoutes(): Router {
           "VALIDATION_ERROR",
         );
       }
-      const unknownKeys = Object.keys(body as Record<string, unknown>).filter(
+      const patchBody = body as Record<string, unknown>;
+      const unknownKeys = Object.keys(patchBody).filter(
         (k) => !declaration.columns.some((c) => c.name === k),
       );
       if (unknownKeys.length > 0) {
@@ -875,46 +1032,74 @@ function createTableRoutes(): Router {
           "VALIDATION_ERROR",
         );
       }
-      const coercedBody: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
-        coercedBody[k] =
-          v === null
-            ? null
-            : coerceRowAgainstDeclaration(declaration, { [k]: v })[k];
+
+      const nsDir = namespaceDir(ns);
+      // DB-SUPA-2: the read-merge-rewrite runs under the namespace write lock
+      // — the same lock the serializer's flush and the commit chain take — so
+      // two writers (two processes on one namespace root included) cannot lose
+      // each other's update. It is held for synchronous file work only; the
+      // audit record below is enqueued AFTER it is released, so this request's
+      // own awaited flush is never blocked behind its own critical section.
+      const lock = await acquireNamespaceWriteLockWaiting(ns);
+      if (!lock) {
+        res.setHeader("Retry-After", "1");
+        throw new ApiError(
+          `Namespace '${ns}' is locked by another writer process`,
+          503,
+          "SERIALIZER_LOCKED",
+        );
       }
-
-      const mutationWriter: MutationWriter | undefined =
-        declaration.source === "schema.json"
-          ? {
-              ns,
-              enqueue: (input) =>
-                getNamespaceWriter(ns).enqueue(input as never),
-            }
-          : undefined;
-
-      const outcome = patchRowsByPk(
-        namespaceDir(ns),
-        declaration,
-        col,
-        value,
-        coercedBody,
-        {},
-        mutationWriter,
-      );
-      res.setHeader(
-        "X-Durability",
-        process.env.DUCKBRAIN_DURABILITY_MODE || "buffered",
-      );
-      res.json({ updated: outcome.mutated });
+      let coercedBody: Record<string, unknown> = {};
+      let mutated = 0;
+      try {
+        const existing = findRowByPk(nsDir, declaration, col, value);
+        if (existing !== null) {
+          // Validate the MERGED row, not each body field in isolation: a
+          // partial patch is legal (only the named columns change) while every
+          // declared constraint is still enforced against the row the patch
+          // produces.
+          const merged = coerceRowAgainstDeclaration(declaration, {
+            ...existing,
+            ...patchBody,
+          });
+          for (const key of Object.keys(patchBody))
+            coercedBody[key] = merged[key];
+          mutated = patchRowsByPk(
+            nsDir,
+            declaration,
+            col,
+            value,
+            coercedBody,
+          ).mutated;
+        }
+      } finally {
+        releaseNamespaceWriteLock(lock);
+      }
+      // No matching row: nothing was written and there is nothing to audit.
+      if (mutated === 0) {
+        res.setHeader("X-Durability", durabilityHeaderFor(ns));
+        res.json({ updated: 0 });
+        return;
+      }
+      if (declaration.source === "schema.json") {
+        await recordTableMutationAudit(
+          ns,
+          declaration.name,
+          "update",
+          getPrincipal(req)?.name ?? null,
+        );
+      }
+      res.setHeader("X-Durability", durabilityHeaderFor(ns));
+      res.json({ updated: mutated });
     }),
   );
 
   /**
    * DELETE /api/ns/:ns/tables/:table?pk=eq.<v> — delete by primary key.
-   * Rewrites the matching JSONL files with the row dropped and enqueues a
-   * tombstone through the NamespaceWriter for audit trail (schema.json
-   * tables only; legacy .table.json tables use direct file rewrite to match
-   * POST).
+   * Rewrites the matching JSONL files with the row dropped and records the
+   * accepted delete through the NamespaceWriter so the audit ledger sees it
+   * before the 2xx (schema.json tables only; legacy .table.json tables use
+   * direct file rewrite to match POST).
    */
   router.delete(
     "/:table",
@@ -922,29 +1107,59 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      const declaration = getTable(ns, tableName);
+      // Same fallback as PATCH: table-registry for legacy, declared-table for
+      // schema.json tables.
+      let declaration = getTable(ns, tableName) as
+        | TableDeclaration
+        | undefined;
+      if (!declaration) {
+        const declared = getDeclaredTable(ns, tableName);
+        if (declared) {
+          declaration = asLegacyDeclaration(declared);
+        } else {
+          throw new ApiError(
+            `Table '${tableName}' not found in namespace '${ns}'`,
+            404,
+            "NOT_FOUND",
+          );
+        }
+      }
       const { col, value } = requirePkFilter(declaration, req);
 
-      const mutationWriter: MutationWriter | undefined =
-        declaration.source === "schema.json"
-          ? {
-              ns,
-              enqueue: (input) =>
-                getNamespaceWriter(ns).enqueue(input as never),
-            }
-          : undefined;
-
-      const removed = deleteRowsByPk(
-        namespaceDir(ns),
-        declaration,
-        col,
-        value,
-        mutationWriter,
-      );
-      res.setHeader(
-        "X-Durability",
-        process.env.DUCKBRAIN_DURABILITY_MODE || "buffered",
-      );
+      const nsDir = namespaceDir(ns);
+      // DB-SUPA-2: same namespace write lock as PATCH — the read-predicate-write
+      // pair must not interleave with another writer process, and a same-process
+      // holder (flush / commit) is waited on rather than reported as contention.
+      const lock = await acquireNamespaceWriteLockWaiting(ns);
+      if (!lock) {
+        res.setHeader("Retry-After", "1");
+        throw new ApiError(
+          `Namespace '${ns}' is locked by another writer process`,
+          503,
+          "SERIALIZER_LOCKED",
+        );
+      }
+      let removed = 0;
+      try {
+        removed = deleteRowsByPk(nsDir, declaration, col, value);
+      } finally {
+        releaseNamespaceWriteLock(lock);
+      }
+      // Nothing matched: no tombstone to record, nothing was deleted.
+      if (removed === 0) {
+        res.setHeader("X-Durability", durabilityHeaderFor(ns));
+        res.json({ deleted: 0 });
+        return;
+      }
+      if (declaration.source === "schema.json") {
+        await recordTableMutationAudit(
+          ns,
+          declaration.name,
+          "delete",
+          getPrincipal(req)?.name ?? null,
+        );
+      }
+      res.setHeader("X-Durability", durabilityHeaderFor(ns));
       res.json({ deleted: removed });
     }),
   );
