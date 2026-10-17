@@ -1,0 +1,102 @@
+{
+  "task_id": "DB-SUPA-2",
+  "task_title": "Serialization layer: route table PATCH/DELETE through NamespaceWriter",
+  "task_criteria": [
+    "AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace single-writer/fencing path.\nAC2: For update/delete, append accepted audit/change records and tombstone semantics before acknowledging; change feed remains valid after mutation.\nAC3: Add a concurrent cross-process writer test proving no lost updates, plus a post-delete audit/SSE replay test."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "f75841239bdf969b636d77f8e0bc341f58a4a7c2",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:15PM INF scanned ~42714562 bytes (42.71 MB) in 4.14s\n3:15PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1055053 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261017T001155.083773Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  226 passed (226)\n      Tests  1885 passed (1885)\n   Start at  15:15:36\n   Duration  60.80s (tests 80%, import 17%, transform 2%, worker 1%)\n\n    Isolate  226 workers spawned \u00b7 ~82ms startup each (spawn + environment, per file)\n             at least ~4.57s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261017T001155.083773Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace single-writer/fencing path.\nAC2: For update/delete, append accepted audit/change records and tombstone semantics before acknowledging; change feed remains valid after mutation.\nAC3: Add a concurrent cross-process writer test proving no lost updates, plus a post-delete audit/SSE replay test.: AC1 partially met: POST for schema.json tables uses writer.enqueue (src/http/routes/tables.ts:846-880); PATCH takes acquireNamespaceWriteLockWaiting then awaits recordTableMutationAudit -> getNamespaceWriter(ns).enqueueAudit before res.json (tables.ts:1037-1095); DELETE likewise (tables.ts:1130-1175). However legacy .table.json tables bypass the writer entirely (direct appendRowsToTable / patchRowsByPk / deleteRowsByPk, tables.ts:884-886, 1085-1095, 1160-1175), so not EVERY declared-table mutation is routed through the single-writer path. AC2 FAILS: the audit row built in recordTableMutationAudit (tables.ts:958-980) is deliberately marker-less \u2014 the code comment at tables.ts:938-957 states targetPath/contentHash/key/tombstone/schemaVersion are intentionally NOT emitted, so no tombstone semantics and no change record exist for update/delete; isChangeRecordCandidate (src/serialization/changeRecord.ts:87-95) returns false for these rows and replay skips them (src/http/realtime/replay.ts: 'if (!isChangeRecordCandidate(entry)) continue'), so the change feed carries no update/delete event at all. AC3 FAILS: the only 'concurrent cross-process' test is src/http/routes/tables-supa2.test.ts:423-455, whose single case is 'two sequential PATCHes via same writer \u2192 deterministic final state' \u2014 sequential, in-process, no child process/spawn, no concurrency, no lost-update assertion. No post-delete audit/SSE replay test exists: the SSE tests (tables-supa2.test.ts:270-290, 396-420) only assert status != 500 / no 'CHANGELOG_CORRUPT' substring and run against the legacy namespace that writes no audit rows; nothing replays the change feed after a delete. Test run evidence: `npx vitest run src/http/routes/tables-supa2.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)', but those 9 tests do not exercise cross-process concurrency or post-delete replay.\nPATCH/DELETE do append an awaited audit row through NamespaceWriter, but legacy tables bypass the writer, no tombstone/change-record markers are emitted (replay skips them), and the 'concurrent cross-process' test is a sequential in-process test with no post-delete replay coverage.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace single-writer/fencing path.\nAC2: For update/delete, append accepted audit/change records and tombstone semantics before acknowledging; change feed remains valid after mutation.\nAC3: Add a concurrent cross-process writer test proving no lost updates, plus a post-delete audit/SSE replay test.: AC1 partially met: POST for schema.json tables uses writer.enqueue (src/http/routes/tables.ts:846-880); PATCH takes acquireNamespaceWriteLockWaiting then awaits recordTableMutationAudit -> getNamespaceWriter(ns).enqueueAudit before res.json (tables.ts:1037-1095); DELETE likewise (tables.ts:1130-1175). However legacy .table.json tables bypass the writer entirely (direct appendRowsToTable / patchRowsByPk / deleteRowsByPk, tables.ts:884-886, 1085-1095, 1160-1175), so not EVERY declared-table mutation is routed through the single-writer path. AC2 FAILS: the audit row built in recordTableMutationAudit (tables.ts:958-980) is deliberately marker-less \u2014 the code comment at tables.ts:938-957 states targetPath/contentHash/key/tombstone/schemaVersion are intentionally NOT emitted, so no tombstone semantics and no change record exist for update/delete; isChangeRecordCandidate (src/serialization/changeRecord.ts:87-95) returns false for these rows and replay skips them (src/http/realtime/replay.ts: 'if (!isChangeRecordCandidate(entry)) continue'), so the change feed carries no update/delete event at all. AC3 FAILS: the only 'concurrent cross-process' test is src/http/routes/tables-supa2.test.ts:423-455, whose single case is 'two sequential PATCHes via same writer \u2192 deterministic final state' \u2014 sequential, in-process, no child process/spawn, no concurrency, no lost-update assertion. No post-delete audit/SSE replay test exists: the SSE tests (tables-supa2.test.ts:270-290, 396-420) only assert status != 500 / no 'CHANGELOG_CORRUPT' substring and run against the legacy namespace that writes no audit rows; nothing replays the change feed after a delete. Test run evidence: `npx vitest run src/http/routes/tables-supa2.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)', but those 9 tests do not exercise cross-process concurrency or post-delete replay.\nPATCH/DELETE do append an awaited audit row through NamespaceWriter, but legacy tables bypass the writer, no tombstone/change-record markers are emitted (replay skips them), and the 'concurrent cross-process' test is a sequential in-process test with no post-delete replay coverage.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace single-writer/fencing path.\nAC2: For update/delete, append accepted audit/change records and tombstone semantics before acknowledging; change feed remains valid after mutation.\nAC3: Add a concurrent cross-process writer test proving no lost updates, plus a post-delete audit/SSE replay test.",
+                "status": "FAIL",
+                "detail": "AC1 partially met: POST for schema.json tables uses writer.enqueue (src/http/routes/tables.ts:846-880); PATCH takes acquireNamespaceWriteLockWaiting then awaits recordTableMutationAudit -> getNamespaceWriter(ns).enqueueAudit before res.json (tables.ts:1037-1095); DELETE likewise (tables.ts:1130-1175). However legacy .table.json tables bypass the writer entirely (direct appendRowsToTable / patchRowsByPk / deleteRowsByPk, tables.ts:884-886, 1085-1095, 1160-1175), so not EVERY declared-table mutation is routed through the single-writer path. AC2 FAILS: the audit row built in recordTableMutationAudit (tables.ts:958-980) is deliberately marker-less \u2014 the code comment at tables.ts:938-957 states targetPath/contentHash/key/tombstone/schemaVersion are intentionally NOT emitted, so no tombstone semantics and no change record exist for update/delete; isChangeRecordCandidate (src/serialization/changeRecord.ts:87-95) returns false for these rows and replay skips them (src/http/realtime/replay.ts: 'if (!isChangeRecordCandidate(entry)) continue'), so the change feed carries no update/delete event at all. AC3 FAILS: the only 'concurrent cross-process' test is src/http/routes/tables-supa2.test.ts:423-455, whose single case is 'two sequential PATCHes via same writer \u2192 deterministic final state' \u2014 sequential, in-process, no child process/spawn, no concurrency, no lost-update assertion. No post-delete audit/SSE replay test exists: the SSE tests (tables-supa2.test.ts:270-290, 396-420) only assert status != 500 / no 'CHANGELOG_CORRUPT' substring and run against the legacy namespace that writes no audit rows; nothing replays the change feed after a delete. Test run evidence: `npx vitest run src/http/routes/tables-supa2.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)', but those 9 tests do not exercise cross-process concurrency or post-delete replay.",
+                "resolution_probability": 0.19
+              }
+            ],
+            "summary": "PATCH/DELETE do append an awaited audit row through NamespaceWriter, but legacy tables bypass the writer, no tombstone/change-record markers are emitted (replay skips them), and the 'concurrent cross-process' test is a sequential in-process test with no post-delete replay coverage."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-SUPA-2\n\nStage tier1: PASS\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 AC1: Every declared-table mutation (POST/PATCH/DELETE) goes through the namespace single-writer/fencing path.\nAC2: For update/delete, append accepted audit/change records and tombstone semantics before acknowledging; change feed remains valid after mutation.\nAC3: Add a concurrent cross-process writer test proving no lost updates, plus a post-delete audit/SSE replay test.: AC1 partially met: POST for schema.json tables uses writer.enqueue (src/http/routes/tables.ts:846-880); PATCH takes acquireNamespaceWriteLockWaiting then awaits recordTableMutationAudit -> getNamespaceWriter(ns).enqueueAudit before res.json (tables.ts:1037-1095); DELETE likewise (tables.ts:1130-1175). However legacy .table.json tables bypass the writer entirely (direct appendRowsToTable / patchRowsByPk / deleteRowsByPk, tables.ts:884-886, 1085-1095, 1160-1175), so not EVERY declared-table mutation is routed through the single-writer path. AC2 FAILS: the audit row built in recordTableMutationAudit (tables.ts:958-980) is deliberately marker-less \u2014 the code comment at tables.ts:938-957 states targetPath/contentHash/key/tombstone/schemaVersion are intentionally NOT emitted, so no tombstone semantics and no change record exist for update/delete; isChangeRecordCandidate (src/serialization/changeRecord.ts:87-95) returns false for these rows and replay skips them (src/http/realtime/replay.ts: 'if (!isChangeRecordCandidate(entry)) continue'), so the change feed carries no update/delete event at all. AC3 FAILS: the only 'concurrent cross-process' test is src/http/routes/tables-supa2.test.ts:423-455, whose single case is 'two sequential PATCHes via same writer \u2192 deterministic final state' \u2014 sequential, in-process, no child process/spawn, no concurrency, no lost-update assertion. No post-delete audit/SSE replay test exists: the SSE tests (tables-supa2.test.ts:270-290, 396-420) only assert status != 500 / no 'CHANGELOG_CORRUPT' substring and run against the legacy namespace that writes no audit rows; nothing replays the change feed after a delete. Test run evidence: `npx vitest run src/http/routes/tables-supa2.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)', but those 9 tests do not exercise cross-process concurrency or post-delete replay.\nPATCH/DELETE do append an awaited audit row through NamespaceWriter, but legacy tables bypass the writer, no tombstone/change-record markers are emitted (replay skips them), and the 'concurrent cross-process' test is a sequential in-process test with no post-delete replay coverage.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-17T20:18:17.259617",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-17T20:18:17.295085+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2140,
+        "truncated": false,
+        "source": "git show f75841239bdf"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 14768,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-SUPA-2"
+  }
+}

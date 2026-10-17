@@ -1,0 +1,103 @@
+{
+  "task_id": "DB-SUPA-2",
+  "task_title": "Serialization layer verification-only close (spec surface re-verified at HEAD)",
+  "task_criteria": [
+    "Verification-only close: the six spec-named suites (src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts, src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16), and the production write path routes memories writes through the serializer (src/duckdb/queries.ts getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new implementation is required; the pending re-open carried no defect evidence."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "8cd9dc356c2142b294f5bf47759cd9fd5a71fdf9",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:25AM INF scanned ~42520414 bytes (42.52 MB) in 6.57s\n8:25AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 1054509 files \u2014 clean (excluded harness state: .gitreins/**)\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T132443.340749Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n \u276f src/http/routes/serving-paths-ops007.test.ts (4 tests | 1 failed) 8872ms\n   \u276f OPS-007: createNamespaceTool never blocks the event loop on git init (2)\n     \u00d7 keeps a heartbeat firing and still inits the repo 5383ms\n/home/kara/.hermes/hooks/post-commit: 30: Syntax error: \"then\" unexpected\n/home/kara/.hermes/hooks/post-commit: 30: Syntax error: \"then\" unexpected\n/home/kara/.hermes/hooks/post-commit: 30: Syntax error: \"then\" unexpected\n/home/kara/.hermes/hooks/post-commit: 30: Syntax error: \"then\" unexpected\n/home/kara/.hermes/hooks/post-commit: 30: Syntax error: \"then\" unexpected\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/routes/serving-paths-ops007.test.ts > OPS-007: createNamespaceTool never blocks the event loop on git init > keeps a heartbeat firing and still inits the repo\nAssertionError: max served heartbeat gap vs load-aware budget (control max 51ms): expected 912 to be less than 900\n \u276f src/http/routes/serving-paths-ops007.test.ts:461:7\n    459|       Math.max(...servedGaps),\n    460|       `max served heartbeat gap vs load-aware budget (control max ${co\u2026\n    461|     ).toBeLessThan(heartbeatBudgetMs);\n       |       ^\n    462|     expect(heartbeatBudgetMs).toBeLessThan(SYNC_STALL_MS);\n    463|\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 224 passed (225)\n      Tests  1 failed | 1875 passed (1876)\n   Start at  08:25:44\n   Duration  87.19s (tests 83%, import 14%, transform 2%)\n\n    Isolate  225 workers spawned \u00b7 ~100ms startup each (spawn + environment, per file)\n             at least ~5.51s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261016T132443.340749Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Verification-only close: the six spec-named suites (src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts, src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16), and the production write path routes memories writes through the serializer (src/duckdb/queries.ts getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new implementation is required; the pending re-open carried no defect evidence.: Test half PASSES: `npx vitest run src/serialization/registry.test.ts src/serialization/lock.test.ts src/serialization/namespaceWriter.test.ts src/serialization/audit.test.ts src/cli/http-serialization.test.ts src/serialization/twowriter-kill9.test.ts` -> exit_code 0, output 'Test Files 6 passed (6) / Tests 31 passed (31)', matching the 31/31 claim; the suites are genuine SUPA-2 spec suites (lock.test.ts:24 one-winner-of-16, :41 dead-pid break, :103 stale-owner fencing; namespaceWriter.test.ts:63 seq ordering, :216 32-writer/4-ns fan-in, :258 fsync replay; audit.test.ts:41 accepted row per ack, :55 denial row; http-serialization.test.ts:124 32 concurrent HTTP writes, :142 503+Retry-After, :169 403 denial; twowriter-kill9.test.ts:89 SIGKILL recovery). Write-path half PARTIALLY FAILS: src/duckdb/queries.ts:12 imports getNamespaceWriter and :868 calls getNamespaceWriter(target.ns, writerOptions).enqueue({...}) with the op mapping at lines 871-875 (tombstone->delete, update->update, else insert) \u2014 TRUE; src/http/routes/tables.ts:50 import + :764 enqueue({op:'insert'}) \u2014 TRUE; src/mcp/tools/remember.ts:19 import + :315 enqueue with the same op mapping \u2014 TRUE. BUT src/cli/http.ts contains ZERO occurrences of getNamespaceWriter (`grep -c getNamespaceWriter src/cli/http.ts` = 0, exit 1; dist/src/cli/http.js also 0). src/cli/http.ts only imports setSerializerAuthorizationHook from ../serialization/namespaceWriter.js (line 39, used at line 515) and reaches the serializer indirectly by mounting createMemoryRoutes at /api/memories (line 578) and createTableRoutes() at /api/ns/:ns/tables (line 589). The criterion's explicit claim that getNamespaceWriter is 'imported by src/cli/http.ts' is factually false at HEAD, so the stated spec surface is not fully re-verified. (Verification-only aspect is consistent: `git diff --stat` shows only .gitreins/tasks.yaml changed, 13 insertions/11 deletions, no code change.)\nThe six spec-named suites genuinely pass 31/31 at HEAD and the serializer write path is wired in queries.ts/tables.ts/remember.ts, but the criterion's claim that getNamespaceWriter is imported by src/cli/http.ts is false (0 occurrences; http.ts only imports setSerializerAuthorizationHook and mounts the routes indirectly), so the stated spec surface is not fully verified.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Verification-only close: the six spec-named suites (src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts, src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16), and the production write path routes memories writes through the serializer (src/duckdb/queries.ts getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new implementation is required; the pending re-open carried no defect evidence.: Test half PASSES: `npx vitest run src/serialization/registry.test.ts src/serialization/lock.test.ts src/serialization/namespaceWriter.test.ts src/serialization/audit.test.ts src/cli/http-serialization.test.ts src/serialization/twowriter-kill9.test.ts` -> exit_code 0, output 'Test Files 6 passed (6) / Tests 31 passed (31)', matching the 31/31 claim; the suites are genuine SUPA-2 spec suites (lock.test.ts:24 one-winner-of-16, :41 dead-pid break, :103 stale-owner fencing; namespaceWriter.test.ts:63 seq ordering, :216 32-writer/4-ns fan-in, :258 fsync replay; audit.test.ts:41 accepted row per ack, :55 denial row; http-serialization.test.ts:124 32 concurrent HTTP writes, :142 503+Retry-After, :169 403 denial; twowriter-kill9.test.ts:89 SIGKILL recovery). Write-path half PARTIALLY FAILS: src/duckdb/queries.ts:12 imports getNamespaceWriter and :868 calls getNamespaceWriter(target.ns, writerOptions).enqueue({...}) with the op mapping at lines 871-875 (tombstone->delete, update->update, else insert) \u2014 TRUE; src/http/routes/tables.ts:50 import + :764 enqueue({op:'insert'}) \u2014 TRUE; src/mcp/tools/remember.ts:19 import + :315 enqueue with the same op mapping \u2014 TRUE. BUT src/cli/http.ts contains ZERO occurrences of getNamespaceWriter (`grep -c getNamespaceWriter src/cli/http.ts` = 0, exit 1; dist/src/cli/http.js also 0). src/cli/http.ts only imports setSerializerAuthorizationHook from ../serialization/namespaceWriter.js (line 39, used at line 515) and reaches the serializer indirectly by mounting createMemoryRoutes at /api/memories (line 578) and createTableRoutes() at /api/ns/:ns/tables (line 589). The criterion's explicit claim that getNamespaceWriter is 'imported by src/cli/http.ts' is factually false at HEAD, so the stated spec surface is not fully re-verified. (Verification-only aspect is consistent: `git diff --stat` shows only .gitreins/tasks.yaml changed, 13 insertions/11 deletions, no code change.)\nThe six spec-named suites genuinely pass 31/31 at HEAD and the serializer write path is wired in queries.ts/tables.ts/remember.ts, but the criterion's claim that getNamespaceWriter is imported by src/cli/http.ts is false (0 occurrences; http.ts only imports setSerializerAuthorizationHook and mounts the routes indirectly), so the stated spec surface is not fully verified.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Verification-only close: the six spec-named suites (src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts, src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16), and the production write path routes memories writes through the serializer (src/duckdb/queries.ts getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new implementation is required; the pending re-open carried no defect evidence.",
+                "status": "FAIL",
+                "detail": "Test half PASSES: `npx vitest run src/serialization/registry.test.ts src/serialization/lock.test.ts src/serialization/namespaceWriter.test.ts src/serialization/audit.test.ts src/cli/http-serialization.test.ts src/serialization/twowriter-kill9.test.ts` -> exit_code 0, output 'Test Files 6 passed (6) / Tests 31 passed (31)', matching the 31/31 claim; the suites are genuine SUPA-2 spec suites (lock.test.ts:24 one-winner-of-16, :41 dead-pid break, :103 stale-owner fencing; namespaceWriter.test.ts:63 seq ordering, :216 32-writer/4-ns fan-in, :258 fsync replay; audit.test.ts:41 accepted row per ack, :55 denial row; http-serialization.test.ts:124 32 concurrent HTTP writes, :142 503+Retry-After, :169 403 denial; twowriter-kill9.test.ts:89 SIGKILL recovery). Write-path half PARTIALLY FAILS: src/duckdb/queries.ts:12 imports getNamespaceWriter and :868 calls getNamespaceWriter(target.ns, writerOptions).enqueue({...}) with the op mapping at lines 871-875 (tombstone->delete, update->update, else insert) \u2014 TRUE; src/http/routes/tables.ts:50 import + :764 enqueue({op:'insert'}) \u2014 TRUE; src/mcp/tools/remember.ts:19 import + :315 enqueue with the same op mapping \u2014 TRUE. BUT src/cli/http.ts contains ZERO occurrences of getNamespaceWriter (`grep -c getNamespaceWriter src/cli/http.ts` = 0, exit 1; dist/src/cli/http.js also 0). src/cli/http.ts only imports setSerializerAuthorizationHook from ../serialization/namespaceWriter.js (line 39, used at line 515) and reaches the serializer indirectly by mounting createMemoryRoutes at /api/memories (line 578) and createTableRoutes() at /api/ns/:ns/tables (line 589). The criterion's explicit claim that getNamespaceWriter is 'imported by src/cli/http.ts' is factually false at HEAD, so the stated spec surface is not fully re-verified. (Verification-only aspect is consistent: `git diff --stat` shows only .gitreins/tasks.yaml changed, 13 insertions/11 deletions, no code change.)",
+                "resolution_probability": 0.27,
+                "cited_path": "src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts"
+              }
+            ],
+            "summary": "The six spec-named suites genuinely pass 31/31 at HEAD and the serializer write path is wired in queries.ts/tables.ts/remember.ts, but the criterion's claim that getNamespaceWriter is imported by src/cli/http.ts is false (0 occurrences; http.ts only imports setSerializerAuthorizationHook and mounts the routes indirectly), so the stated spec surface is not fully verified."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DB-SUPA-2\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Verification-only close: the six spec-named suites (src/serialization/registry.test.ts, lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts, src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16), and the production write path routes memories writes through the serializer (src/duckdb/queries.ts getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new implementation is required; the pending re-open carried no defect evidence.: Test half PASSES: `npx vitest run src/serialization/registry.test.ts src/serialization/lock.test.ts src/serialization/namespaceWriter.test.ts src/serialization/audit.test.ts src/cli/http-serialization.test.ts src/serialization/twowriter-kill9.test.ts` -> exit_code 0, output 'Test Files 6 passed (6) / Tests 31 passed (31)', matching the 31/31 claim; the suites are genuine SUPA-2 spec suites (lock.test.ts:24 one-winner-of-16, :41 dead-pid break, :103 stale-owner fencing; namespaceWriter.test.ts:63 seq ordering, :216 32-writer/4-ns fan-in, :258 fsync replay; audit.test.ts:41 accepted row per ack, :55 denial row; http-serialization.test.ts:124 32 concurrent HTTP writes, :142 503+Retry-After, :169 403 denial; twowriter-kill9.test.ts:89 SIGKILL recovery). Write-path half PARTIALLY FAILS: src/duckdb/queries.ts:12 imports getNamespaceWriter and :868 calls getNamespaceWriter(target.ns, writerOptions).enqueue({...}) with the op mapping at lines 871-875 (tombstone->delete, update->update, else insert) \u2014 TRUE; src/http/routes/tables.ts:50 import + :764 enqueue({op:'insert'}) \u2014 TRUE; src/mcp/tools/remember.ts:19 import + :315 enqueue with the same op mapping \u2014 TRUE. BUT src/cli/http.ts contains ZERO occurrences of getNamespaceWriter (`grep -c getNamespaceWriter src/cli/http.ts` = 0, exit 1; dist/src/cli/http.js also 0). src/cli/http.ts only imports setSerializerAuthorizationHook from ../serialization/namespaceWriter.js (line 39, used at line 515) and reaches the serializer indirectly by mounting createMemoryRoutes at /api/memories (line 578) and createTableRoutes() at /api/ns/:ns/tables (line 589). The criterion's explicit claim that getNamespaceWriter is 'imported by src/cli/http.ts' is factually false at HEAD, so the stated spec surface is not fully re-verified. (Verification-only aspect is consistent: `git diff --stat` shows only .gitreins/tasks.yaml changed, 13 insertions/11 deletions, no code change.)\nThe six spec-named suites genuinely pass 31/31 at HEAD and the serializer write path is wired in queries.ts/tables.ts/remember.ts, but the criterion's claim that getNamespaceWriter is imported by src/cli/http.ts is false (0 occurrences; http.ts only imports setSerializerAuthorizationHook and mounts the routes indirectly), so the stated spec surface is not fully verified.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-16T13:29:09.373021",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-16T13:29:09.393677+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 141752,
+        "truncated": false,
+        "source": "git show 8cd9dc356c21"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1794,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-SUPA-2"
+  }
+}

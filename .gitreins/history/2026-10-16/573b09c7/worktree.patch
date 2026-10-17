@@ -1,0 +1,35 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 0eeb4954..31135b03 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -937,17 +937,19 @@ tasks:
+   created_at: '2026-08-27T16:58:26.148862+00:00'
+   completed_at: '2026-08-27T17:00:32.251214+00:00'
+ - id: DB-SUPA-2
+-  title: SUPA serialization layer
+-  criteria:
+-  - Concurrent API writers across multiple namespaces produce zero torn/interleaved
+-    JSONL lines and zero lost acknowledged writes
+-  - Writes are deterministically ordered per namespace through one writer with cross-process
+-    locking and dead-holder recovery
+-  - Role authorization happens before enqueue, durable modes write WAL before acknowledgement,
+-    and accepted writes retain audit evidence
+-  status: complete
+-  created_at: '2026-09-11T00:41:25.154034+00:00'
+-  completed_at: '2026-09-11T01:48:18.147374+00:00'
++  title: Serialization layer verification-only close (spec surface re-verified at
++    HEAD)
++  criteria:
++  - 'Verification-only close: the six spec-named suites (src/serialization/registry.test.ts,
++    lock.test.ts, namespaceWriter.test.ts, audit.test.ts, src/cli/http-serialization.test.ts,
++    src/serialization/twowriter-kill9.test.ts) pass at HEAD (31/31 on 2026-10-16),
++    and the production write path routes memories writes through the serializer (src/duckdb/queries.ts
++    getNamespaceWriter().enqueue with op insert/update/delete mapping, imported by
++    src/cli/http.ts, src/http/routes/tables.ts, src/mcp/tools/remember.ts). No new
++    implementation is required; the pending re-open carried no defect evidence.'
++  status: complete
++  created_at: '2026-10-16T13:25:30.173062+00:00'
++  completed_at: '2026-10-16T13:25:42.545828+00:00'
+ - id: DB-SUPA-4
+   title: SUPA roles and auth types
+   criteria:

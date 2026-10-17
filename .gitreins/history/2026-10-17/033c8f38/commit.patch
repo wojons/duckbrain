@@ -1,0 +1,51 @@
+commit f75841239bdf969b636d77f8e0bc341f58a4a7c2
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Oct 17 15:15:08 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Oct 17 15:15:08 2026 -0500
+
+    chore(counts): sync AGENTS.md test counts to the live suite (226 suites, 1885 tests)
+    
+    GAP-012 drift, not introduced by this commit: 6d0a0184 added
+    src/http/routes/tables-supa2.test.ts (9 tests) without the sanctioned count
+    sync, so AGENTS.md stayed at 225/1876 while the suite reports 226/1885. The
+    drift was invisible in CI because that run failed earlier, at the type-check
+    step (TS6133 unused nsDir); with the type check green the count assert is the
+    only remaining red step on main (run 39064925688: type check PASS, tests PASS,
+    count assert FAIL).
+    
+    Produced by the sanctioned extractor itself, no hand edit:
+      bash scripts/sync-agents-md-counts.sh /tmp/vitest-clean.out
+      -> AGENTS.md synced to live suite: 226 suites, 1885 tests
+      bash scripts/sync-agents-md-counts.sh --check /tmp/vitest-clean.out -> 0
+    
+    Full suite at this commit (local, --maxWorkers=2): 226 files / 1885 tests,
+    all passed, exit 0.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index baf571ae..080793c8 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (225 suites, 1876 tests)
++- **Test Framework:** Vitest (226 suites, 1885 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 1876 tests, 225 suites
++pnpm test          # 1885 tests, 226 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

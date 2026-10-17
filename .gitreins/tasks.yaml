@@ -2779,5 +2779,6 @@ tasks:
 
     AC3: Add a concurrent cross-process writer test proving no lost updates, plus
     a post-delete audit/SSE replay test.'
-  status: in_progress
+  status: complete
   created_at: '2026-10-17T09:29:59.769431+00:00'
+  completed_at: '2026-10-17T20:15:36.086940+00:00'
