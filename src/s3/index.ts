@@ -18,7 +18,7 @@ export * from "./sync";
 export * from "./query";
 
 import path from "path";
-import { getConfig } from "../config";
+import { getConfig, resolveNamespacesPath } from "../config";
 import { syncNamespace } from "./sync";
 
 /**
@@ -32,9 +32,13 @@ export function maybeSyncOnCommit(namespacePathArg: string): void {
     const cfg = getConfig(".");
     if (!cfg.s3?.enabled || !cfg.s3.pushOnCommit) return;
     const ns = path.basename(namespacePathArg);
+    // DF-2026-4: the same config-root resolution the CLI verbs use. A relative
+    // `namespacesPath` resolved against process.cwd() pushed from a phantom
+    // `<cwd>/namespaces` when the flush happened in a foreign checkout.
+    const nsRoot = resolveNamespacesPath();
     setTimeout(() => {
       const s3 = cfg.s3!;
-      syncNamespace(s3, ns, cfg.namespacesPath, "push").catch((err) => {
+      syncNamespace(s3, ns, nsRoot, "push").catch((err) => {
         console.warn(
           `[S3] pushOnCommit failed for ${ns}: ${(err as Error).message}`,
         );

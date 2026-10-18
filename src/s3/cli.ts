@@ -11,7 +11,7 @@
  */
 
 import path from "path";
-import { getConfig } from "../config";
+import { getConfig, resolveDuckbrainRoot, resolveNamespacesPath } from "../config";
 import { safeJsonStringify } from "../utils/serialize";
 import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
 import { loadManifest } from "./manifest";
@@ -46,13 +46,40 @@ Usage:
                                     — list (or prune) sync state that outlives
                                       its namespace dir (stops ghost pushes)`;
 
+/**
+ * DF-2026-4: the directory that owns `duckbrain.config.json` for this
+ * invocation.
+ *
+ * The dispatcher (`runHumanCLI`) passes `"."` meaning "no explicit directory".
+ * That must mean the duckbrain ROOT — the rule GAP-062 established for every
+ * other verb — and never `process.cwd()`. An explicitly supplied directory
+ * (tests, embedders) is honored verbatim.
+ */
+function configRoot(configDir: string): string {
+  return configDir === "" || configDir === "."
+    ? resolveDuckbrainRoot()
+    : configDir;
+}
+
+/**
+ * Namespace storage root for every s3 verb.
+ *
+ * DF-2026-4: resolved through the SHARED resolver (`src/config/index.ts`,
+ * GAP-062) instead of `path.resolve(configDir, cfg.namespacesPath)`. The old
+ * arithmetic resolved a RELATIVE `namespacesPath` ("./namespaces") against
+ * `process.cwd()` whenever configDir was ".", so `duckbrain s3 status|sync`
+ * run from any other checkout looked at `<cwd>/namespaces` — reporting an
+ * empty root (local=0, nothing to sync) while the real namespaces sat next to
+ * the config file. `resolveNamespacesPath` honors DUCKBRAIN_CONFIG_PATH, then
+ * DUCKBRAIN_HOME_ROOT, then the config-file walk, and never resolves the root
+ * from the cwd for path arithmetic.
+ */
 function namespacesPath(configDir: string): string {
-  const cfg = getConfig(configDir);
-  return path.resolve(configDir, cfg.namespacesPath);
+  return resolveNamespacesPath(configRoot(configDir));
 }
 
 function requireEnabled(configDir: string) {
-  const cfg = getConfig(configDir);
+  const cfg = getConfig(configRoot(configDir));
   if (!cfg.s3?.enabled) {
     console.error(
       'S3 is disabled. Set "s3": { "enabled": true, ... } in duckbrain.config.json — see docs/s3-native.md',
@@ -102,7 +129,7 @@ export async function s3Status(
   configDir: string,
   nsArg?: string,
 ): Promise<void> {
-  const cfg = getConfig(configDir);
+  const cfg = getConfig(configRoot(configDir));
   const s3 = cfg.s3;
   const nsRoot = namespacesPath(configDir);
   console.log("S3 config:", s3?.enabled ? "ENABLED" : "disabled");
@@ -215,7 +242,7 @@ export async function s3Query(configDir: string, sql: string): Promise<void> {
 }
 
 export function s3ConfigShow(configDir: string): void {
-  const cfg = getConfig(configDir);
+  const cfg = getConfig(configRoot(configDir));
   const parsed = S3ConfigSchema.parse(cfg.s3 ?? {});
   console.log(JSON.stringify(parsed, null, 2));
 }
