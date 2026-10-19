@@ -65,6 +65,7 @@ import {
   findRowLineByPk,
   patchRowsByPk,
   deleteRowsByPk,
+  type RowLineLocation,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
@@ -1134,6 +1135,7 @@ function createTableRoutes(): Router {
       }
       let coercedBody: Record<string, unknown> = {};
       let mutated = 0;
+      let location: RowLineLocation | null = null;
       try {
         const existing = findRowByPk(nsDir, declaration, col, value);
         if (existing !== null) {
@@ -1154,6 +1156,21 @@ function createTableRoutes(): Router {
             value,
             coercedBody,
           ).mutated;
+          if (mutated > 0) {
+            // DB-SUPA-5: the change record's `contentHash` must name the row
+            // line as it now exists on disk, so read it back instead of
+            // re-serializing. Read INSIDE the lock so a concurrent writer in
+            // another process cannot replace the line between the rewrite and
+            // the read. A patch that moves the primary key is looked up under
+            // its NEW value.
+            const lookupValue = Object.prototype.hasOwnProperty.call(
+              coercedBody,
+              col.name,
+            )
+              ? String(coercedBody[col.name])
+              : value;
+            location = findRowLineByPk(nsDir, declaration, col, lookupValue);
+          }
         }
       } finally {
         releaseNamespaceWriteLock(lock);
@@ -1164,21 +1181,6 @@ function createTableRoutes(): Router {
         res.json({ updated: 0 });
         return;
       }
-      // DB-SUPA-5: the change record's `contentHash` must name the row line as
-      // it now exists on disk, so read it back instead of re-serializing.
-      // A patch that moves the primary key is looked up under its NEW value.
-      const lookupValue = Object.prototype.hasOwnProperty.call(
-        coercedBody,
-        col.name,
-      )
-        ? String(coercedBody[col.name])
-        : value;
-      const location = findRowLineByPk(
-        nsDir,
-        declaration,
-        col,
-        lookupValue,
-      );
       if (location === null) {
         throw new ApiError(
           `mutation was applied but the updated row could not be located for its change record`,
