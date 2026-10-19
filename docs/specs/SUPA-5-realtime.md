@@ -121,9 +121,25 @@ All suites below exist on disk and run through `pnpm test` (green 2026-09-25: 8 
 | `src/http/routes/realtime-auth.test.ts` — `implicit table filter`; `explicit unauthorized table is all-or-nothing` | AC-5 |
 | `src/http/routes/realtime-fanout.test.ts` — `slow subscriber overflow is isolated`; `heartbeat and close cleanup` | AC-6 |
 | `src/http/routes/realtime-replay.test.ts` — `all audit chunks are discovered before replay`; `multiple flush batches in one commit derive contiguous ordinals`; `restart before commit derives no duplicate or reset ordinal`; `current then numeric segment order is not lexicographic`; `strictly-after replay boundary`; `pruned history returns 410`; `parent prefix violation numeric gap rewrite or deletion fails closed` | AC-3, AC-7, AC-8 |
+| `src/http/realtime/change-feed-replay.test.ts` — `accepted PATCH replays as an update change record for the new row image`; `accepted DELETE replays as a tombstone entry carrying the last row image`; `two rewrites of one row inside a single commit window do not poison the feed` | AC-2 (DB-SUPA-2 rework: rewrite-based table mutations are replayed) |
 | Existing `src/http/routes/events.test.ts` revised as `legacy events route remains isolated` | Regression proof that current broadcast scaffolding is not accidentally treated as the committed feed |
 
 The E2E fixture (`src/http/realtime/fixtures.ts`) runs two actual HTTP SSE clients against one server, writes through `NamespaceWriter`, forces a namespace commit, collects both streams, restarts the server, and resumes from the captured first event id. It also exercises a deliberately slow response sink so queue bounds are verified rather than inferred from unit spies.
+
+### Row resolution for in-place rewrite producers
+
+Most records come from the append-only serializer, whose data line is present at
+the child commit. The REST table layer (`src/http/routes/tables.ts`) instead
+rewrites a table's JSONL file in place, so replay resolves its records in a
+bounded order: (1) `contentHash` at the child ref; (2) `contentHash` at the
+parent ref — required for a physical delete, whose line the child no longer
+carries, and for an update superseded by a later rewrite inside one debounced
+commit; (3) for non-tombstone records only, the committed row carrying the
+record's declared `key`, which covers a row image superseded before it was ever
+committed. A tombstone must always name a row that was genuinely committed
+before the delete, and a digest that matches no committed line still fails
+closed as `CHANGELOG_CORRUPT` — the fallbacks only ever select a real committed
+row image, never a fabricated one.
 
 ## Known Issues (open, 2026-09-25)
 

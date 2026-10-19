@@ -29,6 +29,7 @@ import http from "http";
 import { createServer, type Server } from "http";
 import { createHttpServer } from "../../cli/http";
 import { invalidateTableRegistry } from "../../schema/table-registry";
+import { isChangeRecordCandidate } from "../../serialization/changeRecord";
 import {
   resetSerializerStateForTests,
 } from "../../serialization/namespaceWriter";
@@ -272,6 +273,43 @@ describe("DB-SUPA-2: PATCH/DELETE for legacy .table.json tables", () => {
     const read = await httpRequest(app, "GET", `${BASE}/widgets?id=eq.2`);
     expect(read.status).toBe(200);
     expect(read.body.length).toBe(0);
+  });
+
+  it("PATCH on a legacy .table.json table records a change record through the writer", async () => {
+    const app = createHttpServer({ authType: "none" });
+
+    // DB-SUPA-2 AC-1 (partial): legacy tables still rewrite their JSONL in
+    // place, but the accepted mutation is now RECORDED through the single
+    // namespace writer as a real DB-SUPA-5 change record — the same path the
+    // schema.json tables use — instead of not being audited at all.
+    const res = await httpRequest(app, "PATCH", `${BASE}/widgets?pk=eq.1`, {
+      body: { name: "delta" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ updated: 1 });
+    await new Promise((r) => setTimeout(r, 50));
+
+    const auditDir = path.join(legacyNsDir, "_audit");
+    const rows = fs
+      .readdirSync(auditDir)
+      .filter((name) => name.endsWith(".jsonl"))
+      .flatMap((name) =>
+        fs
+          .readFileSync(path.join(auditDir, name), "utf-8")
+          .split("\n")
+          .filter((line) => line.trim() !== "")
+          .map((line) => JSON.parse(line) as Record<string, unknown>),
+      );
+
+    const record = rows.find(
+      (row) => row.op === "update" && row.table === "widgets",
+    );
+    expect(record).toBeDefined();
+    expect(typeof record!.contentHash).toBe("string");
+    expect(isChangeRecordCandidate(record!)).toBe(true);
+    expect(record!.targetPath).toBe("tables/widgets.jsonl");
+    expect(record!.key).toEqual({ id: 1 });
+    expect(record!.tombstone).toBe(false);
   });
 
   it("SSE CHANGELOG endpoint does not throw CHANGELOG_CORRUPT after PATCH/DELETE", async () => {
