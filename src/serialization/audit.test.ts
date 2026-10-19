@@ -3,7 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { createMemory } from "../schema/memory";
-import { appendAuditRow, readAuditRows } from "./audit";
+import { acceptedTableMutationRecord, appendAuditRow, readAuditRows } from "./audit";
+import { contentHashFor, isChangeRecordCandidate } from "./changeRecord";
 import { NamespaceWriter } from "./namespaceWriter";
 
 function request(ns: string, index: number) {
@@ -99,5 +100,83 @@ describe("SUPA-2 audit rows", () => {
     expect(await data).toEqual({ seq: 1, ok: true });
     await expect(audit).resolves.toBeUndefined();
     expect(readAuditRows(root, "alpha")).toHaveLength(2);
+  });
+});
+
+describe("SUPA-5 accepted table-mutation change records", () => {
+  let root: string;
+  let nsPath: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-supa2-audit-mut-"));
+    nsPath = path.join(root, "alpha");
+    fs.mkdirSync(path.join(nsPath, "tables"), { recursive: true });
+    fs.writeFileSync(
+      path.join(nsPath, "tables", "widgets.table.json"),
+      JSON.stringify({
+        name: "widgets",
+        format: "jsonl-objects",
+        glob: "tables/widgets.jsonl",
+        primary: "id",
+        schemaVersion: 3,
+        columns: [
+          { name: "id", type: "integer" },
+          { name: "qty", type: "integer" },
+        ],
+      }),
+      "utf-8",
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("emits every marker isChangeRecordCandidate and replay require", () => {
+    const line = JSON.stringify({ id: 1, qty: 4 });
+    const record = acceptedTableMutationRecord({
+      ns: "alpha",
+      namespacePath: nsPath,
+      table: "widgets",
+      op: "update",
+      principal: "writer",
+      targetPath: "tables/widgets.jsonl",
+      dataLine: line,
+      row: { id: 1, qty: 4 },
+      ts: "2026-10-18T00:00:00.000Z",
+    });
+
+    // The marker `contentHash` is the digest of the EXACT line on disk, so
+    // replay can prove the record still describes a real row image.
+    expect(record.contentHash).toBe(contentHashFor(line));
+    expect(record.targetPath).toBe("tables/widgets.jsonl");
+    expect(record.key).toEqual({ id: 1 });
+    expect(record.tombstone).toBe(false);
+    expect(record.schemaVersion).toBe(3);
+    expect(isChangeRecordCandidate(record as Record<string, unknown>)).toBe(
+      true,
+    );
+  });
+
+  it("marks deletes as tombstones and keeps the declared key material", () => {
+    const record = acceptedTableMutationRecord({
+      ns: "alpha",
+      namespacePath: nsPath,
+      table: "widgets",
+      op: "delete",
+      principal: null,
+      targetPath: "tables/widgets.jsonl",
+      dataLine: JSON.stringify({ id: 2, qty: 0 }),
+      row: { id: 2, qty: 0 },
+      removed: true,
+    });
+
+    expect(record.tombstone).toBe(true);
+    expect(record.key).toEqual({ id: 2 });
+    // A tombstone record is still a candidate: replay must see it and resolve
+    // its row image, never treat it as a marker-less audit row.
+    expect(isChangeRecordCandidate(record as Record<string, unknown>)).toBe(
+      true,
+    );
   });
 });

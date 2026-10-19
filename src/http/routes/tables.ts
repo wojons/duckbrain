@@ -30,6 +30,7 @@
  * namespaces.ts, so restricted tokens without a grant get 403.
  */
 
+import path from "path";
 import { Router, Request, Response } from "express";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
@@ -48,12 +49,16 @@ import {
   coerceRowAgainstDeclaration,
   appendRowsToTable,
   findRowByPk,
+  findRowLineByPk,
   patchRowsByPk,
   deleteRowsByPk,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
 import { getNamespaceWriter } from "../../serialization/namespaceWriter";
-import type { AuditEntry } from "../../serialization/audit";
+import {
+  acceptedTableMutationRecord,
+  type AuditEntry,
+} from "../../serialization/audit";
 import {
   acquireNamespaceWriteLock,
   releaseNamespaceWriteLock,
@@ -78,6 +83,15 @@ const DECLARED_TO_LEGACY: Record<string, string> = {
   json: "json",
   bytes: "varchar",
 };
+
+/**
+ * Namespace-relative POSIX path of a physical data file — the exact form a
+ * change record's `targetPath` takes (git paths are POSIX, and replay resolves
+ * the value against the committed namespace tree).
+ */
+function namespaceRelativePath(nsDir: string, filePath: string): string {
+  return path.relative(nsDir, filePath).split(path.sep).join("/");
+}
 
 /**
  * Bridge a RegisteredTableDeclaration (schema.json) into a TableDeclaration
@@ -939,17 +953,22 @@ function createTableRoutes(): Router {
    * ledger through the SUPA-2 single writer, and resolve only once that
    * append is durable — a 2xx must never precede its audit record.
    *
-   * The row is written WITHOUT DB-SUPA-5 change-record markers
-   * (`targetPath`/`contentHash`/`key`/`tombstone`/`schemaVersion`): a change
-   * record's `contentHash` must still resolve to a line present in the
-   * committed data file at the mutation's commit, and this layer's mutations
-   * are in-place file REWRITES — a second PATCH on the same row inside one
-   * commit window replaces the hashed line, which would turn the change
-   * feed's replay into `CHANGELOG_CORRUPT`. A marker-less accepted row is,
-   * per `isChangeRecordCandidate`, legitimate ledger content that replay
-   * skips instead of failing closed. Emitting a full change record for
-   * rewrite-based mutations needs an append-only data path plus read-side
-   * version folding — a redesign, tracked as a follow-up, not a fix.
+   * DB-SUPA-5: the row is a real CHANGE RECORD, not a marker-less audit row.
+   * Emitting markers here is what makes an accepted PATCH/DELETE visible to
+   * the change feed; without them `isChangeRecordCandidate` returns false and
+   * replay skips the mutation entirely (the gap a tier-2 review caught).
+   *
+   * `contentHash` semantics differ per operation because this layer mutates by
+   * REWRITING the table's JSONL file instead of appending to it:
+   *
+   *   - update: the hash names the POST-mutation line. It is present in the
+   *     data file at the commit that carries the mutation, so replay resolves
+   *     the row image at the child commit exactly like a serializer insert.
+   *   - delete: the row is physically removed, so the hash names the line as
+   *     it existed BEFORE the mutation and replay resolves it against the
+   *     PARENT commit (see `deriveCommitChanges`: tombstone records fall back
+   *     to the parent ref instead of failing closed). The row image stays the
+   *     last committed one — tombstone semantics, never `row: null`.
    *
    * A failed append is fail-closed: the caller gets an error naming the
    * already-applied mutation instead of an unacknowledged 2xx.
@@ -959,15 +978,28 @@ function createTableRoutes(): Router {
     table: string,
     op: "update" | "delete",
     principal: string | null,
+    location: { targetPath: string; dataLine: string; row: unknown },
   ): Promise<void> {
-    const entry: AuditEntry = {
-      ts: new Date().toISOString(),
-      ns,
-      table,
-      op,
-      principal,
-      outcome: "accepted",
-    };
+    let entry: AuditEntry;
+    try {
+      entry = acceptedTableMutationRecord({
+        ns,
+        namespacePath: namespaceDir(ns),
+        table,
+        op,
+        principal,
+        targetPath: location.targetPath,
+        dataLine: location.dataLine,
+        row: location.row,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ApiError(
+        `mutation was applied but its change record could not be built: ${message}`,
+        500,
+        "AUDIT_APPEND_FAILED",
+      );
+    }
     try {
       await getNamespaceWriter(ns).enqueueAudit(entry);
     } catch (error) {
@@ -1081,14 +1113,39 @@ function createTableRoutes(): Router {
         res.json({ updated: 0 });
         return;
       }
-      if (declaration.source === "schema.json") {
-        await recordTableMutationAudit(
-          ns,
-          declaration.name,
-          "update",
-          getPrincipal(req)?.name ?? null,
+      // DB-SUPA-5: the change record's `contentHash` must name the row line as
+      // it now exists on disk, so read it back instead of re-serializing.
+      // A patch that moves the primary key is looked up under its NEW value.
+      const lookupValue = Object.prototype.hasOwnProperty.call(
+        coercedBody,
+        col.name,
+      )
+        ? String(coercedBody[col.name])
+        : value;
+      const location = findRowLineByPk(
+        nsDir,
+        declaration,
+        col,
+        lookupValue,
+      );
+      if (location === null) {
+        throw new ApiError(
+          `mutation was applied but the updated row could not be located for its change record`,
+          500,
+          "AUDIT_APPEND_FAILED",
         );
       }
+      await recordTableMutationAudit(
+        ns,
+        declaration.name,
+        "update",
+        getPrincipal(req)?.name ?? null,
+        {
+          targetPath: namespaceRelativePath(nsDir, location.filePath),
+          dataLine: location.line,
+          row: location.row,
+        },
+      );
       res.setHeader("X-Durability", durabilityHeaderFor(ns));
       res.json({ updated: mutated });
     }),
@@ -1140,6 +1197,11 @@ function createTableRoutes(): Router {
         );
       }
       let removed = 0;
+      // DB-SUPA-5: capture the row BEFORE the rewrite — a physical delete
+      // removes the line from the data file, so the tombstone record's
+      // `contentHash` must name the last committed row image (resolved by
+      // replay against the parent commit), not a line the child no longer has.
+      const location = findRowLineByPk(nsDir, declaration, col, value);
       try {
         removed = deleteRowsByPk(nsDir, declaration, col, value);
       } finally {
@@ -1151,14 +1213,24 @@ function createTableRoutes(): Router {
         res.json({ deleted: 0 });
         return;
       }
-      if (declaration.source === "schema.json") {
-        await recordTableMutationAudit(
-          ns,
-          declaration.name,
-          "delete",
-          getPrincipal(req)?.name ?? null,
+      if (location === null) {
+        throw new ApiError(
+          `mutation was applied but the deleted row could not be located for its tombstone record`,
+          500,
+          "AUDIT_APPEND_FAILED",
         );
       }
+      await recordTableMutationAudit(
+        ns,
+        declaration.name,
+        "delete",
+        getPrincipal(req)?.name ?? null,
+        {
+          targetPath: namespaceRelativePath(nsDir, location.filePath),
+          dataLine: location.line,
+          row: location.row,
+        },
+      );
       res.setHeader("X-Durability", durabilityHeaderFor(ns));
       res.json({ deleted: removed });
     }),

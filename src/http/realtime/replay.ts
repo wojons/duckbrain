@@ -371,13 +371,46 @@ export function deriveCommitChanges(
     // line is the row image. This is the hash-replay form of the
     // target/data mismatch guard — a mutated, moved, or rewritten data row
     // (or a fabricated hash) fails closed exactly like a row-image mismatch.
-    const resolved = resolveDataRowByHash(
-      repoDir,
-      childRef,
-      record.targetPath,
-      record.contentHash,
-    );
+    //
+    // TOMBSTONE RESOLUTION (DB-SUPA-2 AC2): a delete has two legitimate
+    // producers with different physical shapes.
+    //   - The serializer APPENDS a tombstone row, so the line is present at
+    //     the child ref and the strict child lookup is the whole proof.
+    //   - The REST table layer physically REMOVES the row from the table's
+    //     JSONL file (its mutation unit is an in-place rewrite), so the child
+    //     tree cannot carry the line any more. Such a record's hash names the
+    //     row as it existed at the PARENT — the last committed state that
+    //     still had it — so the tombstone falls back to the parent ref.
+    // The fallback is limited to `tombstone` records: a fabricated or stale
+    // UPDATE hash still fails closed at the child, and a tombstone hash can
+    // only resolve against a row image that really was committed.
+    let resolved: { row: unknown } | null = null;
+    let resolveFailure: unknown = null;
+    try {
+      resolved = resolveDataRowByHash(
+        repoDir,
+        childRef,
+        record.targetPath,
+        record.contentHash,
+      );
+    } catch (error) {
+      resolveFailure = error;
+    }
+    if (resolved === null && record.tombstone && parentRef !== null) {
+      try {
+        resolved = resolveDataRowByHash(
+          repoDir,
+          parentRef,
+          record.targetPath,
+          record.contentHash,
+        );
+        if (resolved !== null) resolveFailure = null;
+      } catch {
+        // Keep the child-ref failure: it names the commit the record claims.
+      }
+    }
     if (resolved === null) {
+      if (resolveFailure !== null) throw resolveFailure as Error;
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no data row ` +
           `with the recorded content hash in committed target '${record.targetPath}'`,

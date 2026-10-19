@@ -895,6 +895,74 @@ export function findRowByPk(
 }
 
 /**
+ * Where a row physically lives: the file that carries it, the exact
+ * serialized line (no trailing newline) and the row in API shape.
+ *
+ * DB-SUPA-2/5: the accepted-mutation change record needs the exact bytes the
+ * mutation produced (or removed) so `contentHash` resolves against the
+ * committed data file. Reconstructing the line from the row object would
+ * depend on key order; reading it back from disk does not.
+ */
+export interface RowLineLocation {
+  /** Absolute path of the JSONL file that carries the row. */
+  filePath: string;
+  /** Serialized line exactly as stored (compact JSON, no newline). */
+  line: string;
+  /** Row image in API shape (object keyed by column name). */
+  row: Record<string, unknown>;
+}
+
+/**
+ * Locate the FIRST row matching a primary-key value, returning its file path,
+ * its exact on-disk line, and its API-shaped row image. `null` when no file
+ * carries a match.
+ *
+ * This is the read used to build a change record after a PATCH (post-state) or
+ * before a DELETE (pre-state); it shares `findRowByPk`'s first-match semantics
+ * so the audited row is the same row the mutation targeted.
+ */
+export function findRowLineByPk(
+  nsDir: string,
+  declaration: TableDeclaration,
+  pkCol: TableColumn,
+  pkValue: string,
+): RowLineLocation | null {
+  const cmp = pkCompareValue(pkCol, pkValue);
+  for (const file of resolveTableFiles(nsDir, declaration)) {
+    let content: string;
+    try {
+      content = fs.readFileSync(file.absPath, "utf-8");
+    } catch {
+      continue;
+    }
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const row =
+        declaration.format === "jsonl-positional" && Array.isArray(parsed)
+          ? Object.fromEntries(
+              declaration.columns.map((column, index) => [
+                column.name,
+                (parsed as unknown[])[index] ?? null,
+              ]),
+            )
+          : parsed;
+      if (typeof row !== "object" || row === null || Array.isArray(row))
+        continue;
+      const record = row as Record<string, unknown>;
+      if (cmp(record[pkCol.name]))
+        return { filePath: file.absPath, line, row: record };
+    }
+  }
+  return null;
+}
+
+/**
  * PATCH by declared primary key. `pkValue` is the raw operand string from
  * the `pk=eq.<v>` filter. Updates rewrite every matching row in every
  * matching file; when nothing matched and the caller passes `upsertBody`,

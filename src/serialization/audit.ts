@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import { AUDIT_DIR, auditSegmentOrderOnDisk } from "./auditLedger";
+import {
+  contentHashFor,
+  declaredSchemaVersion,
+  keyMaterialFor,
+} from "./changeRecord";
 
 export const AuditEntrySchema = z.object({
   ts: z.string().datetime(),
@@ -35,6 +40,71 @@ export const AuditEntrySchema = z.object({
 });
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+
+/**
+ * Input for an accepted table-mutation change record (DB-SUPA-5 AC).
+ *
+ * The REST table layer mutates rows by rewriting the table's JSONL file, so it
+ * cannot hand the serializer a `WriteRequest`; what it CAN hand over is the
+ * exact serialized line that the mutation produced (update) or removed
+ * (delete), plus the physical file that carried it. That is everything a
+ * change record needs: `contentHash` is the SHA-256 of that line, so replay
+ * can prove the record still describes a real row image rather than trusting
+ * a fabricated hash.
+ */
+export interface AcceptedTableMutationAuditInput {
+  ns: string;
+  /** Namespace directory — resolves declared key columns and schema version. */
+  namespacePath: string;
+  table: string;
+  op: "update" | "delete";
+  principal: string | null;
+  /** Namespace-relative POSIX path of the data file the row lives in. */
+  targetPath: string;
+  /** Exact serialized data line, WITHOUT a trailing newline (as on disk). */
+  dataLine: string;
+  /** Row image in API shape (object keyed by column name). */
+  row: unknown;
+  /**
+   * True only when the row image is the row as it existed BEFORE the mutation.
+   * Replay resolves a tombstone's hash against the parent commit, because a
+   * physical delete removes the line from the child tree.
+   */
+  removed?: boolean;
+  ts?: string;
+}
+
+/**
+ * Promote an accepted table mutation into a real DB-SUPA-5 change record.
+ *
+ * Every marker `isChangeRecordCandidate` looks for (`contentHash`, `key`,
+ * `targetPath`, `tombstone`, `schemaVersion`) is produced here, so the change
+ * feed replays the mutation instead of skipping it as a marker-less audit row.
+ *
+ * Semantics of `contentHash` per operation:
+ *   - `update` — the post-mutation line, which is present at the commit that
+ *     carries the mutation.
+ *   - `delete` — the pre-mutation line; the row itself is gone from the child
+ *     tree, so the record names the last committed row image (tombstone
+ *     semantics, never `row: null`).
+ */
+export function acceptedTableMutationRecord(
+  input: AcceptedTableMutationAuditInput,
+): AuditEntry {
+  return AuditEntrySchema.parse({
+    ts: input.ts ?? new Date().toISOString(),
+    ns: input.ns,
+    table: input.table,
+    op: input.op,
+    principal: input.principal,
+    outcome: "accepted",
+    targetPath: input.targetPath,
+    contentHash: contentHashFor(input.dataLine),
+    key: keyMaterialFor(input.namespacePath, input.table, input.row),
+    tombstone: input.op === "delete",
+    schemaVersion: declaredSchemaVersion(input.namespacePath, input.table),
+  });
+}
 
 export interface AuditSink {
   enqueueAudit(entry: AuditEntry): Promise<void>;
