@@ -257,4 +257,33 @@ describe("DB-SUPA-2 AC-2: table mutations are replayed change records", () => {
     expect(onDisk).not.toContain('"id":"2"');
     expect(onDisk).toContain('"id":"1"');
   }, 60_000);
+
+  it("two rewrites of one row inside a single commit window do not poison the feed", async () => {
+    // Both PATCHes land before any commit fires, so ONE commit carries two
+    // update records while the data file keeps only the final line. That is
+    // the supersession case: neither record may turn the feed into
+    // CHANGELOG_CORRUPT (which would close the subscription permanently).
+    const before = changeEvents().length;
+    expect((await mutate("PATCH", "pk=eq.1", { qty: 11 })).status).toBe(200);
+    expect((await mutate("PATCH", "pk=eq.1", { qty: 12 })).status).toBe(200);
+
+    await waitForNamespaceCommit(nsPath);
+    await hub.check(NS);
+
+    expect(logs.join("\n")).not.toMatch(/corrupt/i);
+    expect(sink.closed).toBe(false);
+
+    const events = changeEvents().slice(before);
+    expect(events).toHaveLength(2);
+    expect(events.every((event) => event.op === "update")).toBe(true);
+    // The final record for the key carries the final committed row image.
+    expect(events[events.length - 1]!.row).toMatchObject({ id: "1", qty: 12 });
+
+    const onDisk = fs
+      .readFileSync(path.join(nsPath, "tables", "widgets.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim() !== "");
+    expect(onDisk).toHaveLength(1);
+    expect(JSON.parse(onDisk[0]!)).toMatchObject({ id: "1", qty: 12 });
+  }, 60_000);
 });

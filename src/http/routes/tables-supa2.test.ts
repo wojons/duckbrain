@@ -10,13 +10,18 @@
  *   - PATCH/DELETE for legacy .table.json: file rewrite + X-Durability header
  *   - PATCH/DELETE for schema.json tables: NamespaceWriter path with audit/tombstone
  *   - SSE endpoint reads changelog without CHANGELOG_CORRUPT after mutations
- *   - Concurrent cross-process writer: deterministic final state via writer lock
+ *   - Concurrent writer: two real child processes PATCH one row at once; the
+ *     namespace write lock (cross-process file lock) loses no update
  *
- * Note: Only schema.json tables route through the NamespaceWriter;
- * legacy .table.json tables use direct file rewrite (like POST).
+ * Note (DB-SUPA-2 AC-1 residual): both table kinds RECORD their accepted
+ * mutations through the NamespaceWriter, but their rows are still written by an
+ * in-place JSONL rewrite; routing the row write through the append-only
+ * serializer needs read-side version folding. See the module header of
+ * src/http/routes/tables.ts.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { spawn } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -119,6 +124,9 @@ function writeConcurrentFixture(): void {
   const nsDir = path.join(tmpRoot, CONCURRENT_NS);
   fs.mkdirSync(path.join(nsDir, "tables"), { recursive: true });
 
+  // Two INDEPENDENT columns on one row: the concurrency claim under test is
+  // "no lost update", and independent columns make a lost update visible — a
+  // single overwritten column would look identical to last-write-wins.
   fs.writeFileSync(
     path.join(nsDir, "tables", "counter.table.json"),
     JSON.stringify({
@@ -126,7 +134,8 @@ function writeConcurrentFixture(): void {
       format: "jsonl-objects",
       columns: [
         { name: "id", type: "integer" },
-        { name: "value", type: "integer" },
+        { name: "alice", type: "integer" },
+        { name: "bob", type: "integer" },
       ],
       primary: "id",
       glob: "tables/counter.jsonl",
@@ -136,7 +145,7 @@ function writeConcurrentFixture(): void {
 
   fs.writeFileSync(
     path.join(nsDir, "tables", "counter.jsonl"),
-    JSON.stringify({ id: 1, value: 0 }) + "\n",
+    JSON.stringify({ id: 1, alice: 0, bob: 0 }) + "\n",
     "utf-8",
   );
 }
@@ -417,36 +426,160 @@ describe("DB-SUPA-2: PATCH/DELETE through NamespaceWriter (schema.json)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// Concurrent cross-process writer test (in-process)
+// Concurrent cross-process writer test (two real OS processes)
 // ---------------------------------------------------------------------------
 
+/**
+ * DB-SUPA-2 AC-3: the PATCH/DELETE serialization claim is a CROSS-PROCESS one,
+ * so it has to be tested with more than one process. The previous version of
+ * this test issued two PATCHes sequentially from the test process and called
+ * that "concurrent"; it could never fail, because a single process cannot race
+ * itself through an in-process mutex.
+ *
+ * Here two child Node processes each boot a real HTTP server, both wait on a
+ * gate file so their PATCHes fire at the same instant, and both mutate the
+ * SAME row through the real route. Each patches a DIFFERENT column, so a lost
+ * update is directly observable: if the read-merge-rewrite were not serialized
+ * by the namespace write lock (a file lock shared across processes), one
+ * process would rewrite the file from a pre-image that predates the other's
+ * write and drop that column's update.
+ */
 describe("DB-SUPA-2: concurrent cross-process PATCH writer", () => {
+  const CHILD_SCRIPT = path.resolve(
+    process.cwd(),
+    "src",
+    "http",
+    "routes",
+    "fixtures",
+    "supa2-patch-child.ts",
+  );
+
+  interface ChildOutcome {
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    out: string;
+    result: { pid: number; column: string; value: number; status: number; body: string } | null;
+  }
+
+  function spawnPatchChild(
+    column: string,
+    value: number,
+    gateFile: string,
+    readyFile: string,
+  ): { child: ReturnType<typeof spawn>; done: Promise<ChildOutcome> } {
+    const child = spawn(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        CHILD_SCRIPT,
+        tmpRoot,
+        CONCURRENT_NS,
+        "counter",
+        column,
+        String(value),
+        gateFile,
+        readyFile,
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          DUCKBRAIN_NAMESPACES_PATH: tmpRoot,
+          DUCKBRAIN_CONFIG_PATH: path.join(tmpRoot, "duckbrain.config.json"),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const done = new Promise<ChildOutcome>((resolve) => {
+      let out = "";
+      const killTimer = setTimeout(() => child.kill("SIGKILL"), 90_000);
+      child.stdout!.on("data", (chunk: Buffer) => {
+        out += chunk.toString();
+      });
+      child.stderr!.on("data", (chunk: Buffer) => {
+        out += chunk.toString();
+      });
+      child.on("exit", (code, signal) => {
+        clearTimeout(killTimer);
+        const line = out
+          .split("\n")
+          .find((candidate) => candidate.startsWith("RESULT "));
+        let result: ChildOutcome["result"] = null;
+        if (line) {
+          try {
+            result = JSON.parse(line.slice("RESULT ".length));
+          } catch {
+            result = null;
+          }
+        }
+        resolve({ code, signal, out, result });
+      });
+    });
+    return { child, done };
+  }
+
   beforeEach(() => {
     invalidateTableRegistry(CONCURRENT_NS);
     resetSerializerStateForTests();
   });
 
-  it("two sequential PATCHes via same writer → deterministic final state", async () => {
-    const app = createHttpServer({ authType: "none" });
-    const BASE = `/api/ns/${CONCURRENT_NS}/tables`;
+  it("two node processes PATCH the same row at once and lose no update", async () => {
+    const gateFile = path.join(tmpRoot, "concurrent-gate");
+    const readyAlice = path.join(tmpRoot, "concurrent-ready-alice");
+    const readyBob = path.join(tmpRoot, "concurrent-ready-bob");
+    for (const file of [gateFile, readyAlice, readyBob]) {
+      fs.rmSync(file, { force: true });
+    }
 
-    // First PATCH: value to 1
-    const r1 = await httpRequest(app, "PATCH", `${BASE}/counter?pk=eq.1`, {
-      body: { value: 1 },
-    });
-    expect(r1.status).toBe(200);
-    expect(r1.body).toEqual({ updated: 1 });
+    const alice = spawnPatchChild("alice", 1, gateFile, readyAlice);
+    const bob = spawnPatchChild("bob", 2, gateFile, readyBob);
 
-    // Second PATCH: value to 2
-    const r2 = await httpRequest(app, "PATCH", `${BASE}/counter?pk=eq.1`, {
-      body: { value: 2 },
-    });
-    expect(r2.status).toBe(200);
-    expect(r2.body).toEqual({ updated: 1 });
+    // Barrier: both servers must be listening before either PATCH fires, so
+    // the two mutations genuinely overlap instead of one finishing first.
+    const start = Date.now();
+    while (
+      (!fs.existsSync(readyAlice) || !fs.existsSync(readyBob)) &&
+      Date.now() - start < 60_000
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(fs.existsSync(readyAlice) && fs.existsSync(readyBob)).toBe(true);
+    fs.writeFileSync(gateFile, "go", "utf-8");
 
-    // Read back — should be 2 (last write wins)
-    const r3 = await httpRequest(app, "GET", `${BASE}/counter?id=eq.1`);
-    expect(r3.status).toBe(200);
-    expect(r3.body[0].value).toBe(2);
-  });
+    const [aliceOutcome, bobOutcome] = await Promise.all([
+      alice.done,
+      bob.done,
+    ]);
+
+    // Both processes really ran their own server and really got a 2xx from the
+    // real route — not a skip, not a lock rejection.
+    for (const [outcome, column] of [
+      [aliceOutcome, "alice"],
+      [bobOutcome, "bob"],
+    ] as const) {
+      expect({ code: outcome.code, signal: outcome.signal }).toEqual({
+        code: 0,
+        signal: null,
+      });
+      expect(outcome.result).not.toBeNull();
+      expect(outcome.result!.column).toBe(column);
+      expect(outcome.result!.status, outcome.out).toBe(200);
+      expect(JSON.parse(outcome.result!.body)).toEqual({ updated: 1 });
+      // Two distinct OS processes, not two calls in this one.
+      expect(outcome.result!.pid).toBeGreaterThan(0);
+    }
+    expect(aliceOutcome.result!.pid).not.toBe(bobOutcome.result!.pid);
+
+    // The row exists exactly once (no duplicated/torn row from two rewrites)
+    // and carries BOTH updates — neither write was lost.
+    const dataFile = path.join(tmpRoot, CONCURRENT_NS, "tables", "counter.jsonl");
+    const lines = fs
+      .readFileSync(dataFile, "utf-8")
+      .split("\n")
+      .filter((line) => line.trim() !== "");
+    expect(lines).toHaveLength(1);
+    const row = JSON.parse(lines[0]!) as Record<string, unknown>;
+    expect(row).toEqual({ id: 1, alice: 1, bob: 2 });
+  }, 120_000);
 });

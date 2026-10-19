@@ -28,6 +28,19 @@
  *
  * Every route is wrapped in requireNamespaceGrant exactly like
  * namespaces.ts, so restricted tokens without a grant get 403.
+ *
+ * DB-SUPA-2 AC-1 residual (documented gap): the DATA mutation path is still an
+ * in-place rewrite of the table's JSONL file (`patchRowsByPk` /
+ * `deleteRowsByPk` in src/duckdb/table-store.ts) — for legacy `.table.json`
+ * tables AND for schema.json tables alike. Accepted mutations are now RECORDED
+ * through the NamespaceWriter (single-writer audit + DB-SUPA-5 change record),
+ * but the rows themselves do not travel through its append-only queue. Doing
+ * that migration means superseded row versions stay in the data file, so every
+ * read path needs version folding and DELETE stops removing lines; it is a
+ * redesign of the table store, not a route change.
+ * TODO(DB-SUPA-2-AC1): move table mutations onto append-only serializer writes
+ * plus read-side version folding. Until then a rewrite-based delete's
+ * tombstone resolves against the parent commit (src/http/realtime/replay.ts).
  */
 
 import path from "path";
@@ -91,6 +104,45 @@ const DECLARED_TO_LEGACY: Record<string, string> = {
  */
 function namespaceRelativePath(nsDir: string, filePath: string): string {
   return path.relative(nsDir, filePath).split(path.sep).join("/");
+}
+
+/** How long an accepted mutation's audit append waits out lock contention. */
+const MUTATION_AUDIT_LOCK_DEADLINE_MS = 2_000;
+const MUTATION_AUDIT_LOCK_RETRY_MS = 25;
+
+/**
+ * Append an accepted mutation's change record, waiting out TRANSIENT
+ * `SERIALIZER_LOCKED`.
+ *
+ * The serializer's flush takes the namespace write lock fail-fast (that is the
+ * SUPA-2 contract for queued writes), but this append happens AFTER the route
+ * already released the lock for its own rewrite — so under real cross-process
+ * concurrency another writer can hold the lock for the few milliseconds of its
+ * rewrite and a single fail-fast attempt turns an applied, correctly-audited
+ * mutation into a 500. The append is retryable (the failure happens before any
+ * audit byte is written), so retry it against a bounded deadline, exactly like
+ * the route's own lock acquisition. A failure that is NOT transient (fencing,
+ * shutdown, disk) still fails closed.
+ */
+async function enqueueMutationAuditWithRetry(
+  ns: string,
+  entry: AuditEntry,
+): Promise<void> {
+  const deadline = Date.now() + MUTATION_AUDIT_LOCK_DEADLINE_MS;
+  for (;;) {
+    try {
+      await getNamespaceWriter(ns).enqueueAudit(entry);
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.startsWith("SERIALIZER_LOCKED") || Date.now() >= deadline) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, MUTATION_AUDIT_LOCK_RETRY_MS),
+      );
+    }
+  }
 }
 
 /**
@@ -1001,7 +1053,7 @@ function createTableRoutes(): Router {
       );
     }
     try {
-      await getNamespaceWriter(ns).enqueueAudit(entry);
+      await enqueueMutationAuditWithRetry(ns, entry);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const shuttingDown = message.startsWith("SERVER_SHUTTING_DOWN");
@@ -1016,9 +1068,8 @@ function createTableRoutes(): Router {
   /**
    * PATCH /api/ns/:ns/tables/:table?pk=eq.<v> — update by primary key.
    * Rewrites the matching JSONL file rows and records the accepted mutation
-   * through the NamespaceWriter so the audit ledger sees it before the 2xx
-   * (schema.json tables only; legacy .table.json tables use direct file
-   * rewrite to match POST).
+   * through the NamespaceWriter as a DB-SUPA-5 change record, so the audit
+   * ledger sees it before the 2xx and the change feed replays it.
    */
   router.patch(
     "/:table",
@@ -1154,9 +1205,8 @@ function createTableRoutes(): Router {
   /**
    * DELETE /api/ns/:ns/tables/:table?pk=eq.<v> — delete by primary key.
    * Rewrites the matching JSONL files with the row dropped and records the
-   * accepted delete through the NamespaceWriter so the audit ledger sees it
-   * before the 2xx (schema.json tables only; legacy .table.json tables use
-   * direct file rewrite to match POST).
+   * accepted delete through the NamespaceWriter as a tombstone change record
+   * before the 2xx.
    */
   router.delete(
     "/:table",

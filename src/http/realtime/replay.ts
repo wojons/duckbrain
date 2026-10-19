@@ -269,6 +269,56 @@ function resolveDataRowByHash(
 }
 
 /**
+ * Resolve a row image by DECLARED KEY, used only when a record's digest names
+ * no line left in the tree.
+ *
+ * A rewrite-based producer (the REST table layer) can supersede a row image
+ * inside a single debounced commit window — insert-then-patch, or patch-then-
+ * patch on one row — so the older record's exact line is gone from BOTH refs.
+ * The row itself is still there, for the same declared key, and that committed
+ * image is what a consumer converges on. Returns null when the target has no
+ * row carrying that key (a genuine target/data mismatch), which keeps the
+ * failure closed.
+ */
+function resolveDataRowByKey(
+  repoDir: string,
+  commit: string,
+  namespacePath: string,
+  table: string,
+  targetPath: string,
+  key: Record<string, unknown>,
+): { row: unknown } | null {
+  const columns = declaredKeyColumns(namespacePath, table);
+  if (columns.length === 0) return null;
+  if (!isSafeRepoRelativePath(targetPath)) return null;
+  let bytes: Buffer | null;
+  try {
+    bytes = readPathBytes(repoDir, commit, targetPath);
+  } catch {
+    return null;
+  }
+  if (bytes === null) return null;
+  for (const line of bytes.toString("utf-8").split("\n")) {
+    if (line.trim() === "") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const derived = keyMaterialFor(namespacePath, table, parsed);
+    if (
+      columns.every((column) =>
+        deepEqualJson(key[column], (derived as Record<string, unknown>)[column]),
+      )
+    ) {
+      return { row: parsed };
+    }
+  }
+  return null;
+}
+
+/**
  * Derive the accepted change records newly added by `childRef` versus its
  * first parent, with contiguous ordinals. `options.parentRef` may be passed
  * explicitly (tests, and the null root case).
@@ -372,18 +422,22 @@ export function deriveCommitChanges(
     // target/data mismatch guard — a mutated, moved, or rewritten data row
     // (or a fabricated hash) fails closed exactly like a row-image mismatch.
     //
-    // TOMBSTONE RESOLUTION (DB-SUPA-2 AC2): a delete has two legitimate
-    // producers with different physical shapes.
-    //   - The serializer APPENDS a tombstone row, so the line is present at
-    //     the child ref and the strict child lookup is the whole proof.
-    //   - The REST table layer physically REMOVES the row from the table's
-    //     JSONL file (its mutation unit is an in-place rewrite), so the child
-    //     tree cannot carry the line any more. Such a record's hash names the
-    //     row as it existed at the PARENT — the last committed state that
-    //     still had it — so the tombstone falls back to the parent ref.
-    // The fallback is limited to `tombstone` records: a fabricated or stale
-    // UPDATE hash still fails closed at the child, and a tombstone hash can
-    // only resolve against a row image that really was committed.
+    // TOMBSTONE AND SUPERSESSION RESOLUTION (DB-SUPA-2 AC-2): two legitimate
+    // producers write change records for this table layer, and both differ
+    // physically from the serializer's append model.
+    //   - A DELETE physically REMOVES the row from the table's JSONL file, so
+    //     the child tree cannot carry the line any more. Its hash names the row
+    //     as it existed at the PARENT — the last committed state that still had
+    //     it (tombstone semantics: a row image, never `row: null`).
+    //   - An UPDATE rewrites the file in place, so TWO mutations of the same
+    //     row collected by one debounced commit leave only the final line. The
+    //     superseded record's hash names the row image as of the parent, and
+    //     the superseding record (whose hash resolves at the child) carries the
+    //     final image. Replaying the superseded image is truthful — it is the
+    //     last committed row for that key — and keeps a same-window rewrite
+    //     from turning the whole feed into `CHANGELOG_CORRUPT`.
+    // The fallback never accepts a fabricated digest: the hash must still match
+    // byte-for-byte a line that really was committed in the target file.
     let resolved: { row: unknown } | null = null;
     let resolveFailure: unknown = null;
     try {
@@ -396,7 +450,7 @@ export function deriveCommitChanges(
     } catch (error) {
       resolveFailure = error;
     }
-    if (resolved === null && record.tombstone && parentRef !== null) {
+    if (resolved === null && parentRef !== null) {
       try {
         resolved = resolveDataRowByHash(
           repoDir,
@@ -408,6 +462,22 @@ export function deriveCommitChanges(
       } catch {
         // Keep the child-ref failure: it names the commit the record claims.
       }
+    }
+    // Last resort for non-tombstone records: a row image that was superseded
+    // inside this same commit window (never committed) has no line at either
+    // ref, but the row for its declared key IS in the committed target. A
+    // tombstone is deliberately excluded — "this row was deleted" must name a
+    // row that was really committed before the delete.
+    if (resolved === null && !record.tombstone) {
+      resolved = resolveDataRowByKey(
+        repoDir,
+        childRef,
+        options.namespacePath,
+        record.table,
+        record.targetPath,
+        record.key,
+      );
+      if (resolved !== null) resolveFailure = null;
     }
     if (resolved === null) {
       if (resolveFailure !== null) throw resolveFailure as Error;
