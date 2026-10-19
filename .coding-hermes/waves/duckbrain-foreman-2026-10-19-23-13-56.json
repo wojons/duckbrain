@@ -1,0 +1,19 @@
+{
+  "tick": "duckbrain-foreman-2026-10-19-23-13-56",
+  "project": "duckbrain",
+  "block": "SUP-CI-20261019-DB",
+  "path": "serial-fallback",
+  "wave_budget": 4,
+  "box": {"nproc": 16, "loadavg_1m": 10.09, "loadavg_5m": 24.09, "loadavg_15m": 22.51, "slots": 0},
+  "reason": "The selected block has one ready row; the box is loaded, so no parallel wave is safe.",
+  "rows": [
+    {
+      "task_id": "SUP-CI-20261019-DB",
+      "worktree": "/home/kara/worktrees/duckbrain-SUP-CI-20261019-DB",
+      "branch": "wt/SUP-CI-20261019-DB",
+      "brief": "/tmp/duckbrain-foreman-2026-10-19-23-13-56-SUP-CI-20261019-DB-brief.txt",
+      "model": "gpt-6-luna",
+      "provider": "openai-codex"
+    }
+  ]
+}

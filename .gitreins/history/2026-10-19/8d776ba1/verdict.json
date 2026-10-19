@@ -1,0 +1,103 @@
+{
+  "task_id": "SUP-CI-20261019-DB",
+  "task_title": "Fix namespaces-dbgap057 CI teardown race",
+  "task_criteria": [
+    "Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts; prove focused repeated tests, full suite, trace row/spec/test/evidence/commit."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "0e8c7b135535360fc6e757990a3881ccc1ac2b55",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:28PM INF scanned ~42819752 bytes (42.82 MB) in 4.54s\n6:28PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261019T200334.622951Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  228 passed (228)\n      Tests  1898 passed (1898)\n   Start at  18:28:12\n   Duration  92.18s (tests 81%, import 16%, transform 2%, worker 1%)\n\n    Isolate  228 workers spawned \u00b7 ~119ms startup each (spawn + environment, per file)\n             at least ~6.68s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261019T200334.622951Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts; prove focused repeated tests, full suite, trace row/spec/test/evidence/commit.: The code fix is real and I verified it green by my own execution, but the criterion's explicit proof deliverables (trace row/spec/test/evidence/commit) do not exist and the fix is not landed. FIX (present, unmerged): commit fd8820d6 'test: await namespace warm-up before cleanup. Addresses SUP-CI-20261019-DB.' on branch wt/SUP-CI-20261019-DB, 52+/44- in src/http/routes/namespaces-dbgap057.test.ts only. waitForWarmupQuiet now parses the real summary line and throws if the sentinel is missing/SKIPPED (deadline 25s->120s); waitForCleanDrift no longer re-rmSyncs inside the census loop; test timeout 90s->150s. I confirmed the parsed format matches src/http/namespace-warmup.ts:443 (`[name=NNNms scanned, ...]` with `SKIPPED` suffix). FOCUSED REPEATED TESTS: PASS \u2014 `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` run 6x, every run 'Test Files 1 passed (1) / Tests 6 passed (6)', no ENOTEMPTY. FULL SUITE: PASS \u2014 `npx vitest run` => 'Test Files 228 passed (228) / Tests 1898 passed (1898)', Duration 94.13s. TRACE ROW: MISSING \u2014 grep for 'ch:trace row=SUP-CI-20261019-DB' in .coding-hermes/board/tasks.jsonl and events.jsonl returns 0 hits, while sibling rows README-13..README-17 do carry ch:trace markers, so the convention exists and was not followed here; no spec=/test=/witness=/verdict= fields recorded. EVIDENCE: MISSING \u2014 no artifact under /home/kara/.hermes/ or /tmp referencing SUP-CI-20261019-DB. COMMIT NOT LANDED \u2014 `git branch --contains fd8820d6` returns only wt/SUP-CI-20261019-DB; main still has pre-fix d1edc33f for this file. BOARD STATE CONTRADICTS COMPLETION \u2014 .coding-hermes/board/tasks.jsonl row SUP-CI-20261019-DB is status='in_progress', worker_status='dispatched', updated_at 2026-10-19T23:20:33Z, with only task_created (8188) and task_updated->in_progress (8201) events and no task_completed event, yet .gitreins/tasks.yaml marks status: complete at 23:28:11. The race fix itself is sound and green, but the required trace row/spec/test/evidence/commit proof is absent and the fix is unmerged, so the criterion is not met.\nThe ENOTEMPTY teardown fix is real and passes 6 repeated focused runs plus the full 228-file/1898-test suite, but the criterion's required trace row/spec/test/evidence/commit proof is entirely missing, the commit is unmerged to main, and the board row is still in_progress.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts; prove focused repeated tests, full suite, trace row/spec/test/evidence/commit.: The code fix is real and I verified it green by my own execution, but the criterion's explicit proof deliverables (trace row/spec/test/evidence/commit) do not exist and the fix is not landed. FIX (present, unmerged): commit fd8820d6 'test: await namespace warm-up before cleanup. Addresses SUP-CI-20261019-DB.' on branch wt/SUP-CI-20261019-DB, 52+/44- in src/http/routes/namespaces-dbgap057.test.ts only. waitForWarmupQuiet now parses the real summary line and throws if the sentinel is missing/SKIPPED (deadline 25s->120s); waitForCleanDrift no longer re-rmSyncs inside the census loop; test timeout 90s->150s. I confirmed the parsed format matches src/http/namespace-warmup.ts:443 (`[name=NNNms scanned, ...]` with `SKIPPED` suffix). FOCUSED REPEATED TESTS: PASS \u2014 `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` run 6x, every run 'Test Files 1 passed (1) / Tests 6 passed (6)', no ENOTEMPTY. FULL SUITE: PASS \u2014 `npx vitest run` => 'Test Files 228 passed (228) / Tests 1898 passed (1898)', Duration 94.13s. TRACE ROW: MISSING \u2014 grep for 'ch:trace row=SUP-CI-20261019-DB' in .coding-hermes/board/tasks.jsonl and events.jsonl returns 0 hits, while sibling rows README-13..README-17 do carry ch:trace markers, so the convention exists and was not followed here; no spec=/test=/witness=/verdict= fields recorded. EVIDENCE: MISSING \u2014 no artifact under /home/kara/.hermes/ or /tmp referencing SUP-CI-20261019-DB. COMMIT NOT LANDED \u2014 `git branch --contains fd8820d6` returns only wt/SUP-CI-20261019-DB; main still has pre-fix d1edc33f for this file. BOARD STATE CONTRADICTS COMPLETION \u2014 .coding-hermes/board/tasks.jsonl row SUP-CI-20261019-DB is status='in_progress', worker_status='dispatched', updated_at 2026-10-19T23:20:33Z, with only task_created (8188) and task_updated->in_progress (8201) events and no task_completed event, yet .gitreins/tasks.yaml marks status: complete at 23:28:11. The race fix itself is sound and green, but the required trace row/spec/test/evidence/commit proof is absent and the fix is unmerged, so the criterion is not met.\nThe ENOTEMPTY teardown fix is real and passes 6 repeated focused runs plus the full 228-file/1898-test suite, but the criterion's required trace row/spec/test/evidence/commit proof is entirely missing, the commit is unmerged to main, and the board row is still in_progress.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts; prove focused repeated tests, full suite, trace row/spec/test/evidence/commit.",
+                "status": "FAIL",
+                "detail": "The code fix is real and I verified it green by my own execution, but the criterion's explicit proof deliverables (trace row/spec/test/evidence/commit) do not exist and the fix is not landed. FIX (present, unmerged): commit fd8820d6 'test: await namespace warm-up before cleanup. Addresses SUP-CI-20261019-DB.' on branch wt/SUP-CI-20261019-DB, 52+/44- in src/http/routes/namespaces-dbgap057.test.ts only. waitForWarmupQuiet now parses the real summary line and throws if the sentinel is missing/SKIPPED (deadline 25s->120s); waitForCleanDrift no longer re-rmSyncs inside the census loop; test timeout 90s->150s. I confirmed the parsed format matches src/http/namespace-warmup.ts:443 (`[name=NNNms scanned, ...]` with `SKIPPED` suffix). FOCUSED REPEATED TESTS: PASS \u2014 `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` run 6x, every run 'Test Files 1 passed (1) / Tests 6 passed (6)', no ENOTEMPTY. FULL SUITE: PASS \u2014 `npx vitest run` => 'Test Files 228 passed (228) / Tests 1898 passed (1898)', Duration 94.13s. TRACE ROW: MISSING \u2014 grep for 'ch:trace row=SUP-CI-20261019-DB' in .coding-hermes/board/tasks.jsonl and events.jsonl returns 0 hits, while sibling rows README-13..README-17 do carry ch:trace markers, so the convention exists and was not followed here; no spec=/test=/witness=/verdict= fields recorded. EVIDENCE: MISSING \u2014 no artifact under /home/kara/.hermes/ or /tmp referencing SUP-CI-20261019-DB. COMMIT NOT LANDED \u2014 `git branch --contains fd8820d6` returns only wt/SUP-CI-20261019-DB; main still has pre-fix d1edc33f for this file. BOARD STATE CONTRADICTS COMPLETION \u2014 .coding-hermes/board/tasks.jsonl row SUP-CI-20261019-DB is status='in_progress', worker_status='dispatched', updated_at 2026-10-19T23:20:33Z, with only task_created (8188) and task_updated->in_progress (8201) events and no task_completed event, yet .gitreins/tasks.yaml marks status: complete at 23:28:11. The race fix itself is sound and green, but the required trace row/spec/test/evidence/commit proof is absent and the fix is unmerged, so the criterion is not met.",
+                "resolution_probability": 0.09,
+                "cited_path": "src/http/routes/namespaces-dbgap057.test.ts"
+              }
+            ],
+            "summary": "The ENOTEMPTY teardown fix is real and passes 6 repeated focused runs plus the full 228-file/1898-test suite, but the criterion's required trace row/spec/test/evidence/commit proof is entirely missing, the commit is unmerged to main, and the board row is still in_progress."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: SUP-CI-20261019-DB\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts; prove focused repeated tests, full suite, trace row/spec/test/evidence/commit.: The code fix is real and I verified it green by my own execution, but the criterion's explicit proof deliverables (trace row/spec/test/evidence/commit) do not exist and the fix is not landed. FIX (present, unmerged): commit fd8820d6 'test: await namespace warm-up before cleanup. Addresses SUP-CI-20261019-DB.' on branch wt/SUP-CI-20261019-DB, 52+/44- in src/http/routes/namespaces-dbgap057.test.ts only. waitForWarmupQuiet now parses the real summary line and throws if the sentinel is missing/SKIPPED (deadline 25s->120s); waitForCleanDrift no longer re-rmSyncs inside the census loop; test timeout 90s->150s. I confirmed the parsed format matches src/http/namespace-warmup.ts:443 (`[name=NNNms scanned, ...]` with `SKIPPED` suffix). FOCUSED REPEATED TESTS: PASS \u2014 `npx vitest run src/http/routes/namespaces-dbgap057.test.ts` run 6x, every run 'Test Files 1 passed (1) / Tests 6 passed (6)', no ENOTEMPTY. FULL SUITE: PASS \u2014 `npx vitest run` => 'Test Files 228 passed (228) / Tests 1898 passed (1898)', Duration 94.13s. TRACE ROW: MISSING \u2014 grep for 'ch:trace row=SUP-CI-20261019-DB' in .coding-hermes/board/tasks.jsonl and events.jsonl returns 0 hits, while sibling rows README-13..README-17 do carry ch:trace markers, so the convention exists and was not followed here; no spec=/test=/witness=/verdict= fields recorded. EVIDENCE: MISSING \u2014 no artifact under /home/kara/.hermes/ or /tmp referencing SUP-CI-20261019-DB. COMMIT NOT LANDED \u2014 `git branch --contains fd8820d6` returns only wt/SUP-CI-20261019-DB; main still has pre-fix d1edc33f for this file. BOARD STATE CONTRADICTS COMPLETION \u2014 .coding-hermes/board/tasks.jsonl row SUP-CI-20261019-DB is status='in_progress', worker_status='dispatched', updated_at 2026-10-19T23:20:33Z, with only task_created (8188) and task_updated->in_progress (8201) events and no task_completed event, yet .gitreins/tasks.yaml marks status: complete at 23:28:11. The race fix itself is sound and green, but the required trace row/spec/test/evidence/commit proof is absent and the fix is unmerged, so the criterion is not met.\nThe ENOTEMPTY teardown fix is real and passes 6 repeated focused runs plus the full 228-file/1898-test suite, but the criterion's required trace row/spec/test/evidence/commit proof is entirely missing, the commit is unmerged to main, and the board row is still in_progress.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-19T23:34:54.214873",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-19T23:34:54.274133+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 21528,
+        "truncated": false,
+        "source": "git show 0e8c7b135535"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 24381,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "SUP-CI-20261019-DB"
+  }
+}

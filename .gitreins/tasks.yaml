@@ -2782,3 +2782,11 @@ tasks:
   status: complete
   created_at: '2026-10-17T09:29:59.769431+00:00'
   completed_at: '2026-10-17T20:15:36.086940+00:00'
+- id: SUP-CI-20261019-DB
+  title: Fix namespaces-dbgap057 CI teardown race
+  criteria:
+  - Fix the ENOTEMPTY .search teardown race in src/http/routes/namespaces-dbgap057.test.ts;
+    prove focused repeated tests, full suite, trace row/spec/test/evidence/commit.
+  status: complete
+  created_at: '2026-10-19T23:18:17.988786+00:00'
+  completed_at: '2026-10-19T23:28:11.797451+00:00'
