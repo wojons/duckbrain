@@ -904,6 +904,85 @@ Get SSE connection statistics for a namespace.
 
 ---
 
+### Read Ledger (OBS-DUCKBRAIN-001)
+
+`GET /api/reads` aggregates the per-route read ledger (`.duckbrain-audit/reads.jsonl`) over an arbitrary historical time window. Every authenticated read of a documented route is recorded there — including reads that failed auth, because the ledger middleware mounts **before** `authMiddleware` (a 401 would otherwise leave no trace). Writes, `/health`, `/stats`, and the `/api/reads` query surface itself are never recorded. DNS-rebinding and rate-limit blocks are the denial auditor's domain and stay unrecorded.
+
+The ledger is durable on disk and append-only: the active segment is `reads.jsonl`; when it reaches `max_bytes` it is sealed as `reads.NNNN.jsonl` under the next monotonic number and never reopened or deleted, so a window that lies entirely **before** the current process started is queryable — historical queries do not require the process to have been alive in the window. Appends are asynchronous by design; the route drains the pending tail before aggregating, so a query issued immediately after reads sees its own rows.
+
+**Auth:** gated like every sibling `/api/*` route — an unauthenticated request is rejected with `401` (the daemon requires API keys by default; see [Authentication](#authentication)).
+
+#### Query Parameters
+
+All four parameters are optional and combinable. Parameters combine as a logical AND (each narrows the previous result set).
+
+| Query Param | Default | Description |
+|-------------|---------|-------------|
+| `from` | — | Inclusive ISO 8601 lower bound on the row timestamp (e.g. `2026-10-01T00:00:00Z`) |
+| `to` | — | Inclusive ISO 8601 upper bound on the row timestamp |
+| `route` | — | Exact normalized route template, e.g. `GET /api/memories` (percent-encode the space as `%20`) |
+| `ns` | — | Exact explicitly-scoped namespace value. Rows recorded with a null namespace (reads that carried no explicit scope) are never matched by `ns=` |
+
+Empty or malformed input is never silently narrowed: an empty parameter value, an unparseable `from`/`to`, or a non-string value is rejected with **`400 VALIDATION_ERROR`** whose message names the offending parameter.
+
+> **Note — grant scoping (DB-GAP-062):** a scoped principal (an API key carrying a `namespaces` allow-list, see [Per-Token Namespace Grants](#per-token-namespace-grants)) sees only rows whose namespace is in its grants. Rows recorded with a **null** namespace stay visible to scoped principals — they carry no namespace name at all, so they cannot leak a namespace a token was not granted. Unrestricted tokens and `--auth=none` daemons see every row.
+
+#### Response
+
+```json
+{
+  "window": { "from": null, "to": null },
+  "filter": { "route": "GET /api/memories", "ns": null },
+  "total": 13595,
+  "routes": [
+    {
+      "route": "GET /api/memories",
+      "method": "GET",
+      "count": 13595,
+      "statuses": { "200": 13137, "400": 235, "401": 159, "403": 21, "404": 13, "500": 30 }
+    }
+  ],
+  "by_status": { "200": 13137, "400": 235, "401": 159, "403": 21, "404": 13, "500": 30 },
+  "skipped_malformed": 1,
+  "files_read": ["reads.0001.jsonl", "reads.0002.jsonl", "reads.0003.jsonl", "reads.0004.jsonl", "reads.0005.jsonl", "reads.jsonl"],
+  "ledger": {
+    "file": ".duckbrain-audit/reads.jsonl",
+    "segments": "reads.NNNN.jsonl (sealed, monotonic)",
+    "max_bytes": 10485760
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `window` | Echoes the applied `from`/`to` bounds (`null` = unbounded) |
+| `filter` | Echoes the applied `route`/`ns` filters (`null` = unfiltered) |
+| `total` | Rows matching every filter and grant |
+| `routes` | Per-route tallies, `count` descending then route name ascending; each entry carries its own `statuses` breakdown |
+| `by_status` | Status code → count across all matching rows |
+| `skipped_malformed` | Malformed ledger lines skipped while reading — never silent |
+| `files_read` | Ledger files read, in traversal order (sealed segments first, active segment last) |
+| `ledger` | Ledger block: backing `file`, `segments` naming pattern, and rotation threshold `max_bytes` (10 MiB) |
+
+**Example:**
+
+```bash
+# All reads of the memories list route in October 2026
+curl -s "http://localhost:3000/api/reads?route=GET%20/api/memories&from=2026-10-01T00:00:00Z&to=2026-10-31T23:59:59Z" \
+  -H "X-API-Key: $DUCKBRAIN_KEY"
+
+# Reads scoped to one namespace (unrestricted token)
+curl -s "http://localhost:3000/api/reads?ns=my-project" \
+  -H "X-API-Key: $DUCKBRAIN_KEY"
+
+# Bad window bound is a 400, never a silent narrowing
+curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:3000/api/reads?from=notadate" \
+  -H "X-API-Key: $DUCKBRAIN_KEY"
+# => 400
+```
+
+---
+
 ### Declared Tables (SUPA-3/SUPA-6)
 
 PostgREST-style row access over **declared** tables.
