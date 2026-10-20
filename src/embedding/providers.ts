@@ -141,6 +141,53 @@ function makeOllamaBatchEmbed(
 }
 
 /**
+ * OpenAI-compatible batch embed helper.
+ *
+ * Both the OpenAI API and LM Studio (OpenAI-compatible) accept an input
+ * array at the same /v1/embeddings endpoint, returning { data: [{ embedding }, ...] }.
+ * This mirrors what Ollama does via makeOllamaBatchEmbed but targets the
+ * OpenAI request/response shape.
+ */
+function makeHttpBatchEmbed(
+  id: string,
+  model: string,
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+): (texts: string[]) => Promise<number[][]> {
+  return async (texts: string[]): Promise<number[][]> => {
+    if (texts.length === 0) return [];
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ model, input: texts }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(
+        `[${id}] embed HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      );
+    }
+    const data = (await res.json()) as {
+      data?: Array<{ embedding?: number[] }>;
+    };
+    const vecs = data?.data;
+    if (
+      !Array.isArray(vecs) ||
+      vecs.length !== texts.length ||
+      vecs.some(
+        (v) =>
+          !Array.isArray(v.embedding) ||
+          v.embedding.length === 0,
+      )
+    ) {
+      throw new Error(`[${id}] invalid batch embedding response`);
+    }
+    return vecs.map((v) => v.embedding as number[]);
+  };
+}
+
+/**
  * Embedding-failure classes (OPS-004).
  *
  * `makeHttpEmbed` throws exactly two shapes — `[<id>] embed HTTP <status>:
@@ -349,7 +396,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "lmstudio",
     label: "LM Studio (OpenAI-compatible, local)",
     build(cfg) {
-      return makeHttpEmbed(
+      const single = makeHttpEmbed(
         `lmstudio/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
@@ -358,6 +405,16 @@ export const PROVIDERS: readonly ProviderCtor[] = [
         {},
         cfg.timeoutMs,
       );
+      return {
+        ...single,
+        embedMany: makeHttpBatchEmbed(
+          `lmstudio/${cfg.model}`,
+          cfg.model,
+          embedUrl("lmstudio", cfg),
+          {},
+          cfg.timeoutMs,
+        ),
+      };
     },
     async isHealthy(cfg) {
       try {
@@ -440,7 +497,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "openai",
     label: "OpenAI API (remote)",
     build(cfg) {
-      return makeHttpEmbed(
+      const single = makeHttpEmbed(
         `openai/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
@@ -449,6 +506,16 @@ export const PROVIDERS: readonly ProviderCtor[] = [
         { Authorization: `Bearer ${cfg.apiKey || ""}` },
         cfg.timeoutMs,
       );
+      return {
+        ...single,
+        embedMany: makeHttpBatchEmbed(
+          `openai/${cfg.model}`,
+          cfg.model,
+          embedUrl("openai", cfg),
+          { Authorization: `Bearer ${cfg.apiKey || ""}` },
+          cfg.timeoutMs,
+        ),
+      };
     },
     async isHealthy(cfg) {
       return Boolean(cfg.apiKey);
