@@ -9,10 +9,11 @@
  * executes calls in isolation:
  *
  * - `javascript` — the module source runs inside `node:vm` with a
- *   capability-free global (no require/process/fs/network globals) on a
- *   dedicated Worker thread with a V8 heap limit; wall-clock budget is
- *   enforced by `worker.terminate()`, which cannot be blocked by
- *   `while(true)` because it does not wait for a GC point.
+ *   realm-empty global (no require/process/fs/network globals, and no
+ *   host-realm object injected at all) on a dedicated Worker thread with
+ *   a V8 heap limit; wall-clock budget is enforced by
+ *   `worker.terminate()`, which cannot be blocked by `while(true)`
+ *   because it does not wait for a GC point.
  * - `wasm` — the bytes are instantiated with an EMPTY import namespace
  *   (WasmImportsDenied), so every host import traps at link time; wall
  *   clock + heap limits are enforced the same way as JS.
@@ -28,6 +29,73 @@
  * points at); sandbox escape is assumed attempted, not exceptional. The
  * host keeps no credentials inside the sandbox and no capability is
  * granted implicitly.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * TRUST BOUNDARY — read this before adding capabilities or changing the
+ * sandbox. The probes that pin it live in custom-runtime.test.ts
+ * ("sandbox escape attempts cannot reach host state").
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * WHAT IS PROTECTED (enforced here, asserted by tests):
+ *
+ * 1. Resource limits.
+ *    - Wall clock: the vm's own `timeout` kills a synchronous infinite loop,
+ *      and the parent's `worker.terminate()` at `timeoutMs + 25ms` cannot be
+ *      blocked by user code because it does not wait for a GC/safepoint.
+ *      Both surface as TIMEOUT; the server stays responsive.
+ *    - Memory: `resourceLimits.maxOldGenerationSizeMb` caps the V8 heap of
+ *      the whole sandbox thread. Exhaustion surfaces as RESOURCE_EXHAUSTED,
+ *      never as an unbounded host allocation.
+ * 2. Host capability denial.
+ *    - The JS realm is built from a PROTOTYPE-LESS context object whose only
+ *      own value is one primitive string (the args JSON). No host-realm
+ *      object, function or constructor is injected, so there is no
+ *      `x.constructor.constructor` bridge back to the host's `Function`:
+ *      `this.constructor.constructor(...)`, `args.constructor.constructor(...)`,
+ *      `Object.constructor(...)`, `Function(...)` and `eval(...)` all throw
+ *      "Code generation from strings disallowed for this context".
+ *    - `codeGeneration.strings: false` is what makes that throw; it applies
+ *      to the realm the tool runs in. (Before this guard the classic
+ *      `this.constructor.constructor('return process')()` returned the host
+ *      `process` — the probe in custom-runtime.test.ts now asserts BLOCKED.)
+ *    - `require`, `process`, `fetch`, `Buffer`, module loading and timers do
+ *      not exist in the realm. `console` does (Node provides it per vm
+ *      context) but writes to the worker's stdout, which the parent drains
+ *      to nothing — it can neither reach host state nor pollute the MCP wire.
+ *    - WebAssembly is the realm's own intrinsic (`codeGeneration.wasm: true`)
+ *      and every module instantiates with an EMPTY import namespace, so no
+ *      host function can be linked, in the `wasm` runtime or inside JS.
+ *    - Declared capabilities fail closed (CAPABILITY_DECLARED) BEFORE the
+ *      module runs: this build grants none, so a declaration is a refusal,
+ *      not a bridge.
+ * 3. Result hygiene. Only the JSON round trip crosses back; unserializable
+ *    results are RESULT_UNSERIALIZABLE, and sandbox stdout/stderr are
+ *    drained so a chatty module cannot corrupt the MCP protocol channel.
+ *
+ * WHAT IS NOT PROTECTED (do not rely on it — this is a known limitation):
+ *
+ * 1. THERE IS NO OS-LEVEL ISOLATION. The sandbox is a V8 realm on a worker
+ *    thread of THIS process: same process, same uid, same filesystem, same
+ *    network namespace, same environment. Node documents `node:vm` as NOT a
+ *    security mechanism (https://nodejs.org/api/vm.html). There is no
+ *    seccomp filter, no container, no chroot and no separate uid: a V8
+ *    engine bug, a native addon reachable at process level, or any future
+ *    change that injects a single host object into the context would be a
+ *    full host compromise. Resource limits bound how LONG and how MUCH a
+ *    tool may consume; they are not an isolation boundary.
+ * 2. The threat model is therefore OPERATOR-AUTHORED code, not adversarial
+ *    code. A tool's source comes from `duckbrain.config.json` (or a file it
+ *    points at) and runs with the privileges of the DuckBrain process —
+ *    treat the customTools block as executable content, and never point
+ *    `module:` at a file an untrusted party can write.
+ * 3. Cost. Every call spawns a fresh worker thread; a hostile-but-in-budget
+ *    tool can still spend its entire CPU/memory budget on every call.
+ * 4. CPU/IO spawned from native code (a wasm module's own compute) is bounded
+ *    only by the wall clock and heap ceiling above, not by per-thread quotas.
+ *
+ * Anything needing a real security boundary must run OUT OF PROCESS under a
+ * separate uid / container with seccomp. That is a deployment decision this
+ * module cannot make or promise.
  */
 
 import fs from "fs";
@@ -417,35 +485,44 @@ try {
     }
     exports = out;
   } else {
-    // javascript — capability-free global surface. Notably ABSENT:
-    // require, process, fetch, import, setTimeout, console, Buffer, and
-    // host state. The vm context's globalThis is its own realm.
-    const sandbox = {
-      args,
-      // WebAssembly is provided for self-contained compute modules; any
-      // module they instantiate still faces an empty import namespace, so
-      // no host function is callable from inside the sandbox.
-      WebAssembly: WebAssembly,
-      JSON: JSON, Math: Math, Date: Date, Number: Number, String: String,
-      Boolean: Boolean, Array: Array, Object: Object, Promise: Promise,
-      Error: Error, TypeError: TypeError, RangeError: RangeError,
-      URIError: URIError, EvalError: EvalError, SyntaxError: SyntaxError,
-      isFinite: isFinite, isNaN: isNaN, parseFloat: parseFloat,
-      parseInt: parseInt, encodeURIComponent: encodeURIComponent,
-      decodeURIComponent: decodeURIComponent,
-    };
-    const context = vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } });
+    // javascript — a REALM-EMPTY host surface. NOTHING from this worker
+    // realm is handed to the tool: the context object is prototype-less and
+    // carries exactly one primitive string (the args JSON). Injecting the
+    // host intrinsics (args, Object, JSON, WebAssembly, ...) was a LIVE
+    // escape: this.constructor.constructor('return process')() returned the
+    // HOST process, because every host object carries
+    // .constructor.constructor === <host Function> and host code generation
+    // is not gated by this context's codeGeneration flag.
+    //
+    // Now:
+    //  - the prelude below parses the args INSIDE the realm, so even
+    //    args.constructor.constructor is the realm's own Object/Function;
+    //  - codeGeneration.strings:false makes the realm's Function()/eval()
+    //    throw "Code generation from strings disallowed for this context",
+    //    which is exactly what the constructor-escape probe asserts;
+    //  - codeGeneration.wasm:true keeps the realm's OWN WebAssembly usable
+    //    for self-contained compute; modules still instantiate with an
+    //    EMPTY import namespace so no host function can be linked.
+    //
+    // Absent entirely: require, process, fetch, Buffer, timers, module
+    // loading, host state. console exists (Node provides it per vm
+    // context) and writes to this worker's stdout, which the parent drains
+    // to nothing -- it reaches no host state and never the MCP wire.
+    const sandbox = Object.create(null);
+    sandbox.__args_json = req.argsJson;
+    const context = vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: true } });
     // The module source is wrapped so a plain "return args;" script is a
     // valid tool: the completion value is the tool's result (or the value
     // assigned to a variable named "tool"). Built with string concatenation
     // only -- this file must stay free of nested template literals so
     // String.raw delivers the source verbatim.
+    var PRELUDE = "var args = JSON.parse(__args_json); ";
     var WRAP_OPEN = "(function(){ ";
     var WRAP_TAIL = "\n; return typeof tool !== 'undefined' ? tool : (typeof result !== 'undefined' ? result : undefined); })()";
     let exported;
     try {
       exported = vm.runInContext(
-        WRAP_OPEN + req.payload + WRAP_TAIL,
+        PRELUDE + WRAP_OPEN + req.payload + WRAP_TAIL,
         context,
         { timeout: req.timeoutMs, displayErrors: true },
       );

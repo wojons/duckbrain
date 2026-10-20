@@ -601,17 +601,43 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
   });
 
   it("sandbox escape attempts cannot reach host state", async () => {
+    // MCP-CUSTOM-RUNTIME-002: the constructor-escape arm of this probe is
+    // ASSERTED, not merely computed. Each attempt must come back BLOCKED
+    // ("Code generation from strings disallowed for this context") — the
+    // pre-002 sandbox injected host-realm intrinsics, so
+    // `this.constructor.constructor('return process')()` returned the HOST
+    // process and this probe's `constructorEscape` was left unasserted.
     const h = await harness([
       baseDef({
         name: "escaper",
         module: `inline:
           const probes = {};
+          const attempt = (name, fn) => {
+            try { probes[name] = 'NOT-BLOCKED:' + String(fn()); }
+            catch (e) { probes[name] = 'blocked:' + (e && e.message ? e.message : String(e)); }
+          };
           try { probes.require = typeof require; } catch (e) { probes.require = 'throw'; }
           try { probes.process = typeof process; } catch (e) { probes.process = 'throw'; }
           try { probes.fetch = typeof fetch; } catch (e) { probes.fetch = 'throw'; }
           try { probes.fsModule = typeof module; } catch (e) { probes.fsModule = 'throw'; }
           try { probes.globalRequire = typeof globalThis.require; } catch (e) { probes.globalRequire = 'throw'; }
-          try { probes.constructorEscape = typeof this.constructor.constructor; } catch (e) { probes.constructorEscape = 'throw'; }
+          // The constructor-escape SURFACE: the realm's Function constructor
+          // is reachable both from the global (this) and from the parsed
+          // args object. The probe is only meaningful because these exist —
+          // what it asserts is that reaching them cannot compile code.
+          probes.thisCtorType = typeof this.constructor.constructor;
+          probes.argsCtorType = typeof args.constructor.constructor;
+          probes.argsIsRealmObject = String(args.constructor === Object);
+          attempt('thisCtorEscape', () => this.constructor.constructor('return typeof process')());
+          attempt('globalCtorEscape', () => globalThis.constructor.constructor('return typeof process')());
+          attempt('argsCtorEscape', () => args.constructor.constructor('return typeof process')());
+          attempt('objectCtorEscape', () => Object.constructor('return typeof process')());
+          attempt('arrayCtorEscape', () => [].constructor.constructor('return typeof process')());
+          attempt('stringCtorEscape', () => ''.constructor.constructor('return typeof process')());
+          attempt('consoleCtorEscape', () => console.log.constructor('return typeof process')());
+          attempt('functionCtorEscape', () => Function('return typeof process')());
+          attempt('evalEscape', () => eval('typeof process'));
+          attempt('requireViaCtorEscape', () => this.constructor.constructor('return process')().mainModule.require('fs').readFileSync('/etc/hostname', 'utf8'));
           return probes;`,
       }),
     ]);
@@ -631,6 +657,100 @@ describe("MCP-CUSTOM-RUNTIME-001: failure classes are structured, never fatal", 
       expect(probes.fetch).toBe("undefined");
       expect(probes.fsModule).toBe("undefined");
       expect(probes.globalRequire).toBe("undefined");
+      // The parsed args object belongs to the SANDBOX realm, not the host:
+      // injecting a host object here is what made the escape work.
+      expect(probes.argsIsRealmObject).toBe("true");
+
+      // --- the assertion this node was filed for ---------------------
+      // (a) the surface is real: a Function constructor is reachable, so
+      //     the probe cannot pass vacuously;
+      expect(probes.thisCtorType).toBe("function");
+      expect(probes.argsCtorType).toBe("function");
+      // (b) every use of it is blocked by the realm's code-generation
+      //     guard — the escape must NOT yield host state.
+      const expectBlocked = (name: string): void => {
+        expect(probes[name], `${name} must be blocked`).toMatch(/^blocked:/);
+        expect(probes[name]).toContain(
+          "Code generation from strings disallowed",
+        );
+        expect(probes[name]).not.toContain("NOT-BLOCKED");
+      };
+      for (const arm of [
+        "thisCtorEscape",
+        "globalCtorEscape",
+        "argsCtorEscape",
+        "objectCtorEscape",
+        "arrayCtorEscape",
+        "stringCtorEscape",
+        "consoleCtorEscape",
+        "functionCtorEscape",
+        "evalEscape",
+        "requireViaCtorEscape",
+      ]) {
+        expect(probes[arm], `${arm} missing from probe`).toBeTypeOf("string");
+        expectBlocked(arm);
+      }
+      // Headline arms spelled out, so a future edit that flips one of them
+      // fails loudly at this exact line rather than inside a loop.
+      expect(probes.thisCtorEscape).toBe(
+        "blocked:Code generation from strings disallowed for this context",
+      );
+      expect(probes.argsCtorEscape).toBe(
+        "blocked:Code generation from strings disallowed for this context",
+      );
+      expect(probes.requireViaCtorEscape).toBe(
+        "blocked:Code generation from strings disallowed for this context",
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("javascript sandbox keeps in-realm WebAssembly for self-contained compute", async () => {
+    // The sandbox no longer injects the HOST WebAssembly (that object was a
+    // constructor-escape bridge); the realm's own WebAssembly is enabled via
+    // codeGeneration.wasm, and an import-free module must still compute.
+    const h = await harness([
+      baseDef({
+        name: "js_wasm_add",
+        module: `inline:
+          const hex = '0061736d0100000001070160027f7f017f030201000707010361646400000a09010700200020016a0b';
+          const bytes = new Uint8Array(hex.length / 2);
+          for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+          const mod = new WebAssembly.Module(bytes);
+          const inst = new WebAssembly.Instance(mod, {});
+          return { sum: inst.exports.add(2, 3) };`,
+      }),
+    ]);
+    try {
+      const outcome = await h.manager.exec("js_wasm_add", {});
+      expect(outcome).toEqual({ success: true, result: { sum: 5 } });
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("wasm instantiated inside the javascript sandbox cannot link a host import", async () => {
+    const h = await harness([
+      baseDef({
+        name: "js_wasm_importer",
+        module: `inline:
+          const hex = '0061736d01000000' + '020e0103656e7607686f73745f666e600000';
+          const bytes = new Uint8Array(hex.length / 2);
+          for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+          let message = null;
+          try { new WebAssembly.Instance(new WebAssembly.Module(bytes), {}); }
+          catch (e) { message = String(e && e.message ? e.message : e); }
+          return { blocked: message !== null, message: String(message) };`,
+      }),
+    ]);
+    try {
+      const outcome = await h.manager.exec("js_wasm_importer", {});
+      expect(outcome.success).toBe(true);
+      const value = (outcome as { result: { blocked: boolean; message: string } })
+        .result;
+      expect(value.blocked).toBe(true);
+      expect(value.message).toContain("import");
     } finally {
       await h.close();
     }
