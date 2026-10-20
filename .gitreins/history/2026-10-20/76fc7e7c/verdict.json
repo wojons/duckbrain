@@ -1,0 +1,103 @@
+{
+  "task_id": "PERF-013",
+  "task_title": "P2 batch embed: add embedMany to openai/lmstudio providers",
+  "task_criteria": [
+    "Give the openai/lmstudio providers a batch embed (only ollama exposes embedMany today at src/embedding/providers.ts), then npx vitest run src/embedding/providers-dogfood002.test.ts must exit 0 including the new embedMany batch test, and a live DUCKBRAIN_SEARCH_TIMING=1 curl must log a [search-timing] line containing batch_supported=true."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "15780ae6a7add155331b8cc67a3b595cf8d054b3",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n7:49AM INF scanned ~43166956 bytes (43.17 MB) in 5.25s\n7:49AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T124708.529625Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  232 passed (232)\n      Tests  1932 passed (1932)\n   Start at  07:48:56\n   Duration  74.37s (tests 81%, import 16%, transform 2%)\n\n    Isolate  232 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~5.27s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T124708.529625Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Give the openai/lmstudio providers a batch embed (only ollama exposes embedMany today at src/embedding/providers.ts), then npx vitest run src/embedding/providers-dogfood002.test.ts must exit 0 including the new embedMany batch test, and a live DUCKBRAIN_SEARCH_TIMING=1 curl must log a [search-timing] line containing batch_supported=true.: (1) Implementation: src/embedding/providers.ts adds makeHttpBatchEmbed (line 151) and wires embedMany into lmstudio (line 410) and openai (line 511); ollama retains makeOllamaBatchEmbed (line 460); interface declares embedMany? at line 31. (2) Tests: `npx vitest run src/embedding/providers-dogfood002.test.ts` -> EXIT_CODE=0, 'Test Files 1 passed (1)', 'Tests 26 passed (26)'; batch-specific verbose run shows 'sends OpenAI-compatible batch embed and preserves input order' PASS and 'sends LM Studio batch embed and preserves input order' PASS (plus reject-incomplete variants for both). (3) Live curl: rebuilt dist via `npx tsc -p tsconfig.build.json` (BUILD_EXIT=0; dist/src/embedding/providers.js then contains 3 embedMany entries at lines 262/300/338), started server with DUCKBRAIN_SEARCH_TIMING=1 on :3999, `curl 'http://localhost:3999/api/memories?q=embedding%20provider&limit=2&debug=search'` -> HTTP=200 and stderr logged '[search-timing] cache_candidates=100 cache_hits=20 unique_misses=2 miss_text_chars=1365 max_miss_text_chars=1204 batch_supported=true candidate_cache_ms=12.1 candidate_embed_ms=1906.7 scoring_ms=4.6'. Note: the pre-existing dist build was stale (only ollama had embedMany) and the long-running :3000 daemon predates the change, so the live check required a rebuild \u2014 after which it passes. [resolution 0.00; src/embedding/providers.ts, src/embedding/providers-dogfood002.test.ts]\nopenai and lmstudio now expose embedMany via makeHttpBatchEmbed, the dogfood002 suite exits 0 with 26 passing tests including the new batch tests, and a live DUCKBRAIN_SEARCH_TIMING=1 curl logs batch_supported=true.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Give the openai/lmstudio providers a batch embed (only ollama exposes embedMany today at src/embedding/providers.ts), then npx vitest run src/embedding/providers-dogfood002.test.ts must exit 0 including the new embedMany batch test, and a live DUCKBRAIN_SEARCH_TIMING=1 curl must log a [search-timing] line containing batch_supported=true.: (1) Implementation: src/embedding/providers.ts adds makeHttpBatchEmbed (line 151) and wires embedMany into lmstudio (line 410) and openai (line 511); ollama retains makeOllamaBatchEmbed (line 460); interface declares embedMany? at line 31. (2) Tests: `npx vitest run src/embedding/providers-dogfood002.test.ts` -> EXIT_CODE=0, 'Test Files 1 passed (1)', 'Tests 26 passed (26)'; batch-specific verbose run shows 'sends OpenAI-compatible batch embed and preserves input order' PASS and 'sends LM Studio batch embed and preserves input order' PASS (plus reject-incomplete variants for both). (3) Live curl: rebuilt dist via `npx tsc -p tsconfig.build.json` (BUILD_EXIT=0; dist/src/embedding/providers.js then contains 3 embedMany entries at lines 262/300/338), started server with DUCKBRAIN_SEARCH_TIMING=1 on :3999, `curl 'http://localhost:3999/api/memories?q=embedding%20provider&limit=2&debug=search'` -> HTTP=200 and stderr logged '[search-timing] cache_candidates=100 cache_hits=20 unique_misses=2 miss_text_chars=1365 max_miss_text_chars=1204 batch_supported=true candidate_cache_ms=12.1 candidate_embed_ms=1906.7 scoring_ms=4.6'. Note: the pre-existing dist build was stale (only ollama had embedMany) and the long-running :3000 daemon predates the change, so the live check required a rebuild \u2014 after which it passes. [resolution 0.00; src/embedding/providers.ts, src/embedding/providers-dogfood002.test.ts]\nopenai and lmstudio now expose embedMany via makeHttpBatchEmbed, the dogfood002 suite exits 0 with 26 passing tests including the new batch tests, and a live DUCKBRAIN_SEARCH_TIMING=1 curl logs batch_supported=true.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Give the openai/lmstudio providers a batch embed (only ollama exposes embedMany today at src/embedding/providers.ts), then npx vitest run src/embedding/providers-dogfood002.test.ts must exit 0 including the new embedMany batch test, and a live DUCKBRAIN_SEARCH_TIMING=1 curl must log a [search-timing] line containing batch_supported=true.",
+                "status": "PASS",
+                "detail": "(1) Implementation: src/embedding/providers.ts adds makeHttpBatchEmbed (line 151) and wires embedMany into lmstudio (line 410) and openai (line 511); ollama retains makeOllamaBatchEmbed (line 460); interface declares embedMany? at line 31. (2) Tests: `npx vitest run src/embedding/providers-dogfood002.test.ts` -> EXIT_CODE=0, 'Test Files 1 passed (1)', 'Tests 26 passed (26)'; batch-specific verbose run shows 'sends OpenAI-compatible batch embed and preserves input order' PASS and 'sends LM Studio batch embed and preserves input order' PASS (plus reject-incomplete variants for both). (3) Live curl: rebuilt dist via `npx tsc -p tsconfig.build.json` (BUILD_EXIT=0; dist/src/embedding/providers.js then contains 3 embedMany entries at lines 262/300/338), started server with DUCKBRAIN_SEARCH_TIMING=1 on :3999, `curl 'http://localhost:3999/api/memories?q=embedding%20provider&limit=2&debug=search'` -> HTTP=200 and stderr logged '[search-timing] cache_candidates=100 cache_hits=20 unique_misses=2 miss_text_chars=1365 max_miss_text_chars=1204 batch_supported=true candidate_cache_ms=12.1 candidate_embed_ms=1906.7 scoring_ms=4.6'. Note: the pre-existing dist build was stale (only ollama had embedMany) and the long-running :3000 daemon predates the change, so the live check required a rebuild \u2014 after which it passes. [resolution 0.00; src/embedding/providers.ts, src/embedding/providers-dogfood002.test.ts]",
+                "resolution_probability": 0.0,
+                "cited_path": "src/embedding/providers.ts, src/embedding/providers-dogfood002.test.ts"
+              }
+            ],
+            "summary": "openai and lmstudio now expose embedMany via makeHttpBatchEmbed, the dogfood002 suite exits 0 with 26 passing tests including the new batch tests, and a live DUCKBRAIN_SEARCH_TIMING=1 curl logs batch_supported=true."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: PERF-013\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Give the openai/lmstudio providers a batch embed (only ollama exposes embedMany today at src/embedding/providers.ts), then npx vitest run src/embedding/providers-dogfood002.test.ts must exit 0 including the new embedMany batch test, and a live DUCKBRAIN_SEARCH_TIMING=1 curl must log a [search-timing] line containing batch_supported=true.: (1) Implementation: src/embedding/providers.ts adds makeHttpBatchEmbed (line 151) and wires embedMany into lmstudio (line 410) and openai (line 511); ollama retains makeOllamaBatchEmbed (line 460); interface declares embedMany? at line 31. (2) Tests: `npx vitest run src/embedding/providers-dogfood002.test.ts` -> EXIT_CODE=0, 'Test Files 1 passed (1)', 'Tests 26 passed (26)'; batch-specific verbose run shows 'sends OpenAI-compatible batch embed and preserves input order' PASS and 'sends LM Studio batch embed and preserves input order' PASS (plus reject-incomplete variants for both). (3) Live curl: rebuilt dist via `npx tsc -p tsconfig.build.json` (BUILD_EXIT=0; dist/src/embedding/providers.js then contains 3 embedMany entries at lines 262/300/338), started server with DUCKBRAIN_SEARCH_TIMING=1 on :3999, `curl 'http://localhost:3999/api/memories?q=embedding%20provider&limit=2&debug=search'` -> HTTP=200 and stderr logged '[search-timing] cache_candidates=100 cache_hits=20 unique_misses=2 miss_text_chars=1365 max_miss_text_chars=1204 batch_supported=true candidate_cache_ms=12.1 candidate_embed_ms=1906.7 scoring_ms=4.6'. Note: the pre-existing dist build was stale (only ollama had embedMany) and the long-running :3000 daemon predates the change, so the live check required a rebuild \u2014 after which it passes. [resolution 0.00; src/embedding/providers.ts, src/embedding/providers-dogfood002.test.ts]\nopenai and lmstudio now expose embedMany via makeHttpBatchEmbed, the dogfood002 suite exits 0 with 26 passing tests including the new batch tests, and a live DUCKBRAIN_SEARCH_TIMING=1 curl logs batch_supported=true.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T12:52:27.640984",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T12:52:27.699763+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4725,
+        "truncated": false,
+        "source": "git show 15780ae6a7ad"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 877,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-013"
+  }
+}
