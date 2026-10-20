@@ -75,6 +75,14 @@ vi.mock("./sync", async (importOriginal) => {
       };
     },
     syncAllNamespaces: async () => [],
+    // S3-CLI-001: the CLI's sync-all path consumes the aggregate form.
+    syncAllNamespacesResult: async () => ({
+      stats: [],
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      failures: [],
+    }),
   };
 });
 

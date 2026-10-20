@@ -20,7 +20,7 @@ import { censusOnDiskNamespaces } from "../namespaces/census";
 import {
   walkLocal,
   syncNamespace,
-  syncAllNamespaces,
+  syncAllNamespacesResult,
   listRemoteNamespaces,
 } from "./sync";
 import { runS3Query } from "./query";
@@ -291,11 +291,22 @@ export async function s3Sync(
   // if the remote prefix holds namespaces but nothing was restored (every
   // per-namespace sync failed), that is a failed restore — warn loudly and
   // exit nonzero. (DF-0925-07; the push summary stays as-is.)
-  const all = await syncAllNamespaces(s3, nsRoot, direction);
+  //
+  // S3-CLI-001: `sync all` is an AGGREGATE command. Per-namespace failures are
+  // collected by the engine (syncAllNamespacesResult) instead of only being
+  // warned, so the summary states attempted/succeeded/failed, every failed
+  // namespace is listed with its error, and the process exits nonzero —
+  // min(failed, 125) — so a PARTIAL push/pull can never look like success.
+  const result = await syncAllNamespacesResult(s3, nsRoot, direction);
+  const all = result.stats;
   const total = all.reduce((acc, s) => acc + s.uploaded + s.downloaded, 0);
   console.log(
     `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred`,
   );
+  // DF-0925-07: "remote data exists but nothing restored" is its own failure —
+  // tracked separately from per-namespace throws so both paths exit nonzero
+  // through the single exit decision below.
+  let emptyRestore = false;
   if (direction === "pull") {
     for (const s of all) {
       console.log(
@@ -314,9 +325,26 @@ export async function s3Sync(
       console.error(
         `[S3] WARNING: ${remoteCount} namespace(s) exist on S3 but ALL failed to restore (0 restored). Your namespaces root was NOT repopulated — check the per-namespace errors above.`,
       );
-      process.exit(1);
+      emptyRestore = true;
     }
   }
+
+  console.log(
+    `Sync complete: ${result.attempted} attempted, ${result.succeeded} succeeded, ${result.failed} failed`,
+  );
+  if (result.failed > 0) {
+    console.error(`Failed namespaces (${result.failed}):`);
+    for (const failure of result.failures) {
+      console.error(`  ${failure.namespace}: ${failure.error}`);
+    }
+  }
+
+  // Exit code carries the failure count (capped at 125 — shell-safe; 126+ is
+  // reserved) so scripts can distinguish "some failed" from "all failed".
+  if (result.failed > 0) {
+    process.exit(Math.min(result.failed, 125));
+  }
+  if (emptyRestore) process.exit(1);
 }
 
 export function formatS3Row(row: Record<string, unknown>): string {

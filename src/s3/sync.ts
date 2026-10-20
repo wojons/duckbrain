@@ -732,13 +732,44 @@ export async function syncNamespace(
   }
 }
 
-/** Sync every namespace dir under namespacesPath. */
-export async function syncAllNamespaces(
+/**
+ * Aggregate outcome of one `sync all` pass (S3-CLI-001).
+ *
+ * A per-namespace failure used to be swallowed by the loop (one `console.warn`)
+ * while the pass still returned its successes, so the CLI printed "complete"
+ * and exited 0 after a partial push/pull. The aggregate makes the failure count
+ * a first-class result: callers can report it and exit nonzero.
+ *
+ * `attempted` counts every namespace the pass tried; `succeeded` counts the
+ * ones that returned without throwing (a namespace whose sync is inert because
+ * s3 is disabled yields no stats but is NOT a failure); `failed` counts the
+ * throws, each captured in `failures` with its namespace name and message.
+ */
+export interface SyncAllResult {
+  /** Per-namespace stats for the namespaces that completed (unchanged shape). */
+  stats: SyncStats[];
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  failures: { namespace: string; error: string }[];
+}
+
+/**
+ * Sync every namespace dir under namespacesPath and return the AGGREGATE
+ * outcome — successes, failure count, and every per-namespace error.
+ *
+ * S3-CLI-001: failures are still non-fatal for the pass (one broken namespace
+ * must not abort the rest), but they are now RETURNED instead of only warned,
+ * so `s3 sync all` can exit nonzero. Callers that only need the stats can use
+ * `syncAllNamespaces` (the stats-only wrapper).
+ */
+export async function syncAllNamespacesResult(
   cfg: S3Config,
   namespacesPath: string,
   direction: "push" | "pull" = "push",
-): Promise<SyncStats[]> {
-  const out: SyncStats[] = [];
+): Promise<SyncAllResult> {
+  const stats: SyncStats[] = [];
+  const failures: { namespace: string; error: string }[] = [];
   let localEntries: string[] = [];
   try {
     localEntries = fs
@@ -766,11 +797,33 @@ export async function syncAllNamespaces(
 
   for (const ns of nsList) {
     try {
-      const stats = await syncNamespace(cfg, ns, namespacesPath, direction);
-      if (stats) out.push(stats);
+      const nsStats = await syncNamespace(cfg, ns, namespacesPath, direction);
+      if (nsStats) stats.push(nsStats);
     } catch (err) {
-      console.warn(`[S3] sync ${ns} failed: ${(err as Error).message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      failures.push({ namespace: ns, error: message });
+      console.warn(`[S3] sync ${ns} failed: ${message}`);
     }
   }
-  return out;
+  return {
+    stats,
+    attempted: nsList.length,
+    succeeded: nsList.length - failures.length,
+    failed: failures.length,
+    failures,
+  };
+}
+
+/**
+ * Sync every namespace dir under namespacesPath — stats-only view.
+ *
+ * Kept for existing callers/tests that only consume the per-namespace stats;
+ * new code that must react to failures should use `syncAllNamespacesResult`.
+ */
+export async function syncAllNamespaces(
+  cfg: S3Config,
+  namespacesPath: string,
+  direction: "push" | "pull" = "push",
+): Promise<SyncStats[]> {
+  return (await syncAllNamespacesResult(cfg, namespacesPath, direction)).stats;
 }
