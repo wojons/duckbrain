@@ -206,6 +206,125 @@ describe("makeHttpEmbed request payload key (GAP-029)", () => {
       /invalid batch embedding response/,
     );
   });
+
+  it("sends OpenAI-compatible batch embed and preserves input order", async () => {
+    let capturedUrl = "";
+    let capturedBody: Record<string, unknown> = {};
+    let capturedHeaders: Record<string, string> = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { body?: string; headers?: Record<string, string> }) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse(init?.body ?? "{}");
+        capturedHeaders = init?.headers ?? {};
+        return jsonResponse({
+          data: [
+            { embedding: [0.1, 0.2] },
+            { embedding: [0.3, 0.4] },
+          ],
+        });
+      }),
+    );
+    const provider = createProvider({
+      provider: "openai",
+      model: "text-embedding-3-small",
+      baseUrl: "http://openai.test/v1",
+      apiKey: "sk-test-key-123456",
+    });
+
+    await expect(
+      provider.embedMany?.(["first", "second"]),
+    ).resolves.toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
+    expect(capturedUrl).toBe("http://openai.test/v1/embeddings");
+    expect(capturedBody).toEqual({
+      model: "text-embedding-3-small",
+      input: ["first", "second"],
+    });
+    expect(capturedHeaders).toHaveProperty("Authorization");
+  });
+
+  it("sends LM Studio batch embed and preserves input order", async () => {
+    let capturedUrl = "";
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: { body?: string }) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse(init?.body ?? "{}");
+        return jsonResponse({
+          data: [
+            { embedding: [0.5, 0.6] },
+            { embedding: [0.7, 0.8] },
+          ],
+        });
+      }),
+    );
+    const provider = createProvider({
+      provider: "lmstudio",
+      model: "text-embedding-qwen3-embedding-0.6b",
+      baseUrl: "http://localhost:1234/v1",
+    });
+
+    await expect(
+      provider.embedMany?.(["alpha", "beta"]),
+    ).resolves.toEqual([
+      [0.5, 0.6],
+      [0.7, 0.8],
+    ]);
+    expect(capturedUrl).toBe("http://localhost:1234/v1/embeddings");
+    expect(capturedBody).toEqual({
+      model: "text-embedding-qwen3-embedding-0.6b",
+      input: ["alpha", "beta"],
+    });
+  });
+
+  it("rejects incomplete OpenAI-compatible batch responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ data: [{ embedding: [0.1] }] })),
+    );
+    const provider = createProvider({
+      provider: "openai",
+      model: "text-embedding-3-small",
+      baseUrl: "http://openai.test/v1",
+      apiKey: "sk-test",
+    });
+
+    await expect(
+      provider.embedMany?.(["first", "second"]),
+    ).rejects.toThrow(/invalid batch embedding response/);
+  });
+
+  it("rejects incomplete LM Studio batch responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ data: [{ embedding: [0.1] }] })),
+    );
+    const provider = createProvider({
+      provider: "lmstudio",
+      model: "text-embedding-qwen3-embedding-0.6b",
+      baseUrl: "http://localhost:1234/v1",
+    });
+
+    await expect(
+      provider.embedMany?.(["first", "second"]),
+    ).rejects.toThrow(/invalid batch embedding response/);
+  });
+
+  it("returns empty array for empty input on openai", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ data: [] })));
+    const provider = createProvider({
+      provider: "openai",
+      model: "text-embedding-3-small",
+      apiKey: "sk-test",
+    });
+
+    await expect(provider.embedMany?.([])).resolves.toEqual([]);
+    expect(provider.embedMany).toBeDefined();
+  });
 });
 
 describe("createAutoProviders (DOGFOOD-002)", () => {
