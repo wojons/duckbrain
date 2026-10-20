@@ -31,16 +31,37 @@ workflow on the origin host.
 | `duckbrain-s3-daily.sh` | called by the wrapper ≤ once/24h | git-history layer entry — `exec`s `duckbrain-s3-push.sh current/git s3daily` |
 | `duckbrain-s3-weekly.sh` | called by the wrapper ≤ once/7d | tar.xz snapshot of all namespace repos → `archives/weekly/`, keeps the newest 12, verifies remote size before deleting the local tarball |
 | `duckbrain-s3-push.sh` | called by `duckbrain-s3-daily.sh` | full git-history push of every namespace repo (S3-GIT-002 backoff/state, S3-GIT-003 forced full pass) |
+| `s3-alert-gate.sh` | called by the wrapper on **every** run (EXIT trap) | **the** S3 alert implementation (S3-ALERT-001/002): counts consecutive failed wrapper runs, resets on any clean run, delivers via `hermes send` at `S3_ALERT_THRESHOLD` and re-alerts every `S3_REALERT_EVERY`, appends every alert to the fallback/audit log |
+| `test-alert-gate.sh` | — | hermetic harness for the gate: threshold crossing, re-alert cadence, delivery-failure fallback, per-job isolation, killed runs, and the wrapper wiring |
+| `test-component-completeness.sh` | — | hermetic guard: every component the wrapper invokes is tracked here, the S3 alert path is single-sourced, and no untracked alert helper is deployed |
 | `test-push-backoff.sh` | — | hermetic harness for backoff/state (S3-GIT-002) and the forced full pass (S3-GIT-003): 11 runs, real `file://` pushes, no mocks |
 | `test-duplicate-bundle-repair.sh` | — | hermetic harness for the duplicate-bundle repair (stub `aws` + stub remote helper) |
 | `test-fd-inheritance.sh` | — | hermetic harness for the S3-GIT-006 flock-fd fix (the child must not inherit the lock fd) |
 
 **Completeness invariant:** every script the wrapper invokes must exist in
 `$SCRIPTS_DIR` **and** be tracked here. The wrapper resolves
-`$SCRIPTS_DIR/${name}.sh` for `native`, `git`, and `weekly`; a component that
-lives only in the deployed directory is unversioned, untestable, and cannot be
-rolled back — which is exactly how the S3-GIT-007 stall hid (2026-10-03: the
-native layer, deployed 2026-09-30, was never committed).
+`$SCRIPTS_DIR/${name}.sh` for `native`, `git`, `weekly`, and the alert gate; a
+component that lives only in the deployed directory is unversioned, untestable,
+and cannot be rolled back — which is exactly how the S3-GIT-007 stall hid
+(2026-10-03: the native layer, deployed 2026-09-30, was never committed).
+
+## The S3 alert is ONE implementation (S3-ALERT-002)
+
+`s3-alert-gate.sh` is the only S3 alert implementation. It is called by
+`duckbrain-s3-unified.sh`'s `EXIT` trap on every run, so the alert decision and
+the backup run share a single signal source (the wrapper's exit status, which
+already folds in every failing layer) and a single delivery path
+(`hermes send`, with the fallback/audit log).
+
+A second, deployment-only net (`duckbrain-s3-alert.sh`, a log-tailer over
+`duckbrain-s3-native.log`) predates the gate. It was committed only on the
+unmerged `feat/native-s3` branch (68d09d6e) and never reached `main`; it is
+**retired** and pending decommission on the origin host. Do not re-add it, and
+do not edit it in place: every `FAIL` line it counted is written by a non-zero
+`native-sync` exit, which the wrapper already reports to the gate. See
+`docs/ops-scheduled-scripts.md` §"S3 alert path" for the cron mapping, the
+decommission command, and the one honest gap (a `SIGKILL`ed wrapper runs no
+trap, so it is not counted).
 
 
 ## Remote-side loss: the periodic forced full pass (S3-GIT-003)
