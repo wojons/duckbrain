@@ -1,0 +1,25 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 8e5ffcc7..7f6010f1 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2790,3 +2790,20 @@ tasks:
+   status: complete
+   created_at: '2026-10-19T23:18:17.988786+00:00'
+   completed_at: '2026-10-19T23:28:11.797451+00:00'
++- id: DF-2026-1
++  title: remember CLI error names --domain flag and accepts --help
++  criteria:
++  - 'Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test
++    without --domain produces error text containing ''--domain='' (2) duckbrain remember
++    --help exits 0 and prints usage (3) suite green + tsc clean'
++  status: complete
++  created_at: '2026-10-20T00:22:35.803847+00:00'
++  completed_at: '2026-10-20T00:30:59.421704+00:00'
++- id: DF-2026-3
++  title: prod :3000 serves stale 2026-10-06 build
++  criteria:
++  - 'Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build
++    date >= today (2026-10-20) or commit hash matches origin/main HEAD.'
++  status: complete
++  created_at: '2026-10-20T00:47:31.804112+00:00'
++  completed_at: '2026-10-20T00:51:59.399292+00:00'

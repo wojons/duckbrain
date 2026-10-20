@@ -1,0 +1,103 @@
+{
+  "task_id": "S3-ALERT-002",
+  "task_title": "Consolidate deployed S3 alert path with tracked implementation",
+  "task_criteria": [
+    "S3 alert behavior exists in both tracked path and deployment-only helper. Fix: select ONE alert path; ensure it is versioned in the repo (not deployment-only); document cron-to-script mapping without private host details; update completeness harness to include the alert check. PASS: grep for alert logic finds exactly one implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md documents the alert cron."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "a12164fd061272ecfb109a3945cfbf2f177dadaf",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:38PM INF scanned ~42880521 bytes (42.88 MB) in 9.06s\n8:38PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  229 passed (229)\n      Tests  1910 passed (1910)\n   Start at  20:38:38\n   Duration  82.77s (tests 81%, import 15%, transform 3%)\n\n    Isolate  229 workers spawned \u00b7 ~95ms startup each (spawn + environment, per file)\n             at least ~5.35s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 S3 alert behavior exists in both tracked path and deployment-only helper. Fix: select ONE alert path; ensure it is versioned in the repo (not deployment-only); document cron-to-script mapping without private host details; update completeness harness to include the alert check. PASS: grep for alert logic finds exactly one implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md documents the alert cron.: Worktree /home/kara/worktrees/duckbrain-S3-ALERT-002 @ 51c88852. PARTIAL: (1) exactly one tracked implementation \u2014 `git ls-files | grep -i alert` returns only scripts/s3/s3-alert-gate.sh (+ its test); src/cli/{embedding-preflight.ts,health-check.ts} only mention 'alert' in comments; harness prints 'PASS: exactly one S3 alert implementation in the repo: s3-alert-gate.sh'. (2) docs/ops-scheduled-scripts.md exists and documents the alert cron: line 24 inventory row (hermes-cron 0633c41279d6, */15, RETIRED) and \u00a7'S3 alert path' lines 50-90 with the cron-to-script mapping table (lines 58-59), decommission command, rollback, S3_ALERT_TARGET knob, and the SIGKILL gap; no private host details (only ~/.hermes paths). (3) harness updated: scripts/s3/test-component-completeness.sh lines 96-172; `bash scripts/s3/test-component-completeness.sh` -> exit 0, 'completeness harness: 19 passed, 0 failed'; `bash scripts/s3/test-alert-gate.sh` -> exit 0, 'test-alert-gate: 47 passed, 0 failed'. BUT the clause 'no deployment-only alert helpers remain' is NOT met: ~/.hermes/scripts/duckbrain-s3-alert.sh is still deployed on the host (2564 bytes, Oct 6) and its cron 0633c41279d6 is still listed active (docs line 117 '[active] DuckBrain S3 backup alert ... Script: duckbrain-s3-alert.sh'). The harness was weakened to accept this: line 73 `duckbrain-s3-alert.sh) continue ;;` skips it in the untracked-component check, and lines 160-166 emit 'PASS: RETIRED legacy alert net still deployed, unchanged ... DECOMMISSION PENDING' \u2014 i.e. the surviving deployment-only helper is scored as a pass, not a failure. The consolidation is documentation-only; the second alert path is still live and still delivering.\nThe single tracked alert implementation, docs cron mapping, and harness update are all in place and green, but the deployment-only helper ~/.hermes/scripts/duckbrain-s3-alert.sh (cron 0633c41279d6) is still deployed and active, and the harness was modified to treat its presence as PASS \u2014 so 'no deployment-only alert helpers remain' fails.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 S3 alert behavior exists in both tracked path and deployment-only helper. Fix: select ONE alert path; ensure it is versioned in the repo (not deployment-only); document cron-to-script mapping without private host details; update completeness harness to include the alert check. PASS: grep for alert logic finds exactly one implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md documents the alert cron.: Worktree /home/kara/worktrees/duckbrain-S3-ALERT-002 @ 51c88852. PARTIAL: (1) exactly one tracked implementation \u2014 `git ls-files | grep -i alert` returns only scripts/s3/s3-alert-gate.sh (+ its test); src/cli/{embedding-preflight.ts,health-check.ts} only mention 'alert' in comments; harness prints 'PASS: exactly one S3 alert implementation in the repo: s3-alert-gate.sh'. (2) docs/ops-scheduled-scripts.md exists and documents the alert cron: line 24 inventory row (hermes-cron 0633c41279d6, */15, RETIRED) and \u00a7'S3 alert path' lines 50-90 with the cron-to-script mapping table (lines 58-59), decommission command, rollback, S3_ALERT_TARGET knob, and the SIGKILL gap; no private host details (only ~/.hermes paths). (3) harness updated: scripts/s3/test-component-completeness.sh lines 96-172; `bash scripts/s3/test-component-completeness.sh` -> exit 0, 'completeness harness: 19 passed, 0 failed'; `bash scripts/s3/test-alert-gate.sh` -> exit 0, 'test-alert-gate: 47 passed, 0 failed'. BUT the clause 'no deployment-only alert helpers remain' is NOT met: ~/.hermes/scripts/duckbrain-s3-alert.sh is still deployed on the host (2564 bytes, Oct 6) and its cron 0633c41279d6 is still listed active (docs line 117 '[active] DuckBrain S3 backup alert ... Script: duckbrain-s3-alert.sh'). The harness was weakened to accept this: line 73 `duckbrain-s3-alert.sh) continue ;;` skips it in the untracked-component check, and lines 160-166 emit 'PASS: RETIRED legacy alert net still deployed, unchanged ... DECOMMISSION PENDING' \u2014 i.e. the surviving deployment-only helper is scored as a pass, not a failure. The consolidation is documentation-only; the second alert path is still live and still delivering.\nThe single tracked alert implementation, docs cron mapping, and harness update are all in place and green, but the deployment-only helper ~/.hermes/scripts/duckbrain-s3-alert.sh (cron 0633c41279d6) is still deployed and active, and the harness was modified to treat its presence as PASS \u2014 so 'no deployment-only alert helpers remain' fails.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "S3 alert behavior exists in both tracked path and deployment-only helper. Fix: select ONE alert path; ensure it is versioned in the repo (not deployment-only); document cron-to-script mapping without private host details; update completeness harness to include the alert check. PASS: grep for alert logic finds exactly one implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md documents the alert cron.",
+                "status": "FAIL",
+                "detail": "Worktree /home/kara/worktrees/duckbrain-S3-ALERT-002 @ 51c88852. PARTIAL: (1) exactly one tracked implementation \u2014 `git ls-files | grep -i alert` returns only scripts/s3/s3-alert-gate.sh (+ its test); src/cli/{embedding-preflight.ts,health-check.ts} only mention 'alert' in comments; harness prints 'PASS: exactly one S3 alert implementation in the repo: s3-alert-gate.sh'. (2) docs/ops-scheduled-scripts.md exists and documents the alert cron: line 24 inventory row (hermes-cron 0633c41279d6, */15, RETIRED) and \u00a7'S3 alert path' lines 50-90 with the cron-to-script mapping table (lines 58-59), decommission command, rollback, S3_ALERT_TARGET knob, and the SIGKILL gap; no private host details (only ~/.hermes paths). (3) harness updated: scripts/s3/test-component-completeness.sh lines 96-172; `bash scripts/s3/test-component-completeness.sh` -> exit 0, 'completeness harness: 19 passed, 0 failed'; `bash scripts/s3/test-alert-gate.sh` -> exit 0, 'test-alert-gate: 47 passed, 0 failed'. BUT the clause 'no deployment-only alert helpers remain' is NOT met: ~/.hermes/scripts/duckbrain-s3-alert.sh is still deployed on the host (2564 bytes, Oct 6) and its cron 0633c41279d6 is still listed active (docs line 117 '[active] DuckBrain S3 backup alert ... Script: duckbrain-s3-alert.sh'). The harness was weakened to accept this: line 73 `duckbrain-s3-alert.sh) continue ;;` skips it in the untracked-component check, and lines 160-166 emit 'PASS: RETIRED legacy alert net still deployed, unchanged ... DECOMMISSION PENDING' \u2014 i.e. the surviving deployment-only helper is scored as a pass, not a failure. The consolidation is documentation-only; the second alert path is still live and still delivering.",
+                "resolution_probability": 0.26,
+                "cited_path": "docs/ops-scheduled-scripts.md"
+              }
+            ],
+            "summary": "The single tracked alert implementation, docs cron mapping, and harness update are all in place and green, but the deployment-only helper ~/.hermes/scripts/duckbrain-s3-alert.sh (cron 0633c41279d6) is still deployed and active, and the harness was modified to treat its presence as PASS \u2014 so 'no deployment-only alert helpers remain' fails."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-ALERT-002\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 S3 alert behavior exists in both tracked path and deployment-only helper. Fix: select ONE alert path; ensure it is versioned in the repo (not deployment-only); document cron-to-script mapping without private host details; update completeness harness to include the alert check. PASS: grep for alert logic finds exactly one implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md documents the alert cron.: Worktree /home/kara/worktrees/duckbrain-S3-ALERT-002 @ 51c88852. PARTIAL: (1) exactly one tracked implementation \u2014 `git ls-files | grep -i alert` returns only scripts/s3/s3-alert-gate.sh (+ its test); src/cli/{embedding-preflight.ts,health-check.ts} only mention 'alert' in comments; harness prints 'PASS: exactly one S3 alert implementation in the repo: s3-alert-gate.sh'. (2) docs/ops-scheduled-scripts.md exists and documents the alert cron: line 24 inventory row (hermes-cron 0633c41279d6, */15, RETIRED) and \u00a7'S3 alert path' lines 50-90 with the cron-to-script mapping table (lines 58-59), decommission command, rollback, S3_ALERT_TARGET knob, and the SIGKILL gap; no private host details (only ~/.hermes paths). (3) harness updated: scripts/s3/test-component-completeness.sh lines 96-172; `bash scripts/s3/test-component-completeness.sh` -> exit 0, 'completeness harness: 19 passed, 0 failed'; `bash scripts/s3/test-alert-gate.sh` -> exit 0, 'test-alert-gate: 47 passed, 0 failed'. BUT the clause 'no deployment-only alert helpers remain' is NOT met: ~/.hermes/scripts/duckbrain-s3-alert.sh is still deployed on the host (2564 bytes, Oct 6) and its cron 0633c41279d6 is still listed active (docs line 117 '[active] DuckBrain S3 backup alert ... Script: duckbrain-s3-alert.sh'). The harness was weakened to accept this: line 73 `duckbrain-s3-alert.sh) continue ;;` skips it in the untracked-component check, and lines 160-166 emit 'PASS: RETIRED legacy alert net still deployed, unchanged ... DECOMMISSION PENDING' \u2014 i.e. the surviving deployment-only helper is scored as a pass, not a failure. The consolidation is documentation-only; the second alert path is still live and still delivering.\nThe single tracked alert implementation, docs cron mapping, and harness update are all in place and green, but the deployment-only helper ~/.hermes/scripts/duckbrain-s3-alert.sh (cron 0633c41279d6) is still deployed and active, and the harness was modified to treat its presence as PASS \u2014 so 'no deployment-only alert helpers remain' fails.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T01:41:09.451187",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T01:41:09.481438+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 20908,
+        "truncated": false,
+        "source": "git show a12164fd0612"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3439,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "S3-ALERT-002"
+  }
+}

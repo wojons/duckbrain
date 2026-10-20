@@ -1,0 +1,62 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 8e5ffcc7..48c3afab 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2790,3 +2790,57 @@ tasks:
+   status: complete
+   created_at: '2026-10-19T23:18:17.988786+00:00'
+   completed_at: '2026-10-19T23:28:11.797451+00:00'
++- id: DF-2026-1
++  title: remember CLI error names --domain flag and accepts --help
++  criteria:
++  - 'Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test
++    without --domain produces error text containing ''--domain='' (2) duckbrain remember
++    --help exits 0 and prints usage (3) suite green + tsc clean'
++  status: complete
++  created_at: '2026-10-20T00:22:35.803847+00:00'
++  completed_at: '2026-10-20T00:30:59.421704+00:00'
++- id: MCP-CUSTOM-RUNTIME-002
++  title: Define and enforce trust boundary for custom MCP code
++  criteria:
++  - "src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts\
++    \ must assert (not just compute); add a test that demonstrates the escape is blocked\
++    \ OR document the boundary explicitly; node:vm is not a security mechanism per\
++    \ Node docs \u2014 either add OS-level isolation (worker+seccomp) or document\
++    \ the trust model. PASS: test asserts the probe outcome; boundary is explicit\
++    \ in code or docs."
++  status: complete
++  created_at: '2026-10-20T01:21:48.014315+00:00'
++  completed_at: '2026-10-20T01:31:09.530557+00:00'
++- id: S3-STATUS-001
++  title: Make native S3 status disclose full namespace population
++  criteria:
++  - 'src/s3/cli.ts: resolved.slice(0,20) silently truncates. Fix: add --full flag
++    or pagination that shows total count and truncation marker; OR add a machine-readable
++    --json output that returns the full list. PASS: running status on a namespace
++    with >20 objects shows the total count and either all objects or an explicit ''...
++    and N more'' marker; --json returns the full list.'
++  status: complete
++  created_at: '2026-10-20T01:21:49.067207+00:00'
++  completed_at: '2026-10-20T01:33:25.469219+00:00'
++- id: S3-CLI-001
++  title: Return nonzero from sync-all when any namespace fails
++  criteria:
++  - 'src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns
++    successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded,
++    failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace
++    fails. PASS: test with one failing namespace shows nonzero exit; test with all
++    success shows exit 0; output includes attempted/succeeded/failed counts.'
++  status: complete
++  created_at: '2026-10-20T01:21:49.967873+00:00'
++  completed_at: '2026-10-20T01:36:26.199449+00:00'
++- id: S3-ALERT-002
++  title: Consolidate deployed S3 alert path with tracked implementation
++  criteria:
++  - 'S3 alert behavior exists in both tracked path and deployment-only helper. Fix:
++    select ONE alert path; ensure it is versioned in the repo (not deployment-only);
++    document cron-to-script mapping without private host details; update completeness
++    harness to include the alert check. PASS: grep for alert logic finds exactly one
++    implementation in src/ or scripts/; no deployment-only alert helpers remain; docs/ops-scheduled-scripts.md
++    documents the alert cron.'
++  status: in_progress
++  created_at: '2026-10-20T01:21:50.805444+00:00'

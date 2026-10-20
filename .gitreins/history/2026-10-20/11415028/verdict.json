@@ -1,0 +1,103 @@
+{
+  "task_id": "MCP-CUSTOM-RUNTIME-002",
+  "task_title": "Define and enforce trust boundary for custom MCP code",
+  "task_criteria": [
+    "src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts must assert (not just compute); add a test that demonstrates the escape is blocked OR document the boundary explicitly; node:vm is not a security mechanism per Node docs \u2014 either add OS-level isolation (worker+seccomp) or document the trust model. PASS: test asserts the probe outcome; boundary is explicit in code or docs."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "a12164fd061272ecfb109a3945cfbf2f177dadaf",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:31PM INF scanned ~42879917 bytes (42.88 MB) in 6.76s\n8:31PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  229 passed (229)\n      Tests  1910 passed (1910)\n   Start at  20:31:10\n   Duration  84.64s (tests 81%, import 16%, transform 2%)\n\n    Isolate  229 workers spawned \u00b7 ~107ms startup each (spawn + environment, per file)\n             at least ~6.03s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts must assert (not just compute); add a test that demonstrates the escape is blocked OR document the boundary explicitly; node:vm is not a security mechanism per Node docs \u2014 either add OS-level isolation (worker+seccomp) or document the trust model. PASS: test asserts the probe outcome; boundary is explicit in code or docs.: Test asserts the probe outcome: src/mcp/custom-runtime.test.ts:603-706 ('sandbox escape attempts cannot reach host state') asserts the escape surface is reachable (thisCtorType/argsCtorType === 'function', so the probe cannot pass vacuously), asserts argsIsRealmObject === 'true', and asserts 10 escape arms (thisCtorEscape, globalCtorEscape, argsCtorEscape, objectCtorEscape, arrayCtorEscape, stringCtorEscape, consoleCtorEscape, functionCtorEscape, evalEscape, requireViaCtorEscape) each toMatch(/^blocked:/), toContain('Code generation from strings disallowed'), and not.toContain('NOT-BLOCKED'); headline arms pinned with exact toBe at lines 695-703. Boundary documented explicitly in code: src/mcp/custom-runtime.ts:34-99 'TRUST BOUNDARY' block lists WHAT IS PROTECTED and WHAT IS NOT PROTECTED, stating 'THERE IS NO OS-LEVEL ISOLATION ... Node documents node:vm as NOT a security mechanism (https://nodejs.org/api/vm.html) ... no seccomp filter, no container, no chroot and no separate uid', that the threat model is operator-authored config code, and that real isolation must run out of process. Enforcement matches the doc: custom-runtime.ts:513-514 uses Object.create(null) sandbox with codeGeneration {strings:false, wasm:true} and the prelude parses args inside the realm (line 522). Test run: `npx vitest run src/mcp/custom-runtime.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 26 passed (26)'. Landed in commit a12164fd (/home/kara/duckbrain). [resolution 0.64; src/mcp/custom-runtime.ts, custom-runtime.test.ts]\nThe constructor-escape probe is now asserted (10 arms must return 'blocked: Code generation from strings disallowed'), the trust boundary including the absence of OS-level isolation is documented explicitly in custom-runtime.ts, and the 26-test file passes.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts must assert (not just compute); add a test that demonstrates the escape is blocked OR document the boundary explicitly; node:vm is not a security mechanism per Node docs \u2014 either add OS-level isolation (worker+seccomp) or document the trust model. PASS: test asserts the probe outcome; boundary is explicit in code or docs.: Test asserts the probe outcome: src/mcp/custom-runtime.test.ts:603-706 ('sandbox escape attempts cannot reach host state') asserts the escape surface is reachable (thisCtorType/argsCtorType === 'function', so the probe cannot pass vacuously), asserts argsIsRealmObject === 'true', and asserts 10 escape arms (thisCtorEscape, globalCtorEscape, argsCtorEscape, objectCtorEscape, arrayCtorEscape, stringCtorEscape, consoleCtorEscape, functionCtorEscape, evalEscape, requireViaCtorEscape) each toMatch(/^blocked:/), toContain('Code generation from strings disallowed'), and not.toContain('NOT-BLOCKED'); headline arms pinned with exact toBe at lines 695-703. Boundary documented explicitly in code: src/mcp/custom-runtime.ts:34-99 'TRUST BOUNDARY' block lists WHAT IS PROTECTED and WHAT IS NOT PROTECTED, stating 'THERE IS NO OS-LEVEL ISOLATION ... Node documents node:vm as NOT a security mechanism (https://nodejs.org/api/vm.html) ... no seccomp filter, no container, no chroot and no separate uid', that the threat model is operator-authored config code, and that real isolation must run out of process. Enforcement matches the doc: custom-runtime.ts:513-514 uses Object.create(null) sandbox with codeGeneration {strings:false, wasm:true} and the prelude parses args inside the realm (line 522). Test run: `npx vitest run src/mcp/custom-runtime.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 26 passed (26)'. Landed in commit a12164fd (/home/kara/duckbrain). [resolution 0.64; src/mcp/custom-runtime.ts, custom-runtime.test.ts]\nThe constructor-escape probe is now asserted (10 arms must return 'blocked: Code generation from strings disallowed'), the trust boundary including the absence of OS-level isolation is documented explicitly in custom-runtime.ts, and the 26-test file passes.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts must assert (not just compute); add a test that demonstrates the escape is blocked OR document the boundary explicitly; node:vm is not a security mechanism per Node docs \u2014 either add OS-level isolation (worker+seccomp) or document the trust model. PASS: test asserts the probe outcome; boundary is explicit in code or docs.",
+                "status": "PASS",
+                "detail": "Test asserts the probe outcome: src/mcp/custom-runtime.test.ts:603-706 ('sandbox escape attempts cannot reach host state') asserts the escape surface is reachable (thisCtorType/argsCtorType === 'function', so the probe cannot pass vacuously), asserts argsIsRealmObject === 'true', and asserts 10 escape arms (thisCtorEscape, globalCtorEscape, argsCtorEscape, objectCtorEscape, arrayCtorEscape, stringCtorEscape, consoleCtorEscape, functionCtorEscape, evalEscape, requireViaCtorEscape) each toMatch(/^blocked:/), toContain('Code generation from strings disallowed'), and not.toContain('NOT-BLOCKED'); headline arms pinned with exact toBe at lines 695-703. Boundary documented explicitly in code: src/mcp/custom-runtime.ts:34-99 'TRUST BOUNDARY' block lists WHAT IS PROTECTED and WHAT IS NOT PROTECTED, stating 'THERE IS NO OS-LEVEL ISOLATION ... Node documents node:vm as NOT a security mechanism (https://nodejs.org/api/vm.html) ... no seccomp filter, no container, no chroot and no separate uid', that the threat model is operator-authored config code, and that real isolation must run out of process. Enforcement matches the doc: custom-runtime.ts:513-514 uses Object.create(null) sandbox with codeGeneration {strings:false, wasm:true} and the prelude parses args inside the realm (line 522). Test run: `npx vitest run src/mcp/custom-runtime.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 26 passed (26)'. Landed in commit a12164fd (/home/kara/duckbrain). [resolution 0.64; src/mcp/custom-runtime.ts, custom-runtime.test.ts]",
+                "resolution_probability": 0.64,
+                "cited_path": "src/mcp/custom-runtime.ts, custom-runtime.test.ts"
+              }
+            ],
+            "summary": "The constructor-escape probe is now asserted (10 arms must return 'blocked: Code generation from strings disallowed'), the trust boundary including the absence of OS-level isolation is documented explicitly in custom-runtime.ts, and the 26-test file passes."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: MCP-CUSTOM-RUNTIME-002\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 src/mcp/custom-runtime.ts: constructor-escape probe in custom-runtime.test.ts must assert (not just compute); add a test that demonstrates the escape is blocked OR document the boundary explicitly; node:vm is not a security mechanism per Node docs \u2014 either add OS-level isolation (worker+seccomp) or document the trust model. PASS: test asserts the probe outcome; boundary is explicit in code or docs.: Test asserts the probe outcome: src/mcp/custom-runtime.test.ts:603-706 ('sandbox escape attempts cannot reach host state') asserts the escape surface is reachable (thisCtorType/argsCtorType === 'function', so the probe cannot pass vacuously), asserts argsIsRealmObject === 'true', and asserts 10 escape arms (thisCtorEscape, globalCtorEscape, argsCtorEscape, objectCtorEscape, arrayCtorEscape, stringCtorEscape, consoleCtorEscape, functionCtorEscape, evalEscape, requireViaCtorEscape) each toMatch(/^blocked:/), toContain('Code generation from strings disallowed'), and not.toContain('NOT-BLOCKED'); headline arms pinned with exact toBe at lines 695-703. Boundary documented explicitly in code: src/mcp/custom-runtime.ts:34-99 'TRUST BOUNDARY' block lists WHAT IS PROTECTED and WHAT IS NOT PROTECTED, stating 'THERE IS NO OS-LEVEL ISOLATION ... Node documents node:vm as NOT a security mechanism (https://nodejs.org/api/vm.html) ... no seccomp filter, no container, no chroot and no separate uid', that the threat model is operator-authored config code, and that real isolation must run out of process. Enforcement matches the doc: custom-runtime.ts:513-514 uses Object.create(null) sandbox with codeGeneration {strings:false, wasm:true} and the prelude parses args inside the realm (line 522). Test run: `npx vitest run src/mcp/custom-runtime.test.ts` \u2192 exit_code 0, 'Test Files 1 passed (1) / Tests 26 passed (26)'. Landed in commit a12164fd (/home/kara/duckbrain). [resolution 0.64; src/mcp/custom-runtime.ts, custom-runtime.test.ts]\nThe constructor-escape probe is now asserted (10 arms must return 'blocked: Code generation from strings disallowed'), the trust boundary including the absence of OS-level isolation is documented explicitly in custom-runtime.ts, and the 26-test file passes.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T01:33:24.836512",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T01:33:24.857418+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 20908,
+        "truncated": false,
+        "source": "git show a12164fd0612"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3292,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "MCP-CUSTOM-RUNTIME-002"
+  }
+}

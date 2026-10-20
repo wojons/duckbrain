@@ -1,0 +1,53 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-20-01-17-29",
+  "block": "S3-QUERY-SCHEME-001",
+  "wave_budget": 10,
+  "wave_size": 4,
+  "status": "dispatched",
+  "workers": [
+    {
+      "task": "MCP-CUSTOM-RUNTIME-002",
+      "worktree": "/home/kara/worktrees/duckbrain-MCP-CUSTOM-RUNTIME-002",
+      "branch": "wt/MCP-CUSTOM-RUNTIME-002",
+      "base_sha": "338027ad",
+      "brief": "/tmp/brief-MCP-CUSTOM-RUNTIME-002.txt",
+      "gitreins_task": null,
+      "dispatched_at": "2026-10-20T01:25:17.174993Z",
+      "pid": 3157516,
+      "session_id": "proc_d03cea88be8c"
+    },
+    {
+      "task": "S3-STATUS-001",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-STATUS-001",
+      "branch": "wt/S3-STATUS-001",
+      "base_sha": "338027ad",
+      "brief": "/tmp/brief-S3-STATUS-001.txt",
+      "gitreins_task": null,
+      "dispatched_at": "2026-10-20T01:25:17.174993Z",
+      "pid": 3157729,
+      "session_id": "proc_babfd07c9f8a"
+    },
+    {
+      "task": "S3-CLI-001",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-CLI-001",
+      "branch": "wt/S3-CLI-001",
+      "base_sha": "338027ad",
+      "brief": "/tmp/brief-S3-CLI-001.txt",
+      "gitreins_task": null,
+      "dispatched_at": "2026-10-20T01:25:17.174993Z",
+      "pid": 3157864,
+      "session_id": "proc_2891e883afa0"
+    },
+    {
+      "task": "S3-ALERT-002",
+      "worktree": "/home/kara/worktrees/duckbrain-S3-ALERT-002",
+      "branch": "wt/S3-ALERT-002",
+      "base_sha": "338027ad",
+      "brief": "/tmp/brief-S3-ALERT-002.txt",
+      "gitreins_task": null,
+      "dispatched_at": "2026-10-20T01:25:17.174993Z",
+      "pid": 3157921,
+      "session_id": "proc_79749ae86033"
+    }
+  ]
+}

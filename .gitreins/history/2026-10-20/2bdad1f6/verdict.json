@@ -1,0 +1,102 @@
+{
+  "task_id": "DF-2026-3",
+  "task_title": "prod :3000 serves stale 2026-10-06 build",
+  "task_criteria": [
+    "Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build date >= today (2026-10-20) or commit hash matches origin/main HEAD."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "5a8cc3ae8426c3a5fe6defd9c9b339101b87525a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n7:52PM INF scanned ~42609627 bytes (42.61 MB) in 5.93s\n7:52PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T003918.412746Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  229 passed (229)\n      Tests  1908 passed (1908)\n   Start at  19:52:00\n   Duration  86.48s (tests 82%, import 15%, transform 2%, setup 1%)\n\n    Isolate  229 workers spawned \u00b7 ~104ms startup each (spawn + environment, per file)\n             at least ~5.87s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T003918.412746Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build date >= today (2026-10-20) or commit hash matches origin/main HEAD.: Tier2 fails outright: live probe `curl http://localhost:3000/health` returns keys ['deadline_exceeded','durability','embedding','keys_error','status','timestamp','uptime'] \u2014 no build date and no commit hash. The handler at src/cli/http.ts:383-391 emits only status/uptime/timestamp/embedding/keys_error/durability/deadline_exceeded, and a repo-wide grep for buildDate|build_date|commitHash|commit_hash|BUILD_DATE|GIT_SHA|gitSha across src/, Dockerfile, docker-compose.yml, ops/, scripts/ returns 0 matches, so the required evidence cannot be produced. Tier1 is also unproven: .gitreins/logs/guard-20261020T003918.412746Z.log shows secrets PASS (gitleaks clean) but tests SKIPPED \u2014 'no test files match the changed sources (diff mode)' \u2014 a DEGRADED PASS with no test output (my own runs: `npx vitest run src/cli/http.test.ts` => 8 passed; `src/http/routes/memories-auth-dbgap031.test.ts` => 9 passed). The entire diff is .gitreins/tasks.yaml board rows flipping status to complete; no code change, no rebuild, no restart, no probe artifact. The serving daemon (pid 2163664, started 19:50:31) runs dist built 19:49:56 Oct 19, predating the 2026-10-20 task window, and nothing demonstrates the stale 2026-10-06 build was replaced.\nNo code or deploy change was made \u2014 only the board row was marked complete \u2014 and /health exposes neither a build date nor a commit hash, so the live-probe criterion is unverifiable and unmet.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build date >= today (2026-10-20) or commit hash matches origin/main HEAD.: Tier2 fails outright: live probe `curl http://localhost:3000/health` returns keys ['deadline_exceeded','durability','embedding','keys_error','status','timestamp','uptime'] \u2014 no build date and no commit hash. The handler at src/cli/http.ts:383-391 emits only status/uptime/timestamp/embedding/keys_error/durability/deadline_exceeded, and a repo-wide grep for buildDate|build_date|commitHash|commit_hash|BUILD_DATE|GIT_SHA|gitSha across src/, Dockerfile, docker-compose.yml, ops/, scripts/ returns 0 matches, so the required evidence cannot be produced. Tier1 is also unproven: .gitreins/logs/guard-20261020T003918.412746Z.log shows secrets PASS (gitleaks clean) but tests SKIPPED \u2014 'no test files match the changed sources (diff mode)' \u2014 a DEGRADED PASS with no test output (my own runs: `npx vitest run src/cli/http.test.ts` => 8 passed; `src/http/routes/memories-auth-dbgap031.test.ts` => 9 passed). The entire diff is .gitreins/tasks.yaml board rows flipping status to complete; no code change, no rebuild, no restart, no probe artifact. The serving daemon (pid 2163664, started 19:50:31) runs dist built 19:49:56 Oct 19, predating the 2026-10-20 task window, and nothing demonstrates the stale 2026-10-06 build was replaced.\nNo code or deploy change was made \u2014 only the board row was marked complete \u2014 and /health exposes neither a build date nor a commit hash, so the live-probe criterion is unverifiable and unmet.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build date >= today (2026-10-20) or commit hash matches origin/main HEAD.",
+                "status": "FAIL",
+                "detail": "Tier2 fails outright: live probe `curl http://localhost:3000/health` returns keys ['deadline_exceeded','durability','embedding','keys_error','status','timestamp','uptime'] \u2014 no build date and no commit hash. The handler at src/cli/http.ts:383-391 emits only status/uptime/timestamp/embedding/keys_error/durability/deadline_exceeded, and a repo-wide grep for buildDate|build_date|commitHash|commit_hash|BUILD_DATE|GIT_SHA|gitSha across src/, Dockerfile, docker-compose.yml, ops/, scripts/ returns 0 matches, so the required evidence cannot be produced. Tier1 is also unproven: .gitreins/logs/guard-20261020T003918.412746Z.log shows secrets PASS (gitleaks clean) but tests SKIPPED \u2014 'no test files match the changed sources (diff mode)' \u2014 a DEGRADED PASS with no test output (my own runs: `npx vitest run src/cli/http.test.ts` => 8 passed; `src/http/routes/memories-auth-dbgap031.test.ts` => 9 passed). The entire diff is .gitreins/tasks.yaml board rows flipping status to complete; no code change, no rebuild, no restart, no probe artifact. The serving daemon (pid 2163664, started 19:50:31) runs dist built 19:49:56 Oct 19, predating the 2026-10-20 task window, and nothing demonstrates the stale 2026-10-06 build was replaced.",
+                "resolution_probability": 0.07
+              }
+            ],
+            "summary": "No code or deploy change was made \u2014 only the board row was marked complete \u2014 and /health exposes neither a build date nor a commit hash, so the live-probe criterion is unverifiable and unmet."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-2026-3\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: live probe GET /health on :3000 shows build date >= today (2026-10-20) or commit hash matches origin/main HEAD.: Tier2 fails outright: live probe `curl http://localhost:3000/health` returns keys ['deadline_exceeded','durability','embedding','keys_error','status','timestamp','uptime'] \u2014 no build date and no commit hash. The handler at src/cli/http.ts:383-391 emits only status/uptime/timestamp/embedding/keys_error/durability/deadline_exceeded, and a repo-wide grep for buildDate|build_date|commitHash|commit_hash|BUILD_DATE|GIT_SHA|gitSha across src/, Dockerfile, docker-compose.yml, ops/, scripts/ returns 0 matches, so the required evidence cannot be produced. Tier1 is also unproven: .gitreins/logs/guard-20261020T003918.412746Z.log shows secrets PASS (gitleaks clean) but tests SKIPPED \u2014 'no test files match the changed sources (diff mode)' \u2014 a DEGRADED PASS with no test output (my own runs: `npx vitest run src/cli/http.test.ts` => 8 passed; `src/http/routes/memories-auth-dbgap031.test.ts` => 9 passed). The entire diff is .gitreins/tasks.yaml board rows flipping status to complete; no code change, no rebuild, no restart, no probe artifact. The serving daemon (pid 2163664, started 19:50:31) runs dist built 19:49:56 Oct 19, predating the 2026-10-20 task window, and nothing demonstrates the stale 2026-10-06 build was replaced.\nNo code or deploy change was made \u2014 only the board row was marked complete \u2014 and /health exposes neither a build date nor a commit hash, so the live-probe criterion is unverifiable and unmet.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T00:54:51.094629",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T00:54:51.125503+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 9343,
+        "truncated": false,
+        "source": "git show 5a8cc3ae8426"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1130,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-3"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "task_id": "S3-CLI-001",
+  "task_title": "Return nonzero from sync-all when any namespace fails",
+  "task_criteria": [
+    "src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded, failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace fails. PASS: test with one failing namespace shows nonzero exit; test with all success shows exit 0; output includes attempted/succeeded/failed counts."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "a12164fd061272ecfb109a3945cfbf2f177dadaf",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:36PM INF scanned ~42880521 bytes (42.88 MB) in 10.7s\n8:36PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  229 passed (229)\n      Tests  1910 passed (1910)\n   Start at  20:36:28\n   Duration  92.11s (tests 77%, import 17%, transform 4%, worker 1%)\n\n    Isolate  229 workers spawned \u00b7 ~118ms startup each (spawn + environment, per file)\n             at least ~6.62s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T012643.185085Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded, failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace fails. PASS: test with one failing namespace shows nonzero exit; test with all success shows exit 0; output includes attempted/succeeded/failed counts.: The fix is not present in the working tree. src/s3/sync.ts:736-775 `syncAllNamespaces` still returns `Promise<SyncStats[]>` and its per-namespace catch (line 772) only does `console.warn(...)` then continues \u2014 no aggregate {attempted, succeeded, failed} is produced. src/s3/cli.ts:195-220 (`s3Sync`) still prints `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred` and only calls `process.exit(1)` for the DF-0925-07 pull empty-restore case; there is no attempted/succeeded/failed output and no `Math.min(failed, 125)` exit arithmetic (grep for `attempted` in src/s3/*.ts returns only an unrelated comment in cli-endpoint-dogfood030.test.ts:13). No tests exist for the required behavior: `ls src/s3 | grep -i s3cli001` is empty (the claimed cli-sync-exit-s3cli001.test.ts and sync-all-aggregate-s3cli001.test.ts are absent). The implementation exists only on the unmerged branch wt/S3-CLI-001 (commit 7c318cf0, which adds syncAllNamespacesResult + `Sync complete: X attempted, Y succeeded, Z failed` + `process.exit(Math.min(result.failed, 125))`); `git merge-base --is-ancestor 7c318cf0 HEAD` returns NOT ANCESTOR, so none of it is in the evaluated tree. Test run: `npx vitest run src/s3/` -> exit 0, 'Test Files 11 passed (11) / Tests 87 passed (87)' \u2014 green, but no test covers partial-failure exit codes or the aggregate counts.\nThe S3-CLI-001 fix lives only on the unmerged wt/S3-CLI-001 branch; the evaluated working tree still returns SyncStats[] from syncAllNamespaces and exits 0 on partial sync-all failure with no attempted/succeeded/failed output or tests.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded, failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace fails. PASS: test with one failing namespace shows nonzero exit; test with all success shows exit 0; output includes attempted/succeeded/failed counts.: The fix is not present in the working tree. src/s3/sync.ts:736-775 `syncAllNamespaces` still returns `Promise<SyncStats[]>` and its per-namespace catch (line 772) only does `console.warn(...)` then continues \u2014 no aggregate {attempted, succeeded, failed} is produced. src/s3/cli.ts:195-220 (`s3Sync`) still prints `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred` and only calls `process.exit(1)` for the DF-0925-07 pull empty-restore case; there is no attempted/succeeded/failed output and no `Math.min(failed, 125)` exit arithmetic (grep for `attempted` in src/s3/*.ts returns only an unrelated comment in cli-endpoint-dogfood030.test.ts:13). No tests exist for the required behavior: `ls src/s3 | grep -i s3cli001` is empty (the claimed cli-sync-exit-s3cli001.test.ts and sync-all-aggregate-s3cli001.test.ts are absent). The implementation exists only on the unmerged branch wt/S3-CLI-001 (commit 7c318cf0, which adds syncAllNamespacesResult + `Sync complete: X attempted, Y succeeded, Z failed` + `process.exit(Math.min(result.failed, 125))`); `git merge-base --is-ancestor 7c318cf0 HEAD` returns NOT ANCESTOR, so none of it is in the evaluated tree. Test run: `npx vitest run src/s3/` -> exit 0, 'Test Files 11 passed (11) / Tests 87 passed (87)' \u2014 green, but no test covers partial-failure exit codes or the aggregate counts.\nThe S3-CLI-001 fix lives only on the unmerged wt/S3-CLI-001 branch; the evaluated working tree still returns SyncStats[] from syncAllNamespaces and exits 0 on partial sync-all failure with no attempted/succeeded/failed output or tests.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded, failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace fails. PASS: test with one failing namespace shows nonzero exit; test with all success shows exit 0; output includes attempted/succeeded/failed counts.",
+                "status": "FAIL",
+                "detail": "The fix is not present in the working tree. src/s3/sync.ts:736-775 `syncAllNamespaces` still returns `Promise<SyncStats[]>` and its per-namespace catch (line 772) only does `console.warn(...)` then continues \u2014 no aggregate {attempted, succeeded, failed} is produced. src/s3/cli.ts:195-220 (`s3Sync`) still prints `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred` and only calls `process.exit(1)` for the DF-0925-07 pull empty-restore case; there is no attempted/succeeded/failed output and no `Math.min(failed, 125)` exit arithmetic (grep for `attempted` in src/s3/*.ts returns only an unrelated comment in cli-endpoint-dogfood030.test.ts:13). No tests exist for the required behavior: `ls src/s3 | grep -i s3cli001` is empty (the claimed cli-sync-exit-s3cli001.test.ts and sync-all-aggregate-s3cli001.test.ts are absent). The implementation exists only on the unmerged branch wt/S3-CLI-001 (commit 7c318cf0, which adds syncAllNamespacesResult + `Sync complete: X attempted, Y succeeded, Z failed` + `process.exit(Math.min(result.failed, 125))`); `git merge-base --is-ancestor 7c318cf0 HEAD` returns NOT ANCESTOR, so none of it is in the evaluated tree. Test run: `npx vitest run src/s3/` -> exit 0, 'Test Files 11 passed (11) / Tests 87 passed (87)' \u2014 green, but no test covers partial-failure exit codes or the aggregate counts.",
+                "resolution_probability": 0.0,
+                "cited_path": "src/s3/cli.ts"
+              }
+            ],
+            "summary": "The S3-CLI-001 fix lives only on the unmerged wt/S3-CLI-001 branch; the evaluated working tree still returns SyncStats[] from syncAllNamespaces and exits 0 on partial sync-all failure with no attempted/succeeded/failed output or tests."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: S3-CLI-001\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 src/s3/cli.ts syncAllNamespaces: currently catches per-namespace errors and returns successes; exit 0 on partial failure. Fix: return aggregate {attempted, succeeded, failed}; exit nonzero (exit code = failed count, capped at 125) when any namespace fails. PASS: test with one failing namespace shows nonzero exit; test with all success shows exit 0; output includes attempted/succeeded/failed counts.: The fix is not present in the working tree. src/s3/sync.ts:736-775 `syncAllNamespaces` still returns `Promise<SyncStats[]>` and its per-namespace catch (line 772) only does `console.warn(...)` then continues \u2014 no aggregate {attempted, succeeded, failed} is produced. src/s3/cli.ts:195-220 (`s3Sync`) still prints `[S3] ${direction} complete: ${all.length} namespaces, ${total} files transferred` and only calls `process.exit(1)` for the DF-0925-07 pull empty-restore case; there is no attempted/succeeded/failed output and no `Math.min(failed, 125)` exit arithmetic (grep for `attempted` in src/s3/*.ts returns only an unrelated comment in cli-endpoint-dogfood030.test.ts:13). No tests exist for the required behavior: `ls src/s3 | grep -i s3cli001` is empty (the claimed cli-sync-exit-s3cli001.test.ts and sync-all-aggregate-s3cli001.test.ts are absent). The implementation exists only on the unmerged branch wt/S3-CLI-001 (commit 7c318cf0, which adds syncAllNamespacesResult + `Sync complete: X attempted, Y succeeded, Z failed` + `process.exit(Math.min(result.failed, 125))`); `git merge-base --is-ancestor 7c318cf0 HEAD` returns NOT ANCESTOR, so none of it is in the evaluated tree. Test run: `npx vitest run src/s3/` -> exit 0, 'Test Files 11 passed (11) / Tests 87 passed (87)' \u2014 green, but no test covers partial-failure exit codes or the aggregate counts.\nThe S3-CLI-001 fix lives only on the unmerged wt/S3-CLI-001 branch; the evaluated working tree still returns SyncStats[] from syncAllNamespaces and exits 0 on partial sync-all failure with no attempted/succeeded/failed output or tests.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T01:38:36.639946",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T01:38:36.692665+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 20908,
+        "truncated": false,
+        "source": "git show a12164fd0612"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3390,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "S3-CLI-001"
+  }
+}

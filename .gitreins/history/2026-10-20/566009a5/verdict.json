@@ -1,0 +1,101 @@
+{
+  "task_id": "DF-2026-1",
+  "task_title": "remember CLI error names --domain flag and accepts --help",
+  "task_criteria": [
+    "Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test without --domain produces error text containing '--domain=' (2) duckbrain remember --help exits 0 and prints usage (3) suite green + tsc clean"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "bdcb45e2b08cf5312dd5047ec482213a6b66f1cf",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n7:34PM INF scanned ~42571186 bytes (42.57 MB) in 5.36s\n7:34PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T002749.727541Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.3 /home/kara/duckbrain\n\n\n Test Files  229 passed (229)\n      Tests  1908 passed (1908)\n   Start at  19:34:17\n   Duration  73.68s (tests 80%, import 16%, transform 2%, worker 1%)\n\n    Isolate  229 workers spawned \u00b7 ~94ms startup each (spawn + environment, per file)\n             at least ~5.30s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261020T003515.568562Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test without --domain produces error text containing '--domain=' (2) duckbrain remember --help exits 0 and prints usage (3) suite green + tsc clean: Partial: targeted test file passes (10/10), tsc --noEmit exit 0. Need full suite + real CLI behavior check.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test without --domain produces error text containing '--domain=' (2) duckbrain remember --help exits 0 and prints usage (3) suite green + tsc clean: Partial: targeted test file passes (10/10), tsc --noEmit exit 0. Need full suite + real CLI behavior check.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test without --domain produces error text containing '--domain=' (2) duckbrain remember --help exits 0 and prints usage (3) suite green + tsc clean",
+                "status": "FAIL",
+                "detail": "Partial: targeted test file passes (10/10), tsc --noEmit exit 0. Need full suite + real CLI behavior check."
+              }
+            ],
+            "summary": "Partial verdict \u2014 evaluation hit resource cap before all criteria verified"
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: DF-2026-1\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Tier1: secrets+tests pass. Tier2: (1) duckbrain remember <key> --content=x --namespace=test without --domain produces error text containing '--domain=' (2) duckbrain remember --help exits 0 and prints usage (3) suite green + tsc clean: Partial: targeted test file passes (10/10), tsc --noEmit exit 0. Need full suite + real CLI behavior check.\nPartial verdict \u2014 evaluation hit resource cap before all criteria verified\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-20T02:05:58.070285",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-20T02:05:58.102873+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 665,
+        "truncated": false,
+        "source": "git show bdcb45e2b08c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3439,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-1"
+  }
+}
