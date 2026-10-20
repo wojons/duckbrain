@@ -121,6 +121,9 @@ function formatKeyTree(keys: string[], depth: number = 2): string {
  * typo (e.g. `--conent`) and must be rejected loudly rather than silently
  * ignored — the old parseArgs dropped unknown flags, which let bad invocations
  * store the key as the record body instead of the intended content.
+ *
+ * `--help`/`-h` are handled BEFORE this check (DF-2026-1); they are not
+ * remember-specific flags and must stay out of the set.
  */
 const REMEMBER_FLAGS = new Set([
   "domain",
@@ -133,6 +136,34 @@ const REMEMBER_FLAGS = new Set([
   "valid-from",
   "valid-until",
 ]);
+
+/** The domain enum, in the order the tool's validation prints it. */
+const DOMAIN_VALUES = [
+  "person",
+  "event",
+  "concept",
+  "message",
+  "config",
+  "raw_note",
+] as const;
+
+/**
+ * DF-2026-1: name the flag when the domain contract is violated.
+ *
+ * The CLI defaults `domain` to "general" when --domain is omitted, so the
+ * single most common invocation mistake fails deep inside the tool's zod
+ * validation with a bare `Invalid option: expected one of "person"|…` — a
+ * message that names the allowed values but never the flag that carries
+ * them, at exactly the moment the user needs it. This appends the flag
+ * contract to that ONE message. Validation itself is untouched: the same
+ * invocations fail with the same exit code.
+ */
+export function withDomainFlagHint(message: string): string {
+  const isDomainEnumFailure =
+    /Invalid option/i.test(message) && /"raw_note"/.test(message);
+  if (!isDomainEnumFailure || message.includes("--domain=")) return message;
+  return `${message} — pass --domain=<d> (one of: ${DOMAIN_VALUES.join("|")})`;
+}
 
 /**
  * Minimal reader surface readStdinBody needs from a Readable stream. Defined as
@@ -210,6 +241,45 @@ export async function resolveRememberBody(
  * Remember command
  */
 async function rememberCommand(args: string[]): Promise<void> {
+  // DF-2026-1: `remember --help` used to be rejected as an unknown flag while
+  // sibling verbs (recall/search/forget/namespaces/token) printed usage — the
+  // one verb with the richest flag contract was also the least discoverable.
+  // Handle help BEFORE parsing so it never reaches the unknown-flag gate.
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log("Usage: duckbrain remember <key> [options]");
+    console.log("");
+    console.log(
+      "Append a memory to the active namespace (or --namespace=<name>).",
+    );
+    console.log("");
+    console.log("Options:");
+    console.log(
+      "  --domain=<d>       Domain partition: person|event|concept|message|config|raw_note",
+    );
+    console.log(
+      "  --content=<text>   Memory body (stdin is used when omitted; --text is an alias)",
+    );
+    console.log("  --text=<text>      Alias for --content");
+    console.log("  --embedding-text=<text>  Legacy alias for --content");
+    console.log(
+      '  --attr=<json>      Attributes as JSON (e.g. \'{"name":"Alice"}\')',
+    );
+    console.log(
+      "  --namespace=<name> Target namespace (default: config defaultNamespace)",
+    );
+    console.log(
+      "  --valid-from=<iso> Validity window start (ISO-8601; absent = valid now)",
+    );
+    console.log(
+      "  --valid-until=<iso> Validity window end (ISO-8601; absent = valid indefinitely)",
+    );
+    console.log(
+      "  --wait             Wait for the namespace commit to land before exiting",
+    );
+    console.log("  --help, -h         Show this help message");
+    return;
+  }
+
   // Space-form normalization for the value-taking remember flags (same
   // treatment as recall/search/forget). parseArgs only splits on "=" so a
   // bare `--domain concept` parses domain as the literal "true" and leaks
@@ -318,7 +388,11 @@ async function rememberCommand(args: string[]): Promise<void> {
         );
       }
     } else {
-      console.error("✗ Failed to remember:", result.error);
+      // DF-2026-1: name the flag the user is missing (see withDomainFlagHint).
+      console.error(
+        "✗ Failed to remember:",
+        withDomainFlagHint(String(result.error ?? "unknown error")),
+      );
       process.exit(1);
     }
   } catch (error) {
