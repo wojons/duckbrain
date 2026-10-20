@@ -4,7 +4,8 @@
  * Inert until s3.enabled=true in duckbrain.config.json (see docs/s3-native.md).
  *
  * Usage:
- *   duckbrain s3 status [ns]          — effective config + per-ns sync state
+ *   duckbrain s3 status [ns] [--full] [--json]
+ *                                     — effective config + per-ns sync state
  *   duckbrain s3 sync [ns|all] [push|pull]
  *   duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
  *   duckbrain s3 config               — print effective config (no secrets)
@@ -32,10 +33,43 @@ import {
   logLifecycle,
 } from "../namespaces/lifecycle";
 
+/**
+ * S3-STATUS-001: the human `s3 status` report caps itself at this many
+ * namespace rows. The cap is a DISPLAY decision only — it is always announced
+ * (total count + a "... and N more" marker) and both `--full` and `--json`
+ * render the complete list. Before this, `resolved.slice(0, 20)` silently
+ * dropped namespaces 21..N, so a truncated report was indistinguishable from
+ * a complete one.
+ */
+export const STATUS_ROW_LIMIT = 20;
+
+/** `duckbrain s3 status` output options (S3-STATUS-001). */
+export interface S3StatusOptions {
+  /** Show every namespace instead of the first STATUS_ROW_LIMIT. */
+  full?: boolean;
+  /** Emit one JSON document (full list, no truncation) — machine-readable. */
+  json?: boolean;
+}
+
+/** One per-namespace status row (the shape both the text and JSON paths use). */
+export interface S3StatusRow {
+  ns: string;
+  local: number;
+  remote: number | null;
+  lastSync: string | null;
+  registered: boolean;
+  /** Set when the remote listing failed for this namespace (remote is null). */
+  listError?: string;
+}
+
 const S3_USAGE = `duckbrain s3 — native S3 sync/query (status|sync|query|config|clear|ghosts).
 
 Usage:
-  duckbrain s3 status [ns]          — effective config + per-ns sync state
+  duckbrain s3 status [ns] [--full] [--json]
+                                    — effective config + per-ns sync state
+                                      (default: first ${STATUS_ROW_LIMIT} namespaces + a
+                                       truncation marker; --full shows all,
+                                       --json emits the full list as JSON)
   duckbrain s3 sync [ns|all] [push|pull]
   duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
   duckbrain s3 config               — print effective config (no secrets)
@@ -128,18 +162,36 @@ export function unionNamespaceList(
 export async function s3Status(
   configDir: string,
   nsArg?: string,
+  options: S3StatusOptions = {},
 ): Promise<void> {
+  const full = options.full === true;
+  const json = options.json === true;
   const cfg = getConfig(configRoot(configDir));
   const s3 = cfg.s3;
   const nsRoot = namespacesPath(configDir);
-  console.log("S3 config:", s3?.enabled ? "ENABLED" : "disabled");
-  if (!s3?.enabled) return;
-  console.log(`  endpoint: ${resolveEffectiveEndpoint(s3) ?? "(AWS default)"}`);
-  console.log(`  bucket:   ${s3.bucket}  prefix: ${s3.prefix}`);
-  console.log(
-    `  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`,
-  );
-  console.log(`  pathStyle: ${s3.forcePathStyle}`);
+
+  // S3-STATUS-001: `--json` owns stdout — one JSON document and nothing else,
+  // so the output is machine-readable (no header lines to strip).
+  if (!json) {
+    console.log("S3 config:", s3?.enabled ? "ENABLED" : "disabled");
+  }
+  if (!s3?.enabled) {
+    if (json) {
+      console.log(
+        JSON.stringify({ enabled: false, total: 0, namespaces: [] }, null, 2),
+      );
+    }
+    return;
+  }
+
+  if (!json) {
+    console.log(`  endpoint: ${resolveEffectiveEndpoint(s3) ?? "(AWS default)"}`);
+    console.log(`  bucket:   ${s3.bucket}  prefix: ${s3.prefix}`);
+    console.log(
+      `  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`,
+    );
+    console.log(`  pathStyle: ${s3.forcePathStyle}`);
+  }
 
   // DF-0925-08: union the config registry with the on-disk census (never one
   // INSTEAD of the other). An explicit namespace argument still resolves to
@@ -149,11 +201,20 @@ export async function s3Status(
   const resolved = unionNamespaceList(configNames, onDiskNames);
   const registered = new Set(configNames);
 
+  // S3-STATUS-001: a truncated report still has to look truncated. Only the
+  // rows that will actually be rendered are probed, so the default path keeps
+  // the original 20-listing network profile; `--full` / `--json` lift the cap
+  // and therefore probe every namespace.
+  const limit =
+    full || json ? resolved.length : Math.min(resolved.length, STATUS_ROW_LIMIT);
+
   const client = buildClient(s3);
-  for (const ns of resolved.slice(0, 20)) {
+  const rows: S3StatusRow[] = [];
+  for (const ns of resolved.slice(0, limit)) {
     const manifest = loadManifest(nsRoot, ns);
     const localCount = walkLocal(path.join(nsRoot, ns)).size;
-    let remoteCount = -1;
+    let remoteCount: number | null = null;
+    let listError: string | undefined;
     try {
       const remote = await listRemoteObjects(
         client,
@@ -162,12 +223,50 @@ export async function s3Status(
       );
       remoteCount = remote.size;
     } catch (err) {
-      remoteCount = -2;
-      console.warn(`  (list failed for ${ns}: ${(err as Error).message})`);
+      remoteCount = null;
+      listError = (err as Error).message;
+      // stderr, so a `--json` document on stdout stays parseable.
+      console.warn(`  (list failed for ${ns}: ${listError})`);
     }
+    rows.push({
+      ns,
+      local: localCount,
+      remote: remoteCount,
+      lastSync: manifest?.lastSyncAt ?? null,
+      registered: registered.has(ns),
+      ...(listError === undefined ? {} : { listError }),
+    });
+  }
+
+  if (json) {
     console.log(
-      `  ${ns}: local=${localCount} remote=${remoteCount >= 0 ? remoteCount : "?"} lastSync=${manifest?.lastSyncAt ?? "never"}${registered.has(ns) ? "" : " (on-disk only — no config mapping)"}`,
+      JSON.stringify(
+        {
+          enabled: true,
+          endpoint: resolveEffectiveEndpoint(s3) ?? null,
+          bucket: s3.bucket,
+          prefix: s3.prefix,
+          total: rows.length,
+          namespaces: rows,
+        },
+        null,
+        2,
+      ),
     );
+    return;
+  }
+
+  // Total count is always printed — a cap without a denominator is exactly the
+  // "looks complete but isn't" failure S3-STATUS-001 exists to kill.
+  console.log(`Namespaces: ${resolved.length}`);
+  for (const row of rows) {
+    console.log(
+      `  ${row.ns}: local=${row.local} remote=${row.remote ?? "?"} lastSync=${row.lastSync ?? "never"}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
+    );
+  }
+  const hidden = resolved.length - rows.length;
+  if (hidden > 0) {
+    console.log(`  ... and ${hidden} more (use --full to see all)`);
   }
 }
 
@@ -401,9 +500,17 @@ export async function s3Command(
     return;
   }
   switch (sub) {
-    case "status":
-      await s3Status(configDir, args[1]);
+    case "status": {
+      // S3-STATUS-001: `status` takes an optional namespace plus display
+      // flags. Parsing here (not `args[1]`) keeps `s3 status --full` from
+      // treating the flag as a namespace name.
+      const { flags, positional } = parseCliFlags(args.slice(1));
+      await s3Status(configDir, positional[0], {
+        full: flags["full"] !== undefined,
+        json: flags["json"] !== undefined,
+      });
       break;
+    }
     case "sync":
       await s3Sync(configDir, args[1], (args[2] as "push" | "pull") ?? "push");
       break;
