@@ -162,7 +162,7 @@ inventory doc itself is missing. Offline, idempotent, no network calls.
 Self-test (also proves the guard can fail, in fixture space, without touching
 live schedules):
 
-    npx vitest run --config vitest.integration.config.ts tests/ops-inventory.int.test.ts
+    npx vitest run src/ops/check-ops-inventory.int.test.ts
 
 Inventory change rule: any PR that schedules a new DuckBrain ops script
 (hermes cron, crontab entry, or systemd --user timer) MUST add an inventory

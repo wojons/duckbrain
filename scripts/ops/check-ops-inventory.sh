@@ -16,7 +16,8 @@
 #
 # Exit codes: 0 inventory intact | 1 scheduled-surface drift | 2 doc missing.
 #
-# Surface-source seams (env; used by tests/ops-inventory.int.test.ts and by
+# Surface-source seams (env; used by the check-ops-inventory integration test under src/ops
+# (the *.int.test.ts file) and by
 # offline audits of captured schedules — never the live surfaces):
 #   OPS_INVENTORY_DOC           inventory doc to check (default: repo doc)
 #   OPS_INVENTORY_HERMES_FILE   file holding `hermes cron list` output
