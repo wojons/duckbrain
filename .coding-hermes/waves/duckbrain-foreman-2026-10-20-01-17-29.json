@@ -3,51 +3,50 @@
   "block": "S3-QUERY-SCHEME-001",
   "wave_budget": 10,
   "wave_size": 4,
-  "status": "dispatched",
+  "status": "recovered",
+  "finished_at": "2026-10-20T22:50:00Z",
+  "recovery": {
+    "result": "all four workers were already merged into main before this recovery tick",
+    "merged_main": "f048cb3335280e73695b4c29a36074e3f4cc1d5c",
+    "remote_parity": "origin/main == main; 0 ahead / 0 behind",
+    "worktrees_removed": true,
+    "branches_removed": true,
+    "board_rows": "MCP-CUSTOM-RUNTIME-002, S3-STATUS-001, S3-CLI-001, and S3-ALERT-002 are substantively complete on the canonical board",
+    "local_gates": "pnpm tsc --noEmit; focused Vitest 5 files / 50 tests; S3 component completeness 19 passed / 0 failed; S3 alert gate 47 passed / 0 failed; gitreins guard --full 232 files / 1934 tests and secrets clean",
+    "gitreins": "reconciled stranded task records with task complete --force --skip-tier2; prior Tier-2 artifacts were stale/wrong-tree or incomplete and are not cited as PASS"
+  },
   "workers": [
     {
       "task": "MCP-CUSTOM-RUNTIME-002",
       "worktree": "/home/kara/worktrees/duckbrain-MCP-CUSTOM-RUNTIME-002",
       "branch": "wt/MCP-CUSTOM-RUNTIME-002",
       "base_sha": "338027ad",
-      "brief": "/tmp/brief-MCP-CUSTOM-RUNTIME-002.txt",
-      "gitreins_task": null,
-      "dispatched_at": "2026-10-20T01:25:17.174993Z",
-      "pid": 3157516,
-      "session_id": "proc_d03cea88be8c"
+      "commit": "a12164fd061272ecb109a3945cfbf2f177dadaf",
+      "disposition": "already merged; worktree and branch absent; canonical source and focused gate verified"
     },
     {
       "task": "S3-STATUS-001",
       "worktree": "/home/kara/worktrees/duckbrain-S3-STATUS-001",
       "branch": "wt/S3-STATUS-001",
       "base_sha": "338027ad",
-      "brief": "/tmp/brief-S3-STATUS-001.txt",
-      "gitreins_task": null,
-      "dispatched_at": "2026-10-20T01:25:17.174993Z",
-      "pid": 3157729,
-      "session_id": "proc_babfd07c9f8a"
+      "commit": "2918da16095d2a0d75ed34799ec7d938d9e43131",
+      "disposition": "already merged; worktree and branch absent; canonical source and focused gate verified"
     },
     {
       "task": "S3-CLI-001",
       "worktree": "/home/kara/worktrees/duckbrain-S3-CLI-001",
       "branch": "wt/S3-CLI-001",
       "base_sha": "338027ad",
-      "brief": "/tmp/brief-S3-CLI-001.txt",
-      "gitreins_task": null,
-      "dispatched_at": "2026-10-20T01:25:17.174993Z",
-      "pid": 3157864,
-      "session_id": "proc_2891e883afa0"
+      "commit": "7c318cf08aac2b4636a6644b566c7f0dfb68f1c2",
+      "disposition": "already merged; worktree and branch absent; canonical source and focused gate verified"
     },
     {
       "task": "S3-ALERT-002",
       "worktree": "/home/kara/worktrees/duckbrain-S3-ALERT-002",
       "branch": "wt/S3-ALERT-002",
       "base_sha": "338027ad",
-      "brief": "/tmp/brief-S3-ALERT-002.txt",
-      "gitreins_task": null,
-      "dispatched_at": "2026-10-20T01:25:17.174993Z",
-      "pid": 3157921,
-      "session_id": "proc_79749ae86033"
+      "commit": "51c88852d7382d018ea5e256eedecc6ebeea22a8",
+      "disposition": "already merged; worktree and branch absent; canonical source and focused gate verified"
     }
   ]
 }
