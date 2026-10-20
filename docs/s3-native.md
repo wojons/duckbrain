@@ -1,16 +1,18 @@
-# Native S3 support — design (prepared, NOT activated)
+# Native S3 support — design and deployment contract
 
-Status: **code prepared 2026-08-07, inert by default** (`s3.enabled: false`).
-This module adds S3 as a first-class DuckBrain storage tier: incremental
-sync, push-on-commit, and SQL over S3 via DuckDB's httpfs extension.
+Status: the native S3 code is merged and configurable. Repository defaults keep
+`s3.enabled: false` and `s3.pushOnCommit: false`; a deployment may enable either
+setting explicitly. This module adds S3 as a first-class DuckBrain storage tier:
+incremental sync, push-on-commit, and SQL over S3 via DuckDB's httpfs extension.
 
 ## Why
 
 The external backup stack (git-remote-s3 cron + tar.xz cron) works but lives
 outside DuckBrain. Native support gives:
 
-- **~30s RPO** via `pushOnCommit` (piggybacks the existing `gitBatching`
-  debounce window — no per-write PUTs)
+- **~30s RPO when `pushOnCommit: true`** (piggybacks the existing `gitBatching`
+  debounce window — no per-write PUTs); when it is false, use the configured
+  sync/cron interval instead and do not claim a 30-second recovery point.
 - **SQL over the archive**: query namespaces straight from the bucket without
   restoring (`read_json_auto` / `read_parquet` on `s3://` paths)
 - **Multi-host memory**: `pull` on another machine = DR + shared memory
