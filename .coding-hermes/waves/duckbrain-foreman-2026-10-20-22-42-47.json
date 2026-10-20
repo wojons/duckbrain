@@ -1,0 +1,19 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-20-22-42-47",
+  "block": "S3-QUERY-SCHEME-001",
+  "wave_budget": 10,
+  "wave_size": 3,
+  "status": "complete",
+  "finished_at": "2026-10-20T18:20:00Z",
+  "selection": "After mandatory recovery, block_drive ranked S3-QUERY-SCHEME-001 with three independent ready documentation rows DOC-18, DOC-19, DOC-20. They touch disjoint documentation seams and no depends_on edges between them.",
+  "workers": [
+    {"task":"DOC-18","worktree":"/home/kara/worktrees/duckbrain-DOC-18","branch":"wt/DOC-18","base_sha":"a4866f34","commit":"12af5259c1d2c1ee7b6ecdff32ef286eaa65dc89","merge_commit":"d495eaa089979116e3e276179d02d786cd554aba","disposition":"merged and worktree/branch removed","gate":"local documentation acceptance PASS; Tier-1 evaluator FAIL on pre-existing sensitive-path baseline; not cited as PASS"},
+    {"task":"DOC-19","worktree":"/home/kara/worktrees/duckbrain-DOC-19","branch":"wt/DOC-19","base_sha":"a4866f34","commit":"5340ae15","merge_commit":"cd7d9c13","disposition":"merged and worktree/branch removed","gate":"grep and diff-check PASS; Tier-1 evaluator FAIL on pre-existing sensitive-path baseline; not cited as PASS"},
+    {"task":"DOC-20","worktree":"/home/kara/worktrees/duckbrain-DOC-20","branch":"wt/DOC-20","base_sha":"a4866f34","commit":"6f969d02","merge_commit":"e982c002783b983bf2e9f4d5de0e8049c0d0beec","disposition":"merged and worktree/branch removed","gate":"grep and diff-check PASS; Tier-1 evaluator FAIL on pre-existing sensitive-path baseline; not cited as PASS"}
+  ],
+  "merged_head":"e982c002783b983bf2e9f4d5de0e8049c0d0beec",
+  "board_closeout":"6ac87e2da7ea03d47e405432d4572182894e6384",
+  "remote_parity":"main == origin/main; 0 ahead / 0 behind",
+  "remote_ci":"pending on exact board closeout HEAD 6ac87e2da7ea03d47e405432d4572182894e6384; prior exact implementation runs failed at AGENTS.md test-count assertion",
+  "open":"CI exact-head pending; legacy GitReins verdict directories remain untracked evidence and were not claimed as PASS"
+}
