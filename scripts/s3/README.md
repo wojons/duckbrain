@@ -24,6 +24,21 @@ auto-push (`src/git/autocommit.ts` → `buildPushEnv`) — provider-agnostic by
 construction. These scripts predate that path and are kept for the cron
 workflow on the origin host.
 
+## Sync deadline knobs (S3-GIT-007)
+
+`duckbrain-s3-native-sync.sh` bounds the native sync at two levels. Both are
+plain env vars — override, don't edit:
+
+| Knob | Default | Level | Expiry behavior |
+|---|---|---|---|
+| `S3_SYNC_NAMESPACE_DEADLINE_S` | `300` | per namespace, inside the `duckbrain.js s3 sync all push` call (`src/s3/sync.ts` → `namespaceDeadlineSeconds`) | the stuck namespace's in-flight SDK calls are aborted and it is skipped with `[S3] sync <ns> timed out after <N>s (S3-GIT-007)`; the pass continues over the remaining namespaces and exits nonzero for the failed one(s). Only finite positive values are honored — unset, `0`, negative, or non-numeric fall back to `300`. |
+| `S3_SYNC_ALL_DEADLINE_S` | `3600` | the whole run: `timeout "$SYNC_ALL_DEADLINE_S" node bin/duckbrain.js s3 sync all push` | `timeout` kills node with `rc=124`; the wrapper logs `FAIL sync-all-deadline rc=124` and exits `1`, so the alert gate counts the run as failed. The value is passed straight to `timeout`: a negative or non-numeric value makes `timeout` exit `125` immediately, and `0` disables the deadline entirely. |
+
+The inner knob exists because one namespace stuck in an SDK call used to hang
+the whole pass until the cron watchdog killed the node process ~2h later
+(S3-GIT-007); the outer knob is the backstop that bounds the whole run and
+makes the failure loud through the alert gate instead of a silent cron.
+
 | File | Deployed as | Role |
 |------|-------------|------|
 | `duckbrain-s3-unified.sh` | cron (15 min) | the wrapper: one cron for all layers, internal cadence via markers; holds the flock |
