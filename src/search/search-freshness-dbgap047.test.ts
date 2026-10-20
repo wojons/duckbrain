@@ -554,3 +554,94 @@ describe("DB-GAP-047: HTTP read paths answer without a manual rebuild", () => {
     expect(body.items.map((m: any) => m.id)).toContain(written.body.id);
   }, 60000);
 });
+
+describe("DF-2026-2: zero-hit staleness hint", () => {
+  const NS_HINT = path.join(NS_ROOT, "dbgap047-hint-stale");
+  const TOKEN_HINT_OLD = "zqxwhintold";
+  const TOKEN_HINT_NEW = "zqxwhintnew";
+  const TOKEN_HINT_MISS = "zqxwhintnothing";
+
+  /** Indexed namespace holding only TOKEN_HINT_OLD. */
+  beforeAll(async () => {
+    writeNamespace(NS_HINT, [
+      {
+        id: "h1",
+        key: "/hint/one",
+        text: `indexed row ${TOKEN_HINT_OLD}`,
+        day: 1,
+      },
+    ]);
+    await rebuildNamespaceIndex(NS_HINT);
+  }, 60000);
+
+  afterAll(() => {
+    fs.rmSync(NS_HINT, { recursive: true, force: true });
+  });
+
+  it("hints 'Index may be stale' when zero hits answer from a sidecar older than the newest write", async () => {
+    // Append the newest write AFTER the rebuild and pin its mtime past
+    // meta.indexedAt — deterministic staleness (same rig as AC3 above).
+    await sleep(15);
+    const jsonl = appendRow(NS_HINT, {
+      id: "h2",
+      key: "/hint/two",
+      text: `newest row ${TOKEN_HINT_NEW}`,
+      day: 2,
+    });
+    const meta = JSON.parse(
+      fs.readFileSync(
+        path.join(NS_HINT, SEARCH_INDEX_DIR, "meta.json"),
+        "utf8",
+      ),
+    ) as { indexedAt: string };
+    const pinned = new Date(Date.parse(meta.indexedAt) + 1);
+    fs.utimesSync(jsonl, pinned, pinned);
+    expect(indexFreshness(NS_HINT).state).toBe("stale");
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // autoBuildMaxRows: 1 < 2 source rows → the read-path auto-build
+      // refuses, so the zero-hit answer would come from the stale index.
+      const res = await keywordSearch(NS_HINT, TOKEN_HINT_NEW, {
+        limit: 10,
+        autoBuildMaxRows: 1,
+      });
+
+      expect(res.total).toBe(0);
+      expect(res.memories).toEqual([]);
+      const hint = warn.mock.calls
+        .map((call) => String(call[0]))
+        .find((line) => line.includes("Index may be stale"));
+      expect(hint).toBeDefined();
+      // The hint names the exact manual rebuild command.
+      expect(hint).toContain(
+        "duckbrain search-index rebuild --namespace=dbgap047-hint-stale",
+      );
+      // Nothing was rebuilt — the hint, not a silent refresh, is the signal.
+      expect(autoBuildCount(NS_HINT)).toBe(0);
+      expect(indexFreshness(NS_HINT).state).toBe("stale");
+    } finally {
+      warn.mockRestore();
+    }
+  }, 60000);
+
+  it("stays silent on zero hits when the sidecar is fresh (a real empty answer)", async () => {
+    // Bring the same namespace fresh again (captures the appended row).
+    await rebuildNamespaceIndex(NS_HINT);
+    expect(indexFreshness(NS_HINT).state).toBe("fresh");
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await keywordSearch(NS_HINT, TOKEN_HINT_MISS, { limit: 10 });
+      expect(res.total).toBe(0);
+      expect(res.memories).toEqual([]);
+      expect(
+        warn.mock.calls.some((call) =>
+          String(call[0]).includes("Index may be stale"),
+        ),
+      ).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  }, 60000);
+});

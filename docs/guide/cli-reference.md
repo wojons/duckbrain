@@ -140,6 +140,12 @@ index refreshes automatically on a read; `search-index rebuild` forces one.
 `--all-namespaces` unions hits over every namespace with a rebuilt index and
 labels each hit with its source namespace.
 
+If a read cannot refresh the index (row-bound refusal, rebuild failure), a
+zero-hit answer prints a stderr hint — `Index may be stale — … run
+'duckbrain search-index rebuild --namespace=<ns>'` — instead of a bare "No
+memories found", so an index that predates the newest write is never
+indistinguishable from a true empty namespace.
+
 **Safety:** read-only.
 
 ```bash

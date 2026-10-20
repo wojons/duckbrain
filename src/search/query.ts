@@ -457,6 +457,25 @@ export async function keywordSearch(
   const ranked = rankKeywordResults(rows, body, kept, prefix);
 
   const total = ranked.length;
+  // DF-2026-2: a zero-hit answer is only trustworthy when the sidecar the
+  // candidates came from covers every source write. When the auto-build
+  // could NOT refresh a STALE sidecar (over-bound refusal, failed rebuild —
+  // `reason` set, nothing rebuilt), the index predates the newest write and
+  // a bare "no results" is indistinguishable from a true empty answer.
+  // Announce the staleness once, naming the manual rebuild (stderr, so the
+  // zero-hits stdout contract stays untouched). A fresh or rebuilt sidecar —
+  // the normal auto-build path — stays silent: zero hits there is a real
+  // answer, and RETR-002's HTTP/MCP response shape is unchanged.
+  if (
+    total === 0 &&
+    ensured.reason !== undefined &&
+    ensured.freshness.state === "stale" &&
+    !ensured.rebuilt
+  ) {
+    console.warn(
+      `[search] Index may be stale — zero hits for '${body}', but namespace '${namespace}' has writes newer than the keyword index (not auto-refreshed: ${ensured.reason}). Run 'duckbrain search-index rebuild --namespace=${namespace}' to include them.`,
+    );
+  }
   const top = limit > 0 ? ranked.slice(0, limit) : [];
   if (keywordTiming) {
     keywordTiming.keywordCandidates = ranked.length;
