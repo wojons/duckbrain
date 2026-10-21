@@ -28,7 +28,6 @@ import {
   startDuckbrainHttp,
   stopProcess,
   cleanupDaemonDirs,
-  waitForUrl,
   getRandomPort,
   DAEMON_READY_TIMEOUT_MS,
 } from "../../tests/helpers";
@@ -179,16 +178,14 @@ describe("integration helper daemon isolation (QA-DUCKBRAIN-002 AC3)", () => {
     const child1 = await startDuckbrainHttp({ port: port1 });
     const child2 = await startDuckbrainHttp({ port: port2 });
     try {
-      await waitForUrl(
-        `http://127.0.0.1:${port1}/health`,
-        DAEMON_READY_TIMEOUT_MS,
-        child1,
-      );
-      await waitForUrl(
-        `http://127.0.0.1:${port2}/health`,
-        DAEMON_READY_TIMEOUT_MS,
-        child2,
-      );
+      // QA-DUCKBRAIN-011: waitForUrl shells out to curl, which honours
+      // HTTP(S)_PROXY even for a 127.0.0.1 target — under the battery's
+      // dead-proxy cut the probe dies at the proxy handshake and never
+      // reaches the (live) daemon, so /health "never answers" within the
+      // 60s budget. waitForHealth polls /health with node http.get, which
+      // ignores proxy env: the readiness path is network-independent.
+      await waitForHealth(port1, DAEMON_READY_TIMEOUT_MS, child1);
+      await waitForHealth(port2, DAEMON_READY_TIMEOUT_MS, child2);
 
       // Each daemon got its OWN temp dirs (hermetic-by-default).
       expect(child1.dataDir).toBeDefined();

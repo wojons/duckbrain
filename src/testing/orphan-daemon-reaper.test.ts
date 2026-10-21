@@ -463,11 +463,41 @@ describe("curl() probe bound (DB-GAP-059)", () => {
     );
     const port = (server.address() as net.AddressInfo).port;
 
-    const started = Date.now();
-    await expect(curl(`http://127.0.0.1:${port}/users`)).rejects.toThrow(
-      /exceeded --max-time 10s/,
-    );
-    const elapsed = Date.now() - started;
+    // QA-DUCKBRAIN-011: curl honours HTTP(S)_PROXY/ALL_PROXY even for a
+    // 127.0.0.1 target unless no_proxy matches. Under the battery's
+    // dead-proxy cut (HTTP_PROXY=http://127.0.0.1:9) the probe dies at the
+    // proxy handshake — fast, with a "Couldn't connect to proxy" failure —
+    // and never exercises the stall this test measures. Scrub the proxy env
+    // for the probe and restore it afterwards, so the --max-time bound is
+    // what fails under every environment.
+    const PROXY_VARS = [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "ALL_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "all_proxy",
+    ] as const;
+    const savedProxyEnv = new Map<string, string | undefined>();
+    for (const name of PROXY_VARS) {
+      savedProxyEnv.set(name, process.env[name]);
+      delete process.env[name];
+    }
+
+    let elapsed: number;
+    try {
+      const started = Date.now();
+      await expect(curl(`http://127.0.0.1:${port}/users`)).rejects.toThrow(
+        /exceeded --max-time 10s/,
+      );
+      elapsed = Date.now() - started;
+    } finally {
+      for (const name of PROXY_VARS) {
+        const saved = savedProxyEnv.get(name);
+        if (saved === undefined) delete process.env[name];
+        else process.env[name] = saved;
+      }
+    }
     expect(elapsed).toBeGreaterThanOrEqual(9_000);
     expect(elapsed).toBeLessThan(CURL_MAX_TIME_S * 1_000 + 5_000);
 
