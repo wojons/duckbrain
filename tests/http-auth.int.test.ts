@@ -3,7 +3,7 @@ import { ChildProcess } from "child_process";
 import {
   getRandomPort,
   startDuckbrainHttp,
-  killProcess,
+  stopProcess,
   waitForUrl,
   curl,
   DAEMON_READY_TIMEOUT_MS,
@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import bcrypt from "bcryptjs";
+import { removeTempDirSafely } from "../src/testing/race-safe-daemon";
 
 const port = getRandomPort();
 let server: ChildProcess;
@@ -62,9 +63,15 @@ describe("HTTP Auth Integration", () => {
     // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
   }, 120000);
 
-  afterAll(() => {
-    killProcess(server);
-    fs.rmSync(scratchDir, { recursive: true, force: true });
+  afterAll(async () => {
+    // Teardown must JOIN the daemon: a fire-and-forget SIGTERM leaves git
+    // (namespace commits) and DuckDB writers (extension files) racing the
+    // recursive rm below — the ENOTEMPTY CI flake (runs 39584807338,
+    // 39590592568). stopProcess awaits the child's exit; removeTempDirSafely
+    // then retries the bounded ENOTEMPTY/EBUSY window (same proven shape as
+    // fe0dcf57 in memories-dogfood010.test.ts).
+    await stopProcess(server);
+    await removeTempDirSafely(scratchDir);
   });
 
   it("should allow /health without auth", async () => {
