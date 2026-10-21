@@ -18,13 +18,16 @@
  * test-setup temp root and exercise the full pipeline: route → recallTool →
  * DuckDB. Seeding is a plain JSONL write — no HTTP write path and NO
  * DUCKBRAIN_* env mutation, so there is nothing to leak or restore; the
- * repo-root instance config is asserted byte-identical (GAP-022 AC1).
+ * repo-root instance config is asserted byte-identical (GAP-022 AC1)
+ * against an ISOLATED copy (INT-CI-028) so concurrent foreign writers
+ * (live daemon, sibling suites auto-creating namespaces) cannot flake it.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createHttpServer } from "../../cli/http";
 import { createServer, Server } from "http";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 let server: Server;
@@ -85,6 +88,17 @@ const SEEDED = 25;
 const PAGE = 10;
 
 const REPO_CONFIG = path.join(process.cwd(), "duckbrain.config.json");
+
+// INT-CI-028: the byte-identity assert below (GAP-022 AC1) compares the REAL
+// repo config against itself across this suite's lifetime. When the full
+// vitest suite runs in parallel — or a live daemon is registering namespaces
+// on this host — a foreign writer can legitimately append a namespace mapping
+// to the real config in that window, failing this suite with a huge config
+// diff. Fix: redirect DUCKBRAIN_CONFIG_PATH (the GAP-022 override) to a temp
+// copy of the repo config for this suite's duration, so AC1 guards THIS
+// suite's own writes against an isolated snapshot while foreign writers
+// append to the real file.
+let configRedirect: string | null = null;
 
 function readRepoConfig(): string | null {
   return fs.existsSync(REPO_CONFIG)
@@ -179,6 +193,16 @@ describe("DB-GAP-046: GET /api/memories prefix + offset paging", () => {
     // GAP-022 AC1: the repo config file must be byte-identical after the run
     configBefore = readRepoConfig();
 
+    // INT-CI-028: isolate this suite's config view from concurrent writers.
+    if (fs.existsSync(REPO_CONFIG)) {
+      const configDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "gap046-config-"),
+      );
+      configRedirect = path.join(configDir, "duckbrain.config.json");
+      fs.copyFileSync(REPO_CONFIG, configRedirect);
+      process.env.DUCKBRAIN_CONFIG_PATH = configRedirect;
+    }
+
     seedNamespace(NS, PREFIX);
     seedNamespace(LIVE_NS, LIVE_PREFIX);
 
@@ -195,9 +219,21 @@ describe("DB-GAP-046: GET /api/memories prefix + offset paging", () => {
 
   afterAll(() => {
     server.close();
-    expect(readRepoConfig()).toBe(configBefore);
+    // GAP-022 AC1: config file must be byte-identical after the test run —
+    // compared against the ISOLATED copy (INT-CI-028), so a foreign writer
+    // (live daemon / sibling suite) appending a namespace mapping to the
+    // real repo config during this suite cannot fail us.
+    expect(
+      configRedirect !== null ? fs.readFileSync(configRedirect, "utf-8") : null,
+    ).toBe(configBefore);
     fs.rmSync(NS, { recursive: true, force: true });
     fs.rmSync(LIVE_NS, { recursive: true, force: true });
+    // INT-CI-028: restore the real config path for any later suites.
+    if (configRedirect !== null) {
+      fs.rmSync(path.dirname(configRedirect), { recursive: true, force: true });
+      delete process.env.DUCKBRAIN_CONFIG_PATH;
+      configRedirect = null;
+    }
   });
 
   it("offset=0 returns the first full page with more to come", async () => {
