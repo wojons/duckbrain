@@ -181,14 +181,16 @@ Host myserver
     it("should detect version from duckbrain --version output", async () => {
       // First call: "which duckbrain" succeeds
       // Second call: "duckbrain --version" succeeds
+      const { default: pkg } = await import("../../package.json", { assert: { type: "json" } });
+      const localVersion = (pkg as { version: string }).version;
       vi.mocked(spawnSync)
         .mockReturnValueOnce(mockSpawnSuccess("/usr/local/bin/duckbrain"))
-        .mockReturnValueOnce(mockSpawnSuccess("duckbrain v1.0.0"));
+        .mockReturnValueOnce(mockSpawnSuccess(`duckbrain v${localVersion}`));
 
       const result = await checkRemoteInstall("user@server.example.com");
 
       expect(result.installed).toBe(true);
-      expect(result.version).toBe("1.0.0");
+      expect(result.version).toBe(localVersion);
       expect(result.needsUpdate).toBe(false);
     });
 
