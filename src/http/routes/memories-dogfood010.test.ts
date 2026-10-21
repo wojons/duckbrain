@@ -34,6 +34,7 @@ import { createServer, Server } from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { removeTempDirSafely } from "../../testing/race-safe-daemon";
 import type { EmbeddingProvider } from "../../embedding/providers";
 
 // Mock ONLY the provider registry: recallTool must run its real DuckDB path.
@@ -243,32 +244,6 @@ function buildPoisonedNamespace(nsDir: string): void {
   );
 }
 
-/**
- * Safe recursive rm that retries on ENOTEMPTY/EBUSY (transient file-writer
- * races) before giving up. `force: true` only suppresses ENOENT, not ENOTEMPTY.
- */
-function rmRecursiveSafe(target: string): void {
-  const maxRetries = 3;
-  const delayMs = 50;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      fs.rmSync(target, { recursive: true, force: true });
-      return; // success
-    } catch (err: any) {
-      if (
-        attempt < maxRetries &&
-        (err.code === "ENOTEMPTY" || err.code === "EBUSY")
-      ) {
-        // Brief pause to let child processes finish writing
-        const { setTimeout } = require("timers/promises");
-        void setTimeout(delayMs * (attempt + 1));
-        continue;
-      }
-      throw err; // non-retryable error — rethrow
-    }
-  }
-}
-
 describe("DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)", () => {
   beforeAll(async () => {
     scratchDir = fs.mkdtempSync(
@@ -299,7 +274,7 @@ describe("DOGFOOD-010: ?q= survives duplicate-key attributes (no abort)", () => 
       process.env.DUCKBRAIN_NAMESPACES_PATH = oldNamespacesPath;
     }
     if (scratchDir) {
-      rmRecursiveSafe(scratchDir);
+      await removeTempDirSafely(scratchDir);
     }
   });
 
