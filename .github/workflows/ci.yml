@@ -46,6 +46,16 @@ jobs:
           node bin/duckbrain.js help | tee /tmp/duckbrain-help.out
           grep -q "DuckBrain v1.0.0 - AI Memory System" /tmp/duckbrain-help.out
 
+      # SUP-CI-20261020-DB: fail fast (offline, seconds) when package.json
+      # and package-lock.json drift. npm ci (Dockerfile:8 and the docker
+      # job) dies with EUSAGE on exactly this drift; this gate names each
+      # offending package BEFORE the suite burns minutes. Pure
+      # json-vs-json comparison in node — no registry, no network.
+      - name: Check lockfile sync
+        run: bash scripts/ci/check-lockfile-sync.sh
+        env:
+          CI: true
+
       - name: Cache DuckDB extensions
         uses: actions/cache@v4
         with:
