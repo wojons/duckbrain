@@ -136,8 +136,14 @@ export async function waitForUrl(
       // --max-time 10 bounds each attempt: a health handler that accepts TCP
       // but stalls (e.g. a slow embedding probe) must not pin the poll loop
       // past its timeout cap (INT-CI-003).
+      // --noproxy '*' keeps readiness probes on the wire to the loopback
+      // daemon: ambient HTTP(S)_PROXY/ALL_PROXY (e.g. the chaos-disconnect
+      // battery's dead-proxy cut) would otherwise divert the probe to the
+      // proxy and the daemon-never-ready timeout is then a lie (the daemon
+      // is already serving). Loopback is precisely what proxies do not
+      // carry; QA-DUCKBRAIN-011.
       const result = run(
-        `curl -sf -o /dev/null -w '%{http_code}' --max-time 10 ${url}`,
+        `curl -sf --noproxy '*' -o /dev/null -w '%{http_code}' --max-time 10 ${url}`,
       );
       // GAP-030: scratch daemons are deliberately started degraded (openai +
       // empty key) and /health now answers 503 there — accept it as ready.
@@ -424,7 +430,15 @@ export async function curl(
   args: string,
 ): Promise<{ status: number; body: string; headers: string }> {
   try {
-    const output = run(`curl -s -D - --max-time ${CURL_MAX_TIME_S} ${args}`);
+    // --noproxy '*' (QA-DUCKBRAIN-011): these probes target loopback
+    // daemons; ambient HTTP(S)_PROXY/ALL_PROXY (e.g. the chaos-disconnect
+    // battery's dead-proxy cut) must not divert them — under a cut the
+    // proxy handshake fails first, in milliseconds, with a message that
+    // is not curl's timeout wording, breaking message-pinning callers and
+    // timing assertions alike.
+    const output = run(
+      `curl -s --noproxy '*' -D - --max-time ${CURL_MAX_TIME_S} ${args}`,
+    );
     const headerEnd = output.indexOf("\r\n\r\n");
     if (headerEnd === -1) {
       return { status: 0, body: output, headers: output };
@@ -476,4 +490,7 @@ export async function curl(
  * globalSetup already runs a startup + teardown sweep; this is the manual /
  * per-file handle.
  */
-export { reapOrphanDaemons, formatReapReport } from "../src/testing/orphan-daemon-reaper.js";
+export {
+  reapOrphanDaemons,
+  formatReapReport,
+} from "../src/testing/orphan-daemon-reaper.js";
