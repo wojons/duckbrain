@@ -2207,7 +2207,7 @@ async function tokenCommand(args: string[]): Promise<void> {
 function showHelp(): void {
   console.log(
     `
-  DuckBrain v1.0.0 - AI Memory System
+  DuckBrain v1.1.0 - AI Memory System
 
   Usage: duckbrain <command> [options]
 

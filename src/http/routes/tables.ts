@@ -700,7 +700,7 @@ function generateOpenApi(ns: string): Record<string, unknown> {
     openapi: "3.1.0",
     info: {
       title: `DuckBrain tables — namespace '${ns}'`,
-      version: "1.0.0",
+      version: "1.1.0",
       description:
         "Generated from the declared table registry (namespaces/<ns>/tables/*.table.json). PostgREST-style filters/order/paging on every table. This namespace document also describes the global memory routes; those routes retain their existing namespace query/body behavior.",
     },

@@ -49,7 +49,7 @@ import { resolveDuckbrainRoot, getConfig } from "../config/index";
  */
 export const server = new McpServer({
   name: "duckbrain",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 /**

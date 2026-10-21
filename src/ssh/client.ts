@@ -48,7 +48,7 @@ interface SSHConfigEntry {
 }
 
 /** Current DuckBrain version for update comparison */
-const CURRENT_VERSION = "1.0.0";
+const CURRENT_VERSION = "1.1.0";
 
 /**
  * Expand tilde in file paths
