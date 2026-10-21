@@ -44,7 +44,7 @@ jobs:
             exit 1
           }
           node bin/duckbrain.js help | tee /tmp/duckbrain-help.out
-          grep -q "DuckBrain v1.0.0 - AI Memory System" /tmp/duckbrain-help.out
+          grep -q "DuckBrain v1.1.0 - AI Memory System" /tmp/duckbrain-help.out
 
       # SUP-CI-20261020-DB: fail fast (offline, seconds) when package.json
       # and package-lock.json drift. npm ci (Dockerfile:8 and the docker
