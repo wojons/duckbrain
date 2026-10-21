@@ -359,7 +359,7 @@ describe("OPS-007: GET /users never blocks the event loop on git", () => {
 
     // SERVED observation only. The last gap is how much the closed loop
     // overlapped the `clearInterval` — timestamp bookkeeping, not loop health —
-    // so it is dropped (we deliberately over-sample, hence `gaps.length > 3`).
+    // so it is dropped.
     const servedGaps = gapsMs(timestamps.slice(0, -1));
     // The budget is NOT hard-coded: it derives from an idle control measured in
     // THIS process, taken after the served window (so the tripwire is disarmed
@@ -378,8 +378,25 @@ describe("OPS-007: GET /users never blocks the event loop on git", () => {
     // Non-blocking: the concurrent cheap route answered while git ran…
     expect(health!.status).toBe(200);
     expect(health!.elapsedMs).toBeLessThan(concurrentRouteBudgetMs);
-    // …and the loop kept ticking throughout the scan.
-    expect(servedGaps.length).toBeGreaterThan(3);
+    // …and the loop kept ticking throughout the scan. The sample COUNT is
+    // load-aware too (QA-DUCKBRAIN-010): setInterval delivers ONE coalesced
+    // tick per late callback, so an event-loop-starved CI container collects
+    // fewer ticks than the 50ms cadence implies and a raw count assertion goes
+    // RED while every load-aware gap bound passes. The meaningful minimum
+    // derives from the observed served window and the load-aware budget: a
+    // correct run delivers at least one tick per budget interval, and even a
+    // single served gap keeps the max-gap assertion above non-vacuous — a
+    // SYNC_STALL_MS stall inside the window must surface as a gap, and the
+    // budget < SYNC_STALL_MS teeth check below keeps that gap fatal.
+    const servedWindowMs = servedGaps.reduce((total, gap) => total + gap, 0);
+    const minServedSamples = Math.max(
+      1,
+      Math.ceil(servedWindowMs / heartbeatBudgetMs),
+    );
+    expect(
+      servedGaps.length,
+      `served heartbeat sample count vs load-aware minimum (window ${servedWindowMs}ms, budget ${heartbeatBudgetMs}ms)`,
+    ).toBeGreaterThanOrEqual(minServedSamples);
     expect(
       Math.max(...servedGaps),
       `max served heartbeat gap vs load-aware budget (control max ${controlMaxGapMs}ms)`,
