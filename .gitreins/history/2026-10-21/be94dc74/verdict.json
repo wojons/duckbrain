@@ -1,0 +1,103 @@
+{
+  "task_id": "TESTQ-2026-10-21-1",
+  "task_title": "Fix http-auth integration teardown ENOTEMPTY race",
+  "task_criteria": [
+    "The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY failure; focused integration test and the integration step pass on the exact fix commit."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "76d9e1ae672e8bc3f542d17a00f7dbb98f2a4067",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:56AM INF scanned ~43342681 bytes (43.34 MB) in 4.63s\n9:56AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261021T124719.794971Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\nstderr | src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\n[duckbrain] Namespace warm-up: namespace 'broken-ns' failed in 0ms and was skipped: manifest.json is corrupt (unparseable): Unexpected token 'o', \"not json {{\" is not valid JSON\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-a' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-budget-b' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-corrupt' failed in 0ms and was skipped: manifest.json is corrupt (unparseable): Unexpected token 'o', \"not json {{\" is not valid JSON\n[duckbrain] Namespace warm-up: namespace 'waraug-quick' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: namespace 'waraug-slow' failed in 1500ms and was skipped: timed out after 1500ms (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS) \u2014 still warming in the background\n[duckbrain] Namespace warm-up: 9 namespace(s) warmed, 6 skipped, 6642ms total [broken-ns=0ms SKIPPED, waraug-broken=124ms scanned idx=fresh, waraug-budget-a=1500ms SKIPPED, waraug-budget-b=1500ms SKIPPED, waraug-corrupt=0ms SKIPPED, waraug-data=122ms scanned idx=fresh, waraug-e2e=20ms scanned idx=fresh, waraug-fine=32ms scanned idx=fresh, waraug-guarded=31ms scanned idx=fresh, waraug-healthy=20ms scanned idx=fresh, waraug-manifested=102ms scanned idx=fresh, waraug-quick=1500ms SKIPPED, waraug-scan=68ms scanned idx=fresh, waraug-search-build=123ms scanned idx=fresh, waraug-slow=1500ms SKIPPED]\n\n \u276f src/http/namespace-warmup-aug096.test.ts (16 tests | 1 failed) 50774ms\n   \u276f AUG-096 namespace warm-up (16)\n     \u00d7 per-namespace timeout knob: a hung warm is reported after the bound without failing the pass 1990ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/http/namespace-warmup-aug096.test.ts > AUG-096 namespace warm-up > per-namespace timeout knob: a hung warm is reported after the bound without failing the pass\nAssertionError: expected false to be true // Object.is equality\n\n- Expected\n+ Received\n\n- true\n+ false\n\n \u276f src/http/namespace-warmup-aug096.test.ts:654:48\n    652|     expect(byName.get(\"waraug-slow\")?.warmed).toBe(false);\n    653|     expect(String(byName.get(\"waraug-slow\")?.error)).toContain(\"timed \u2026\n    654|     expect(byName.get(\"waraug-quick\")?.warmed).toBe(true);\n       |                                                ^\n    655|     expect(byName.get(\"waraug-quick\")?.scanned).toBe(true);\n    656|     expect(slow).toBeTruthy();\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 232 passed (233)\n      Tests  1 failed | 1939 passed (1940)\n   Start at  09:56:16\n   Duration  118.19s (tests 89%, import 10%, setup 1%)\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261021T124719.794971Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY failure; focused integration test and the integration step pass on the exact fix commit.: HEAD is exactly the fix commit 76d9e1ae (\"test: join daemon and use removeTempDirSafely in http-auth teardown\"), which changed only tests/http-auth.int.test.ts (+11/-4). The afterAll hook is now async and does `await stopProcess(server)` then `await removeTempDirSafely(scratchDir)` (tests/http-auth.int.test.ts:66-76), replacing the racy fire-and-forget `killProcess(server)` + `fs.rmSync(...)`. stopProcess (tests/helpers.ts:326) awaits the child 'close' event with SIGTERM->SIGKILL escalation, so the daemon is joined before its data dir is touched; removeTempDirSafely (src/testing/race-safe-daemon.ts:309) performs 5 bounded retries with 100ms*(attempt+1) backoff for ENOTEMPTY/EBUSY. Both helpers are exported and resolve. ACTUAL TEST OUTPUT: (1) Focused test run 3x consecutively \u2014 `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` \u2014 RUN1 EXIT=0 \"Tests 6 passed (6)\", RUN2 EXIT=0 \"Tests 6 passed (6)\", RUN3 EXIT=0 \"Tests 6 passed (6)\"; grep for ENOTEMPTY/EBUSY across all three logs = NONE FOUND. (2) Integration step `test:http` (http-auth + http-e2e + http-ratelimit): TEST_HTTP_EXIT=0, \"Test Files 3 passed (3)\", \"Tests 23 passed (23)\", ENOTEMPTY/EBUSY count = 0. (3) Full integration suite: \"Test Files 1 failed | 11 passed (12)\", \"Tests 1 failed | 76 passed (77)\", ENOTEMPTY/EBUSY count = 0 \u2014 the sole failure is tests/docker-build.int.test.ts \"should build the production Docker image\" with \"Test timed out in 300000ms\" on `docker build`, which touches no scratch dir, stopProcess, or removeTempDirSafely and is unrelated to this teardown fix. (4) No leftover /tmp/duckbrain-http-auth-int-* directories after the runs, confirming the scratch DuckDB data was actually removed rather than orphaned. [resolution 0.10; tests/http-auth.int.test.ts]\nThe http-auth integration teardown now joins the daemon via stopProcess and removes scratch data via removeTempDirSafely's bounded ENOTEMPTY/EBUSY retry; focused test passes 6/6 on 3/3 runs and the integration step passes 23/23 with zero ENOTEMPTY/EBUSY on the exact fix commit 76d9e1ae.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY failure; focused integration test and the integration step pass on the exact fix commit.: HEAD is exactly the fix commit 76d9e1ae (\"test: join daemon and use removeTempDirSafely in http-auth teardown\"), which changed only tests/http-auth.int.test.ts (+11/-4). The afterAll hook is now async and does `await stopProcess(server)` then `await removeTempDirSafely(scratchDir)` (tests/http-auth.int.test.ts:66-76), replacing the racy fire-and-forget `killProcess(server)` + `fs.rmSync(...)`. stopProcess (tests/helpers.ts:326) awaits the child 'close' event with SIGTERM->SIGKILL escalation, so the daemon is joined before its data dir is touched; removeTempDirSafely (src/testing/race-safe-daemon.ts:309) performs 5 bounded retries with 100ms*(attempt+1) backoff for ENOTEMPTY/EBUSY. Both helpers are exported and resolve. ACTUAL TEST OUTPUT: (1) Focused test run 3x consecutively \u2014 `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` \u2014 RUN1 EXIT=0 \"Tests 6 passed (6)\", RUN2 EXIT=0 \"Tests 6 passed (6)\", RUN3 EXIT=0 \"Tests 6 passed (6)\"; grep for ENOTEMPTY/EBUSY across all three logs = NONE FOUND. (2) Integration step `test:http` (http-auth + http-e2e + http-ratelimit): TEST_HTTP_EXIT=0, \"Test Files 3 passed (3)\", \"Tests 23 passed (23)\", ENOTEMPTY/EBUSY count = 0. (3) Full integration suite: \"Test Files 1 failed | 11 passed (12)\", \"Tests 1 failed | 76 passed (77)\", ENOTEMPTY/EBUSY count = 0 \u2014 the sole failure is tests/docker-build.int.test.ts \"should build the production Docker image\" with \"Test timed out in 300000ms\" on `docker build`, which touches no scratch dir, stopProcess, or removeTempDirSafely and is unrelated to this teardown fix. (4) No leftover /tmp/duckbrain-http-auth-int-* directories after the runs, confirming the scratch DuckDB data was actually removed rather than orphaned. [resolution 0.10; tests/http-auth.int.test.ts]\nThe http-auth integration teardown now joins the daemon via stopProcess and removes scratch data via removeTempDirSafely's bounded ENOTEMPTY/EBUSY retry; focused test passes 6/6 on 3/3 runs and the integration step passes 23/23 with zero ENOTEMPTY/EBUSY on the exact fix commit 76d9e1ae.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY failure; focused integration test and the integration step pass on the exact fix commit.",
+                "status": "PASS",
+                "detail": "HEAD is exactly the fix commit 76d9e1ae (\"test: join daemon and use removeTempDirSafely in http-auth teardown\"), which changed only tests/http-auth.int.test.ts (+11/-4). The afterAll hook is now async and does `await stopProcess(server)` then `await removeTempDirSafely(scratchDir)` (tests/http-auth.int.test.ts:66-76), replacing the racy fire-and-forget `killProcess(server)` + `fs.rmSync(...)`. stopProcess (tests/helpers.ts:326) awaits the child 'close' event with SIGTERM->SIGKILL escalation, so the daemon is joined before its data dir is touched; removeTempDirSafely (src/testing/race-safe-daemon.ts:309) performs 5 bounded retries with 100ms*(attempt+1) backoff for ENOTEMPTY/EBUSY. Both helpers are exported and resolve. ACTUAL TEST OUTPUT: (1) Focused test run 3x consecutively \u2014 `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` \u2014 RUN1 EXIT=0 \"Tests 6 passed (6)\", RUN2 EXIT=0 \"Tests 6 passed (6)\", RUN3 EXIT=0 \"Tests 6 passed (6)\"; grep for ENOTEMPTY/EBUSY across all three logs = NONE FOUND. (2) Integration step `test:http` (http-auth + http-e2e + http-ratelimit): TEST_HTTP_EXIT=0, \"Test Files 3 passed (3)\", \"Tests 23 passed (23)\", ENOTEMPTY/EBUSY count = 0. (3) Full integration suite: \"Test Files 1 failed | 11 passed (12)\", \"Tests 1 failed | 76 passed (77)\", ENOTEMPTY/EBUSY count = 0 \u2014 the sole failure is tests/docker-build.int.test.ts \"should build the production Docker image\" with \"Test timed out in 300000ms\" on `docker build`, which touches no scratch dir, stopProcess, or removeTempDirSafely and is unrelated to this teardown fix. (4) No leftover /tmp/duckbrain-http-auth-int-* directories after the runs, confirming the scratch DuckDB data was actually removed rather than orphaned. [resolution 0.10; tests/http-auth.int.test.ts]",
+                "resolution_probability": 0.1,
+                "cited_path": "tests/http-auth.int.test.ts"
+              }
+            ],
+            "summary": "The http-auth integration teardown now joins the daemon via stopProcess and removes scratch data via removeTempDirSafely's bounded ENOTEMPTY/EBUSY retry; focused test passes 6/6 on 3/3 runs and the integration step passes 23/23 with zero ENOTEMPTY/EBUSY on the exact fix commit 76d9e1ae."
+          }
+        }
+      ]
+    }
+  },
+  "summary": "Judge Result: TESTQ-2026-10-21-1\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY failure; focused integration test and the integration step pass on the exact fix commit.: HEAD is exactly the fix commit 76d9e1ae (\"test: join daemon and use removeTempDirSafely in http-auth teardown\"), which changed only tests/http-auth.int.test.ts (+11/-4). The afterAll hook is now async and does `await stopProcess(server)` then `await removeTempDirSafely(scratchDir)` (tests/http-auth.int.test.ts:66-76), replacing the racy fire-and-forget `killProcess(server)` + `fs.rmSync(...)`. stopProcess (tests/helpers.ts:326) awaits the child 'close' event with SIGTERM->SIGKILL escalation, so the daemon is joined before its data dir is touched; removeTempDirSafely (src/testing/race-safe-daemon.ts:309) performs 5 bounded retries with 100ms*(attempt+1) backoff for ENOTEMPTY/EBUSY. Both helpers are exported and resolve. ACTUAL TEST OUTPUT: (1) Focused test run 3x consecutively \u2014 `npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts` \u2014 RUN1 EXIT=0 \"Tests 6 passed (6)\", RUN2 EXIT=0 \"Tests 6 passed (6)\", RUN3 EXIT=0 \"Tests 6 passed (6)\"; grep for ENOTEMPTY/EBUSY across all three logs = NONE FOUND. (2) Integration step `test:http` (http-auth + http-e2e + http-ratelimit): TEST_HTTP_EXIT=0, \"Test Files 3 passed (3)\", \"Tests 23 passed (23)\", ENOTEMPTY/EBUSY count = 0. (3) Full integration suite: \"Test Files 1 failed | 11 passed (12)\", \"Tests 1 failed | 76 passed (77)\", ENOTEMPTY/EBUSY count = 0 \u2014 the sole failure is tests/docker-build.int.test.ts \"should build the production Docker image\" with \"Test timed out in 300000ms\" on `docker build`, which touches no scratch dir, stopProcess, or removeTempDirSafely and is unrelated to this teardown fix. (4) No leftover /tmp/duckbrain-http-auth-int-* directories after the runs, confirming the scratch DuckDB data was actually removed rather than orphaned. [resolution 0.10; tests/http-auth.int.test.ts]\nThe http-auth integration teardown now joins the daemon via stopProcess and removes scratch data via removeTempDirSafely's bounded ENOTEMPTY/EBUSY retry; focused test passes 6/6 on 3/3 runs and the integration step passes 23/23 with zero ENOTEMPTY/EBUSY on the exact fix commit 76d9e1ae.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-21T15:14:27.540947",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-21T15:14:27.582194+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3080,
+        "truncated": false,
+        "source": "git show 76d9e1ae672e"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 24486,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-2026-10-21-1"
+  }
+}

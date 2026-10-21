@@ -2806,3 +2806,39 @@ tasks:
     a hint about rebuilding. Test: src/search/search-freshness-dbgap047.test.ts'
   status: in_progress
   created_at: '2026-10-20T14:07:22.530424+00:00'
+- id: TESTQ-2026-10-20-2
+  title: Fix ENOTEMPTY teardown flake in memories-dogfood010.test.ts
+  criteria:
+  - '1. AfterAll scratch dir removal uses bounded retry for ENOTEMPTY/EBUSY (not just
+    force:true)
+
+    2. Apply same pattern to any sibling test files that spawn subprocesses then rmSync
+
+    3. 3/3 solo run passes; 1940 tests pass; CI test job GREEN (no skipped integration
+    step)
+
+    4. No src/ changes; test-teardown hardening only'
+  status: complete
+  created_at: '2026-10-21T11:09:05.747684+00:00'
+  completed_at: '2026-10-21T11:50:42.517576+00:00'
+- id: QA-DUCKBRAIN-012
+  title: "QA-DUCKBRAIN-012: full-suite byte-identity assert on untracked live config\
+    \ \u2014 make it a route property test"
+  criteria:
+  - green on host with live daemon registering namespaces concurrently
+  - green solo (no live daemon)
+  - 'full suite green: CI=true npx vitest run exits 0 (all tests)'
+  - tsc --noEmit clean, prettier clean
+  - gitreins guard PASS
+  - pushed to origin, 0 unpushed
+  status: in_progress
+  created_at: '2026-10-21T12:40:45.407441+00:00'
+- id: TESTQ-2026-10-21-1
+  title: Fix http-auth integration teardown ENOTEMPTY race
+  criteria:
+  - The tests/http-auth.int.test.ts teardown removes scratch DuckDB data without ENOTEMPTY/EBUSY
+    failure; focused integration test and the integration step pass on the exact fix
+    commit.
+  status: complete
+  created_at: '2026-10-21T14:22:18.987726+00:00'
+  completed_at: '2026-10-21T15:18:16.481724+00:00'

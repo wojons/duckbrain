@@ -1,0 +1,73 @@
+commit 76d9e1ae672e8bc3f542d17a00f7dbb98f2a4067
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 21 09:33:39 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 21 09:33:39 2026 -0500
+
+    test: join daemon and use removeTempDirSafely in http-auth teardown
+    
+    The afterAll scratch-dir removal raced the HTTP server subprocess:
+    killProcess() sent a fire-and-forget SIGTERM and fs.rmSync ran while
+    the daemon was still flushing — git namespace commits and DuckDB
+    extension writes inside namespaces/default made rmdir throw ENOTEMPTY
+    (GitHub Actions runs 39584807338 and 39590592568, both failing after
+    all six auth assertions passed).
+    
+    Fix per the established sibling pattern: await stopProcess(server) to
+    join the child before touching its data dir, then removeTempDirSafely()
+    from src/testing/race-safe-daemon.ts for the bounded awaited
+    ENOTEMPTY/EBUSY retry window — the same proven shape as fe0dcf57
+    (memories-dogfood010.test.ts). No assertion changes; teardown errors
+    are bounded-retried, not silently swallowed mid-flight.
+    
+    Verified: focused test 6/6 passed x5 consecutive runs, pnpm test:http
+    23/23, full pnpm test:integration 77/77 (12 files), pnpm tsc --noEmit
+    clean, no leftover /tmp/duckbrain-http-auth-int-* dirs.
+    
+    Addresses TESTQ-2026-10-21-1.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ tests/http-auth.int.test.ts | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/tests/http-auth.int.test.ts b/tests/http-auth.int.test.ts
+index c13d08d2..ab676289 100644
+--- a/tests/http-auth.int.test.ts
++++ b/tests/http-auth.int.test.ts
+@@ -3,7 +3,7 @@ import { ChildProcess } from "child_process";
+ import {
+   getRandomPort,
+   startDuckbrainHttp,
+-  killProcess,
++  stopProcess,
+   waitForUrl,
+   curl,
+   DAEMON_READY_TIMEOUT_MS,
+@@ -12,6 +12,7 @@ import fs from "fs";
+ import path from "path";
+ import os from "os";
+ import bcrypt from "bcryptjs";
++import { removeTempDirSafely } from "../src/testing/race-safe-daemon";
+ 
+ const port = getRandomPort();
+ let server: ChildProcess;
+@@ -62,9 +63,15 @@ describe("HTTP Auth Integration", () => {
+     // fails the hook BEFORE waitForUrl's cap (masking the stderr tail).
+   }, 120000);
+ 
+-  afterAll(() => {
+-    killProcess(server);
+-    fs.rmSync(scratchDir, { recursive: true, force: true });
++  afterAll(async () => {
++    // Teardown must JOIN the daemon: a fire-and-forget SIGTERM leaves git
++    // (namespace commits) and DuckDB writers (extension files) racing the
++    // recursive rm below — the ENOTEMPTY CI flake (runs 39584807338,
++    // 39590592568). stopProcess awaits the child's exit; removeTempDirSafely
++    // then retries the bounded ENOTEMPTY/EBUSY window (same proven shape as
++    // fe0dcf57 in memories-dogfood010.test.ts).
++    await stopProcess(server);
++    await removeTempDirSafely(scratchDir);
+   });
+ 
+   it("should allow /health without auth", async () => {

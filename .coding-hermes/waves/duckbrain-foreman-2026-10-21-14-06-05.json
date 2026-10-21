@@ -1,0 +1,17 @@
+{
+  "tick": "duckbrain-foreman-2026-10-21-14-06-05",
+  "block": "TESTQ-2026-10-21-1",
+  "wave_size": 1,
+  "mode": "serial-fallback",
+  "base_sha": "901ecf50c0e6786b536bf5af286fa627a2af9b5c",
+  "tasks": [
+    {
+      "id": "TESTQ-2026-10-21-1",
+      "worktree": "/home/kara/worktrees/duckbrain-TESTQ-2026-10-21-1",
+      "branch": "wt/TESTQ-2026-10-21-1",
+      "brief": "/tmp/duckbrain-foreman-2026-10-21-14-06-05-TESTQ-2026-10-21-1-brief.md",
+      "model": "k3",
+      "provider": "kimi-for-coding"
+    }
+  ]
+}
