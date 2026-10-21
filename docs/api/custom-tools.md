@@ -11,11 +11,20 @@ Everything runs inside a sandboxed runtime:
 - **Fresh Worker thread per call** with a V8 heap ceiling
   (`resourceLimits.maxOldGenerationSizeMb`) — memory exhaustion kills the
   sandbox, never the server.
-- **JavaScript** executes inside a `node:vm` realm whose global surface
-  contains ONLY: the call arguments, JSON, Math, Date, the primitive
-  constructors, Promise, the Error family, parse/format helpers and
-  WebAssembly. Notably absent: `require`, `process`, `fetch`, `import`,
-  `setTimeout`, `console`, `Buffer`, and every host handle.
+- **JavaScript** executes inside a `node:vm` realm whose global surface is
+  the full realm-fresh set of ES intrinsics (Object, Array, JSON, Math,
+  Date, String, Number, Promise, the Error family, WebAssembly, ...)
+  plus `console` (Node provides it per vm context; its output goes to the
+  sandbox worker's stdout, which the parent drains to nothing) and
+  `globalThis`. Nothing is injected from the host realm — not even the
+  call arguments as an object; the arguments arrive only as one primitive
+  JSON string that the realm parses itself. What the boundary actually
+  enforces: code generation from strings is disabled
+  (`codeGeneration.strings: false`), so `Function(...)`, `eval(...)` and
+  every `x.constructor.constructor(...)` bridge throw; `require`,
+  `process`, `fetch`, `Buffer`, module loading and timers do not exist in
+  the realm; WebAssembly modules instantiate with an EMPTY import
+  namespace; declared capabilities fail closed before execution.
 - **WebAssembly** modules are instantiated with an EMPTY import namespace:
   any host function a module tries to import traps at link time. Compute
   modules that need no imports run unchanged.
