@@ -1062,3 +1062,5 @@
 {"id": 8227, "event_type": "task_completed", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"status\":\"complete\"}", "timestamp": "2026-10-21T10:26:20Z"}
 {"id": 8228, "event_type": "task_dispatched", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"commit\":\"f8acb485\",\"evidence_run_id\":\"4a2b5a48\"}", "timestamp": "2026-10-21T10:26:28Z"}
 {"id": 8229, "event_type": "task_completed", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"commit\":\"f8acb485\",\"evidence_run_id\":\"4a2b5a48\",\"tier2\":\"COMPLETE\",\"tier1\":\"FAIL (pre-existing baseline)\"}", "timestamp": "2026-10-21T10:26:28Z"}
+{"id": 8230, "event_type": "task_completed", "task_id": "DOC-23", "actor": "foreman", "detail": "{\"status\":\"complete\"}", "timestamp": "2026-10-21T10:27:54Z"}
+{"id": 8231, "event_type": "task_completed", "task_id": "DOC-23", "actor": "foreman", "detail": "{\"commit\":\"9ee682e3\",\"evidence\":\"boardctl validate OK, CLI help functional, all 5 deps verified complete, foreman-direct verification\"}", "timestamp": "2026-10-21T10:28:00Z"}
