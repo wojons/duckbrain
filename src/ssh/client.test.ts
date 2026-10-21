@@ -181,7 +181,7 @@ Host myserver
     it("should detect version from duckbrain --version output", async () => {
       // First call: "which duckbrain" succeeds
       // Second call: "duckbrain --version" succeeds
-      const { default: pkg } = await import("../../package.json", { assert: { type: "json" } });
+      const { default: pkg } = await import("../../package.json", { with: { type: "json" } });
       const localVersion = (pkg as { version: string }).version;
       vi.mocked(spawnSync)
         .mockReturnValueOnce(mockSpawnSuccess("/usr/local/bin/duckbrain"))
