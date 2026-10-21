@@ -1,0 +1,47 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-20-23-31-43",
+  "block": "S3-QUERY-SCHEME-001",
+  "created_at": "2026-10-20T23:55:00Z",
+  "base": "origin/main",
+  "base_sha": "84644cc2",
+  "wave_budget": 11,
+  "slots_computed": 6,
+  "slots_used": 2,
+  "selection_reason": "block_drive.py ranked S3-QUERY-SCHEME-001 (44 rows, 39 done, ratio 0.89) with 4 ready rows + 1 blocked. DOC-21 and DOC-22 share the single file docs/ops-scheduled-scripts.md so they are bundled into ONE worker (not two). DOC-19 is verification-only: its doc landed in cd7d9c13 and the foreman re-ran the live /api/reads probes itself (200 valid route, 400 from=notadate) — no new commit, closed on the board by the foreman. CARTER-S3-REVERIFY-001 is independent (report artifact only). DOC-23 stays blocked behind its five depends_on rows.",
+  "independent_rows_verdict": "DOC-21+DOC-22 (bundled, files: docs/ops-scheduled-scripts.md + scripts/ops/check-ops-inventory.sh) and CARTER-S3-REVERIFY-001 (files: reports/carter-s3-reverify-2026-10-20.md) share NO file and NO seam; neither depends_on the other. Verified from the row records.",
+  "workers": [
+    {
+      "row_ids": ["DOC-21", "DOC-22"],
+      "worktree": "/home/kara/worktrees/duckbrain-DOC-21-22",
+      "branch": "wt/DOC-21-22",
+      "base_sha": "84644cc2",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "lane_probe": "genuine (session 20261020_184019_a345ff: API call #1 model=glm-5.3-flash provider=custom, NO fallback line)",
+      "brief": "/tmp/duckbrain-DOC-21-22-brief.txt",
+      "acceptance": "grep checks on docs/ops-scheduled-scripts.md and scripts/ops/check-ops-inventory.sh + npx vitest run src/ops/check-ops-inventory.int.test.ts == 11 passed"
+    },
+    {
+      "row_ids": ["CARTER-S3-REVERIFY-001"],
+      "worktree": "/home/kara/worktrees/duckbrain-CARTER-S3-REVERIFY-001",
+      "branch": "wt/CARTER-S3-REVERIFY-001",
+      "base_sha": "84644cc2",
+      "model": "deepseek-v4-pro",
+      "provider": "ollama-cloud",
+      "lane_probe": "genuine (session 20261020_184034_57d0fa: API call #1 model=deepseek-v4-pro provider=ollama-cloud, NO fallback line)",
+      "brief": "/tmp/duckbrain-CARTER-S3-REVERIFY-001-brief.txt",
+      "acceptance": "reports/carter-s3-reverify-2026-10-20.md with per-step command+rc+verdict; scripts/s3/test-*.sh rc=0; npx vitest run rc=0; node bin/duckbrain.js s3 status rc=0 (read-only)"
+    }
+  ],
+  "foreman_direct_rows": [
+    {
+      "row_ids": ["DOC-19"],
+      "reason": "verification-only: documentation commit cd7d9c13 is already on origin/main; the open leg was the live /api/reads probe, which the foreman ran itself this tick (200 on ?route=GET /api/memories, 400 VALIDATION_ERROR on ?from=notadate, ledger block present in the 200 body)."
+    },
+    {
+      "row_ids": ["AGENTS.md-count-drift"],
+      "reason": "exact-HEAD CI red is the 'Assert AGENTS.md test counts match live suite' step (run 39514638322 on 84644cc2 reported live 232 suites / 1934 tests vs AGENTS.md 232/1932); generated-count sync is a mechanical follow-up to f048cb33 which added 2 tests. Handled by the foreman after the suite run confirms the live count."
+    }
+  ],
+  "blocked_rows": ["DOC-23 (depends_on DOC-19, DOC-21, DOC-22 unimplemented at wave start; becomes ready when this wave lands)"]
+}
