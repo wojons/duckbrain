@@ -68,6 +68,14 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 
 ### Installation
 
+> **DuckBrain is not published to npm — install from git.** `npm install -g
+> duckbrain`, `pnpm add -g duckbrain`, and `npx duckbrain` all fail with
+> **E404 Not Found** because no registry package exists. The only supported
+> install is **git clone + `pnpm install`**, below. Once cloned, the optional
+> bare `duckbrain` command on PATH comes from a one-line symlink — see
+> "The `duckbrain` CLI" below (pnpm has no working global-install equivalent
+> for this repo, and npm offers nothing to install).
+
 #### Prerequisites
 
 You need **git**, **Node.js 22+**, and **pnpm 12**. The repository pins the tested pnpm release (`12.4.2`) in `package.json`. On a fresh Debian/Ubuntu box that only has git:
@@ -136,7 +144,7 @@ curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quick
 
 Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. A write that fails with a 500 naming `user.name`/`user.email` should not occur anymore: with no git identity the write is stamped `Anonymous <anonymous@duckbrain.local>` (see "Fresh-host extras" above). The snippet above starts the daemon with `--auth=none` explicitly because the default is now `apikey` — a fresh daemon with no `--auth` flag requires API-key authentication and rejects unauthenticated writes with 401. For anything but local development, bootstrap a key store (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
 
-When exposing the daemon past loopback, note the DNS-rebinding host guard: `--allowed-hosts` / `DUCKBRAIN_ALLOWED_HOSTS` extend the accepted Host headers instead of `--bind-all` — see [docs/guide/deployment.md](docs/guide/deployment.md).
+When exposing the daemon past loopback, note the DNS-rebinding host guard: `--allowed-hosts` / `DUCKBRAIN_ALLOWED_HOSTS` extend the accepted Host headers instead of `--bind-all` — see [docs/guide/deployment.md](docs/guide/deployment.md). To pick up later releases, update the same clone (`git pull && pnpm install`) — there is no package-manager upgrade path, because DuckBrain is not published to npm.
 
 ### Running DuckBrain
 
@@ -165,16 +173,23 @@ pnpm start http --port=3000 --unix-socket=/tmp/duckbrain.sock --unix-socket-mode
 
 The sections below run `duckbrain <command>` directly. A repo clone does not put
 `duckbrain` on PATH or in `node_modules/.bin` — run it via the repo's bin script,
-or link it once to get the bare command:
+symlink it once to get the bare command (after `pnpm install`; the CLI resolves
+its dependencies from the clone), or invoke it through node:
 
 ```bash
-# one-time: put duckbrain on PATH (repo must stay in place)
-npm install -g .            # verified with npm; with pnpm, `pnpm link` needs the
-                            # pnpm global bin dir on PATH (`pnpm setup`)
+# one-time: put duckbrain on PATH (run from the repo root; the repo must stay
+# in place — undo later by removing the symlink)
+ln -s "$PWD/bin/duckbrain.js" ~/.local/bin/duckbrain
 
 # no install: run through node instead
 node bin/duckbrain.js <command>
 ```
+
+There is deliberately no package-manager global install documented here: the
+project is not on npm (see the note atop Installation), and pnpm 12 offers no
+working equivalent for this repo (`pnpm link` rejects the old `--global` form,
+and `pnpm add -g <tarball>` leaves out the gated duckdb native-binding
+download, producing a CLI that crashes at startup).
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
