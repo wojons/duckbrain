@@ -1059,3 +1059,6 @@
 {"event_type":"task_created","actor":"foreman","tick":null,"ts":null,"task_id":"INT-CI-001","note":null,"id":8224,"timestamp":"2026-10-21T05:07:18.963198+00:00","detail":"{\"id\":\"INT-CI-001\",\"status\":\"pending\"}"}
 {"event_type":"task_created","actor":"foreman","tick":null,"ts":null,"task_id":"SUP-DEPS-20261021-DB","note":null,"id":8225,"timestamp":"2026-10-21T05:12:49.810038+00:00","detail":"{\"id\":\"SUP-DEPS-20261021-DB\",\"status\":\"pending\"}"}
 {"id": 8226, "event_type": "task_created", "task_id": "BOARD-INTEGRITY-002", "actor": "foreman", "detail": "{\"id\": \"BOARD-INTEGRITY-002\", \"status\": \"pending\", \"priority\": \"P1\", \"complexity\": 2, \"reason\": \"board truncation recovery\"}", "timestamp": "2026-10-21T09:00:00Z"}
+{"id": 8227, "event_type": "task_completed", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"status\":\"complete\"}", "timestamp": "2026-10-21T10:26:20Z"}
+{"id": 8228, "event_type": "task_dispatched", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"commit\":\"f8acb485\",\"evidence_run_id\":\"4a2b5a48\"}", "timestamp": "2026-10-21T10:26:28Z"}
+{"id": 8229, "event_type": "task_completed", "task_id": "DOC-24", "actor": "foreman", "detail": "{\"commit\":\"f8acb485\",\"evidence_run_id\":\"4a2b5a48\",\"tier2\":\"COMPLETE\",\"tier1\":\"FAIL (pre-existing baseline)\"}", "timestamp": "2026-10-21T10:26:28Z"}
