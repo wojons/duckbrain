@@ -1,0 +1,33 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-22-21-16-45",
+  "project": "duckbrain",
+  "block": "DB-SUPA-4",
+  "slots_computed": 6,
+  "wave_budget": 12,
+  "workers": 2,
+  "created_at": "2026-10-22T21:30:00Z",
+  "selection": [
+    {
+      "id": "DB-SUPA-4-R2",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-SUPA-4-R2",
+      "branch": "wt/DB-SUPA-4-R2",
+      "files": ["src/http/routes/tables.ts", "src/http/routes/tables-supa4-grants.int.test.ts", "tests/http-auth.int.test.ts", "src/auth/roles.test.ts", "src/auth/middleware.test.ts", "src/cli/http-auth.test.ts"],
+      "seam": "generic-table route factory in tables.ts — rides ALONE (6 verbs, one file)",
+      "model": "deepseek-v4-flash",
+      "provider": "opencode-go",
+      "brief": "/tmp/duckbrain-DB-SUPA-4-R2-brief.txt"
+    },
+    {
+      "id": "README-9,README-15,README-16,README-17",
+      "worktree": "/home/kara/worktrees/duckbrain-README-wave",
+      "branch": "wt/README-wave-20261022",
+      "files": ["README.md", "src/cli/human.ts"],
+      "seam": "README bundle — all four rows edit README.md (bottleneck file), bundled per sibling-file doctrine + README-16 adds one help-table line in src/cli/human.ts",
+      "model": "deepseek-v4-flash",
+      "provider": "opencode-go",
+      "brief": "/tmp/duckbrain-README-wave-brief.txt"
+    }
+  ],
+  "merge_order": ["DB-SUPA-4-R2", "README-9,README-15,README-16,README-17"],
+  "gates": "per-merge: rebase, zero deletions check, targeted suites + tsc, push + rev-list parity 0"
+}
