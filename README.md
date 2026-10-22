@@ -181,7 +181,8 @@ its dependencies from the clone), or invoke it through node:
 # in place — undo later by removing the symlink)
 ln -s "$PWD/bin/duckbrain.js" ~/.local/bin/duckbrain
 
-# no install: run through node instead
+# no global install needed: run it through node instead. Dependencies first:
+# `pnpm install` -- the CLI needs node_modules to resolve tsx.
 node bin/duckbrain.js <command>
 ```
 
@@ -190,6 +191,34 @@ project is not on npm (see the note atop Installation), and pnpm 12 offers no
 working equivalent for this repo (`pnpm link` rejects the old `--global` form,
 and `pnpm add -g <tarball>` leaves out the gated duckdb native-binding
 download, producing a CLI that crashes at startup).
+
+## CLI memory verbs
+
+The memory verbs the CLI ships. Summaries are the wording of `duckbrain --help`'s
+command list, except where the verb prints its own description in `<verb> --help`:
+
+| Verb | Summary |
+| ---- | ------- |
+| `remember <key>` | Append a memory to the active namespace (or `--namespace=<name>`). |
+| `recall` | Query memories. Defaults to a prefix search over the whole store. |
+| `search <query>` | Full-text keyword search over memories (content, key, attributes). |
+| `search-index` | Manage the keyword search index (rebuild\|status\|install-hooks) |
+| `query` | Read-only SQL over a namespace's memory store. |
+| `list-keys` | Browse memory structure |
+| `forget <id>` | Delete a memory |
+| `squash` | Compact old partitions |
+| `status` | Show system status |
+| `config` | Show or set configuration |
+| `servers` | Manage server connections (list\|add\|remove) |
+| `service` | Manage systemd service |
+
+Three examples, verbatim from the CLI's own `Examples:` block:
+
+```bash
+duckbrain remember /contacts/alice --domain=person --attr='{"name":"Alice"}' --content='Met at conference'
+duckbrain search "GAP-020"
+duckbrain query "SELECT key, timestamp FROM memories WHERE key LIKE '/projects/%'"
+```
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
@@ -324,7 +353,7 @@ Namespace deletion is TWO separate operations (implemented in `src/namespaces/li
 
 ⚠️ **Semantic change:** plain `namespace delete <ns> --force` used to take a `--purge` boolean and destroy the remote copy; it now means **disk-only** (identical to `delete-disk`, S3 objects kept — `delete <ns> --force --purge` remains as a legacy alias for the same disk-only path). Scripts written against the old behavior silently preserve S3 state; move remote destruction to `clear-s3` explicitly.
 
-See [docs/s3-native.md](docs/s3-native.md#namespace-deletion-delete-disk-vs-clear-s3) for the full decision table.
+See [docs/s3-native.md](docs/s3-native.md#namespace-deletion--delete-disk-vs-clear-s3) for the full decision table.
 
 ## Screenshots
 
@@ -411,19 +440,19 @@ The daemon requires API keys **by default** (`--auth=apikey`), so clients must s
 
 ```bash
 # Key tree
-curl -H "X-API-Key: <key>" http://localhost:3000/api/keys?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/keys?namespace=default
 
 # Query memories (keyword filter ?contains= works offline)
-curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&limit=10"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&limit=10
 
 # Semantic search — needs a reachable embedding provider (see note below)
-curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&q=connection+pooling"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories?namespace=default&q=connection+pooling
 
 # Latest memory for a key path
-curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default
 
 # Single memory by ID
-curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default"
+curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/fda1ce7a-4ec4-487b-ae66-403d04b0c30c?namespace=default
 ```
 
 - Namespace-scoped routes default to `default` when `?namespace=` is omitted.

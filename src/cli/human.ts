@@ -2231,6 +2231,7 @@ function showHelp(): void {
     ssh-connect        Connect to remote DuckBrain via SSH tunnel
     servers            Manage server connections (list|add|remove)
     squash             Compact old partitions
+    consolidate        Cross-namespace daily consolidation digest
     query              Read-only SQL over a namespace (SELECT ... or --template)
     s3                 Native S3 sync/query (status|sync|query|config)
     git                Git identity tools (repair-identity)
