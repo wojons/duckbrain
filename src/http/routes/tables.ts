@@ -29,6 +29,19 @@
  * Every route is wrapped in requireNamespaceGrant exactly like
  * namespaces.ts, so restricted tokens without a grant get 403.
  *
+ * DB-SUPA-4-R2: the namespace grant is the OUTER scope; inside it every
+ * table-DATA verb additionally runs requireTableGrant (read for GET /:table,
+ * write for POST/PATCH/DELETE), so a role-aware token can no longer read a
+ * table it holds no read grant for, nor destroy rows through PATCH/DELETE with
+ * a read-only per-table grant. Denials stay on the middleware's own path (403
+ * FORBIDDEN + audited). GET "/" (the declared-table LIST) deliberately stays on
+ * requireNamespaceGrant alone: it returns registry metadata, not rows, and the
+ * grant model has no wildcard table — a stored `tableGrants` map can only name
+ * real tables (`/^[a-z0-9_./-]+$/`, src/auth/storeSchema.ts), so guarding the
+ * list with a synthetic "*" grant would 403 every grant-bearing token with no
+ * way to grant list access back. The openapi.json route is likewise
+ * namespace-granted only: it is a spec document, not table data.
+ *
  * DB-SUPA-2 AC-1 residual (documented gap): the DATA mutation path is still an
  * in-place rewrite of the table's JSONL file (`patchRowsByPk` /
  * `deleteRowsByPk` in src/duckdb/table-store.ts) — for legacy `.table.json`
@@ -46,7 +59,11 @@
 import path from "path";
 import { Router, Request, Response } from "express";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
-import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
+import {
+  requireNamespaceGrant,
+  requireTableGrant,
+  getPrincipal,
+} from "../../auth/middleware";
 import {
   listTables,
   getTable,
@@ -753,8 +770,21 @@ function createTableRoutes(): Router {
   // this, req.params.ns is invisible inside the route handlers.
   const router: Router = Router({ mergeParams: true });
 
+  // DB-SUPA-4-R2: the namespace the per-table grant grades is the SAME value
+  // the handlers below and requireNamespaceGrant use — `:ns` off the mount
+  // path (mergeParams). memories.ts resolves its namespace from
+  // query/body/default because ITS mount carries no :ns; copying that
+  // resolver here would grade a different namespace than the route touches
+  // (the DF-0926-04 hazard class), so the table surface takes the param.
+  const grantNs = (req: Request): string => param(req, "ns");
+  const grantTable = (req: Request): string => param(req, "table");
+
   /**
    * GET /api/ns/:ns/tables — list declared tables in the namespace.
+   *
+   * DB-SUPA-4-R2: namespace-scope only — this returns registry metadata, not
+   * rows, and the grant model has no wildcard table name (see the module
+   * header). The per-table READ grant is enforced on GET /:table.
    */
   router.get(
     "/",
@@ -778,6 +808,7 @@ function createTableRoutes(): Router {
   router.get(
     "/:table",
     requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "read"),
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
@@ -878,6 +909,7 @@ function createTableRoutes(): Router {
   router.post(
     "/:table",
     requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
@@ -1075,6 +1107,7 @@ function createTableRoutes(): Router {
   router.patch(
     "/:table",
     requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
@@ -1213,6 +1246,7 @@ function createTableRoutes(): Router {
   router.delete(
     "/:table",
     requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
