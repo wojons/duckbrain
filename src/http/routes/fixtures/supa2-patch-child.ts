@@ -15,7 +15,14 @@
  * file lock), not by the order a single test process happened to call them.
  *
  * stdout carries one machine-readable line:
- *   RESULT {"pid":…,"column":…,"value":…,"status":200,"body":"{\"updated\":1}"}
+ *   RESULT {"pid":…,"column":…,"value":…,"status":200,
+ *           "body":"{\"updated\":1}","gateSeenAtMs":…,"ackAtMs":…,"waitedMs":…}
+ *
+ * The timestamps are what let the parent report the OBSERVED interleaving
+ * (who acked first, who won, how long the lock wait was) instead of only a
+ * green summary. `waitedMs` is measured inside this process, from the instant
+ * the gate was observed to the instant the PATCH response ended, so a lock
+ * held by another process shows up as a large value here.
  *
  * Exit codes: 0 = one PATCH attempt completed (status decides the outcome),
  * 1 = unexpected error, 2 = bad usage, 3 = gate never opened.
@@ -69,6 +76,7 @@ async function main(): Promise<void> {
     if (Date.now() > deadline) fail(3, "gate-timeout");
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
+  const gateSeenAtMs = Date.now();
 
   const body = JSON.stringify({ [column]: Number(rawValue) });
   const result = await new Promise<{ status: number; body: string }>(
@@ -105,7 +113,11 @@ async function main(): Promise<void> {
       pid: process.pid,
       column,
       value: Number(rawValue),
-      ...result,
+      status: result.status,
+      body: result.body,
+      gateSeenAtMs,
+      ackAtMs: Date.now(),
+      waitedMs: Date.now() - gateSeenAtMs,
     })}`,
   );
 
