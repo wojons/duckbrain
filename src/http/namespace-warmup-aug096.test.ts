@@ -634,10 +634,12 @@ describe("AUG-096 namespace warm-up", () => {
     const slow = createDataNamespace("waraug-slow");
     const quick = createDataNamespace("waraug-quick");
     await closeAllConnections();
-    // The bound must sit ABOVE a healthy warm (fts extension load +
-    // DuckDB init can take a few hundred ms in a fresh worker) and BELOW
-    // the never-settling promise the slow namespace hangs on.
+
+    // Mock the overall warm budget so the deadline is far in the future.
+    // Without this, CI load squeezes the per-namespace bound (Math.min(1500, remaining))
+    // below 1500ms, causing quick to lose the race.
     process.env[WARM_PER_NAMESPACE_TIMEOUT_ENV] = "1500";
+    process.env[WARM_BUDGET_ENV] = "999999999";
 
     mocks.queryMemoriesOverride = (db, partitionPaths, filters) =>
       String(partitionPaths?.[0]).includes("waraug-slow")
