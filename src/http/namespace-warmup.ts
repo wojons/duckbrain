@@ -342,9 +342,15 @@ function withTimeout(
  * default 300s) checked before each start, and each namespace under a
  * per-namespace wait (DUCKBRAIN_WARM_PER_NAMESPACE_TIMEOUT_MS, default 30s).
  *
+ * @param warmNamespaceFn - Internal deterministic seam for testing the pool
+ *   and timeout behavior; production callers use the default warmNamespace.
  * @returns One result row per enumerated namespace, sorted by name.
  */
-export async function warmManifestNamespaces(): Promise<NamespaceWarmResult[]> {
+export async function warmManifestNamespaces(
+  warmNamespaceFn: (
+    namespacePath: string,
+  ) => Promise<NamespaceWarmResult> = warmNamespace,
+): Promise<NamespaceWarmResult[]> {
   try {
     const nsRoot = resolveNamespacesPath();
     let names = listNamespaces(nsRoot);
@@ -382,7 +388,7 @@ export async function warmManifestNamespaces(): Promise<NamespaceWarmResult[]> {
       const bound = Math.min(perNsTimeoutMs, remaining);
       results.push(
         await withTimeout(
-          warmNamespace(namespacePath),
+          warmNamespaceFn(namespacePath),
           name,
           namespacePath,
           bound,

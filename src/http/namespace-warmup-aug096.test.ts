@@ -39,8 +39,7 @@ import path from "path";
 
 const mocks = vi.hoisted(() => ({
   /** When set, replaces queryMemories for ALL calls in this file's registry. */
-  queryMemoriesOverride:
-    undefined as
+  queryMemoriesOverride: undefined as
     | ((
         db: unknown,
         partitionPaths: string[],
@@ -49,10 +48,8 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   /** The REAL queryMemories, captured by the factory below (a dynamic
    *  import() of the mocked path would return the mock and recurse). */
-  actualQueryMemories:
-    undefined as
-      | ((db: any, partitionPaths: string[], filters: any) => unknown)
-      | undefined,
+  actualQueryMemories: undefined as
+    ((db: any, partitionPaths: string[], filters: any) => unknown) | undefined,
 }));
 
 vi.mock("../duckdb/queries", async (importOriginal) => {
@@ -77,6 +74,7 @@ import {
   WARM_PER_NAMESPACE_TIMEOUT_ENV,
   WARM_CONCURRENCY_ENV,
   DEFAULT_WARM_BUDGET_MS,
+  type NamespaceWarmResult,
 } from "./namespace-warmup";
 import {
   getConnectionAge,
@@ -118,7 +116,10 @@ function createDataNamespace(name: string): string {
   fs.writeFileSync(
     path.join(nsPath, "manifest.json"),
     JSON.stringify(
-      { partitions: ["config/2026-10/"], lastUpdated: new Date().toISOString() },
+      {
+        partitions: ["config/2026-10/"],
+        lastUpdated: new Date().toISOString(),
+      },
       null,
       2,
     ) + "\n",
@@ -272,7 +273,9 @@ describe("AUG-096 namespace warm-up", () => {
     expect(expected.length).toBeGreaterThan(0);
     expect(getConnectionCount()).toBe(expected.length);
     for (const name of expected) {
-      expect(getConnectionAge(path.join(resolveNamespacesPath(), name))).not.toBeNull();
+      expect(
+        getConnectionAge(path.join(resolveNamespacesPath(), name)),
+      ).not.toBeNull();
     }
 
     // Timings are real numbers on every row.
@@ -306,11 +309,9 @@ describe("AUG-096 namespace warm-up", () => {
           // recurse into this very override forever (measured: 2GB heap OOM
           // in the vitest fork).
           Promise.resolve(
-            mocks.actualQueryMemories!(
-              db,
-              partitionPaths,
-              { limit: 1 } as never,
-            ),
+            mocks.actualQueryMemories!(db, partitionPaths, {
+              limit: 1,
+            } as never),
           );
 
     const consoleErrors: string[] = [];
@@ -336,11 +337,15 @@ describe("AUG-096 namespace warm-up", () => {
 
     // Failure surfaced as a warning line, summary still emitted.
     expect(
-      consoleErrors.some((line) => line.includes("waraug-broken") && line.includes("skipped")),
+      consoleErrors.some(
+        (line) => line.includes("waraug-broken") && line.includes("skipped"),
+      ),
     ).toBe(true);
-    expect(errSpy.mock.calls.some((args) => String(args[0]).includes("Namespace warm-up"))).toBe(
-      true,
-    );
+    expect(
+      errSpy.mock.calls.some((args) =>
+        String(args[0]).includes("Namespace warm-up"),
+      ),
+    ).toBe(true);
   });
 
   it("DUCKBRAIN_WARM_NAMESPACES=0 disables the warm-up (no connections created)", async () => {
@@ -443,12 +448,26 @@ describe("AUG-096 namespace warm-up", () => {
 
   it("logNamespaceWarmup emits one summary line with per-ns timings", () => {
     const lines: string[] = [];
-    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      lines.push(args.map(String).join(" "));
-    });
+    const spy = vi
+      .spyOn(console, "error")
+      .mockImplementation((...args: unknown[]) => {
+        lines.push(args.map(String).join(" "));
+      });
     logNamespaceWarmup([
-      { namespace: "a", namespacePath: "/x/a", warmed: true, warmMs: 12, scanned: true },
-      { namespace: "b", namespacePath: "/x/b", warmed: true, warmMs: 3, scanned: false },
+      {
+        namespace: "a",
+        namespacePath: "/x/a",
+        warmed: true,
+        warmMs: 12,
+        scanned: true,
+      },
+      {
+        namespace: "b",
+        namespacePath: "/x/b",
+        warmed: true,
+        warmMs: 3,
+        scanned: false,
+      },
     ]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("2 namespace(s) warmed");
@@ -466,7 +485,9 @@ describe("AUG-096 namespace warm-up", () => {
     const nsPath = createSearchableNamespace("waraug-search-build");
     await closeAllConnections();
 
-    expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(false);
+    expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(
+      false,
+    );
 
     const result = await warmNamespace(nsPath);
 
@@ -475,7 +496,9 @@ describe("AUG-096 namespace warm-up", () => {
     expect(result.searchFreshness).toBe("missing");
     expect(result.searchRebuilt).toBe(true);
     expect(result.searchSkipReason).toBeUndefined();
-    expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(true);
+    expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(
+      true,
+    );
     expect(result.embeddingCacheReady).toBe(true);
     expect(fs.existsSync(path.join(nsPath, EMBEDDING_CACHE_DIR))).toBe(true);
     // The sidecar is fresh as of NOW: warm-up, not a later request, built it.
@@ -560,11 +583,15 @@ describe("AUG-096 namespace warm-up", () => {
     // Bare directory (no manifest.json): NOT enumerated by the primary
     // source — even though censusOnDiskNamespaces lists it.
     expect(byName.has("waraug-bare")).toBe(false);
-    expect(censusOnDiskNamespaces(resolveNamespacesPath()).has("waraug-bare")).toBe(true);
+    expect(
+      censusOnDiskNamespaces(resolveNamespacesPath()).has("waraug-bare"),
+    ).toBe(true);
     // Every enumerated row resolves to a directory that really carries a
     // manifest, and the enumeration equals listNamespaces (sorted).
     for (const r of results) {
-      expect(fs.existsSync(path.join(r.namespacePath, "manifest.json"))).toBe(true);
+      expect(fs.existsSync(path.join(r.namespacePath, "manifest.json"))).toBe(
+        true,
+      );
     }
     const expected = listNamespaces(resolveNamespacesPath());
     expect(expected.length).toBeGreaterThan(0);
@@ -595,7 +622,9 @@ describe("AUG-096 namespace warm-up", () => {
       // builds the sidecar.
       expect(results[0].scanned).toBe(false);
       expect(results[0].searchRebuilt).toBe(true);
-      expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(true);
+      expect(fs.existsSync(path.join(nsPath, ".search", "fts.duckdb"))).toBe(
+        true,
+      );
     } finally {
       if (prev === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
       else process.env.DUCKBRAIN_NAMESPACES_PATH = prev;
@@ -631,32 +660,56 @@ describe("AUG-096 namespace warm-up", () => {
   });
 
   it("per-namespace timeout knob: a hung warm is reported after the bound without failing the pass", async () => {
-    const slow = createDataNamespace("waraug-slow");
-    const quick = createDataNamespace("waraug-quick");
-    await closeAllConnections();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "waraug-timeout-"));
+    const previousRoot = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    process.env.DUCKBRAIN_NAMESPACES_PATH = root;
 
-    // Mock the overall warm budget so the deadline is far in the future.
-    // Without this, CI load squeezes the per-namespace bound (Math.min(1500, remaining))
-    // below 1500ms, causing quick to lose the race.
-    process.env[WARM_PER_NAMESPACE_TIMEOUT_ENV] = "1500";
-    process.env[WARM_BUDGET_ENV] = "999999999";
+    try {
+      const slow = createDataNamespace("waraug-slow");
+      const quick = createDataNamespace("waraug-quick");
+      await closeAllConnections();
 
-    mocks.queryMemoriesOverride = (db, partitionPaths, filters) =>
-      String(partitionPaths?.[0]).includes("waraug-slow")
-        ? new Promise(() => {}) // never settles
-        : Promise.resolve(
-            mocks.actualQueryMemories!(db, partitionPaths, filters),
-          );
+      // Keep the production timeout knob under test, but isolate this scheduler
+      // test from native DuckDB and FTS startup latency. The actual
+      // warmNamespace() connection/scan contract is covered by the tests above;
+      // this test only needs a deterministic completed namespace alongside a
+      // never-settling one to exercise the timeout race.
+      process.env[WARM_PER_NAMESPACE_TIMEOUT_ENV] = "1500";
+      process.env[WARM_BUDGET_ENV] = "999999999";
+      const warmCalls: string[] = [];
+      const deterministicWarm = (
+        namespacePath: string,
+      ): Promise<NamespaceWarmResult> => {
+        const namespace = path.basename(namespacePath);
+        warmCalls.push(namespace);
+        if (namespace === "waraug-slow") return new Promise(() => {});
+        return Promise.resolve({
+          namespace,
+          namespacePath,
+          warmed: true,
+          warmMs: 0,
+          scanned: true,
+        });
+      };
 
-    const results = await startNamespaceWarmup();
-    const byName = new Map(results.map((r) => [r.namespace, r]));
+      const results = await warmManifestNamespaces(deterministicWarm);
+      const byName = new Map(results.map((r) => [r.namespace, r]));
 
-    expect(byName.get("waraug-slow")?.warmed).toBe(false);
-    expect(String(byName.get("waraug-slow")?.error)).toContain("timed out after 1500ms");
-    expect(byName.get("waraug-quick")?.warmed).toBe(true);
-    expect(byName.get("waraug-quick")?.scanned).toBe(true);
-    expect(slow).toBeTruthy();
-    expect(quick).toBeTruthy();
+      expect(byName.get("waraug-slow")?.warmed).toBe(false);
+      expect(String(byName.get("waraug-slow")?.error)).toContain(
+        "timed out after 1500ms",
+      );
+      expect(byName.get("waraug-quick")?.warmed).toBe(true);
+      expect(byName.get("waraug-quick")?.scanned).toBe(true);
+      expect(warmCalls).toEqual(["waraug-quick", "waraug-slow"]);
+      expect(slow).toBeTruthy();
+      expect(quick).toBeTruthy();
+    } finally {
+      if (previousRoot === undefined)
+        delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+      else process.env.DUCKBRAIN_NAMESPACES_PATH = previousRoot;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }, 30_000);
 
   it("concurrency knob is honored (never more than DUCKBRAIN_WARM_CONCURRENCY in flight)", async () => {
