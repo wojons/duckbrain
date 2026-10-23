@@ -43,5 +43,7 @@
       "reason": "exact-HEAD CI red is the 'Assert AGENTS.md test counts match live suite' step (run 39514638322 on 84644cc2 reported live 232 suites / 1934 tests vs AGENTS.md 232/1932); generated-count sync is a mechanical follow-up to f048cb33 which added 2 tests. Handled by the foreman after the suite run confirms the live count."
     }
   ],
-  "blocked_rows": ["DOC-23 (depends_on DOC-19, DOC-21, DOC-22 unimplemented at wave start; becomes ready when this wave lands)"]
+  "blocked_rows": ["DOC-23 (depends_on DOC-19, DOC-21, DOC-22 unimplemented at wave start; becomes ready when this wave lands)"],
+  "finished_at": "2026-10-21T10:06:23-05:00",
+  "recovery_note": "Recovery: all worktrees deleted, no wt/ branches remain. Work landed on main via other commits: DOC-21/22→6fd57470, CARTER-S3-REVERIFY-001→ffcaa703. Board rows closed/failed correctly."
 }

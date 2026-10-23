@@ -1,0 +1,44 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-21-10-33-24",
+  "block": "TESTQ-DUCKBRAIN",
+  "created_at": "2026-10-21T10:34:00-05:00",
+  "finished_at": "2026-10-21T11:00:00-05:00",
+  "base": "origin/main",
+  "base_sha": "786739a4",
+  "wave_budget": 5,
+  "slots_computed": 2,
+  "slots_used": 2,
+  "status": "failed_workers",
+  "selection_reason": "TESTQ-2026-10-20-2 (P2 teardown flake) and QA-DUCKBRAIN-010 (P3 heartbeat assertion) are mutually independent: different files, no depends_on edge, both ready.",
+  "independent_rows_verdict": "TESTQ-2026-10-20-2 touches src/http/routes/memories-dogfood010.test.ts. QA-DUCKBRAIN-010 touches ops-007 heartbeat test. No file overlap, no depends_on edge. Verified from row records.",
+  "workers": [
+    {
+      "row_ids": ["TESTQ-2026-10-20-2"],
+      "worktree": "/home/kara/worktrees/duckbrain-TESTQ-2026-10-20-2",
+      "branch": "wt/TESTQ-2026-10-20-2",
+      "base_sha": "786739a4",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/brief-TESTQ-2026-10-20-2.txt",
+      "status": "failed",
+      "failure_reason": "worker_died_after_12min_no_substantive_commits (0 commits, only .gitreins/tasks.yaml dirty)"
+    },
+    {
+      "row_ids": ["QA-DUCKBRAIN-010"],
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-010",
+      "branch": "wt/QA-DUCKBRAIN-010",
+      "base_sha": "786739a4",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/brief-QA-DUCKBRAIN-010.txt",
+      "status": "failed",
+      "failure_reason": "worker_died_after_12min_zero_diff (1 wip checkpoint but diff from origin/main is empty)"
+    }
+  ],
+  "board_event": {
+    "type": "task_failed",
+    "ids": ["TESTQ-2026-10-20-2", "QA-DUCKBRAIN-010"],
+    "note": "Both workers dispatched at 10:34Z died after 12+ min with zero substantive commits. Reverted to pending."
+  },
+  "board_commit": "c3bdc511"
+}

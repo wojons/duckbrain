@@ -1,0 +1,33 @@
+{
+    "tick": "duckbrain-foreman-2026-10-21-19-49-04",
+    "block": "DB-SUPA-2-R1",
+    "wave_size": 4,
+    "slots": 4,
+    "selection": "Four independent rows with no depends_on edges and touching different files: DB-SUPA-2-R1 (tables-supa2.test.ts), QA-DUCKBRAIN-010 (serving-paths-ops007.test.ts), QA-DUCKBRAIN-011 (orphan-daemon-reaper.test.ts + pidfile-isolation-qaduckbrain002.test.ts), QA-DUCKBRAIN-012 (memories-offset-prefix-gap046.test.ts).",
+    "rows": [
+        {
+            "id": "DB-SUPA-2-R1",
+            "worktree": "",
+            "branch": "",
+            "brief_file": ""
+        },
+        {
+            "id": "QA-DUCKBRAIN-010",
+            "worktree": "",
+            "branch": "",
+            "brief_file": ""
+        },
+        {
+            "id": "QA-DUCKBRAIN-011",
+            "worktree": "",
+            "branch": "",
+            "brief_file": ""
+        },
+        {
+            "id": "QA-DUCKBRAIN-012",
+            "worktree": "",
+            "branch": "",
+            "brief_file": ""
+        }
+    ]
+}

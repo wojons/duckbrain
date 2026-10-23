@@ -1,0 +1,18 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-22-00-58-01",
+  "block": "DB-SUPA-2",
+  "path": "serial",
+  "reason": "load 19 on 16 cores -> slots=1",
+  "rows": [
+    {
+      "id": "DB-SUPA-2-R1",
+      "title": "P2 DB-SUPA-2 residual (AC3): cross-process PATCH writer test",
+      "worktree": null,
+      "branch": null,
+      "worker": null,
+      "status": "dispatching"
+    }
+  ],
+  "finished_at": "2026-10-22T14:35:00Z",
+  "finished_by": "duckbrain-foreman-2026-10-22-14-19-28"
+}

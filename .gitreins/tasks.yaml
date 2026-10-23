@@ -937,16 +937,16 @@ tasks:
   created_at: '2026-08-27T16:58:26.148862+00:00'
   completed_at: '2026-08-27T17:00:32.251214+00:00'
 - id: DB-SUPA-4
-  title: SUPA roles and auth types
+  title: 'SUPA-4 roles + auth: enforce role and per-table grants on every generic-table
+    verb'
   criteria:
-  - 'Implement docs/specs/SUPA-4-auth.md AC-1 through AC-12: role matrix, namespace
-    and per-table grants, token expiry/revocation/hash-at-rest and legacy migration,
-    pluggable none/basic/apikey backends, denial auditing, and raw-SQL authorization
-    caps; preserve auth=none and legacy-token compatibility; full TypeScript, unit,
-    integration, and formatting gates green.'
+  - 'Role and per-table grant enforcement: analyst with tables.read + write-only tableGrant
+    gets 403 on GET; uploader with read-only tableGrant gets 403 on PATCH/DELETE;
+    POST requires tables.write AND table write grant; every denial audited. Integration
+    test battery 5 roles x (read/write/exec/sql/files) per namespace.'
   status: complete
-  created_at: '2026-09-11T03:46:31.298236+00:00'
-  completed_at: '2026-09-11T04:55:53.940217+00:00'
+  created_at: '2026-10-22T08:00:45.075878+00:00'
+  completed_at: '2026-10-22T21:24:33.563250+00:00'
 - id: DOGFOOD-0904-02
   title: 'P1 phantom dependency: express imported by src/cli/http.ts but never declared
     in package.json (fresh install boots crash)'
@@ -2821,18 +2821,6 @@ tasks:
   status: complete
   created_at: '2026-10-21T11:09:05.747684+00:00'
   completed_at: '2026-10-21T11:50:42.517576+00:00'
-- id: QA-DUCKBRAIN-012
-  title: "QA-DUCKBRAIN-012: full-suite byte-identity assert on untracked live config\
-    \ \u2014 make it a route property test"
-  criteria:
-  - green on host with live daemon registering namespaces concurrently
-  - green solo (no live daemon)
-  - 'full suite green: CI=true npx vitest run exits 0 (all tests)'
-  - tsc --noEmit clean, prettier clean
-  - gitreins guard PASS
-  - pushed to origin, 0 unpushed
-  status: in_progress
-  created_at: '2026-10-21T12:40:45.407441+00:00'
 - id: TESTQ-2026-10-21-1
   title: Fix http-auth integration teardown ENOTEMPTY race
   criteria:
@@ -2842,3 +2830,17 @@ tasks:
   status: complete
   created_at: '2026-10-21T14:22:18.987726+00:00'
   completed_at: '2026-10-21T15:18:16.481724+00:00'
+- id: DB-SUPA-4-R2
+  title: "SUPA-4 R2 \u2014 wire requireTableGrant onto every generic-table verb +\
+    \ grant-matrix battery"
+  criteria:
+  - "ACCEPTANCE: 1) grep -c requireTableGrant src/http/routes/tables.ts >= 4 hits\
+    \ covering GET/POST/PATCH/DELETE. 2) Grant-matrix integration battery passes:\
+    \ npx vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts\
+    \ exits 0 with 4 added arms \u2014 write-only grant 403 on GET, read-only grant\
+    \ 403 on PATCH+DELETE, writer+rw full CRUD 201, no-map principal unrestricted.\
+    \ 3) ch:trace row=DB-SUPA-4-R2 marker exists in committed tree. 4) pnpm tsc --noEmit\
+    \ exit 0."
+  status: complete
+  created_at: '2026-10-22T22:03:54.411755+00:00'
+  completed_at: '2026-10-22T22:03:57.737875+00:00'

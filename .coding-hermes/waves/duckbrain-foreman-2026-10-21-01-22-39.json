@@ -1,0 +1,35 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-21-01-22-39",
+  "block": "DF-2026-4",
+  "created_at": "2026-10-21T01:22:39-05:00",
+  "base": "origin/main",
+  "base_sha": "7410c484",
+  "wave_budget": 12,
+  "slots_computed": 6,
+  "slots_used": 2,
+  "selection_reason": "block_drive.py ranked DF-2026-4 (48 rows, 46 done, ratio 0.96) with 2 ready rows. DF-0923-05 (docs/packaging: document git-only install posture in README) and DF-2026-2 (code: add staleness hint to zero-hit search) touch different files and have no depends_on edges between them. Verified independent.",
+  "workers": [
+    {
+      "row_ids": ["DF-0923-05"],
+      "worktree": "/home/kara/worktrees/duckbrain-DF-0923-05",
+      "branch": "wt/DF-0923-05",
+      "base_sha": "7410c484",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/duckbrain-DF-0923-05-brief.txt",
+      "acceptance": "README.md documents git-only install posture; grep 'npm install' README.md returns 0 or is clearly marked as not-supported; npx vitest run rc=0"
+    },
+    {
+      "row_ids": ["DF-2026-2"],
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-2",
+      "branch": "wt/DF-2026-2",
+      "base_sha": "7410c484",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/duckbrain-DF-2026-2-brief.txt",
+      "acceptance": "node bin/duckbrain.js search <novel-token> --namespace=<ns> prints staleness hint when partition newer than indexedAt; npx vitest run src/search/search-freshness-dbgap047.test.ts passes"
+    }
+  ],
+  "finished_at": "2026-10-21T10:06:23-05:00",
+  "recovery_note": "Recovery: all worktrees deleted, no wt/ branches remain. DF-0923-05→d47dc9b9 (closed complete), DF-2026-2→f048cb33 (closed failed; verify fix landed). Board rows need verification."
+}

@@ -1,0 +1,36 @@
+{
+  "tick": "duckbrain-foreman-2026-10-21-12-23-32",
+  "block": "QA-DUCKBRAIN-012",
+  "block_status": "3-of-3 ready rows dispatched",
+  "slots": 4,
+  "actual": 3,
+  "reason": "box loaded (loadavg 11.68, 16 cores -> 4 slots), but only 3 ready rows in block",
+  "rows": [
+    {
+      "id": "QA-DUCKBRAIN-010",
+      "title": "Fix flaky SAMPLE-COUNT assertion in serving-paths-ops007.test.ts",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-010",
+      "branch": "wt/QA-DUCKBRAIN-010",
+      "brief": "/tmp/brief-QA-DUCKBRAIN-010",
+      "status": "dispatched"
+    },
+    {
+      "id": "QA-DUCKBRAIN-011",
+      "title": "Fix deterministic chaos-disconnect failures off-battery",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-011",
+      "branch": "wt/QA-DUCKBRAIN-011",
+      "brief": "/tmp/brief-QA-DUCKBRAIN-011",
+      "status": "dispatched"
+    },
+    {
+      "id": "QA-DUCKBRAIN-012",
+      "title": "Fix test that asserts UNTRACKED live config byte-identity",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-012",
+      "branch": "wt/QA-DUCKBRAIN-012",
+      "brief": "/tmp/brief-QA-DUCKBRAIN-012",
+      "status": "dispatched"
+    }
+  ],
+  "independent": true,
+  "reason_independence": "Each row targets different test files: serving-paths-ops007.test.ts, orphan-daemon-reaper+chaos-disconnect tests, memories-offset-prefix-gap046.test.ts. No shared files, no depends_on edges."
+}

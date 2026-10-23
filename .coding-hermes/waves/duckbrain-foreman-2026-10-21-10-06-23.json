@@ -1,0 +1,42 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-21-10-06-23",
+  "block": "DOC-24",
+  "created_at": "2026-10-21T10:06:23-05:00",
+  "base": "origin/main",
+  "base_sha": "9ee682e3",
+  "wave_budget": 2,
+  "slots_computed": 2,
+  "slots_used": 2,
+  "selection_reason": "DOC-24 block has 2 ready, independent rows. WAVE_BUDGET=2, slots=2 (16 cores, load 13.52 -> max(1, min(6, 16-14)) = 2). DOC-23 is a re-evaluation task; DOC-24 is a docs-only fix. Different files, no depends_on edge.",
+  "independent_rows_verdict": "DOC-23 (re-evaluation task, reads audit artifact and board; no file edits expected) and DOC-24 (docs-only fix to docs/api/custom-tools.md) share NO file and NO seam; neither depends_on the other. Verified from the row records.",
+  "workers": [
+    {
+      "row_ids": [
+        "DOC-23"
+      ],
+      "worktree": "/home/kara/worktrees/duckbrain-DOC-23",
+      "branch": "wt/DOC-23",
+      "base_sha": "9ee682e3",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/duckbrain-DOC-23-brief.txt",
+      "acceptance": "after all five dependencies are complete, rerun the source-derived CLI/help, HTTP mount, MCP, environment, link, and operator-rot checks from the artifact; verify each dependency's documented acceptance against the published tip; run boardctl validate --skip-bad-lines; and record exact outputs plus any live-daemon limitations."
+    },
+    {
+      "row_ids": [
+        "DOC-24"
+      ],
+      "worktree": "/home/kara/worktrees/duckbrain-DOC-24",
+      "branch": "wt/DOC-24",
+      "base_sha": "9ee682e3",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/tmp/duckbrain-DOC-24-brief.txt",
+      "acceptance": "docs/api/custom-tools.md no longer lists console among the absent globals; the contains ONLY claim is replaced by an accurate statement about full ES intrinsics; npx vitest run src/mcp/custom-runtime.test.ts exits 0; no src/ files changed."
+    }
+  ],
+  "recovered_at": "2026-10-21T11:30:00-05:00",
+  "recovery_status": "complete",
+  "finished_at": "2026-10-21T11:30:00-05:00",
+  "recovery_notes": "Both DOC-23 and DOC-24 already complete on origin/main (0 ahead/behind). Worktrees cleaned up by previous tick. No merge needed."
+}
