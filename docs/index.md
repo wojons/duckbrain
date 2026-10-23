@@ -20,6 +20,7 @@ DuckBrain is a git-native, agent-first memory system built on DuckDB, with MCP a
 - [HTTP API](api/http-api) - REST API endpoints
 - [Configuration](guide/configuration) - Environment variables and settings
 - [Deployment](guide/deployment) - Docker, production setup
+- [Muster Connection Surfaces](muster-integration) - Optional: generated CLI, MCP server, and Unix-socket proxy daemon over the same HTTP API (additive; existing paths stay default)
 
 ## Features
 
