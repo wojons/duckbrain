@@ -11,8 +11,31 @@
       "worktree": "/home/kara/worktrees/hermes-QA-DUCKBRAIN-015",
       "branch": "wt/QA-DUCKBRAIN-015",
       "brief": "/tmp/duckbrain-foreman-2026-10-24-10-56-00-QA-DUCKBRAIN-015-brief.txt",
-      "status": "prepared"
+      "status": "recovered_landed",
+      "worker_commit": "2bbadf90b58150d5882699f72a35f8b92f1b16f6",
+      "landed_commit": "730d6a2ce49c46b3ce14a7219358daa680e625fd",
+      "source_repo": "/home/kara",
+      "branch_tip_gate": "PASS: bash -n both scripts; classifier regression 70 passed, 0 failed",
+      "stale_base_rebased": true,
+      "worktree_removed": true,
+      "branch_deleted": true
     }
   ],
-  "created_at": "2026-10-24T06:26:00Z"
+  "created_at": "2026-10-24T06:26:00Z",
+  "status": "recovered",
+  "recovered_at": "2026-10-24T18:40:35.180367+00:00",
+  "finished_at": "2026-10-24T18:40:35.180367+00:00",
+  "recovered_by_tick": "duckbrain-foreman-2026-10-24-18-31-47",
+  "recovery": {
+    "result": "worker commit was already landed on the worker repository main before this recovery; no merge into duckbrain was required",
+    "worker_commit": "2bbadf90b58150d5882699f72a35f8b92f1b16f6",
+    "landed_commit": "730d6a2ce49c46b3ce14a7219358daa680e625fd",
+    "source_repo": "/home/kara (9router/meta repo; manifest worktree was not a duckbrain worktree)",
+    "branch_tip_gate": "PASS after rebase to current source main: bash -n on both harness scripts; test_bunker_qa_classifier.sh RESULT: 70 passed, 0 failed",
+    "stale_base": "worker branch was 14 commits behind its source main; rebase skipped the already-landed 2bbadf90 commit",
+    "board_rule": "not applicable to duckbrain product tree; branch diff contained only harness scripts, no .coding-hermes/board/ paths",
+    "remote_parity": "source main and origin/main both f631a506fbf7eaedf5254789d94bf84b28603c5e; 0 ahead / 0 behind",
+    "worktree_removed": true,
+    "branch_deleted": true
+  }
 }
