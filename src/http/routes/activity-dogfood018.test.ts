@@ -34,6 +34,7 @@ import { createServer, Server } from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { removeTempDirSafely } from "../../testing/race-safe-daemon";
 
 let server: Server;
 let port: number;
@@ -265,7 +266,7 @@ describe("DOGFOOD-018: /activity survives duplicate-key attributes (no abort)", 
       process.env.DUCKBRAIN_NAMESPACES_PATH = oldNamespacesPath;
     }
     if (scratchDir) {
-      fs.rmSync(scratchDir, { recursive: true, force: true });
+      await removeTempDirSafely(scratchDir);
     }
   });
 
@@ -327,7 +328,7 @@ describe("DOGFOOD-018: /activity survives duplicate-key attributes (no abort)", 
       expect(body.count).toBe(0);
     } finally {
       process.env.DUCKBRAIN_NAMESPACES_PATH = saved;
-      fs.rmSync(emptyDir, { recursive: true, force: true });
+      await removeTempDirSafely(emptyDir);
     }
 
     // Server still healthy after the empty-scan path.

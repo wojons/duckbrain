@@ -306,15 +306,61 @@ export async function assertDaemonIsOurs(
  * from rmdir mid-removal. Cleanup of a temp dir must never red a test: retry
  * briefly, then leave the orphan (harmless).
  */
-export async function removeTempDirSafely(dir: string): Promise<void> {
+function isTransientRemovalError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ENOTEMPTY" || code === "EBUSY" || code === "EPERM";
+}
+
+/**
+ * Synchronous variant for synchronous Vitest hooks. Node's own rm retries are
+ * supplemented with a short outer backoff because an async git child can
+ * recreate entries between recursive walk and rmdir.
+ */
+export function removeTempDirSafelySync(dir: string): void {
+  let lastError: unknown;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
       return;
-    } catch {
+    } catch (error: unknown) {
+      if (!isTransientRemovalError(error)) throw error;
+      lastError = error;
+      Atomics.wait(
+        new Int32Array(new SharedArrayBuffer(4)),
+        0,
+        0,
+        100 * (attempt + 1),
+      );
+    }
+  }
+  throw lastError;
+}
+
+export async function removeTempDirSafely(dir: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
+      return;
+    } catch (error: unknown) {
+      if (!isTransientRemovalError(error)) throw error;
+      lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
     }
   }
+  // Cleanup is best-effort, but surface a persistent failure instead of
+  // silently claiming that the scratch tree was removed.
+  throw lastError;
 }
 
 /**
