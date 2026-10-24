@@ -1,0 +1,18 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-24-10-56-00",
+  "block": "QA-DUCKBRAIN-016",
+  "wave_budget": 12,
+  "slots_computed": 11,
+  "wave_mode": "serial-fallback",
+  "reason": "QA-DUCKBRAIN-015 and QA-DUCKBRAIN-016 are both ready but touch the same harness file (.hermes/scripts/bunker-qa.sh), so they are not mutually independent. Dispatching one worker this tick avoids a same-seam collision.",
+  "workers": [
+    {
+      "task_id": "QA-DUCKBRAIN-015",
+      "worktree": "/home/kara/worktrees/hermes-QA-DUCKBRAIN-015",
+      "branch": "wt/QA-DUCKBRAIN-015",
+      "brief": "/tmp/duckbrain-foreman-2026-10-24-10-56-00-QA-DUCKBRAIN-015-brief.txt",
+      "status": "prepared"
+    }
+  ],
+  "created_at": "2026-10-24T06:26:00Z"
+}
