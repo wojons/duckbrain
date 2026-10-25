@@ -21,5 +21,6 @@
       "brief": "foreman-direct QA orchestration; no coding worker"
     }
   ],
-  "selection": "block_drive ranked QA-DUCKBRAIN-PERF-2; both rows describe one shared fresh-system collection incident, so separate workers would collide and the QA harness contract requires foreman-direct launch/collect."
+  "selection": "block_drive ranked QA-DUCKBRAIN-PERF-2; both rows describe one shared fresh-system collection incident, so separate workers would collide and the QA harness contract requires foreman-direct launch/collect.",
+  "finished_at": "2026-10-25T09:55:00Z"
 }
