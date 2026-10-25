@@ -1,0 +1,25 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-25-08-08-21",
+  "block": "QA-DUCKBRAIN-PERF-2",
+  "wave_budget": 3,
+  "slots_computed": 2,
+  "wave_size": 1,
+  "mode": "foreman-direct-qa-battery",
+  "rows": [
+    {
+      "task_id": "QA-DUCKBRAIN-PERF-1",
+      "operation": "rerun fresh-system battery and collect evidence",
+      "worktree": null,
+      "branch": null,
+      "brief": "foreman-direct QA orchestration; no coding worker"
+    },
+    {
+      "task_id": "QA-DUCKBRAIN-PERF-2",
+      "operation": "resolve collection no-agent failure through a correctly scoped launch",
+      "worktree": null,
+      "branch": null,
+      "brief": "foreman-direct QA orchestration; no coding worker"
+    }
+  ],
+  "selection": "block_drive ranked QA-DUCKBRAIN-PERF-2; both rows describe one shared fresh-system collection incident, so separate workers would collide and the QA harness contract requires foreman-direct launch/collect."
+}
