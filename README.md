@@ -41,7 +41,7 @@ Full positioning — the complete capability matrix, source notes, and as-of wal
 
 ### Roadmap surface (not available now)
 
-- **Planned:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6).
+- **Implemented on branch — release evidence pending:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6). The table→REST read/write surface ships on this branch with named tests (`src/http/routes/tables-supa3.test.ts`), but it is not “available now” until release evidence is verified.
 - **Implemented on branch — release evidence pending:** role grants, pluggable auth backends, and token lifecycle (DB-SUPA-4). Implemented with named tests, but not “available now” until release evidence is verified.
 
 See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-status matrix and the evidence bar behind every label.
@@ -222,7 +222,7 @@ duckbrain query "SELECT key, timestamp FROM memories WHERE key LIKE '/projects/%
 
 The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
 
-**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
+**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table). This layer is **implemented on branch — release evidence pending** (see the roadmap section above): shipped and covered by named tests, not “available now”.
 
 **Web UI quickstart (serve the built UI from the daemon):**
 
