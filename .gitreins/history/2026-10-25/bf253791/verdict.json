@@ -1,0 +1,109 @@
+{
+  "task_id": "README-11",
+  "task_title": "Correct README semantic search degraded-mode contract",
+  "task_criteria": [
+    "README and daemon agree on q= with embeddings unavailable; live scratch probe and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed 503; no silent 200."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-README-11",
+  "branch": "wt/README-11",
+  "commit": "69ee01de2f0e1f31754f235b81b42d3fa1bec709",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:10AM INF scanned ~13090379 bytes (13.09 MB) in 4.06s\n8:10AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/worktrees/duckbrain-README-11/.gitreins/logs/guard-20261025T125219.735996Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-README-11\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  08:10:55\n   Duration  88.08s (tests 83%, import 16%, setup 1%)\n\n    Isolate  233 workers spawned \u00b7 ~100ms startup each (spawn + environment, per file)\n             at least ~5.72s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/worktrees/duckbrain-README-11/.gitreins/logs/guard-20261025T125219.735996Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 README and daemon agree on q= with embeddings unavailable; live scratch probe and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed 503; no silent 200.: README.md:459 and README.md:487 both state: embeddings unavailable + keyword index available -> HTTP 200 with keyword-only results plus explicit `degraded: {\"mode\":\"keyword-only\",\"reason\":\"...\"}`; both legs unavailable -> fail-closed HTTP 503 `EMBEDDINGS_UNAVAILABLE`. Daemon agrees: src/mcp/tools/recall.ts:1097 (semantic-leg failure in hybrid mode) and :1211 (no provider / embed failure) attach `degraded: {mode:\"keyword-only\", reason}`; src/http/routes/memories.ts:580 forwards it into the REST envelope (`...(result.degraded ? { degraded: result.degraded } : {})`) and :533 maps both-legs-down to 503 via throwRecallError/isEmbeddingsDownError (:53-68); type declared at src/http/types/api.ts:277. Targeted RETR-002 test src/http/routes/memories-hybrid-retr002.test.ts:479-482 asserts `body.degraded` mode keyword-only + reason, and the sibling test asserts 503 EMBEDDINGS_UNAVAILABLE. Test runs (fresh): `npx vitest run src/http/routes/memories-hybrid-retr002.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)'; broader `npx vitest run src/http/routes/memories src/mcp/tools/recall` -> exit_code 0, 'Test Files 29 passed (29) / Tests 196 passed (196)'. Live scratch probe (scratch config dir, DUCKBRAIN_EMBEDDING_PROVIDER=none, port 3912): GET /api/memories?namespace=default&q=kbox-01 -> 'HTTP/1.1 200 OK' with body ending `\"degraded\":{\"mode\":\"keyword-only\",\"reason\":\"Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'\"}`. Fail-closed probe (port 3913, .search sidecar removed): 'HTTP/1.1 503 Service Unavailable' with `{\"error\":\"Semantic search requires an embedding provider ...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}`. No silent 200 observed on either path.\nREADME and daemon now agree on the ?q= degraded contract, proven by a passing RETR-002 test (9/9, exit 0) and live scratch probes showing an explicit 200+degraded keyword-only marker and a fail-closed 503 EMBEDDINGS_UNAVAILABLE.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 README and daemon agree on q= with embeddings unavailable; live scratch probe and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed 503; no silent 200.: README.md:459 and README.md:487 both state: embeddings unavailable + keyword index available -> HTTP 200 with keyword-only results plus explicit `degraded: {\"mode\":\"keyword-only\",\"reason\":\"...\"}`; both legs unavailable -> fail-closed HTTP 503 `EMBEDDINGS_UNAVAILABLE`. Daemon agrees: src/mcp/tools/recall.ts:1097 (semantic-leg failure in hybrid mode) and :1211 (no provider / embed failure) attach `degraded: {mode:\"keyword-only\", reason}`; src/http/routes/memories.ts:580 forwards it into the REST envelope (`...(result.degraded ? { degraded: result.degraded } : {})`) and :533 maps both-legs-down to 503 via throwRecallError/isEmbeddingsDownError (:53-68); type declared at src/http/types/api.ts:277. Targeted RETR-002 test src/http/routes/memories-hybrid-retr002.test.ts:479-482 asserts `body.degraded` mode keyword-only + reason, and the sibling test asserts 503 EMBEDDINGS_UNAVAILABLE. Test runs (fresh): `npx vitest run src/http/routes/memories-hybrid-retr002.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)'; broader `npx vitest run src/http/routes/memories src/mcp/tools/recall` -> exit_code 0, 'Test Files 29 passed (29) / Tests 196 passed (196)'. Live scratch probe (scratch config dir, DUCKBRAIN_EMBEDDING_PROVIDER=none, port 3912): GET /api/memories?namespace=default&q=kbox-01 -> 'HTTP/1.1 200 OK' with body ending `\"degraded\":{\"mode\":\"keyword-only\",\"reason\":\"Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'\"}`. Fail-closed probe (port 3913, .search sidecar removed): 'HTTP/1.1 503 Service Unavailable' with `{\"error\":\"Semantic search requires an embedding provider ...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}`. No silent 200 observed on either path.\nREADME and daemon now agree on the ?q= degraded contract, proven by a passing RETR-002 test (9/9, exit 0) and live scratch probes showing an explicit 200+degraded keyword-only marker and a fail-closed 503 EMBEDDINGS_UNAVAILABLE.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "README and daemon agree on q= with embeddings unavailable; live scratch probe and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed 503; no silent 200.",
+                "status": "PASS",
+                "detail": "README.md:459 and README.md:487 both state: embeddings unavailable + keyword index available -> HTTP 200 with keyword-only results plus explicit `degraded: {\"mode\":\"keyword-only\",\"reason\":\"...\"}`; both legs unavailable -> fail-closed HTTP 503 `EMBEDDINGS_UNAVAILABLE`. Daemon agrees: src/mcp/tools/recall.ts:1097 (semantic-leg failure in hybrid mode) and :1211 (no provider / embed failure) attach `degraded: {mode:\"keyword-only\", reason}`; src/http/routes/memories.ts:580 forwards it into the REST envelope (`...(result.degraded ? { degraded: result.degraded } : {})`) and :533 maps both-legs-down to 503 via throwRecallError/isEmbeddingsDownError (:53-68); type declared at src/http/types/api.ts:277. Targeted RETR-002 test src/http/routes/memories-hybrid-retr002.test.ts:479-482 asserts `body.degraded` mode keyword-only + reason, and the sibling test asserts 503 EMBEDDINGS_UNAVAILABLE. Test runs (fresh): `npx vitest run src/http/routes/memories-hybrid-retr002.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)'; broader `npx vitest run src/http/routes/memories src/mcp/tools/recall` -> exit_code 0, 'Test Files 29 passed (29) / Tests 196 passed (196)'. Live scratch probe (scratch config dir, DUCKBRAIN_EMBEDDING_PROVIDER=none, port 3912): GET /api/memories?namespace=default&q=kbox-01 -> 'HTTP/1.1 200 OK' with body ending `\"degraded\":{\"mode\":\"keyword-only\",\"reason\":\"Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'\"}`. Fail-closed probe (port 3913, .search sidecar removed): 'HTTP/1.1 503 Service Unavailable' with `{\"error\":\"Semantic search requires an embedding provider ...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}`. No silent 200 observed on either path."
+              }
+            ],
+            "summary": "README and daemon now agree on the ?q= degraded contract, proven by a passing RETR-002 test (9/9, exit 0) and live scratch probes showing an explicit 200+degraded keyword-only marker and a fail-closed 503 EMBEDDINGS_UNAVAILABLE.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: README-11\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 README and daemon agree on q= with embeddings unavailable; live scratch probe and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed 503; no silent 200.: README.md:459 and README.md:487 both state: embeddings unavailable + keyword index available -> HTTP 200 with keyword-only results plus explicit `degraded: {\"mode\":\"keyword-only\",\"reason\":\"...\"}`; both legs unavailable -> fail-closed HTTP 503 `EMBEDDINGS_UNAVAILABLE`. Daemon agrees: src/mcp/tools/recall.ts:1097 (semantic-leg failure in hybrid mode) and :1211 (no provider / embed failure) attach `degraded: {mode:\"keyword-only\", reason}`; src/http/routes/memories.ts:580 forwards it into the REST envelope (`...(result.degraded ? { degraded: result.degraded } : {})`) and :533 maps both-legs-down to 503 via throwRecallError/isEmbeddingsDownError (:53-68); type declared at src/http/types/api.ts:277. Targeted RETR-002 test src/http/routes/memories-hybrid-retr002.test.ts:479-482 asserts `body.degraded` mode keyword-only + reason, and the sibling test asserts 503 EMBEDDINGS_UNAVAILABLE. Test runs (fresh): `npx vitest run src/http/routes/memories-hybrid-retr002.test.ts` -> exit_code 0, 'Test Files 1 passed (1) / Tests 9 passed (9)'; broader `npx vitest run src/http/routes/memories src/mcp/tools/recall` -> exit_code 0, 'Test Files 29 passed (29) / Tests 196 passed (196)'. Live scratch probe (scratch config dir, DUCKBRAIN_EMBEDDING_PROVIDER=none, port 3912): GET /api/memories?namespace=default&q=kbox-01 -> 'HTTP/1.1 200 OK' with body ending `\"degraded\":{\"mode\":\"keyword-only\",\"reason\":\"Semantic search requires an embedding provider - start LM Studio/Ollama or set DUCKBRAIN_EMBEDDING_PROVIDER, then run 'duckbrain embeddings rebuild'\"}`. Fail-closed probe (port 3913, .search sidecar removed): 'HTTP/1.1 503 Service Unavailable' with `{\"error\":\"Semantic search requires an embedding provider ...\",\"code\":\"EMBEDDINGS_UNAVAILABLE\"}`. No silent 200 observed on either path.\nREADME and daemon now agree on the ?q= degraded contract, proven by a passing RETR-002 test (9/9, exit 0) and live scratch probes showing an explicit 200+degraded keyword-only marker and a fail-closed 503 EMBEDDINGS_UNAVAILABLE.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-25T13:17:00.296817",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-25T13:17:00.319143+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 17004,
+        "truncated": false,
+        "source": "git show 69ee01de2f0e"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 712,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-11"
+  }
+}
