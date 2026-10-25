@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 139cbabf..bd3e9d87 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2853,3 +2853,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-25T13:10:52.809392+00:00'
+   completed_at: '2026-10-25T13:10:53.855400+00:00'
++- id: README-12
++  title: Reconcile declared-table REST documentation status
++  criteria:
++  - "README and positioning matrix consistently state Implemented on branch \u2014\
++    \ release evidence pending for SUPA-3/SUPA-6; focused test and grep acceptance\
++    \ pass."
++  status: complete
++  created_at: '2026-10-25T14:32:29.581950+00:00'
++  completed_at: '2026-10-25T14:32:52.263600+00:00'

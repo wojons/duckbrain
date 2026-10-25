@@ -1,0 +1,78 @@
+commit 73a5064218bd5ac628cdef322ae9f464836d0b67
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sun Oct 25 09:30:05 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sun Oct 25 09:30:05 2026 -0500
+
+    docs: reconcile declared-table REST status
+    
+    README.md's roadmap section listed generic REST over declared tables
+    (SUPA-3 / SUPA-6) as Planned while the shipped CLI/HTTP layer is
+    documented later in the same file. Per the positioning policy a
+    capability stays below "available now" until release evidence exists,
+    so the roadmap statement, the declared-tables note, and the
+    docs/guide/positioning.md capability matrix now all name the same
+    status: "Implemented on branch — release evidence pending", citing the
+    route mounts and named tests as evidence without claiming "Available
+    now". positioning.md was changed because the README designates it as
+    the owner of the four-status matrix and its note-on-evidence named
+    SUPA-3/6 as Planned; leaving it untouched would re-introduce the
+    contradiction this row removes.
+    
+    Addresses README-12.
+    
+    ch:trace row=README-12 spec=README.md#L42-47 wave=.coding-hermes/waves/duckbrain-foreman-2026-10-25-14-16-05.json#README-12 test=src/http/routes/tables-supa3.test.ts doc=README.md evidence=commit:WORKER_HEAD witness=local:vitest-34of34-plus-ac-greps verdict=none:foreman-will-run commit=WORKER_HEAD memory=none:lane-local
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ README.md                 | 4 ++--
+ docs/guide/positioning.md | 8 ++++----
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/README.md b/README.md
+index 6b0dd0d2..26c7d53e 100644
+--- a/README.md
++++ b/README.md
+@@ -41,7 +41,7 @@ Full positioning — the complete capability matrix, source notes, and as-of wal
+ 
+ ### Roadmap surface (not available now)
+ 
+-- **Planned:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6).
++- **Implemented on branch — release evidence pending:** generic REST over declared tables, with persistent declared schemas (SUPA-3 / SUPA-6). The table→REST read/write surface ships on this branch with named tests (`src/http/routes/tables-supa3.test.ts`), but it is not “available now” until release evidence is verified.
+ - **Implemented on branch — release evidence pending:** role grants, pluggable auth backends, and token lifecycle (DB-SUPA-4). Implemented with named tests, but not “available now” until release evidence is verified.
+ 
+ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-status matrix and the evidence bar behind every label.
+@@ -222,7 +222,7 @@ duckbrain query "SELECT key, timestamp FROM memories WHERE key LIKE '/projects/%
+ 
+ The HTTP server listens on TCP (default `127.0.0.1:3000`) and, when `--unix-socket` is given, on a Unix domain socket as well. Socket permissions are applied after bind (`--unix-socket-mode`, default `0660`) and the socket can be chowned to a group with `--unix-socket-group` (name or numeric GID). Stale socket files are removed automatically on startup.
+ 
+-**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table).
++**Declared tables (REST):** `duckbrain tables declare <ns> <table> --column name=type ...` writes the table declaration the table→REST layer serves — see [docs/api/http-api.md](docs/api/http-api.md#declare-a-table). This layer is **implemented on branch — release evidence pending** (see the roadmap section above): shipped and covered by named tests, not “available now”.
+ 
+ **Web UI quickstart (serve the built UI from the daemon):**
+ 
+diff --git a/docs/guide/positioning.md b/docs/guide/positioning.md
+index 8f3780fc..06fb4730 100644
+--- a/docs/guide/positioning.md
++++ b/docs/guide/positioning.md
+@@ -88,16 +88,16 @@ release evidence pending** · **Planned** · **Non-goal**.
+ | fsync / direct write durability modes (SUPA-1)                                              | **Implemented — release evidence pending**           | `docs/specs/SUPA-1-write-durability.md` is a build contract, not release evidence                                                                                                                                                                                                                                                                                                                                    |
+ | Per-namespace serialized writes and audit rows (SUPA-2)                                     | **Implemented — release evidence pending**           | `src/serialization/namespaceWriter.ts`; `audit.ts`, `auditLedger.ts`; see the spec `docs/specs/SUPA-2-serialization.md`                                                                                                                                                                                                                                                                                              |
+ | Role grants, pluggable auth backends, token lifecycle (DB-SUPA-4)                           | **Implemented on branch — release evidence pending** | `src/auth/middleware.ts`, `src/auth/roles.ts`; named tests `src/auth/roles.test.ts`, `src/auth/token-lifecycle.test.ts`, `src/auth/backend-interface.test.ts`; spec [SUPA-4-auth.md](../specs/SUPA-4-auth.md). Not “available now”                                                                                                                                                                                   |
+-| Declared-schema generic table REST (SUPA-3 / SUPA-6)                                        | **Planned**                                          | Named roadmap: [SUPA-3-rest.md](../specs/SUPA-3-rest.md), [SUPA-6-ddl.md](../specs/SUPA-6-ddl.md) — future tense only: “planned declared-schema generic REST”                                                                                                                                                                                                                                                        |
++| Declared-schema generic table REST (SUPA-3 / SUPA-6)                                        | **Implemented on branch — release evidence pending** | Routes mounted at `src/cli/http.ts:589-590`; CLI verb `duckbrain tables declare`; named tests `src/http/routes/tables-supa3.test.ts`, `src/http/routes/tables-supa2.test.ts`; specs [SUPA-3-rest.md](../specs/SUPA-3-rest.md), [SUPA-6-ddl.md](../specs/SUPA-6-ddl.md). Not “available now” |
+ | Committed, resumable SSE change feed (SUPA-5)                                               | **Available now**                                    | Route `src/http/routes/realtime.ts` (`GET /api/ns/:ns/changes`, mounted at `src/cli/http.ts:511`), implementation `src/http/realtime/`; tests `src/http/routes/realtime-*.test.ts` — 7 suites / 20 tests, green 2026-09-25; [HTTP API reference](../api/http-api.md). Known issues: DF-0925-01 (replay ignores `ops=`), DF-0925-02 (data/audit split-commit) — see [SUPA-5-realtime.md](../specs/SUPA-5-realtime.md) |
+ | Hosted tenant management, billing, global control plane                                     | **Non-goal**                                         | Not implemented and not implied anywhere in this repository                                                                                                                                                                                                                                                                                                                                                          |
+ | Full PostgREST query grammar, Supabase Realtime protocol, Supabase client SDK parity        | **Non-goal**                                         | Not implemented and not implied                                                                                                                                                                                                                                                                                                                                                                                      |
+ 
+ > **Note on evidence.** The `docs/specs/` files are design contracts. Code on a
+ > development branch, a spec file, or a completed board row is not proof that a
+-> capability has been released — which is why SUPA-3/6 stay under **Planned**
+-> here and DB-SUPA-4 stays at **implemented on branch, release evidence
+-> pending**. SUPA-5 (SSE change feed) is **Available now**: the route is merged
++> capability has been released — which is why SUPA-3/6 and DB-SUPA-4 stay at
++> **implemented on branch, release evidence pending** here. SUPA-5 (SSE change
++> feed) is **Available now**: the route is merged
+ > on `main`, the route/source exists, and the named tests were run green on this
+ > branch (2026-09-25). Statuses change only through the review rule below, never
+ > by assumption.
