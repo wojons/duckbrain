@@ -43,7 +43,7 @@ import {
 } from "../../auth/middleware";
 
 /**
- * DB-GAP-036: detect the embeddings-down recall error so semantic endpoints
+ * DB-GAP-036: detect the both-legs-down recall error so semantic endpoints
  * answer 503 (operator-actionable, client-visible) instead of 500. recallTool
  * (src/mcp/tools/recall.ts) surfaces exactly two embeddings-down shapes —
  * no provider configured, and every configured provider failing to embed —
@@ -58,12 +58,10 @@ function isEmbeddingsDownError(message: string): boolean {
 }
 
 /**
- * DB-GAP-036: map a recallTool error to the right HTTP status. When
- * embeddings are down the request cannot be served until an embedding
- * provider is reachable (start LM Studio/Ollama, set DUCKBRAIN_EMBEDDING_PROVIDER,
- * or set DUCKBRAIN_EMBEDDING_API_KEY), so the failure is surfaced as 503
- * EMBEDDINGS_UNAVAILABLE with recall.ts's existing operator guidance verbatim
- * — never a silent unfiltered list. All other recall errors stay 500.
+ * DB-GAP-036: map a both-legs-down recall error to the right HTTP status.
+ * The hybrid path may explicitly degrade to keyword-only 200 when its FTS leg
+ * works; only the error path is surfaced as 503 EMBEDDINGS_UNAVAILABLE.
+ * All other recall errors stay 500.
  */
 function throwRecallError(error: string): never {
   if (isEmbeddingsDownError(error)) {
@@ -502,10 +500,9 @@ router.get(
       // Author is applied in SQL (via recallTool) so the true total
       // reflects it (GAP-024).
       ...(params.author ? { author: params.author } : {}),
-      // DOGFOOD-001: forward ?q= to semantic search (was silently dropped).
-      // When q= is set but no embedding provider is configured, recallTool
-      // returns an error string which the result.error → ApiError(500) path
-      // below surfaces instead of silently returning the unfiltered list.
+      // DOGFOOD-001: forward ?q= to hybrid semantic+keyword search (was silently dropped).
+      // When embeddings are unavailable, recallTool either returns an explicit
+      // keyword-only `degraded` marker or an error for the both-legs-down path.
       ...(params.query ? { query: params.query } : {}),
       // RETR-001: forward ?contains= to keyword search (offline FTS —
       // no embedding provider involved). q= and contains= together are
@@ -579,6 +576,8 @@ router.get(
       // existing fields changes shape or meaning.
       count: total,
       memories: page,
+      // README-11: make keyword-only fallback visible to REST clients.
+      ...(result.degraded ? { degraded: result.degraded } : {}),
     };
 
     // DF-1013-03: append the opt-in diagnostics AFTER the canonical

@@ -69,7 +69,7 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 ### Installation
 
 > **DuckBrain is not published to npm — install from git.** `npm install -g
-> duckbrain`, `pnpm add -g duckbrain`, and `npx duckbrain` all fail with
+duckbrain`, `pnpm add -g duckbrain`, and `npx duckbrain` all fail with
 > **E404 Not Found** because no registry package exists. The only supported
 > install is **git clone + `pnpm install`**, below. Once cloned, the optional
 > bare `duckbrain` command on PATH comes from a one-line symlink — see
@@ -197,20 +197,20 @@ download, producing a CLI that crashes at startup).
 The memory verbs the CLI ships. Summaries are the wording of `duckbrain --help`'s
 command list, except where the verb prints its own description in `<verb> --help`:
 
-| Verb | Summary |
-| ---- | ------- |
+| Verb             | Summary                                                            |
+| ---------------- | ------------------------------------------------------------------ |
 | `remember <key>` | Append a memory to the active namespace (or `--namespace=<name>`). |
-| `recall` | Query memories. Defaults to a prefix search over the whole store. |
+| `recall`         | Query memories. Defaults to a prefix search over the whole store.  |
 | `search <query>` | Full-text keyword search over memories (content, key, attributes). |
-| `search-index` | Manage the keyword search index (rebuild\|status\|install-hooks) |
-| `query` | Read-only SQL over a namespace's memory store. |
-| `list-keys` | Browse memory structure |
-| `forget <id>` | Delete a memory |
-| `squash` | Compact old partitions |
-| `status` | Show system status |
-| `config` | Show or set configuration |
-| `servers` | Manage server connections (list\|add\|remove) |
-| `service` | Manage systemd service |
+| `search-index`   | Manage the keyword search index (rebuild\|status\|install-hooks)   |
+| `query`          | Read-only SQL over a namespace's memory store.                     |
+| `list-keys`      | Browse memory structure                                            |
+| `forget <id>`    | Delete a memory                                                    |
+| `squash`         | Compact old partitions                                             |
+| `status`         | Show system status                                                 |
+| `config`         | Show or set configuration                                          |
+| `servers`        | Manage server connections (list\|add\|remove)                      |
+| `service`        | Manage systemd service                                             |
 
 Three examples, verbatim from the CLI's own `Examples:` block:
 
@@ -456,7 +456,7 @@ curl -H "X-API-Key: <key>" http://localhost:3000/api/memories/fda1ce7a-4ec4-487b
 ```
 
 - Namespace-scoped routes default to `default` when `?namespace=` is omitted.
-- Semantic search (`?q=`) requires a reachable embedding provider at query time. Verified live: with embeddings down the endpoint fails closed with an explicit message — e.g. `{"error":"Embedding generation failed: ... No models loaded ..."}` — never a silent unfiltered list. On a current build this is **503 `EMBEDDINGS_UNAVAILABLE`**; a daemon started before the DB-GAP-036 fix surfaces the same message with status 500, so restart an old daemon to pick up the 503.
+- Semantic search (`?q=`) uses hybrid semantic + keyword retrieval when an embedding provider is reachable. If embeddings are unavailable but the keyword index is available, the endpoint returns **200** with keyword-only results and a `degraded: {"mode":"keyword-only","reason":"..."}` marker; this is an explicit degraded response, not a semantic result. If both search legs are unavailable, it fails closed with **503 `EMBEDDINGS_UNAVAILABLE`** and an actionable error. Keyword search (`?contains=`) remains available offline.
 - There is **no `/api/memory` route** — `/api/memory`, `/api/memory/key/...`, and `/api/memory/:id` all return 404 `ROUTE_NOT_FOUND`. The plural `/api/memories` is the correct prefix.
 
 Full endpoint reference (writes, namespaces, SSE events, compaction, auth): [HTTP API Reference](docs/api/http-api.md).
@@ -484,7 +484,7 @@ duckbrain embeddings providers                       # list providers + env over
 
 Semantic search (`recall` with `query`) ranks candidates by cosine similarity using cached vectors, embedding cache misses on the fly (capped) so a cold clone still works.
 
-**Prerequisites & failure behavior.** Semantic (`?q=`) search needs a reachable embedding provider at query time: LM Studio or Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider. Check `GET /health` first — its `embedding` block reports `healthy` plus per-provider `providers[]` entries (`id`/`healthy`/`note`). When no provider can embed, semantic endpoints return **HTTP 503 `EMBEDDINGS_UNAVAILABLE`** with an explicit message telling you to start LM Studio/Ollama or set `DUCKBRAIN_EMBEDDING_PROVIDER` and run `duckbrain embeddings rebuild` — never a silent unfiltered list. Keyword search (`?contains=`) remains available offline. A reachable provider is not necessarily a usable one (`/models` can answer 200 while every embed 401s/timeouts): run `pnpm ops:embedding-preflight` to prove the path end to end — it exits 1 (fail closed) on that asymmetric state and never prints the key. See the [preflight & provider diagnosis runbook](docs/guide/embeddings.md#preflight--provider-diagnosis-ops-004).
+**Prerequisites & failure behavior.** Semantic (`?q=`) search uses hybrid retrieval when an embedding provider is reachable: LM Studio or Ollama with a loaded embedding model, or `DUCKBRAIN_EMBEDDING_API_KEY` for the `openai` provider. Check `GET /health` first — its `embedding` block reports `healthy` plus per-provider `providers[]` entries (`id`/`healthy`/`note`). When no provider can embed but the keyword index is available, `?q=` returns **HTTP 200** with keyword-only results and an explicit `degraded` marker (`mode: "keyword-only"` plus a reason); clients must not interpret that response as semantically ranked. When both legs are unavailable, the endpoint fails closed with **HTTP 503 `EMBEDDINGS_UNAVAILABLE`** and an actionable message. Keyword search (`?contains=`) remains available offline. A reachable provider is not necessarily a usable one (`/models` can answer 200 while every embed 401s/timeouts): run `pnpm ops:embedding-preflight` to prove the path end to end — it exits 1 (fail closed) on that asymmetric state and never prints the key. See the [preflight & provider diagnosis runbook](docs/guide/embeddings.md#preflight--provider-diagnosis-ops-004).
 
 ## Requirements
 

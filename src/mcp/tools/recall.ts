@@ -23,7 +23,11 @@ import {
 import { EmbeddingCache } from "../../embedding/cache";
 import { createAutoProviders } from "../../embedding/providers";
 import type { EmbeddingProvider } from "../../embedding/providers";
-import { semanticSearch, type RankedMemory, type SearchTiming } from "../../embedding/search";
+import {
+  semanticSearch,
+  type RankedMemory,
+  type SearchTiming,
+} from "../../embedding/search";
 import {
   keywordSearch,
   keywordSearchAllNamespaces,
@@ -237,6 +241,16 @@ interface RecallOutput {
    * existing response shape is unchanged.
    */
   searchDebug?: RecallSearchDebug;
+  /**
+   * README-11: explicit degraded-mode marker. Present ONLY when a ?q=
+   * hybrid search was served from the keyword leg alone because the
+   * semantic leg was unavailable (no usable embedding provider, or the
+   * semantic leg failed mid-search). Absent on full hybrid / semantic-only
+   * answers and on the both-legs-down error path (which carries `error`).
+   * The REST surface echoes this verbatim so a 200 response can never read
+   * as a healthy semantic answer when the embeddings side is down.
+   */
+  degraded?: { mode: "keyword-only"; reason: string };
 }
 
 /**
@@ -920,7 +934,10 @@ export async function recallTool(
     //   both legs available        → hybrid (fused scores)
     //   keyword leg unavailable    → semantic-only (unchanged behavior +
     //                                cosine scores — regression-safe)
-    //   semantic leg unavailable   → keyword-only (offline)
+    //   semantic leg unavailable   → keyword-only (offline) — the result
+    //                                carries an explicit `degraded` marker
+    //                                (README-11) so a 200 never reads as a
+    //                                healthy semantic answer
     //   both unavailable           → the semantic leg's error (legacy
     //                                DOGFOOD-001/002 contract — ?q= never
     //                                silently returns an unfiltered list)
@@ -1074,6 +1091,13 @@ export async function recallTool(
             count: top.length,
             total: keywordResult.total,
             namespace: resolvedNamespace,
+            // README-11: the response must carry the degrade signal, not
+            // just this stderr line — a 200 with no marker reads as a
+            // healthy semantic answer.
+            degraded: {
+              mode: "keyword-only",
+              reason: `Semantic search failed: ${msg}`,
+            },
             ...(debug ? { searchDebug: debug.toDebug() } : {}),
           };
         }
@@ -1178,6 +1202,16 @@ export async function recallTool(
           // MAX_CANDIDATES), unlimited by limit.
           total: keywordResult.total,
           namespace: resolvedNamespace,
+          // README-11: explicit degraded marker — without it a 200 here is
+          // indistinguishable from a healthy semantic answer, and a 200 with
+          // zero keyword hits reads as "no matches" while semantic search is
+          // silently dead. semanticError is always set on this path (no
+          // providers, or every provider failed to embed); the fallback text
+          // is defensive.
+          degraded: {
+            mode: "keyword-only",
+            reason: semanticError ?? "Semantic search unavailable",
+          },
           ...(debug ? { searchDebug: debug.toDebug() } : {}),
         };
       }
