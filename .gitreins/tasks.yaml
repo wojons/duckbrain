@@ -2848,7 +2848,8 @@ tasks:
   title: Correct README semantic search degraded-mode contract
   criteria:
   - README and daemon agree on q= with embeddings unavailable; live scratch probe
-    and targeted RETR-002 test prove the chosen explicit contract; no silent 200 empty
-    success.
-  status: in_progress
-  created_at: '2026-10-25T12:35:21.857048+00:00'
+    and targeted RETR-002 test prove explicit degraded keyword-only response or fail-closed
+    503; no silent 200.
+  status: complete
+  created_at: '2026-10-25T13:10:52.809392+00:00'
+  completed_at: '2026-10-25T13:10:53.855400+00:00'

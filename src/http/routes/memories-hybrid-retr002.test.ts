@@ -476,6 +476,10 @@ describe("RETR-002: hybrid ?q= — RRF fusion beats single retrievers", () => {
     expect(body.items[0].snippet).toContain("kbox-01");
     expect(typeof body.items[0].score).toBe("number");
     expect(body.items[0].score).toBeGreaterThan(0);
+    expect(body.degraded).toMatchObject({ mode: "keyword-only" });
+    expect(body.degraded.reason).toContain(
+      "Semantic search requires an embedding provider",
+    );
   });
 
   it("both legs unavailable → 503 with the explicit embeddings-down message (never a silent list)", async () => {

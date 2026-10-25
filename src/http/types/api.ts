@@ -192,10 +192,10 @@ export interface QueryParams {
   /** Namespace to query */
   namespace?: string;
   /**
-  * DF-1013-03: opt-in search diagnostics (?debug=search). Internal — the
-  * route parses the ?debug= value itself; when set, recallTool collects
-  * the search-leg timing and the response carries a `searchDebug` object.
-  */
+   * DF-1013-03: opt-in search diagnostics (?debug=search). Internal — the
+   * route parses the ?debug= value itself; when set, recallTool collects
+   * the search-leg timing and the response carries a `searchDebug` object.
+   */
   debug?: boolean;
 }
 
@@ -266,6 +266,15 @@ export interface MemoryListResponse extends PaginatedResponse<MemoryResponse> {
    * the same array as `items` (same reference — not a second page).
    */
   memories: MemoryResponse[];
+  /**
+   * README-11: explicit degraded-mode marker — present ONLY when a `?q=`
+   * hybrid search was served from the keyword leg alone because the semantic
+   * leg was unavailable (no usable embedding provider, or the semantic leg
+   * failed mid-search). Absent on healthy hybrid / semantic-only answers, so
+   * a 200 without this field is a full-fidelity semantic result and a 200
+   * with it (even an empty one) is an honest "semantic search is down".
+   */
+  degraded?: { mode: "keyword-only"; reason: string };
 }
 
 /**
