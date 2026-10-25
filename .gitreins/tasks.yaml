@@ -2844,3 +2844,11 @@ tasks:
   status: complete
   created_at: '2026-10-22T22:03:54.411755+00:00'
   completed_at: '2026-10-22T22:03:57.737875+00:00'
+- id: README-11
+  title: Correct README semantic search degraded-mode contract
+  criteria:
+  - README and daemon agree on q= with embeddings unavailable; live scratch probe
+    and targeted RETR-002 test prove the chosen explicit contract; no silent 200 empty
+    success.
+  status: in_progress
+  created_at: '2026-10-25T12:35:21.857048+00:00'

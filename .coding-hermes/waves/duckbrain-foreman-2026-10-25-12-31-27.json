@@ -1,0 +1,18 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-25-12-31-27",
+  "project": "duckbrain",
+  "block": "README-17",
+  "wave_budget": 6,
+  "slots_computed": 5,
+  "mode": "serial-fallback",
+  "reason": "Four ready rows exist, but README-11 through README-14 all edit README.md and share the same documentation seam; only one worker is independent under the same-file fence.",
+  "base_sha": "03bc525b",
+  "rows": [
+    {
+      "task_id": "README-11",
+      "worktree": "/home/kara/worktrees/duckbrain-README-11",
+      "branch": "wt/README-11",
+      "brief": "/tmp/duckbrain-README-11-brief.txt"
+    }
+  ]
+}
