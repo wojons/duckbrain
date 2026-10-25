@@ -6,6 +6,12 @@
   "slots_computed": 5,
   "mode": "serial-fallback",
   "reason": "Four ready rows exist, but README-11 through README-14 all edit README.md and share the same documentation seam; only one worker is independent under the same-file fence.",
+  "recovery": {
+    "workers_recorded": 0,
+    "disposition": "no-worker recovery state; README-11 had already landed on current main and was verified by the prior tick closeout",
+    "manifest_closed_by": "duckbrain-foreman-2026-10-25-13-47-58"
+  },
+  "finished_at": "2026-10-25T13:47:58Z",
   "base_sha": "03bc525b",
   "rows": [
     {
