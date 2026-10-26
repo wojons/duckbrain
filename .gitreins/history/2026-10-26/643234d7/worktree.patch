@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 139cbabf..fb6b0864 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2853,3 +2853,13 @@ tasks:
+   status: complete
+   created_at: '2026-10-25T13:10:52.809392+00:00'
+   completed_at: '2026-10-25T13:10:53.855400+00:00'
++- id: RELEASE-2026-10-26-001
++  title: DuckBrain v1.1.0 release-surface no-go audit
++  criteria:
++  - Verify current exact origin/main CI is green; verify remote v1.1.0 tag remains
++    unchanged at its existing tag object and commit; verify tag CI run 39539627477
++    is failed in Run tests; verify gh release view v1.1.0 reports no release object;
++    do not create or move any tag or release; record evidence for the board row.
++  status: complete
++  created_at: '2026-10-26T17:53:13.434217+00:00'
++  completed_at: '2026-10-26T17:53:26.101054+00:00'
