@@ -241,7 +241,7 @@ pnpm start http --port=3000 --auth=none
 #    http://localhost:3000
 ```
 
-Deep links work too (`http://localhost:3000/namespaces`, etc.) — the daemon serves `index.html` for any non-`/api` path. API routes (`/api/*`, `/health`, `/namespaces`, `/mcp`, …) always take precedence over the static files. If you skip step 1, `GET /` returns a `UI_NOT_BUILT` JSON hint pointing back here instead of a page.
+Deep links work too (`http://localhost:3000/tree`, `http://localhost:3000/timeline`, etc.) — the daemon serves `index.html` for any non-API path. API routes (`/api/*`, `/health`, `/mcp`, …) always take precedence over the static files and answer JSON. If you skip step 1, `GET /` returns a `UI_NOT_BUILT` JSON hint pointing back here instead of a page.
 
 **Web UI dev mode (hot reload):**
 
