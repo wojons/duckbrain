@@ -1,0 +1,24 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-25-14-16-05",
+  "block": "README-17",
+  "mode": "serial-fallback",
+  "wave_budget": 10,
+  "slots_computed": 6,
+  "base_sha": "a95a425a",
+  "reason": "README-12, README-13, and README-14 are all ready but edit the same README.md seam; independence requires different files, so this tick dispatches one worker serially.",
+  "rows": [
+    {
+      "task_id": "README-12",
+      "worktree": "/home/kara/worktrees/duckbrain-README-12",
+      "branch": "wt/README-12",
+      "brief": "/tmp/duckbrain-README-12-brief.txt",
+      "recovery": {
+        "original_tip": "992048f18ddb54b5186c15f5dc5f773bd11e250c",
+        "rebased_tip": "40b2e06c57063931748573877bc02458b4b4b13c",
+        "disposition": "Verification-only: rebase onto current origin/main found no unique diff; current main satisfies README-12 acceptance. No merge manufactured.",
+        "gates": "pnpm install --frozen-lockfile && pnpm build && pnpm run test:run PASS (233 files, 1942 tests); pnpm exec tsc --noEmit PASS; focused declared-table tests PASS (46/46); Prettier PASS; live README-14 probe GET / returned 401; existing GitReins verdict Tier 2 PASS, Tier 1 FAIL from known harness-scope artifact."
+      }
+    }
+  ],
+  "finished_at": "2026-10-26T06:55:00Z"
+}
