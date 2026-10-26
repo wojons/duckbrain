@@ -1,0 +1,24 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 139cbabf..8e83675f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2853,3 +2853,19 @@ tasks:
+   status: complete
+   created_at: '2026-10-25T13:10:52.809392+00:00'
+   completed_at: '2026-10-25T13:10:53.855400+00:00'
++- id: QA-DUCKBRAIN-RELENG-1
++  title: Recollect duckbrain-releng battery
++  criteria:
++  - A rerun or verified evidence closes the collect failure and records the releng
++    launch/collect outcome.
++  status: complete
++  created_at: '2026-10-26T16:11:54.370214+00:00'
++  completed_at: '2026-10-26T16:14:53.513669+00:00'
++- id: QA-DUCKBRAIN-RELENG-2
++  title: Resolve releng no-agent collection
++  criteria:
++  - A recollect or verified bunker agent outcome records why the no-agent collection
++    failed and whether an orphan was handled.
++  status: complete
++  created_at: '2026-10-26T16:11:55.010782+00:00'
++  completed_at: '2026-10-26T16:15:00.745898+00:00'

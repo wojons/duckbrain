@@ -1,0 +1,110 @@
+{
+  "task_id": "QA-DUCKBRAIN-RELENG-2",
+  "task_title": "Resolve releng no-agent collection",
+  "task_criteria": [
+    "A recollect or verified bunker agent outcome records why the no-agent collection failed and whether an orphan was handled."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "",
+  "commit": "eeda7d24d053774764752c3be0bca251af53df6b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:15AM INF scanned ~31151165 bytes (31.15 MB) in 4.05s\n11:15AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261026T073704.733112Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  11:15:01\n   Duration  69.92s (tests 81%, import 18%, worker 1%, setup 1%)\n\n    Isolate  233 workers spawned \u00b7 ~93ms startup each (spawn + environment, per file)\n             at least ~5.30s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261026T073704.733112Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 A recollect or verified bunker agent outcome records why the no-agent collection failed and whether an orphan was handled.: The only change is .gitreins/tasks.yaml:2856-2872, which adds QA-DUCKBRAIN-RELENG-2 with status: complete but NO detail/evidence field \u2014 no failure reason and no orphan outcome. The board row .coding-hermes/board/tasks.jsonl:415 is still status \"pending\" with detail \"COLLECT-FAIL no-agent; the battery could not collect an agent result.\" and no closing detail; .coding-hermes/board/events.jsonl has no task_completed event for RELENG-2 (only audit events 1131/1132 listing it as open). No recollect evidence exists: /tmp/bunker-qa-evidence-1792951649604-1.jsonl still ends with {\"cell\":\"collect\",\"status\":\"FAIL\",\"detail\":\"launch record ... has no agent= line ... check `bunker list --server bunker-mvp` for an orphan and destroy it\"} \u2014 no OK/RUNNING collect row was appended. The only duckbrain bunker launch on 2026-10-26 (/tmp/bunker-qa-evidence-20261026T161304Z-2539762.jsonl, agent=8631d39d) failed at repo sync (\"No space left on device\") with no collect row and is recorded nowhere. Live `bunker list --server bunker-mvp` shows 3 agents (crier-lab, ed318254, e2b0b809 destroy-refused:live_processes) but no orphan determination is recorded. No gitreins history/verdict entry exists for RELENG-2 (grep RELENG over .gitreins/history returns nothing). Contrast the compliant precedent QA-DUCKBRAIN-PERF-2 (commit f272dbd1, tasks.jsonl:412) which carries a worker_summary stating the recollect outcome; RELENG-2 has no equivalent. (Repo test command npx vitest run is not the verification vehicle for this QA-orchestration criterion; the required evidence artifacts are absent.)\nQA-DUCKBRAIN-RELENG-2 was marked complete in .gitreins/tasks.yaml with no recorded collect outcome, no failure reason, and no orphan determination \u2014 the board row remains pending and the referenced evidence file still shows the original collect FAIL.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 A recollect or verified bunker agent outcome records why the no-agent collection failed and whether an orphan was handled.: The only change is .gitreins/tasks.yaml:2856-2872, which adds QA-DUCKBRAIN-RELENG-2 with status: complete but NO detail/evidence field \u2014 no failure reason and no orphan outcome. The board row .coding-hermes/board/tasks.jsonl:415 is still status \"pending\" with detail \"COLLECT-FAIL no-agent; the battery could not collect an agent result.\" and no closing detail; .coding-hermes/board/events.jsonl has no task_completed event for RELENG-2 (only audit events 1131/1132 listing it as open). No recollect evidence exists: /tmp/bunker-qa-evidence-1792951649604-1.jsonl still ends with {\"cell\":\"collect\",\"status\":\"FAIL\",\"detail\":\"launch record ... has no agent= line ... check `bunker list --server bunker-mvp` for an orphan and destroy it\"} \u2014 no OK/RUNNING collect row was appended. The only duckbrain bunker launch on 2026-10-26 (/tmp/bunker-qa-evidence-20261026T161304Z-2539762.jsonl, agent=8631d39d) failed at repo sync (\"No space left on device\") with no collect row and is recorded nowhere. Live `bunker list --server bunker-mvp` shows 3 agents (crier-lab, ed318254, e2b0b809 destroy-refused:live_processes) but no orphan determination is recorded. No gitreins history/verdict entry exists for RELENG-2 (grep RELENG over .gitreins/history returns nothing). Contrast the compliant precedent QA-DUCKBRAIN-PERF-2 (commit f272dbd1, tasks.jsonl:412) which carries a worker_summary stating the recollect outcome; RELENG-2 has no equivalent. (Repo test command npx vitest run is not the verification vehicle for this QA-orchestration criterion; the required evidence artifacts are absent.)\nQA-DUCKBRAIN-RELENG-2 was marked complete in .gitreins/tasks.yaml with no recorded collect outcome, no failure reason, and no orphan determination \u2014 the board row remains pending and the referenced evidence file still shows the original collect FAIL.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "A recollect or verified bunker agent outcome records why the no-agent collection failed and whether an orphan was handled.",
+                "status": "FAIL",
+                "detail": "The only change is .gitreins/tasks.yaml:2856-2872, which adds QA-DUCKBRAIN-RELENG-2 with status: complete but NO detail/evidence field \u2014 no failure reason and no orphan outcome. The board row .coding-hermes/board/tasks.jsonl:415 is still status \"pending\" with detail \"COLLECT-FAIL no-agent; the battery could not collect an agent result.\" and no closing detail; .coding-hermes/board/events.jsonl has no task_completed event for RELENG-2 (only audit events 1131/1132 listing it as open). No recollect evidence exists: /tmp/bunker-qa-evidence-1792951649604-1.jsonl still ends with {\"cell\":\"collect\",\"status\":\"FAIL\",\"detail\":\"launch record ... has no agent= line ... check `bunker list --server bunker-mvp` for an orphan and destroy it\"} \u2014 no OK/RUNNING collect row was appended. The only duckbrain bunker launch on 2026-10-26 (/tmp/bunker-qa-evidence-20261026T161304Z-2539762.jsonl, agent=8631d39d) failed at repo sync (\"No space left on device\") with no collect row and is recorded nowhere. Live `bunker list --server bunker-mvp` shows 3 agents (crier-lab, ed318254, e2b0b809 destroy-refused:live_processes) but no orphan determination is recorded. No gitreins history/verdict entry exists for RELENG-2 (grep RELENG over .gitreins/history returns nothing). Contrast the compliant precedent QA-DUCKBRAIN-PERF-2 (commit f272dbd1, tasks.jsonl:412) which carries a worker_summary stating the recollect outcome; RELENG-2 has no equivalent. (Repo test command npx vitest run is not the verification vehicle for this QA-orchestration criterion; the required evidence artifacts are absent.)",
+                "resolution_probability": 0.04
+              }
+            ],
+            "summary": "QA-DUCKBRAIN-RELENG-2 was marked complete in .gitreins/tasks.yaml with no recorded collect outcome, no failure reason, and no orphan determination \u2014 the board row remains pending and the referenced evidence file still shows the original collect FAIL.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-RELENG-2\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 A recollect or verified bunker agent outcome records why the no-agent collection failed and whether an orphan was handled.: The only change is .gitreins/tasks.yaml:2856-2872, which adds QA-DUCKBRAIN-RELENG-2 with status: complete but NO detail/evidence field \u2014 no failure reason and no orphan outcome. The board row .coding-hermes/board/tasks.jsonl:415 is still status \"pending\" with detail \"COLLECT-FAIL no-agent; the battery could not collect an agent result.\" and no closing detail; .coding-hermes/board/events.jsonl has no task_completed event for RELENG-2 (only audit events 1131/1132 listing it as open). No recollect evidence exists: /tmp/bunker-qa-evidence-1792951649604-1.jsonl still ends with {\"cell\":\"collect\",\"status\":\"FAIL\",\"detail\":\"launch record ... has no agent= line ... check `bunker list --server bunker-mvp` for an orphan and destroy it\"} \u2014 no OK/RUNNING collect row was appended. The only duckbrain bunker launch on 2026-10-26 (/tmp/bunker-qa-evidence-20261026T161304Z-2539762.jsonl, agent=8631d39d) failed at repo sync (\"No space left on device\") with no collect row and is recorded nowhere. Live `bunker list --server bunker-mvp` shows 3 agents (crier-lab, ed318254, e2b0b809 destroy-refused:live_processes) but no orphan determination is recorded. No gitreins history/verdict entry exists for RELENG-2 (grep RELENG over .gitreins/history returns nothing). Contrast the compliant precedent QA-DUCKBRAIN-PERF-2 (commit f272dbd1, tasks.jsonl:412) which carries a worker_summary stating the recollect outcome; RELENG-2 has no equivalent. (Repo test command npx vitest run is not the verification vehicle for this QA-orchestration criterion; the required evidence artifacts are absent.)\nQA-DUCKBRAIN-RELENG-2 was marked complete in .gitreins/tasks.yaml with no recorded collect outcome, no failure reason, and no orphan determination \u2014 the board row remains pending and the referenced evidence file still shows the original collect FAIL.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-26T16:18:56.088228",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-26T16:18:56.152982+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 48078,
+        "truncated": false,
+        "source": "git show eeda7d24d053"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 959,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-RELENG-2"
+  }
+}

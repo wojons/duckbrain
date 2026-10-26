@@ -1,0 +1,110 @@
+{
+  "task_id": "QA-DUCKBRAIN-RELENG-1",
+  "task_title": "Recollect duckbrain-releng battery",
+  "task_criteria": [
+    "A rerun or verified evidence closes the collect failure and records the releng launch/collect outcome."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "",
+  "commit": "eeda7d24d053774764752c3be0bca251af53df6b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:14AM INF scanned ~31151165 bytes (31.15 MB) in 4.04s\n11:14AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261026T073704.733112Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  11:14:55\n   Duration  69.88s (tests 79%, import 19%, setup 1%, worker 1%)\n\n    Isolate  233 workers spawned \u00b7 ~98ms startup each (spawn + environment, per file)\n             at least ~5.64s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261026T073704.733112Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 A rerun or verified evidence closes the collect failure and records the releng launch/collect outcome.: The diff only appends two task entries to .gitreins/tasks.yaml (lines 2856-2870) marking QA-DUCKBRAIN-RELENG-1/2 as status: complete with timestamps \u2014 no evidence path, no launch/collect outcome, no rerun record. The board row .coding-hermes/board/tasks.jsonl:414 for QA-DUCKBRAIN-RELENG-1 remains status \"pending\" with detail \"COLLECT-FAIL no-agent evidence_path=/tmp/bunker-qa-evidence-1792951649604-1.jsonl\". The original evidence file /tmp/bunker-qa-evidence-1792951649604-1.jsonl is unchanged (2 lines: run_battery FAIL 'subdirectory of git repo /home/kara', collect FAIL 'no agent= line') \u2014 no collect OK line was added, and no new duckbrain evidence file exists (newest bunker evidence files are for unrelated projects, one failing with 'No space left on device'). No board event, gitreins history verdict, or log records a releng launch/collect outcome; events.jsonl:1131 still lists QA-DUCKBRAIN-RELENG-1/2 as remaining pending rows. The collect failure is therefore not closed and no launch/collect outcome is recorded.\nOnly task metadata was flipped to complete; the collect failure remains open with no rerun evidence or recorded launch/collect outcome.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 A rerun or verified evidence closes the collect failure and records the releng launch/collect outcome.: The diff only appends two task entries to .gitreins/tasks.yaml (lines 2856-2870) marking QA-DUCKBRAIN-RELENG-1/2 as status: complete with timestamps \u2014 no evidence path, no launch/collect outcome, no rerun record. The board row .coding-hermes/board/tasks.jsonl:414 for QA-DUCKBRAIN-RELENG-1 remains status \"pending\" with detail \"COLLECT-FAIL no-agent evidence_path=/tmp/bunker-qa-evidence-1792951649604-1.jsonl\". The original evidence file /tmp/bunker-qa-evidence-1792951649604-1.jsonl is unchanged (2 lines: run_battery FAIL 'subdirectory of git repo /home/kara', collect FAIL 'no agent= line') \u2014 no collect OK line was added, and no new duckbrain evidence file exists (newest bunker evidence files are for unrelated projects, one failing with 'No space left on device'). No board event, gitreins history verdict, or log records a releng launch/collect outcome; events.jsonl:1131 still lists QA-DUCKBRAIN-RELENG-1/2 as remaining pending rows. The collect failure is therefore not closed and no launch/collect outcome is recorded.\nOnly task metadata was flipped to complete; the collect failure remains open with no rerun evidence or recorded launch/collect outcome.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "A rerun or verified evidence closes the collect failure and records the releng launch/collect outcome.",
+                "status": "FAIL",
+                "detail": "The diff only appends two task entries to .gitreins/tasks.yaml (lines 2856-2870) marking QA-DUCKBRAIN-RELENG-1/2 as status: complete with timestamps \u2014 no evidence path, no launch/collect outcome, no rerun record. The board row .coding-hermes/board/tasks.jsonl:414 for QA-DUCKBRAIN-RELENG-1 remains status \"pending\" with detail \"COLLECT-FAIL no-agent evidence_path=/tmp/bunker-qa-evidence-1792951649604-1.jsonl\". The original evidence file /tmp/bunker-qa-evidence-1792951649604-1.jsonl is unchanged (2 lines: run_battery FAIL 'subdirectory of git repo /home/kara', collect FAIL 'no agent= line') \u2014 no collect OK line was added, and no new duckbrain evidence file exists (newest bunker evidence files are for unrelated projects, one failing with 'No space left on device'). No board event, gitreins history verdict, or log records a releng launch/collect outcome; events.jsonl:1131 still lists QA-DUCKBRAIN-RELENG-1/2 as remaining pending rows. The collect failure is therefore not closed and no launch/collect outcome is recorded.",
+                "resolution_probability": 0.0
+              }
+            ],
+            "summary": "Only task metadata was flipped to complete; the collect failure remains open with no rerun evidence or recorded launch/collect outcome.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-RELENG-1\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 A rerun or verified evidence closes the collect failure and records the releng launch/collect outcome.: The diff only appends two task entries to .gitreins/tasks.yaml (lines 2856-2870) marking QA-DUCKBRAIN-RELENG-1/2 as status: complete with timestamps \u2014 no evidence path, no launch/collect outcome, no rerun record. The board row .coding-hermes/board/tasks.jsonl:414 for QA-DUCKBRAIN-RELENG-1 remains status \"pending\" with detail \"COLLECT-FAIL no-agent evidence_path=/tmp/bunker-qa-evidence-1792951649604-1.jsonl\". The original evidence file /tmp/bunker-qa-evidence-1792951649604-1.jsonl is unchanged (2 lines: run_battery FAIL 'subdirectory of git repo /home/kara', collect FAIL 'no agent= line') \u2014 no collect OK line was added, and no new duckbrain evidence file exists (newest bunker evidence files are for unrelated projects, one failing with 'No space left on device'). No board event, gitreins history verdict, or log records a releng launch/collect outcome; events.jsonl:1131 still lists QA-DUCKBRAIN-RELENG-1/2 as remaining pending rows. The collect failure is therefore not closed and no launch/collect outcome is recorded.\nOnly task metadata was flipped to complete; the collect failure remains open with no rerun evidence or recorded launch/collect outcome.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-26T16:22:05.344997",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-26T16:22:05.415609+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 48078,
+        "truncated": false,
+        "source": "git show eeda7d24d053"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 959,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-RELENG-1"
+  }
+}
