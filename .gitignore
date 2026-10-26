@@ -71,3 +71,4 @@ dagger.db-wal
 duckbrain.config.json
 .scc/
 stray-archives/
+.stryker-tmp/
