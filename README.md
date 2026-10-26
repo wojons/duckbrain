@@ -241,6 +241,13 @@ pnpm start http --port=3000 --auth=none
 #    http://localhost:3000
 ```
 
+**Important:** the Web UI is served **unauthenticated only** when `--auth=none` is passed.
+With the default `--auth=apikey`, a browser navigating to `http://localhost:3000/` receives
+HTTP `401 Unauthorized` (a JSON body, not a page) because browsers do not send the `X-API-Key`
+header. The UI's own JavaScript client includes the header; a bare browser navigation does not.
+Use `--auth=none` for isolated local exploration, or configure a token as described in
+[docs/api/http-api.md](docs/api/http-api.md) for anything beyond quick local testing.
+
 Deep links work too (`http://localhost:3000/tree`, `http://localhost:3000/timeline`, etc.) — the daemon serves `index.html` for any non-API path. API routes (`/api/*`, `/health`, `/mcp`, …) always take precedence over the static files and answer JSON. If you skip step 1, `GET /` returns a `UI_NOT_BUILT` JSON hint pointing back here instead of a page.
 
 **Web UI dev mode (hot reload):**
