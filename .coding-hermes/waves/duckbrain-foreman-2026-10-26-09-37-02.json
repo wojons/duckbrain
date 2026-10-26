@@ -1,0 +1,15 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-26-09-37-02",
+  "block": "README-17",
+  "wave_size": 2,
+  "slots": 3,
+  "loadavg": 12.94,
+  "rows": [
+    {"id": "README-13", "status": "complete", "branch": "wt/README-13", "implementation_commit": "4881f6d6db3e51e2496b11c4b8ae32f0b0d028bd", "board_commit": "5fe8e9b6aa8c738c9d4e8864994529a555c2bbb6"},
+    {"id": "README-14", "status": "complete", "branch": "wt/README-13", "implementation_commit": "4881f6d6db3e51e2496b11c4b8ae32f0b0d028bd", "board_commit": "5fe8e9b6aa8c738c9d4e8864994529a555c2bbb6"}
+  ],
+  "commits": ["4881f6d6db3e51e2496b11c4b8ae32f0b0d028bd", "5fe8e9b6aa8c738c9d4e8864994529a555c2bbb6"],
+  "method": "recovery-reconciled-split-landing",
+  "result": "OK",
+  "finished_at": "2026-10-26T15:40:00Z"
+}

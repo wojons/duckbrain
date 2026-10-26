@@ -1,0 +1,18 @@
+{
+  "tick": "duckbrain-foreman-2026-10-26-09-29-07",
+  "block": "README-17",
+  "rows": ["README-13", "README-14"],
+  "worktrees": {
+    "README-13": {"worktree": "/home/kara/duckbrain", "branch": "wt/README-13", "base": "origin/main", "base_sha": "5951b27b"},
+    "README-14": {"worktree": "/home/kara/worktrees/duckbrain-README-14", "branch": "wt/README-14", "base": "origin/main", "base_sha": "5951b27b"}
+  },
+  "launched_at": "2026-10-26T14:00:00Z",
+  "slots": 2,
+  "note": "Recovered as a mixed board/code wave; split implementation README.md from board bookkeeping before landing.",
+  "finished_at": "2026-10-26T15:40:00Z",
+  "recovery": {
+    "status": "complete",
+    "disposition": "implementation and board closeout reconciled on canonical main",
+    "canonical_head": "5fe8e9b6aa8c738c9d4e8864994529a555c2bbb6"
+  }
+}
