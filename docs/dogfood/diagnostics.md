@@ -971,3 +971,11 @@ back from the MCP `forget` tool (no `code`), and the HTTP handler only recognise
 6. **`git -C <namespace>` is the fastest trust check**: if `git log` shows
    `chore: auto-commit namespace data` and `status --short` is clean, persistence and the
    batching window are both working.
+
+## Run 18 — 2026-10-27 CLI and install-harness dogfood
+
+The isolated HTTP and CLI workflow passed at HEAD `db695496bbfc68fd24e24940f095f951b64a2bea`: health, namespace creation, HTTP write/read, keyword search, missing-key 404, CLI remember/recall, namespace Git commit, and daily consolidate. The CLI search measured 0.81s cold and 380.0ms ± 33.1ms warm over 10 runs for a one-memory namespace; this is process-start overhead, not a user-noticeable product slowdown.
+
+The status parser has a silent wrong-state path: `status --namespace=dogfood1027` selects the requested namespace, while `status --namespace dogfood1027` exits 0, prints `Namespace: true`, and falls back to the default path. Use equals-form options until DF-2026-9 is fixed.
+
+The bunker install agent installed the clean dependency tree and recorded a build-only `fresh-install` cell, but did not record the README health/create/write/read smoke. The evidence is PARTIAL/UNPROVEN and corroborates the same-tick install/collision evidence already filed under DF-2026-7; no duplicate install row was retained. The agent was destroyed and verified absent from the server census.

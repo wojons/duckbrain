@@ -695,6 +695,18 @@ changes; no visibility/permission changes; no credentials minted (minio scratch 
 throwaway local keys, destroyed). Foreman NOT woken (active family; DF-2026-3 is the
 operator's restart decision, filed for the foreman/owner to act on).
 
+## Run 18 — 2026-10-27 (tick duckbrain-dogfood-2026-10-27-20-29-19)
+
+**Verdict: 🟡 PROMISING-BUT-ROUGH.** Promise: an agent/operator can use the HTTP daemon and CLI to create a namespace, write and read a memory, search it, and consolidate daily deltas with Git-backed namespace history. Isolated HTTP, CLI, exact-read, keyword-search, missing-key 404, Git commit, and consolidate workflows all completed at HEAD `db695496bbfc68fd24e24940f095f951b64a2bea`.
+
+**Findings:** DF-2026-9 — `status --namespace <name>` silently resolves the namespace as `true` and falls back to the default path; equals-form works. The bunker-qa build-only install result is PARTIAL/UNPROVEN and corroborates same-tick install/collision evidence already filed under DF-2026-7; no duplicate install row was retained. The missing smoke was separately exercised in an isolated environment (namespace 201, write 201, exact read 200).
+
+**Performance:** CLI search on a one-memory isolated namespace: cold `0.81s`; warm `380.0ms ± 33.1ms` (hyperfine, 10 runs, 2 warmups). This is Node startup overhead and not user-noticeable; no PERF row filed.
+
+**Install:** bunker-mvp agent `0908094c`; clean dependency install/build evidence captured in `/tmp/df-dkb-1027/install-agent-capture.txt`. Agent destroyed; `bunker info` returned `not_found`, and the post-destroy census retained only unrelated `crier-lab`. No code, visibility, permission, credential, or scheduler changes.
+
+**Left behind:** `docs/dogfood/2026-10-27-cli-install-integration.md`, diagnostics Run 18, usage-skill option warning, rows DF-2026-9 and DF-2026-10, and this entry.
+
 ---
 
 ## 2026-10-27 — HTTP API contract pass + a cross-lane scratch/agent collision (duckbrain-dogfood-2026-10-27-20-29-19)

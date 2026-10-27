@@ -591,8 +591,15 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     (DF-2026-2) — re-run, or `search-index rebuild --namespace=<ns>` first
     when scripting assert-on-first-search.
 
-33. **Probing the S3 tier on a scratch box: `rclone serve s3` is a working
-    userspace S3 endpoint** (verified 2026-10-16, run 17): 
+33. **CLI option spelling matters: use `--namespace=<name>` for `status`**
+   (verified 2026-10-27, DF-2026-9). The equals form resolves the requested
+   namespace and configured path. The space form `--namespace <name>` is
+   currently misparsed as the boolean value `true` and exits successfully while
+   showing the default path. Treat that output as untrusted until fixed; check
+   the printed namespace/path before scripting against `status`.
+
+34. **Probing the S3 tier on a scratch box: `rclone serve s3` is a working
+   userspace S3 endpoint** (verified 2026-10-16, run 17):
     `rclone serve s3 <root> --addr 127.0.0.1:PORT --auth-key ACC,SECRET`,
     then a scratch config with `s3.enabled+endpoint+forcePathStyle:true` and
     `AWS_ENDPOINT_URL` env — DuckBrain's sync engine runs against it
