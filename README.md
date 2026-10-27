@@ -513,6 +513,25 @@ Full documentation is available at:
 - 🎓 [DuckBrain Usage Skill](skills/duckbrain-usage/SKILL.md)
 - 🏗️ [Architecture](.planning/PROJECT.md)
 
+### Validating the documentation
+
+`pnpm docs:check` runs the deterministic docs validator
+([scripts/docs-check.js](scripts/docs-check.js)) over README.md and every
+`docs/**/*.md` file. It checks that fenced code blocks are balanced (every
+opening fence closed), that local relative links resolve to real files
+(extensionless links resolve to `<name>.md`, matching how GitHub renders
+them), and that the Node.js / pnpm prerequisite claims in this README agree
+with `engines.node` and `packageManager` in `package.json`. It exits nonzero
+with one actionable line per problem and never executes the commands inside
+documented fences. Run it before committing documentation changes:
+
+```bash
+pnpm docs:check
+```
+
+`node scripts/docs-check.js --self-test` runs the validator's red/green
+fixture test against a temporary directory.
+
 ## Contributing
 
 Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
