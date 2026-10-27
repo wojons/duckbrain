@@ -694,3 +694,90 @@ PERF-013), this entry, docs/dogfood/2026-10-16-run17b-stale-deploy-and-s3.md. No
 changes; no visibility/permission changes; no credentials minted (minio scratch used
 throwaway local keys, destroyed). Foreman NOT woken (active family; DF-2026-3 is the
 operator's restart decision, filed for the foreman/owner to act on).
+
+---
+
+## 2026-10-27 — HTTP API contract pass + a cross-lane scratch/agent collision (duckbrain-dogfood-2026-10-27-20-29-19)
+
+**Target** /home/kara/duckbrain @ HEAD db695496 (tracked tree clean) · **verdict**
+🟡 PROMISING-BUT-ROUGH · full report `docs/dogfood/2026-10-27-http-api-contract-and-scratch-collision.md`
+· evidence `/home/kara/dfdkb-tick-20261027-2029/evidence/` (confirm.txt, confirm.sh,
+perf2.txt, perf2.sh, conf-*.json, agent-evidence-raw.txt, agent-quickstart.txt).
+
+**Promise driven:** "a fresh user can follow the quickstart, store and read back a
+memory, and the HTTP reference's documented contract holds as written." Driven on an
+ISOLATED scratch daemon (`DUCKBRAIN_CONFIG_PATH` → own root, port 3199, `--auth=apikey`
+with a scratch `--auth-file`, the operator's existing embedding key read from the live
+systemd drop-in — no credential minted, production :3000 never written to).
+getting-started.md's own five-command chain ran first and its success condition held.
+
+**Held up (all quoted in the report):** SUPA-2 same-key multi-version (3 versions, ts DESC,
+key route = newest); DF-0926-02 unknown-param refusals naming the offender; DF-1013-03
+`?debug=search` guard + `searchDebug` only with the flag; the five `as_of` failure modes
+*verbatim* and both positive arms after the namespace's auto-commit landed (~30 s after the
+last write); RETR-011 validity window (current hides expired/future, `historical=true`
+shows both); tombstone-on-delete (204, row retained on disk); keyword `contains=` and
+semantic `q=` search; MCP `POST /mcp` 406/200 + 16 tools; the three legacy 301 redirects;
+every documented endpoint I probed answered on its documented path.
+
+**Filed (4 rows, `boardctl validate` RESULT: OK after the append; 420 → 424 lines):**
+- **DF-2026-5 (P3)** `DELETE /api/memories/:id` on a non-UUID id → **500** `{"error":"Invalid input: Invalid UUID"}`
+  *without a `code`*, while GET and PUT on the SAME malformed id → 404 NOT_FOUND
+  (controls: unknown-valid-uuid → 404, real id → 204). Mechanism: `src/mcp/tools/forget.ts`
+  validation branch returns a bare error with no `code`; `src/http/routes/memories.ts:942-960`
+  maps only "not found" → 404 and the `throwWriteError` ladder (`:85-110`) defaults to 500.
+- **DF-2026-6 (P3)** `POST /api/memories` with **no body / no Content-Type** → **500 INTERNAL_ERROR**,
+  while `{}` → 400 VALIDATION_ERROR and `{not json` → 400 INVALID_JSON. A client mistake
+  becomes a server error; the documented INVALID_JSON code is never reached on this arm.
+- **DF-2026-7 (P2)** cross-lane collision (below).
+- **DF-2026-8 (P5)** docs/reality drift: tombstoned versions are absent from the list even
+  with `historical=true` although the reference says the list returns all versions and
+  `historical=true` includes ALL rows; `GET /mcp` is documented as MCP transport but answers
+  405 "does not offer a GET SSE stream" (the POST legs match exactly).
+
+**The collision (DF-2026-7) — the reason this tick lost its first evidence set:** another
+Hermes session (its daemon's `/proc` environ: `HOME=/tmp/df-dkb-1027/own/home`,
+`HERMES_SESSION_CHAT_ID=b8f5c876-366a-4732-b540-05d8236dc5a5`) was running a duckbrain
+dogfood-style pass on the SAME conventional scratch path `/tmp/df-dkb-1027`. At ~15:40 local
+it replaced my scratch directory (deleting my `evidence/` and my daemon's namespace root — the
+daemon then served 503 degraded), then bound **port 3137** so my next daemon died with
+`errno: -98 listen port 3137`; one confirmation pass was silently answered by THAT daemon
+(hence `author: anonymous@duckbrain.local` and paths under `/tmp/df-dkb-1027/own/` in that
+early output). The other session captured my running install agent's evidence to
+`/tmp/df-dkb-1027/install-agent-capture.txt` at 15:45 and ran `bunker list --status all` at
+15:44:35; by 15:53 `bunker info --server bunker-mvp 0908094c` answered `not_found` — my agent
+was destroyed before Phase-B collection and I did not destroy it. Mitigation applied: scratch
+moved to a per-run unique path (`/home/kara/dfdkb-tick-20261027-2029`) and port 3199, and the
+whole battery was re-driven there (the two 500s reproduced identically on both daemons, same
+HEAD). **This is the single most valuable thing this tick produced: the lane convention
+(project+date scratch, ~313x ports) is not collision-safe.**
+
+**Install leg: PARTIAL, not PASS.** Launched by this lane on bunker-mvp (host ONLINE, disk
+32%, CPU 5%, 1/50 agents) → agent `0908094c`, payload `git archive HEAD` (`repo-head OK,
+HEAD=db695496`). Harvested: `toolchain-bootstrap OK` (go 1.27.3, node v22.22.3, gcc/g++, make,
+jq, compose+buildx), `fresh-install OK` — "build-only install (rc=0) … Done in 6.3s using pnpm
+v12.4.2", with the agent-side inst.log showing the committed lockfile installed under
+`pnpm@12.4.2` (563 packages, supply-chain policy check passed). **Not obtained:** `ci-pass`,
+`native`, `ui-probe`, chaos cells — the agent was destroyed mid-battery (above), so those
+cells are unrecoverable. The fresh-machine quickstart I drove on that agent failed on MY rig
+(battery node lives in `~/tools/node/bin`, absent from my non-interactive PATH), not on the
+product — reported as harness evidence, and the ssh stream dropped right after. No `SKIPPED`
+row was minted: the leg is an interruption with a named cause, and it is disclosed here and
+in the report.
+
+**Perf (Step 2b, isolated daemon, load ≈10/16 cores, 200-row namespace, hyperfine
+--warmup 3 --runs 20):** `GET /health` 7.1 ms · exact recall by key 12.7 ms · list limit=50
+17–22 ms · keyword `contains=` 53–73 ms · semantic `q=` 105–107 ms · keys tree 11 ms ·
+activity feed 12.4 ms · write 14.7 ms · seed 200 writes 15–19 ms each. Cold: daemon start →
+first `/health` 200 **1.07 s**; first `q=` with no FTS sidecar 0.57–1.21 s (inline rebuild)
+then 0.108–0.125 s warm. PERF-005's "<5 s warm semantic" is met with two orders of magnitude
+to spare — **nothing here is slow enough for a user to notice, so no PERF row was filed**
+(the only user-noticeable wait on this product remains the pre-existing PERF-013).
+
+**Left behind:** 4 board rows (DF-2026-5..8), the integration report
+`docs/dogfood/2026-10-27-http-api-contract-and-scratch-collision.md`, this entry, a
+diagnostics section appended to `docs/dogfood/diagnostics.md`, and a verified-commands note in
+`skills/duckbrain-usage/SKILL.md`. No product code, no scheduler state, no visibility or
+permission change, no credential minted, foreman NOT woken (read-only lane). Untouched and
+not mine: `/tmp/df-dkb-1027/` + the other session's daemon on :3137, `bunker-mvp` agent
+`crier-lab`, production :3000.

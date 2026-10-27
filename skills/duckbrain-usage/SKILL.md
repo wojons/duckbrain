@@ -659,3 +659,50 @@ DUCKBRAIN_NAMESPACES_PATH=/tmp/db-test node bin/duckbrain.js http --port 3999 \
 # /tmp/db-test-config.json with embedding.provider=ollama / model=nomic-embed-text and add
 # DUCKBRAIN_CONFIG_PATH=/tmp/db-test-config.json (DUCKBRAIN_NAMESPACES_PATH still isolates data).
 ```
+
+## Verified against HEAD db695496 (2026-10-27) — HTTP API contract + scratch hygiene
+
+Run on an isolated daemon (`DUCKBRAIN_CONFIG_PATH` → own root, `--auth=apikey` +
+scratch `--auth-file`, `DUCKBRAIN_SEARCH_TIMING=1`). Everything below was observed
+live; the full transcript is `docs/dogfood/2026-10-27-http-api-contract-and-scratch-collision.md`.
+
+**Verified command recipes**
+
+```bash
+# first-touch semantic query pays an inline FTS rebuild, then goes warm (~30x cheaper)
+curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&q=<terms>&debug=search" -H "X-API-Key: $K"
+# -> searchDebug.indexRebuilt true on the first call after a boot, false afterwards
+# ~1.2s cold in a fresh 200-row namespace, ~0.11s warm (provider RTT dominates)
+
+# memory-as-of (time travel) — needs the namespace's auto-commit to exist first
+git -C "$ROOT/namespaces/$NS" log --format='%h %cI %s'   # expect 'chore: auto-commit namespace data'
+curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&as_of=2026-10-27" -H "X-API-Key: $K"
+curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&as_of=$(git -C "$ROOT/namespaces/$NS" rev-parse HEAD)"
+
+# validity window: the CURRENT view hides both expired and not-yet-valid rows
+curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&prefix=/k" -H "X-API-Key: $K"                        # 0 rows
+curl -s "http://127.0.0.1:3199/api/memories?namespace=$NS&prefix=/k&historical=true" -H "X-API-Key: $K"       # both rows
+```
+
+**Known rough edges at this HEAD (rows filed, do not re-file)**
+
+* `DELETE /api/memories/<non-uuid>` → **500** `{"error":"Invalid input: Invalid UUID"}` (no
+  `code`); `GET`/`PUT` on the same malformed id → 404 NOT_FOUND (DF-2026-5).
+* `POST /api/memories` with **no body / no Content-Type** → **500** INTERNAL_ERROR, while
+  `{}` → 400 VALIDATION_ERROR and malformed JSON → 400 INVALID_JSON (DF-2026-6). Always
+  send a JSON body, even an empty object, unless you are probing the defect on purpose.
+* A deleted (tombstoned) version is invisible in *every* list view, including
+  `historical=true`, although the reference says the list returns all versions (DF-2026-8).
+  Use `git log -p` in the namespace if you must audit a deletion.
+* `GET /mcp` answers 405 ("does not offer a GET SSE stream") even though the reference lists
+  it; use `POST /mcp` with `Accept: application/json, text/event-stream` (406 without it).
+
+**Scratch hygiene — make the scratch and the port UNIQUE PER RUN.** Two concurrent lanes
+picked `/tmp/df-<proj>-<MMDD>` and `~313x` independently on 2026-10-27: one lane's evidence
+directory and namespace root were deleted and its bunker agent was collected by the other
+(DF-2026-7). Prefer `$HOME/<proj>-tick-<tick-label>/` when `/` is under pressure, draw a port
+per run (`--port` 3199-style or a random free port), and put `DUCKBRAIN_CONFIG_PATH` +
+`--auth-file` inside it. A scratch daemon whose token you minted stamps
+`<token-name>@duckbrain.local`; if a response says `anonymous@duckbrain.local` or a path under
+a scratch root you did not create, you are talking to a DIFFERENT lane's daemon — stop and
+re-probe before attributing anything.

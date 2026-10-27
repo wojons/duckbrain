@@ -914,3 +914,60 @@ for the trail is WHAT the re-proofs teach about how the systems work:
 
 No code changes; rows DF-2026-1/2 filed; scratch rig and throwaway S3 keys
 stayed in /tmp and never entered the repo.
+
+## 2026-10-27 — HTTP API contract pass and a cross-lane scratch/agent collision
+
+**Build under test** `db695496bbfc68fd24e24940f095f951b64a2bea`, `node bin/duckbrain.js`
+launched from `/home/kara/duckbrain` (tracked tree clean; `dist/` and
+`duckbrain.config.json` are ignored artifacts, so the daemon ran the checkout's own TS
+entry). Isolated via `DUCKBRAIN_CONFIG_PATH` + `DUCKBRAIN_NAMESPACES_PATH`-equivalent in
+config + a scratch `--auth-file`; **embedding provider = the same `openai`/
+`qwen/qwen3-embedding-8b` the production unit uses**, with the operator's existing key read
+from `~/.config/systemd/user/duckbrain-http.service.d/override.conf` by
+`sed -n 's/^Environment=DUCKBRAIN_EMBEDDING_API_KEY=//p'` — never pasted, never minted.
+
+**Why this run has two evidence sets.** The first scratch was `/tmp/df-dkb-1027` (the
+project+date convention). Mid-run another Hermes session replaced that directory with its own
+duckbrain scratch and later bound port 3137. Symptoms, in the order they appeared: `/health`
+turned `503` while the process stayed alive (its namespace root had been deleted), an
+`EADDRINUSE` (`errno:-98, port:3137`) killed my restart, and one confirmation pass came back
+with `author: anonymous@duckbrain.local` plus namespace paths under `/tmp/df-dkb-1027/own/`
+— i.e. it had been answered by the *other* daemon (its `/proc/<pid>/environ` names
+`HOME=/tmp/df-dkb-1027/own/home` and a different `HERMES_SESSION_CHAT_ID`). Recovery: per-run
+unique scratch root under `$HOME` (not `/tmp`) + port 3199, and the entire battery re-driven
+there. **Read the author string in a scratch-daemon response before trusting the evidence
+set**: a scratch daemon that mints its own token stamps `dogfood-scratch@duckbrain.local`,
+one running `--auth=none` stamps `anonymous@duckbrain.local`, and the production daemon is
+neither — which is exactly how the mixed set was caught.
+
+**The 500s, mechanically.** Both findings are one shape: a *client* input reaches a code path
+whose error classifier has no branch for it.
+`POST /api/memories` with no body never reaches the JSON validator's `INVALID_JSON` arm;
+`DELETE /api/memories/:id` with a non-UUID id gets `{success:false, error:"Invalid input: …"}`
+back from the MCP `forget` tool (no `code`), and the HTTP handler only recognises
+`"not found"`, so the default 500 applies. To reproduce: bring up an isolated daemon, then
+`curl -X DELETE '…/api/memories/not-a-uuid?namespace=quickstart' -H 'X-API-Key: …'` and
+`curl -X POST '…/api/memories?namespace=quickstart' -H 'X-API-Key: …'` (no body).
+
+**Rig traps hit (for the next runner).**
+1. **Never use a project+date scratch path on a box that runs sibling lanes.** Two deliveries
+   of the same project chose `/tmp/df-dkb-1027` independently; one ate the other's evidence.
+   Use the tick label plus a random suffix, and keep the scratch under `$HOME` when `/` is
+   under disk pressure (the box was at 91% with a `disk-guard` timer firing every 60 s).
+2. **A daemon's root going away does not kill the daemon.** It keeps serving and degrades to
+   503; that is a scratch-collision signature, not a product fault.
+3. **`bunker-qa.sh launch` writes its `.meta`/evidence into the path you name — if that path
+   is deleted between launch and collect, the leg is orphaned.** Write the meta file
+   somewhere durable *and* keep the agent id in your own run notes; the id is the only handle
+   left.
+4. **The battery's toolchain is NOT on a non-interactive PATH** (`node`/`pnpm` live in
+   `~/tools/node/bin`, `~/tools/bin`). A fresh-machine script must export that PATH itself, or
+   the docs' own `node bin/duckbrain.js help` fails with `command not found` and the whole
+   quickstart chain returns `HTTP 000` — a rig failure that reads like a product failure.
+5. **Reading a namespace's git state immediately after writes shows "no commits yet".**
+   `gitBatching.maxSeconds` (30 s in this config) means the auto-commit has not happened;
+   `as_of` legitimately answers `No commit found at or before <date>` until it lands. Wait,
+   then re-probe — do not file the pre-commit answer as a defect.
+6. **`git -C <namespace>` is the fastest trust check**: if `git log` shows
+   `chore: auto-commit namespace data` and `status --short` is clean, persistence and the
+   batching window are both working.
