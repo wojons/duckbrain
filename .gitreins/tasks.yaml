@@ -2863,3 +2863,12 @@ tasks:
   status: complete
   created_at: '2026-10-26T17:53:13.434217+00:00'
   completed_at: '2026-10-26T17:53:26.101054+00:00'
+- id: README-18
+  title: Add runnable README docs validation command
+  criteria:
+  - 'Add or document a runnable README/docs validation command covering fenced commands,
+    local links, and key version/prerequisite claims; run it and record its output.
+    Acceptance: package.json has a docs/readme script and README documents it.'
+  status: complete
+  created_at: '2026-10-27T21:30:07.313400+00:00'
+  completed_at: '2026-10-27T21:41:34.563396+00:00'

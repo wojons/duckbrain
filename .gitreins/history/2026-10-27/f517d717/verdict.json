@@ -1,0 +1,111 @@
+{
+  "task_id": "README-18",
+  "task_title": "Add runnable README docs validation command",
+  "task_criteria": [
+    "Add or document a runnable README/docs validation command covering fenced commands, local links, and key version/prerequisite claims; run it and record its output. Acceptance: package.json has a docs/readme script and README documents it."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "f326fa33a5cb949495d69c3545c45c12d93d0a32",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:41PM INF scanned ~31228527 bytes (31.23 MB) in 7.06s\n4:41PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T214129.751211Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  16:41:36\n   Duration  80.76s (tests 80%, import 18%, setup 1%, transform 1%, worker 1%)\n\n    Isolate  233 workers spawned \u00b7 ~108ms startup each (spawn + environment, per file)\n             at least ~6.16s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T214129.751211Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Add or document a runnable README/docs validation command covering fenced commands, local links, and key version/prerequisite claims; run it and record its output. Acceptance: package.json has a docs/readme script and README documents it.: All acceptance elements verified with live command output. (1) package.json:30 has `\"docs:check\": \"node scripts/docs-check.js\"` (added in commit 05f86e6d 'docs: add `pnpm docs:check` README/docs validator. Addresses README-18.'). (2) README documents it: README.md:516 heading '### Validating the documentation', README.md:518-519 names `pnpm docs:check` and links scripts/docs-check.js, README.md:529 shows the runnable fenced command, README.md:532 documents `--self-test`. (3) Coverage of all three required areas in scripts/docs-check.js: checkFences() validates balanced fenced code blocks across README.md + all docs/**/*.md; checkLinks() resolves local relative links on disk (skipping http:/mailto:/data:/#anchors, supporting extensionless -> .md); checkPrereqs() cross-checks 'Node.js N+' against engines.node and 'pnpm X.Y.Z' against packageManager. (4) RUN + RECORDED OUTPUT, fresh from repo root: `node scripts/docs-check.js` -> exit_code=0, output 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve, Node/pnpm claims match package.json'; `pnpm docs:check` -> '$ node scripts/docs-check.js' then the same OK line, confirming script wiring; `node scripts/docs-check.js --self-test` -> exit_code=0, 'self-test: RED arm flagged 4 defect classes, GREEN arm passed'. (5) Negative control proves it is not a no-op: an injected fixture with a dead link and unclosed fence returned exit_code=1 with 'README.md:5: code fence opened here is never closed' and 'README.md:3: broken local link \"docs/nope.md\"'. (6) Claims are truthful: README.md:81/498 'Node.js 22+' matches package.json:68 engines.node '>=22'; README.md:89 'pnpm 12.4.2' matches package.json:4 packageManager 'pnpm@12.4.2'. Note: the visible git diff shows only .gitreins/tasks.yaml metadata because the substantive work was committed in 05f86e6d; the files exist on disk and execute correctly. [resolution 0.28; package.json]\npackage.json:30 defines the docs:check script, README.md:516-532 documents it, and the validator genuinely covers fenced blocks, local links, and Node/pnpm version claims \u2014 verified green (exit 0) on the real tree and red (exit 1) on an injected broken fixture.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Add or document a runnable README/docs validation command covering fenced commands, local links, and key version/prerequisite claims; run it and record its output. Acceptance: package.json has a docs/readme script and README documents it.: All acceptance elements verified with live command output. (1) package.json:30 has `\"docs:check\": \"node scripts/docs-check.js\"` (added in commit 05f86e6d 'docs: add `pnpm docs:check` README/docs validator. Addresses README-18.'). (2) README documents it: README.md:516 heading '### Validating the documentation', README.md:518-519 names `pnpm docs:check` and links scripts/docs-check.js, README.md:529 shows the runnable fenced command, README.md:532 documents `--self-test`. (3) Coverage of all three required areas in scripts/docs-check.js: checkFences() validates balanced fenced code blocks across README.md + all docs/**/*.md; checkLinks() resolves local relative links on disk (skipping http:/mailto:/data:/#anchors, supporting extensionless -> .md); checkPrereqs() cross-checks 'Node.js N+' against engines.node and 'pnpm X.Y.Z' against packageManager. (4) RUN + RECORDED OUTPUT, fresh from repo root: `node scripts/docs-check.js` -> exit_code=0, output 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve, Node/pnpm claims match package.json'; `pnpm docs:check` -> '$ node scripts/docs-check.js' then the same OK line, confirming script wiring; `node scripts/docs-check.js --self-test` -> exit_code=0, 'self-test: RED arm flagged 4 defect classes, GREEN arm passed'. (5) Negative control proves it is not a no-op: an injected fixture with a dead link and unclosed fence returned exit_code=1 with 'README.md:5: code fence opened here is never closed' and 'README.md:3: broken local link \"docs/nope.md\"'. (6) Claims are truthful: README.md:81/498 'Node.js 22+' matches package.json:68 engines.node '>=22'; README.md:89 'pnpm 12.4.2' matches package.json:4 packageManager 'pnpm@12.4.2'. Note: the visible git diff shows only .gitreins/tasks.yaml metadata because the substantive work was committed in 05f86e6d; the files exist on disk and execute correctly. [resolution 0.28; package.json]\npackage.json:30 defines the docs:check script, README.md:516-532 documents it, and the validator genuinely covers fenced blocks, local links, and Node/pnpm version claims \u2014 verified green (exit 0) on the real tree and red (exit 1) on an injected broken fixture.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Add or document a runnable README/docs validation command covering fenced commands, local links, and key version/prerequisite claims; run it and record its output. Acceptance: package.json has a docs/readme script and README documents it.",
+                "status": "PASS",
+                "detail": "All acceptance elements verified with live command output. (1) package.json:30 has `\"docs:check\": \"node scripts/docs-check.js\"` (added in commit 05f86e6d 'docs: add `pnpm docs:check` README/docs validator. Addresses README-18.'). (2) README documents it: README.md:516 heading '### Validating the documentation', README.md:518-519 names `pnpm docs:check` and links scripts/docs-check.js, README.md:529 shows the runnable fenced command, README.md:532 documents `--self-test`. (3) Coverage of all three required areas in scripts/docs-check.js: checkFences() validates balanced fenced code blocks across README.md + all docs/**/*.md; checkLinks() resolves local relative links on disk (skipping http:/mailto:/data:/#anchors, supporting extensionless -> .md); checkPrereqs() cross-checks 'Node.js N+' against engines.node and 'pnpm X.Y.Z' against packageManager. (4) RUN + RECORDED OUTPUT, fresh from repo root: `node scripts/docs-check.js` -> exit_code=0, output 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve, Node/pnpm claims match package.json'; `pnpm docs:check` -> '$ node scripts/docs-check.js' then the same OK line, confirming script wiring; `node scripts/docs-check.js --self-test` -> exit_code=0, 'self-test: RED arm flagged 4 defect classes, GREEN arm passed'. (5) Negative control proves it is not a no-op: an injected fixture with a dead link and unclosed fence returned exit_code=1 with 'README.md:5: code fence opened here is never closed' and 'README.md:3: broken local link \"docs/nope.md\"'. (6) Claims are truthful: README.md:81/498 'Node.js 22+' matches package.json:68 engines.node '>=22'; README.md:89 'pnpm 12.4.2' matches package.json:4 packageManager 'pnpm@12.4.2'. Note: the visible git diff shows only .gitreins/tasks.yaml metadata because the substantive work was committed in 05f86e6d; the files exist on disk and execute correctly. [resolution 0.28; package.json]",
+                "resolution_probability": 0.28,
+                "cited_path": "package.json"
+              }
+            ],
+            "summary": "package.json:30 defines the docs:check script, README.md:516-532 documents it, and the validator genuinely covers fenced blocks, local links, and Node/pnpm version claims \u2014 verified green (exit 0) on the real tree and red (exit 1) on an injected broken fixture.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: README-18\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Add or document a runnable README/docs validation command covering fenced commands, local links, and key version/prerequisite claims; run it and record its output. Acceptance: package.json has a docs/readme script and README documents it.: All acceptance elements verified with live command output. (1) package.json:30 has `\"docs:check\": \"node scripts/docs-check.js\"` (added in commit 05f86e6d 'docs: add `pnpm docs:check` README/docs validator. Addresses README-18.'). (2) README documents it: README.md:516 heading '### Validating the documentation', README.md:518-519 names `pnpm docs:check` and links scripts/docs-check.js, README.md:529 shows the runnable fenced command, README.md:532 documents `--self-test`. (3) Coverage of all three required areas in scripts/docs-check.js: checkFences() validates balanced fenced code blocks across README.md + all docs/**/*.md; checkLinks() resolves local relative links on disk (skipping http:/mailto:/data:/#anchors, supporting extensionless -> .md); checkPrereqs() cross-checks 'Node.js N+' against engines.node and 'pnpm X.Y.Z' against packageManager. (4) RUN + RECORDED OUTPUT, fresh from repo root: `node scripts/docs-check.js` -> exit_code=0, output 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve, Node/pnpm claims match package.json'; `pnpm docs:check` -> '$ node scripts/docs-check.js' then the same OK line, confirming script wiring; `node scripts/docs-check.js --self-test` -> exit_code=0, 'self-test: RED arm flagged 4 defect classes, GREEN arm passed'. (5) Negative control proves it is not a no-op: an injected fixture with a dead link and unclosed fence returned exit_code=1 with 'README.md:5: code fence opened here is never closed' and 'README.md:3: broken local link \"docs/nope.md\"'. (6) Claims are truthful: README.md:81/498 'Node.js 22+' matches package.json:68 engines.node '>=22'; README.md:89 'pnpm 12.4.2' matches package.json:4 packageManager 'pnpm@12.4.2'. Note: the visible git diff shows only .gitreins/tasks.yaml metadata because the substantive work was committed in 05f86e6d; the files exist on disk and execute correctly. [resolution 0.28; package.json]\npackage.json:30 defines the docs:check script, README.md:516-532 documents it, and the validator genuinely covers fenced blocks, local links, and Node/pnpm version claims \u2014 verified green (exit 0) on the real tree and red (exit 1) on an injected broken fixture.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-27T21:44:04.923282",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-27T21:44:04.950834+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 642,
+        "truncated": false,
+        "source": "git show f326fa33a5cb"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 29385,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-18"
+  }
+}

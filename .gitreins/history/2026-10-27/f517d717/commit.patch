@@ -1,0 +1,15 @@
+commit f326fa33a5cb949495d69c3545c45c12d93d0a32
+Merge: e4fc01be 05f86e6d
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 27 16:41:25 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 27 16:41:25 2026 -0500
+
+    Merge branch 'wt/README-18' into foreman/duckbrain-2026-10-27-21-25-08
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ README.md             |  19 ++++
+ package.json          |   3 +-
+ scripts/docs-check.js | 261 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 282 insertions(+), 1 deletion(-)
