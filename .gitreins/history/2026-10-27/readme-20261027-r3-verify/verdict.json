@@ -1,0 +1,1 @@
+{"task_id":"README-9-R3","commit":"42813966f20c5c550aa93ef31d4b3e2721cf779d","passed":true,"verdict":"verification-only close: five README curl examples have separate header and URL arguments","evidence":"/home/kara/.hermes/stand-in/readme/duckbrain/evidence/readme-command-argv-check.txt"}
