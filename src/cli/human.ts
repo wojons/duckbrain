@@ -612,6 +612,40 @@ function normalizeSpaceFormFlags(args: string[], flags: string[]): string[] {
 }
 
 /**
+ * DF-2026-9: strict space-form consumption for `status`, which has exactly ONE
+ * value-taking flag (--namespace) and no body/positional value that could
+ * legitimately begin with "-".
+ *
+ * parseArgs only splits on "=", so a space-form flag parses as the literal
+ * "true" and its value leaks into the positionals — recall/search/forget/
+ * remember all normalize that away via normalizeSpaceFormFlags, but that
+ * helper is deliberately permissive (remember's --content may begin with a
+ * dash, and it must not swallow a following flag either). Here the value is
+ * consumed only when it is a real token: a dangling `--namespace` (nothing
+ * follows, or the next token is another flag, e.g. `--namespace --help`) is
+ * left bare so the caller's sentinel guard rejects it loudly instead of ever
+ * resolving the namespace to "true" or to "--help".
+ */
+function normalizeStatusNamespaceFlags(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const value = args[i + 1];
+    if (
+      arg === "--namespace" &&
+      value !== undefined &&
+      !value.startsWith("-")
+    ) {
+      out.push(`--namespace=${value}`);
+      i += 1;
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
+}
+
+/**
  * Search command (RETR-001)
  *
  * Keyword full-text search over a namespace's rebuilt FTS sidecar:
@@ -1248,7 +1282,21 @@ async function namespacesCommand(args: string[]): Promise<void> {
  * Status command
  */
 async function statusCommand(args: string[]): Promise<void> {
-  const { flags } = parseArgs(args);
+  // DF-2026-9: the space form (`status --namespace dogfood1027`) used to parse
+  // as namespace="true" — status printed "Namespace: true" with the
+  // config-default path while `--namespace=dogfood1027` printed the intended
+  // namespace. Consume the value strictly, then refuse the "true" sentinel
+  // (a bare flag or an empty `--namespace=`) instead of resolving it as a
+  // namespace name.
+  const { flags } = parseArgs(normalizeStatusNamespaceFlags(args));
+
+  if (flags.namespace === "true") {
+    console.error(
+      "Error: --namespace requires a value. Usage: duckbrain status [--namespace=<name>]",
+    );
+    process.exit(1);
+  }
+
   const namespace = flags.namespace || getDefaultNamespace();
 
   try {
