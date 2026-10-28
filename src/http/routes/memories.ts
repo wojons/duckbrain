@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { recallTool } from "../../mcp/tools/recall";
 import { rememberTool } from "../../mcp/tools/remember";
 import { forgetTool } from "../../mcp/tools/forget";
@@ -680,6 +681,17 @@ router.post(
   "/",
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as CreateMemoryRequest;
+    // DF-2026-6: express.json() only parses `application/json`, so a request
+    // that sends NO body and NO Content-Type leaves req.body undefined
+    // (Express 5) — the field reads below then threw a TypeError that the
+    // error handler reported as 500 INTERNAL_ERROR for what is purely a
+    // client mistake. Answer the documented client-error envelope instead,
+    // using the same code the JSON parser's own failure arm uses: there was
+    // no parseable JSON body to read. A body that IS parseable but
+    // incomplete (e.g. `{}`) keeps its 400 VALIDATION_ERROR below.
+    if (req.body === undefined || req.body === null) {
+      throw new ApiError("Invalid JSON in request body", 400, "INVALID_JSON");
+    }
     // DF-0919-05: camelCase validity aliases (API-spec-adjacent spellings
     // some callers send). Mapped below; snake_case wins on collision.
     const camel = {
@@ -936,6 +948,34 @@ router.put(
 );
 
 /**
+ * DF-2026-5: the by-id path parameter is validated at the HTTP seam, before
+ * any tool sees it.
+ *
+ * forgetTool (src/mcp/tools/forget.ts) parses its input with
+ * `z.string().uuid()` and reports a parse failure as
+ * `{success:false, error:"Invalid input: Invalid UUID"}` — with NO `code`
+ * field. throwWriteError() above maps an absent `code` to 500, so
+ * DELETE /api/memories/not-a-uuid answered
+ * `500 {"error":"Invalid input: Invalid UUID"}` with no `code` at all, while
+ * GET and PUT on the SAME malformed id answered 404 NOT_FOUND: one client
+ * mistake, three different answers, one of them a server fault — and a 500
+ * that carries no code, which docs/api/http-api.md says every error carries.
+ *
+ * The gate reuses the tool's own validator, so an id accepted here cannot
+ * fail inside the tool (a looser check would leave the 500 fallthrough alive
+ * for every id it waved through). A malformed id cannot name a stored
+ * memory, so it is a NOT_FOUND on this route exactly as it already is on the
+ * two sibling routes.
+ */
+const MemoryIdSchema = z.string().uuid();
+
+function assertUuidMemoryId(id: string): void {
+  if (!MemoryIdSchema.safeParse(id).success) {
+    throw new NotFoundError("Memory", id);
+  }
+}
+
+/**
  * DELETE /api/memories/:id
  * Delete a memory (create tombstone)
  */
@@ -943,6 +983,9 @@ router.delete(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
+    // DF-2026-5: classify a malformed id BEFORE it reaches forgetTool, whose
+    // parse failure arrives codeless and would fall through to a 500.
+    assertUuidMemoryId(id);
     const namespace = resolveRequestNamespace(req);
     // DB-GAP-031: authenticated principal stamps the tombstone — a
     // client-supplied author value is never honored.
