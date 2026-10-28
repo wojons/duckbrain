@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""dbq — the correct DuckBrain call, in one command.
+
+Exists because "use the right DuckBrain call" kept failing: the HTTP surface has
+traps that are easy to get wrong from memory (keys need a leading slash, the
+namespace is a separate field from the domain, `/api/reads` is telemetry and not
+a search, and a key lookup silently 404s without ?namespace=). Encoding the
+recipes here means the agent runs a command instead of reconstructing an API.
+
+Usage:
+  dbq health
+  dbq ns [list|count]
+  dbq ls   [--ns NS] [--limit N]
+  dbq recall "<query>" [--ns NS] [--limit N]
+  dbq get  <key> [--ns NS]
+  dbq put  <key> (--file F | --text T | -) [--ns NS] [--domain D]
+  dbq rm   <key> [--ns NS]            # unregisters; data stays (see DF-2026-15)
+
+Namespace resolution: --ns > $DUCKBRAIN_NAMESPACE > 'hermes-memory'.
+Token: $DUCKBRAIN_TOKEN > ~/.duckbrain/hermes.token > newest ~/.duckbrain/*.token
+"""
+import glob
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+URL = os.environ.get("DUCKBRAIN_URL", "http://127.0.0.1:3000").rstrip("/")
+DEFAULT_NS = os.environ.get("DUCKBRAIN_NAMESPACE", "hermes-memory")
+DOMAINS = {"person", "event", "concept", "message", "config", "raw_note"}
+
+
+def token() -> str:
+    t = os.environ.get("DUCKBRAIN_TOKEN")
+    if t:
+        return t.strip()
+    home = os.path.expanduser("~")
+    for name in ("hermes.token", "master.token"):
+        p = os.path.join(home, ".duckbrain", name)
+        if os.path.exists(p):
+            return open(p).read().strip()
+    cands = sorted(glob.glob(os.path.join(home, ".duckbrain", "*.token")), key=os.path.getmtime)
+    if not cands:
+        sys.exit("dbq: no token found under ~/.duckbrain")
+    return open(cands[-1]).read().strip()
+
+
+def call(method: str, path: str, params=None, payload=None, timeout=25):
+    url = URL + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data, method=method,
+                                 headers={"x-api-key": token(),
+                                          "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode("utf-8", "replace")
+            try:
+                return json.loads(body)
+            except Exception:
+                return {"raw": body}
+    except urllib.error.HTTPError as e:
+        return {"error": f"HTTP {e.code}", "detail": e.read().decode("utf-8", "replace")[:300]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def args_of(argv):
+    ns, limit, domain, key, query, text, ffile = DEFAULT_NS, 6, "raw_note", None, None, None, None
+    rest = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--ns", "-n"):
+            ns = argv[i + 1]; i += 2
+        elif a == "--limit":
+            limit = int(argv[i + 1]); i += 2
+        elif a in ("--domain", "-d"):
+            domain = argv[i + 1]; i += 2
+        elif a == "--text":
+            text = argv[i + 1]; i += 2
+        elif a in ("--file", "-f"):
+            ffile = argv[i + 1]; i += 2
+        else:
+            rest.append(a); i += 1
+    if rest:
+        key = rest[0]
+    if len(rest) > 1:
+        query = " ".join(rest[1:])
+    return ns, limit, domain, key, query, text, ffile
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 1
+    cmd = sys.argv[1]
+    ns, limit, domain, key, query, text, ffile = args_of(sys.argv[2:])
+
+    if cmd == "health":
+        r = call("GET", "/health", timeout=6)
+        print(json.dumps({k: r.get(k) for k in ("status", "uptime") if k in r} or r)[:300])
+        return 0
+
+    if cmd == "ns":
+        r = call("GET", "/api/namespaces", timeout=30)
+        items = r.get("namespaces") or r.get("items") or []
+        if len(sys.argv) > 2 and sys.argv[2] == "count":
+            print(len(items))
+        else:
+            for n in items:
+                print(n.get("name") if isinstance(n, dict) else n)
+        return 0
+
+    if cmd == "ls":
+        r = call("GET", "/api/memories", {"namespace": ns, "limit": limit})
+        for it in r.get("items", []):
+            print(f"{it.get('key')}\t{str(it.get('content'))[:90]}")
+        return 0
+
+    if cmd == "recall":
+        q = query or key or ""
+        if not q:
+            sys.exit("dbq recall: need a query")
+        r = call("GET", "/api/memories", {"namespace": ns, "q": q, "limit": limit}, timeout=60)
+        if r.get("error"):
+            print(json.dumps(r)[:400]); return 2
+        items = r.get("items", [])
+        print(f"# {len(items)} hits in {ns} for {q!r}", file=sys.stderr)
+        for it in items:
+            print(f"{it.get('key')}\t{str(it.get('content'))[:160]}")
+        return 0
+
+    if cmd == "get":
+        if not key:
+            sys.exit("dbq get: need a key")
+        if not key.startswith("/"):
+            key = "/" + key
+        r = call("GET", "/api/memories/key/" + urllib.parse.quote(key, safe=""), {"namespace": ns})
+        if r.get("error"):
+            print(json.dumps(r)[:300]); return 2
+        rec = r.get("memory") or r.get("item") or r
+        print(rec.get("content", json.dumps(rec)[:400]))
+        return 0
+
+    if cmd == "put":
+        if not key:
+            sys.exit("dbq put: need a key")
+        if not key.startswith("/"):
+            key = "/" + key
+        if domain not in DOMAINS:
+            sys.exit(f"dbq put: domain must be one of {sorted(DOMAINS)}")
+        if ffile:
+            content = open(ffile).read()
+        elif text is not None:
+            content = text
+        elif key == "-" or sys.stdin.isatty() is False:
+            content = sys.stdin.read()
+        else:
+            sys.exit("dbq put: give --text, --file or pipe stdin")
+        r = call("POST", "/api/memories",
+                 payload={"key": key, "content": content, "domain": domain, "namespace": ns})
+        print(json.dumps({k: r.get(k) for k in ("id", "key", "error")}, default=str))
+        return 0 if not r.get("error") else 2
+
+    print(f"dbq: unknown command {cmd!r}")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
