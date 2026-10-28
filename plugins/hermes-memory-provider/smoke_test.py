@@ -7,7 +7,7 @@ if HERMES not in sys.path:
     sys.path.insert(0, HERMES)
 
 spec = importlib.util.spec_from_file_location(
-    "duckbrain_provider", "/home/kara/.hermes/plugins/memory/duckbrain/__init__.py")
+    "duckbrain_provider", "/home/kara/.hermes/plugins/duckbrain/__init__.py")
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 

@@ -82,6 +82,9 @@ class DuckBrainMemoryProvider(MemoryProvider):
         self._last_query = ""
         self._recall_count = 0
         self._fail_count = 0
+        self._budget = PACK_BUDGET
+        self._records = RECORDS
+        self._platform = ""
 
     # ---- identity -------------------------------------------------------
     @property
@@ -103,11 +106,26 @@ class DuckBrainMemoryProvider(MemoryProvider):
     def initialize(self, session_id: str, **kwargs) -> None:
         self._session_id = session_id
         self._token = self._token or _find_token()
+        self._platform = str(kwargs.get("platform") or "")
+        # Lane/cron sessions tick hundreds of times a day: keep their recall pack
+        # smaller and cheaper than an interactive chat turn's.
+        if self._platform in ("cron", "scheduler"):
+            self._budget = int(os.environ.get("DUCKBRAIN_CRON_PACK_BUDGET", "600"))
+            self._records = int(os.environ.get("DUCKBRAIN_CRON_RECORDS", "3"))
+        else:
+            self._budget = PACK_BUDGET
+            self._records = RECORDS
         ns = os.environ.get("DUCKBRAIN_NAMESPACE")
         if not ns:
             ns = (kwargs.get("agent_workspace") or "").strip()
+        if not ns:
+            # A lane works inside its project dir; prefer that project's namespace.
+            base = os.path.basename(os.getcwd().rstrip("/"))
+            if base and os.path.isdir(os.path.expanduser(f"~/duckbrain/namespaces/{base}")):
+                ns = base
         self._namespace = ns or DEFAULT_NAMESPACE
-        log.info("duckbrain provider: namespace=%s session=%s", self._namespace, session_id[:12])
+        log.info("duckbrain provider: namespace=%s platform=%s budget=%d session=%s",
+                 self._namespace, self._platform or "?", self._budget, session_id[:12])
 
     # ---- prompt ---------------------------------------------------------
     def system_prompt_block(self) -> str:
@@ -136,7 +154,7 @@ class DuckBrainMemoryProvider(MemoryProvider):
         data = self._http_json("/api/memories", {
             "namespace": self._namespace,
             "q": query[:200],
-            "limit": RECORDS,
+            "limit": getattr(self, "_records", RECORDS),
         })
         if not data:
             return ""
@@ -151,7 +169,7 @@ class DuckBrainMemoryProvider(MemoryProvider):
             if not key:
                 continue
             line = f"- [{key}] {body[:180]}"
-            if used + len(line) > PACK_BUDGET:
+            if used + len(line) > getattr(self, "_budget", PACK_BUDGET):
                 break
             lines.append(line)
             used += len(line) + 1
