@@ -29,6 +29,7 @@ import glob
 import json
 import logging
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -41,6 +42,72 @@ from agent.memory_provider import MemoryProvider
 log = logging.getLogger(__name__)
 
 DEFAULT_URL = os.environ.get("DUCKBRAIN_URL", "http://127.0.0.1:3000")
+# ---------------------------------------------------------------------------
+# Skill index — the same automatic path as recall, on purpose.
+# Reason: measured 2026-10-28, 714 tool calls in one session were 92% build and
+# 0.7% skill_view. Looking things up only happens if it is not a decision, so
+# prefetch surfaces matching skills next to matching records.
+# ---------------------------------------------------------------------------
+SKILL_ROOTS = [os.path.expanduser("~/coding-hermes-skills"),
+               os.path.expanduser("~/.hermes/skills")]
+_SKILL_INDEX: List[tuple] = []
+_STOP = set(("a an the and or for to of in on with without from by is are was were be been this that "
+             "these those it its as at into over under how what why when which who do does did can could "
+             "should would will not no yes my your our their his her them us we you i me please just about "
+             "using use build make get set new add fix").split())
+
+
+def _load_skill_index() -> List[tuple]:
+    """(name, description, tokens) for every SKILL.md; frontmatter only, read once."""
+    out = []
+    for root in SKILL_ROOTS:
+        try:
+            entries = os.listdir(root)
+        except Exception:
+            continue
+        for entry in entries:
+            f = os.path.join(root, entry, "SKILL.md")
+            if not os.path.isfile(f):
+                continue
+            try:
+                head = open(f, errors="replace").read(2000)
+            except Exception:
+                continue
+            m = re.search(r"^description:\s*(.+)$", head, re.M)
+            desc = (m.group(1).strip().strip('"\'') if m else "")
+            toks = set(re.findall(r"[a-z0-9]+", (entry + " " + desc).lower()))
+            out.append((entry, desc, toks))
+    return out
+
+
+def _match_skills(query: str, limit: int = 3) -> List[str]:
+    global _SKILL_INDEX
+    if not _SKILL_INDEX:
+        try:
+            _SKILL_INDEX = _load_skill_index()
+        except Exception:
+            return []
+    q = {w for w in re.findall(r"[a-z0-9]+", (query or "").lower())
+         if len(w) > 2 and w not in _STOP}
+    if not q:
+        return []
+    scored = []
+    for name, _desc, toks in _SKILL_INDEX:
+        hit = len(q & toks)
+        if hit:
+            bonus = 2 if any(w in name.lower() for w in q) else 0
+            scored.append((hit + bonus, name))
+    scored.sort(reverse=True)
+    seen, out = set(), []
+    for _s, name in scored:
+        if name in seen:
+            continue
+        seen.add(name); out.append(name)
+        if len(out) >= limit:
+            break
+    return out
+
+
 DEFAULT_NAMESPACE = os.environ.get("DUCKBRAIN_NAMESPACE", "hermes-memory")
 HTTP_TIMEOUT = float(os.environ.get("DUCKBRAIN_TIMEOUT", "6.0"))
 PACK_BUDGET = int(os.environ.get("DUCKBRAIN_PACK_BUDGET", "1200"))
@@ -149,30 +216,33 @@ class DuckBrainMemoryProvider(MemoryProvider):
             return None
 
     def _build_pack(self, query: str) -> str:
-        if not query.strip() or not self._token:
-            return ""
-        data = self._http_json("/api/memories", {
-            "namespace": self._namespace,
-            "q": query[:200],
-            "limit": getattr(self, "_records", RECORDS),
-        })
-        if not data:
-            return ""
-        items = data.get("items") or []
-        if not items:
-            return ""
+        items = []
+        if self._token:
+            data = self._http_json("/api/memories", {
+                "namespace": self._namespace,
+                "q": query[:200],
+                "limit": getattr(self, "_records", RECORDS),
+            })
+            if data:
+                items = data.get("items") or []
         lines: List[str] = []
         used = 0
+        budget = getattr(self, "_budget", PACK_BUDGET)
         for it in items:
             key = str(it.get("key") or "")
             body = " ".join(str(it.get("content") or "").split())
             if not key:
                 continue
             line = f"- [{key}] {body[:180]}"
-            if used + len(line) > getattr(self, "_budget", PACK_BUDGET):
+            if used + len(line) > budget:
                 break
             lines.append(line)
             used += len(line) + 1
+        skills = _match_skills(query)
+        if skills:
+            skill_line = "- [skills] " + ", ".join(skills)
+            if used + len(skill_line) <= budget:
+                lines.append(skill_line)
         if not lines:
             return ""
         self._recall_count += 1
