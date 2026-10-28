@@ -1,0 +1,21 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-28-09-01-38",
+  "project": "duckbrain",
+  "block": "DB-GAP-065",
+  "mode": "recovery-merge",
+  "wave_size": 1,
+  "slots_available": 4,
+  "slots_reason": "max(1, min(6, 16 - ceil(11.3))) = 4, but the block held exactly 1 ready row (resume-first of the dead 06:56 tick's in_progress row), so wave size 1",
+  "note": "No new worker was dispatched. The prior tick's worker commit a203d3ca (wt/DB-GAP-065) was verified (scope, zero deletions, clean tree), gated on the merged tree, merged via 5cc4d3f3, judged, and closed. This manifest records the recovery wave for audit.",
+  "workers": [
+    {
+      "task": "DB-GAP-065",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-065",
+      "branch": "wt/DB-GAP-065",
+      "commit": "a203d3ca",
+      "merged_as": "5cc4d3f3",
+      "status": "merged+closed",
+      "evidence": "docs/evidence/DB-GAP-065-evidence.md"
+    }
+  ]
+}
