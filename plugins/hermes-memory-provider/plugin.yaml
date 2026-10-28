@@ -1,0 +1,7 @@
+name: duckbrain
+version: 0.1.0
+description: "DuckBrain ledger as an automatic memory channel — bounded per-turn recall, compaction-surviving digest, fail-open."
+pip_dependencies: []
+requires_env: []
+hooks:
+  - on_pre_compress
