@@ -22,6 +22,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 // Force a deterministic, NON-"default" config default + a distinct mapping for
 // the flag value, unless a test overrides.
@@ -168,5 +171,91 @@ describe("DF-2026-9: status resolves the space-form --namespace value", () => {
     expect(errors).toEqual([]);
     expect(logs).toContain(`Namespace: ${FLAG_NS}`);
     expect(logs.join("\n")).not.toContain("Namespace: true");
+  });
+});
+
+/**
+ * DF-2026-9 follow-up: an explicitly named namespace that is NEITHER a key of
+ * config.namespaceMappings NOR a directory under the resolved namespaces root
+ * used to silently resolve to the hardcoded "./memory/default" fallback and
+ * exit 0. It must fail loudly instead (stderr names the namespace, non-zero
+ * exit, no "Status: OK", no default path).
+ *
+ * The namespaces root is isolated to a fresh empty temp dir via
+ * DUCKBRAIN_NAMESPACES_PATH (BUG-037 knob, consolidate.test.ts house style),
+ * so "absent from the root" is deterministic regardless of what the host tree
+ * happens to have on disk.
+ */
+describe("DF-2026-9: status fails loudly on an unknown explicit --namespace", () => {
+  const UNKNOWN_NS = "definitely-not-a-namespace-xyz";
+  const DIR_ONLY_NS = "df2026-9-dirconly";
+
+  /** Point the namespaces root at a fresh empty temp dir; returns its path. */
+  function isolateNamespacesRoot(): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-df2026-9-"));
+    process.env.DUCKBRAIN_NAMESPACES_PATH = root;
+    return root;
+  }
+
+  function restoreNamespacesRoot(saved: string | undefined, root: string) {
+    if (saved === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
+    else process.env.DUCKBRAIN_NAMESPACES_PATH = saved;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  it("AC-8: space form — unknown namespace exits non-zero, names it, never prints the default path", async () => {
+    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const root = isolateNamespacesRoot();
+    try {
+      const { logs, errors, rejected } = await capture(() =>
+        runHumanCLI("status", ["--namespace", UNKNOWN_NS]),
+      );
+
+      expect(rejected).toBe(true);
+      expect(errors.join("\n")).toContain(UNKNOWN_NS);
+      const out = logs.join("\n");
+      expect(out).not.toContain("./memory/default");
+      expect(out).not.toContain("Status: OK");
+    } finally {
+      restoreNamespacesRoot(saved, root);
+    }
+  });
+
+  it("AC-9: equals form — unknown namespace fails identically to the space form", async () => {
+    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const root = isolateNamespacesRoot();
+    try {
+      const { logs, errors, rejected } = await capture(() =>
+        runHumanCLI("status", [`--namespace=${UNKNOWN_NS}`]),
+      );
+
+      expect(rejected).toBe(true);
+      expect(errors.join("\n")).toContain(UNKNOWN_NS);
+      const out = logs.join("\n");
+      expect(out).not.toContain("./memory/default");
+      expect(out).not.toContain("Status: OK");
+    } finally {
+      restoreNamespacesRoot(saved, root);
+    }
+  });
+
+  it("AC-10: a namespace known only as a directory under the root resolves to its real path", async () => {
+    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
+    const root = isolateNamespacesRoot();
+    fs.mkdirSync(path.join(root, DIR_ONLY_NS));
+    try {
+      const { logs, errors, rejected } = await capture(() =>
+        runHumanCLI("status", ["--namespace", DIR_ONLY_NS]),
+      );
+
+      expect(rejected).toBe(false);
+      expect(errors).toEqual([]);
+      expect(logs).toContain(`Namespace: ${DIR_ONLY_NS}`);
+      expect(logs).toContain(`Path: ${path.join(root, DIR_ONLY_NS)}`);
+      expect(logs).toContain("Status: OK");
+      expect(logs.join("\n")).not.toContain("./memory/default");
+    } finally {
+      restoreNamespacesRoot(saved, root);
+    }
   });
 });

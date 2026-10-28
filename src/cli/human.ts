@@ -28,6 +28,7 @@ import { forgetTool } from "../mcp/tools/forget";
 import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import { executeSegmentConsolidation } from "../storage/segment-consolidation";
 import { getConfig, setConfig, registerNamespace } from "../config/index";
+import { resolveNamespacesPath } from "../config/index";
 import { deleteNamespaceFromDisk } from "../namespaces/lifecycle";
 // PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
 // @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
@@ -1297,11 +1298,45 @@ async function statusCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // Explicitly supplied vs defaulted matters for validation: `status` with no
+  // flag must keep reporting the configured default namespace unconditionally
+  // (validate ONLY an explicit --namespace), while an explicit
+  // `--namespace=<name>` names a namespace the caller believes exists.
+  const namespaceExplicit = flags.namespace !== undefined;
   const namespace = flags.namespace || getDefaultNamespace();
 
   try {
     const config = getConfig();
-    const nsPath = config.namespaceMappings?.[namespace] || "./memory/default";
+
+    // DF-2026-9 follow-up: an UNKNOWN explicitly-named namespace used to
+    // silently resolve to the hardcoded "./memory/default" fallback and exit
+    // 0. A namespace is KNOWN when it is either (a) a key of
+    // config.namespaceMappings, or (b) an existing directory under the
+    // resolved namespaces root (resolveNamespacesPath — the same store the
+    // MCP/HTTP layer uses, honors config.namespacesPath and the
+    // DUCKBRAIN_NAMESPACES_PATH override). An unknown name fails loudly and
+    // never prints "Status: OK" or a default path.
+    let nsPath: string | undefined;
+    if (namespaceExplicit) {
+      nsPath = config.namespaceMappings?.[namespace];
+      if (nsPath === undefined) {
+        const candidate = path.join(resolveNamespacesPath(), namespace);
+        if (
+          !fs.existsSync(candidate) ||
+          !fs.statSync(candidate).isDirectory()
+        ) {
+          console.error(
+            `Error: Namespace '${namespace}' does not exist. ` +
+              `Run 'duckbrain namespace list' to see available namespaces.`,
+          );
+          process.exit(1);
+        }
+        nsPath = candidate;
+      }
+    } else {
+      // No flag: legacy behavior — the mapped default or the fallback path.
+      nsPath = config.namespaceMappings?.[namespace] || "./memory/default";
+    }
 
     console.log(`DuckBrain Status`);
     console.log(`================`);
