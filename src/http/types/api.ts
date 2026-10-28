@@ -314,6 +314,21 @@ export interface NamespaceListResponse {
     /** Config mappings whose namespace directory is missing on disk. */
     directoryMissing: number;
   };
+  /**
+   * DB-GAP-065: actionable warning, present ONLY when the dead-row backlog
+   * crosses the drift guard threshold (>= 25 dead rows, or dead rows > 2x live
+   * rows — the rule and its rationale live next to the computation in
+   * routes/namespaces.ts). Names the operator command that repairs the
+   * registry.
+   */
+  driftWarning?: {
+    /** Registry rows whose directory is missing on disk. */
+    deadCount: number;
+    /** Listed rows that DO have a directory (registry + onDiskOnly). */
+    liveCount: number;
+    /** The command that prunes the dead rows. */
+    hint: string;
+  };
 }
 
 /**

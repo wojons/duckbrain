@@ -141,6 +141,39 @@ router.get(
         ? { onDiskOnly: onDiskOnlyCount, directoryMissing: missingDirs.size }
         : undefined;
 
+    // DB-GAP-065: actionable drift guard. A registry that accumulates dead
+    // rows (mapping present, directory gone — e.g. a reaped scratch tree) makes
+    // every listing lie about what exists. Once the dead set is large enough to
+    // be a backlog rather than an accident, the response carries an explicit
+    // warning naming the operator command that fixes it.
+    //
+    // THRESHOLD (documented here because it is the contract):
+    //   deadCount >= DRIFT_DEAD_COUNT_THRESHOLD (25) rows  — an absolute
+    //     backlog size worth an ops action on its own; OR
+    //   deadCount > DRIFT_DEAD_RATIO * liveCount (2x)      — the registry is
+    //     majority-dead, so the listing is more noise than truth even when the
+    //     absolute count is small.
+    // liveCount counts every listed row that is NOT directoryMissing: healthy
+    // registry rows plus onDiskOnly census rows (those have a directory).
+    // Strict ">" for the ratio: exactly 2x is still half-usable and does not
+    // warn. Both counts describe the VISIBLE listing (grant-filtered), exactly
+    // like `drift`.
+    const DRIFT_DEAD_COUNT_THRESHOLD = 25;
+    const DRIFT_DEAD_RATIO = 2;
+    const deadCount = missingDirs.size;
+    const liveCount = namespaces.length - deadCount;
+    const driftWarning:
+      | { deadCount: number; liveCount: number; hint: string }
+      | undefined =
+      deadCount >= DRIFT_DEAD_COUNT_THRESHOLD ||
+      deadCount > DRIFT_DEAD_RATIO * liveCount
+        ? {
+            deadCount,
+            liveCount,
+            hint: "run 'duckbrain namespaces prune --apply'",
+          }
+        : undefined;
+
     const response: NamespaceListResponse = {
       namespaces,
       // card t_667d7e6c: a scoped token whose ACTIVE namespace is outside its
@@ -152,6 +185,7 @@ router.get(
         ? {}
         : { currentNamespace: result.currentNamespace || "default" }),
       ...(drift ? { drift } : {}),
+      ...(driftWarning ? { driftWarning } : {}),
     };
 
     res.json(response);

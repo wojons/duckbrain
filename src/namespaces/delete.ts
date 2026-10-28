@@ -30,6 +30,7 @@ import fs from "fs";
 import path from "path";
 import {
   getConfig,
+  resolveDuckbrainRoot,
   resolveNamespacesPath,
   updateConfig,
 } from "../config/index";
@@ -43,6 +44,47 @@ export interface DeleteNamespaceResult {
   /** Absolute path of the directory that was removed (only on success) */
   path?: string;
   error?: string;
+}
+
+/**
+ * DB-GAP-065: the path-safety verdict for one config mapping.
+ */
+export interface NamespacePathSafety {
+  /** True when the resolved path lives inside the namespaces root. */
+  inside: boolean;
+  /** Absolute path the mapping value resolves to. */
+  resolvedPath: string;
+  /** Absolute namespaces root the guard is anchored to. */
+  namespacesRoot: string;
+}
+
+/**
+ * The delete-path safety guard, shared by every destructive/pruning caller.
+ *
+ * A mapping value is relative to the duckbrain root (the directory owning
+ * `duckbrain.config.json`) — the live registry mixes `namespaces/<ns>` rows
+ * with absolute ones, and the HTTP/MCP surfaces resolve the same way because
+ * the server's cwd is that root. Guarding on `path.resolve()` against the
+ * PROCESS cwd instead would reject legitimate rows whenever the CLI is invoked
+ * from anywhere else.
+ *
+ * Refuses (inside:false) a mapping that resolves outside the namespaces root —
+ * `../` traversal and absolute paths into foreign trees — so a deletion or a
+ * registry prune can never touch an arbitrary filesystem location.
+ * GAP-062: the guard root is the config-file-owned root, not the caller's cwd.
+ */
+export function checkNamespacePathSafety(
+  recordedPath: string,
+  namespacesRoot: string = resolveNamespacesPath(),
+): NamespacePathSafety {
+  const root = path.resolve(namespacesRoot);
+  const base = resolveDuckbrainRoot();
+  const resolvedPath = path.isAbsolute(recordedPath)
+    ? path.resolve(recordedPath)
+    : path.resolve(base, recordedPath);
+  const rel = path.relative(root, resolvedPath);
+  const inside = rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  return { inside, resolvedPath, namespacesRoot: root };
 }
 
 /**
@@ -106,16 +148,13 @@ export function deleteNamespace(
     // Path-safety guard: the resolved path MUST live inside the namespaces
     // root. This blocks `../` traversal and any mapping pointing outside the
     // root — the deletion MUST NEVER remove an arbitrary filesystem path.
-    // GAP-062: the guard root is the config file's own directory, not the
-    // caller's cwd — a cwd-relative root would either reject every legitimate
-    // mapping or widen the guard.
-    const namespacesRoot = resolveNamespacesPath();
-    const dirPath = path.resolve(recordedPath);
-    const rel = path.relative(namespacesRoot, dirPath);
-    const isInside =
-      rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    // DB-GAP-065: the rule now lives in checkNamespacePathSafety() so the
+    // registry prune calls THE SAME guard instead of re-deriving it.
+    const safety = checkNamespacePathSafety(recordedPath);
+    const namespacesRoot = safety.namespacesRoot;
+    const dirPath = safety.resolvedPath;
 
-    if (!isInside) {
+    if (!safety.inside) {
       return {
         success: false,
         error: "Refusing to delete path outside namespaces root: " + dirPath,

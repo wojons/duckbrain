@@ -971,7 +971,10 @@ async function namespacesCommand(args: string[]): Promise<void> {
 
   if (!subcommand) {
     console.error(
-      "Usage: duckbrain namespace <create|list|delete-disk|clear-s3|use|set-remote>",
+      "Usage: duckbrain namespace <create|list|prune|delete-disk|clear-s3|use|set-remote>",
+    );
+    console.error(
+      "  prune:       remove registry rows whose directory is gone (dry-run default; --apply to write)",
     );
     console.error(
       "  delete-disk: remove LOCAL copy + stop pushes (S3 version kept retrievable)",
@@ -1065,6 +1068,17 @@ async function namespacesCommand(args: string[]): Promise<void> {
       );
       process.exit(1);
     }
+  } else if (cmd === "prune") {
+    // DB-GAP-065: dead-mapping reaper for the namespace registry. SAFE BY
+    // DEFAULT — `duckbrain namespaces prune` only reports; `--apply` writes.
+    // `--dry-run` wins when both flags are present so an accidental
+    // `--apply --dry-run` can never mutate the registry. The core + report
+    // live in ./namespaces-prune (loaded lazily: read-only CLI startup paths
+    // must not pay for the registry scan module).
+    const { runNamespacesPrune } = await import("./namespaces-prune.js");
+    const dryRun = flags["dry-run"] !== undefined || flags.apply === undefined;
+    const result = runNamespacesPrune({ dryRun });
+    if (result.exitCode !== 0) process.exit(result.exitCode);
   } else if (cmd === "delete-disk" || (cmd === "delete" && !flags.purge)) {
     // ITEM 66 (REVIEW-DUCKBRAIN-001/002): 'delete' now means DISK-ONLY —
     // local dir + mapping + S3 sync manifest, S3 objects preserved. The old
@@ -1274,7 +1288,7 @@ async function namespacesCommand(args: string[]): Promise<void> {
     }
   } else {
     console.error(`Unknown namespace subcommand: ${cmd}`);
-    console.error("Valid: create, list, delete, use, set-remote");
+    console.error("Valid: create, list, prune, delete, use, set-remote");
     process.exit(1);
   }
 }
