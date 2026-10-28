@@ -15,7 +15,14 @@
       "commit": "a203d3ca",
       "merged_as": "5cc4d3f3",
       "status": "merged+closed",
-      "evidence": "docs/evidence/DB-GAP-065-evidence.md"
+      "evidence": "docs/evidence/DB-GAP-065-evidence.md",
+      "branch_tip_gate": "PASS: worker commit a203d3ca and merged content are reachable from current published main; prior merged-tree gates tsc --noEmit and vitest 237 suites / 1973 tests PASS; no board-touching implementation diff",
+      "stale_base": "not applicable: worker branch was already merged and its worktree/branch were absent; current origin/main contains a203d3ca and 5cc4d3f3",
+      "worktree_removed": true,
+      "branch_deleted": true
     }
-  ]
+  ],
+  "recovery_status": "complete",
+  "recovered_by_tick": "duckbrain-foreman-2026-10-28-22-39-18",
+  "finished_at": "2026-10-28T22:39:18-05:00"
 }
