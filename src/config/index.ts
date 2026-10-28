@@ -346,6 +346,34 @@ function getConfigPath(configDir: string): string {
 }
 
 /**
+ * DB-GAP-065: identity stamp of the on-disk config FILE.
+ *
+ * A read-side operation (e.g. `namespaces prune`) captures this before it
+ * computes a new mapping set, then hands it to `updateConfig` as
+ * `expectedStamp`. If the file's mtime/size no longer match, another writer
+ * landed between our read and our write and the update aborts instead of
+ * silently clobbering their change. `null` means "no config file existed".
+ */
+export interface ConfigFileStamp {
+  mtimeMs: number;
+  size: number;
+}
+
+/**
+ * Stat the effective config file (honors DUCKBRAIN_CONFIG_PATH). Returns
+ * `null` when the file does not exist yet — a valid stamp, distinct from
+ * "no guard requested" (which is `expectedStamp: undefined`).
+ */
+export function statConfigFile(configDir: string = "."): ConfigFileStamp | null {
+  const configPath = getConfigPath(configDir);
+  if (!fs.existsSync(configPath)) {
+    return null;
+  }
+  const stat = fs.statSync(configPath);
+  return { mtimeMs: stat.mtimeMs, size: stat.size };
+}
+
+/**
  * Read and validate the config FILE without applying env overrides.
  *
  * Returns the schema-parsed config exactly as it lives on disk (or schema
@@ -728,6 +756,27 @@ export function resolveDurabilityMode(
 }
 
 /**
+ * DB-GAP-065: optional write-path hardening for `updateConfig`.
+ */
+export interface UpdateConfigOptions {
+  /**
+   * Concurrent-writer guard: the stamp the caller observed when it READ the
+   * config this update is derived from. When supplied and the on-disk file no
+   * longer matches (mtime or size moved, file appeared/disappeared), the
+   * update aborts with a thrown Error and NOTHING is written. Omit for the
+   * historical unguarded behavior.
+   */
+  expectedStamp?: ConfigFileStamp | null;
+  /**
+   * Durability: fsync the temp file (and the containing directory after the
+   * rename) so a crash cannot leave a zero-length or lost config. Off by
+   * default — most `updateConfig` callers are chatty single-field writes and
+   * the rename was already atomic w.r.t. readers.
+   */
+  fsync?: boolean;
+}
+
+/**
  * Update configuration
  *
  * Merges `updates` into the RAW on-disk config (NOT the env-overridden
@@ -741,11 +790,14 @@ export function resolveDurabilityMode(
  *
  * @param configDir - Directory for config file
  * @param updates - Partial configuration to merge
+ * @param opts - DB-GAP-065 write hardening (concurrent-writer guard, fsync)
  * @returns Updated configuration (with env overrides applied)
+ * @throws when `opts.expectedStamp` no longer matches the on-disk file
  */
 export function updateConfig(
   configDir: string,
   updates: Partial<DuckBrainConfig>,
+  opts: UpdateConfigOptions = {},
 ): DuckBrainConfig {
   // Merge against the raw file config — never the env-overridden getConfig().
   const fileConfig = readFileConfig(configDir);
@@ -757,10 +809,60 @@ export function updateConfig(
   // Write atomically — `validated` is derived from the file config so it never
   // carries env-only overrides.
   const configPath = getConfigPath(configDir);
-  const tmpPath = configPath + ".tmp";
 
-  fs.writeFileSync(tmpPath, JSON.stringify(validated, null, 2) + "\n", "utf-8");
-  fs.renameSync(tmpPath, configPath);
+  // DB-GAP-065: concurrent-writer guard. Checked AFTER the read that produced
+  // `fileConfig` and immediately BEFORE the rename, so a writer that landed in
+  // between turns into a loud failure instead of a silently overwritten row.
+  if (opts.expectedStamp !== undefined) {
+    const current = statConfigFile(configDir);
+    const unchanged =
+      current === null && opts.expectedStamp === null
+        ? true
+        : current !== null &&
+          opts.expectedStamp !== null &&
+          current.size === opts.expectedStamp.size &&
+          current.mtimeMs === opts.expectedStamp.mtimeMs;
+    if (!unchanged) {
+      throw new Error(
+        "Config file changed on disk since it was read " +
+          `(${configPath}) — aborting to avoid clobbering a concurrent writer.`,
+      );
+    }
+  }
+
+  // A pid-suffixed temp name when hardening: two concurrent processes must not
+  // race on the same `.tmp` (the rename is atomic; the temp path was not).
+  const tmpPath = opts.fsync
+    ? `${configPath}.${process.pid}.tmp`
+    : configPath + ".tmp";
+  const payload = JSON.stringify(validated, null, 2) + "\n";
+
+  if (opts.fsync) {
+    const fd = fs.openSync(tmpPath, "w");
+    try {
+      fs.writeFileSync(fd, payload, "utf-8");
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmpPath, configPath);
+    // Durability of the RENAME itself: fsync the directory entry. Best-effort
+    // (some filesystems refuse directory fsync) — the data fsync above already
+    // guarantees content, not that the name swap survived power loss.
+    try {
+      const dirFd = fs.openSync(path.dirname(configPath), "r");
+      try {
+        fs.fsyncSync(dirFd);
+      } finally {
+        fs.closeSync(dirFd);
+      }
+    } catch {
+      // directory fsync unsupported — the atomic rename still holds for readers
+    }
+  } else {
+    fs.writeFileSync(tmpPath, payload, "utf-8");
+    fs.renameSync(tmpPath, configPath);
+  }
 
   return applyEnvOverrides(validated);
 }
