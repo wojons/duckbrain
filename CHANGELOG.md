@@ -4,6 +4,25 @@ All notable changes to DuckBrain will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`duckbrain namespaces prune`** (DB-GAP-065) — removes exactly the
+  namespace-registry mappings whose directory no longer exists on disk;
+  dry-run by default (`--apply` to write, `--dry-run` wins when both are
+  passed), idempotent, crash-safe (stamped fsync tmp+rename write that aborts
+  on concurrent modification), and path-safety-checked via the same guard as
+  `namespace delete`. Each removed row's `.s3state` manifest is pruned in the
+  same pass; S3 objects are untouched. Exit 0 success/clean, 1 refused rows,
+  2 aborted.
+- **Registry drift guard on `GET /api/namespaces`** — a `driftWarning`
+  `{deadCount, liveCount, hint}` object when directory-missing rows reach
+  >= 25 or exceed 2x the live count; omitted entirely when healthy.
+- `updateConfig()` accepts `{expectedStamp, fsync}` for crash-safe,
+  concurrent-writer-safe config rewrites (used by prune; default behavior of
+  existing callers unchanged).
+
 ## [1.1.0] - 2026-10-21
 
 Range: `v1.0.0`..`v1.1.0` — 628 non-merge commits (16 `feat`, 114 `fix`,

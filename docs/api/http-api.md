@@ -748,6 +748,24 @@ A row whose namespace directory is missing on disk (registry row survived an
 out-of-band `rm -rf`) carries `"directoryMissing": true`; healthy rows omit
 the field entirely (REG-GONE-001).
 
+**Drift warning (DB-GAP-065):** when directory-missing rows accumulate to a
+level that makes the listing misleading — `deadCount >= 25`, or
+`deadCount > 2 * liveCount` — the body gains:
+
+```json
+"driftWarning": {
+  "deadCount": 143,
+  "liveCount": 90,
+  "hint": "run 'duckbrain namespaces prune --apply'"
+}
+```
+
+Below threshold (and for a clean registry) the field is omitted entirely, so
+the absence of `driftWarning` means the registry is healthy. `duckbrain
+namespaces prune` (dry-run by default; `--apply` to write) removes exactly
+the dead set — see the CLI reference for the safety contract.
+
+
 **Authorization (card t_667d7e6c):** the listing is filtered to the caller's
 token grant — the rows cover exactly the namespaces in the token's
 `namespaces` list (registry rows *and* on-disk-only rows), and

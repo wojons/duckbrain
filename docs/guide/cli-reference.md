@@ -26,7 +26,7 @@ work for most flags).
 | `duckbrain squash` | Compact old JSONL partitions (options: `--stats` / `--dry-run` / `--partition` / `--aggressive` / `--segments`) |
 | `duckbrain embeddings` | Manage embedding cache (`rebuild` / `status` / `install-hooks` / `providers` / `migrate`) |
 | `duckbrain config` | Show or set configuration (`show` / `set` / `get`) |
-| `duckbrain namespace` (alias `namespaces`) | Manage namespaces (`create` / `list` / `delete-disk` / `clear-s3` / `use` / `set-remote`) |
+| `duckbrain namespace` (alias `namespaces`) | Manage namespaces (`create` / `list` / `delete-disk` / `clear-s3` / `prune` / `use` / `set-remote`) |
 | `duckbrain pull` | Pull changes from a namespace's remote |
 | `duckbrain push` | Push changes to a namespace's remote |
 | `duckbrain remote` | Configure a namespace's git remote (`add` / `remove`) |
@@ -303,6 +303,7 @@ duckbrain namespace use <name>                 # Set defaultNamespace in the con
 duckbrain namespace set-remote <name> <url>    # Attach a git remote to a namespace
 duckbrain namespace delete-disk <name> --force [--requested-by=<who>] [--reason=<why>]
 duckbrain namespace clear-s3 <name> --dry-run | --yes --requested-by=<who> --reason=<why>
+duckbrain namespace prune [--dry-run | --apply]
 ```
 
 `use` persists `defaultNamespace` into `duckbrain.config.json` (it is not a
@@ -318,6 +319,19 @@ reverse: it DESTROYS the remote S3 objects and refuses to touch local disk.
 `--requested-by` and `--reason` (who/why audit). To fully remove a namespace,
 run `delete-disk` then `clear-s3` — deliberately two separate, individually
 confirmed operations.
+
+**`prune`** removes exactly the registry mappings whose directory no longer
+exists on disk (DB-GAP-065). It is dry-run by default — `--apply` writes —
+and `--dry-run` wins if both flags are passed. Live rows are carried through
+byte-identically; each removed row's `.s3state/<ns>.json` sync manifest is
+pruned in the same pass (S3 objects are untouched); rows whose path escapes
+the namespaces root are refused (kept and reported), not deleted. Exit codes:
+0 success/clean, 1 refused rows present, 2 aborted without writing (the
+config changed between read and write — the write is crash-safe via a
+stamped, fsynced tmp+rename update). The apply pass is idempotent: a second
+run removes nothing. Pair it with the HTTP-side drift guard: when the
+registry accumulates >= 25 directory-missing rows (or dead > 2x live),
+`GET /api/namespaces` answers with a `driftWarning` naming this command.
 
 ```bash
 duckbrain namespace create my-project
