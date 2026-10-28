@@ -1,0 +1,111 @@
+{
+  "task_id": "DF-2026-8",
+  "task_title": "HTTP API docs match shipped tombstone and GET /mcp behaviour",
+  "task_criteria": [
+    "docs/api/http-api.md states tombstoned versions are excluded from both the default list and the historical=true view, and no longer advertises GET /mcp as supported (documented as 405 Allow POST). Claims verified against a live daemon."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "9d270dea1620bb6dfa8ded5f72e4bea12e60ce85",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:25PM INF scanned ~31511070 bytes (31.51 MB) in 5.23s\n9:25PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  234 passed (234)\n      Tests  1949 passed (1949)\n   Start at  21:25:16\n   Duration  70.75s (tests 80%, import 19%, setup 1%, worker 1%)\n\n    Isolate  234 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~5.71s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 docs/api/http-api.md states tombstoned versions are excluded from both the default list and the historical=true view, and no longer advertises GET /mcp as supported (documented as 405 Allow POST). Claims verified against a live daemon.: Doc claims present and accurate: docs/api/http-api.md:370-372 \u2014 \"Tombstoned versions (deleted memories) are excluded from both the default list and the `historical=true` view; only live versions are returned\"; docs/api/http-api.md:406 \u2014 historical param row repeats \"Tombstoned versions (deleted memories) are excluded from BOTH views\"; docs/api/http-api.md:153-157 \u2014 endpoint heading is `POST /mcp` with a note that GET /mcp \"is **not offered**\" and \"returns **405** with `Allow: POST`\". Shipped code matches: src/cli/http.ts:880-893 registers app.get(\"/mcp\") returning res.status(405).set(\"Allow\",\"POST\") with message \"Method Not Allowed: this endpoint does not offer a GET SSE stream\". Tombstone exclusion is unconditional and independent of the historical flag: src/duckdb/queries.ts:485 outerWhereClause = \"__rn = 1 AND action != 'tombstone'\" is applied to every queryMemories/countMemories/queryMemoriesWithTotal call, while buildValidityConditions (src/duckdb/queries.ts:270-282) only adds valid_from/valid_until conditions when historical !== true \u2014 so historical=true widens validity but never resurrects tombstones. Keyword leg likewise: src/search/index.ts:347 (collectLiveMemoryRows) drops tombstone-latest ids at sidecar build, and src/search/query.ts adds no tombstone rows back. Test evidence (fresh runs, exit 0): `npx vitest run src/http/routes/memories-validuntil-retr011.test.ts src/mcp/tools/recall-validuntil-retr011.test.ts src/http/routes/memories-bug027.test.ts` => \"Test Files 3 passed (3) / Tests 18 passed (18)\"; `npx vitest run src/cli/http-ui-static-df092408.test.ts` => \"Test Files 1 passed (1) / Tests 8 passed (8)\", where src/cli/http-ui-static-df092408.test.ts:136-138 asserts a live-server GET /mcp returns status 405 with headers.allow === \"POST\". Note: no test explicitly asserts tombstone exclusion under historical=true (the RETR-011 tests cover validity windows only), but the code path is unconditional and the documentation statement is correct. [resolution 0.11; docs/api/http-api.md]\ndocs/api/http-api.md correctly documents tombstone exclusion from both views and GET /mcp as 405 Allow: POST, matching the shipped code in src/duckdb/queries.ts:485 and src/cli/http.ts:880-893, with passing live-server tests (18 + 8 tests, exit 0).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 docs/api/http-api.md states tombstoned versions are excluded from both the default list and the historical=true view, and no longer advertises GET /mcp as supported (documented as 405 Allow POST). Claims verified against a live daemon.: Doc claims present and accurate: docs/api/http-api.md:370-372 \u2014 \"Tombstoned versions (deleted memories) are excluded from both the default list and the `historical=true` view; only live versions are returned\"; docs/api/http-api.md:406 \u2014 historical param row repeats \"Tombstoned versions (deleted memories) are excluded from BOTH views\"; docs/api/http-api.md:153-157 \u2014 endpoint heading is `POST /mcp` with a note that GET /mcp \"is **not offered**\" and \"returns **405** with `Allow: POST`\". Shipped code matches: src/cli/http.ts:880-893 registers app.get(\"/mcp\") returning res.status(405).set(\"Allow\",\"POST\") with message \"Method Not Allowed: this endpoint does not offer a GET SSE stream\". Tombstone exclusion is unconditional and independent of the historical flag: src/duckdb/queries.ts:485 outerWhereClause = \"__rn = 1 AND action != 'tombstone'\" is applied to every queryMemories/countMemories/queryMemoriesWithTotal call, while buildValidityConditions (src/duckdb/queries.ts:270-282) only adds valid_from/valid_until conditions when historical !== true \u2014 so historical=true widens validity but never resurrects tombstones. Keyword leg likewise: src/search/index.ts:347 (collectLiveMemoryRows) drops tombstone-latest ids at sidecar build, and src/search/query.ts adds no tombstone rows back. Test evidence (fresh runs, exit 0): `npx vitest run src/http/routes/memories-validuntil-retr011.test.ts src/mcp/tools/recall-validuntil-retr011.test.ts src/http/routes/memories-bug027.test.ts` => \"Test Files 3 passed (3) / Tests 18 passed (18)\"; `npx vitest run src/cli/http-ui-static-df092408.test.ts` => \"Test Files 1 passed (1) / Tests 8 passed (8)\", where src/cli/http-ui-static-df092408.test.ts:136-138 asserts a live-server GET /mcp returns status 405 with headers.allow === \"POST\". Note: no test explicitly asserts tombstone exclusion under historical=true (the RETR-011 tests cover validity windows only), but the code path is unconditional and the documentation statement is correct. [resolution 0.11; docs/api/http-api.md]\ndocs/api/http-api.md correctly documents tombstone exclusion from both views and GET /mcp as 405 Allow: POST, matching the shipped code in src/duckdb/queries.ts:485 and src/cli/http.ts:880-893, with passing live-server tests (18 + 8 tests, exit 0).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "docs/api/http-api.md states tombstoned versions are excluded from both the default list and the historical=true view, and no longer advertises GET /mcp as supported (documented as 405 Allow POST). Claims verified against a live daemon.",
+                "status": "PASS",
+                "detail": "Doc claims present and accurate: docs/api/http-api.md:370-372 \u2014 \"Tombstoned versions (deleted memories) are excluded from both the default list and the `historical=true` view; only live versions are returned\"; docs/api/http-api.md:406 \u2014 historical param row repeats \"Tombstoned versions (deleted memories) are excluded from BOTH views\"; docs/api/http-api.md:153-157 \u2014 endpoint heading is `POST /mcp` with a note that GET /mcp \"is **not offered**\" and \"returns **405** with `Allow: POST`\". Shipped code matches: src/cli/http.ts:880-893 registers app.get(\"/mcp\") returning res.status(405).set(\"Allow\",\"POST\") with message \"Method Not Allowed: this endpoint does not offer a GET SSE stream\". Tombstone exclusion is unconditional and independent of the historical flag: src/duckdb/queries.ts:485 outerWhereClause = \"__rn = 1 AND action != 'tombstone'\" is applied to every queryMemories/countMemories/queryMemoriesWithTotal call, while buildValidityConditions (src/duckdb/queries.ts:270-282) only adds valid_from/valid_until conditions when historical !== true \u2014 so historical=true widens validity but never resurrects tombstones. Keyword leg likewise: src/search/index.ts:347 (collectLiveMemoryRows) drops tombstone-latest ids at sidecar build, and src/search/query.ts adds no tombstone rows back. Test evidence (fresh runs, exit 0): `npx vitest run src/http/routes/memories-validuntil-retr011.test.ts src/mcp/tools/recall-validuntil-retr011.test.ts src/http/routes/memories-bug027.test.ts` => \"Test Files 3 passed (3) / Tests 18 passed (18)\"; `npx vitest run src/cli/http-ui-static-df092408.test.ts` => \"Test Files 1 passed (1) / Tests 8 passed (8)\", where src/cli/http-ui-static-df092408.test.ts:136-138 asserts a live-server GET /mcp returns status 405 with headers.allow === \"POST\". Note: no test explicitly asserts tombstone exclusion under historical=true (the RETR-011 tests cover validity windows only), but the code path is unconditional and the documentation statement is correct. [resolution 0.11; docs/api/http-api.md]",
+                "resolution_probability": 0.11,
+                "cited_path": "docs/api/http-api.md"
+              }
+            ],
+            "summary": "docs/api/http-api.md correctly documents tombstone exclusion from both views and GET /mcp as 405 Allow: POST, matching the shipped code in src/duckdb/queries.ts:485 and src/cli/http.ts:880-893, with passing live-server tests (18 + 8 tests, exit 0).",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-8\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 docs/api/http-api.md states tombstoned versions are excluded from both the default list and the historical=true view, and no longer advertises GET /mcp as supported (documented as 405 Allow POST). Claims verified against a live daemon.: Doc claims present and accurate: docs/api/http-api.md:370-372 \u2014 \"Tombstoned versions (deleted memories) are excluded from both the default list and the `historical=true` view; only live versions are returned\"; docs/api/http-api.md:406 \u2014 historical param row repeats \"Tombstoned versions (deleted memories) are excluded from BOTH views\"; docs/api/http-api.md:153-157 \u2014 endpoint heading is `POST /mcp` with a note that GET /mcp \"is **not offered**\" and \"returns **405** with `Allow: POST`\". Shipped code matches: src/cli/http.ts:880-893 registers app.get(\"/mcp\") returning res.status(405).set(\"Allow\",\"POST\") with message \"Method Not Allowed: this endpoint does not offer a GET SSE stream\". Tombstone exclusion is unconditional and independent of the historical flag: src/duckdb/queries.ts:485 outerWhereClause = \"__rn = 1 AND action != 'tombstone'\" is applied to every queryMemories/countMemories/queryMemoriesWithTotal call, while buildValidityConditions (src/duckdb/queries.ts:270-282) only adds valid_from/valid_until conditions when historical !== true \u2014 so historical=true widens validity but never resurrects tombstones. Keyword leg likewise: src/search/index.ts:347 (collectLiveMemoryRows) drops tombstone-latest ids at sidecar build, and src/search/query.ts adds no tombstone rows back. Test evidence (fresh runs, exit 0): `npx vitest run src/http/routes/memories-validuntil-retr011.test.ts src/mcp/tools/recall-validuntil-retr011.test.ts src/http/routes/memories-bug027.test.ts` => \"Test Files 3 passed (3) / Tests 18 passed (18)\"; `npx vitest run src/cli/http-ui-static-df092408.test.ts` => \"Test Files 1 passed (1) / Tests 8 passed (8)\", where src/cli/http-ui-static-df092408.test.ts:136-138 asserts a live-server GET /mcp returns status 405 with headers.allow === \"POST\". Note: no test explicitly asserts tombstone exclusion under historical=true (the RETR-011 tests cover validity windows only), but the code path is unconditional and the documentation statement is correct. [resolution 0.11; docs/api/http-api.md]\ndocs/api/http-api.md correctly documents tombstone exclusion from both views and GET /mcp as 405 Allow: POST, matching the shipped code in src/duckdb/queries.ts:485 and src/cli/http.ts:880-893, with passing live-server tests (18 + 8 tests, exit 0).\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-28T02:28:43.138815",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-28T02:28:43.160761+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3705,
+        "truncated": false,
+        "source": "git show 9d270dea1620"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2196,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-8"
+  }
+}

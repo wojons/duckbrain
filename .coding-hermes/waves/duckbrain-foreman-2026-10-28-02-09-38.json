@@ -1,0 +1,66 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-28-02-09-38",
+  "kind": "wave-recovery + rework",
+  "block": "DF-2026-9",
+  "recovered_wave": "duckbrain-foreman-2026-10-28-01-18-22",
+  "slots_computed": 3,
+  "slots_reason": "nproc=16, loadavg 12.98 -> 16 - ceil(12.98) = 3; WAVE_BUDGET=4",
+  "base_at_tick_start": "a960ccd5",
+  "recovery": [
+    {
+      "branch": "wt/DF-2026-5-6",
+      "rows": ["DF-2026-5", "DF-2026-6"],
+      "commit": "bcbf10b3",
+      "files": ["src/http/routes/memories.ts", "src/http/routes/memories-malformed-input-df2026.test.ts", "AGENTS.md"],
+      "stale_base": false,
+      "board_touching_diff": false,
+      "deletions": 0,
+      "gate": "PASS — npx tsc --noEmit clean; npx vitest run 234 files / 1949 tests pass; new suite 7/7",
+      "verdict": "MERGED to main (ff) and pushed; origin/main advanced bcbf10b3",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-5-6"
+    },
+    {
+      "branch": "wt/DF-2026-8",
+      "rows": ["DF-2026-8"],
+      "commit_original": "0e874e1c",
+      "commit_rebased": "9d270dea",
+      "files": ["docs/api/http-api.md"],
+      "stale_base": true,
+      "stale_base_action": "main advanced past the branch base (a960ccd5 -> bcbf10b3) after merge 1; rebased --onto origin/main and re-gated before merging",
+      "board_touching_diff": false,
+      "deletions": 0,
+      "gate": "PASS — node scripts/docs-check.js OK; prettier warn on the file is PRE-EXISTING on main (docs/ is not in the prettier gate); doc claims verified against source (src/cli/http.ts:880 sets 405 + Allow: POST)",
+      "verdict": "MERGED to main (ff) and pushed; origin/main advanced 9d270dea",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-8"
+    },
+    {
+      "branch": "wt/DF-2026-9",
+      "rows": ["DF-2026-9"],
+      "commit_first_pass": "b11c45bc (rebased)",
+      "files": ["src/cli/human.ts", "src/cli/status-namespace-df2026-9.test.ts"],
+      "stale_base": true,
+      "stale_base_action": "rebased --onto origin/main before rework",
+      "board_touching_diff": false,
+      "deletions": 0,
+      "gate": "PARTIAL — tsc clean, 8/8 tests pass, but the row AC's 'unknown namespace fails loudly' is UNMET: `status --namespace definitely-not-a-namespace-xyz` printed 'Path: ./memory/default' and exited 0",
+      "verdict": "REWORK dispatched (not hand-resolved) per the wave rule",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-9"
+    }
+  ],
+  "rework": [
+    {
+      "row": "DF-2026-9",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-9",
+      "branch": "wt/DF-2026-9",
+      "brief": "/tmp/db-DF-2026-9-rework-brief.txt",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "lane_verified": "API call #1 model=glm-5.3-flash provider=custom, no Fallback activated (session 20261027_211257_4571a6)",
+      "reason": "row acceptance criterion 'a missing value or unknown namespace fails loudly rather than resolving to true/default' unmet by the first pass"
+    }
+  ],
+  "deferred": [
+    {"id": "DF-2026-7", "reason": "lane-infra: the deliverable is a collision-proof scratch/port convention + install-agent ownership marker for the DOGFOOD lane (scripts under ~/.hermes/scripts/ and the lane spec), not duckbrain repo source. Carried forward from the prior manifest's deferral; no duckbrain worker can land it in this repo."}
+  ],
+  "no_new_wave_reason": "After recovery the block's only remaining row (DF-2026-7) is not repo-source work, so no independent row pair existed to compose a new wave for; the tick ran the serial/rework path instead."
+}

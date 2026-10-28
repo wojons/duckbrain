@@ -1,0 +1,111 @@
+{
+  "task_id": "README-9-R4",
+  "task_title": "Repair malformed README HTTP API curl examples",
+  "task_criteria": [
+    "Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "10b709abd6c25ed7aa185446b31afd083f15a503",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:46PM INF scanned ~31457707 bytes (31.46 MB) in 5.86s\n5:46PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  17:46:24\n   Duration  64.99s (tests 82%, import 17%, setup 1%, worker 1%)\n\n    Isolate  233 workers spawned \u00b7 ~84ms startup each (spawn + environment, per file)\n             at least ~4.82s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: All three parts verified. (1) REPAIR IS LIVE ON MAINLINE: HEAD=10b709ab, `git rev-parse HEAD:README.md`=7262ffd5 == `git hash-object README.md`=7262ffd5, and `git merge-base --is-ancestor 05c73402 HEAD` returns YES. Commit 05c73402 added double quotes around each URL (5 insertions/5 deletions). The earlier FAIL verdict 78c4bf23 was correct at the time (fix was then only on unmerged branch wt/README-9-R4) but is now stale \u2014 merge commit 10b709ab landed the fix. (2) BASH PARSING + SEPARATE ARGS: `awk 'NR>=445&&NR<=465'` confirms the criterion's exact line numbers 450/453/456/459/462. Stubbed-curl probe: each line gives `bash -n` rc=0 and ARGC=3 with argv[0]=<-H>, argv[1]=<X-API-Key: <key>>, argv[2]=<full URL incl. query string>. Negative control proves the fix is meaningful: pre-fix unquoted L453 yields ARGC=3 but argv[2] truncated to `...?namespace=default` (loses `&limit=10`); post-fix quoted yields the full URL. (3) ISOLATED auth=apikey FIVE-COMMAND PROBE RUN: I started `node bin/duckbrain.js http --port=3199 --auth=apikey --auth-file=<scratch> --rate-limit=600` (health=200), seeded /probe/seed, and ran all five README commands verbatim (<key>->real key, port 3000->3199). All RC=0, no 'Unauthorized', endpoints resolved: L450 /api/keys?namespace=default -> {\"tree\":[...],\"total\":1}; L453 /api/memories?namespace=default&limit=10 -> {\"items\":[...],\"total\":1} (proves &limit=10 reached the server, not backgrounded); L456 /api/memories?namespace=default&q=connection+pooling -> {\"items\":[...],\"score\":1} (proves &q=... reached the server); L459 /api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default -> 404 NOT_FOUND (route resolved, memory absent); L462 /api/memories/fda1ce7a-...?namespace=default -> 404 NOT_FOUND (route resolved). Supporting validation: `node scripts/docs-check.js` -> 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve' rc=0; `--self-test` -> 'RED arm flagged 4 defect classes, GREEN arm passed'. Note: the full `npx vitest run` suite exceeded the 30s tool cap and could not complete; docs-check is the relevant validator for this README-only change and passes. [resolution 0.02; README.md:450]\nThe README curl repair is committed on mainline (HEAD 10b709ab), all five lines pass bash parsing and pass curl a separate -H and full URL, and an isolated --auth=apikey five-command probe I ran myself confirms every documented endpoint resolves with query strings intact.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: All three parts verified. (1) REPAIR IS LIVE ON MAINLINE: HEAD=10b709ab, `git rev-parse HEAD:README.md`=7262ffd5 == `git hash-object README.md`=7262ffd5, and `git merge-base --is-ancestor 05c73402 HEAD` returns YES. Commit 05c73402 added double quotes around each URL (5 insertions/5 deletions). The earlier FAIL verdict 78c4bf23 was correct at the time (fix was then only on unmerged branch wt/README-9-R4) but is now stale \u2014 merge commit 10b709ab landed the fix. (2) BASH PARSING + SEPARATE ARGS: `awk 'NR>=445&&NR<=465'` confirms the criterion's exact line numbers 450/453/456/459/462. Stubbed-curl probe: each line gives `bash -n` rc=0 and ARGC=3 with argv[0]=<-H>, argv[1]=<X-API-Key: <key>>, argv[2]=<full URL incl. query string>. Negative control proves the fix is meaningful: pre-fix unquoted L453 yields ARGC=3 but argv[2] truncated to `...?namespace=default` (loses `&limit=10`); post-fix quoted yields the full URL. (3) ISOLATED auth=apikey FIVE-COMMAND PROBE RUN: I started `node bin/duckbrain.js http --port=3199 --auth=apikey --auth-file=<scratch> --rate-limit=600` (health=200), seeded /probe/seed, and ran all five README commands verbatim (<key>->real key, port 3000->3199). All RC=0, no 'Unauthorized', endpoints resolved: L450 /api/keys?namespace=default -> {\"tree\":[...],\"total\":1}; L453 /api/memories?namespace=default&limit=10 -> {\"items\":[...],\"total\":1} (proves &limit=10 reached the server, not backgrounded); L456 /api/memories?namespace=default&q=connection+pooling -> {\"items\":[...],\"score\":1} (proves &q=... reached the server); L459 /api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default -> 404 NOT_FOUND (route resolved, memory absent); L462 /api/memories/fda1ce7a-...?namespace=default -> 404 NOT_FOUND (route resolved). Supporting validation: `node scripts/docs-check.js` -> 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve' rc=0; `--self-test` -> 'RED arm flagged 4 defect classes, GREEN arm passed'. Note: the full `npx vitest run` suite exceeded the 30s tool cap and could not complete; docs-check is the relevant validator for this README-only change and passes. [resolution 0.02; README.md:450]\nThe README curl repair is committed on mainline (HEAD 10b709ab), all five lines pass bash parsing and pass curl a separate -H and full URL, and an isolated --auth=apikey five-command probe I ran myself confirms every documented endpoint resolves with query strings intact.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.",
+                "status": "PASS",
+                "detail": "All three parts verified. (1) REPAIR IS LIVE ON MAINLINE: HEAD=10b709ab, `git rev-parse HEAD:README.md`=7262ffd5 == `git hash-object README.md`=7262ffd5, and `git merge-base --is-ancestor 05c73402 HEAD` returns YES. Commit 05c73402 added double quotes around each URL (5 insertions/5 deletions). The earlier FAIL verdict 78c4bf23 was correct at the time (fix was then only on unmerged branch wt/README-9-R4) but is now stale \u2014 merge commit 10b709ab landed the fix. (2) BASH PARSING + SEPARATE ARGS: `awk 'NR>=445&&NR<=465'` confirms the criterion's exact line numbers 450/453/456/459/462. Stubbed-curl probe: each line gives `bash -n` rc=0 and ARGC=3 with argv[0]=<-H>, argv[1]=<X-API-Key: <key>>, argv[2]=<full URL incl. query string>. Negative control proves the fix is meaningful: pre-fix unquoted L453 yields ARGC=3 but argv[2] truncated to `...?namespace=default` (loses `&limit=10`); post-fix quoted yields the full URL. (3) ISOLATED auth=apikey FIVE-COMMAND PROBE RUN: I started `node bin/duckbrain.js http --port=3199 --auth=apikey --auth-file=<scratch> --rate-limit=600` (health=200), seeded /probe/seed, and ran all five README commands verbatim (<key>->real key, port 3000->3199). All RC=0, no 'Unauthorized', endpoints resolved: L450 /api/keys?namespace=default -> {\"tree\":[...],\"total\":1}; L453 /api/memories?namespace=default&limit=10 -> {\"items\":[...],\"total\":1} (proves &limit=10 reached the server, not backgrounded); L456 /api/memories?namespace=default&q=connection+pooling -> {\"items\":[...],\"score\":1} (proves &q=... reached the server); L459 /api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default -> 404 NOT_FOUND (route resolved, memory absent); L462 /api/memories/fda1ce7a-...?namespace=default -> 404 NOT_FOUND (route resolved). Supporting validation: `node scripts/docs-check.js` -> 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve' rc=0; `--self-test` -> 'RED arm flagged 4 defect classes, GREEN arm passed'. Note: the full `npx vitest run` suite exceeded the 30s tool cap and could not complete; docs-check is the relevant validator for this README-only change and passes. [resolution 0.02; README.md:450]",
+                "resolution_probability": 0.02,
+                "cited_path": "README.md:450"
+              }
+            ],
+            "summary": "The README curl repair is committed on mainline (HEAD 10b709ab), all five lines pass bash parsing and pass curl a separate -H and full URL, and an isolated --auth=apikey five-command probe I ran myself confirms every documented endpoint resolves with query strings intact.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: README-9-R4\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: All three parts verified. (1) REPAIR IS LIVE ON MAINLINE: HEAD=10b709ab, `git rev-parse HEAD:README.md`=7262ffd5 == `git hash-object README.md`=7262ffd5, and `git merge-base --is-ancestor 05c73402 HEAD` returns YES. Commit 05c73402 added double quotes around each URL (5 insertions/5 deletions). The earlier FAIL verdict 78c4bf23 was correct at the time (fix was then only on unmerged branch wt/README-9-R4) but is now stale \u2014 merge commit 10b709ab landed the fix. (2) BASH PARSING + SEPARATE ARGS: `awk 'NR>=445&&NR<=465'` confirms the criterion's exact line numbers 450/453/456/459/462. Stubbed-curl probe: each line gives `bash -n` rc=0 and ARGC=3 with argv[0]=<-H>, argv[1]=<X-API-Key: <key>>, argv[2]=<full URL incl. query string>. Negative control proves the fix is meaningful: pre-fix unquoted L453 yields ARGC=3 but argv[2] truncated to `...?namespace=default` (loses `&limit=10`); post-fix quoted yields the full URL. (3) ISOLATED auth=apikey FIVE-COMMAND PROBE RUN: I started `node bin/duckbrain.js http --port=3199 --auth=apikey --auth-file=<scratch> --rate-limit=600` (health=200), seeded /probe/seed, and ran all five README commands verbatim (<key>->real key, port 3000->3199). All RC=0, no 'Unauthorized', endpoints resolved: L450 /api/keys?namespace=default -> {\"tree\":[...],\"total\":1}; L453 /api/memories?namespace=default&limit=10 -> {\"items\":[...],\"total\":1} (proves &limit=10 reached the server, not backgrounded); L456 /api/memories?namespace=default&q=connection+pooling -> {\"items\":[...],\"score\":1} (proves &q=... reached the server); L459 /api/memories/key/benchmarks/models/deepseek-v4-pro?namespace=default -> 404 NOT_FOUND (route resolved, memory absent); L462 /api/memories/fda1ce7a-...?namespace=default -> 404 NOT_FOUND (route resolved). Supporting validation: `node scripts/docs-check.js` -> 'docs-check: OK \u2014 README.md + 48 docs/*.md files: fences balanced, local links resolve' rc=0; `--self-test` -> 'RED arm flagged 4 defect classes, GREEN arm passed'. Note: the full `npx vitest run` suite exceeded the 30s tool cap and could not complete; docs-check is the relevant validator for this README-only change and passes. [resolution 0.02; README.md:450]\nThe README curl repair is committed on mainline (HEAD 10b709ab), all five lines pass bash parsing and pass curl a separate -H and full URL, and an isolated --auth=apikey five-command probe I ran myself confirms every documented endpoint resolves with query strings intact.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-27T22:50:31.566565",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-27T22:50:31.591277+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 490,
+        "truncated": false,
+        "source": "git show 10b709abd6c2"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 732,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-9-R4"
+  }
+}

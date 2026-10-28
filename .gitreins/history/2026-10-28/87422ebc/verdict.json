@@ -1,0 +1,110 @@
+{
+  "task_id": "DF-2026-6",
+  "task_title": "POST with no body and no Content-Type answers 4xx not 500",
+  "task_criteria": [
+    "POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and malformed-JSON arms keep their 400s."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "9d270dea1620bb6dfa8ded5f72e4bea12e60ce85",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:23PM INF scanned ~31511070 bytes (31.51 MB) in 4.23s\n9:23PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  234 passed (234)\n      Tests  1949 passed (1949)\n   Start at  21:22:58\n   Duration  70.60s (tests 81%, import 17%, setup 1%, worker 1%)\n\n    Isolate  234 workers spawned \u00b7 ~91ms startup each (spawn + environment, per file)\n             at least ~5.24s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and malformed-JSON arms keep their 400s.: Fix at src/http/routes/memories.ts:692-694: `if (req.body === undefined || req.body === null) throw new ApiError(\"Invalid JSON in request body\", 400, \"INVALID_JSON\")` runs before any field read, so the former TypeError->500 path is gone; errorHandler.ts:119-126 serializes ApiError as `{error, code}`. Empty-JSON arm keeps 400 VALIDATION_ERROR at memories.ts:716-721 (\"Missing required fields: key, domain, content\"); malformed-JSON arm keeps 400 INVALID_JSON via errorHandler.ts:141-148 (SyntaxError branch). Regression test src/http/routes/memories-malformed-input-df2026.test.ts: (a) no body/no Content-Type (helper sends no Content-Type/Content-Length, lines 62-70) asserts 4xx + non-empty error/code + 400 INVALID_JSON; (b) `{}` asserts 400 VALIDATION_ERROR; (c) `{not json` asserts 400 INVALID_JSON; (d) full body asserts 201. Fresh run: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` -> exit_code 0, \"Test Files 1 passed (1) / Tests 7 passed (7)\". Adjacent HTTP suites also green: `npx vitest run src/cli/http-auth.test.ts src/cli/http-durability.test.ts src/cli/http-serialization.test.ts` -> exit_code 0, 3 files / 19 tests passed.\nPOST /api/memories now guards an absent body before any field read and answers 400 INVALID_JSON with the error+code envelope, while the `{}` (400 VALIDATION_ERROR) and malformed-JSON (400 INVALID_JSON) arms are preserved and covered by a passing 7-test regression suite.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and malformed-JSON arms keep their 400s.: Fix at src/http/routes/memories.ts:692-694: `if (req.body === undefined || req.body === null) throw new ApiError(\"Invalid JSON in request body\", 400, \"INVALID_JSON\")` runs before any field read, so the former TypeError->500 path is gone; errorHandler.ts:119-126 serializes ApiError as `{error, code}`. Empty-JSON arm keeps 400 VALIDATION_ERROR at memories.ts:716-721 (\"Missing required fields: key, domain, content\"); malformed-JSON arm keeps 400 INVALID_JSON via errorHandler.ts:141-148 (SyntaxError branch). Regression test src/http/routes/memories-malformed-input-df2026.test.ts: (a) no body/no Content-Type (helper sends no Content-Type/Content-Length, lines 62-70) asserts 4xx + non-empty error/code + 400 INVALID_JSON; (b) `{}` asserts 400 VALIDATION_ERROR; (c) `{not json` asserts 400 INVALID_JSON; (d) full body asserts 201. Fresh run: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` -> exit_code 0, \"Test Files 1 passed (1) / Tests 7 passed (7)\". Adjacent HTTP suites also green: `npx vitest run src/cli/http-auth.test.ts src/cli/http-durability.test.ts src/cli/http-serialization.test.ts` -> exit_code 0, 3 files / 19 tests passed.\nPOST /api/memories now guards an absent body before any field read and answers 400 INVALID_JSON with the error+code envelope, while the `{}` (400 VALIDATION_ERROR) and malformed-JSON (400 INVALID_JSON) arms are preserved and covered by a passing 7-test regression suite.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and malformed-JSON arms keep their 400s.",
+                "status": "PASS",
+                "detail": "Fix at src/http/routes/memories.ts:692-694: `if (req.body === undefined || req.body === null) throw new ApiError(\"Invalid JSON in request body\", 400, \"INVALID_JSON\")` runs before any field read, so the former TypeError->500 path is gone; errorHandler.ts:119-126 serializes ApiError as `{error, code}`. Empty-JSON arm keeps 400 VALIDATION_ERROR at memories.ts:716-721 (\"Missing required fields: key, domain, content\"); malformed-JSON arm keeps 400 INVALID_JSON via errorHandler.ts:141-148 (SyntaxError branch). Regression test src/http/routes/memories-malformed-input-df2026.test.ts: (a) no body/no Content-Type (helper sends no Content-Type/Content-Length, lines 62-70) asserts 4xx + non-empty error/code + 400 INVALID_JSON; (b) `{}` asserts 400 VALIDATION_ERROR; (c) `{not json` asserts 400 INVALID_JSON; (d) full body asserts 201. Fresh run: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` -> exit_code 0, \"Test Files 1 passed (1) / Tests 7 passed (7)\". Adjacent HTTP suites also green: `npx vitest run src/cli/http-auth.test.ts src/cli/http-durability.test.ts src/cli/http-serialization.test.ts` -> exit_code 0, 3 files / 19 tests passed.",
+                "resolution_probability": 0.32
+              }
+            ],
+            "summary": "POST /api/memories now guards an absent body before any field read and answers 400 INVALID_JSON with the error+code envelope, while the `{}` (400 VALIDATION_ERROR) and malformed-JSON (400 INVALID_JSON) arms are preserved and covered by a passing 7-test regression suite.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-6\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and malformed-JSON arms keep their 400s.: Fix at src/http/routes/memories.ts:692-694: `if (req.body === undefined || req.body === null) throw new ApiError(\"Invalid JSON in request body\", 400, \"INVALID_JSON\")` runs before any field read, so the former TypeError->500 path is gone; errorHandler.ts:119-126 serializes ApiError as `{error, code}`. Empty-JSON arm keeps 400 VALIDATION_ERROR at memories.ts:716-721 (\"Missing required fields: key, domain, content\"); malformed-JSON arm keeps 400 INVALID_JSON via errorHandler.ts:141-148 (SyntaxError branch). Regression test src/http/routes/memories-malformed-input-df2026.test.ts: (a) no body/no Content-Type (helper sends no Content-Type/Content-Length, lines 62-70) asserts 4xx + non-empty error/code + 400 INVALID_JSON; (b) `{}` asserts 400 VALIDATION_ERROR; (c) `{not json` asserts 400 INVALID_JSON; (d) full body asserts 201. Fresh run: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` -> exit_code 0, \"Test Files 1 passed (1) / Tests 7 passed (7)\". Adjacent HTTP suites also green: `npx vitest run src/cli/http-auth.test.ts src/cli/http-durability.test.ts src/cli/http-serialization.test.ts` -> exit_code 0, 3 files / 19 tests passed.\nPOST /api/memories now guards an absent body before any field read and answers 400 INVALID_JSON with the error+code envelope, while the `{}` (400 VALIDATION_ERROR) and malformed-JSON (400 INVALID_JSON) arms are preserved and covered by a passing 7-test regression suite.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-28T02:25:14.752242",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-28T02:25:14.773730+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3705,
+        "truncated": false,
+        "source": "git show 9d270dea1620"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2147,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-6"
+  }
+}

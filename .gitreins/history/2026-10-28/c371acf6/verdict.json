@@ -1,0 +1,111 @@
+{
+  "task_id": "DF-2026-9",
+  "task_title": "CLI status consumes the space-form --namespace value",
+  "task_criteria": [
+    "node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027 and the configured path, matching the equals form; a missing value or an unknown namespace fails loudly instead of resolving to true/default; regression tests cover both forms and the unknown-namespace case."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "a32f3b9b44c3f372a4c11bbc9ec9b3ef2b4aaec9",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:41PM INF scanned ~31514613 bytes (31.51 MB) in 6.43s\n9:41PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  235 passed (235)\n      Tests  1960 passed (1960)\n   Start at  21:41:15\n   Duration  69.57s (tests 80%, import 18%, worker 1%, setup 1%)\n\n    Isolate  235 workers spawned \u00b7 ~93ms startup each (spawn + environment, per file)\n             at least ~5.39s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027 and the configured path, matching the equals form; a missing value or an unknown namespace fails loudly instead of resolving to true/default; regression tests cover both forms and the unknown-namespace case.: The literal acceptance command still exhibits the original bug. Actual run: `node bin/duckbrain.js status --namespace dogfood1027` -> \"Namespace: true / Path: ./memory/default / Status: OK\", exit 0, while `--namespace=dogfood1027` -> \"Namespace: dogfood1027\" \u2014 the two forms DISAGREE. Unknown namespace (`--namespace definitely-not-a-real-ns-xyz`) and missing value (`--namespace`) both print \"Namespace: true ... Status: OK\" with exit 0, i.e. they do NOT fail loudly. Root cause: bin/duckbrain.js:16-19 prefers the precompiled entry (`if (fs.existsSync(distEntry)) require(distEntry)`), and dist/src/cli/human.js is a stale 2026-10-22 build whose statusCommand (dist/src/cli/human.js:1022-1038) is the ORIGINAL buggy version (`const { flags } = parseArgs(args); const namespace = flags.namespace || getDefaultNamespace(); const nsPath = config.namespaceMappings?.[namespace] || \"./memory/default\";`) with no normalizeStatusNamespaceFlags, no namespaceExplicit, and no unknown-namespace guard. The fix exists only in TypeScript source (src/cli/human.ts:1285-1350 plus normalizeStatusNamespaceFlags at :628-648) and was never rebuilt into dist/. Proof: moving dist/ aside so bin/duckbrain.js falls back to tsx/TS source yields \"Error: Namespace 'dogfood1027' does not exist\" exit 1 \u2014 the source fix is live but the shipped entry point never reaches it. Tests: `npx vitest run src/cli/status-namespace-df2026-9.test.ts` -> exit 0, \"Tests 11 passed (11)\"; `npx vitest run src/cli/` -> exit 0, \"Tests 409 passed (409)\". However these tests are a false green for this criterion: src/cli/status-namespace-df2026-9.test.ts:41 imports `runHumanCLI` from \"./human\" (TS source) and calls it in-process, never spawning bin/duckbrain.js nor touching dist/, so the regression tests do not cover the entry point the criterion names. Missing: rebuild dist/ (pnpm build:cli) and/or add an end-to-end test that spawns bin/duckbrain.js.\nThe source-level fix and its 11 unit tests are correct, but the fix was never compiled into dist/, so the shipped `node bin/duckbrain.js status --namespace dogfood1027` still prints \"Namespace: true\" and unknown/missing namespaces still exit 0 \u2014 the criterion's literal command fails.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027 and the configured path, matching the equals form; a missing value or an unknown namespace fails loudly instead of resolving to true/default; regression tests cover both forms and the unknown-namespace case.: The literal acceptance command still exhibits the original bug. Actual run: `node bin/duckbrain.js status --namespace dogfood1027` -> \"Namespace: true / Path: ./memory/default / Status: OK\", exit 0, while `--namespace=dogfood1027` -> \"Namespace: dogfood1027\" \u2014 the two forms DISAGREE. Unknown namespace (`--namespace definitely-not-a-real-ns-xyz`) and missing value (`--namespace`) both print \"Namespace: true ... Status: OK\" with exit 0, i.e. they do NOT fail loudly. Root cause: bin/duckbrain.js:16-19 prefers the precompiled entry (`if (fs.existsSync(distEntry)) require(distEntry)`), and dist/src/cli/human.js is a stale 2026-10-22 build whose statusCommand (dist/src/cli/human.js:1022-1038) is the ORIGINAL buggy version (`const { flags } = parseArgs(args); const namespace = flags.namespace || getDefaultNamespace(); const nsPath = config.namespaceMappings?.[namespace] || \"./memory/default\";`) with no normalizeStatusNamespaceFlags, no namespaceExplicit, and no unknown-namespace guard. The fix exists only in TypeScript source (src/cli/human.ts:1285-1350 plus normalizeStatusNamespaceFlags at :628-648) and was never rebuilt into dist/. Proof: moving dist/ aside so bin/duckbrain.js falls back to tsx/TS source yields \"Error: Namespace 'dogfood1027' does not exist\" exit 1 \u2014 the source fix is live but the shipped entry point never reaches it. Tests: `npx vitest run src/cli/status-namespace-df2026-9.test.ts` -> exit 0, \"Tests 11 passed (11)\"; `npx vitest run src/cli/` -> exit 0, \"Tests 409 passed (409)\". However these tests are a false green for this criterion: src/cli/status-namespace-df2026-9.test.ts:41 imports `runHumanCLI` from \"./human\" (TS source) and calls it in-process, never spawning bin/duckbrain.js nor touching dist/, so the regression tests do not cover the entry point the criterion names. Missing: rebuild dist/ (pnpm build:cli) and/or add an end-to-end test that spawns bin/duckbrain.js.\nThe source-level fix and its 11 unit tests are correct, but the fix was never compiled into dist/, so the shipped `node bin/duckbrain.js status --namespace dogfood1027` still prints \"Namespace: true\" and unknown/missing namespaces still exit 0 \u2014 the criterion's literal command fails.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027 and the configured path, matching the equals form; a missing value or an unknown namespace fails loudly instead of resolving to true/default; regression tests cover both forms and the unknown-namespace case.",
+                "status": "FAIL",
+                "detail": "The literal acceptance command still exhibits the original bug. Actual run: `node bin/duckbrain.js status --namespace dogfood1027` -> \"Namespace: true / Path: ./memory/default / Status: OK\", exit 0, while `--namespace=dogfood1027` -> \"Namespace: dogfood1027\" \u2014 the two forms DISAGREE. Unknown namespace (`--namespace definitely-not-a-real-ns-xyz`) and missing value (`--namespace`) both print \"Namespace: true ... Status: OK\" with exit 0, i.e. they do NOT fail loudly. Root cause: bin/duckbrain.js:16-19 prefers the precompiled entry (`if (fs.existsSync(distEntry)) require(distEntry)`), and dist/src/cli/human.js is a stale 2026-10-22 build whose statusCommand (dist/src/cli/human.js:1022-1038) is the ORIGINAL buggy version (`const { flags } = parseArgs(args); const namespace = flags.namespace || getDefaultNamespace(); const nsPath = config.namespaceMappings?.[namespace] || \"./memory/default\";`) with no normalizeStatusNamespaceFlags, no namespaceExplicit, and no unknown-namespace guard. The fix exists only in TypeScript source (src/cli/human.ts:1285-1350 plus normalizeStatusNamespaceFlags at :628-648) and was never rebuilt into dist/. Proof: moving dist/ aside so bin/duckbrain.js falls back to tsx/TS source yields \"Error: Namespace 'dogfood1027' does not exist\" exit 1 \u2014 the source fix is live but the shipped entry point never reaches it. Tests: `npx vitest run src/cli/status-namespace-df2026-9.test.ts` -> exit 0, \"Tests 11 passed (11)\"; `npx vitest run src/cli/` -> exit 0, \"Tests 409 passed (409)\". However these tests are a false green for this criterion: src/cli/status-namespace-df2026-9.test.ts:41 imports `runHumanCLI` from \"./human\" (TS source) and calls it in-process, never spawning bin/duckbrain.js nor touching dist/, so the regression tests do not cover the entry point the criterion names. Missing: rebuild dist/ (pnpm build:cli) and/or add an end-to-end test that spawns bin/duckbrain.js.",
+                "resolution_probability": 0.05,
+                "cited_path": "bin/duckbrain.js"
+              }
+            ],
+            "summary": "The source-level fix and its 11 unit tests are correct, but the fix was never compiled into dist/, so the shipped `node bin/duckbrain.js status --namespace dogfood1027` still prints \"Namespace: true\" and unknown/missing namespaces still exit 0 \u2014 the criterion's literal command fails.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-9\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027 and the configured path, matching the equals form; a missing value or an unknown namespace fails loudly instead of resolving to true/default; regression tests cover both forms and the unknown-namespace case.: The literal acceptance command still exhibits the original bug. Actual run: `node bin/duckbrain.js status --namespace dogfood1027` -> \"Namespace: true / Path: ./memory/default / Status: OK\", exit 0, while `--namespace=dogfood1027` -> \"Namespace: dogfood1027\" \u2014 the two forms DISAGREE. Unknown namespace (`--namespace definitely-not-a-real-ns-xyz`) and missing value (`--namespace`) both print \"Namespace: true ... Status: OK\" with exit 0, i.e. they do NOT fail loudly. Root cause: bin/duckbrain.js:16-19 prefers the precompiled entry (`if (fs.existsSync(distEntry)) require(distEntry)`), and dist/src/cli/human.js is a stale 2026-10-22 build whose statusCommand (dist/src/cli/human.js:1022-1038) is the ORIGINAL buggy version (`const { flags } = parseArgs(args); const namespace = flags.namespace || getDefaultNamespace(); const nsPath = config.namespaceMappings?.[namespace] || \"./memory/default\";`) with no normalizeStatusNamespaceFlags, no namespaceExplicit, and no unknown-namespace guard. The fix exists only in TypeScript source (src/cli/human.ts:1285-1350 plus normalizeStatusNamespaceFlags at :628-648) and was never rebuilt into dist/. Proof: moving dist/ aside so bin/duckbrain.js falls back to tsx/TS source yields \"Error: Namespace 'dogfood1027' does not exist\" exit 1 \u2014 the source fix is live but the shipped entry point never reaches it. Tests: `npx vitest run src/cli/status-namespace-df2026-9.test.ts` -> exit 0, \"Tests 11 passed (11)\"; `npx vitest run src/cli/` -> exit 0, \"Tests 409 passed (409)\". However these tests are a false green for this criterion: src/cli/status-namespace-df2026-9.test.ts:41 imports `runHumanCLI` from \"./human\" (TS source) and calls it in-process, never spawning bin/duckbrain.js nor touching dist/, so the regression tests do not cover the entry point the criterion names. Missing: rebuild dist/ (pnpm build:cli) and/or add an end-to-end test that spawns bin/duckbrain.js.\nThe source-level fix and its 11 unit tests are correct, but the fix was never compiled into dist/, so the shipped `node bin/duckbrain.js status --namespace dogfood1027` still prints \"Namespace: true\" and unknown/missing namespaces still exit 0 \u2014 the criterion's literal command fails.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-28T02:44:01.839186",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-28T02:44:01.861512+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 7586,
+        "truncated": false,
+        "source": "git show a32f3b9b44c3"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2249,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-9"
+  }
+}

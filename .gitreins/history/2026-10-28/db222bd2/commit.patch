@@ -1,0 +1,56 @@
+commit 9d270dea1620bb6dfa8ded5f72e4bea12e60ce85
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 27 20:35:33 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 27 21:17:31 2026 -0500
+
+    docs(http-api): clarify tombstone exclusion and remove GET /mcp mention (DF-2026-8)
+    
+    Tombstoned versions are excluded from both default and historical=true list views.
+    GET /mcp is not supported (returns 405); only POST /mcp is documented.
+    
+    Addresses: DF-2026-8
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/http-api.md | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index e995645f..3184f765 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -150,10 +150,12 @@ curl http://localhost:3000/stats
+ 
+ ### MCP Transport
+ 
+-`POST /mcp` and `GET /mcp`
++`POST /mcp`
+ 
+ Streamable HTTP transport for remote MCP clients. Accepts JSON-RPC requests per the Model Context Protocol specification. Tools are registered automatically on first request.
+ 
++> **Note — only `POST` is supported:** `GET /mcp` (the optional server-to-client SSE stream in the Streamable HTTP transport) is **not offered** — DuckBrain is request/response only and the singleton server cannot hold a long-lived GET stream while also answering POSTs. A `GET /mcp` returns **405** with `Allow: POST` and `"Method Not Allowed: this endpoint does not offer a GET SSE stream"`; a Streamable HTTP client treats 405 as "no SSE stream here" and continues with POST only.
++
+ > **Note:** the `Accept` header is REQUIRED. A request without `Accept: application/json, text/event-stream` is rejected with HTTP 406 (the Streamable HTTP transport requires the client to accept both media types).
+ 
+ **Example:**
+@@ -365,7 +367,9 @@ never a silent downgrade):
+ > sequential) writes to one key are N independent versions with distinct
+ > `id`s — nothing is overwritten, and a key has no privileged "current"
+ > version. `GET /api/memories/key/:key` returns the most recent
+-> non-tombstoned version, while the list route returns all of them. Versions
++> non-tombstoned version, while the list route returns all of them. Tombstoned
++> versions (deleted memories) are excluded from both the default list and the
++> `historical=true` view; only live versions are returned. Versions
+ > are ordered `timestamp DESC, id ASC`: deterministic per dataset (repeated
+ > calls return the same order) but **not write order** within one millisecond
+ > — the `id` tiebreak is a random UUIDv4, so a client that needs
+@@ -399,7 +403,7 @@ Query memories with filters.
+ >
+ > The MCP `recall` tool exposes the same argument as `asOf` and returns the same error strings inside its `error` result (see [mcp-tools.md](mcp-tools.md#recall)).
+ | `attr.<name>` | — | Attribute filter: only rows whose `attributes` match `name=value` (repeatable) |
+-| `historical` | `false` | View selector: `true` = historical view including ALL rows regardless of validity window (expired `valid_until` / future `valid_from` facts stay visible); `false`/absent = current view (validity-filtered) |
++| `historical` | `false` | View selector: `true` = historical view including ALL rows regardless of validity window (expired `valid_until` / future `valid_from` facts stay visible); `false`/absent = current view (validity-filtered). Tombstoned versions (deleted memories) are excluded from BOTH views — only live versions are returned |
+ | `limit` | 50 | Max results to return |
+ | `offset` | 0 | Pagination offset |
+ | `namespace` | `default` | Namespace to query |

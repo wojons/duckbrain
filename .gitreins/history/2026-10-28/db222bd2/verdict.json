@@ -1,0 +1,110 @@
+{
+  "task_id": "DF-2026-5",
+  "task_title": "DELETE by malformed id classified as 4xx like its sibling routes",
+  "task_criteria": [
+    "DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer 404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression test covers all arms."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "9d270dea1620bb6dfa8ded5f72e4bea12e60ce85",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:19PM INF scanned ~31511049 bytes (31.51 MB) in 4.09s\n9:19PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  234 passed (234)\n      Tests  1949 passed (1949)\n   Start at  21:19:55\n   Duration  65.45s (tests 79%, import 19%, setup 1%, worker 1%)\n\n    Isolate  234 workers spawned \u00b7 ~91ms startup each (spawn + environment, per file)\n             at least ~5.25s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer 404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression test covers all arms.: Fix: src/http/routes/memories.ts:968-976 defines `MemoryIdSchema = z.string().uuid()` and `assertUuidMemoryId()` which throws `NotFoundError(\"Memory\", id)`; it is invoked at line 995 inside `router.delete(\"/:id\")` BEFORE forgetTool, so the codeless zod parse failure can no longer fall through to throwWriteError's 500. NotFoundError (src/http/middleware/errorHandler.ts:30-38) carries status 404 + code \"NOT_FOUND\", and the ApiError branch of errorHandler (errorHandler.ts:117-125) emits the documented `{error, code}` envelope (docs/api/http-api.md:1768 lists NOT_FOUND). Regression test src/http/routes/memories-malformed-input-df2026.test.ts covers all arms: (1) three-arm probe \u2014 DELETE/GET/PUT on \"not-a-uuid\" each asserted 4xx with string `error`+`code`, DELETE asserted 404/NOT_FOUND and equal to GET and PUT statuses; (2) well-formed unknown UUID 3f1f2a6e-... -> 404 NOT_FOUND with error containing \"not found\"; (3) real id -> POST 201, DELETE 204, follow-up GET 404. Test run evidence: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 7 passed (7)' with the three-arm probe, unknown-UUID and real-id tests all \u2713; broader `npx vitest run src/http/routes/` exit_code 0, 'Test Files 52 passed (52) / Tests 372 passed (372)'.\nDELETE on a malformed id is now gated by a UUID check that throws NotFoundError (404 NOT_FOUND with the {error, code} envelope), sibling parity with GET/PUT holds, unknown-UUID and real-id arms are preserved, and the regression test passes (7/7, and 372/372 across src/http/routes).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer 404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression test covers all arms.: Fix: src/http/routes/memories.ts:968-976 defines `MemoryIdSchema = z.string().uuid()` and `assertUuidMemoryId()` which throws `NotFoundError(\"Memory\", id)`; it is invoked at line 995 inside `router.delete(\"/:id\")` BEFORE forgetTool, so the codeless zod parse failure can no longer fall through to throwWriteError's 500. NotFoundError (src/http/middleware/errorHandler.ts:30-38) carries status 404 + code \"NOT_FOUND\", and the ApiError branch of errorHandler (errorHandler.ts:117-125) emits the documented `{error, code}` envelope (docs/api/http-api.md:1768 lists NOT_FOUND). Regression test src/http/routes/memories-malformed-input-df2026.test.ts covers all arms: (1) three-arm probe \u2014 DELETE/GET/PUT on \"not-a-uuid\" each asserted 4xx with string `error`+`code`, DELETE asserted 404/NOT_FOUND and equal to GET and PUT statuses; (2) well-formed unknown UUID 3f1f2a6e-... -> 404 NOT_FOUND with error containing \"not found\"; (3) real id -> POST 201, DELETE 204, follow-up GET 404. Test run evidence: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 7 passed (7)' with the three-arm probe, unknown-UUID and real-id tests all \u2713; broader `npx vitest run src/http/routes/` exit_code 0, 'Test Files 52 passed (52) / Tests 372 passed (372)'.\nDELETE on a malformed id is now gated by a UUID check that throws NotFoundError (404 NOT_FOUND with the {error, code} envelope), sibling parity with GET/PUT holds, unknown-UUID and real-id arms are preserved, and the regression test passes (7/7, and 372/372 across src/http/routes).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer 404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression test covers all arms.",
+                "status": "PASS",
+                "detail": "Fix: src/http/routes/memories.ts:968-976 defines `MemoryIdSchema = z.string().uuid()` and `assertUuidMemoryId()` which throws `NotFoundError(\"Memory\", id)`; it is invoked at line 995 inside `router.delete(\"/:id\")` BEFORE forgetTool, so the codeless zod parse failure can no longer fall through to throwWriteError's 500. NotFoundError (src/http/middleware/errorHandler.ts:30-38) carries status 404 + code \"NOT_FOUND\", and the ApiError branch of errorHandler (errorHandler.ts:117-125) emits the documented `{error, code}` envelope (docs/api/http-api.md:1768 lists NOT_FOUND). Regression test src/http/routes/memories-malformed-input-df2026.test.ts covers all arms: (1) three-arm probe \u2014 DELETE/GET/PUT on \"not-a-uuid\" each asserted 4xx with string `error`+`code`, DELETE asserted 404/NOT_FOUND and equal to GET and PUT statuses; (2) well-formed unknown UUID 3f1f2a6e-... -> 404 NOT_FOUND with error containing \"not found\"; (3) real id -> POST 201, DELETE 204, follow-up GET 404. Test run evidence: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 7 passed (7)' with the three-arm probe, unknown-UUID and real-id tests all \u2713; broader `npx vitest run src/http/routes/` exit_code 0, 'Test Files 52 passed (52) / Tests 372 passed (372)'.",
+                "resolution_probability": 0.2
+              }
+            ],
+            "summary": "DELETE on a malformed id is now gated by a UUID check that throws NotFoundError (404 NOT_FOUND with the {error, code} envelope), sibling parity with GET/PUT holds, unknown-UUID and real-id arms are preserved, and the regression test passes (7/7, and 372/372 across src/http/routes).",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-5\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer 404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression test covers all arms.: Fix: src/http/routes/memories.ts:968-976 defines `MemoryIdSchema = z.string().uuid()` and `assertUuidMemoryId()` which throws `NotFoundError(\"Memory\", id)`; it is invoked at line 995 inside `router.delete(\"/:id\")` BEFORE forgetTool, so the codeless zod parse failure can no longer fall through to throwWriteError's 500. NotFoundError (src/http/middleware/errorHandler.ts:30-38) carries status 404 + code \"NOT_FOUND\", and the ApiError branch of errorHandler (errorHandler.ts:117-125) emits the documented `{error, code}` envelope (docs/api/http-api.md:1768 lists NOT_FOUND). Regression test src/http/routes/memories-malformed-input-df2026.test.ts covers all arms: (1) three-arm probe \u2014 DELETE/GET/PUT on \"not-a-uuid\" each asserted 4xx with string `error`+`code`, DELETE asserted 404/NOT_FOUND and equal to GET and PUT statuses; (2) well-formed unknown UUID 3f1f2a6e-... -> 404 NOT_FOUND with error containing \"not found\"; (3) real id -> POST 201, DELETE 204, follow-up GET 404. Test run evidence: `npx vitest run src/http/routes/memories-malformed-input-df2026.test.ts` exit_code 0, 'Test Files 1 passed (1) / Tests 7 passed (7)' with the three-arm probe, unknown-UUID and real-id tests all \u2713; broader `npx vitest run src/http/routes/` exit_code 0, 'Test Files 52 passed (52) / Tests 372 passed (372)'.\nDELETE on a malformed id is now gated by a UUID check that throws NotFoundError (404 NOT_FOUND with the {error, code} envelope), sibling parity with GET/PUT holds, unknown-UUID and real-id arms are preserved, and the regression test passes (7/7, and 372/372 across src/http/routes).\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-28T02:22:24.294269",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-28T02:22:24.315962+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3705,
+        "truncated": false,
+        "source": "git show 9d270dea1620"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2098,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-5"
+  }
+}

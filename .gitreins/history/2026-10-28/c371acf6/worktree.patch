@@ -1,0 +1,46 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index af2dbbf8..18cce017 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2872,3 +2872,41 @@ tasks:
+   status: complete
+   created_at: '2026-10-27T21:30:07.313400+00:00'
+   completed_at: '2026-10-27T21:41:34.563396+00:00'
++- id: DF-2026-5
++  title: DELETE by malformed id classified as 4xx like its sibling routes
++  criteria:
++  - 'DELETE /api/memories/not-a-uuid?namespace=ns must NOT return 5xx: it must answer
++    404 NOT_FOUND (like GET and PUT on the same id) with the documented error+code
++    envelope. A well-formed but unknown UUID still 404; a real id still 204. Regression
++    test covers all arms.'
++  status: complete
++  created_at: '2026-10-28T02:19:42.470349+00:00'
++  completed_at: '2026-10-28T02:19:54.186965+00:00'
++- id: DF-2026-6
++  title: POST with no body and no Content-Type answers 4xx not 500
++  criteria:
++  - POST /api/memories with an empty body and no Content-Type returns 4xx (INVALID_JSON
++    or VALIDATION_ERROR) with the error+code envelope, never 5xx; the empty-JSON and
++    malformed-JSON arms keep their 400s.
++  status: complete
++  created_at: '2026-10-28T02:19:42.821000+00:00'
++  completed_at: '2026-10-28T02:22:57.070217+00:00'
++- id: DF-2026-8
++  title: HTTP API docs match shipped tombstone and GET /mcp behaviour
++  criteria:
++  - docs/api/http-api.md states tombstoned versions are excluded from both the default
++    list and the historical=true view, and no longer advertises GET /mcp as supported
++    (documented as 405 Allow POST). Claims verified against a live daemon.
++  status: complete
++  created_at: '2026-10-28T02:19:43.174983+00:00'
++  completed_at: '2026-10-28T02:25:15.312165+00:00'
++- id: DF-2026-9
++  title: CLI status consumes the space-form --namespace value
++  criteria:
++  - 'node bin/duckbrain.js status --namespace dogfood1027 prints Namespace: dogfood1027
++    and the configured path, matching the equals form; a missing value or an unknown
++    namespace fails loudly instead of resolving to true/default; regression tests
++    cover both forms and the unknown-namespace case.'
++  status: complete
++  created_at: '2026-10-28T02:19:43.511540+00:00'
++  completed_at: '2026-10-28T02:41:14.812445+00:00'

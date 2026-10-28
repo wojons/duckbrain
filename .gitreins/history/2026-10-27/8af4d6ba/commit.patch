@@ -1,0 +1,13 @@
+commit 10b709abd6c25ed7aa185446b31afd083f15a503
+Merge: 9a6f6490 05c73402
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 27 17:46:15 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 27 17:46:15 2026 -0500
+
+    docs: merge README HTTP API curl repair
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ README.md | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)

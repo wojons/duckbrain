@@ -1,0 +1,60 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-28-01-18-22",
+  "block": "DF-2026-9",
+  "wave_size": 3,
+  "wave_budget": 12,
+  "slots_computed": 6,
+  "selection": "DF-2026-9 is the top DRIVE block (5 ready rows, 90% done). DF-2026-5 and DF-2026-6 share src/http/routes/memories.ts (same error-classification seam) — combined into one worker. DF-2026-7 is lane-infra (not duckbrain source) — deferred to a lane-level task. DF-2026-8 (docs) and DF-2026-9 (CLI) are independent. Wave of 3 workers on mutually independent files.",
+  "rows": [
+    {
+      "id": "DF-2026-5+6",
+      "constituent_rows": [
+        "DF-2026-5",
+        "DF-2026-6"
+      ],
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-5-6",
+      "branch": "wt/DF-2026-5-6",
+      "brief": "/tmp/duckbrain-DF-2026-5-6-brief.txt",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "files": [
+        "src/http/routes/memories.ts",
+        "src/http/routes/memories.test.ts"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DF-2026-8",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-8",
+      "branch": "wt/DF-2026-8",
+      "brief": "/tmp/duckbrain-DF-2026-8-brief.txt",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "files": [
+        "docs/api/http-api.md"
+      ],
+      "depends_on": []
+    },
+    {
+      "id": "DF-2026-9",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-9",
+      "branch": "wt/DF-2026-9",
+      "brief": "/tmp/duckbrain-DF-2026-9-brief.txt",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "files": [
+        "src/cli/*"
+      ],
+      "depends_on": []
+    }
+  ],
+  "deferred": [
+    {
+      "id": "DF-2026-7",
+      "reason": "lane-infra task (dogfood scratch/port convention + install-agent ownership marker) — not duckbrain source; needs a lane-level fix in ~/.hermes/scripts/ or the dogfood lane spec, not a worker in this repo"
+    }
+  ],
+  "finished_at": "2026-10-28T02:19:24Z",
+  "recovered_by": "duckbrain-foreman-2026-10-28-02-09-38",
+  "recovery_outcome": "3 worker commits found on branches wt/DF-2026-5-6, wt/DF-2026-8, wt/DF-2026-9 (manifest said 0 dispatched but workers had committed); 2 merged green, 1 held for rework; 0 worktrees/branches to preserve"
+}

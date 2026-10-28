@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index af2dbbf8..bf0745d7 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2872,3 +2872,12 @@ tasks:
+   status: complete
+   created_at: '2026-10-27T21:30:07.313400+00:00'
+   completed_at: '2026-10-27T21:41:34.563396+00:00'
++- id: README-9-R4
++  title: Repair malformed README HTTP API curl examples
++  criteria:
++  - Repair README.md:450,453,456,459,462 so each curl command passes bash parsing
++    and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command
++    probe and record intended endpoint requests.
++  status: complete
++  created_at: '2026-10-27T22:38:00.509763+00:00'
++  completed_at: '2026-10-27T22:46:22.973425+00:00'

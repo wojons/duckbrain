@@ -1,0 +1,177 @@
+commit a32f3b9b44c3f372a4c11bbc9ec9b3ef2b4aaec9
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Tue Oct 27 21:37:57 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Tue Oct 27 21:37:57 2026 -0500
+
+    fix(cli): fail loudly on an unknown --namespace in status (DF-2026-9)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/human.ts                          | 37 ++++++++++++-
+ src/cli/status-namespace-df2026-9.test.ts | 89 +++++++++++++++++++++++++++++++
+ 2 files changed, 125 insertions(+), 1 deletion(-)
+
+diff --git a/src/cli/human.ts b/src/cli/human.ts
+index ad1366b7..dd9c8390 100644
+--- a/src/cli/human.ts
++++ b/src/cli/human.ts
+@@ -28,6 +28,7 @@ import { forgetTool } from "../mcp/tools/forget";
+ import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
+ import { executeSegmentConsolidation } from "../storage/segment-consolidation";
+ import { getConfig, setConfig, registerNamespace } from "../config/index";
++import { resolveNamespacesPath } from "../config/index";
+ import { deleteNamespaceFromDisk } from "../namespaces/lifecycle";
+ // PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
+ // @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
+@@ -1297,11 +1298,45 @@ async function statusCommand(args: string[]): Promise<void> {
+     process.exit(1);
+   }
+ 
++  // Explicitly supplied vs defaulted matters for validation: `status` with no
++  // flag must keep reporting the configured default namespace unconditionally
++  // (validate ONLY an explicit --namespace), while an explicit
++  // `--namespace=<name>` names a namespace the caller believes exists.
++  const namespaceExplicit = flags.namespace !== undefined;
+   const namespace = flags.namespace || getDefaultNamespace();
+ 
+   try {
+     const config = getConfig();
+-    const nsPath = config.namespaceMappings?.[namespace] || "./memory/default";
++
++    // DF-2026-9 follow-up: an UNKNOWN explicitly-named namespace used to
++    // silently resolve to the hardcoded "./memory/default" fallback and exit
++    // 0. A namespace is KNOWN when it is either (a) a key of
++    // config.namespaceMappings, or (b) an existing directory under the
++    // resolved namespaces root (resolveNamespacesPath — the same store the
++    // MCP/HTTP layer uses, honors config.namespacesPath and the
++    // DUCKBRAIN_NAMESPACES_PATH override). An unknown name fails loudly and
++    // never prints "Status: OK" or a default path.
++    let nsPath: string | undefined;
++    if (namespaceExplicit) {
++      nsPath = config.namespaceMappings?.[namespace];
++      if (nsPath === undefined) {
++        const candidate = path.join(resolveNamespacesPath(), namespace);
++        if (
++          !fs.existsSync(candidate) ||
++          !fs.statSync(candidate).isDirectory()
++        ) {
++          console.error(
++            `Error: Namespace '${namespace}' does not exist. ` +
++              `Run 'duckbrain namespace list' to see available namespaces.`,
++          );
++          process.exit(1);
++        }
++        nsPath = candidate;
++      }
++    } else {
++      // No flag: legacy behavior — the mapped default or the fallback path.
++      nsPath = config.namespaceMappings?.[namespace] || "./memory/default";
++    }
+ 
+     console.log(`DuckBrain Status`);
+     console.log(`================`);
+diff --git a/src/cli/status-namespace-df2026-9.test.ts b/src/cli/status-namespace-df2026-9.test.ts
+index 88ce7bde..4a4c6a5c 100644
+--- a/src/cli/status-namespace-df2026-9.test.ts
++++ b/src/cli/status-namespace-df2026-9.test.ts
+@@ -22,6 +22,9 @@
+  */
+ 
+ import { describe, it, expect, vi } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
+ 
+ // Force a deterministic, NON-"default" config default + a distinct mapping for
+ // the flag value, unless a test overrides.
+@@ -170,3 +173,89 @@ describe("DF-2026-9: status resolves the space-form --namespace value", () => {
+     expect(logs.join("\n")).not.toContain("Namespace: true");
+   });
+ });
++
++/**
++ * DF-2026-9 follow-up: an explicitly named namespace that is NEITHER a key of
++ * config.namespaceMappings NOR a directory under the resolved namespaces root
++ * used to silently resolve to the hardcoded "./memory/default" fallback and
++ * exit 0. It must fail loudly instead (stderr names the namespace, non-zero
++ * exit, no "Status: OK", no default path).
++ *
++ * The namespaces root is isolated to a fresh empty temp dir via
++ * DUCKBRAIN_NAMESPACES_PATH (BUG-037 knob, consolidate.test.ts house style),
++ * so "absent from the root" is deterministic regardless of what the host tree
++ * happens to have on disk.
++ */
++describe("DF-2026-9: status fails loudly on an unknown explicit --namespace", () => {
++  const UNKNOWN_NS = "definitely-not-a-namespace-xyz";
++  const DIR_ONLY_NS = "df2026-9-dirconly";
++
++  /** Point the namespaces root at a fresh empty temp dir; returns its path. */
++  function isolateNamespacesRoot(): string {
++    const root = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-df2026-9-"));
++    process.env.DUCKBRAIN_NAMESPACES_PATH = root;
++    return root;
++  }
++
++  function restoreNamespacesRoot(saved: string | undefined, root: string) {
++    if (saved === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++    else process.env.DUCKBRAIN_NAMESPACES_PATH = saved;
++    fs.rmSync(root, { recursive: true, force: true });
++  }
++
++  it("AC-8: space form — unknown namespace exits non-zero, names it, never prints the default path", async () => {
++    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
++    const root = isolateNamespacesRoot();
++    try {
++      const { logs, errors, rejected } = await capture(() =>
++        runHumanCLI("status", ["--namespace", UNKNOWN_NS]),
++      );
++
++      expect(rejected).toBe(true);
++      expect(errors.join("\n")).toContain(UNKNOWN_NS);
++      const out = logs.join("\n");
++      expect(out).not.toContain("./memory/default");
++      expect(out).not.toContain("Status: OK");
++    } finally {
++      restoreNamespacesRoot(saved, root);
++    }
++  });
++
++  it("AC-9: equals form — unknown namespace fails identically to the space form", async () => {
++    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
++    const root = isolateNamespacesRoot();
++    try {
++      const { logs, errors, rejected } = await capture(() =>
++        runHumanCLI("status", [`--namespace=${UNKNOWN_NS}`]),
++      );
++
++      expect(rejected).toBe(true);
++      expect(errors.join("\n")).toContain(UNKNOWN_NS);
++      const out = logs.join("\n");
++      expect(out).not.toContain("./memory/default");
++      expect(out).not.toContain("Status: OK");
++    } finally {
++      restoreNamespacesRoot(saved, root);
++    }
++  });
++
++  it("AC-10: a namespace known only as a directory under the root resolves to its real path", async () => {
++    const saved = process.env.DUCKBRAIN_NAMESPACES_PATH;
++    const root = isolateNamespacesRoot();
++    fs.mkdirSync(path.join(root, DIR_ONLY_NS));
++    try {
++      const { logs, errors, rejected } = await capture(() =>
++        runHumanCLI("status", ["--namespace", DIR_ONLY_NS]),
++      );
++
++      expect(rejected).toBe(false);
++      expect(errors).toEqual([]);
++      expect(logs).toContain(`Namespace: ${DIR_ONLY_NS}`);
++      expect(logs).toContain(`Path: ${path.join(root, DIR_ONLY_NS)}`);
++      expect(logs).toContain("Status: OK");
++      expect(logs.join("\n")).not.toContain("./memory/default");
++    } finally {
++      restoreNamespacesRoot(saved, root);
++    }
++  });
++});

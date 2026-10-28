@@ -1,0 +1,111 @@
+{
+  "task_id": "README-9-R4",
+  "task_title": "Repair malformed README HTTP API curl examples",
+  "task_criteria": [
+    "Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "9a6f6490fc603d155172fbf95de114a9a1d3e795",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:43PM INF scanned ~31457031 bytes (31.46 MB) in 4.4s\n5:43PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  233 passed (233)\n      Tests  1942 passed (1942)\n   Start at  17:43:41\n   Duration  66.58s (tests 81%, import 17%, setup 1%, worker 1%)\n\n    Isolate  233 workers spawned \u00b7 ~89ms startup each (spawn + environment, per file)\n             at least ~5.08s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: The repair is NOT present on mainline. HEAD (9a6f6490) README.md blob is 84bfc4d1 \u2014 the pre-fix blob, identical to the worktree. The fix commit 05c73402 ('docs: repair README HTTP API curl examples. Addresses README-9-R4.') exists but `git merge-base --is-ancestor 05c73402 HEAD` returns NO; it lives only on the unmerged branch wt/README-9-R4. Current mainline lines are still unquoted: L453 `curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10`, L456 `...?namespace=default&q=connection+pooling`, L459/L462 likewise unquoted. Stubbed-curl argv probe on mainline: L450 OK (ARGC=3), L453 produced NO curl invocation at all (backgrounded at `&`), L456 argv[3] truncated to `http://localhost:3000/api/memories?namespace=default` (lost `&q=connection+pooling`), L459 double-fired (one truncated + one full), L462 OK. Negative control against the live daemon confirmed the bug: `bash -c 'curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10'` returned {\"error\":\"Unauthorized: Invalid API key\"} for the truncated URL, proving `&limit=10` was backgrounded. The required 'isolated auth=apikey five-command probe' was never run or recorded \u2014 the fix commit message itself admits 'Live isolated --auth=apikey daemon probe not feasible in this worktree (no dist/, no node_modules/, installs forbidden)', and no probe artifact exists in the repo for README-9-R4. The only delivered change is .gitreins/tasks.yaml marking status: complete (lines 2875-2883). scripts/docs-check.js passes ('docs-check: OK') but only validates fence balance and links, not curl argv correctness.\nTask marked complete but the README curl repair exists only on unmerged branch wt/README-9-R4 \u2014 mainline README.md:450-462 is still malformed (L453/L456 truncate the URL at `&`), and the required isolated auth=apikey five-command probe was never run or recorded.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: The repair is NOT present on mainline. HEAD (9a6f6490) README.md blob is 84bfc4d1 \u2014 the pre-fix blob, identical to the worktree. The fix commit 05c73402 ('docs: repair README HTTP API curl examples. Addresses README-9-R4.') exists but `git merge-base --is-ancestor 05c73402 HEAD` returns NO; it lives only on the unmerged branch wt/README-9-R4. Current mainline lines are still unquoted: L453 `curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10`, L456 `...?namespace=default&q=connection+pooling`, L459/L462 likewise unquoted. Stubbed-curl argv probe on mainline: L450 OK (ARGC=3), L453 produced NO curl invocation at all (backgrounded at `&`), L456 argv[3] truncated to `http://localhost:3000/api/memories?namespace=default` (lost `&q=connection+pooling`), L459 double-fired (one truncated + one full), L462 OK. Negative control against the live daemon confirmed the bug: `bash -c 'curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10'` returned {\"error\":\"Unauthorized: Invalid API key\"} for the truncated URL, proving `&limit=10` was backgrounded. The required 'isolated auth=apikey five-command probe' was never run or recorded \u2014 the fix commit message itself admits 'Live isolated --auth=apikey daemon probe not feasible in this worktree (no dist/, no node_modules/, installs forbidden)', and no probe artifact exists in the repo for README-9-R4. The only delivered change is .gitreins/tasks.yaml marking status: complete (lines 2875-2883). scripts/docs-check.js passes ('docs-check: OK') but only validates fence balance and links, not curl argv correctness.\nTask marked complete but the README curl repair exists only on unmerged branch wt/README-9-R4 \u2014 mainline README.md:450-462 is still malformed (L453/L456 truncate the URL at `&`), and the required isolated auth=apikey five-command probe was never run or recorded.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.",
+                "status": "FAIL",
+                "detail": "The repair is NOT present on mainline. HEAD (9a6f6490) README.md blob is 84bfc4d1 \u2014 the pre-fix blob, identical to the worktree. The fix commit 05c73402 ('docs: repair README HTTP API curl examples. Addresses README-9-R4.') exists but `git merge-base --is-ancestor 05c73402 HEAD` returns NO; it lives only on the unmerged branch wt/README-9-R4. Current mainline lines are still unquoted: L453 `curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10`, L456 `...?namespace=default&q=connection+pooling`, L459/L462 likewise unquoted. Stubbed-curl argv probe on mainline: L450 OK (ARGC=3), L453 produced NO curl invocation at all (backgrounded at `&`), L456 argv[3] truncated to `http://localhost:3000/api/memories?namespace=default` (lost `&q=connection+pooling`), L459 double-fired (one truncated + one full), L462 OK. Negative control against the live daemon confirmed the bug: `bash -c 'curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10'` returned {\"error\":\"Unauthorized: Invalid API key\"} for the truncated URL, proving `&limit=10` was backgrounded. The required 'isolated auth=apikey five-command probe' was never run or recorded \u2014 the fix commit message itself admits 'Live isolated --auth=apikey daemon probe not feasible in this worktree (no dist/, no node_modules/, installs forbidden)', and no probe artifact exists in the repo for README-9-R4. The only delivered change is .gitreins/tasks.yaml marking status: complete (lines 2875-2883). scripts/docs-check.js passes ('docs-check: OK') but only validates fence balance and links, not curl argv correctness.",
+                "resolution_probability": 0.0,
+                "cited_path": "README.md:450"
+              }
+            ],
+            "summary": "Task marked complete but the README curl repair exists only on unmerged branch wt/README-9-R4 \u2014 mainline README.md:450-462 is still malformed (L453/L456 truncate the URL at `&`), and the required isolated auth=apikey five-command probe was never run or recorded.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: README-9-R4\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Repair README.md:450,453,456,459,462 so each curl command passes bash parsing and gives curl separate -H and URL arguments; run the isolated auth=apikey five-command probe and record intended endpoint requests.: The repair is NOT present on mainline. HEAD (9a6f6490) README.md blob is 84bfc4d1 \u2014 the pre-fix blob, identical to the worktree. The fix commit 05c73402 ('docs: repair README HTTP API curl examples. Addresses README-9-R4.') exists but `git merge-base --is-ancestor 05c73402 HEAD` returns NO; it lives only on the unmerged branch wt/README-9-R4. Current mainline lines are still unquoted: L453 `curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10`, L456 `...?namespace=default&q=connection+pooling`, L459/L462 likewise unquoted. Stubbed-curl argv probe on mainline: L450 OK (ARGC=3), L453 produced NO curl invocation at all (backgrounded at `&`), L456 argv[3] truncated to `http://localhost:3000/api/memories?namespace=default` (lost `&q=connection+pooling`), L459 double-fired (one truncated + one full), L462 OK. Negative control against the live daemon confirmed the bug: `bash -c 'curl -H \"X-API-Key: <key>\" http://localhost:3000/api/memories?namespace=default&limit=10'` returned {\"error\":\"Unauthorized: Invalid API key\"} for the truncated URL, proving `&limit=10` was backgrounded. The required 'isolated auth=apikey five-command probe' was never run or recorded \u2014 the fix commit message itself admits 'Live isolated --auth=apikey daemon probe not feasible in this worktree (no dist/, no node_modules/, installs forbidden)', and no probe artifact exists in the repo for README-9-R4. The only delivered change is .gitreins/tasks.yaml marking status: complete (lines 2875-2883). scripts/docs-check.js passes ('docs-check: OK') but only validates fence balance and links, not curl argv correctness.\nTask marked complete but the README curl repair exists only on unmerged branch wt/README-9-R4 \u2014 mainline README.md:450-462 is still malformed (L453/L456 truncate the URL at `&`), and the required isolated auth=apikey five-command probe was never run or recorded.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-27T22:45:54.061864",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-27T22:45:54.082117+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 3145,
+        "truncated": false,
+        "source": "git show 9a6f6490fc60"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 732,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "README-9-R4"
+  }
+}
