@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     testTimeout: 60000,
     hookTimeout: 120000,
-    include: ["tests/**/*.int.test.ts", "tests/cli-bin-e2e-df012.test.ts"],
+    include: ["tests/**/*.int.test.ts"],
     pool: "forks",
     fileParallelism: false,
     // CI-GITID-028: CI runners carry no global git identity, so any
