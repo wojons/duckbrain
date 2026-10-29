@@ -145,6 +145,37 @@ describe("GET /api/namespaces", () => {
     expect(body.error).toContain("Failed to list namespaces");
   });
 
+  it("filters directory-only census rows so REST matches the config registry/prune view", async () => {
+    mockedListNamespaces.mockResolvedValue({
+      success: true,
+      namespaces: [
+        {
+          name: "registered",
+          path: "/data/registered",
+          isDefault: false,
+        },
+        {
+          name: "df-asof",
+          path: "/data/df-asof",
+          isDefault: false,
+          onDiskOnly: true,
+        },
+      ],
+      currentNamespace: "registered",
+    });
+
+    const app = createApp();
+    const { status, body } = await httpRequest(app, "GET", "/api/namespaces");
+
+    expect(status).toBe(200);
+    expect(body.namespaces.map((ns: { name: string }) => ns.name)).toEqual([
+      "registered",
+    ]);
+    expect(body.namespaces).not.toContainEqual(
+      expect.objectContaining({ name: "df-asof" }),
+    );
+  });
+
   it("should handle empty namespace list", async () => {
     mockedListNamespaces.mockResolvedValue({
       success: true,

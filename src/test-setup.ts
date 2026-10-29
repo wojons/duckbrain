@@ -42,6 +42,11 @@ function augerNamespaceDirectories(root: string): string[] {
   }
 }
 
+// DF-2026-15: test-created namespaces must never land in the production
+// registry. Tests that use generated auger-* names are still confined to this
+// per-worker root and the post-run guard asserts that none remain.
+process.env.DUCKBRAIN_TEST_NAMESPACE_PREFIX = "auger-pytest-";
+
 afterAll(() => {
   const leaked = augerNamespaceDirectories(TEST_NS_ROOT);
   if (leaked.length > 0) {
