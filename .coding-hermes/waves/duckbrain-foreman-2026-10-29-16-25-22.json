@@ -1,0 +1,26 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-16-25-22",
+  "project": "duckbrain",
+  "block": "INT-CI-033",
+  "wave_budget": 10,
+  "slots_computed": 6,
+  "slots_formula": "max(1, min(6, 16 - ceil(loadavg 2.41))) = 6",
+  "path": "verification-only",
+  "wave_size": 0,
+  "selection": "block_drive.py ranked INT-CI-033 first: one ready row, no dependency edges, but its acceptance requires an authorized update to protected AGENTS.md and exact-head CI success.",
+  "rows": [
+    {
+      "task_id": "INT-CI-033",
+      "status": "owner_blocked_no_dispatch",
+      "worktree": "/home/kara/worktrees/duckbrain-INT-CI-033",
+      "branch": "wt/INT-CI-033",
+      "implementation_candidate": "06187be032ee66bc41f148cf6597d3803da178ac",
+      "reason": "AGENTS.md is protected; no worker or foreman may write it without authorization. Existing candidate updates counts to 242 suites / 2027 tests, but exact-head CI success is not present."
+    }
+  ],
+  "local_gate": "PASS: /home/kara/go/bin/boardctl validate --skip-bad-lines; pnpm exec vitest run (242 files / 2027 tests); pnpm exec tsc --noEmit",
+  "count_gate": "BLOCKED: scripts/sync-agents-md-counts.sh --check reports AGENTS.md 239/2021 versus live 242/2027; protected-file authorization required",
+  "remote_ci": "RED/owner-tracked: recent failures include AGENTS.md count assertion; no exact-head green run for 06187be0",
+  "open": ["INT-CI-033", "PERF-014", "TESTQ-2026-10-29-1", "QA-DUCKBRAIN-PERF-3", "DF-2026-11", "DF-2026-13", "DF-2026-17", "DF-2026-18", "DF-2026-19"],
+  "finished_at": "2026-10-29T16:25:22-05:00"
+}
