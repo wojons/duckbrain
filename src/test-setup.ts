@@ -30,6 +30,11 @@ const TEST_NS_ROOT = fs.mkdtempSync(
 
 process.env.DUCKBRAIN_NAMESPACES_PATH = TEST_NS_ROOT;
 
+// DF-2026-15: test-created namespaces must never land in the production
+// registry. Tests that use generated auger-* names are still confined to this
+// per-worker root and the post-run guard asserts that none remain.
+process.env.DUCKBRAIN_TEST_NAMESPACE_PREFIX = "auger-pytest-";
+
 // Ensure the default namespace dir exists so DuckDB file creation works.
 fs.mkdirSync(path.join(TEST_NS_ROOT, "default"), { recursive: true });
 fs.mkdirSync(path.join(TEST_NS_ROOT, "test-ns"), { recursive: true });

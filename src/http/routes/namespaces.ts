@@ -16,7 +16,6 @@ import {
 import { deleteNamespace } from "../../namespaces/delete";
 import { logLifecycle } from "../../namespaces/lifecycle";
 import { resolveNamespacesPath } from "../../config/index";
-import { censusOnDiskNamespaces } from "./namespace-census";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import { NamespaceListResponse, NamespaceResponse } from "../types/api";
 import { requireNamespaceGrant, getPrincipal } from "../../auth/middleware";
@@ -87,52 +86,22 @@ router.get(
       throw new ApiError(result.error || "Failed to list namespaces", 500);
     }
 
-    // DB-GAP-057: the registry (config mappings) is not the whole truth —
-    // directories on disk can exist with NO mapping (the be129bc split-brain
-    // produced exactly that for every HTTP/MCP create: dir under the
-    // namespaces root, mapping in a stray config file). Take a one-shot
-    // read-only census of the namespaces root and union it under the
-    // registry rows. Read-only by contract: this route never mutates the
-    // config — reconciliation of drifted prod state is an ops action.
-    const nsRoot = resolveNamespacesPath();
-    const onDisk = censusOnDiskNamespaces(nsRoot);
-
-    const missingDirs = namesWithMissingDirectories(result.namespaces);
-    const namespaces = result.namespaces.map((ns) =>
+    // The REST listing is the registry view, deliberately matching the
+    // namespace prune verb's config-mapping view. The MCP tool also exposes
+    // directory-only drift rows for reconciliation, but including those rows
+    // here made GET /api/namespaces disagree with prune (for example, a
+    // directory-only `df-asof` phantom). Filter those advisory rows at this
+    // boundary; registered mappings remain visible even when their directory
+    // is missing so operators can prune them.
+    const registeredNamespaces = result.namespaces.filter(
+      (ns: any) => !ns.onDiskOnly,
+    );
+    const missingDirs = namesWithMissingDirectories(registeredNamespaces);
+    const namespaces = registeredNamespaces.map((ns) =>
       transformNamespace(ns, missingDirs),
     );
-
-    // Union: every on-disk namespace absent from the registry becomes an
-    // onDiskOnly row (config rows keep their REG-GONE-001 directoryMissing
-    // flag when their directory is gone). isDefault mirrors the registry
-    // row rule (name === currentNamespace).
-    //
-    // DF-0924-06: the tool itself now runs the census, so most onDiskOnly
-    // rows arrive pre-flagged (preserved by transformNamespace) — this
-    // second census union remains as the safety net for mocked-tool suites
-    // and callers that hand us mapping-only rows. Drift counts count BOTH
-    // sources (tool-flagged + route-unioned) exactly once per name.
-    const listedNames = new Set(result.namespaces.map((ns) => ns.name));
-    const onDiskOnlyNames = new Set(
-      result.namespaces.filter((ns: any) => ns.onDiskOnly).map((ns) => ns.name),
-    );
-    let onDiskOnlyCount = onDiskOnlyNames.size;
-    // card t_667d7e6c: this route's own census union is a SECOND enumeration
-    // source — the tool's rows above are already grant-filtered, so an
-    // ungranted directory must not be re-added here as an onDiskOnly row
-    // (nor counted in `drift`: those counts describe the VISIBLE listing).
+    const onDiskOnlyCount = 0;
     const grant = principal?.namespaces;
-    for (const [name, nsPath] of onDisk) {
-      if (listedNames.has(name)) continue;
-      if (grant && !grant.includes(name)) continue;
-      onDiskOnlyCount++;
-      namespaces.push({
-        name,
-        path: nsPath,
-        isDefault: name === result.currentNamespace,
-        onDiskOnly: true,
-      });
-    }
 
     // Drift counts, both directions — omitted entirely when clean
     // (healthy-rows-omit-fields REG-GONE-001 style).
