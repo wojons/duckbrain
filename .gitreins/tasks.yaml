@@ -2918,3 +2918,15 @@ tasks:
   status: complete
   created_at: '2026-10-28T06:55:27.603789+00:00'
   completed_at: '2026-10-28T09:44:54.470858+00:00'
+- id: DB-GAP-66
+  title: Session activity receipt store
+  criteria:
+  - 'Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine
+    on conflicting reuse; bounded closed receipt shape with safe opaque refs only
+    and no prompts/transcripts/tool args/results/paths; honest counter availability
+    and measurement; claim-boundary field; live queries for skill exposure versus
+    activation and session counters with coverage. Add tests and verify the live ingest/query
+    path.'
+  status: complete
+  created_at: '2026-10-29T03:58:06.082362+00:00'
+  completed_at: '2026-10-29T04:25:25.776258+00:00'

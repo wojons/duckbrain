@@ -1,0 +1,27 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-03-43-10",
+  "project": "duckbrain",
+  "block": "DB-GAP-66",
+  "wave_budget": 12,
+  "slots_computed": 6,
+  "selection": "One ready row in the highest-ranked block; no second independent row exists in DB-GAP-66. Wave size 1 is the required serial fallback for this block.",
+  "rows": [
+    {
+      "task_id": "DB-GAP-66",
+      "worktree": "/home/kara/worktrees/duckbrain-DB-GAP-66",
+      "branch": "wt/DB-GAP-66",
+      "base": "origin/main",
+      "base_sha": "8426b628a32bab7d4d2f86bc71f8029227b34bba",
+      "brief": "/home/kara/.hermes/workspace/db-gap-66-brief.txt",
+      "model": "k3",
+      "provider": "kimi-for-coding",
+      "status": "committed",
+      "commit": "b3c940ea963e57730fe2cb025091192aa3577b45",
+      "local_gate": "PASS: pnpm exec vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts (48/48); pnpm exec tsc --noEmit (rc 0)",
+      "remote_parity": "PASS: origin/wt/DB-GAP-66..HEAD = 0",
+      "judge": "INCOMPLETE: task complete hung after durable status flip; no verdict artifact produced; async judge attempts did not yield an artifact",
+      "notes": "Worker produced two commits; second synced AGENTS.md counts (239/2021). No code changes in main checkout."
+    }
+  ],
+  "status": "awaiting_foreman_closeout"
+}

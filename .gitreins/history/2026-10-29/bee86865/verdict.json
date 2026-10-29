@@ -1,0 +1,110 @@
+{
+  "task_id": "DB-GAP-66",
+  "task_title": "Session activity receipt store",
+  "task_criteria": [
+    "Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "65f9bc0fb2ca480d030d98f7abb23a5c591d658a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:32PM INF scanned ~22066404 bytes (22.07 MB) in 3.3s\n11:32PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261028T225359.631850Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  237 passed (237)\n      Tests  1973 passed (1973)\n   Start at  23:32:01\n   Duration  73.48s (tests 81%, import 17%, setup 1%, worker 1%)\n\n    Isolate  237 workers spawned \u00b7 ~94ms startup each (spawn + environment, per file)\n             at least ~5.45s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261028T225359.631850Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path.: Implementation is in worktree /home/kara/worktrees/duckbrain-DB-GAP-66 (commits 220f07ca + b3c940ea); the main checkout only carries the .gitreins/tasks.yaml status flip. (1) Idempotency/quarantine: src/receipts/sessionActivityReceipt.ts:600-660 \u2014 observationHash = sha256(canonicalStringify(receipt)); same receipt_id + same hash -> status \"duplicate\" with no second row; same id + different hash -> payload-free quarantine row (reason \"conflicting_observation\", only payload_sha256) and the original is never overwritten; index rebuilt from disk on restart (loadIndex, :516). (2) Bounded closed shape: SessionActivityReceiptSchema .strict() with MAX_RECEIPT_BYTES=64KB, MAX_SKILLS_PER_RECEIPT=256, 10MB segments; OPAQUE_REF_RE /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/ excludes / \\ and whitespace so a ref cannot be a path; FORBIDDEN_KEY_NAMES (prompt/transcript/tool_arguments/tool_results/path/...) + SAFE_KEY_RE scan the raw payload before zod (scanPayloadKeysAndValues :320-370); FORBIDDEN_VALUE_PATTERNS reject absolute/home/relative/Windows paths, backslashes, URLs and multi-line text. (3) Counters: CounterSchema discriminated union observed(exact|floor)/heuristic(floor only)/unavailable(value null) \u2014 heuristic+exact and unavailable+numeric are rejected, omitted counters stay omitted (never zero). (4) Claim boundary: ClaimBoundarySchema requires four z.literal(true) flags (not_execution/verification/review/merge evidence); a false flag fails validation (tested at receipts-dbgap066.test.ts:218-228 -> 422 invalid_shape). (5) Live queries: querySkillExposure (:800-826) returns exposed/not_exposed/exposure_unknown and activated/not_activated/activation_unknown plus receipts_mentioning/sessions_observed; querySessionCounters (:745-790) returns per-receipt counters plus coverage {observed,heuristic,unavailable,omitted} per counter name. (6) Live path: src/http/routes/receipts.ts mounted at /api/receipts in src/cli/http.ts (POST 201/200/409/422, GET /skill/:ref, GET /session/:ref 404 when unobserved, GET / docs). (7) Tests: src/receipts/sessionActivityReceipt.test.ts (549 lines, 30+ cases incl. forbidden key/value, unsafe keys, byte/array bounds, counter arms, claim boundary, both queries, segment rotation, torn line) and src/http/routes/receipts-dbgap066.test.ts (269 lines, real createHttpServer + HTTP requests). Command evidence: `npx vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts` -> exit_code 0, \"Test Files 2 passed (2) / Tests 48 passed (48)\"; broader `npx vitest run src/receipts src/http/routes` -> exit_code 0, \"Test Files 55 passed (55) / Tests 425 passed (425)\"; `npx tsc --noEmit -p tsconfig.json` -> exit_code 0, no diagnostics.\nDB-GAP-66 is fully implemented in the DB-GAP-66 worktree with a closed opaque-ref receipt schema, key/value rejection of prompts/transcripts/tool args/results/paths, availability+measurement counters, in-band claim boundary, idempotent ingest with conflicting-reuse quarantine, live skill-exposure and session-coverage queries over HTTP, and 48 passing tests (425 across the touched suites) with a clean tsc run.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path.: Implementation is in worktree /home/kara/worktrees/duckbrain-DB-GAP-66 (commits 220f07ca + b3c940ea); the main checkout only carries the .gitreins/tasks.yaml status flip. (1) Idempotency/quarantine: src/receipts/sessionActivityReceipt.ts:600-660 \u2014 observationHash = sha256(canonicalStringify(receipt)); same receipt_id + same hash -> status \"duplicate\" with no second row; same id + different hash -> payload-free quarantine row (reason \"conflicting_observation\", only payload_sha256) and the original is never overwritten; index rebuilt from disk on restart (loadIndex, :516). (2) Bounded closed shape: SessionActivityReceiptSchema .strict() with MAX_RECEIPT_BYTES=64KB, MAX_SKILLS_PER_RECEIPT=256, 10MB segments; OPAQUE_REF_RE /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/ excludes / \\ and whitespace so a ref cannot be a path; FORBIDDEN_KEY_NAMES (prompt/transcript/tool_arguments/tool_results/path/...) + SAFE_KEY_RE scan the raw payload before zod (scanPayloadKeysAndValues :320-370); FORBIDDEN_VALUE_PATTERNS reject absolute/home/relative/Windows paths, backslashes, URLs and multi-line text. (3) Counters: CounterSchema discriminated union observed(exact|floor)/heuristic(floor only)/unavailable(value null) \u2014 heuristic+exact and unavailable+numeric are rejected, omitted counters stay omitted (never zero). (4) Claim boundary: ClaimBoundarySchema requires four z.literal(true) flags (not_execution/verification/review/merge evidence); a false flag fails validation (tested at receipts-dbgap066.test.ts:218-228 -> 422 invalid_shape). (5) Live queries: querySkillExposure (:800-826) returns exposed/not_exposed/exposure_unknown and activated/not_activated/activation_unknown plus receipts_mentioning/sessions_observed; querySessionCounters (:745-790) returns per-receipt counters plus coverage {observed,heuristic,unavailable,omitted} per counter name. (6) Live path: src/http/routes/receipts.ts mounted at /api/receipts in src/cli/http.ts (POST 201/200/409/422, GET /skill/:ref, GET /session/:ref 404 when unobserved, GET / docs). (7) Tests: src/receipts/sessionActivityReceipt.test.ts (549 lines, 30+ cases incl. forbidden key/value, unsafe keys, byte/array bounds, counter arms, claim boundary, both queries, segment rotation, torn line) and src/http/routes/receipts-dbgap066.test.ts (269 lines, real createHttpServer + HTTP requests). Command evidence: `npx vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts` -> exit_code 0, \"Test Files 2 passed (2) / Tests 48 passed (48)\"; broader `npx vitest run src/receipts src/http/routes` -> exit_code 0, \"Test Files 55 passed (55) / Tests 425 passed (425)\"; `npx tsc --noEmit -p tsconfig.json` -> exit_code 0, no diagnostics.\nDB-GAP-66 is fully implemented in the DB-GAP-66 worktree with a closed opaque-ref receipt schema, key/value rejection of prompts/transcripts/tool args/results/paths, availability+measurement counters, in-band claim boundary, idempotent ingest with conflicting-reuse quarantine, live skill-exposure and session-coverage queries over HTTP, and 48 passing tests (425 across the touched suites) with a clean tsc run.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path.",
+                "status": "PASS",
+                "detail": "Implementation is in worktree /home/kara/worktrees/duckbrain-DB-GAP-66 (commits 220f07ca + b3c940ea); the main checkout only carries the .gitreins/tasks.yaml status flip. (1) Idempotency/quarantine: src/receipts/sessionActivityReceipt.ts:600-660 \u2014 observationHash = sha256(canonicalStringify(receipt)); same receipt_id + same hash -> status \"duplicate\" with no second row; same id + different hash -> payload-free quarantine row (reason \"conflicting_observation\", only payload_sha256) and the original is never overwritten; index rebuilt from disk on restart (loadIndex, :516). (2) Bounded closed shape: SessionActivityReceiptSchema .strict() with MAX_RECEIPT_BYTES=64KB, MAX_SKILLS_PER_RECEIPT=256, 10MB segments; OPAQUE_REF_RE /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/ excludes / \\ and whitespace so a ref cannot be a path; FORBIDDEN_KEY_NAMES (prompt/transcript/tool_arguments/tool_results/path/...) + SAFE_KEY_RE scan the raw payload before zod (scanPayloadKeysAndValues :320-370); FORBIDDEN_VALUE_PATTERNS reject absolute/home/relative/Windows paths, backslashes, URLs and multi-line text. (3) Counters: CounterSchema discriminated union observed(exact|floor)/heuristic(floor only)/unavailable(value null) \u2014 heuristic+exact and unavailable+numeric are rejected, omitted counters stay omitted (never zero). (4) Claim boundary: ClaimBoundarySchema requires four z.literal(true) flags (not_execution/verification/review/merge evidence); a false flag fails validation (tested at receipts-dbgap066.test.ts:218-228 -> 422 invalid_shape). (5) Live queries: querySkillExposure (:800-826) returns exposed/not_exposed/exposure_unknown and activated/not_activated/activation_unknown plus receipts_mentioning/sessions_observed; querySessionCounters (:745-790) returns per-receipt counters plus coverage {observed,heuristic,unavailable,omitted} per counter name. (6) Live path: src/http/routes/receipts.ts mounted at /api/receipts in src/cli/http.ts (POST 201/200/409/422, GET /skill/:ref, GET /session/:ref 404 when unobserved, GET / docs). (7) Tests: src/receipts/sessionActivityReceipt.test.ts (549 lines, 30+ cases incl. forbidden key/value, unsafe keys, byte/array bounds, counter arms, claim boundary, both queries, segment rotation, torn line) and src/http/routes/receipts-dbgap066.test.ts (269 lines, real createHttpServer + HTTP requests). Command evidence: `npx vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts` -> exit_code 0, \"Test Files 2 passed (2) / Tests 48 passed (48)\"; broader `npx vitest run src/receipts src/http/routes` -> exit_code 0, \"Test Files 55 passed (55) / Tests 425 passed (425)\"; `npx tsc --noEmit -p tsconfig.json` -> exit_code 0, no diagnostics.",
+                "resolution_probability": 0.0
+              }
+            ],
+            "summary": "DB-GAP-66 is fully implemented in the DB-GAP-66 worktree with a closed opaque-ref receipt schema, key/value rejection of prompts/transcripts/tool args/results/paths, availability+measurement counters, in-band claim boundary, idempotent ingest with conflicting-reuse quarantine, live skill-exposure and session-coverage queries over HTTP, and 48 passing tests (425 across the touched suites) with a clean tsc run.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DB-GAP-66\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path.: Implementation is in worktree /home/kara/worktrees/duckbrain-DB-GAP-66 (commits 220f07ca + b3c940ea); the main checkout only carries the .gitreins/tasks.yaml status flip. (1) Idempotency/quarantine: src/receipts/sessionActivityReceipt.ts:600-660 \u2014 observationHash = sha256(canonicalStringify(receipt)); same receipt_id + same hash -> status \"duplicate\" with no second row; same id + different hash -> payload-free quarantine row (reason \"conflicting_observation\", only payload_sha256) and the original is never overwritten; index rebuilt from disk on restart (loadIndex, :516). (2) Bounded closed shape: SessionActivityReceiptSchema .strict() with MAX_RECEIPT_BYTES=64KB, MAX_SKILLS_PER_RECEIPT=256, 10MB segments; OPAQUE_REF_RE /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/ excludes / \\ and whitespace so a ref cannot be a path; FORBIDDEN_KEY_NAMES (prompt/transcript/tool_arguments/tool_results/path/...) + SAFE_KEY_RE scan the raw payload before zod (scanPayloadKeysAndValues :320-370); FORBIDDEN_VALUE_PATTERNS reject absolute/home/relative/Windows paths, backslashes, URLs and multi-line text. (3) Counters: CounterSchema discriminated union observed(exact|floor)/heuristic(floor only)/unavailable(value null) \u2014 heuristic+exact and unavailable+numeric are rejected, omitted counters stay omitted (never zero). (4) Claim boundary: ClaimBoundarySchema requires four z.literal(true) flags (not_execution/verification/review/merge evidence); a false flag fails validation (tested at receipts-dbgap066.test.ts:218-228 -> 422 invalid_shape). (5) Live queries: querySkillExposure (:800-826) returns exposed/not_exposed/exposure_unknown and activated/not_activated/activation_unknown plus receipts_mentioning/sessions_observed; querySessionCounters (:745-790) returns per-receipt counters plus coverage {observed,heuristic,unavailable,omitted} per counter name. (6) Live path: src/http/routes/receipts.ts mounted at /api/receipts in src/cli/http.ts (POST 201/200/409/422, GET /skill/:ref, GET /session/:ref 404 when unobserved, GET / docs). (7) Tests: src/receipts/sessionActivityReceipt.test.ts (549 lines, 30+ cases incl. forbidden key/value, unsafe keys, byte/array bounds, counter arms, claim boundary, both queries, segment rotation, torn line) and src/http/routes/receipts-dbgap066.test.ts (269 lines, real createHttpServer + HTTP requests). Command evidence: `npx vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts` -> exit_code 0, \"Test Files 2 passed (2) / Tests 48 passed (48)\"; broader `npx vitest run src/receipts src/http/routes` -> exit_code 0, \"Test Files 55 passed (55) / Tests 425 passed (425)\"; `npx tsc --noEmit -p tsconfig.json` -> exit_code 0, no diagnostics.\nDB-GAP-66 is fully implemented in the DB-GAP-66 worktree with a closed opaque-ref receipt schema, key/value rejection of prompts/transcripts/tool args/results/paths, availability+measurement counters, in-band claim boundary, idempotent ingest with conflicting-reuse quarantine, live skill-exposure and session-coverage queries over HTTP, and 48 passing tests (425 across the touched suites) with a clean tsc run.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-29T04:35:47.563179",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-29T04:35:47.623335+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 4109,
+        "truncated": false,
+        "source": "git show 65f9bc0fb2ca"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 17863,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-66"
+  }
+}
