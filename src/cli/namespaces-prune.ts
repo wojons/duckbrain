@@ -28,6 +28,12 @@ import type {
 export interface NamespacesPruneRunOptions {
   /** True = report only (the default for the CLI verb). */
   dryRun: boolean;
+  /**
+   * DF-2026-15: when true, restrict the dead set to test-residue patterns
+   * (auger-pytest-*, auger-probe-*, etc.) — namespaces created by test suites
+   * that were never reaped. Without this flag, prune removes ALL dead mappings.
+   */
+  residueOnly?: boolean;
   /** Output sinks — tests capture these; the CLI defaults to stdout/stderr. */
   out?: (line: string) => void;
   err?: (line: string) => void;
@@ -49,13 +55,38 @@ export interface NamespacesPruneRunResult {
  * every row before applying. A 15k-row registry prints 15k lines; that is the
  * registry's own size, not a formatting choice.
  */
+/**
+ * DF-2026-15: test-residue pattern. Matches namespace names created by
+ * auger pytest fixtures and similar test harnesses that leave dead mappings
+ * in the registry when the test suite exits without cleanup.
+ */
+const TEST_RESIDUE_PATTERN = /^(auger-pytest-|auger-probe-|pytest-|test-residue-)/;
+
 export function runNamespacesPrune(
   opts: NamespacesPruneRunOptions,
 ): NamespacesPruneRunResult {
   const out = opts.out ?? ((line: string) => console.log(line));
   const err = opts.err ?? ((line: string) => console.error(line));
 
-  const plan = planNamespacePrune();
+  let plan = planNamespacePrune();
+
+  // DF-2026-15: --residue filters the dead set to test-pattern names only.
+  // This lets operators clean up test residue without pruning all dead mappings.
+  if (opts.residueOnly) {
+    const residueDead = plan.dead.filter((row) =>
+      TEST_RESIDUE_PATTERN.test(row.name),
+    );
+    const nonResidueDead = plan.dead.filter(
+      (row) => !TEST_RESIDUE_PATTERN.test(row.name),
+    );
+    plan = {
+      ...plan,
+      dead: residueDead,
+      // Non-residue dead rows become "live" for reporting purposes — they're
+      // not being pruned in this run, so they stay in the registry.
+      live: [...plan.live, ...nonResidueDead],
+    };
+  }
 
   out(
     `Namespace registry: ${plan.live.length + plan.dead.length + plan.refused.length} mapping(s), ` +
@@ -66,10 +97,11 @@ export function runNamespacesPrune(
   );
 
   if (plan.dead.length > 0) {
+    const prefix = opts.residueOnly ? "test-residue " : "";
     out(
       opts.dryRun
-        ? `DRY RUN — would remove ${plan.dead.length} dead mapping(s):`
-        : `Removing ${plan.dead.length} dead mapping(s):`,
+        ? `DRY RUN — would remove ${plan.dead.length} ${prefix}dead mapping(s):`
+        : `Removing ${plan.dead.length} ${prefix}dead mapping(s):`,
     );
     for (const row of plan.dead) {
       out(`  - ${row.name} -> ${row.path}`);

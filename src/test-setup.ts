@@ -20,6 +20,7 @@
  * visible to the modules under test (they call getConfig() lazily at request
  * time, which reads process.env via applyEnvOverrides).
  */
+import { afterAll } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -29,6 +30,26 @@ const TEST_NS_ROOT = fs.mkdtempSync(
 );
 
 process.env.DUCKBRAIN_NAMESPACES_PATH = TEST_NS_ROOT;
+
+function augerNamespaceDirectories(root: string): string[] {
+  try {
+    return fs
+      .readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith("auger-"))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+afterAll(() => {
+  const leaked = augerNamespaceDirectories(TEST_NS_ROOT);
+  if (leaked.length > 0) {
+    throw new Error(
+      `DF-2026-15: test run left auger-* namespaces in isolated root: ${leaked.join(", ")}`,
+    );
+  }
+});
 
 // Ensure the default namespace dir exists so DuckDB file creation works.
 fs.mkdirSync(path.join(TEST_NS_ROOT, "default"), { recursive: true });

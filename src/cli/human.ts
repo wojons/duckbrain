@@ -1075,9 +1075,13 @@ async function namespacesCommand(args: string[]): Promise<void> {
     // `--apply --dry-run` can never mutate the registry. The core + report
     // live in ./namespaces-prune (loaded lazily: read-only CLI startup paths
     // must not pay for the registry scan module).
+    // DF-2026-15: --residue restricts the dead set to test-pattern names
+    // (auger-pytest-*, auger-probe-*, etc.) so operators can clean test
+    // residue without pruning all dead mappings.
     const { runNamespacesPrune } = await import("./namespaces-prune.js");
     const dryRun = flags["dry-run"] !== undefined || flags.apply === undefined;
-    const result = runNamespacesPrune({ dryRun });
+    const residueOnly = flags.residue !== undefined;
+    const result = runNamespacesPrune({ dryRun, residueOnly });
     if (result.exitCode !== 0) process.exit(result.exitCode);
   } else if (cmd === "delete-disk" || (cmd === "delete" && !flags.purge)) {
     // ITEM 66 (REVIEW-DUCKBRAIN-001/002): 'delete' now means DISK-ONLY —
