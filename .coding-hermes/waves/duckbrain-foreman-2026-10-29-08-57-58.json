@@ -5,6 +5,8 @@
   "slots_computed": 4,
   "host_load": "11.93/16 cores",
   "base_sha": "ee42f2ea",
+  "finished_at": "2026-10-29T11:05:00-05:00",
+  "recovery": "complete; all four worker outputs reconciled. DF-2026-10, DF-2026-12, DF-2026-15, and DF-2026-16 landed serially on main after stale-base checks. DF-2026-10 retained a named GitReins tier1 baseline blocker; CI count drift filed as INT-CI-033.",
   "workers": [
     {"task_id": "DF-2026-10", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-10", "branch": "wt/DF-2026-10", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-10-brief-0857.txt"},
     {"task_id": "DF-2026-12", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-12", "branch": "wt/DF-2026-12", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-12-brief-0857.txt"},
