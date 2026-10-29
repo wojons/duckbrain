@@ -15,6 +15,10 @@ describe("DF-2026-15 registry/prune parity", () => {
     const registered = listed.namespaces.filter((ns) => !ns.onDiskOnly);
     expect(registered.length).toBe(mappings);
     expect(registered.some((ns) => ns.name === "df-asof")).toBe(false);
-    expect(fs.existsSync(path.join(process.env.DUCKBRAIN_NAMESPACES_PATH!, "df-asof"))).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(process.env.DUCKBRAIN_NAMESPACES_PATH!, "df-asof"),
+      ),
+    ).toBe(false);
   });
 });
