@@ -16,7 +16,7 @@ type CliResult = {
   stderr: string;
 };
 
-const repoRoot = path.resolve(__dirname, "../../..");
+const repoRoot = path.resolve(__dirname, "..");
 const cliEntry = path.join(repoRoot, "bin", "duckbrain.js");
 const scratchDirectories: string[] = [];
 
