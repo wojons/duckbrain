@@ -62,6 +62,7 @@ import {
 import { createUsersRoutes } from "../http/routes/users.js";
 import { createActivityRoutes } from "../http/routes/activity.js";
 import { createReadsRoutes } from "../http/routes/reads.js";
+import { createReceiptsRoutes } from "../http/routes/receipts.js";
 import { createReadLedgerStore } from "../http/readLedger.js";
 import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
 import path from "path";
@@ -628,6 +629,11 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // uptime because the ledger is durable on disk). Auth-gated like the
   // sibling API mounts; scoped principals are confined to their grants.
   app.use("/api/reads", createReadsRoutes());
+
+  // DB-GAP-66: session activity receipts — bounded, idempotent ingest of
+  // session_activity_receipt/v1 rows plus the skill-exposure and
+  // session-counter query surfaces. Auth-gated like the sibling API mounts.
+  app.use("/api/receipts", createReceiptsRoutes());
 
   // Legacy API stubs (redirect to new endpoints)
   app.get("/api/tree", (req: Request, res: Response) => {
