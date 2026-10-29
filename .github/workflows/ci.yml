@@ -80,7 +80,7 @@ jobs:
         run: pnpm build:cli
 
       - name: Run bin CLI E2E
-        run: pnpm exec vitest run --config vitest.config.ts tests/cli-bin-e2e-df012.test.ts
+        run: pnpm exec vitest run --config vitest.cli-e2e.config.ts
 
       - name: Run tests
         run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}

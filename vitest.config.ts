@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/cli-bin-e2e-df012.test.ts"],
+    include: ["src/**/*.test.ts"],
     setupFiles: ["src/test-setup.ts"],
     // Process-spawning and native-DuckDB tests contend heavily when Vitest
     // fans out across every host core. Bound concurrency and allow the slow
