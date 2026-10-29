@@ -1,0 +1,26 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-13-46-55",
+  "project": "duckbrain",
+  "block": "INT-CI-033",
+  "wave_budget": 12,
+  "slots_computed": 6,
+  "path": "serial",
+  "serial_reason": "Recovery consumed the inherited wave. The selected block has one ready row; no new implementation worker was dispatched because the row is owner-protected and requires an authorized AGENTS.md update.",
+  "recovery": {
+    "recovered_tick": "duckbrain-foreman-2026-10-29-03-43-10",
+    "manifest": ".coding-hermes/waves/duckbrain-foreman-2026-10-29-03-43-10.json",
+    "status": "complete",
+    "canonical_head": "fbf9dc26beccf366b6ded87912a5d11162b57de5",
+    "worker_count": 1,
+    "worker_disposition": "DB-GAP-66 already landed and is reachable from canonical main; focused 48/48 tests, tsc, and full 242-file/2027-test local suite passed; worker worktree and branch are absent; manifest closed without duplicate board completion event."
+  },
+  "selected_row": "INT-CI-033",
+  "eligible_independent": 0,
+  "status": "no-dispatch",
+  "reason": "owner-authorization-gated",
+  "owner_block": "AGENTS.md is owner-protected. Acceptance requires updating its test counts through the authorized process and then exact-head CI success; this unattended tick cannot perform that protected-file write.",
+  "local_gate": "PASS: boardctl validate --skip-bad-lines; pnpm exec vitest run = 242 files / 2027 tests, rc 0; pnpm exec tsc --noEmit rc 0. Count check remains blocked by the protected AGENTS.md drift.",
+  "remote_ci": "RED: exact canonical head fbf9dc26 has GitHub run failure 40860007523; the failing condition is the AGENTS.md count assertion tracked by INT-CI-033.",
+  "open": ["INT-CI-033", "DF-2026-7", "DF-2026-11", "DF-2026-13", "DF-2026-17", "DF-2026-18", "DF-2026-19", "QA-DUCKBRAIN-016", "RELEASE-2026-10-26-001", "REVIEW-DUCKBRAIN-005", "ROLLOUT-DUCKBRAIN-001"],
+  "finished_at": "2026-10-29T09:10:00-05:00"
+}

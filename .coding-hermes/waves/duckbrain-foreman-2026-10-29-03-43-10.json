@@ -4,7 +4,7 @@
   "block": "DB-GAP-66",
   "wave_budget": 12,
   "slots_computed": 6,
-  "selection": "One ready row in the highest-ranked block; no second independent row exists in DB-GAP-66. Wave size 1 is the required serial fallback for this block.",
+  "selection": "One ready row in the highest-ranked block; no second independent row exists in DB-GAP-66. Wave size 1 was the required serial fallback for this block.",
   "rows": [
     {
       "task_id": "DB-GAP-66",
@@ -15,13 +15,19 @@
       "brief": "/home/kara/.hermes/workspace/db-gap-66-brief.txt",
       "model": "k3",
       "provider": "kimi-for-coding",
-      "status": "committed",
+      "status": "recovered_landed",
       "commit": "b3c940ea963e57730fe2cb025091192aa3577b45",
-      "local_gate": "PASS: pnpm exec vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts (48/48); pnpm exec tsc --noEmit (rc 0)",
-      "remote_parity": "PASS: origin/wt/DB-GAP-66..HEAD = 0",
-      "judge": "INCOMPLETE: task complete hung after durable status flip; no verdict artifact produced; async judge attempts did not yield an artifact",
-      "notes": "Worker produced two commits; second synced AGENTS.md counts (239/2021). No code changes in main checkout."
+      "landed_commit": "91058e82",
+      "canonical_commit": "fbf9dc26beccf366b6ded87912a5d11162b57de5",
+      "local_gate": "PASS: pnpm exec vitest run src/receipts/sessionActivityReceipt.test.ts src/http/routes/receipts-dbgap066.test.ts (48/48); pnpm exec tsc --noEmit (rc 0); full vitest (242 files / 2027 tests, rc 0)",
+      "remote_parity": "PASS: origin/main..HEAD = 0; origin/wt/DB-GAP-66 remains an already-merged evidence ref",
+      "judge": "Tier 2 COMPLETE (bee86865); Tier 1 FAIL is the repository-wide DF-2026-10 baseline blocker, not this row's acceptance",
+      "worktree_removed": true,
+      "branch_deleted_local": true,
+      "branch_deleted_remote": true,
+      "notes": "Recovery verified the worker commits and the merged canonical tree. The row and recovery audit event were already closed by the subsequent 06-45-22 closeout; this manifest now records the final recovery disposition without adding a duplicate task-completed event."
     }
   ],
-  "status": "awaiting_foreman_closeout"
+  "status": "recovered_closed",
+  "finished_at": "2026-10-29T08:55:00-05:00"
 }
