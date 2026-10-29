@@ -32,6 +32,7 @@ useDefault = true
     '''fixtures/.*''',
     '''\.opencode/.*''',
     '''namespaces/.*''',
+    '''\.gitreins/.*''',
     '''\.gitleaks\.toml''',
     '''\.pre-commit-config\.yaml''',
   ]
