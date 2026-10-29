@@ -1,0 +1,14 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-08-57-58",
+  "block": "DF-2026-19",
+  "wave_budget": 6,
+  "slots_computed": 4,
+  "host_load": "11.93/16 cores",
+  "base_sha": "ee42f2ea",
+  "workers": [
+    {"task_id": "DF-2026-10", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-10", "branch": "wt/DF-2026-10", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-10-brief-0857.txt"},
+    {"task_id": "DF-2026-12", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-12", "branch": "wt/DF-2026-12", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-12-brief-0857.txt"},
+    {"task_id": "DF-2026-15", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-15", "branch": "wt/DF-2026-15", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-15-brief-0857.txt"},
+    {"task_id": "DF-2026-16", "worktree": "/home/kara/worktrees/duckbrain-DF-2026-16", "branch": "wt/DF-2026-16", "model": "kimi-for-coding", "provider": "k3", "brief": "/tmp/df2026-16-brief-0857.txt"}
+  ]
+}
