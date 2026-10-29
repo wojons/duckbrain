@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const repoRoot = resolve(import.meta.dirname, "../..");
+const repoRoot = path.resolve(__dirname, "../..");
 
 function allowlistPathPatterns(): string[] {
-  const config = readFileSync(resolve(repoRoot, ".gitleaks.toml"), "utf8");
+  const config = readFileSync(path.resolve(repoRoot, ".gitleaks.toml"), "utf8");
   const pathsBlock = config.match(/paths\s*=\s*\[(.*?)\]/s)?.[1];
   if (!pathsBlock) {
     throw new Error(".gitleaks.toml is missing [allowlist].paths");
