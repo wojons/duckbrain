@@ -13,6 +13,7 @@
  *   service     Manage systemd service (install/start/stop/restart/status)
  *   remember    Remember a memory (human operator)
  *   recall      Query memories (human operator)
+ *   memory      Manage L1 memory files (demote to hermes-memory)
  *   list-keys   List memory keys (human operator)
  *   forget      Delete a memory (human operator)
  *   config      Show or set configuration
@@ -25,6 +26,7 @@
 import { startStdioMode } from "../src/cli/stdio.js";
 import { handleHttpCommand } from "../src/cli/http.js";
 import { runHumanCLI } from "../src/cli/human.js";
+import { demoteMemoryEntry, printDemotionHelp } from "../src/cli/memory-demote.js";
 import { runEmbeddingsCLI } from "../src/cli/embeddings.js";
 import { runSearchIndexCLI } from "../src/cli/search-index.js";
 import { closeAllConnections } from "../src/duckdb/connection.js";
@@ -52,6 +54,7 @@ Commands:
   recall             Query memories
   search <query>     Keyword full-text search (offline; index refreshes automatically)
   search-index       Manage the keyword search index (rebuild|status|install-hooks)
+  memory demote      Move one complete L1 entry to hermes-memory (dry-run by default)
   list-keys          Browse memory structure
   forget <id>        Delete a memory
   config             Show or set configuration
@@ -169,6 +172,29 @@ function readVersion(): string {
  * Print `duckbrain v<version>` — the exact shape the SSH update-check parser
  * expects (version output like "duckbrain v1.0.0" or "1.0.0").
  */
+function parseMemoryDemotionArgs(args: string[]): {
+  positional: string[];
+  flags: Record<string, string>;
+} {
+  const positional: string[] = [];
+  const flags: Record<string, string> = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--apply" || arg === "--help" || arg === "-h") {
+      flags[arg === "-h" ? "help" : arg.slice(2)] = "true";
+    } else if (arg.startsWith("--")) {
+      const equals = arg.indexOf("=");
+      const name = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
+      const value = equals === -1 ? args[index + 1] : arg.slice(equals + 1);
+      if (equals === -1 && value !== undefined && !value.startsWith("-")) index += 1;
+      flags[name] = value && value.length > 0 ? value : "true";
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { positional, flags };
+}
+
 function printVersion(): void {
   console.log(`duckbrain v${readVersion()}`);
 }
@@ -379,6 +405,38 @@ async function main() {
         await runSearchIndexCLI(commandArgs);
         break;
 
+      case "memory": {
+        const subcommand = commandArgs[0];
+        if (subcommand !== "demote") {
+          printDemotionHelp();
+          process.exit(subcommand === "help" ? 0 : 1);
+        }
+        const { positional, flags } = parseMemoryDemotionArgs(commandArgs.slice(1));
+        if (flags.help !== undefined) {
+          printDemotionHelp();
+          break;
+        }
+        const file = flags.file;
+        const entry = flags.entry ?? positional[0];
+        if (!file || !entry) {
+          printDemotionHelp();
+          process.exit(1);
+        }
+        const result = await demoteMemoryEntry({
+          file,
+          entry,
+          apply: flags.apply !== undefined,
+          reason: flags.reason,
+          journal: flags.journal,
+        });
+        console.log(`${result.applied ? "APPLIED" : "DRY-RUN"}: ${result.file} entry ${result.entryIndex}`);
+        console.log(`  hash: ${result.hash}`);
+        console.log(`  key: ${result.key}`);
+        console.log(`  pointer: [db#${result.hash.slice(0, 12)}] ${result.gloss}`);
+        console.log(`  recall baseline: ${result.baseline.map((item) => `${item.phrase}=${item.keys.length}`).join(", ") || "none"}`);
+        if (result.journal) console.log(`  journal: ${result.journal}`);
+        break;
+      }
       case "remember":
       case "recall":
       case "search":
