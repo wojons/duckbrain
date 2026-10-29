@@ -1,0 +1,52 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-09-35-29",
+  "block": "DF-2026-19",
+  "started_at": "2026-10-29T09:35:29-05:00",
+  "finished_at": "2026-10-29T09:41:00-05:00",
+  "status": "failed",
+  "slots_computed": 6,
+  "workers": [
+    {
+      "task_id": "DF-2026-10",
+      "branch": "wt/DF-2026-10",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-10",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "status": "killed_stalled",
+      "session_id": "proc_544f4831977f",
+      "pid": 831937
+    },
+    {
+      "task_id": "DF-2026-12",
+      "branch": "wt/DF-2026-12",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-12",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "status": "killed_stalled",
+      "session_id": "proc_f951659d2543",
+      "pid": 832006,
+      "note": "WIP commit 87ee9b45 exists but no diff content"
+    },
+    {
+      "task_id": "DF-2026-15",
+      "branch": "wt/DF-2026-15",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-15",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "status": "killed_stalled",
+      "session_id": "proc_56b19ce669d0",
+      "pid": 832176
+    },
+    {
+      "task_id": "DF-2026-16",
+      "branch": "wt/DF-2026-16",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-16",
+      "model": "kimi-for-coding",
+      "provider": "k3",
+      "status": "killed_stalled",
+      "session_id": "proc_5b988b32853d",
+      "pid": 832320
+    }
+  ],
+  "failure_reason": "All 4 workers stalled 5+ minutes with zero output. Pattern matches tick 06-45-22 failure. kimi-for-coding@k3 may be unavailable or rate-limited."
+}
