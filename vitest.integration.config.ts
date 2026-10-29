@@ -5,6 +5,12 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 120000,
     include: ["tests/**/*.int.test.ts"],
+    // TESTQ-2026-10-29-1: the bin CLI E2E (tests/cli-bin-e2e-df012.test.ts) is
+    // intentionally NOT in this include — it spawns bin/duckbrain.js as a
+    // subprocess and owns vitest.cli-e2e.config.ts plus its own ci.yml step.
+    // This config is therefore not a valid target for that step: its include
+    // cannot match a plain .test.ts path (GitHub run 40857806554). Do not add
+    // the file here to "reuse" the integration suite — see the config's header.
     pool: "forks",
     fileParallelism: false,
     // CI-GITID-028: CI runners carry no global git identity, so any

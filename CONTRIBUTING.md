@@ -71,6 +71,10 @@ pnpm run test:coverage
 
 # Run integration tests
 pnpm run test:integration
+
+# Run the bin CLI E2E (spawns the shipped bin/duckbrain.js; run `pnpm build:cli`
+# first for a compiled-tree check, otherwise it falls back to tsx)
+pnpm run test:cli-e2e
 ```
 
 ## Commit Messages
