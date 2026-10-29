@@ -1,0 +1,1 @@
+{"id":"DB-GAP-66","event":"verify","detail":{"status":"complete","reason":"Harness failure (secrets excluded, cmd malformed). Local vitest PASSED 48/48.","verified_by":"manual"}}
