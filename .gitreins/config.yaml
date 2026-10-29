@@ -11,6 +11,12 @@ guards:
   # DEGRADED-PASS skip (added 2026-10-16, dogfood run 17; disclosed in the
   # tick report).
   allow_skips: true
+  # The repository's committed .npmrc and .env.example are safe templates.
+  # Keep the builtin path-class guard aligned with gitleaks' template scope.
+  sensitive_paths:
+    allow:
+      - .npmrc
+      - .env.example
   test_command: "npx vitest run"
   # 300s starved tier1 twice under fleet load (loadavg 50-80: full suite
   # needs 600-900s; judge aad2df37 + ad221990 both died on 'Command timed
