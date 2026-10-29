@@ -73,6 +73,15 @@ jobs:
       - name: Run type check
         run: pnpm tsc --noEmit
 
+      # DF-2026-12: bin/duckbrain.js prefers dist/ when present. Build the
+      # shipped entry point before the subprocess E2E so CI cannot verify only
+      # the TypeScript source while an old ignored dist/ shadows it.
+      - name: Build CLI for bin E2E
+        run: pnpm build:cli
+
+      - name: Run bin CLI E2E
+        run: pnpm exec vitest run --config vitest.integration.config.ts tests/cli-bin-e2e-df012.test.ts
+
       - name: Run tests
         run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
 
