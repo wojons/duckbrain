@@ -69,6 +69,7 @@ Commands:
   servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
   consolidate        Cross-namespace daily consolidation digest
+  recall-metrics     Roll up MCP-side recall metrics and check zero-day alerts
   query              Read-only SQL over a namespace (SELECT ... or --template)
   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
   s3                 Native S3 sync/query (status|sync|query|config)
@@ -457,6 +458,7 @@ async function main() {
       case "query":
       case "s3":
       case "consolidate":
+      case "recall-metrics":
         await runHumanCLI(command, commandArgs);
         break;
 

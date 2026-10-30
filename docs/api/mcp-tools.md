@@ -110,6 +110,8 @@ AI: "Remember that we're using PostgreSQL for the database"
 
 Query memories with flexible filtering.
 
+**Read-side telemetry (DF-2026-19):** Every MCP recall call appends one JSONL observation to the configured metrics directory. The default counter is `<directory containing namespaces>/metrics/recall-counter.jsonl`; set `DUCKBRAIN_RECALL_METRICS_PATH` to override it. The event records calls, calls answered, non-empty packs, distinct namespaces, and records returned. `duckbrain recall-metrics rollup --from=YYYY-MM-DD --to=YYYY-MM-DD` prints a daily series with numerator/denominator rates. `recall-metrics check` compares the series with the daemon health signal file (`health.jsonl` by default, or `DUCKBRAIN_RECALL_HEALTH_FILE`) and appends alerts to `recall-alerts.jsonl` when a day had recall calls, zero non-empty packs, and `GET /health` was healthy. A non-zero exit and `ALERT zero_non_empty_packs` identify the day, counter file, health file, and health check.
+
 **Parameters:**
 
 ```typescript
