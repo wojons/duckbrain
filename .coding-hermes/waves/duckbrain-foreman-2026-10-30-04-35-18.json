@@ -1,0 +1,19 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-30-04-35-18",
+  "block": "INT-CI-034",
+  "path": "serial-fallback-single-row",
+  "budget": 10,
+  "slots": 1,
+  "wave_recovery": "manifest duckbrain-foreman-2026-10-30-03-22-35 already closed (PERF-014 merged); no workers to recover",
+  "rows": [
+    {
+      "id": "INT-CI-034",
+      "worktree": "main (foreman-direct)",
+      "branch": "main",
+      "commit": "5231c4a6",
+      "board_close_commit": "db063255",
+      "status": "complete"
+    }
+  ],
+  "finished_at": "2026-10-30T04:50:00Z"
+}
