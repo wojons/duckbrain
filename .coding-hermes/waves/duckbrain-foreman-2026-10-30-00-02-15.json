@@ -1,67 +1,17 @@
 {
   "tick_id": "duckbrain-foreman-2026-10-30-00-02-15",
-  "project": "duckbrain",
   "block": "DF-2026-19",
-  "wave_budget": 12,
-  "slots_computed": 6,
-  "slots_formula": "max(1, min(6, 16 - ceil(loadavg 5.57))) = 6",
-  "path": "wave",
-  "selection": "Last tick's block INT-CI-033 is closed (no ready rows) -> fresh selection. block_drive.py top DRIVE blocks PERF-014, TESTQ-2026-10-29-1, QA-DUCKBRAIN-PERF-3 each hold ONE ready row (no wave possible) and QA-DUCKBRAIN-FOREMAN-4's four rows are QA-harness/infra findings (ENOSPC/OOM/probe_started=no, source qa-dagger) with no duckbrain-repo implementation path (QA-DUCKBRAIN-016's PM note puts the harness fix in bunker-qa.sh on the bunker board) — dispatching repo workers there would manufacture work. Chosen block: DF-2026-19 (highest-ranked block with >=2 mutually independent ready implementation rows, 90% done, 5 ready). DF-2026-7 excluded (foreman_note: needs a lane-level dogfood task, not a duckbrain worker).",
-  "base_sha": "0a415df6",
+  "wave_id": "duckbrain-foreman-2026-10-30-00-02-15",
+  "status": "finished",
+  "finished_at": "2026-10-30T02:15:00-05:00",
   "rows": [
-    {
-      "task_id": "DF-2026-13",
-      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-13",
-      "branch": "wt/DF-2026-13",
-      "brief": "/tmp/df2026-13-brief.md",
-      "model": "k3",
-      "provider": "kimi-for-coding",
-      "seam": "scripts/sync-agents-md-counts.sh + .github/workflows/ci.yml + test-counts.json",
-      "merge_order": 1
-    },
-    {
-      "task_id": "DF-2026-11",
-      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-11",
-      "branch": "wt/DF-2026-11",
-      "brief": "/tmp/df2026-11-brief.md",
-      "model": "glm-5.3-flash",
-      "provider": "zai-glm",
-      "seam": "src/cli/namespace-env-df092604.test.ts (single test file)",
-      "merge_order": 2
-    },
-    {
-      "task_id": "DF-2026-19",
-      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-19",
-      "branch": "wt/DF-2026-19",
-      "brief": "/tmp/df2026-19-brief.md",
-      "model": "glm-5.3-flash",
-      "provider": "zai-glm",
-      "seam": "src/mcp/tools/recall.ts + new metrics rollup/alert files",
-      "merge_order": 3
-    },
-    {
-      "task_id": "DF-2026-17",
-      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-17",
-      "branch": "wt/DF-2026-17",
-      "brief": "/tmp/df2026-17-brief.md",
-      "model": "k3",
-      "provider": "kimi-for-coding",
-      "seam": "new scripts/recall-benchmark/* + new .github/workflows/recall-benchmark.yml (no product query changes)",
-      "merge_order": 4
-    },
-    {
-      "task_id": "DF-2026-18",
-      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-18",
-      "branch": "wt/DF-2026-18",
-      "brief": "/tmp/df2026-18-brief.md",
-      "model": "k3",
-      "provider": "kimi-for-coding",
-      "seam": "new scripts/session-distiller.mjs (or src/cli subcommand) + fixture tests",
-      "merge_order": 5
-    }
+    {"task_id": "DF-2026-13", "status": "merged", "commit": "25c98589", "merge": "858e0f98", "verdict_dir": "55043021", "tier2": "PASS", "ci_run": "40986200093", "ci": "success"},
+    {"task_id": "DF-2026-11", "status": "merged", "commit": "a85e0c20", "merge": "5f5e9bec", "verdict_dir": "761c8c9f", "tier2": "PASS", "ci_run": "40986350146", "ci": "success"},
+    {"task_id": "DF-2026-19", "status": "merged", "commit": "2c076132", "merge": "78a09bc7+ce8ca8da", "verdict_dir": "3786436f", "tier2": "PASS", "ci_run": "40986836210", "ci": "success", "note": "gitreins task recreated mid-tick (worktree tasks.yaml reverted by worker hygiene)"},
+    {"task_id": "DF-2026-17", "status": "merged", "commit": "98b33bd8", "merge": "0adf6e54", "verdict_dir": "ed0feed3", "tier2": "PASS", "ci_run": "40987321543", "ci": "success"},
+    {"task_id": "DF-2026-18", "status": "merged", "commit": "f993073c", "merge": "e58b7912+c84b42ef", "verdict_dir": "a38df962", "tier2": "PASS", "ci_run": "40987738159", "ci": "success", "note": "2-file CLI-registration conflict resolved keeping both commands; open AC leg: second nightly run"}
   ],
-  "independence": "No depends_on edges among the five rows (all None). Seams are disjoint: 13=CI gate+script, 11=one existing test file, 19=MCP recall counter + new metric files, 17=new benchmark subtree + new workflow file, 18=new distiller script. 17 and 18 add NEW workflow files only; 13 edits ci.yml only. Count-gate coupling handled by merge order (13 first) + foreman-side manifest sync per merge; no worker edits AGENTS.md.",
-  "merge_gates": "per merge: rebase/merge onto current main, deletion count 0, pnpm test:run green + pnpm tsc --noEmit + prettier on touched files, counts manifest/AGENTS.md sync via scripts/sync-agents-md-counts.sh, push origin main + ghgitlab mirror, verify rev-list count 0",
-  "created_at": "2026-10-30T00:16:00-05:00",
-  "status": "dispatching"
+  "tier1_note": "all five verdicts: tier1 tests PASS, tier1 secrets FAIL = DF-2026-10-class scope disagreement, dispositioned to DF-2026-20",
+  "seats": "k3@kimi-for-coding x3 as dispatched; 2x glm-5.3-flash@zai-glm requests routed to openai/gpt-5.6-luna@api.xkiro (session_model_usage verified)",
+  "closeout_commit": "106ec495"
 }
