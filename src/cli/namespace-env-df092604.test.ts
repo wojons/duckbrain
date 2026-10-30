@@ -98,7 +98,10 @@ function keyUnder(namespace: string, key: string): boolean {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(p);
-      else if (entry.name.endsWith(".jsonl")) {
+      else if (
+        entry.name.endsWith(".jsonl") &&
+        !entry.name.endsWith(".tmp.jsonl")
+      ) {
         if (fs.readFileSync(p, "utf-8").includes(key)) found = true;
       }
     }
