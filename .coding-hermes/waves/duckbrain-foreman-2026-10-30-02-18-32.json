@@ -1,0 +1,13 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-30-02-18-32",
+  "block_id": "QA-DUCKBRAIN-FOREMAN-4",
+  "slots": 3,
+  "rows": [
+    {"id": "QA-DUCKBRAIN-FOREMAN-1", "title": "[P1] Native suite blocked by disk capacity (ENOSPC)", "worktree": null, "branch": null, "brief_path": "/tmp/brief-QA-DUCKBRAIN-FOREMAN-1.txt"},
+    {"id": "QA-DUCKBRAIN-FOREMAN-2", "title": "[P1] Chaos disconnect test blocked by disk capacity (ENOSPC)", "worktree": null, "branch": null, "brief_path": "/tmp/brief-QA-DUCKBRAIN-FOREMAN-2.txt"},
+    {"id": "QA-DUCKBRAIN-FOREMAN-3", "title": "[P3] Node.js OOM under cap during heavy suite", "worktree": null, "branch": null, "brief_path": "/tmp/brief-QA-DUCKBRAIN-FOREMAN-3.txt"}
+  ],
+  "status": "recovered-no-work",
+  "finished_at": "2026-10-30T03:14:15Z",
+  "recovery_notes": "Wave recovery: all 3 worktrees existed but produced ZERO diff against main (only .gitreins/tasks.yaml lifecycle noise). Workers never committed code for these QA rows. Acceptance criteria reference /home/kara/.hermes/scripts/bunker-qa.sh (bunker project, not duckbrain). These are infrastructure/cross-project tasks that duckbrain coding workers cannot solve. Rows dispositioned as infrastructure-owned, not re-dispatched. Worktrees removed."
+}
