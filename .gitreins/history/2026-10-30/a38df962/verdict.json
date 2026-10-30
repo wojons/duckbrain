@@ -1,0 +1,107 @@
+{
+  "task_id": "DF-2026-18",
+  "task_title": "DF-2026-18 nightly session distiller",
+  "task_criteria": [
+    "Distiller reads state.db sessions ended in window, writes bounded hash-keyed records under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt session refused; fixture tests green; ch:trace row=DF-2026-18."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-DF-2026-18",
+  "branch": "wt/DF-2026-18",
+  "commit": "f993073ce7ade40f1118730aadc5686dad3ed4cd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:20PM INF scanned ~5917764 bytes (5.92 MB) in 4.66s\n8:20PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-DF-2026-18\n\n(node:2042696) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2065492) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2079914) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2089012) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2090639) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2091861) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2092377) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095092) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095220) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095295) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095413) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095660) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095709) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2095759) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2096060) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2096186) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2096201) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2096549) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2096963) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  243 passed (243)\n      Tests  2036 passed (2036)\n   Start at  20:20:22\n   Duration  126.42s (tests 73%, import 25%, setup 1%, transform 1%, worker 1%)\n\n    Isolate  243 workers spawned \u00b7 ~220ms startup each (spawn + environment, per file)\n             at least ~13.16s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Distiller reads state.db sessions ended in window, writes bounded hash-keyed records under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt session refused; fixture tests green; ch:trace row=DF-2026-18.: All sub-checks verified. 1) Reads state.db sessions ended in window: distillSessions() queries `SELECT id, source, ended_at FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ?` (session-distiller.ts:390-395). 2) Writes bounded hash-keyed records under /session/<date>/<session-id>/<hash16>: key format `/session/${sessionDate}/${safeSid}/${keySuffix}` with sha256-derived 16-char suffix, bounded by MAX_RECORDS_PER_SESSION=20, STATEMENT_CAP=240, MAX_MESSAGES_PER_SESSION=2000 (session-distiller.ts:199-240). 3) Skips cron/system sessions: SYSTEM_SOURCES = new Set([\"cron\",\"kanban\",\"tool\"]) (session-distiller.ts:73-77, line 432). 4) Never stores transcripts/prompts/secrets: only extracted statements stored, redactSecrets() applied, only user/assistant messages queried (session-distiller.ts:151-177, 313-316). 5) Dedupe by message hash: key suffix = sha256(messageHash,recordType,statement), collectExistingSessionKeys() scans existing keys, test confirms rerun writes zero (session-distiller.ts:224-226, test line 325). 6) Corrupt session refused: readSessionMessages() checks BLOB/non-finite timestamps, corrupt sessions skipped loudly (session-distiller.ts:296-340, 437-445). 7) Fixture tests green: `npx vitest run src/cli/session-distiller-df202618.test.ts` \u2192 exit_code=0, \"1 passed (1)\", \"9 passed (9)\". 8) ch:trace row=DF-2026-18: present in commit message body.\nAll aspects of the DF-2026-18 nightly session distiller criterion are satisfied: the implementation reads state.db, writes bounded hash-keyed records, skips cron/system sessions, redacts secrets, deduplicates by hash, refuses corrupt sessions, all 9 fixture tests pass, and the ch:trace row is in the commit message.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Distiller reads state.db sessions ended in window, writes bounded hash-keyed records under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt session refused; fixture tests green; ch:trace row=DF-2026-18.: All sub-checks verified. 1) Reads state.db sessions ended in window: distillSessions() queries `SELECT id, source, ended_at FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ?` (session-distiller.ts:390-395). 2) Writes bounded hash-keyed records under /session/<date>/<session-id>/<hash16>: key format `/session/${sessionDate}/${safeSid}/${keySuffix}` with sha256-derived 16-char suffix, bounded by MAX_RECORDS_PER_SESSION=20, STATEMENT_CAP=240, MAX_MESSAGES_PER_SESSION=2000 (session-distiller.ts:199-240). 3) Skips cron/system sessions: SYSTEM_SOURCES = new Set([\"cron\",\"kanban\",\"tool\"]) (session-distiller.ts:73-77, line 432). 4) Never stores transcripts/prompts/secrets: only extracted statements stored, redactSecrets() applied, only user/assistant messages queried (session-distiller.ts:151-177, 313-316). 5) Dedupe by message hash: key suffix = sha256(messageHash,recordType,statement), collectExistingSessionKeys() scans existing keys, test confirms rerun writes zero (session-distiller.ts:224-226, test line 325). 6) Corrupt session refused: readSessionMessages() checks BLOB/non-finite timestamps, corrupt sessions skipped loudly (session-distiller.ts:296-340, 437-445). 7) Fixture tests green: `npx vitest run src/cli/session-distiller-df202618.test.ts` \u2192 exit_code=0, \"1 passed (1)\", \"9 passed (9)\". 8) ch:trace row=DF-2026-18: present in commit message body.\nAll aspects of the DF-2026-18 nightly session distiller criterion are satisfied: the implementation reads state.db, writes bounded hash-keyed records, skips cron/system sessions, redacts secrets, deduplicates by hash, refuses corrupt sessions, all 9 fixture tests pass, and the ch:trace row is in the commit message.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Distiller reads state.db sessions ended in window, writes bounded hash-keyed records under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt session refused; fixture tests green; ch:trace row=DF-2026-18.",
+                "status": "PASS",
+                "detail": "All sub-checks verified. 1) Reads state.db sessions ended in window: distillSessions() queries `SELECT id, source, ended_at FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ?` (session-distiller.ts:390-395). 2) Writes bounded hash-keyed records under /session/<date>/<session-id>/<hash16>: key format `/session/${sessionDate}/${safeSid}/${keySuffix}` with sha256-derived 16-char suffix, bounded by MAX_RECORDS_PER_SESSION=20, STATEMENT_CAP=240, MAX_MESSAGES_PER_SESSION=2000 (session-distiller.ts:199-240). 3) Skips cron/system sessions: SYSTEM_SOURCES = new Set([\"cron\",\"kanban\",\"tool\"]) (session-distiller.ts:73-77, line 432). 4) Never stores transcripts/prompts/secrets: only extracted statements stored, redactSecrets() applied, only user/assistant messages queried (session-distiller.ts:151-177, 313-316). 5) Dedupe by message hash: key suffix = sha256(messageHash,recordType,statement), collectExistingSessionKeys() scans existing keys, test confirms rerun writes zero (session-distiller.ts:224-226, test line 325). 6) Corrupt session refused: readSessionMessages() checks BLOB/non-finite timestamps, corrupt sessions skipped loudly (session-distiller.ts:296-340, 437-445). 7) Fixture tests green: `npx vitest run src/cli/session-distiller-df202618.test.ts` \u2192 exit_code=0, \"1 passed (1)\", \"9 passed (9)\". 8) ch:trace row=DF-2026-18: present in commit message body."
+              }
+            ],
+            "summary": "All aspects of the DF-2026-18 nightly session distiller criterion are satisfied: the implementation reads state.db, writes bounded hash-keyed records, skips cron/system sessions, redacts secrets, deduplicates by hash, refuses corrupt sessions, all 9 fixture tests pass, and the ch:trace row is in the commit message.",
+            "provenance": {
+              "model": "deepseek/deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek/deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-18\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Distiller reads state.db sessions ended in window, writes bounded hash-keyed records under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt session refused; fixture tests green; ch:trace row=DF-2026-18.: All sub-checks verified. 1) Reads state.db sessions ended in window: distillSessions() queries `SELECT id, source, ended_at FROM sessions WHERE ended_at IS NOT NULL AND ended_at >= ?` (session-distiller.ts:390-395). 2) Writes bounded hash-keyed records under /session/<date>/<session-id>/<hash16>: key format `/session/${sessionDate}/${safeSid}/${keySuffix}` with sha256-derived 16-char suffix, bounded by MAX_RECORDS_PER_SESSION=20, STATEMENT_CAP=240, MAX_MESSAGES_PER_SESSION=2000 (session-distiller.ts:199-240). 3) Skips cron/system sessions: SYSTEM_SOURCES = new Set([\"cron\",\"kanban\",\"tool\"]) (session-distiller.ts:73-77, line 432). 4) Never stores transcripts/prompts/secrets: only extracted statements stored, redactSecrets() applied, only user/assistant messages queried (session-distiller.ts:151-177, 313-316). 5) Dedupe by message hash: key suffix = sha256(messageHash,recordType,statement), collectExistingSessionKeys() scans existing keys, test confirms rerun writes zero (session-distiller.ts:224-226, test line 325). 6) Corrupt session refused: readSessionMessages() checks BLOB/non-finite timestamps, corrupt sessions skipped loudly (session-distiller.ts:296-340, 437-445). 7) Fixture tests green: `npx vitest run src/cli/session-distiller-df202618.test.ts` \u2192 exit_code=0, \"1 passed (1)\", \"9 passed (9)\". 8) ch:trace row=DF-2026-18: present in commit message body.\nAll aspects of the DF-2026-18 nightly session distiller criterion are satisfied: the implementation reads state.db, writes bounded hash-keyed records, skips cron/system sessions, redacts secrets, deduplicates by hash, refuses corrupt sessions, all 9 fixture tests pass, and the ch:trace row is in the commit message.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T01:25:28.066054",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T01:25:28.096595+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 50421,
+        "truncated": false,
+        "source": "git show f993073ce7ad"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 776,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-18"
+  }
+}

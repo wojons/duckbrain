@@ -1,0 +1,107 @@
+{
+  "task_id": "DF-2026-13",
+  "task_title": "DF-2026-13 move test-count gate to generated manifest",
+  "task_criteria": [
+    "Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check asserts live vitest output vs manifest and fails on drift; CI step updated; green --check proven on the commit; ch:trace row=DF-2026-13."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-DF-2026-13",
+  "branch": "wt/DF-2026-13",
+  "commit": "25c9858963d82e85484c237dcce2506f0086ea06",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:12PM INF scanned ~5896896 bytes (5.90 MB) in 3.57s\n8:12PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-DF-2026-13\n\n\n Test Files  243 passed (243)\n      Tests  2036 passed (2036)\n   Start at  20:12:19\n   Duration  113.30s (tests 77%, import 21%, setup 1%, transform 1%, worker 1%)\n\n    Isolate  243 workers spawned \u00b7 ~156ms startup each (spawn + environment, per file)\n             at least ~9.31s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check asserts live vitest output vs manifest and fails on drift; CI step updated; green --check proven on the commit; ch:trace row=DF-2026-13.: All sub-requirements verified. (1) scripts/sync-agents-md-counts.sh reads MANIFEST=${DUCKBRAIN_COUNTS_MANIFEST:-test-counts.json} (repo-root, non-protected). (2) AGENTS.md untouched: `git diff 25c98589^ 25c98589 -- AGENTS.md` empty; source-invariant test asserts no non-comment line references AGENTS.md. (3) --check verified live: exit 0 on match (243/2036) and exit 1 with 'GAP-012 drift: test-counts.json (243 suites, 2036 tests) != live (243 suites, 2035 tests)' on drift. (4) CI step updated: ci.yml step renamed to 'Assert test-counts.json matches live suite' running `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`. (5) Green --check proven: commit message documents exit 0; independently re-verified --check exit 0 on matching fixture. (6) ch:trace row=DF-2026-13 present in commit message (line 55). 9 hermetic tests pass (npx vitest run src/test/sync-agents-md-counts.test.ts -> 9 passed, exit 0). Full suite timed out at 30s (config notes 600-900s needed); gate logic independently verified.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check asserts live vitest output vs manifest and fails on drift; CI step updated; green --check proven on the commit; ch:trace row=DF-2026-13.: All sub-requirements verified. (1) scripts/sync-agents-md-counts.sh reads MANIFEST=${DUCKBRAIN_COUNTS_MANIFEST:-test-counts.json} (repo-root, non-protected). (2) AGENTS.md untouched: `git diff 25c98589^ 25c98589 -- AGENTS.md` empty; source-invariant test asserts no non-comment line references AGENTS.md. (3) --check verified live: exit 0 on match (243/2036) and exit 1 with 'GAP-012 drift: test-counts.json (243 suites, 2036 tests) != live (243 suites, 2035 tests)' on drift. (4) CI step updated: ci.yml step renamed to 'Assert test-counts.json matches live suite' running `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`. (5) Green --check proven: commit message documents exit 0; independently re-verified --check exit 0 on matching fixture. (6) ch:trace row=DF-2026-13 present in commit message (line 55). 9 hermetic tests pass (npx vitest run src/test/sync-agents-md-counts.test.ts -> 9 passed, exit 0). Full suite timed out at 30s (config notes 600-900s needed); gate logic independently verified.\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check asserts live vitest output vs manifest and fails on drift; CI step updated; green --check proven on the commit; ch:trace row=DF-2026-13.",
+                "status": "PASS",
+                "detail": "All sub-requirements verified. (1) scripts/sync-agents-md-counts.sh reads MANIFEST=${DUCKBRAIN_COUNTS_MANIFEST:-test-counts.json} (repo-root, non-protected). (2) AGENTS.md untouched: `git diff 25c98589^ 25c98589 -- AGENTS.md` empty; source-invariant test asserts no non-comment line references AGENTS.md. (3) --check verified live: exit 0 on match (243/2036) and exit 1 with 'GAP-012 drift: test-counts.json (243 suites, 2036 tests) != live (243 suites, 2035 tests)' on drift. (4) CI step updated: ci.yml step renamed to 'Assert test-counts.json matches live suite' running `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`. (5) Green --check proven: commit message documents exit 0; independently re-verified --check exit 0 on matching fixture. (6) ch:trace row=DF-2026-13 present in commit message (line 55). 9 hermetic tests pass (npx vitest run src/test/sync-agents-md-counts.test.ts -> 9 passed, exit 0). Full suite timed out at 30s (config notes 600-900s needed); gate logic independently verified."
+              }
+            ],
+            "summary": "",
+            "provenance": {
+              "model": "deepseek/deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek/deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-13\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check asserts live vitest output vs manifest and fails on drift; CI step updated; green --check proven on the commit; ch:trace row=DF-2026-13.: All sub-requirements verified. (1) scripts/sync-agents-md-counts.sh reads MANIFEST=${DUCKBRAIN_COUNTS_MANIFEST:-test-counts.json} (repo-root, non-protected). (2) AGENTS.md untouched: `git diff 25c98589^ 25c98589 -- AGENTS.md` empty; source-invariant test asserts no non-comment line references AGENTS.md. (3) --check verified live: exit 0 on match (243/2036) and exit 1 with 'GAP-012 drift: test-counts.json (243 suites, 2036 tests) != live (243 suites, 2035 tests)' on drift. (4) CI step updated: ci.yml step renamed to 'Assert test-counts.json matches live suite' running `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out`. (5) Green --check proven: commit message documents exit 0; independently re-verified --check exit 0 on matching fixture. (6) ch:trace row=DF-2026-13 present in commit message (line 55). 9 hermetic tests pass (npx vitest run src/test/sync-agents-md-counts.test.ts -> 9 passed, exit 0). Full suite timed out at 30s (config notes 600-900s needed); gate logic independently verified.\n\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T01:16:29.198724",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T01:16:29.242000+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 18464,
+        "truncated": false,
+        "source": "git show 25c9858963d8"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 747,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-13"
+  }
+}

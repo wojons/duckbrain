@@ -1,0 +1,107 @@
+{
+  "task_id": "DF-2026-11",
+  "task_title": "DF-2026-11 tolerate in-flight .tmp.jsonl in namespace leak-walk",
+  "task_criteria": [
+    "Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts; leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-DF-2026-11",
+  "branch": "wt/DF-2026-11",
+  "commit": "a85e0c2064a9a93de8f227a5762900ba6975ec06",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:12PM INF scanned ~5895503 bytes (5.90 MB) in 4.82s\n8:12PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-DF-2026-11\n\n\n Test Files  242 passed (242)\n      Tests  2027 passed (2027)\n   Start at  20:12:35\n   Duration  111.47s (tests 81%, import 17%, setup 1%, worker 1%)\n\n    Isolate  242 workers spawned \u00b7 ~136ms startup each (spawn + environment, per file)\n             at least ~8.08s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts; leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit.: All four sub-claims verified at HEAD a85e0c20 (only criterion). (1) Tolerance without weakening: commit diff changes keyUnder() walk to `entry.name.endsWith(\".jsonl\") && !entry.name.endsWith(\".tmp.jsonl\")` (src/cli/namespace-env-df092604.test.ts:101-104); all leak assertions toBe(false) untouched (lines 194, 235, 256, 333, 371, 377-381). (2) >=20 consecutive green runs: ran 20\u00d7 `vitest run src/cli/namespace-env-df092604.test.ts` \u2192 20\u00d7 \"Test Files  1 passed (1)\", 20\u00d7 \"Tests  6 passed (6)\", 20\u00d7 exit=0, zero fail lines (log /tmp/df2026-11-runs.log). (3) Leak assertion still fails on real leak: verbatim logic replication returned true for planted leaked rows.jsonl (so toBe(false) fails) while .tmp.jsonl-only content returned false (tolerated). (4) ch:trace present: `git show -s --format=%B HEAD | grep -c \"ch:trace row=DF-2026-11\"` \u2192 1, message includes \"ch:trace row=DF-2026-11 spec=src/cli/namespace-env-df092604.test.ts test=...::20-consecutive-runs+leak-negative-control evidence=/tmp/df2026-11-runs.txt witness=none:worktree-local-runs commit=THIS\". Also tsc --noEmit exit 0; LSP diagnostics empty; worktree test file identical to HEAD.\nDF-2026-11 is complete: leak-walk skips in-flight *.tmp.jsonl with assertions intact (verified by 20 consecutive green test runs plus verbatim negative-control logic proving real leaks still trip the assertion), and the commit contains the ch:trace row.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts; leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit.: All four sub-claims verified at HEAD a85e0c20 (only criterion). (1) Tolerance without weakening: commit diff changes keyUnder() walk to `entry.name.endsWith(\".jsonl\") && !entry.name.endsWith(\".tmp.jsonl\")` (src/cli/namespace-env-df092604.test.ts:101-104); all leak assertions toBe(false) untouched (lines 194, 235, 256, 333, 371, 377-381). (2) >=20 consecutive green runs: ran 20\u00d7 `vitest run src/cli/namespace-env-df092604.test.ts` \u2192 20\u00d7 \"Test Files  1 passed (1)\", 20\u00d7 \"Tests  6 passed (6)\", 20\u00d7 exit=0, zero fail lines (log /tmp/df2026-11-runs.log). (3) Leak assertion still fails on real leak: verbatim logic replication returned true for planted leaked rows.jsonl (so toBe(false) fails) while .tmp.jsonl-only content returned false (tolerated). (4) ch:trace present: `git show -s --format=%B HEAD | grep -c \"ch:trace row=DF-2026-11\"` \u2192 1, message includes \"ch:trace row=DF-2026-11 spec=src/cli/namespace-env-df092604.test.ts test=...::20-consecutive-runs+leak-negative-control evidence=/tmp/df2026-11-runs.txt witness=none:worktree-local-runs commit=THIS\". Also tsc --noEmit exit 0; LSP diagnostics empty; worktree test file identical to HEAD.\nDF-2026-11 is complete: leak-walk skips in-flight *.tmp.jsonl with assertions intact (verified by 20 consecutive green test runs plus verbatim negative-control logic proving real leaks still trip the assertion), and the commit contains the ch:trace row.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts; leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit.",
+                "status": "PASS",
+                "detail": "All four sub-claims verified at HEAD a85e0c20 (only criterion). (1) Tolerance without weakening: commit diff changes keyUnder() walk to `entry.name.endsWith(\".jsonl\") && !entry.name.endsWith(\".tmp.jsonl\")` (src/cli/namespace-env-df092604.test.ts:101-104); all leak assertions toBe(false) untouched (lines 194, 235, 256, 333, 371, 377-381). (2) >=20 consecutive green runs: ran 20\u00d7 `vitest run src/cli/namespace-env-df092604.test.ts` \u2192 20\u00d7 \"Test Files  1 passed (1)\", 20\u00d7 \"Tests  6 passed (6)\", 20\u00d7 exit=0, zero fail lines (log /tmp/df2026-11-runs.log). (3) Leak assertion still fails on real leak: verbatim logic replication returned true for planted leaked rows.jsonl (so toBe(false) fails) while .tmp.jsonl-only content returned false (tolerated). (4) ch:trace present: `git show -s --format=%B HEAD | grep -c \"ch:trace row=DF-2026-11\"` \u2192 1, message includes \"ch:trace row=DF-2026-11 spec=src/cli/namespace-env-df092604.test.ts test=...::20-consecutive-runs+leak-negative-control evidence=/tmp/df2026-11-runs.txt witness=none:worktree-local-runs commit=THIS\". Also tsc --noEmit exit 0; LSP diagnostics empty; worktree test file identical to HEAD."
+              }
+            ],
+            "summary": "DF-2026-11 is complete: leak-walk skips in-flight *.tmp.jsonl with assertions intact (verified by 20 consecutive green test runs plus verbatim negative-control logic proving real leaks still trip the assertion), and the commit contains the ch:trace row.",
+            "provenance": {
+              "model": "deepseek/deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek/deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-11\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts; leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit.: All four sub-claims verified at HEAD a85e0c20 (only criterion). (1) Tolerance without weakening: commit diff changes keyUnder() walk to `entry.name.endsWith(\".jsonl\") && !entry.name.endsWith(\".tmp.jsonl\")` (src/cli/namespace-env-df092604.test.ts:101-104); all leak assertions toBe(false) untouched (lines 194, 235, 256, 333, 371, 377-381). (2) >=20 consecutive green runs: ran 20\u00d7 `vitest run src/cli/namespace-env-df092604.test.ts` \u2192 20\u00d7 \"Test Files  1 passed (1)\", 20\u00d7 \"Tests  6 passed (6)\", 20\u00d7 exit=0, zero fail lines (log /tmp/df2026-11-runs.log). (3) Leak assertion still fails on real leak: verbatim logic replication returned true for planted leaked rows.jsonl (so toBe(false) fails) while .tmp.jsonl-only content returned false (tolerated). (4) ch:trace present: `git show -s --format=%B HEAD | grep -c \"ch:trace row=DF-2026-11\"` \u2192 1, message includes \"ch:trace row=DF-2026-11 spec=src/cli/namespace-env-df092604.test.ts test=...::20-consecutive-runs+leak-negative-control evidence=/tmp/df2026-11-runs.txt witness=none:worktree-local-runs commit=THIS\". Also tsc --noEmit exit 0; LSP diagnostics empty; worktree test file identical to HEAD.\nDF-2026-11 is complete: leak-walk skips in-flight *.tmp.jsonl with assertions intact (verified by 20 consecutive green test runs plus verbatim negative-control logic proving real leaks still trip the assertion), and the commit contains the ch:trace row.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T01:21:29.795444",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T01:21:29.826102+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2220,
+        "truncated": false,
+        "source": "git show a85e0c2064a9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 732,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-11"
+  }
+}

@@ -1,0 +1,47 @@
+commit a85e0c2064a9a93de8f227a5762900ba6975ec06
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 29 19:51:11 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 29 19:51:11 2026 -0500
+
+    fix(test): DF-2026-11 tolerate in-flight .tmp.jsonl in namespace leak-walk
+    
+    Skip transient *.tmp.jsonl search-index files during the namespace leak walk,
+    so an atomic rename window cannot turn the assertion into an ENOENT while real
+    JSONL leaks remain observable.
+    
+    Evidence:
+    - RED proof: deterministic pre-fix rename-window reproduction returned ENOENT
+      for .search/rows.tmp.jsonl.
+    - GREEN proof: 20 consecutive runs of the target file passed; each reported
+      1 test file and 6 tests passed.
+    - Negative control: a planted leaked JSONL row was detected, so the leak
+      assertion still fails for a real leak.
+    - Full suite: 242 test files and 2027 tests passed.
+    - TypeScript check and Prettier check passed.
+    
+    See /tmp/df2026-11-runs.txt for the complete run log.
+    
+    ch:trace row=DF-2026-11 spec=src/cli/namespace-env-df092604.test.ts test=src/cli/namespace-env-df092604.test.ts::20-consecutive-runs+leak-negative-control evidence=/tmp/df2026-11-runs.txt witness=none:worktree-local-runs commit=THIS
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/cli/namespace-env-df092604.test.ts | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/cli/namespace-env-df092604.test.ts b/src/cli/namespace-env-df092604.test.ts
+index f967a74a..004fd781 100644
+--- a/src/cli/namespace-env-df092604.test.ts
++++ b/src/cli/namespace-env-df092604.test.ts
+@@ -98,7 +98,10 @@ function keyUnder(namespace: string, key: string): boolean {
+     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+       const p = path.join(dir, entry.name);
+       if (entry.isDirectory()) walk(p);
+-      else if (entry.name.endsWith(".jsonl")) {
++      else if (
++        entry.name.endsWith(".jsonl") &&
++        !entry.name.endsWith(".tmp.jsonl")
++      ) {
+         if (fs.readFileSync(p, "utf-8").includes(key)) found = true;
+       }
+     }

@@ -1,0 +1,107 @@
+{
+  "task_id": "DF-2026-19",
+  "task_title": "DF-2026-19 read-side recall counter + daily rollup + zero-day alert",
+  "task_criteria": [
+    "Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records returned); daily rollup series with denominators; alert on a zero-non-empty-pack day while daemon healthy, naming counter path + health signal; forced-empty day alert proven in tests; ch:trace row=DF-2026-19."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-DF-2026-19",
+  "branch": "wt/DF-2026-19",
+  "commit": "2c076132a43d6cb9dde6bc5101e000da93d112fd",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:14PM INF scanned ~5906855 bytes (5.91 MB) in 2.49s\n8:14PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-DF-2026-19\n\n\n Test Files  243 passed (243)\n      Tests  2030 passed (2030)\n   Start at  20:14:48\n   Duration  172.48s (tests 71%, import 26%, setup 1%, transform 1%, worker 1%)\n\n     Import  384 modules were evaluated 1168 times \u00b7 155.52s total, 26% of tracked time\n             ~16.01s faster with isolate: false \u2014 shared modules are evaluated once per worker instead of once per file\n             learn more: https://vitest.dev/guide/improving-performance#test-isolation\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records returned); daily rollup series with denominators; alert on a zero-non-empty-pack day while daemon healthy, naming counter path + health signal; forced-empty day alert proven in tests; ch:trace row=DF-2026-19.: 1) Counter at MCP recall boundary: src/mcp/tools/recall.ts:1283-1297 wraps recallToolImpl with recordRecallMetric call. 2) Fields (calls, non-empty packs, distinct namespaces, records returned): src/metrics/recall.ts:8-16 (RecallMetricEvent), 25-38 (RecallDailyRollup). 3) Daily rollup with denominators: src/metrics/recall.ts:34-37 (rates as fraction strings like '2/2'). 4) Alert on zero-non-empty-pack healthy day: src/metrics/recall.ts:254-259 filters healthy===true && prefetchCalls>0 && nonEmptyPacks===0. 5) Naming counter path + health signal: src/metrics/recall.ts:41-48 (RecallAlert has counterFile, healthFile, healthCheck). 6) Forced-empty day alert proven in tests: src/mcp/tools/recall-metrics-df202619.test.ts:117-171 test passes. 7) ch:trace row=DF-2026-19: git commit message contains 'ch:trace row=DF-2026-19 ...'. Tests: npx vitest run \u2192 3/3 passed. TypeScript: npx tsc --noEmit \u2192 no errors. LSP diagnostics: 0 findings.\nAll sub-criteria verified: MCP-boundary counter with all required fields, daily rollup with denominator rates, health-gated zero-non-empty-pack alert with counter/health path naming, forced-empty day alert proven in passing tests, ch:trace row in commit message, and clean TypeScript/LSP checks.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records returned); daily rollup series with denominators; alert on a zero-non-empty-pack day while daemon healthy, naming counter path + health signal; forced-empty day alert proven in tests; ch:trace row=DF-2026-19.: 1) Counter at MCP recall boundary: src/mcp/tools/recall.ts:1283-1297 wraps recallToolImpl with recordRecallMetric call. 2) Fields (calls, non-empty packs, distinct namespaces, records returned): src/metrics/recall.ts:8-16 (RecallMetricEvent), 25-38 (RecallDailyRollup). 3) Daily rollup with denominators: src/metrics/recall.ts:34-37 (rates as fraction strings like '2/2'). 4) Alert on zero-non-empty-pack healthy day: src/metrics/recall.ts:254-259 filters healthy===true && prefetchCalls>0 && nonEmptyPacks===0. 5) Naming counter path + health signal: src/metrics/recall.ts:41-48 (RecallAlert has counterFile, healthFile, healthCheck). 6) Forced-empty day alert proven in tests: src/mcp/tools/recall-metrics-df202619.test.ts:117-171 test passes. 7) ch:trace row=DF-2026-19: git commit message contains 'ch:trace row=DF-2026-19 ...'. Tests: npx vitest run \u2192 3/3 passed. TypeScript: npx tsc --noEmit \u2192 no errors. LSP diagnostics: 0 findings.\nAll sub-criteria verified: MCP-boundary counter with all required fields, daily rollup with denominator rates, health-gated zero-non-empty-pack alert with counter/health path naming, forced-empty day alert proven in passing tests, ch:trace row in commit message, and clean TypeScript/LSP checks.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records returned); daily rollup series with denominators; alert on a zero-non-empty-pack day while daemon healthy, naming counter path + health signal; forced-empty day alert proven in tests; ch:trace row=DF-2026-19.",
+                "status": "PASS",
+                "detail": "1) Counter at MCP recall boundary: src/mcp/tools/recall.ts:1283-1297 wraps recallToolImpl with recordRecallMetric call. 2) Fields (calls, non-empty packs, distinct namespaces, records returned): src/metrics/recall.ts:8-16 (RecallMetricEvent), 25-38 (RecallDailyRollup). 3) Daily rollup with denominators: src/metrics/recall.ts:34-37 (rates as fraction strings like '2/2'). 4) Alert on zero-non-empty-pack healthy day: src/metrics/recall.ts:254-259 filters healthy===true && prefetchCalls>0 && nonEmptyPacks===0. 5) Naming counter path + health signal: src/metrics/recall.ts:41-48 (RecallAlert has counterFile, healthFile, healthCheck). 6) Forced-empty day alert proven in tests: src/mcp/tools/recall-metrics-df202619.test.ts:117-171 test passes. 7) ch:trace row=DF-2026-19: git commit message contains 'ch:trace row=DF-2026-19 ...'. Tests: npx vitest run \u2192 3/3 passed. TypeScript: npx tsc --noEmit \u2192 no errors. LSP diagnostics: 0 findings."
+              }
+            ],
+            "summary": "All sub-criteria verified: MCP-boundary counter with all required fields, daily rollup with denominator rates, health-gated zero-non-empty-pack alert with counter/health path naming, forced-empty day alert proven in passing tests, ch:trace row in commit message, and clean TypeScript/LSP checks.",
+            "provenance": {
+              "model": "deepseek/deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek/deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-19\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records returned); daily rollup series with denominators; alert on a zero-non-empty-pack day while daemon healthy, naming counter path + health signal; forced-empty day alert proven in tests; ch:trace row=DF-2026-19.: 1) Counter at MCP recall boundary: src/mcp/tools/recall.ts:1283-1297 wraps recallToolImpl with recordRecallMetric call. 2) Fields (calls, non-empty packs, distinct namespaces, records returned): src/metrics/recall.ts:8-16 (RecallMetricEvent), 25-38 (RecallDailyRollup). 3) Daily rollup with denominators: src/metrics/recall.ts:34-37 (rates as fraction strings like '2/2'). 4) Alert on zero-non-empty-pack healthy day: src/metrics/recall.ts:254-259 filters healthy===true && prefetchCalls>0 && nonEmptyPacks===0. 5) Naming counter path + health signal: src/metrics/recall.ts:41-48 (RecallAlert has counterFile, healthFile, healthCheck). 6) Forced-empty day alert proven in tests: src/mcp/tools/recall-metrics-df202619.test.ts:117-171 test passes. 7) ch:trace row=DF-2026-19: git commit message contains 'ch:trace row=DF-2026-19 ...'. Tests: npx vitest run \u2192 3/3 passed. TypeScript: npx tsc --noEmit \u2192 no errors. LSP diagnostics: 0 findings.\nAll sub-criteria verified: MCP-boundary counter with all required fields, daily rollup with denominator rates, health-gated zero-non-empty-pack alert with counter/health path naming, forced-empty day alert proven in passing tests, ch:trace row in commit message, and clean TypeScript/LSP checks.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T01:20:05.042496",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T01:20:05.069156+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 22810,
+        "truncated": false,
+        "source": "git show 2c076132a43d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 791,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-19"
+  }
+}

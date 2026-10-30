@@ -1,0 +1,107 @@
+{
+  "task_id": "DF-2026-17",
+  "task_title": "DF-2026-17 recall quality benchmark + runner + scheduled run",
+  "task_criteria": [
+    "Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified cases verbatim; runner reports every rate with its denominator; unanswered never counts correct; scheduled run exits non-zero on misses; no product query-behavior changes; ch:trace row=DF-2026-17."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/worktrees/duckbrain-DF-2026-17",
+  "branch": "wt/DF-2026-17",
+  "commit": "98b33bd880e99a577c23b3b3ef6fca927bc4673a",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:20PM INF scanned ~5932343 bytes (5.93 MB) in 4.6s\n8:20PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/worktrees/duckbrain-DF-2026-17\n\n\n Test Files  242 passed (242)\n      Tests  2027 passed (2027)\n   Start at  20:20:21\n   Duration  119.84s (tests 72%, import 26%, setup 1%, transform 1%, worker 1%)\n\n     Import  381 modules were evaluated 1053 times \u00b7 108.01s total, 26% of tracked time\n             ~9.90s faster with isolate: false \u2014 shared modules are evaluated once per worker instead of once per file\n             learn more: https://vitest.dev/guide/improving-performance#test-isolation\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified cases verbatim; runner reports every rate with its denominator; unanswered never counts correct; scheduled run exits non-zero on misses; no product query-behavior changes; ch:trace row=DF-2026-17.: All sub-parts verified in commit 98b33bd8 (4 files: scripts/recall-benchmark/cases.json, scripts/recall-benchmark/run.mjs, .github/workflows/recall-benchmark.yml, tests/recall-benchmark.int.test.ts). (1) Fixed 20-case fixture: cases.json has exactly 20 cases (ids 1-20), 15 expectKeys + 5 expectRefusal, each exactly one expectation form (enforced by loadFixture run.mjs:158-166); 24 seeds, all expected keys planted, queries unique. (2) Live-verified cases verbatim: case 1 query 'cooldown' expectKeys [/sync/coding-hermes/last-success] and case 2 'zzzznothinglikethis' expectRefusal, both with observed='2026-10-27' and notes quoting the 2026-10-27 live API observations; test asserts them verbatim (tests/recall-benchmark.int.test.ts:75-82). (3) Runner reports every rate with its denominator: summarize() emits numerator+denominator for casePassRate, keyRecallMacro, keyRecallMicro, precisionMicro, correctRefusalRate, unansweredRate (run.mjs:517-529); printReport prints 'rates (numerator/denominator):' with N/D per rate (run.mjs:563-571); test asserts denominator 20/15/5/20 (test:104-113). (4) Unanswered never counts correct: scoreCase marks errored cases unanswered+MISS and empty-result keys cases unanswered (run.mjs:438-472); test asserts every unanswered result has verdict MISS (test:114-117); report even prints 'unanswered cases count as unanswered, never as correct' (run.mjs:572). (5) Scheduled run exits non-zero on misses: exitCode=0 (PASS) or 1 (FAIL) when missed>0, 2 only for infrastructure (run.mjs:652-656); workflow recall-benchmark.yml has cron '23 3 * * *' + workflow_dispatch and runs the runner (non-zero exits fail the step); negative-control test corrupts an expected key and asserts exit 1 + verdict FAIL (test:155-181). (6) No product query-behavior changes: commit touches only the workflow, bench scripts, and test \u2014 zero files under src/ or plugins/, ci.yml untouched; workflow comment 'Measurement-only: this workflow never changes product query behavior'; scratch daemon is hermetic (env scrubbed, provider=none). (7) ch:trace row=DF-2026-17 present in commit-message trailer of 98b33bd8 (line 52: 'ch:trace row=DF-2026-17 spec=scripts/recall-benchmark test=tests/recall-benchmark.int.test.ts::20-case-run+miss-negative-control evidence=/tmp/df2026-17-bench.txt witness=none:scratch-instance commit=THIS'), matching doctrine placement #3. Tests (actual command output): 'npx vitest run' via .gitreins/config.yaml guard \u2192 exit 0, 'Test Files 242 passed (242), Tests 2027 passed (2027)' (/tmp/unit-test.log); integration suite 'pnpm test:integration' (config includes tests/**/*.int.test.ts = exactly the 13 files run) \u2192 'Test Files 13 passed (13), Tests 84 passed (84)' (/tmp/bench-test.log, 129.30s), which includes the recall-benchmark fixture/runner/negative-control tests.\nDF-2026-17 is complete: the fixed 20-case recall fixture (with the two live-verified cases verbatim), the denominator-reporting runner with unanswered-never-correct semantics and non-zero exit on misses, the nightly scheduled workflow, no product-query changes, and the ch:trace row=DF-2026-17 marker all verified via code inspection plus live runs of both the unit suite (242/242, 2027/2027) and the integration suite (13/13, 84/84).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified cases verbatim; runner reports every rate with its denominator; unanswered never counts correct; scheduled run exits non-zero on misses; no product query-behavior changes; ch:trace row=DF-2026-17.: All sub-parts verified in commit 98b33bd8 (4 files: scripts/recall-benchmark/cases.json, scripts/recall-benchmark/run.mjs, .github/workflows/recall-benchmark.yml, tests/recall-benchmark.int.test.ts). (1) Fixed 20-case fixture: cases.json has exactly 20 cases (ids 1-20), 15 expectKeys + 5 expectRefusal, each exactly one expectation form (enforced by loadFixture run.mjs:158-166); 24 seeds, all expected keys planted, queries unique. (2) Live-verified cases verbatim: case 1 query 'cooldown' expectKeys [/sync/coding-hermes/last-success] and case 2 'zzzznothinglikethis' expectRefusal, both with observed='2026-10-27' and notes quoting the 2026-10-27 live API observations; test asserts them verbatim (tests/recall-benchmark.int.test.ts:75-82). (3) Runner reports every rate with its denominator: summarize() emits numerator+denominator for casePassRate, keyRecallMacro, keyRecallMicro, precisionMicro, correctRefusalRate, unansweredRate (run.mjs:517-529); printReport prints 'rates (numerator/denominator):' with N/D per rate (run.mjs:563-571); test asserts denominator 20/15/5/20 (test:104-113). (4) Unanswered never counts correct: scoreCase marks errored cases unanswered+MISS and empty-result keys cases unanswered (run.mjs:438-472); test asserts every unanswered result has verdict MISS (test:114-117); report even prints 'unanswered cases count as unanswered, never as correct' (run.mjs:572). (5) Scheduled run exits non-zero on misses: exitCode=0 (PASS) or 1 (FAIL) when missed>0, 2 only for infrastructure (run.mjs:652-656); workflow recall-benchmark.yml has cron '23 3 * * *' + workflow_dispatch and runs the runner (non-zero exits fail the step); negative-control test corrupts an expected key and asserts exit 1 + verdict FAIL (test:155-181). (6) No product query-behavior changes: commit touches only the workflow, bench scripts, and test \u2014 zero files under src/ or plugins/, ci.yml untouched; workflow comment 'Measurement-only: this workflow never changes product query behavior'; scratch daemon is hermetic (env scrubbed, provider=none). (7) ch:trace row=DF-2026-17 present in commit-message trailer of 98b33bd8 (line 52: 'ch:trace row=DF-2026-17 spec=scripts/recall-benchmark test=tests/recall-benchmark.int.test.ts::20-case-run+miss-negative-control evidence=/tmp/df2026-17-bench.txt witness=none:scratch-instance commit=THIS'), matching doctrine placement #3. Tests (actual command output): 'npx vitest run' via .gitreins/config.yaml guard \u2192 exit 0, 'Test Files 242 passed (242), Tests 2027 passed (2027)' (/tmp/unit-test.log); integration suite 'pnpm test:integration' (config includes tests/**/*.int.test.ts = exactly the 13 files run) \u2192 'Test Files 13 passed (13), Tests 84 passed (84)' (/tmp/bench-test.log, 129.30s), which includes the recall-benchmark fixture/runner/negative-control tests.\nDF-2026-17 is complete: the fixed 20-case recall fixture (with the two live-verified cases verbatim), the denominator-reporting runner with unanswered-never-correct semantics and non-zero exit on misses, the nightly scheduled workflow, no product-query changes, and the ch:trace row=DF-2026-17 marker all verified via code inspection plus live runs of both the unit suite (242/242, 2027/2027) and the integration suite (13/13, 84/84).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified cases verbatim; runner reports every rate with its denominator; unanswered never counts correct; scheduled run exits non-zero on misses; no product query-behavior changes; ch:trace row=DF-2026-17.",
+                "status": "PASS",
+                "detail": "All sub-parts verified in commit 98b33bd8 (4 files: scripts/recall-benchmark/cases.json, scripts/recall-benchmark/run.mjs, .github/workflows/recall-benchmark.yml, tests/recall-benchmark.int.test.ts). (1) Fixed 20-case fixture: cases.json has exactly 20 cases (ids 1-20), 15 expectKeys + 5 expectRefusal, each exactly one expectation form (enforced by loadFixture run.mjs:158-166); 24 seeds, all expected keys planted, queries unique. (2) Live-verified cases verbatim: case 1 query 'cooldown' expectKeys [/sync/coding-hermes/last-success] and case 2 'zzzznothinglikethis' expectRefusal, both with observed='2026-10-27' and notes quoting the 2026-10-27 live API observations; test asserts them verbatim (tests/recall-benchmark.int.test.ts:75-82). (3) Runner reports every rate with its denominator: summarize() emits numerator+denominator for casePassRate, keyRecallMacro, keyRecallMicro, precisionMicro, correctRefusalRate, unansweredRate (run.mjs:517-529); printReport prints 'rates (numerator/denominator):' with N/D per rate (run.mjs:563-571); test asserts denominator 20/15/5/20 (test:104-113). (4) Unanswered never counts correct: scoreCase marks errored cases unanswered+MISS and empty-result keys cases unanswered (run.mjs:438-472); test asserts every unanswered result has verdict MISS (test:114-117); report even prints 'unanswered cases count as unanswered, never as correct' (run.mjs:572). (5) Scheduled run exits non-zero on misses: exitCode=0 (PASS) or 1 (FAIL) when missed>0, 2 only for infrastructure (run.mjs:652-656); workflow recall-benchmark.yml has cron '23 3 * * *' + workflow_dispatch and runs the runner (non-zero exits fail the step); negative-control test corrupts an expected key and asserts exit 1 + verdict FAIL (test:155-181). (6) No product query-behavior changes: commit touches only the workflow, bench scripts, and test \u2014 zero files under src/ or plugins/, ci.yml untouched; workflow comment 'Measurement-only: this workflow never changes product query behavior'; scratch daemon is hermetic (env scrubbed, provider=none). (7) ch:trace row=DF-2026-17 present in commit-message trailer of 98b33bd8 (line 52: 'ch:trace row=DF-2026-17 spec=scripts/recall-benchmark test=tests/recall-benchmark.int.test.ts::20-case-run+miss-negative-control evidence=/tmp/df2026-17-bench.txt witness=none:scratch-instance commit=THIS'), matching doctrine placement #3. Tests (actual command output): 'npx vitest run' via .gitreins/config.yaml guard \u2192 exit 0, 'Test Files 242 passed (242), Tests 2027 passed (2027)' (/tmp/unit-test.log); integration suite 'pnpm test:integration' (config includes tests/**/*.int.test.ts = exactly the 13 files run) \u2192 'Test Files 13 passed (13), Tests 84 passed (84)' (/tmp/bench-test.log, 129.30s), which includes the recall-benchmark fixture/runner/negative-control tests."
+              }
+            ],
+            "summary": "DF-2026-17 is complete: the fixed 20-case recall fixture (with the two live-verified cases verbatim), the denominator-reporting runner with unanswered-never-correct semantics and non-zero exit on misses, the nightly scheduled workflow, no product-query changes, and the ch:trace row=DF-2026-17 marker all verified via code inspection plus live runs of both the unit suite (242/242, 2027/2027) and the integration suite (13/13, 84/84).",
+            "provenance": {
+              "model": "deepseek/deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek/deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-17\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified cases verbatim; runner reports every rate with its denominator; unanswered never counts correct; scheduled run exits non-zero on misses; no product query-behavior changes; ch:trace row=DF-2026-17.: All sub-parts verified in commit 98b33bd8 (4 files: scripts/recall-benchmark/cases.json, scripts/recall-benchmark/run.mjs, .github/workflows/recall-benchmark.yml, tests/recall-benchmark.int.test.ts). (1) Fixed 20-case fixture: cases.json has exactly 20 cases (ids 1-20), 15 expectKeys + 5 expectRefusal, each exactly one expectation form (enforced by loadFixture run.mjs:158-166); 24 seeds, all expected keys planted, queries unique. (2) Live-verified cases verbatim: case 1 query 'cooldown' expectKeys [/sync/coding-hermes/last-success] and case 2 'zzzznothinglikethis' expectRefusal, both with observed='2026-10-27' and notes quoting the 2026-10-27 live API observations; test asserts them verbatim (tests/recall-benchmark.int.test.ts:75-82). (3) Runner reports every rate with its denominator: summarize() emits numerator+denominator for casePassRate, keyRecallMacro, keyRecallMicro, precisionMicro, correctRefusalRate, unansweredRate (run.mjs:517-529); printReport prints 'rates (numerator/denominator):' with N/D per rate (run.mjs:563-571); test asserts denominator 20/15/5/20 (test:104-113). (4) Unanswered never counts correct: scoreCase marks errored cases unanswered+MISS and empty-result keys cases unanswered (run.mjs:438-472); test asserts every unanswered result has verdict MISS (test:114-117); report even prints 'unanswered cases count as unanswered, never as correct' (run.mjs:572). (5) Scheduled run exits non-zero on misses: exitCode=0 (PASS) or 1 (FAIL) when missed>0, 2 only for infrastructure (run.mjs:652-656); workflow recall-benchmark.yml has cron '23 3 * * *' + workflow_dispatch and runs the runner (non-zero exits fail the step); negative-control test corrupts an expected key and asserts exit 1 + verdict FAIL (test:155-181). (6) No product query-behavior changes: commit touches only the workflow, bench scripts, and test \u2014 zero files under src/ or plugins/, ci.yml untouched; workflow comment 'Measurement-only: this workflow never changes product query behavior'; scratch daemon is hermetic (env scrubbed, provider=none). (7) ch:trace row=DF-2026-17 present in commit-message trailer of 98b33bd8 (line 52: 'ch:trace row=DF-2026-17 spec=scripts/recall-benchmark test=tests/recall-benchmark.int.test.ts::20-case-run+miss-negative-control evidence=/tmp/df2026-17-bench.txt witness=none:scratch-instance commit=THIS'), matching doctrine placement #3. Tests (actual command output): 'npx vitest run' via .gitreins/config.yaml guard \u2192 exit 0, 'Test Files 242 passed (242), Tests 2027 passed (2027)' (/tmp/unit-test.log); integration suite 'pnpm test:integration' (config includes tests/**/*.int.test.ts = exactly the 13 files run) \u2192 'Test Files 13 passed (13), Tests 84 passed (84)' (/tmp/bench-test.log, 129.30s), which includes the recall-benchmark fixture/runner/negative-control tests.\nDF-2026-17 is complete: the fixed 20-case recall fixture (with the two live-verified cases verbatim), the denominator-reporting runner with unanswered-never-correct semantics and non-zero exit on misses, the nightly scheduled workflow, no product-query changes, and the ch:trace row=DF-2026-17 marker all verified via code inspection plus live runs of both the unit suite (242/242, 2027/2027) and the integration suite (13/13, 84/84).\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T01:29:53.117311",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T01:29:53.136604+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 50661,
+        "truncated": false,
+        "source": "git show 98b33bd880e9"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 778,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-17"
+  }
+}

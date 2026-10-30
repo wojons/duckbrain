@@ -1,0 +1,414 @@
+commit 25c9858963d82e85484c237dcce2506f0086ea06
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 29 19:49:04 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 29 19:49:04 2026 -0500
+
+    fix(ci): DF-2026-13 move test-count gate to generated manifest
+    
+    The CI step asserting AGENTS.md test counts could never be satisfied from an
+    unattended tick: AGENTS.md is a protected agent-instruction file whose write
+    is refused in unattended/api_server sessions, so every commit that changed
+    suite/test counts left CI red with no legitimate remediation path.
+    
+    The gate now reads a generated, committed, non-protected manifest:
+    test-counts.json at the repo root.
+    
+    - scripts/sync-agents-md-counts.sh: sync mode (default) extracts the vitest
+      totals and writes test-counts.json (never AGENTS.md); --check mode asserts
+      the manifest matches the live vitest output with the same extraction
+      regexes and the same GAP-032/GAP-012 error classes. CLI shape unchanged:
+      `scripts/sync-agents-md-counts.sh [--check] [vitest-output-file]`. The
+      script no longer reads or writes AGENTS.md at all (pinned by a source
+      invariant test). DUCKBRAIN_COUNTS_MANIFEST env seam exists solely so the
+      hermetic test can point at a temp manifest; CI never sets it.
+    - .github/workflows/ci.yml: assert step renamed to "Assert test-counts.json
+      matches live suite" with a comment noting why the gate moved. No other
+      steps changed.
+    - test-counts.json: generated from the current live suite (243 suites, 2036
+      tests, which include this change's new test file — manifest and test
+      addition land in the SAME commit, as the gate requires).
+    - src/test/sync-agents-md-counts.test.ts: 9 hermetic tests (temp-dir
+      fixtures, no network, no ports) — sync writes correct totals; --check
+      exit 0 on match; sync idempotent on match; partial-failure summary parses;
+      drifted manifest -> non-zero + GAP-012 drift message naming both counts;
+      missing manifest -> GAP-032; unparseable vitest output -> GAP-032 in both
+      modes; missing vitest file -> GAP-032; source invariant: no non-comment
+      line of the script references AGENTS.md.
+    - docs: the only docs/ mention of the old gate is the historical record row
+      in docs/evidence/DB-GAP-065-evidence.md (evidence of a past tick's actual
+      command output); deliberately left unedited — rewriting recorded evidence
+      would falsify it.
+    
+    Evidence:
+    - pnpm test:run | tee /tmp/vitest-DF-2026-13.out -> 243 passed (243) files,
+      2036 passed (2036) tests, exit 0 (includes the 9 new tests).
+    - bash scripts/sync-agents-md-counts.sh /tmp/vitest-DF-2026-13.out ->
+      "test-counts.json synced to live suite: 243 suites, 2036 tests", exit 0.
+    - bash scripts/sync-agents-md-counts.sh --check /tmp/vitest-DF-2026-13.out
+      -> "test-counts.json test counts match live suite (243 suites, 2036
+      tests)", exit 0.
+    - Negative control: manifest hand-edited to 2035 tests -> --check exit 1
+      with "GAP-012 drift: test-counts.json (243 suites, 2035 tests) != live
+      (243 suites, 2036 tests)"; restored -> exit 0.
+    - pnpm tsc --noEmit clean; npx prettier --check clean on touched files.
+    - git diff AGENTS.md: empty (protected file untouched, as required).
+    
+    ch:trace row=DF-2026-13 spec=scripts/sync-agents-md-counts.sh test=src/test/sync-agents-md-counts.test.ts::sync-check-drift-rejection evidence=/tmp/vitest-DF-2026-13.out+test-counts.json witness=none:worktree-local-runs commit=THIS
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .github/workflows/ci.yml               |   5 +-
+ scripts/sync-agents-md-counts.sh       |  78 ++++++++-----
+ src/test/sync-agents-md-counts.test.ts | 205 +++++++++++++++++++++++++++++++++
+ test-counts.json                       |   5 +
+ 4 files changed, 262 insertions(+), 31 deletions(-)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 5517f6d5..00969017 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -85,7 +85,10 @@ jobs:
+       - name: Run tests
+         run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
+ 
+-      - name: Assert AGENTS.md test counts match live suite
++      # DF-2026-13: the count gate reads the generated, non-protected
++      # test-counts.json manifest — AGENTS.md is a protected agent-instruction
++      # file that unattended sessions cannot write.
++      - name: Assert test-counts.json matches live suite
+         run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out
+ 
+       - name: Assert config unchanged after tests
+diff --git a/scripts/sync-agents-md-counts.sh b/scripts/sync-agents-md-counts.sh
+index 22a7943b..dec9ac82 100755
+--- a/scripts/sync-agents-md-counts.sh
++++ b/scripts/sync-agents-md-counts.sh
+@@ -1,15 +1,26 @@
+ #!/usr/bin/env bash
+-# sync-agents-md-counts.sh — single extraction path for AGENTS.md test counts.
++# sync-agents-md-counts.sh — single extraction path for the committed
++# test-counts.json manifest (the test-count gate moved off AGENTS.md in
++# DF-2026-13).
+ #
+-# Extracts live Vitest totals (Test Files / Tests) from a vitest output file and
+-# either syncs AGENTS.md to them (default) or asserts AGENTS.md matches (--check).
++# Extracts live Vitest totals (Test Files / Tests) from a vitest output file
++# and either syncs test-counts.json to them (default) or asserts
++# test-counts.json matches (--check).
+ #
+-#   scripts/sync-agents-md-counts.sh <vitest-output>        # sync AGENTS.md
++#   scripts/sync-agents-md-counts.sh <vitest-output>        # sync test-counts.json
+ #   scripts/sync-agents-md-counts.sh --check <vitest-output> # assert match (CI mode)
+ #
+-# ci.yml ("Assert AGENTS.md test counts match live suite") consumes --check mode
+-# against the same /tmp/vitest.out its test step tee'd. Run the sync mode in the
+-# SAME commit that changes the test tree.
++# ci.yml ("Assert test-counts.json matches live suite") consumes --check mode
++# against the same /tmp/vitest.out its test step tee'd. Run the sync mode in
++# the SAME commit that changes the test tree.
++#
++# AGENTS.md is a protected agent-instruction file whose write is refused in
++# unattended/api_server sessions, so this script MUST NOT read or write it
++# (DF-2026-13). The counts live in a generated, non-protected manifest at the
++# repo root: test-counts.json. The manifest path can be overridden via the
++# DUCKBRAIN_COUNTS_MANIFEST env var — that seam exists so the hermetic Vitest
++# test (src/test/sync-agents-md-counts.test.ts) can point the script at a
++# temp-file manifest without touching the real one. CI never sets it.
+ #
+ # Exists because hand-typed literals drifted four times (GAP-006, GAP-008,
+ # GAP-012, CI-005): one script = one regex pair = one place to fix.
+@@ -25,8 +36,7 @@ OUT=${1:-/tmp/vitest.out}
+ 
+ # Repo root (script lives in scripts/), so it works from any cwd.
+ cd "$(dirname "$0")/.."
+-AGENTS=AGENTS.md
+-[ -f "$AGENTS" ] || { echo "ERROR: $AGENTS not found at repo root"; exit 1; }
++MANIFEST=${DUCKBRAIN_COUNTS_MANIFEST:-test-counts.json}
+ 
+ # Same extraction CI used inline before this script existed (ANSI-stripped,
+ # parenthesized totals — parses both all-pass and partial-failure summaries).
+@@ -37,32 +47,40 @@ TESTS=$(strip_ansi | grep -oP 'Tests\s+.*\(\K\d+(?=\))' | tail -1 || true)
+   echo "GAP-032: vitest summary unparseable in $OUT"; exit 1;
+ }
+ 
++read_manifest_counts() {
++  MSUITES=$(grep -oP '"suites":\s*\K\d+' "$MANIFEST" | head -1 || true)
++  MTESTS=$(grep -oP '"tests":\s*\K\d+' "$MANIFEST" | head -1 || true)
++}
++
+ if [ "$MODE" = "--check" ]; then
+-  grep -q "(${SUITES} suites, ${TESTS} tests)" "$AGENTS" || {
+-    echo "GAP-012 drift: AGENTS.md Tech Stack count != live (${SUITES} suites, ${TESTS} tests)"; exit 1;
++  [ -f "$MANIFEST" ] || {
++    echo "GAP-032: counts manifest not found: $MANIFEST"; exit 1;
+   }
+-  grep -q "# ${TESTS} tests, ${SUITES} suites" "$AGENTS" || {
+-    echo "GAP-012 drift: AGENTS.md dev command count != live (${TESTS} tests, ${SUITES} suites)"; exit 1;
++  read_manifest_counts
++  [ -n "${MSUITES:-}" ] && [ -n "${MTESTS:-}" ] || {
++    echo "GAP-032: counts manifest unparseable: $MANIFEST"; exit 1;
+   }
+-  echo "AGENTS.md test counts match live suite (${SUITES} suites, ${TESTS} tests)"
++  if [ "$MSUITES" != "$SUITES" ] || [ "$MTESTS" != "$TESTS" ]; then
++    echo "GAP-012 drift: $MANIFEST (${MSUITES} suites, ${MTESTS} tests) != live (${SUITES} suites, ${TESTS} tests)"
++    exit 1
++  fi
++  echo "$MANIFEST test counts match live suite (${SUITES} suites, ${TESTS} tests)"
+   exit 0
+ fi
+ 
+-# sync mode — rewrite exactly the two token shapes the CI assertion greps.
+-before=$(md5sum "$AGENTS" | cut -d' ' -f1)
+-sed -i -r \
+-  -e "s/\([0-9]+ suites, [0-9]+ tests\)/(${SUITES} suites, ${TESTS} tests)/g" \
+-  -e "s/# [0-9]+ tests, [0-9]+ suites/# ${TESTS} tests, ${SUITES} suites/g" \
+-  "$AGENTS"
+-after=$(md5sum "$AGENTS" | cut -d' ' -f1)
+-if [ "$before" = "$after" ]; then
+-  if grep -q "(${SUITES} suites, ${TESTS} tests)" "$AGENTS" \
+-     && grep -q "# ${TESTS} tests, ${SUITES} suites" "$AGENTS"; then
+-    echo "AGENTS.md already matches live suite (${SUITES} suites, ${TESTS} tests) — no change (idempotent)"
+-  else
+-    echo "ERROR: AGENTS.md carries no count patterns to sync (expected '(N suites, M tests)' and '# M tests, N suites')"
+-    exit 1
++# sync mode — write the generated manifest (never AGENTS.md).
++if [ -f "$MANIFEST" ]; then
++  read_manifest_counts
++  if [ "${MSUITES:-}" = "$SUITES" ] && [ "${MTESTS:-}" = "$TESTS" ]; then
++    echo "$MANIFEST already matches live suite (${SUITES} suites, ${TESTS} tests) — no change (idempotent)"
++    exit 0
+   fi
+-else
+-  echo "AGENTS.md synced to live suite: ${SUITES} suites, ${TESTS} tests"
+ fi
++cat > "$MANIFEST" <<EOF
++{
++  "suites": ${SUITES},
++  "tests": ${TESTS},
++  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
++}
++EOF
++echo "$MANIFEST synced to live suite: ${SUITES} suites, ${TESTS} tests"
+diff --git a/src/test/sync-agents-md-counts.test.ts b/src/test/sync-agents-md-counts.test.ts
+new file mode 100644
+index 00000000..522c8008
+--- /dev/null
++++ b/src/test/sync-agents-md-counts.test.ts
+@@ -0,0 +1,205 @@
++/**
++ * DF-2026-13 — test-count manifest gate tests.
++ *
++ * The CI step "Assert test-counts.json matches live suite" runs
++ * scripts/sync-agents-md-counts.sh --check against the tee'd vitest output.
++ * Since DF-2026-13 the gate reads the generated, NON-protected
++ * test-counts.json manifest at the repo root — AGENTS.md is a protected
++ * agent-instruction file whose write is refused in unattended/api_server
++ * sessions, so the script must never touch it.
++ *
++ * Arms proven here (hermetic: temp-dir fixtures, env seam
++ * DUCKBRAIN_COUNTS_MANIFEST, no network, no ports; the real
++ * test-counts.json and AGENTS.md are never mutated):
++ *   green arm  — sync mode extracts totals from a vitest-output fixture and
++ *                writes the manifest; --check against the same fixture
++ *                exits 0;
++ *   red arm    — a manifest with deliberately drifted counts makes --check
++ *                exit non-zero and name the drift (GAP-012 class);
++ *   parse arm  — an unparseable vitest-output fixture makes both modes exit
++ *                non-zero with the GAP-032 error class.
++ */
++import { describe, it, expect, beforeEach, afterEach } from "vitest";
++import { execFile } from "child_process";
++import { promisify } from "util";
++import fs from "fs";
++import os from "os";
++import path from "path";
++
++const execFileP = promisify(execFile);
++
++const ROOT = path.resolve(__dirname, "..", "..");
++const SCRIPT = path.join(ROOT, "scripts", "sync-agents-md-counts.sh");
++
++const VITEST_PASS_SUMMARY = [
++  "  ✓ src/test/example.test.ts (3 tests) 5ms",
++  "",
++  " Test Files  7 passed (7)",
++  "      Tests  42 passed (42)",
++  "   Start at  12:00:00",
++  "   Duration  1.23s",
++  "",
++].join("\n");
++
++// Partial-failure summary shape: totals still parenthesized (the extraction
++// must keep working when not everything passed — same as the pre-DF-2026-13
++// script contract).
++const VITEST_PARTIAL_SUMMARY = [
++  " Test Files  1 failed | 6 passed (7)",
++  "      Tests  2 failed | 40 passed (42)",
++  "",
++].join("\n");
++
++const VITEST_UNPARSEABLE = "vitest exploded before printing a summary\n";
++
++interface RunResult {
++  code: number;
++  stdout: string;
++  stderr: string;
++}
++
++let tmpDir: string;
++let manifestPath: string;
++let vitestOutPath: string;
++
++function writeVitestOut(content: string): void {
++  fs.writeFileSync(vitestOutPath, content);
++}
++
++function writeManifest(suites: number, tests: number): void {
++  fs.writeFileSync(
++    manifestPath,
++    JSON.stringify({ suites, tests, provenance: "fixture" }, null, 2) + "\n",
++  );
++}
++
++async function runScript(args: string[]): Promise<RunResult> {
++  try {
++    const { stdout, stderr } = await execFileP("bash", [SCRIPT, ...args], {
++      cwd: ROOT,
++      env: { ...process.env, DUCKBRAIN_COUNTS_MANIFEST: manifestPath },
++      timeout: 30_000,
++    });
++    return { code: 0, stdout, stderr };
++  } catch (err) {
++    const e = err as { code?: number; stdout?: string; stderr?: string };
++    return {
++      code: e.code ?? -1,
++      stdout: e.stdout ?? "",
++      stderr: e.stderr ?? "",
++    };
++  }
++}
++
++beforeEach(() => {
++  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "df2026-13-counts-"));
++  manifestPath = path.join(tmpDir, "test-counts.json");
++  vitestOutPath = path.join(tmpDir, "vitest.out");
++});
++
++afterEach(() => {
++  fs.rmSync(tmpDir, { recursive: true, force: true });
++});
++
++describe("sync-agents-md-counts.sh — manifest gate (DF-2026-13)", () => {
++  it("sync mode writes the manifest with extracted totals; --check then passes", async () => {
++    writeVitestOut(VITEST_PASS_SUMMARY);
++
++    const sync = await runScript([vitestOutPath]);
++    expect(sync.code).toBe(0);
++    expect(fs.existsSync(manifestPath)).toBe(true);
++    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
++      suites: number;
++      tests: number;
++      provenance: string;
++    };
++    expect(manifest.suites).toBe(7);
++    expect(manifest.tests).toBe(42);
++    expect(manifest.provenance).toContain("vitest");
++
++    const check = await runScript(["--check", vitestOutPath]);
++    expect(check.code).toBe(0);
++    expect(check.stdout + check.stderr).toContain(
++      "match live suite (7 suites, 42 tests)",
++    );
++  });
++
++  it("sync mode is idempotent when the manifest already matches", async () => {
++    writeVitestOut(VITEST_PASS_SUMMARY);
++    writeManifest(7, 42);
++
++    const sync = await runScript([vitestOutPath]);
++    expect(sync.code).toBe(0);
++    expect(sync.stdout + sync.stderr).toContain("idempotent");
++  });
++
++  it("parses partial-failure vitest summaries (parenthesized totals)", async () => {
++    writeVitestOut(VITEST_PARTIAL_SUMMARY);
++    writeManifest(7, 42);
++
++    const check = await runScript(["--check", vitestOutPath]);
++    expect(check.code).toBe(0);
++  });
++
++  it("--check exits non-zero and names the drift when the manifest count is stale", async () => {
++    writeVitestOut(VITEST_PASS_SUMMARY);
++    writeManifest(6, 41); // drifted: live fixture says 7 suites, 42 tests
++
++    const check = await runScript(["--check", vitestOutPath]);
++    expect(check.code).not.toBe(0);
++    expect(check.stdout + check.stderr).toContain("GAP-012 drift");
++    expect(check.stdout + check.stderr).toContain(
++      "(6 suites, 41 tests) != live (7 suites, 42 tests)",
++    );
++  });
++
++  it("--check exits non-zero when the manifest file is missing", async () => {
++    writeVitestOut(VITEST_PASS_SUMMARY);
++
++    const check = await runScript(["--check", vitestOutPath]);
++    expect(check.code).not.toBe(0);
++    expect(check.stdout + check.stderr).toContain("GAP-032");
++  });
++
++  it("sync mode exits non-zero with GAP-032 on unparseable vitest output", async () => {
++    writeVitestOut(VITEST_UNPARSEABLE);
++
++    const sync = await runScript([vitestOutPath]);
++    expect(sync.code).not.toBe(0);
++    expect(sync.stdout + sync.stderr).toContain(
++      "GAP-032: vitest summary unparseable",
++    );
++    expect(fs.existsSync(manifestPath)).toBe(false);
++  });
++
++  it("--check exits non-zero with GAP-032 on unparseable vitest output", async () => {
++    writeVitestOut(VITEST_UNPARSEABLE);
++    writeManifest(7, 42);
++
++    const check = await runScript(["--check", vitestOutPath]);
++    expect(check.code).not.toBe(0);
++    expect(check.stdout + check.stderr).toContain(
++      "GAP-032: vitest summary unparseable",
++    );
++  });
++
++  it("exits non-zero with GAP-032 when the vitest output file does not exist", async () => {
++    const missing = path.join(tmpDir, "no-such.out");
++    const res = await runScript(["--check", missing]);
++    expect(res.code).not.toBe(0);
++    expect(res.stdout + res.stderr).toContain(
++      "GAP-032: vitest output not found",
++    );
++  });
++
++  it("never reads or writes AGENTS.md (protected instruction file)", () => {
++    // Source invariant: the DF-2026-13 rework removed every AGENTS.md
++    // reference from the script — the gate must be satisfiable from an
++    // unattended tick where writing that file is refused.
++    const src = fs.readFileSync(SCRIPT, "utf8");
++    const codeLines = src
++      .split("\n")
++      .filter((line) => !line.trimStart().startsWith("#"));
++    expect(codeLines.join("\n")).not.toContain("AGENTS.md");
++  });
++});
+diff --git a/test-counts.json b/test-counts.json
+new file mode 100644
+index 00000000..0eeab16d
+--- /dev/null
++++ b/test-counts.json
+@@ -0,0 +1,5 @@
++{
++  "suites": 243,
++  "tests": 2036,
++  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
++}

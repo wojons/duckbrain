@@ -1,0 +1,665 @@
+commit 2c076132a43d6cb9dde6bc5101e000da93d112fd
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 29 20:03:36 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 29 20:03:36 2026 -0500
+
+    feat(metrics): DF-2026-19 read-side recall counter + daily rollup + zero-day alert
+    
+    Adds MCP-boundary recall telemetry with crash-safe JSONL append records, a seven-day-capable rollup CLI with explicit numerator/denominator rates, and a health-gated zero-non-empty-pack alert that appends foreman-readable rows. The default counter is derived beside the configured namespaces directory and can be overridden with DUCKBRAIN_RECALL_METRICS_PATH; health comparison uses health.jsonl or DUCKBRAIN_RECALL_HEALTH_FILE and identifies GET /health status=200.
+    
+    Evidence: targeted Vitest 3/3 passed; TypeScript check passed; prettier passed for all code files; seven-day seeded rollup and forced-empty healthy-day alert produced /tmp/df2026-19-rollup.txt, with checker exit 1 and alert output verified. Full pnpm test:run reached 242/243 files and 2029/2030 tests; one pre-existing timeout remained in src/http/namespace-warmup-aug096.test.ts (concurrency knob test, 15s timeout).
+    
+    ch:trace row=DF-2026-19 spec=src/mcp/tools/recall.ts test=src/mcp/tools/recall-metrics-df202619.test.ts::counter-rollup-alert evidence=/tmp/df2026-19-rollup.txt witness=none:worktree-local-runs commit=THIS
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ bin/duckbrain.ts                              |   2 +
+ docs/api/mcp-tools.md                         |   2 +
+ src/cli/human.ts                              |   2 +
+ src/cli/recall-metrics.ts                     |  53 +++++
+ src/mcp/tools/recall-metrics-df202619.test.ts | 172 +++++++++++++++
+ src/mcp/tools/recall.ts                       |  29 ++-
+ src/metrics/recall.ts                         | 290 ++++++++++++++++++++++++++
+ 7 files changed, 548 insertions(+), 2 deletions(-)
+
+diff --git a/bin/duckbrain.ts b/bin/duckbrain.ts
+index b0bc61bb..9fde7f25 100755
+--- a/bin/duckbrain.ts
++++ b/bin/duckbrain.ts
+@@ -69,6 +69,7 @@ Commands:
+   servers            Manage server connections (list|add|remove)
+   squash             Compact old partitions
+   consolidate        Cross-namespace daily consolidation digest
++  recall-metrics     Roll up MCP-side recall metrics and check zero-day alerts
+   query              Read-only SQL over a namespace (SELECT ... or --template)
+   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
+   s3                 Native S3 sync/query (status|sync|query|config)
+@@ -457,6 +458,7 @@ async function main() {
+       case "query":
+       case "s3":
+       case "consolidate":
++      case "recall-metrics":
+         await runHumanCLI(command, commandArgs);
+         break;
+ 
+diff --git a/docs/api/mcp-tools.md b/docs/api/mcp-tools.md
+index 18158a52..4485d676 100644
+--- a/docs/api/mcp-tools.md
++++ b/docs/api/mcp-tools.md
+@@ -110,6 +110,8 @@ AI: "Remember that we're using PostgreSQL for the database"
+ 
+ Query memories with flexible filtering.
+ 
++**Read-side telemetry (DF-2026-19):** Every MCP recall call appends one JSONL observation to the configured metrics directory. The default counter is `<directory containing namespaces>/metrics/recall-counter.jsonl`; set `DUCKBRAIN_RECALL_METRICS_PATH` to override it. The event records calls, calls answered, non-empty packs, distinct namespaces, and records returned. `duckbrain recall-metrics rollup --from=YYYY-MM-DD --to=YYYY-MM-DD` prints a daily series with numerator/denominator rates. `recall-metrics check` compares the series with the daemon health signal file (`health.jsonl` by default, or `DUCKBRAIN_RECALL_HEALTH_FILE`) and appends alerts to `recall-alerts.jsonl` when a day had recall calls, zero non-empty packs, and `GET /health` was healthy. A non-zero exit and `ALERT zero_non_empty_packs` identify the day, counter file, health file, and health check.
++
+ **Parameters:**
+ 
+ ```typescript
+diff --git a/src/cli/human.ts b/src/cli/human.ts
+index d7fab6ad..0aa5df38 100644
+--- a/src/cli/human.ts
++++ b/src/cli/human.ts
+@@ -44,6 +44,7 @@ async function loadS3Cli(): Promise<typeof import("../s3/cli.js")> {
+ }
+ import { queryCommand } from "./query";
+ import { consolidateCommand } from "./consolidate";
++import { recallMetricsCommand } from "./recall-metrics";
+ import {
+   connectToRemote,
+   checkRemoteInstall,
+@@ -2427,6 +2428,7 @@ export async function runHumanCLI(
+     git: async (args: string[]) =>
+       (await import("./git-identity.js")).runGitIdentityCLI(args),
+     consolidate: consolidateCommand,
++    "recall-metrics": recallMetricsCommand,
+     help: async () => showHelp(),
+   };
+ 
+diff --git a/src/cli/recall-metrics.ts b/src/cli/recall-metrics.ts
+new file mode 100644
+index 00000000..4d19e7fe
+--- /dev/null
++++ b/src/cli/recall-metrics.ts
+@@ -0,0 +1,53 @@
++import {
++  checkRecallAlerts,
++  defaultRecallMetricsDates,
++  resolveRecallMetricsPaths,
++  rollupRecallMetrics,
++} from "../metrics/recall";
++
++function flag(args: string[], name: string): string | undefined {
++  const prefix = `--${name}=`;
++  const exact = args.find((arg) => arg.startsWith(prefix));
++  return exact?.slice(prefix.length);
++}
++
++function usage(): void {
++  console.log(
++    "Usage: duckbrain recall-metrics [rollup|check] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] [--counter=PATH] [--health=PATH] [--alerts=PATH]",
++  );
++}
++
++export async function recallMetricsCommand(args: string[]): Promise<void> {
++  if (args.includes("--help") || args.includes("-h")) {
++    usage();
++    return;
++  }
++  const action = args[0] === "check" ? "check" : "rollup";
++  const defaults = defaultRecallMetricsDates(7);
++  const from = flag(args, "from") ?? defaults.from;
++  const to = flag(args, "to") ?? defaults.to;
++  const counterFile = flag(args, "counter");
++  const healthFile = flag(args, "health");
++  const alertsFile = flag(args, "alerts");
++  const healthCheck = flag(args, "health-check") ?? "GET /health status=200";
++  const paths = resolveRecallMetricsPaths(counterFile);
++  const options = { counterFile, healthFile, from, to, healthCheck };
++  const rows = rollupRecallMetrics(options);
++  for (const row of rows) {
++    console.log(
++      `${row.day} prefetch=${row.prefetchCalls} calls_answered=${row.callsAnswered}/${row.prefetchCalls} non_empty_packs=${row.nonEmptyPacks}/${row.prefetchCalls} distinct_namespaces=${row.distinctNamespaces} records=${row.recordsReturned}/${row.prefetchCalls} healthy=${row.healthy ?? "unknown"} health_source=${row.healthSource}`,
++    );
++  }
++  console.log(
++    `counter_file=${paths.counterFile} health_file=${paths.healthFile} health_check=${healthCheck}`,
++  );
++  if (action === "check") {
++    const alerts = checkRecallAlerts({ ...options, alertsFile });
++    for (const alert of alerts) {
++      console.error(
++        `ALERT zero_non_empty_packs day=${alert.day} counter_file=${alert.counterFile} health_file=${alert.healthFile} health_check=${alert.healthCheck}`,
++      );
++    }
++    if (alerts.length > 0) process.exitCode = 1;
++  }
++}
+diff --git a/src/mcp/tools/recall-metrics-df202619.test.ts b/src/mcp/tools/recall-metrics-df202619.test.ts
+new file mode 100644
+index 00000000..8f896bb7
+--- /dev/null
++++ b/src/mcp/tools/recall-metrics-df202619.test.ts
+@@ -0,0 +1,172 @@
++import { afterEach, describe, expect, it } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import {
++  checkRecallAlerts,
++  dateRange,
++  recordRecallMetric,
++  rollupRecallMetrics,
++} from "../../metrics/recall";
++
++const original = {
++  metrics: process.env.DUCKBRAIN_RECALL_METRICS_PATH,
++  health: process.env.DUCKBRAIN_RECALL_HEALTH_FILE,
++  alerts: process.env.DUCKBRAIN_RECALL_ALERTS_FILE,
++};
++
++function fixture(): {
++  root: string;
++  counter: string;
++  health: string;
++  alerts: string;
++} {
++  const root = fs.mkdtempSync(
++    path.join(os.tmpdir(), "duckbrain-recall-metrics-"),
++  );
++  return {
++    root,
++    counter: path.join(root, "metrics", "recall-counter.jsonl"),
++    health: path.join(root, "metrics", "health.jsonl"),
++    alerts: path.join(root, "metrics", "recall-alerts.jsonl"),
++  };
++}
++
++afterEach(() => {
++  for (const [key, value] of Object.entries(original)) {
++    const envKey =
++      key === "metrics"
++        ? "DUCKBRAIN_RECALL_METRICS_PATH"
++        : key === "health"
++          ? "DUCKBRAIN_RECALL_HEALTH_FILE"
++          : "DUCKBRAIN_RECALL_ALERTS_FILE";
++    if (value === undefined) delete process.env[envKey];
++    else process.env[envKey] = value;
++  }
++});
++
++describe("DF-2026-19 recall read metrics", () => {
++  it("increments calls, non-empty packs, namespaces, and records", () => {
++    const f = fixture();
++    try {
++      recordRecallMetric({
++        counterFile: f.counter,
++        timestamp: "2026-10-20T10:00:00Z",
++        namespaces: ["alpha", "alpha", "beta"],
++        recordsReturned: 2,
++      });
++      recordRecallMetric({
++        counterFile: f.counter,
++        timestamp: "2026-10-20T11:00:00Z",
++        namespaces: ["alpha"],
++        recordsReturned: 0,
++      });
++      const rows = rollupRecallMetrics({
++        counterFile: f.counter,
++        from: "2026-10-20",
++        to: "2026-10-20",
++      });
++      expect(rows[0]).toMatchObject({
++        prefetchCalls: 2,
++        callsAnswered: 2,
++        nonEmptyPacks: 1,
++        distinctNamespaces: 2,
++        recordsReturned: 2,
++        rates: {
++          answeredPerCall: "2/2",
++          nonEmptyPackRate: "1/2",
++          recordsPerCall: "2/2",
++        },
++      });
++    } finally {
++      fs.rmSync(f.root, { recursive: true, force: true });
++    }
++  });
++
++  it("produces a seven-day series including empty days", () => {
++    const f = fixture();
++    try {
++      recordRecallMetric({
++        counterFile: f.counter,
++        timestamp: "2026-10-20T10:00:00Z",
++        namespaces: ["alpha"],
++        recordsReturned: 1,
++      });
++      expect(dateRange("2026-10-20", "2026-10-26")).toHaveLength(7);
++      const rows = rollupRecallMetrics({
++        counterFile: f.counter,
++        from: "2026-10-20",
++        to: "2026-10-26",
++      });
++      expect(rows).toHaveLength(7);
++      expect(rows[0].nonEmptyPacks).toBe(1);
++      expect(rows[6]).toMatchObject({
++        prefetchCalls: 0,
++        nonEmptyPacks: 0,
++        rates: {
++          answeredPerCall: "0/0",
++          nonEmptyPackRate: "0/0",
++          recordsPerCall: "0/0",
++        },
++      });
++    } finally {
++      fs.rmSync(f.root, { recursive: true, force: true });
++    }
++  });
++
++  it("alerts for a forced-empty healthy day and records both comparison paths", () => {
++    const f = fixture();
++    try {
++      recordRecallMetric({
++        counterFile: f.counter,
++        timestamp: "2026-10-21T10:00:00Z",
++        namespaces: ["alpha"],
++        recordsReturned: 0,
++      });
++      fs.mkdirSync(path.dirname(f.health), { recursive: true });
++      fs.writeFileSync(
++        f.health,
++        `${JSON.stringify({ day: "2026-10-21", healthy: true, source: "daemon-health.json", status: 200 })}\n` +
++          `${JSON.stringify({ day: "2026-10-22", healthy: false, source: "daemon-health.json", status: 503 })}\n`,
++      );
++      const alerts = checkRecallAlerts({
++        counterFile: f.counter,
++        healthFile: f.health,
++        alertsFile: f.alerts,
++        from: "2026-10-21",
++        to: "2026-10-22",
++        healthCheck: "GET /health status=200",
++      });
++      expect(alerts).toHaveLength(1);
++      expect(alerts[0]).toMatchObject({
++        day: "2026-10-21",
++        reason: "zero_non_empty_packs",
++        counterFile: f.counter,
++        healthFile: f.health,
++        healthCheck: "GET /health status=200",
++      });
++      expect(fs.readFileSync(f.alerts, "utf8")).toContain(
++        "zero_non_empty_packs",
++      );
++      expect(
++        checkRecallAlerts({
++          counterFile: f.counter,
++          healthFile: f.health,
++          alertsFile: f.alerts,
++          from: "2026-10-21",
++          to: "2026-10-22",
++        }),
++      ).toEqual([]);
++      expect(
++        rollupRecallMetrics({
++          counterFile: f.counter,
++          healthFile: f.health,
++          from: "2026-10-21",
++          to: "2026-10-22",
++        })[1].healthy,
++      ).toBe(false);
++    } finally {
++      fs.rmSync(f.root, { recursive: true, force: true });
++    }
++  });
++});
+diff --git a/src/mcp/tools/recall.ts b/src/mcp/tools/recall.ts
+index a8e4c43e..56300fa3 100644
+--- a/src/mcp/tools/recall.ts
++++ b/src/mcp/tools/recall.ts
+@@ -48,6 +48,7 @@ import {
+ } from "../../git/asof";
+ import path from "path";
+ import fs from "fs";
++import { recordRecallMetric } from "../../metrics/recall";
+ 
+ /**
+  * Input schema for recall tool
+@@ -548,7 +549,7 @@ async function runSemanticLeg(opts: {
+  *                  back to the DOGFOOD-025 ALS slot via resolveToolPrincipal
+  * @returns Query results with memories and count
+  */
+-export async function recallTool(
++async function recallToolImpl(
+   input: unknown,
+   context: RecallContext = {},
+ ): Promise<RecallOutput> {
+@@ -1279,7 +1280,31 @@ export async function recallTool(
+ }
+ 
+ /**
+- * Tool metadata for MCP registration
++ * MCP-side read telemetry. Recording is best effort: a metrics filesystem
++ * failure must never turn a successful recall into an MCP error.
++ */
++export async function recallTool(
++  input: unknown,
++  context: RecallContext = {},
++): Promise<RecallOutput> {
++  const result = await recallToolImpl(input, context);
++  try {
++    const namespace = result.namespace;
++    recordRecallMetric({
++      namespaces: namespace && namespace !== "all" ? [namespace] : [],
++      recordsReturned: result.memories.length,
++      completed: true,
++    });
++  } catch (error) {
++    console.error(
++      `[recall-metrics] unable to persist read metric: ${error instanceof Error ? error.message : String(error)}`,
++    );
++  }
++  return result;
++}
++
++/**
++ * Tool metadata for recall tool
+  */
+ export const recallToolMetadata = {
+   name: "recall",
+diff --git a/src/metrics/recall.ts b/src/metrics/recall.ts
+new file mode 100644
+index 00000000..d1d5b218
+--- /dev/null
++++ b/src/metrics/recall.ts
+@@ -0,0 +1,290 @@
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { resolveNamespacesPath } from "../config/index";
++
++export const DEFAULT_HEALTH_CHECK = "GET /health";
++
++export interface RecallMetricEvent {
++  ts: string;
++  day: string;
++  namespaces: string[];
++  calls: 1;
++  callsAnswered: 0 | 1;
++  nonEmptyPacks: 0 | 1;
++  recordsReturned: number;
++}
++
++export interface HealthSignal {
++  day: string;
++  healthy: boolean;
++  source?: string;
++  status?: number;
++}
++
++export interface RecallDailyRollup {
++  day: string;
++  prefetchCalls: number;
++  callsAnswered: number;
++  nonEmptyPacks: number;
++  distinctNamespaces: number;
++  recordsReturned: number;
++  healthy: boolean | null;
++  healthSource: string;
++  rates: {
++    answeredPerCall: string;
++    nonEmptyPackRate: string;
++    recordsPerCall: string;
++  };
++}
++
++export interface RecallAlert {
++  day: string;
++  reason: "zero_non_empty_packs";
++  counterFile: string;
++  healthFile: string;
++  healthCheck: string;
++  createdAt: string;
++}
++
++export interface RecallMetricsPaths {
++  counterFile: string;
++  healthFile: string;
++  alertsFile: string;
++}
++
++function utcDay(value: Date | string): string {
++  const date = typeof value === "string" ? new Date(value) : value;
++  if (Number.isNaN(date.getTime()))
++    throw new Error(`Invalid timestamp: ${value}`);
++  return date.toISOString().slice(0, 10);
++}
++
++function addDays(day: string, amount: number): string {
++  const date = new Date(`${day}T00:00:00.000Z`);
++  date.setUTCDate(date.getUTCDate() + amount);
++  return utcDay(date);
++}
++
++function fraction(numerator: number, denominator: number): string {
++  return `${numerator}/${denominator}`;
++}
++
++/**
++ * Resolve the read-metric files. DUCKBRAIN_RECALL_METRICS_PATH may point at
++ * the counter JSONL file. Otherwise metrics live beside the configured
++ * namespaces directory (the default is <data-dir>/metrics/recall-counter.jsonl).
++ */
++export function resolveRecallMetricsPaths(
++  counterFile = process.env.DUCKBRAIN_RECALL_METRICS_PATH,
++): RecallMetricsPaths {
++  const resolvedCounter = counterFile
++    ? path.resolve(counterFile)
++    : path.join(
++        path.dirname(resolveNamespacesPath()),
++        "metrics",
++        "recall-counter.jsonl",
++      );
++  const dir = path.dirname(resolvedCounter);
++  return {
++    counterFile: resolvedCounter,
++    healthFile:
++      process.env.DUCKBRAIN_RECALL_HEALTH_FILE ??
++      path.join(dir, "health.jsonl"),
++    alertsFile:
++      process.env.DUCKBRAIN_RECALL_ALERTS_FILE ??
++      path.join(dir, "recall-alerts.jsonl"),
++  };
++}
++
++function ensureParent(file: string): void {
++  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
++}
++
++/** Append one completed MCP-side recall observation without affecting recall. */
++export function recordRecallMetric(options: {
++  counterFile?: string;
++  timestamp?: string | Date;
++  namespaces: string[];
++  recordsReturned: number;
++  completed?: boolean;
++}): RecallMetricEvent {
++  const paths = resolveRecallMetricsPaths(options.counterFile);
++  const timestamp =
++    options.timestamp instanceof Date
++      ? options.timestamp.toISOString()
++      : (options.timestamp ?? new Date().toISOString());
++  const event: RecallMetricEvent = {
++    ts: timestamp,
++    day: utcDay(timestamp),
++    namespaces: [
++      ...new Set(options.namespaces.filter((name) => name.trim() !== "")),
++    ],
++    calls: 1,
++    callsAnswered: options.completed === false ? 0 : 1,
++    nonEmptyPacks: options.recordsReturned > 0 ? 1 : 0,
++    recordsReturned: Math.max(0, Math.trunc(options.recordsReturned)),
++  };
++  ensureParent(paths.counterFile);
++  fs.appendFileSync(paths.counterFile, `${JSON.stringify(event)}${os.EOL}`, {
++    encoding: "utf8",
++    mode: 0o600,
++  });
++  return event;
++}
++
++function readJsonl<T>(file: string): T[] {
++  if (!fs.existsSync(file)) return [];
++  return fs
++    .readFileSync(file, "utf8")
++    .split(/\r?\n/)
++    .filter((line) => line.trim() !== "")
++    .map((line, index) => {
++      try {
++        return JSON.parse(line) as T;
++      } catch (error) {
++        throw new Error(
++          `${file}:${index + 1} is not valid JSON: ${String(error)}`,
++        );
++      }
++    });
++}
++
++export function readRecallMetricEvents(
++  counterFile?: string,
++): RecallMetricEvent[] {
++  return readJsonl<RecallMetricEvent>(
++    resolveRecallMetricsPaths(counterFile).counterFile,
++  );
++}
++
++export function readHealthSignals(
++  healthFile?: string,
++): Map<string, HealthSignal> {
++  const resolved = healthFile ?? resolveRecallMetricsPaths().healthFile;
++  const signals = readJsonl<HealthSignal>(resolved);
++  return new Map(signals.map((signal) => [signal.day, signal]));
++}
++
++export function dateRange(from: string, to: string): string[] {
++  const start = utcDay(from);
++  const end = utcDay(to);
++  if (start > end)
++    throw new Error(`from date ${start} is after to date ${end}`);
++  const days: string[] = [];
++  for (let day = start; day <= end; day = addDays(day, 1)) days.push(day);
++  return days;
++}
++
++export function rollupRecallMetrics(options: {
++  counterFile?: string;
++  healthFile?: string;
++  from: string;
++  to: string;
++  healthCheck?: string;
++}): RecallDailyRollup[] {
++  const paths = resolveRecallMetricsPaths(options.counterFile);
++  const events = readRecallMetricEvents(paths.counterFile);
++  const health = readHealthSignals(options.healthFile ?? paths.healthFile);
++  const byDay = new Map<string, RecallMetricEvent[]>();
++  for (const event of events) {
++    const bucket = byDay.get(event.day) ?? [];
++    bucket.push(event);
++    byDay.set(event.day, bucket);
++  }
++  const healthCheck = options.healthCheck ?? DEFAULT_HEALTH_CHECK;
++  return dateRange(options.from, options.to).map((day) => {
++    const dayEvents = byDay.get(day) ?? [];
++    const prefetchCalls = dayEvents.reduce(
++      (sum, event) => sum + event.calls,
++      0,
++    );
++    const callsAnswered = dayEvents.reduce(
++      (sum, event) => sum + event.callsAnswered,
++      0,
++    );
++    const nonEmptyPacks = dayEvents.reduce(
++      (sum, event) => sum + event.nonEmptyPacks,
++      0,
++    );
++    const recordsReturned = dayEvents.reduce(
++      (sum, event) => sum + event.recordsReturned,
++      0,
++    );
++    const namespaces = new Set(dayEvents.flatMap((event) => event.namespaces));
++    const signal = health.get(day);
++    return {
++      day,
++      prefetchCalls,
++      callsAnswered,
++      nonEmptyPacks,
++      distinctNamespaces: namespaces.size,
++      recordsReturned,
++      healthy: signal?.healthy ?? null,
++      healthSource: signal?.source ?? healthCheck,
++      rates: {
++        answeredPerCall: fraction(callsAnswered, prefetchCalls),
++        nonEmptyPackRate: fraction(nonEmptyPacks, prefetchCalls),
++        recordsPerCall: fraction(recordsReturned, prefetchCalls),
++      },
++    };
++  });
++}
++
++export function checkRecallAlerts(options: {
++  counterFile?: string;
++  healthFile?: string;
++  alertsFile?: string;
++  from: string;
++  to: string;
++  healthCheck?: string;
++}): RecallAlert[] {
++  const paths = resolveRecallMetricsPaths(options.counterFile);
++  const healthFile = options.healthFile ?? paths.healthFile;
++  const alertsFile = options.alertsFile ?? paths.alertsFile;
++  const rollup = rollupRecallMetrics({
++    ...options,
++    healthFile,
++  });
++  const existing = new Set(
++    readJsonl<RecallAlert>(alertsFile).map(
++      (alert) => `${alert.day}:${alert.reason}`,
++    ),
++  );
++  const alerts = rollup
++    .filter(
++      (day) =>
++        day.healthy === true &&
++        day.prefetchCalls > 0 &&
++        day.nonEmptyPacks === 0,
++    )
++    .filter((day) => !existing.has(`${day.day}:zero_non_empty_packs`))
++    .map((day): RecallAlert => ({
++      day: day.day,
++      reason: "zero_non_empty_packs",
++      counterFile: paths.counterFile,
++      healthFile: path.resolve(healthFile),
++      healthCheck: options.healthCheck ?? DEFAULT_HEALTH_CHECK,
++      createdAt: new Date().toISOString(),
++    }));
++  if (alerts.length > 0) {
++    ensureParent(alertsFile);
++    fs.appendFileSync(
++      alertsFile,
++      alerts.map((alert) => JSON.stringify(alert)).join(os.EOL) + os.EOL,
++      { encoding: "utf8", mode: 0o600 },
++    );
++  }
++  return alerts;
++}
++
++export function defaultRecallMetricsDates(
++  days = 7,
++  now = new Date(),
++): {
++  from: string;
++  to: string;
++} {
++  const to = addDays(utcDay(now), -1);
++  return { from: addDays(to, -(days - 1)), to };
++}
