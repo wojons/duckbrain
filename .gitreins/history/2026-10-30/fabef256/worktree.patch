@@ -1,0 +1,60 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 7ae5dfa4..8824bd53 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2948,12 +2948,12 @@ tasks:
+ - id: PERF-014
+   title: Bound /users author aggregation concurrency
+   criteria:
+-  - Implement bounded concurrency only in the /users author aggregation path; preserve
+-    grants, timeouts, DuckDB fallback, deterministic sorted users, error semantics;
+-    add focused tests and exact harness before/after evidence; include traceability
+-    row/spec/test/evidence/commit.
+-  status: in_progress
+-  created_at: '2026-10-29T21:40:22.693899+00:00'
++  - Implement bounded concurrency in src/http/routes/users.ts while preserving grant
++    filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused
++    regression coverage; include traceability evidence and commit.
++  status: complete
++  created_at: '2026-10-30T02:25:10.003850+00:00'
++  completed_at: '2026-10-30T03:51:14.203744+00:00'
+ - id: DF-2026-13
+   title: DF-2026-13 move test-count gate to generated manifest
+   criteria:
+@@ -2963,7 +2963,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:40.564032+00:00'
+   completed_at: '2026-10-30T01:03:49.071165+00:00'
+-  note: 'tier2 PASS verdict dir 55043021 (.gitreins/history/2026-10-30/55043021); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-11
+   title: DF-2026-11 tolerate in-flight .tmp.jsonl in namespace leak-walk
+   criteria:
+@@ -2973,7 +2972,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:39.740500+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir 761c8c9f (.gitreins/history/2026-10-30/761c8c9f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-19
+   title: DF-2026-19 read-side recall counter + daily rollup + zero-day alert
+   criteria:
+@@ -2984,7 +2982,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T01:14:46.712034+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir 3786436f (.gitreins/history/2026-10-30/3786436f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-17
+   title: DF-2026-17 recall quality benchmark + runner + scheduled run
+   criteria:
+@@ -2995,7 +2992,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:41.453067+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir ed0feed3 (.gitreins/history/2026-10-30/ed0feed3); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-18
+   title: DF-2026-18 nightly session distiller
+   criteria:
+@@ -3006,4 +3002,3 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:42.511130+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir a38df962 (.gitreins/history/2026-10-30/a38df962); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'

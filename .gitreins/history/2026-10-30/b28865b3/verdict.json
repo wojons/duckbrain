@@ -1,0 +1,111 @@
+{
+  "task_id": "PERF-014",
+  "task_title": "Bound /users author aggregation concurrency",
+  "task_criteria": [
+    "Implement bounded concurrency in src/http/routes/users.ts while preserving grant filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused regression coverage; include traceability evidence and commit."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "5ec0535640449438c8345ee7c17b7008ff7fcd79",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n10:52PM INF scanned ~22272244 bytes (22.27 MB) in 3.15s\n10:52PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T140327.364258Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:2454842) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2485730) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2486668) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2489628) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2490129) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2494805) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2495691) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2499169) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2499633) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2500138) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2500485) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2500949) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2501172) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2501597) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2501689) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2501786) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2502929) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2504125) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2504305) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  245 passed (245)\n      Tests  2048 passed (2048)\n   Start at  22:52:29\n   Duration  106.82s (tests 74%, import 24%, setup 2%, transform 1%)\n\n    Isolate  245 workers spawned \u00b7 ~223ms startup each (spawn + environment, per file)\n             at least ~13.45s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T140327.364258Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Implement bounded concurrency in src/http/routes/users.ts while preserving grant filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused regression coverage; include traceability evidence and commit.: The implementation never landed on main. HEAD (5ec05356) src/http/routes/users.ts:157-173 still contains the original serial loop `for (const ns of namespacesResult.namespaces) { const gitAuthors = await getAuthorsFromGit(ns.path); ... }` \u2014 grep for AUTHOR_SCAN_CONCURRENCY|collectAuthorsForNamespaces|workerCount in HEAD users.ts returns 'NONE FOUND'. src/http/routes/users-perf014.test.ts is ABSENT from the worktree/HEAD. The real work exists only on unmerged branch wt/PERF-014 at commit f3da8968 ('perf: bound users author scans. Addresses PERF-014.'), which adds AUTHOR_SCAN_CONCURRENCY=32, a collectAuthorsForNamespaces worker pool, and users-perf014.test.ts; `git merge-base --is-ancestor f3da8968 HEAD` => 'NO not in HEAD'. That branch's tests do pass (`npx vitest run src/http/routes/users-perf014.test.ts` in /home/kara/worktrees/duckbrain-PERF-014 => 'Test Files 1 passed (1) / Tests 3 passed (3)', exit 0), and it does preserve grant filtering (listNamespacesTool), GIT_LOG_TIMEOUT_MS, DuckDB fallback, and `.sort()` determinism \u2014 but none of it is in the delivered tree. The only change in the delivered diff is .gitreins/tasks.yaml flipping PERF-014 to status: complete (no code, no test, no traceability row). HEAD's focused test run `npx vitest run src/http/routes/users-activity.test.ts` => 'Tests 11 passed (11)', but those are pre-existing tests with no concurrency assertions (only 200/count/POST-404/shape). No traceability row referencing PERF-014 exists in docs/ (grep => no hits; the two ch:trace hits in .coding-hermes/board/events.jsonl are for INT-CI-033, with PERF-014 only in the 'open' list), and no docs/evidence/PERF-014 dir. GitReins' own recorded verdict (.gitreins/history/2026-10-30/fabef256/verdict.json, commit d031a84f) is \"passed\": false / Result: FAIL.\nBounded concurrency for /users exists only on the unmerged branch wt/PERF-014 (f3da8968); HEAD still runs the serial loop and has no regression test, so the task was marked complete without the code, tests, or traceability evidence landing.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Implement bounded concurrency in src/http/routes/users.ts while preserving grant filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused regression coverage; include traceability evidence and commit.: The implementation never landed on main. HEAD (5ec05356) src/http/routes/users.ts:157-173 still contains the original serial loop `for (const ns of namespacesResult.namespaces) { const gitAuthors = await getAuthorsFromGit(ns.path); ... }` \u2014 grep for AUTHOR_SCAN_CONCURRENCY|collectAuthorsForNamespaces|workerCount in HEAD users.ts returns 'NONE FOUND'. src/http/routes/users-perf014.test.ts is ABSENT from the worktree/HEAD. The real work exists only on unmerged branch wt/PERF-014 at commit f3da8968 ('perf: bound users author scans. Addresses PERF-014.'), which adds AUTHOR_SCAN_CONCURRENCY=32, a collectAuthorsForNamespaces worker pool, and users-perf014.test.ts; `git merge-base --is-ancestor f3da8968 HEAD` => 'NO not in HEAD'. That branch's tests do pass (`npx vitest run src/http/routes/users-perf014.test.ts` in /home/kara/worktrees/duckbrain-PERF-014 => 'Test Files 1 passed (1) / Tests 3 passed (3)', exit 0), and it does preserve grant filtering (listNamespacesTool), GIT_LOG_TIMEOUT_MS, DuckDB fallback, and `.sort()` determinism \u2014 but none of it is in the delivered tree. The only change in the delivered diff is .gitreins/tasks.yaml flipping PERF-014 to status: complete (no code, no test, no traceability row). HEAD's focused test run `npx vitest run src/http/routes/users-activity.test.ts` => 'Tests 11 passed (11)', but those are pre-existing tests with no concurrency assertions (only 200/count/POST-404/shape). No traceability row referencing PERF-014 exists in docs/ (grep => no hits; the two ch:trace hits in .coding-hermes/board/events.jsonl are for INT-CI-033, with PERF-014 only in the 'open' list), and no docs/evidence/PERF-014 dir. GitReins' own recorded verdict (.gitreins/history/2026-10-30/fabef256/verdict.json, commit d031a84f) is \"passed\": false / Result: FAIL.\nBounded concurrency for /users exists only on the unmerged branch wt/PERF-014 (f3da8968); HEAD still runs the serial loop and has no regression test, so the task was marked complete without the code, tests, or traceability evidence landing.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Implement bounded concurrency in src/http/routes/users.ts while preserving grant filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused regression coverage; include traceability evidence and commit.",
+                "status": "FAIL",
+                "detail": "The implementation never landed on main. HEAD (5ec05356) src/http/routes/users.ts:157-173 still contains the original serial loop `for (const ns of namespacesResult.namespaces) { const gitAuthors = await getAuthorsFromGit(ns.path); ... }` \u2014 grep for AUTHOR_SCAN_CONCURRENCY|collectAuthorsForNamespaces|workerCount in HEAD users.ts returns 'NONE FOUND'. src/http/routes/users-perf014.test.ts is ABSENT from the worktree/HEAD. The real work exists only on unmerged branch wt/PERF-014 at commit f3da8968 ('perf: bound users author scans. Addresses PERF-014.'), which adds AUTHOR_SCAN_CONCURRENCY=32, a collectAuthorsForNamespaces worker pool, and users-perf014.test.ts; `git merge-base --is-ancestor f3da8968 HEAD` => 'NO not in HEAD'. That branch's tests do pass (`npx vitest run src/http/routes/users-perf014.test.ts` in /home/kara/worktrees/duckbrain-PERF-014 => 'Test Files 1 passed (1) / Tests 3 passed (3)', exit 0), and it does preserve grant filtering (listNamespacesTool), GIT_LOG_TIMEOUT_MS, DuckDB fallback, and `.sort()` determinism \u2014 but none of it is in the delivered tree. The only change in the delivered diff is .gitreins/tasks.yaml flipping PERF-014 to status: complete (no code, no test, no traceability row). HEAD's focused test run `npx vitest run src/http/routes/users-activity.test.ts` => 'Tests 11 passed (11)', but those are pre-existing tests with no concurrency assertions (only 200/count/POST-404/shape). No traceability row referencing PERF-014 exists in docs/ (grep => no hits; the two ch:trace hits in .coding-hermes/board/events.jsonl are for INT-CI-033, with PERF-014 only in the 'open' list), and no docs/evidence/PERF-014 dir. GitReins' own recorded verdict (.gitreins/history/2026-10-30/fabef256/verdict.json, commit d031a84f) is \"passed\": false / Result: FAIL.",
+                "resolution_probability": 0.15,
+                "cited_path": "src/http/routes/users.ts"
+              }
+            ],
+            "summary": "Bounded concurrency for /users exists only on the unmerged branch wt/PERF-014 (f3da8968); HEAD still runs the serial loop and has no regression test, so the task was marked complete without the code, tests, or traceability evidence landing.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: PERF-014\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Implement bounded concurrency in src/http/routes/users.ts while preserving grant filtering, timeout, DuckDB fallback, deterministic sorted users, and add focused regression coverage; include traceability evidence and commit.: The implementation never landed on main. HEAD (5ec05356) src/http/routes/users.ts:157-173 still contains the original serial loop `for (const ns of namespacesResult.namespaces) { const gitAuthors = await getAuthorsFromGit(ns.path); ... }` \u2014 grep for AUTHOR_SCAN_CONCURRENCY|collectAuthorsForNamespaces|workerCount in HEAD users.ts returns 'NONE FOUND'. src/http/routes/users-perf014.test.ts is ABSENT from the worktree/HEAD. The real work exists only on unmerged branch wt/PERF-014 at commit f3da8968 ('perf: bound users author scans. Addresses PERF-014.'), which adds AUTHOR_SCAN_CONCURRENCY=32, a collectAuthorsForNamespaces worker pool, and users-perf014.test.ts; `git merge-base --is-ancestor f3da8968 HEAD` => 'NO not in HEAD'. That branch's tests do pass (`npx vitest run src/http/routes/users-perf014.test.ts` in /home/kara/worktrees/duckbrain-PERF-014 => 'Test Files 1 passed (1) / Tests 3 passed (3)', exit 0), and it does preserve grant filtering (listNamespacesTool), GIT_LOG_TIMEOUT_MS, DuckDB fallback, and `.sort()` determinism \u2014 but none of it is in the delivered tree. The only change in the delivered diff is .gitreins/tasks.yaml flipping PERF-014 to status: complete (no code, no test, no traceability row). HEAD's focused test run `npx vitest run src/http/routes/users-activity.test.ts` => 'Tests 11 passed (11)', but those are pre-existing tests with no concurrency assertions (only 200/count/POST-404/shape). No traceability row referencing PERF-014 exists in docs/ (grep => no hits; the two ch:trace hits in .coding-hermes/board/events.jsonl are for INT-CI-033, with PERF-014 only in the 'open' list), and no docs/evidence/PERF-014 dir. GitReins' own recorded verdict (.gitreins/history/2026-10-30/fabef256/verdict.json, commit d031a84f) is \"passed\": false / Result: FAIL.\nBounded concurrency for /users exists only on the unmerged branch wt/PERF-014 (f3da8968); HEAD still runs the serial loop and has no regression test, so the task was marked complete without the code, tests, or traceability evidence landing.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-30T03:55:29.739769",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-30T03:55:29.773562+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 5107,
+        "truncated": false,
+        "source": "git show 5ec053564044"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 3075,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-014"
+  }
+}
