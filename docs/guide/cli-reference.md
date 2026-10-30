@@ -22,6 +22,7 @@ work for most flags).
 | `duckbrain list-keys` | Browse memory structure (renders a plain-text tree) |
 | `duckbrain forget <id>` | Delete a memory by UUID |
 | `duckbrain consolidate` | Daily cross-namespace consolidation digest |
+| `duckbrain distill-sessions` | Nightly state.db session distiller (decisions/findings/open items → `/session/…` records) |
 | `duckbrain query` | Read-only SQL over a namespace (`SELECT ...` or `--template`) |
 | `duckbrain squash` | Compact old JSONL partitions (options: `--stats` / `--dry-run` / `--partition` / `--aggressive` / `--segments`) |
 | `duckbrain embeddings` | Manage embedding cache (`rebuild` / `status` / `install-hooks` / `providers` / `migrate`) |
@@ -225,6 +226,30 @@ environment) is in play; then it writes one digest record.
 ```bash
 duckbrain consolidate --date=2026-10-10
 duckbrain consolidate --write-digest
+```
+
+### `duckbrain distill-sessions`
+
+```
+duckbrain distill-sessions [--state-db=PATH] [--window-hours=N] [--namespace=NAME] [--dry-run]
+```
+
+Nightly distiller (DF-2026-18): reads the Hermes `state.db` **read-only**,
+extracts bounded statements (decisions, verified findings, open items) from
+sessions that ended inside the window, and writes them under
+`/session/<date>/<session-id>/<hash16>` in the target namespace via the
+in-process `rememberTool` write path. Cron/system sessions (sources `cron`,
+`kanban`, `tool`) are skipped, secrets are redacted, corrupt transcripts
+are refused loudly, and reruns write zero new records (skip-if-exists by
+hash-derived key). Full contract and cron line:
+[Session Distillation](session-distillation.md).
+
+**Safety:** read-only on `state.db`; writes go only to the target
+namespace. `--dry-run` writes nothing.
+
+```bash
+duckbrain distill-sessions --dry-run
+duckbrain distill-sessions --window-hours=48 --namespace=sessions
 ```
 
 ### `duckbrain query`
@@ -703,6 +728,7 @@ duckbrain s3 query "SELECT key, domain FROM 's3://duckbrain/my-project/**/*.json
 | `DUCKBRAIN_AUTH_FILE` | Auth store path override (used by `http --auth-file` and `token --auth-file`) |
 | `DUCKBRAIN_API_KEY` | API key for `consolidate --write-digest` (X-API-Key header; its presence also triggers the digest write) |
 | `DUCKBRAIN_API_URL` | API base URL for the digest write (default `http://127.0.0.1:3000`) |
+| `HERMES_STATE_DB` | `state.db` path for `distill-sessions` (default `~/.hermes/state.db`) |
 
 The full variable list (embedding providers, data dir, allowed hosts, ...)
 lives in [Configuration](configuration).

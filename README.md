@@ -276,6 +276,15 @@ duckbrain consolidate --date=2026-09-19     # read-only: digest to stdout
 duckbrain consolidate --write-digest        # requires DUCKBRAIN_API_KEY
 ```
 
+### Nightly session distiller
+
+`duckbrain distill-sessions` (DF-2026-18) turns Hermes chat sessions in `state.db` into durable, hash-keyed records — decisions, verified findings, open items — under `/session/<date>/<session-id>/<hash>` in the `sessions` namespace. Cron/system sessions are skipped, secrets are redacted, corrupt transcripts are refused loudly, and reruns over unchanged input write zero new records. Dry-run first:
+
+```bash
+duckbrain distill-sessions --dry-run        # read-only: lists what would be written
+duckbrain distill-sessions                  # nightly write pass (see cron line in docs/guide/session-distillation.md)
+```
+
 ### Remote Access over SSH
 
 DuckBrain can be reached through an SSH tunnel. Run the dry pre-flight `duckbrain ssh-test --host=<user@server>` first — it opens no connection and prints the exact remote command plus a ready-to-paste Claude Desktop MCP entry; `ssh-connect` then creates the local socket-backed tunnel:
