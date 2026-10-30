@@ -1,0 +1,85 @@
+name: Recall benchmark
+
+# DF-2026-17: nightly recall-quality measurement for GET /api/memories?q=.
+# Boots a hermetic scratch instance, seeds the fixed 20-case fixture corpus,
+# and fails loudly (non-zero exit) on any missed case or a precision
+# regression. Measurement-only: this workflow never changes product query
+# behavior. ci.yml is untouched on purpose.
+
+on:
+  schedule:
+    - cron: "23 3 * * *" # nightly
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: >-
+          Optional existing DuckBrain base URL to measure instead of the
+          hermetic scratch instance (read-only; no seeding). Requires the
+          DUCKBRAIN_BENCH_API_KEY repository secret when the surface
+          enforces auth.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  recall-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # No version input: pnpm/action-setup reads the exact packageManager pin.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache DuckDB extensions
+        uses: actions/cache@v4
+        with:
+          path: ~/.duckdb/extensions
+          key: duckdb-extensions-1.4.4
+          restore-keys: |
+            duckdb-extensions-
+
+      # The keyword leg INSTALLs the fts extension on first use; pre-install
+      # it so the benchmark never depends on a mid-run download.
+      - name: Pre-install DuckDB fts extension
+        run: node -e "const {Database}=require('duckdb'); const db=new Database(':memory:'); db.exec('INSTALL fts'); db.exec('LOAD fts'); db.close();"
+
+      - name: Run recall benchmark
+        env:
+          # Headless git identity for the scratch instance's autocommits
+          # (CI-GITID-028); the runner also pins its own defaults.
+          DUCKBRAIN_GIT_AUTHOR_NAME: "DuckBrain CI"
+          DUCKBRAIN_GIT_AUTHOR_EMAIL: "duckbrain-ci@example.com"
+          DUCKBRAIN_BENCH_API_KEY: ${{ secrets.DUCKBRAIN_BENCH_API_KEY }}
+        run: |
+          set -o pipefail
+          if [ -n "${{ inputs.base_url }}" ]; then
+            node scripts/recall-benchmark/run.mjs \
+              --base-url "${{ inputs.base_url }}" \
+              --json benchmark-report.json | tee benchmark-report.txt
+          else
+            node scripts/recall-benchmark/run.mjs \
+              --scratch \
+              --json benchmark-report.json | tee benchmark-report.txt
+          fi
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recall-benchmark-report
+          path: |
+            benchmark-report.json
+            benchmark-report.txt
+          if-no-files-found: warn

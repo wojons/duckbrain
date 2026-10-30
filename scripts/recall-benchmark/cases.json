@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "fixture": "DF-2026-17 recall quality benchmark",
+  "namespace": "coding-hermes",
+  "description": "Fixed 20-case recall benchmark for GET /api/memories?q=. Each case is a query plus either the exact set of keys a correct surface must return (expectKeys) or an expected refusal (expectRefusal: zero results). Cases 1-2 reproduce the live-API observations of 2026-10-27 verbatim (see their notes). Unanswered cases (empty result where a key was expected, or a request error) count as unanswered, never as correct. The runner seeds `seed` into a scratch instance before measuring; expected keys are cross-checked against the seed corpus so the fixture cannot silently reference memories it never planted.",
+  "seed": [
+    {
+      "key": "/sync/coding-hermes/last-success",
+      "domain": "concept",
+      "content": "Last successful scheduler tick completed at 04:17 UTC; the fleet cooldown window reset to 900 seconds."
+    },
+    {
+      "key": "/sync/coding-hermes/scheduler-state",
+      "domain": "config",
+      "content": "Scheduler state snapshot: lane weights, tick counters, and dispatch pointers."
+    },
+    {
+      "key": "/project/coding-hermes/board-census",
+      "domain": "raw_note",
+      "content": "Board census counted forty one lanes derived from the scheduler database; JSONL boards are canonical."
+    },
+    {
+      "key": "/ops/worktree-hygiene",
+      "domain": "concept",
+      "content": "Git worktree hygiene: reap only zero-commit branches after verifying ahead count and clean status."
+    },
+    {
+      "key": "/ops/embeddings-rebuild",
+      "domain": "concept",
+      "content": "Rebuild the embeddings cache after any provider rotation; stale vectors silently poison ranking."
+    },
+    {
+      "key": "/project/duckbrain/embedding-cache",
+      "domain": "concept",
+      "content": "The embedding cache directory is gitignored and keyed by provider id plus content hash."
+    },
+    {
+      "key": "/project/coding-hermes/cost-ledger",
+      "domain": "raw_note",
+      "content": "Cost ledger truth comes from state.db session estimates, never from tick sticker prices."
+    },
+    {
+      "key": "/ops/secrets-scan",
+      "domain": "concept",
+      "content": "Pre-commit secret scanning uses gitleaks with a tuned allowlist for false positives."
+    },
+    {
+      "key": "/infra/tailscale-notes",
+      "domain": "config",
+      "content": "Tailscale ACLs and subnet router setup for fleet hosts, including tag ownership."
+    },
+    {
+      "key": "/decisions/jsonl-over-sqlite",
+      "domain": "concept",
+      "content": "Board storage moved from duckdb caches to git-backed jsonl event logs; sqlite remains for scheduler state."
+    },
+    {
+      "key": "/ops/format-gate",
+      "domain": "concept",
+      "content": "The formatting gate runs prettier check mode on every touched file before commit."
+    },
+    {
+      "key": "/ops/backup-restore",
+      "domain": "concept",
+      "content": "Nightly restic snapshots ship to object storage; the restore drill is verified quarterly."
+    },
+    {
+      "key": "/project/coding-hermes/weekly-digest",
+      "domain": "message",
+      "content": "The weekly digest aggregates board events into a narrative report for review."
+    },
+    {
+      "key": "/ops/gateway-restart",
+      "domain": "concept",
+      "content": "Gateway restart procedure: drain connections, swap the binary, verify health endpoints."
+    },
+    {
+      "key": "/ops/ci-triage",
+      "domain": "concept",
+      "content": "CI triage classifies each red run as flake, sibling breakage, or real regression."
+    },
+    {
+      "key": "/decisions/model-routing",
+      "domain": "concept",
+      "content": "Model routing prefers plan lanes and only falls back to payg providers at the tail."
+    },
+    {
+      "key": "/ops/state-vacuum",
+      "domain": "concept",
+      "content": "Vacuuming the state database reclaims free pages after heavy pruning of old rows."
+    },
+    {
+      "key": "/concept/reciprocity",
+      "domain": "concept",
+      "content": "Reciprocity is the felt weight of give and take between an agent and its operator."
+    },
+    {
+      "key": "/ops/alerting-net",
+      "domain": "concept",
+      "content": "The alerting net pages the operator when scheduler stalls or queue depth grows."
+    },
+    {
+      "key": "/runbooks/incident-001",
+      "domain": "event",
+      "content": "Incident review: orphaned worker scopes starved the host disk during parallel waves."
+    },
+    {
+      "key": "/ops/e2e-rotation",
+      "domain": "concept",
+      "content": "The nightly e2e rotation exercises UI, API, and database wiring on seeded fixtures."
+    },
+    {
+      "key": "/project/duckbrain/fts-sidecar",
+      "domain": "concept",
+      "content": "Keyword sidecar rebuilds are bounded and single-flight per namespace under an advisory lock."
+    },
+    {
+      "key": "/misc/changelog-draft",
+      "domain": "raw_note",
+      "content": "Draft changelog entry covering the recall benchmark fixture, runner, and scheduled workflow."
+    },
+    {
+      "key": "/runbooks/df-2026-17",
+      "domain": "raw_note",
+      "content": "Runbook for the recall quality measurement task: fixture corpus, runner harness, exit gates."
+    }
+  ],
+  "cases": [
+    {
+      "id": 1,
+      "query": "cooldown",
+      "expectKeys": ["/sync/coding-hermes/last-success"],
+      "observed": "2026-10-27",
+      "note": "Live-API observation 2026-10-27: GET /api/memories?namespace=coding-hermes&q=cooldown returned 2 records — /sync/coding-hermes/last-success (relevant) plus an unrelated scheduler-state note (noise). Expected: exactly the cooldown memory."
+    },
+    {
+      "id": 2,
+      "query": "zzzznothinglikethis",
+      "expectRefusal": true,
+      "observed": "2026-10-27",
+      "note": "Live-API observation 2026-10-27: q=zzzznothinglikethis returned 3 records including /project/coding-hermes/board-census — a query with no possible match returned MORE rows than a real term. Expected: refusal (zero results)."
+    },
+    {
+      "id": 3,
+      "query": "worktree",
+      "expectKeys": ["/ops/worktree-hygiene"]
+    },
+    {
+      "id": 4,
+      "query": "embeddings",
+      "expectKeys": [
+        "/ops/embeddings-rebuild",
+        "/project/duckbrain/embedding-cache"
+      ],
+      "note": "Both seeded memories are genuinely about the embedding cache; a correct surface returns both and nothing else (FTS stems embedding/embeddings to the same root)."
+    },
+    {
+      "id": 5,
+      "query": "gitleaks",
+      "expectKeys": ["/ops/secrets-scan"]
+    },
+    {
+      "id": 6,
+      "query": "tailscale",
+      "expectKeys": ["/infra/tailscale-notes"]
+    },
+    {
+      "id": 7,
+      "query": "DF-2026-17",
+      "expectKeys": ["/runbooks/df-2026-17"],
+      "note": "Ticket-id tokenization case: digit-mapped search text must make an id that lives in the KEY (not the content) findable."
+    },
+    {
+      "id": 8,
+      "query": "ledger",
+      "expectKeys": ["/project/coding-hermes/cost-ledger"]
+    },
+    {
+      "id": 9,
+      "query": "cooldown scheduler",
+      "expectKeys": ["/sync/coding-hermes/last-success"],
+      "note": "Multi-token AND case: only the last-success memory carries both tokens; several distractors carry scheduler alone."
+    },
+    {
+      "id": 10,
+      "query": "snapshot",
+      "expectKeys": [
+        "/sync/coding-hermes/scheduler-state",
+        "/ops/backup-restore"
+      ],
+      "note": "Morphology case: 'snapshot' must also match the plural 'snapshots' (backup-restore); both memories are genuinely snapshot-related."
+    },
+    {
+      "id": 11,
+      "query": "prettier",
+      "expectKeys": ["/ops/format-gate"]
+    },
+    {
+      "id": 12,
+      "query": "vacuum",
+      "expectKeys": ["/ops/state-vacuum"],
+      "note": "Morphology case: 'vacuum' must match 'Vacuuming'."
+    },
+    {
+      "id": 13,
+      "query": "reciprocity",
+      "expectKeys": ["/concept/reciprocity"]
+    },
+    {
+      "id": 14,
+      "query": "worktree reap",
+      "expectKeys": ["/ops/worktree-hygiene"]
+    },
+    {
+      "id": 15,
+      "query": "xylophone",
+      "expectRefusal": true,
+      "note": "Absent-topic refusal: a real English word with no possible match in the corpus."
+    },
+    {
+      "id": 16,
+      "query": "qqqzzz",
+      "expectRefusal": true
+    },
+    {
+      "id": 17,
+      "query": "the and of",
+      "expectRefusal": true,
+      "note": "Stopword-only query: every token is an FTS stopword, so there is nothing to match; a correct surface refuses instead of returning the whole namespace."
+    },
+    {
+      "id": 18,
+      "query": "DF-9999-99",
+      "expectRefusal": true,
+      "note": "Well-formed but absent ticket id (digit-mapped tokens) must refuse."
+    },
+    {
+      "id": 19,
+      "query": "board census",
+      "expectKeys": ["/project/coding-hermes/board-census"],
+      "note": "Multi-token AND case: weekly-digest and jsonl-over-sqlite carry 'board' but not 'census'."
+    },
+    {
+      "id": 20,
+      "query": "namespace single-flight",
+      "expectKeys": ["/project/duckbrain/fts-sidecar"]
+    }
+  ]
+}
