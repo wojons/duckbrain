@@ -44,6 +44,7 @@ async function loadS3Cli(): Promise<typeof import("../s3/cli.js")> {
 }
 import { queryCommand } from "./query";
 import { consolidateCommand } from "./consolidate";
+import { recallMetricsCommand } from "./recall-metrics";
 import {
   connectToRemote,
   checkRemoteInstall,
@@ -2427,6 +2428,7 @@ export async function runHumanCLI(
     git: async (args: string[]) =>
       (await import("./git-identity.js")).runGitIdentityCLI(args),
     consolidate: consolidateCommand,
+    "recall-metrics": recallMetricsCommand,
     help: async () => showHelp(),
   };
 

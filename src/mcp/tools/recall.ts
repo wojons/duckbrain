@@ -48,6 +48,7 @@ import {
 } from "../../git/asof";
 import path from "path";
 import fs from "fs";
+import { recordRecallMetric } from "../../metrics/recall";
 
 /**
  * Input schema for recall tool
@@ -548,7 +549,7 @@ async function runSemanticLeg(opts: {
  *                  back to the DOGFOOD-025 ALS slot via resolveToolPrincipal
  * @returns Query results with memories and count
  */
-export async function recallTool(
+async function recallToolImpl(
   input: unknown,
   context: RecallContext = {},
 ): Promise<RecallOutput> {
@@ -1279,7 +1280,31 @@ export async function recallTool(
 }
 
 /**
- * Tool metadata for MCP registration
+ * MCP-side read telemetry. Recording is best effort: a metrics filesystem
+ * failure must never turn a successful recall into an MCP error.
+ */
+export async function recallTool(
+  input: unknown,
+  context: RecallContext = {},
+): Promise<RecallOutput> {
+  const result = await recallToolImpl(input, context);
+  try {
+    const namespace = result.namespace;
+    recordRecallMetric({
+      namespaces: namespace && namespace !== "all" ? [namespace] : [],
+      recordsReturned: result.memories.length,
+      completed: true,
+    });
+  } catch (error) {
+    console.error(
+      `[recall-metrics] unable to persist read metric: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  return result;
+}
+
+/**
+ * Tool metadata for recall tool
  */
 export const recallToolMetadata = {
   name: "recall",
