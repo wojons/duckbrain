@@ -20,6 +20,67 @@ const router: Router = Router();
 const GIT_LOG_TIMEOUT_MS = 5000;
 /** Bounded output: a chatty/looping log cannot grow the capture without limit. */
 const GIT_LOG_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+/** Maximum number of namespace author scans allowed to run concurrently. */
+const AUTHOR_SCAN_CONCURRENCY = 32;
+
+type AuthorNamespace = { path: string };
+type AuthorLookup = (namespacePath: string) => Promise<string[]>;
+
+interface AuthorAggregationOptions {
+  concurrency?: number;
+  getGitAuthors?: AuthorLookup;
+  getDbAuthors?: AuthorLookup;
+}
+
+/**
+ * Aggregate authors with a bounded worker pool.
+ *
+ * Each worker keeps the existing per-namespace ordering: it tries git first
+ * and queries DuckDB only when that namespace has no git authors. Git errors
+ * are treated as empty output so one failed repository still gets its
+ * namespace-local fallback.
+ */
+export async function collectAuthorsForNamespaces(
+  namespaces: AuthorNamespace[],
+  options: AuthorAggregationOptions = {},
+): Promise<string[]> {
+  const getGitAuthors = options.getGitAuthors ?? getAuthorsFromGit;
+  const getDbAuthors = options.getDbAuthors ?? getAuthorsFromDb;
+  const requestedConcurrency = options.concurrency ?? AUTHOR_SCAN_CONCURRENCY;
+  const workerCount = Math.min(
+    namespaces.length,
+    Math.max(1, Math.floor(requestedConcurrency)),
+  );
+  const allAuthors = new Set<string>();
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= namespaces.length) return;
+
+      const namespace = namespaces[index];
+      let gitAuthors: string[];
+      try {
+        gitAuthors = await getGitAuthors(namespace.path);
+      } catch {
+        gitAuthors = [];
+      }
+
+      const authors =
+        gitAuthors.length > 0 ? gitAuthors : await getDbAuthors(namespace.path);
+      for (const author of authors) {
+        allAuthors.add(author);
+      }
+    }
+  };
+
+  if (workerCount > 0) {
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  }
+
+  return [...allAuthors].sort();
+}
 
 /**
  * Extract unique authors from a git repository using git log.
@@ -152,27 +213,9 @@ router.get(
       return;
     }
 
-    const allAuthors = new Set<string>();
-
-    for (const ns of namespacesResult.namespaces) {
-      // Try git log first (commit history approach). OPS-007: async — the
-      // scan awaits each namespace in turn, so the event loop (and /health)
-      // stays free while a slow repo's `git log` runs.
-      const gitAuthors = await getAuthorsFromGit(ns.path);
-      if (gitAuthors.length > 0) {
-        for (const author of gitAuthors) {
-          allAuthors.add(author);
-        }
-      } else {
-        // Fallback: query DuckDB JSONL files for distinct authors
-        const dbAuthors = await getAuthorsFromDb(ns.path);
-        for (const author of dbAuthors) {
-          allAuthors.add(author);
-        }
-      }
-    }
-
-    const users = [...allAuthors].sort();
+    const users = await collectAuthorsForNamespaces(
+      namespacesResult.namespaces,
+    );
     res.json({ users, count: users.length });
   }),
 );
