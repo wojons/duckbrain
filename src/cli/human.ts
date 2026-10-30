@@ -45,6 +45,7 @@ async function loadS3Cli(): Promise<typeof import("../s3/cli.js")> {
 import { queryCommand } from "./query";
 import { consolidateCommand } from "./consolidate";
 import { recallMetricsCommand } from "./recall-metrics";
+import { distillSessionsCommand } from "./session-distiller";
 import {
   connectToRemote,
   checkRemoteInstall,
@@ -2334,6 +2335,7 @@ function showHelp(): void {
     servers            Manage server connections (list|add|remove)
     squash             Compact old partitions
     consolidate        Cross-namespace daily consolidation digest
+    distill-sessions   Nightly state.db session distiller (decisions/findings/open items)
     query              Read-only SQL over a namespace (SELECT ... or --template)
     s3                 Native S3 sync/query (status|sync|query|config)
     git                Git identity tools (repair-identity)
@@ -2429,6 +2431,7 @@ export async function runHumanCLI(
       (await import("./git-identity.js")).runGitIdentityCLI(args),
     consolidate: consolidateCommand,
     "recall-metrics": recallMetricsCommand,
+    "distill-sessions": distillSessionsCommand,
     help: async () => showHelp(),
   };
 

@@ -69,6 +69,7 @@ Commands:
   servers            Manage server connections (list|add|remove)
   squash             Compact old partitions
   consolidate        Cross-namespace daily consolidation digest
+  distill-sessions   Nightly state.db session distiller (decisions/findings/open items)
   recall-metrics     Roll up MCP-side recall metrics and check zero-day alerts
   query              Read-only SQL over a namespace (SELECT ... or --template)
   embeddings         Manage embedding cache (rebuild|status|install-hooks|providers)
@@ -459,6 +460,7 @@ async function main() {
       case "s3":
       case "consolidate":
       case "recall-metrics":
+      case "distill-sessions":
         await runHumanCLI(command, commandArgs);
         break;
 
