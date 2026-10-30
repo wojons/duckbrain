@@ -2954,3 +2954,56 @@ tasks:
     row/spec/test/evidence/commit.
   status: in_progress
   created_at: '2026-10-29T21:40:22.693899+00:00'
+- id: DF-2026-13
+  title: DF-2026-13 move test-count gate to generated manifest
+  criteria:
+  - Gate reads generated non-protected test-counts.json (AGENTS.md untouched); --check
+    asserts live vitest output vs manifest and fails on drift; CI step updated; green
+    --check proven on the commit; ch:trace row=DF-2026-13.
+  status: complete
+  created_at: '2026-10-30T00:40:40.564032+00:00'
+  completed_at: '2026-10-30T01:03:49.071165+00:00'
+  note: 'tier2 PASS verdict dir 55043021 (.gitreins/history/2026-10-30/55043021); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+- id: DF-2026-11
+  title: DF-2026-11 tolerate in-flight .tmp.jsonl in namespace leak-walk
+  criteria:
+  - Leak-walk tolerates in-flight *.tmp.jsonl without weakening the no-write-leaked
+    assertion; >=20 consecutive green runs of src/cli/namespace-env-df092604.test.ts;
+    leak assertion still fails on a real leak; ch:trace row=DF-2026-11 in the commit.
+  status: complete
+  created_at: '2026-10-30T00:40:39.740500+00:00'
+  completed_at: '2026-10-30T01:56:30.736816+00:00'
+  note: 'tier2 PASS verdict dir 761c8c9f (.gitreins/history/2026-10-30/761c8c9f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+- id: DF-2026-19
+  title: DF-2026-19 read-side recall counter + daily rollup + zero-day alert
+  criteria:
+  - Counter at MCP recall boundary (calls, non-empty packs, distinct namespaces, records
+    returned); daily rollup series with denominators; alert on a zero-non-empty-pack
+    day while daemon healthy, naming counter path + health signal; forced-empty day
+    alert proven in tests; ch:trace row=DF-2026-19.
+  status: complete
+  created_at: '2026-10-30T01:14:46.712034+00:00'
+  completed_at: '2026-10-30T01:56:30.736816+00:00'
+  note: 'tier2 PASS verdict dir 3786436f (.gitreins/history/2026-10-30/3786436f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+- id: DF-2026-17
+  title: DF-2026-17 recall quality benchmark + runner + scheduled run
+  criteria:
+  - Fixed 20-case recall benchmark (query->expected key or refusal) with the two live-verified
+    cases verbatim; runner reports every rate with its denominator; unanswered never
+    counts correct; scheduled run exits non-zero on misses; no product query-behavior
+    changes; ch:trace row=DF-2026-17.
+  status: complete
+  created_at: '2026-10-30T00:40:41.453067+00:00'
+  completed_at: '2026-10-30T01:56:30.736816+00:00'
+  note: 'tier2 PASS verdict dir ed0feed3 (.gitreins/history/2026-10-30/ed0feed3); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+- id: DF-2026-18
+  title: DF-2026-18 nightly session distiller
+  criteria:
+  - Distiller reads state.db sessions ended in window, writes bounded hash-keyed records
+    under /session/<date>/<session-id>/<n>; skips cron/system sessions; never stores
+    transcripts/prompts/secrets; dedupe by message hash (rerun writes zero); corrupt
+    session refused; fixture tests green; ch:trace row=DF-2026-18.
+  status: complete
+  created_at: '2026-10-30T00:40:42.511130+00:00'
+  completed_at: '2026-10-30T01:56:30.736816+00:00'
+  note: 'tier2 PASS verdict dir a38df962 (.gitreins/history/2026-10-30/a38df962); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
