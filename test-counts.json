@@ -1,0 +1,5 @@
+{
+  "suites": 243,
+  "tests": 2036,
+  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+}

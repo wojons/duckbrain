@@ -85,7 +85,10 @@ jobs:
       - name: Run tests
         run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
 
-      - name: Assert AGENTS.md test counts match live suite
+      # DF-2026-13: the count gate reads the generated, non-protected
+      # test-counts.json manifest — AGENTS.md is a protected agent-instruction
+      # file that unattended sessions cannot write.
+      - name: Assert test-counts.json matches live suite
         run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out
 
       - name: Assert config unchanged after tests
