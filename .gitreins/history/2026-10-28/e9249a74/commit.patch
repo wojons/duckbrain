@@ -1,0 +1,30 @@
+commit 5cc4d3f3771192a36fab500a4464c32bd41d635c
+Merge: ccd11168 a203d3ca
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Wed Oct 28 04:23:16 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Wed Oct 28 04:23:16 2026 -0500
+
+    merge: DB-GAP-065 namespaces prune + drift guard (wt/DB-GAP-065 a203d3ca)
+    
+    Worker commit from recovered tick duckbrain-foreman-2026-10-28-06-56-28:
+    src/namespaces/prune.ts plan/apply, 'duckbrain namespaces prune' CLI
+    (dry-run default, --apply, exit 0/1/2), crash-safe stamped updateConfig,
+    shared checkNamespacePathSafety, driftWarning on GET /api/namespaces,
+    tests (cli + http route), AGENTS.md count refresh. Merged tree gates:
+    tsc --noEmit + full vitest re-run by the foreman on THIS tree; judge
+    tier1+tier2 to follow under task DB-GAP-065.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ AGENTS.md                                          |   4 +-
+ src/cli/human.ts                                   |  18 +-
+ src/cli/namespaces-prune-dbgap065.test.ts          | 360 +++++++++++++++++++++
+ src/cli/namespaces-prune.ts                        | 129 ++++++++
+ src/config/index.ts                                | 108 ++++++-
+ .../namespaces-drift-warning-dbgap065.test.ts      | 186 +++++++++++
+ src/http/routes/namespaces.ts                      |  34 ++
+ src/http/types/api.ts                              |  15 +
+ src/namespaces/delete.ts                           |  59 +++-
+ src/namespaces/prune.ts                            | 215 ++++++++++++
+ 10 files changed, 1111 insertions(+), 17 deletions(-)

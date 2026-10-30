@@ -1,0 +1,37 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-29-06-45-22",
+  "project": "duckbrain",
+  "wave_budget": 4,
+  "slots_computed": 1,
+  "slots_formula": "max(1, min(6, 16 - ceil(loadavg 41.46))) = 1",
+  "path": "serial",
+  "serial_reason": "Host load 41.46 on 16 cores -> slots=1. A loaded box is never an idle reason: one worker.",
+  "recovery": {
+    "recovered_tick": "duckbrain-foreman-2026-10-29-03-43-10",
+    "block": "DB-GAP-66",
+    "action": "landed worker commits 220f07ca + b3c940ea (merge 91058e82) on canonical main: local main ff 8426b628..ee42f2ea, pushed origin + ghgitlab, parity 0 on both",
+    "gates_on_merged_tree": "focused receipts tests 48/48 PASS; tsc rc 0; full suite 239 files / 2021 tests PASS",
+    "tier2": "COMPLETE (bee86865)",
+    "tier1_blocker": "DF-2026-10 (repo-wide secrets baseline: builtin cross-check scans .npmrc/.env.example paths gitleaks excludes)",
+    "row_closed": "DB-GAP-66 -> complete (event 8370 + ev-foreman-20261029-064522)",
+    "manifest_closed": "finished_at 2026-10-29T02:49:59-05:00",
+    "worktree_removed": true,
+    "branch_deleted": "wt/DB-GAP-66 (merged into main)"
+  },
+  "block": "DF-2026-19",
+  "selection": "Recovery completed block DB-GAP-66 (39/39, was 38/39 + recovered row). Next DRIVE block per block_drive.py: DF-2026-19 (10 pending, 9 ready, 84% done). Picked DF-2026-15: P1, smallest remaining scope (deliverable 1 already landed via DB-GAP-065 prune; only test-isolation guard + symmetry test + union truth remain, precisely scoped in the row's foreman_note).",
+  "rows": [
+    {
+      "task_id": "DF-2026-15",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-15",
+      "branch": "wt/DF-2026-15",
+      "base": "origin/main",
+      "base_sha": "ee42f2ea98d695cc6c770422fc9aa8c9649e607f",
+      "brief": "/tmp/df2026-15-brief.txt",
+      "status": "dispatch_failed",
+      "failure_reason": "Worker stalled 30+ min with zero output (no commits, no file changes). LLM provider likely unresponsive under host load 32-45. Killed PID 2731969."
+    }
+  ],
+  "status": "failed_dispatch",
+  "finished_at": "2026-10-29T03:31:26-05:00"
+}

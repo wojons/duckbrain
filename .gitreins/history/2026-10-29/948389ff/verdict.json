@@ -1,0 +1,110 @@
+{
+  "task_id": "INT-CI-033",
+  "task_title": "Verify CI test count assertion",
+  "task_criteria": [
+    "CI green with 242 suites and 2027 tests"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "7f6099e3fb3098ecfb0f3c28c271e74477d8bb64",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n3:33PM INF scanned ~22448587 bytes (22.45 MB) in 3.44s\n3:33PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T140327.364258Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  242 passed (242)\n      Tests  2027 passed (2027)\n   Start at  15:33:46\n   Duration  77.97s (tests 81%, import 16%, transform 1%, setup 1%, worker 1%)\n\n    Isolate  242 workers spawned \u00b7 ~93ms startup each (spawn + environment, per file)\n             at least ~5.55s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T140327.364258Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 CI green with 242 suites and 2027 tests: Fresh run of the configured test command (`npx vitest run`, per .gitreins/config.yaml guards.test_command) in /home/kara/duckbrain produced: 'Test Files  242 passed (242)' / 'Tests  2027 passed (2027)', Duration 63.73s, zero failures. The CI gate step at .github/workflows/ci.yml:88 ('Assert AGENTS.md test counts match live suite') was reproduced: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval.out` -> 'AGENTS.md test counts match live suite (242 suites, 2027 tests)', exit=0. AGENTS.md:14 reads '(242 suites, 2027 tests)' and AGENTS.md:33 reads '# 2027 tests, 242 suites', matching the live counts (synced in commit 7f6099e3, which fixed the prior 239/2021 drift). Corroborating artifacts /tmp/vitest.out, /tmp/vitest-INT-CI-033.out, -cisim.out and -verify.out all report 242/2027 passed with 'Exit code: 0'.\nFresh full-suite run and the CI count-assertion script both confirm 242 suites / 2027 tests passing with AGENTS.md in sync, so the criterion is met.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 CI green with 242 suites and 2027 tests: Fresh run of the configured test command (`npx vitest run`, per .gitreins/config.yaml guards.test_command) in /home/kara/duckbrain produced: 'Test Files  242 passed (242)' / 'Tests  2027 passed (2027)', Duration 63.73s, zero failures. The CI gate step at .github/workflows/ci.yml:88 ('Assert AGENTS.md test counts match live suite') was reproduced: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval.out` -> 'AGENTS.md test counts match live suite (242 suites, 2027 tests)', exit=0. AGENTS.md:14 reads '(242 suites, 2027 tests)' and AGENTS.md:33 reads '# 2027 tests, 242 suites', matching the live counts (synced in commit 7f6099e3, which fixed the prior 239/2021 drift). Corroborating artifacts /tmp/vitest.out, /tmp/vitest-INT-CI-033.out, -cisim.out and -verify.out all report 242/2027 passed with 'Exit code: 0'.\nFresh full-suite run and the CI count-assertion script both confirm 242 suites / 2027 tests passing with AGENTS.md in sync, so the criterion is met.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "CI green with 242 suites and 2027 tests",
+                "status": "PASS",
+                "detail": "Fresh run of the configured test command (`npx vitest run`, per .gitreins/config.yaml guards.test_command) in /home/kara/duckbrain produced: 'Test Files  242 passed (242)' / 'Tests  2027 passed (2027)', Duration 63.73s, zero failures. The CI gate step at .github/workflows/ci.yml:88 ('Assert AGENTS.md test counts match live suite') was reproduced: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval.out` -> 'AGENTS.md test counts match live suite (242 suites, 2027 tests)', exit=0. AGENTS.md:14 reads '(242 suites, 2027 tests)' and AGENTS.md:33 reads '# 2027 tests, 242 suites', matching the live counts (synced in commit 7f6099e3, which fixed the prior 239/2021 drift). Corroborating artifacts /tmp/vitest.out, /tmp/vitest-INT-CI-033.out, -cisim.out and -verify.out all report 242/2027 passed with 'Exit code: 0'.",
+                "resolution_probability": 0.07
+              }
+            ],
+            "summary": "Fresh full-suite run and the CI count-assertion script both confirm 242 suites / 2027 tests passing with AGENTS.md in sync, so the criterion is met.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: INT-CI-033\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 CI green with 242 suites and 2027 tests: Fresh run of the configured test command (`npx vitest run`, per .gitreins/config.yaml guards.test_command) in /home/kara/duckbrain produced: 'Test Files  242 passed (242)' / 'Tests  2027 passed (2027)', Duration 63.73s, zero failures. The CI gate step at .github/workflows/ci.yml:88 ('Assert AGENTS.md test counts match live suite') was reproduced: `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_eval.out` -> 'AGENTS.md test counts match live suite (242 suites, 2027 tests)', exit=0. AGENTS.md:14 reads '(242 suites, 2027 tests)' and AGENTS.md:33 reads '# 2027 tests, 242 suites', matching the live counts (synced in commit 7f6099e3, which fixed the prior 239/2021 drift). Corroborating artifacts /tmp/vitest.out, /tmp/vitest-INT-CI-033.out, -cisim.out and -verify.out all report 242/2027 passed with 'Exit code: 0'.\nFresh full-suite run and the CI count-assertion script both confirm 242 suites / 2027 tests passing with AGENTS.md in sync, so the criterion is met.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-29T20:38:42.700367",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-29T20:38:42.719258+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2990,
+        "truncated": false,
+        "source": "git show 7f6099e3fb30"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 973,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-033"
+  }
+}

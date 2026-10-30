@@ -1,0 +1,75 @@
+{
+  "task_id": "DB-GAP-66",
+  "task_title": "Session activity receipt store",
+  "task_criteria": [
+    "Implement DB-GAP-66 acceptance criteria: idempotent receipt ingestion and quarantine on conflicting reuse; bounded closed receipt shape with safe opaque refs only and no prompts/transcripts/tool args/results/paths; honest counter availability and measurement; claim-boundary field; live queries for skill exposure versus activation and session counters with coverage. Add tests and verify the live ingest/query path."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "5a0fe09ab2a3f757d89bc5c5d6c8baf48c15c43b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n8:12AM INF scanned ~22427285 bytes (22.43 MB) in 4.49s\n8:12AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T104500.175254Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n \u276f src/git/autocommit-supapair.test.ts (3 tests | 1 failed) 5058ms\n   \u276f DF-0925-02 AC-1 burst pairing (1)\n     \u00d7 30 writes at 25 writes/s: every commit's audit delta covers its data delta 1810ms\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-supapair.test.ts > DF-0925-02 AC-1 burst pairing > 30 writes at 25 writes/s: every commit's audit delta covers its data delta\nAssertionError: expected 2 to be greater than or equal to 3\n \u276f src/git/autocommit-supapair.test.ts:430:28\n    428|     const census = pairCensus(nsPath);\n    429|     // Multiple commits prove the burst crossed several commit boundar\u2026\n    430|     expect(census.commits).toBeGreaterThanOrEqual(3);\n       |                            ^\n    431|     expect(census.totalDataIds).toBe(30);\n    432|     expect(census.totalAuditIds).toBe(30);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 241 passed (242)\n      Tests  1 failed | 2026 passed (2027)\n   Start at  08:12:22\n   Duration  71.12s (tests 80%, import 18%, setup 1%, transform 1%, worker 1%)\n\n    Isolate  242 workers spawned \u00b7 ~90ms startup each (spawn + environment, per file)\n             at least ~5.34s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T104500.175254Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    }
+  },
+  "summary": "Judge Result: DB-GAP-66\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-29T13:13:33.656355",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-29T13:13:33.703939+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 66469,
+        "truncated": false,
+        "source": "git show 5a0fe09ab2a3"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 734,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-66"
+  }
+}

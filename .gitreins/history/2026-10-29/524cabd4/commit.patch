@@ -1,0 +1,34 @@
+commit 03238e4db070a1d4a9957cd398ff6afed0831ce1
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 29 05:44:03 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 29 05:44:03 2026 -0500
+
+    fix(DF-2026-10): make gitleaks scope regression test CommonJS-safe
+    
+    Closes DF-2026-10
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/test/gitleaks-scope.test.ts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/test/gitleaks-scope.test.ts b/src/test/gitleaks-scope.test.ts
+index 48369d83..b1647ff1 100644
+--- a/src/test/gitleaks-scope.test.ts
++++ b/src/test/gitleaks-scope.test.ts
+@@ -1,11 +1,11 @@
+ import { readFileSync } from "node:fs";
+-import { resolve } from "node:path";
++import path from "node:path";
+ import { describe, expect, it } from "vitest";
+ 
+-const repoRoot = resolve(import.meta.dirname, "../..");
++const repoRoot = path.resolve(__dirname, "../..");
+ 
+ function allowlistPathPatterns(): string[] {
+-  const config = readFileSync(resolve(repoRoot, ".gitleaks.toml"), "utf8");
++  const config = readFileSync(path.resolve(repoRoot, ".gitleaks.toml"), "utf8");
+   const pathsBlock = config.match(/paths\s*=\s*\[(.*?)\]/s)?.[1];
+   if (!pathsBlock) {
+     throw new Error(".gitleaks.toml is missing [allowlist].paths");

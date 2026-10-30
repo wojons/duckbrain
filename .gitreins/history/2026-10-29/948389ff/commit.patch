@@ -1,0 +1,66 @@
+commit 7f6099e3fb3098ecfb0f3c28c271e74477d8bb64
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Oct 29 10:15:10 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Oct 29 15:32:26 2026 -0500
+
+    fix: resolve INT-CI-033 CI test-count drift
+    
+    AGENTS.md documented 239 suites / 2021 tests while the live suite reports
+    242 suites / 2027 tests. The docs literal was never re-synced after the
+    recovered wave merged new test files, so every CI run since 10:38Z failed
+    at the "Assert AGENTS.md test counts match live suite" step only
+    (40859204988, 40891020172, 40897321388 — job "test", step failure; product
+    test/build steps were green).
+    
+    Counts synced through the sanctioned single extraction path, never hand-typed:
+    
+      bash scripts/sync-agents-md-counts.sh /tmp/vitest-INT-CI-033.out
+      -> AGENTS.md synced to live suite: 242 suites, 2027 tests
+      bash scripts/sync-agents-md-counts.sh --check /tmp/vitest-INT-CI-033.out
+      -> AGENTS.md test counts match live suite (242 suites, 2027 tests)
+    
+    Evidence: local full suite in this worktree at origin/main 327805b8
+    (CI=true vm run, 77s) -> Test Files 242 passed (242), Tests 2027 passed
+    (2027), zero failures; identical to the live CI totals (242/2027) in runs
+    40860007523, 40862537937, 40889751826, 40891020172, 40897321388. The board
+    row's 2028 was a pre-merge reading (run 40859204988 still had 241/2026).
+    
+    Row AC-3 (make the verifier tolerant: range or dynamic baseline) is
+    DECLINED deliberately: scripts/sync-agents-md-counts.sh is not brittle — it
+    reported the exact live pair and the drift is real. Loosening the equality
+    would let tests disappear without a red, which is the failure class the gate
+    was created for after four earlier hand-typed drifts (GAP-006, GAP-008,
+    GAP-012, CI-005). Only the docs literals change; no test logic is touched.
+    
+    Docs-only change; node scripts/docs-check.js OK (README + 49 docs files).
+    
+    Addresses INT-CI-033.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ AGENTS.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 9e299602..a2c3a23d 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -11,7 +11,7 @@ web access, and supports namespace management for memory isolation.
+ - **Language:** TypeScript 7.x (strict mode)
+ - **Runtime:** Node.js 22+
+ - **Database:** DuckDB (via node-duckdb)
+-- **Test Framework:** Vitest (239 suites, 2021 tests)
++- **Test Framework:** Vitest (242 suites, 2027 tests)
+ - **Build:** Vite (frontend), tsc (backend)
+ - **Package Manager:** pnpm 11+
+ 
+@@ -30,7 +30,7 @@ web access, and supports namespace management for memory isolation.
+ ```bash
+ pnpm install
+ pnpm build
+-pnpm test          # 2021 tests, 239 suites
++pnpm test          # 2027 tests, 242 suites
+ pnpm tsc --noEmit  # TypeScript check
+ ```
+ 

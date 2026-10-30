@@ -2945,3 +2945,12 @@ tasks:
   status: complete
   created_at: '2026-10-29T18:01:29.358495+00:00'
   completed_at: '2026-10-29T20:33:44.859718+00:00'
+- id: PERF-014
+  title: Bound /users author aggregation concurrency
+  criteria:
+  - Implement bounded concurrency only in the /users author aggregation path; preserve
+    grants, timeouts, DuckDB fallback, deterministic sorted users, error semantics;
+    add focused tests and exact harness before/after evidence; include traceability
+    row/spec/test/evidence/commit.
+  status: in_progress
+  created_at: '2026-10-29T21:40:22.693899+00:00'

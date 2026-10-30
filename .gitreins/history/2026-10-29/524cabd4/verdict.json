@@ -1,0 +1,111 @@
+{
+  "task_id": "DF-2026-10",
+  "task_title": "Fix DF-2026-10 scope regression test",
+  "task_criteria": [
+    "The DF-2026-10 gitleaks scope regression test must pass against the committed .gitleaks.toml and prove .gitreins is allowlisted without broadening source exemptions"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "03238e4db070a1d4a9957cd398ff6afed0831ce1",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n5:45AM INF scanned ~22164509 bytes (22.16 MB) in 4.49s\n5:45AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T104500.175254Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  242 passed (242)\n      Tests  2027 passed (2027)\n   Start at  05:45:21\n   Duration  83.55s (tests 81%, import 16%, transform 2%, setup 1%)\n\n    Isolate  242 workers spawned \u00b7 ~98ms startup each (spawn + environment, per file)\n             at least ~5.83s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261029T104500.175254Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 The DF-2026-10 gitleaks scope regression test must pass against the committed .gitleaks.toml and prove .gitreins is allowlisted without broadening source exemptions: Ran `npx vitest run src/test/gitleaks-scope.test.ts` (config test_command is `npx vitest run`) \u2192 exit_code 0, output: 'Test Files 1 passed (1) / Tests 1 passed (1)'. Also ran `npx vitest run src/test/` \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 14 passed (14)'. The test (src/test/gitleaks-scope.test.ts:18-27) parses the committed .gitleaks.toml [allowlist].paths block, asserts `harnessPattern` toBe \"\\\\.gitreins/.*\", asserts the regex matches '.gitreins/history/verdict.json' and '.gitreins/logs/guard.log' (true), and asserts it does NOT match 'src/index.ts' and 'src/git-reins.ts' (false) \u2014 i.e. allowlisting is scoped to .gitreins and does not broaden source exemptions. Independently reproduced against HEAD's config: patterns = [tests/.*, \\.test\\., \\.spec\\., \\.md$, docs/.*, examples/.*, fixtures/.*, \\.opencode/.*, namespaces/.*, \\.gitreins/.*, \\.gitleaks\\.toml, \\.pre-commit-config\\.yaml]; regex \\.gitreins/.* \u2192 .gitreins/history/verdict.json true, .gitreins/logs/guard.log true, src/index.ts false, src/git-reins.ts false, src/gitreins.ts false, src/secret.ts false. Commit 44339dbe added exactly one line '''\\.gitreins/.*''' to .gitleaks.toml with no other path changes (git diff 44339dbe^ 44339dbe confirms 1 insertion). Working tree .gitleaks.toml is identical to HEAD (git diff HEAD -- .gitleaks.toml empty), so the test runs against the committed config. Test is wired into the default suite via vitest.config.ts:7 `include: [\"src/**/*.test.ts\"]`. Commit 03238e4d made the test CommonJS-safe (import.meta.dirname \u2192 __dirname), which is why it now passes. [resolution 0.06; .gitleaks.toml]\nThe DF-2026-10 gitleaks scope regression test passes (1/1, exit 0) against the committed .gitleaks.toml and asserts .gitreins/.* is allowlisted while src paths remain in scope, with the config change limited to a single added path.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 The DF-2026-10 gitleaks scope regression test must pass against the committed .gitleaks.toml and prove .gitreins is allowlisted without broadening source exemptions: Ran `npx vitest run src/test/gitleaks-scope.test.ts` (config test_command is `npx vitest run`) \u2192 exit_code 0, output: 'Test Files 1 passed (1) / Tests 1 passed (1)'. Also ran `npx vitest run src/test/` \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 14 passed (14)'. The test (src/test/gitleaks-scope.test.ts:18-27) parses the committed .gitleaks.toml [allowlist].paths block, asserts `harnessPattern` toBe \"\\\\.gitreins/.*\", asserts the regex matches '.gitreins/history/verdict.json' and '.gitreins/logs/guard.log' (true), and asserts it does NOT match 'src/index.ts' and 'src/git-reins.ts' (false) \u2014 i.e. allowlisting is scoped to .gitreins and does not broaden source exemptions. Independently reproduced against HEAD's config: patterns = [tests/.*, \\.test\\., \\.spec\\., \\.md$, docs/.*, examples/.*, fixtures/.*, \\.opencode/.*, namespaces/.*, \\.gitreins/.*, \\.gitleaks\\.toml, \\.pre-commit-config\\.yaml]; regex \\.gitreins/.* \u2192 .gitreins/history/verdict.json true, .gitreins/logs/guard.log true, src/index.ts false, src/git-reins.ts false, src/gitreins.ts false, src/secret.ts false. Commit 44339dbe added exactly one line '''\\.gitreins/.*''' to .gitleaks.toml with no other path changes (git diff 44339dbe^ 44339dbe confirms 1 insertion). Working tree .gitleaks.toml is identical to HEAD (git diff HEAD -- .gitleaks.toml empty), so the test runs against the committed config. Test is wired into the default suite via vitest.config.ts:7 `include: [\"src/**/*.test.ts\"]`. Commit 03238e4d made the test CommonJS-safe (import.meta.dirname \u2192 __dirname), which is why it now passes. [resolution 0.06; .gitleaks.toml]\nThe DF-2026-10 gitleaks scope regression test passes (1/1, exit 0) against the committed .gitleaks.toml and asserts .gitreins/.* is allowlisted while src paths remain in scope, with the config change limited to a single added path.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "The DF-2026-10 gitleaks scope regression test must pass against the committed .gitleaks.toml and prove .gitreins is allowlisted without broadening source exemptions",
+                "status": "PASS",
+                "detail": "Ran `npx vitest run src/test/gitleaks-scope.test.ts` (config test_command is `npx vitest run`) \u2192 exit_code 0, output: 'Test Files 1 passed (1) / Tests 1 passed (1)'. Also ran `npx vitest run src/test/` \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 14 passed (14)'. The test (src/test/gitleaks-scope.test.ts:18-27) parses the committed .gitleaks.toml [allowlist].paths block, asserts `harnessPattern` toBe \"\\\\.gitreins/.*\", asserts the regex matches '.gitreins/history/verdict.json' and '.gitreins/logs/guard.log' (true), and asserts it does NOT match 'src/index.ts' and 'src/git-reins.ts' (false) \u2014 i.e. allowlisting is scoped to .gitreins and does not broaden source exemptions. Independently reproduced against HEAD's config: patterns = [tests/.*, \\.test\\., \\.spec\\., \\.md$, docs/.*, examples/.*, fixtures/.*, \\.opencode/.*, namespaces/.*, \\.gitreins/.*, \\.gitleaks\\.toml, \\.pre-commit-config\\.yaml]; regex \\.gitreins/.* \u2192 .gitreins/history/verdict.json true, .gitreins/logs/guard.log true, src/index.ts false, src/git-reins.ts false, src/gitreins.ts false, src/secret.ts false. Commit 44339dbe added exactly one line '''\\.gitreins/.*''' to .gitleaks.toml with no other path changes (git diff 44339dbe^ 44339dbe confirms 1 insertion). Working tree .gitleaks.toml is identical to HEAD (git diff HEAD -- .gitleaks.toml empty), so the test runs against the committed config. Test is wired into the default suite via vitest.config.ts:7 `include: [\"src/**/*.test.ts\"]`. Commit 03238e4d made the test CommonJS-safe (import.meta.dirname \u2192 __dirname), which is why it now passes. [resolution 0.06; .gitleaks.toml]",
+                "resolution_probability": 0.06,
+                "cited_path": ".gitleaks.toml"
+              }
+            ],
+            "summary": "The DF-2026-10 gitleaks scope regression test passes (1/1, exit 0) against the committed .gitleaks.toml and asserts .gitreins/.* is allowlisted while src paths remain in scope, with the config change limited to a single added path.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-10\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 The DF-2026-10 gitleaks scope regression test must pass against the committed .gitleaks.toml and prove .gitreins is allowlisted without broadening source exemptions: Ran `npx vitest run src/test/gitleaks-scope.test.ts` (config test_command is `npx vitest run`) \u2192 exit_code 0, output: 'Test Files 1 passed (1) / Tests 1 passed (1)'. Also ran `npx vitest run src/test/` \u2192 exit_code 0, 'Test Files 3 passed (3) / Tests 14 passed (14)'. The test (src/test/gitleaks-scope.test.ts:18-27) parses the committed .gitleaks.toml [allowlist].paths block, asserts `harnessPattern` toBe \"\\\\.gitreins/.*\", asserts the regex matches '.gitreins/history/verdict.json' and '.gitreins/logs/guard.log' (true), and asserts it does NOT match 'src/index.ts' and 'src/git-reins.ts' (false) \u2014 i.e. allowlisting is scoped to .gitreins and does not broaden source exemptions. Independently reproduced against HEAD's config: patterns = [tests/.*, \\.test\\., \\.spec\\., \\.md$, docs/.*, examples/.*, fixtures/.*, \\.opencode/.*, namespaces/.*, \\.gitreins/.*, \\.gitleaks\\.toml, \\.pre-commit-config\\.yaml]; regex \\.gitreins/.* \u2192 .gitreins/history/verdict.json true, .gitreins/logs/guard.log true, src/index.ts false, src/git-reins.ts false, src/gitreins.ts false, src/secret.ts false. Commit 44339dbe added exactly one line '''\\.gitreins/.*''' to .gitleaks.toml with no other path changes (git diff 44339dbe^ 44339dbe confirms 1 insertion). Working tree .gitleaks.toml is identical to HEAD (git diff HEAD -- .gitleaks.toml empty), so the test runs against the committed config. Test is wired into the default suite via vitest.config.ts:7 `include: [\"src/**/*.test.ts\"]`. Commit 03238e4d made the test CommonJS-safe (import.meta.dirname \u2192 __dirname), which is why it now passes. [resolution 0.06; .gitleaks.toml]\nThe DF-2026-10 gitleaks scope regression test passes (1/1, exit 0) against the committed .gitleaks.toml and asserts .gitreins/.* is allowlisted while src paths remain in scope, with the config change limited to a single added path.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-29T10:48:20.137620",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-29T10:48:20.151800+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1379,
+        "truncated": false,
+        "source": "git show 03238e4db070"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 670,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-10"
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "task_id": "DB-GAP-065",
+  "task_title": "duckbrain namespaces prune + drift guard",
+  "task_criteria": [
+    "AC-1..AC-6 in brief: prune CLI with --dry-run default + --apply, idempotent crash-safe, path-safety reuse, tests, drift guard on GET /api/namespaces, evidence reported"
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "foreman/duckbrain-2026-10-27-21-25-08",
+  "commit": "5cc4d3f3771192a36fab500a4464c32bd41d635c",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:27AM INF scanned ~29538547 bytes (29.54 MB) in 4.91s\n4:27AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 6 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-AfMjCQ/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.stryker-tmp/sandbox-Opzn87/.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 6 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n\n Test Files  237 passed (237)\n      Tests  1973 passed (1973)\n   Start at  04:26:59\n   Duration  81.96s (tests 78%, import 20%, worker 1%, transform 1%, setup 1%)\n\n    Isolate  237 workers spawned \u00b7 ~118ms startup each (spawn + environment, per file)\n             at least ~6.90s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261027T223545.121735Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 AC-1..AC-6 in brief: prune CLI with --dry-run default + --apply, idempotent crash-safe, path-safety reuse, tests, drift guard on GET /api/namespaces, evidence reported: Implementation and tests are solid, but the final AC \u2014 'evidence reported' \u2014 is unmet. Verified present: (a) prune CLI with dry-run default \u2014 src/cli/human.ts:1071-1081 dispatches `cmd === \"prune\"` with `dryRun = flags[\"dry-run\"] !== undefined || flags.apply === undefined` (dry-run wins), usage text at human.ts:974-977, report/exit-code logic in src/cli/namespaces-prune.ts:52-130; (b) --apply exact removal set + idempotency \u2014 src/namespaces/prune.ts applyNamespacePrune() returns early with no write when plan.dead is empty, otherwise one updateConfig({expectedStamp, fsync:true}) write plus a defensive removal-set consistency check; (c) crash safety \u2014 src/config/index.ts:816-850 stamp guard + tmp/fsync/rename; (d) path-safety reuse \u2014 prune.ts imports checkNamespacePathSafety from ./delete (delete.ts:76), the same guard deleteNamespace uses at delete.ts:153; (e) drift guard \u2014 src/http/routes/namespaces.ts:144-176 emits driftWarning {deadCount, liveCount, hint: \"run 'duckbrain namespaces prune --apply'\"} at >=25 dead or dead > 2x live, typed at src/http/types/api.ts:324; (f) tests \u2014 `npx vitest run src/cli/namespaces-prune-dbgap065.test.ts src/http/routes/namespaces-drift-warning-dbgap065.test.ts` exit_code 0, 'Test Files 2 passed (2) / Tests 13 passed (13)'; broader `npx vitest run src/namespaces src/cli` exit_code 0, '54 passed (54) / 432 passed (432)'; `npx tsc --noEmit -p tsconfig.json` exit_code 0 with no output. MISSING: no evidence/report artifact exists \u2014 `grep -rn \"namespaces prune\" docs/` returns 0 hits, docs/guide/cli-reference.md:297-320 lists namespace verbs (create/list/use/set-remote/delete-disk/clear-s3) but omits `prune`, docs/api/http-api.md documents neither `drift` nor `driftWarning`, CHANGELOG.md has no DB-GAP-065 entry, and reports/ contains no DB-GAP-065 report; the only recorded change is the tasks.yaml status flip to complete. The 'evidence reported' acceptance criterion is therefore not satisfied.\nPrune CLI (dry-run default/--apply), idempotent crash-safe apply, path-safety reuse, drift guard, and 13 passing tests are all implemented and green, but the 'evidence reported' AC is unmet \u2014 no docs, changelog, or report artifact documents the new verb or the driftWarning field.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 AC-1..AC-6 in brief: prune CLI with --dry-run default + --apply, idempotent crash-safe, path-safety reuse, tests, drift guard on GET /api/namespaces, evidence reported: Implementation and tests are solid, but the final AC \u2014 'evidence reported' \u2014 is unmet. Verified present: (a) prune CLI with dry-run default \u2014 src/cli/human.ts:1071-1081 dispatches `cmd === \"prune\"` with `dryRun = flags[\"dry-run\"] !== undefined || flags.apply === undefined` (dry-run wins), usage text at human.ts:974-977, report/exit-code logic in src/cli/namespaces-prune.ts:52-130; (b) --apply exact removal set + idempotency \u2014 src/namespaces/prune.ts applyNamespacePrune() returns early with no write when plan.dead is empty, otherwise one updateConfig({expectedStamp, fsync:true}) write plus a defensive removal-set consistency check; (c) crash safety \u2014 src/config/index.ts:816-850 stamp guard + tmp/fsync/rename; (d) path-safety reuse \u2014 prune.ts imports checkNamespacePathSafety from ./delete (delete.ts:76), the same guard deleteNamespace uses at delete.ts:153; (e) drift guard \u2014 src/http/routes/namespaces.ts:144-176 emits driftWarning {deadCount, liveCount, hint: \"run 'duckbrain namespaces prune --apply'\"} at >=25 dead or dead > 2x live, typed at src/http/types/api.ts:324; (f) tests \u2014 `npx vitest run src/cli/namespaces-prune-dbgap065.test.ts src/http/routes/namespaces-drift-warning-dbgap065.test.ts` exit_code 0, 'Test Files 2 passed (2) / Tests 13 passed (13)'; broader `npx vitest run src/namespaces src/cli` exit_code 0, '54 passed (54) / 432 passed (432)'; `npx tsc --noEmit -p tsconfig.json` exit_code 0 with no output. MISSING: no evidence/report artifact exists \u2014 `grep -rn \"namespaces prune\" docs/` returns 0 hits, docs/guide/cli-reference.md:297-320 lists namespace verbs (create/list/use/set-remote/delete-disk/clear-s3) but omits `prune`, docs/api/http-api.md documents neither `drift` nor `driftWarning`, CHANGELOG.md has no DB-GAP-065 entry, and reports/ contains no DB-GAP-065 report; the only recorded change is the tasks.yaml status flip to complete. The 'evidence reported' acceptance criterion is therefore not satisfied.\nPrune CLI (dry-run default/--apply), idempotent crash-safe apply, path-safety reuse, drift guard, and 13 passing tests are all implemented and green, but the 'evidence reported' AC is unmet \u2014 no docs, changelog, or report artifact documents the new verb or the driftWarning field.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "AC-1..AC-6 in brief: prune CLI with --dry-run default + --apply, idempotent crash-safe, path-safety reuse, tests, drift guard on GET /api/namespaces, evidence reported",
+                "status": "FAIL",
+                "detail": "Implementation and tests are solid, but the final AC \u2014 'evidence reported' \u2014 is unmet. Verified present: (a) prune CLI with dry-run default \u2014 src/cli/human.ts:1071-1081 dispatches `cmd === \"prune\"` with `dryRun = flags[\"dry-run\"] !== undefined || flags.apply === undefined` (dry-run wins), usage text at human.ts:974-977, report/exit-code logic in src/cli/namespaces-prune.ts:52-130; (b) --apply exact removal set + idempotency \u2014 src/namespaces/prune.ts applyNamespacePrune() returns early with no write when plan.dead is empty, otherwise one updateConfig({expectedStamp, fsync:true}) write plus a defensive removal-set consistency check; (c) crash safety \u2014 src/config/index.ts:816-850 stamp guard + tmp/fsync/rename; (d) path-safety reuse \u2014 prune.ts imports checkNamespacePathSafety from ./delete (delete.ts:76), the same guard deleteNamespace uses at delete.ts:153; (e) drift guard \u2014 src/http/routes/namespaces.ts:144-176 emits driftWarning {deadCount, liveCount, hint: \"run 'duckbrain namespaces prune --apply'\"} at >=25 dead or dead > 2x live, typed at src/http/types/api.ts:324; (f) tests \u2014 `npx vitest run src/cli/namespaces-prune-dbgap065.test.ts src/http/routes/namespaces-drift-warning-dbgap065.test.ts` exit_code 0, 'Test Files 2 passed (2) / Tests 13 passed (13)'; broader `npx vitest run src/namespaces src/cli` exit_code 0, '54 passed (54) / 432 passed (432)'; `npx tsc --noEmit -p tsconfig.json` exit_code 0 with no output. MISSING: no evidence/report artifact exists \u2014 `grep -rn \"namespaces prune\" docs/` returns 0 hits, docs/guide/cli-reference.md:297-320 lists namespace verbs (create/list/use/set-remote/delete-disk/clear-s3) but omits `prune`, docs/api/http-api.md documents neither `drift` nor `driftWarning`, CHANGELOG.md has no DB-GAP-065 entry, and reports/ contains no DB-GAP-065 report; the only recorded change is the tasks.yaml status flip to complete. The 'evidence reported' acceptance criterion is therefore not satisfied.",
+                "resolution_probability": 0.06
+              }
+            ],
+            "summary": "Prune CLI (dry-run default/--apply), idempotent crash-safe apply, path-safety reuse, drift guard, and 13 passing tests are all implemented and green, but the 'evidence reported' AC is unmet \u2014 no docs, changelog, or report artifact documents the new verb or the driftWarning field.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DB-GAP-065\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 AC-1..AC-6 in brief: prune CLI with --dry-run default + --apply, idempotent crash-safe, path-safety reuse, tests, drift guard on GET /api/namespaces, evidence reported: Implementation and tests are solid, but the final AC \u2014 'evidence reported' \u2014 is unmet. Verified present: (a) prune CLI with dry-run default \u2014 src/cli/human.ts:1071-1081 dispatches `cmd === \"prune\"` with `dryRun = flags[\"dry-run\"] !== undefined || flags.apply === undefined` (dry-run wins), usage text at human.ts:974-977, report/exit-code logic in src/cli/namespaces-prune.ts:52-130; (b) --apply exact removal set + idempotency \u2014 src/namespaces/prune.ts applyNamespacePrune() returns early with no write when plan.dead is empty, otherwise one updateConfig({expectedStamp, fsync:true}) write plus a defensive removal-set consistency check; (c) crash safety \u2014 src/config/index.ts:816-850 stamp guard + tmp/fsync/rename; (d) path-safety reuse \u2014 prune.ts imports checkNamespacePathSafety from ./delete (delete.ts:76), the same guard deleteNamespace uses at delete.ts:153; (e) drift guard \u2014 src/http/routes/namespaces.ts:144-176 emits driftWarning {deadCount, liveCount, hint: \"run 'duckbrain namespaces prune --apply'\"} at >=25 dead or dead > 2x live, typed at src/http/types/api.ts:324; (f) tests \u2014 `npx vitest run src/cli/namespaces-prune-dbgap065.test.ts src/http/routes/namespaces-drift-warning-dbgap065.test.ts` exit_code 0, 'Test Files 2 passed (2) / Tests 13 passed (13)'; broader `npx vitest run src/namespaces src/cli` exit_code 0, '54 passed (54) / 432 passed (432)'; `npx tsc --noEmit -p tsconfig.json` exit_code 0 with no output. MISSING: no evidence/report artifact exists \u2014 `grep -rn \"namespaces prune\" docs/` returns 0 hits, docs/guide/cli-reference.md:297-320 lists namespace verbs (create/list/use/set-remote/delete-disk/clear-s3) but omits `prune`, docs/api/http-api.md documents neither `drift` nor `driftWarning`, CHANGELOG.md has no DB-GAP-065 entry, and reports/ contains no DB-GAP-065 report; the only recorded change is the tasks.yaml status flip to complete. The 'evidence reported' acceptance criterion is therefore not satisfied.\nPrune CLI (dry-run default/--apply), idempotent crash-safe apply, path-safety reuse, drift guard, and 13 passing tests are all implemented and green, but the 'evidence reported' AC is unmet \u2014 no docs, changelog, or report artifact documents the new verb or the driftWarning field.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-28T09:30:38.895891",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-28T09:30:38.916912+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1665,
+        "truncated": false,
+        "source": "git show 5cc4d3f37711"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 510,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DB-GAP-065"
+  }
+}
