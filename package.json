@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts tests/",
+    "test:cli-e2e": "vitest run --config vitest.cli-e2e.config.ts",
     "test:http": "vitest run --config vitest.integration.config.ts tests/http-auth.int.test.ts tests/http-e2e.int.test.ts tests/http-ratelimit.int.test.ts",
     "test:mutation": "bash scripts/red-proof-gate.sh",
     "test:mutation:stryker": "stryker run",

@@ -80,7 +80,15 @@ jobs:
         run: pnpm build:cli
 
       - name: Run bin CLI E2E
-        run: pnpm exec vitest run --config vitest.cli-e2e.config.ts
+        run: |
+          # TESTQ-2026-10-29-1: fail fast (offline, seconds) when this step's
+          # --config cannot discover the bin E2E file. The red baseline
+          # (run 40857806554) passed setup, lint, tsc and the CLI build, then
+          # died at Vitest with "No test files found" because the config named
+          # here had an include list that could not match the file passed to
+          # it. The guard asserts Vitest's own discovery, not a glob guess.
+          node scripts/ci/check-cli-e2e-config.js
+          pnpm exec vitest run --config vitest.cli-e2e.config.ts
 
       - name: Run tests
         run: pnpm test:run 2>&1 | tee /tmp/vitest.out; exit ${PIPESTATUS[0]}
