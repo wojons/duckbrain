@@ -465,10 +465,11 @@ export async function keywordSearch(
   const isTicketIdQuery = /^[A-Za-z][A-Za-z0-9-]*[0-9][A-Za-z0-9-]*$/.test(body) && body.includes("-");
   let finalRanked = ranked;
   if (isTicketIdQuery && !prefix) {
-    // Filter to tier 0 only (exact literal match). If no row achieved tier 0,
-    // the query refuses (zero results).
-    const tier0 = ranked.filter((hit) => hit.tier === 0);
-    finalRanked = tier0;
+    // Refuse lower-tier false positives only when the exact literal has no
+    // match. When it does, retain the normal ranked set so split-token
+    // matches remain part of ordinary keyword results.
+    const hasExactLiteral = ranked.some((hit) => hit.tier === 0);
+    if (!hasExactLiteral) finalRanked = [];
   }
 
   const total = finalRanked.length;
