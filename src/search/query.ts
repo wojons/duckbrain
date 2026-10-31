@@ -456,7 +456,22 @@ export async function keywordSearch(
   const kept = dropStopwords(tokens);
   const ranked = rankKeywordResults(rows, body, kept, prefix);
 
-  const total = ranked.length;
+  // TESTQ-2026-10-30-1: ticket-ID-like queries (letters+digits+hyphens) must
+  // refuse when no row contains the exact literal. The corpus's dominant
+  // regime is exact ticket IDs (DF-2026-17, GAP-020, etc.), and a well-formed
+  // but absent ticket ID must return zero results, not a lower-tier match.
+  // A query is ticket-ID-like when it matches the pattern: starts with a
+  // letter, contains at least one digit, and uses hyphens as separators.
+  const isTicketIdQuery = /^[A-Za-z][A-Za-z0-9-]*[0-9][A-Za-z0-9-]*$/.test(body) && body.includes("-");
+  let finalRanked = ranked;
+  if (isTicketIdQuery && !prefix) {
+    // Filter to tier 0 only (exact literal match). If no row achieved tier 0,
+    // the query refuses (zero results).
+    const tier0 = ranked.filter((hit) => hit.tier === 0);
+    finalRanked = tier0;
+  }
+
+  const total = finalRanked.length;
   // DF-2026-2: a zero-hit answer is only trustworthy when the sidecar the
   // candidates came from covers every source write. When the auto-build
   // could NOT refresh a STALE sidecar (over-bound refusal, failed rebuild —
@@ -476,9 +491,9 @@ export async function keywordSearch(
       `[search] Index may be stale — zero hits for '${body}', but namespace '${namespace}' has writes newer than the keyword index (not auto-refreshed: ${ensured.reason}). Run 'duckbrain search-index rebuild --namespace=${namespace}' to include them.`,
     );
   }
-  const top = limit > 0 ? ranked.slice(0, limit) : [];
+  const top = limit > 0 ? finalRanked.slice(0, limit) : [];
   if (keywordTiming) {
-    keywordTiming.keywordCandidates = ranked.length;
+    keywordTiming.keywordCandidates = finalRanked.length;
     opts.onTiming?.(keywordTiming);
   }
   const memories: KeywordHit[] = top.map((hit) => ({
