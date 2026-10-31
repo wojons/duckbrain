@@ -3007,3 +3007,11 @@ tasks:
   created_at: '2026-10-30T00:40:42.511130+00:00'
   completed_at: '2026-10-30T01:56:30.736816+00:00'
   note: 'tier2 PASS verdict dir a38df962 (.gitreins/history/2026-10-30/a38df962); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+- id: TESTQ-2026-10-29-1
+  title: 'CI red: bin CLI E2E config discovery mismatch'
+  criteria:
+  - Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts;
+    include a fresh row-specific ch:trace marker and executable focused verification.
+  status: complete
+  created_at: '2026-10-31T11:28:21.028217+00:00'
+  completed_at: '2026-10-31T11:40:31.316663+00:00'

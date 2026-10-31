@@ -1,0 +1,18 @@
+commit 468c1f3ccd8a712b6911803a8f4ae17c4f90570b
+Merge: 2d5c9ffa 28bf89f8
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Oct 31 06:39:39 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Oct 31 06:39:39 2026 -0500
+
+    Merge remote-tracking branch 'origin/wt/TESTQ-2026-10-29-1'
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ .github/workflows/ci.yml           |  10 ++-
+ CONTRIBUTING.md                    |   4 +
+ package.json                       |   1 +
+ scripts/ci/check-cli-e2e-config.js | 159 +++++++++++++++++++++++++++++++++++++
+ vitest.cli-e2e.config.ts           |  18 +++++
+ vitest.integration.config.ts       |   6 ++
+ 6 files changed, 197 insertions(+), 1 deletion(-)

@@ -1,0 +1,111 @@
+{
+  "task_id": "TESTQ-2026-10-29-1",
+  "task_title": "CI red: bin CLI E2E config discovery mismatch",
+  "task_criteria": [
+    "Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts; include a fresh row-specific ch:trace marker and executable focused verification."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "468c1f3ccd8a712b6911803a8f4ae17c4f90570b",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:40AM INF scanned ~22307989 bytes (22.31 MB) in 3.14s\n6:40AM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261031T114014.060004Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:3815040) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nstderr | src/search/search-retr008.test.ts > RETR-008: MCP surfaces carry the highlight > recallTool contains= returns the highlight on keyword hits\n[recall] Tool called with input: {\"contains\":\"GAP-020\",\"namespace\":\"chat-retr008\",\"limit\":10}\n[recall] Validated input: {\n  contains: 'GAP-020',\n  limit: 10,\n  offset: 0,\n  namespace: 'chat-retr008'\n}\n\n \u276f src/search/search-retr008.test.ts (12 tests | 3 failed) 5213ms\n   \u276f RETR-008: chat-archive namespace indexing (3)\n     \u00d7 searching a rebuilt chat-archive namespace returns dated rows with highlighted snippets 50ms\n   \u276f RETR-008: MCP surfaces carry the highlight (2)\n     \u00d7 searchTool returns highlightedSnippet alongside the raw snippet 46ms\n     \u00d7 recallTool contains= returns the highlight on keyword hits 51ms\nstderr | src/search/search-retr001.test.ts > RETR-001: recallTool contains path > filters by keyword with snippets, offline\n[recall] Tool called with input: {\"contains\":\"GAP-020\",\"namespace\":\"search-retr001\",\"limit\":10}\n[recall] Validated input: {\n  contains: 'GAP-020',\n  limit: 10,\n  offset: 0,\n  namespace: 'search-retr001'\n}\n\nstderr | src/search/search-retr001.test.ts > RETR-001: recallTool contains path > honors limit=0 as count-only (GAP-024 parity)\n[recall] Tool called with input: {\"contains\":\"GAP-020\",\"namespace\":\"search-retr001\",\"limit\":0}\n[recall] Validated input: {\n  contains: 'GAP-020',\n  limit: 0,\n  offset: 0,\n  namespace: 'search-retr001'\n}\n\n \u276f src/search/search-retr001.test.ts (19 tests | 5 failed) 5387ms\n   \u276f RETR-001: keyword search (7)\n     \u00d7 finds GAP-020 with the exact-token memory first and a snippet 45ms\n     \u00d7 respects limit and count-only (limit=0) 35ms\n   \u276f RETR-001: searchTool surface (2)\n     \u00d7 returns ranked hits with snippets 63ms\n   \u276f RETR-001: recallTool contains path (4)\n     \u00d7 filters by keyword with snippets, offline 52ms\n     \u00d7 honors limit=0 as count-only (GAP-024 parity) 47ms\n(node:3852480) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n\u2026 [6238 chars omitted \u2014 150 line(s)] \u2026\n\n FAIL  src/search/search-retr008.test.ts > RETR-008: MCP surfaces carry the highlight > searchTool returns highlightedSnippet alongside the raw snippet\nAssertionError: expected 1 to be 2 // Object.is equality\n\n- Expected\n+ Received\n\n- 2\n+ 1\n\n \u276f src/search/search-retr008.test.ts:243:23\n    241|     });\n    242|     expect(res.error).toBeUndefined();\n    243|     expect(res.total).toBe(2);\n       |                       ^\n    244|     expect(res.memories[0].id).toBe(\"c1\");\n    245|     expect(res.memories[0].snippet).not.toContain(\"<mark>\");\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[7/8]\u23af\n\n FAIL  src/search/search-retr008.test.ts > RETR-008: MCP surfaces carry the highlight > recallTool contains= returns the highlight on keyword hits\nAssertionError: expected 1 to be 2 // Object.is equality\n\n- Expected\n+ Received\n\n- 2\n+ 1\n\n \u276f src/search/search-retr008.test.ts:258:23\n    256|     });\n    257|     expect(res.error).toBeUndefined();\n    258|     expect(res.total).toBe(2);\n       |                       ^\n    259|     const c1 = res.memories.find((m) => m.id === \"c1\");\n    260|     expect(c1?.timestamp).toBe(C1_TIMESTAMP);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[8/8]\u23af\n\n\n Test Files  2 failed | 244 passed (246)\n      Tests  8 failed | 2043 passed (2051)\n   Start at  06:40:32\n   Duration  85.04s (tests 80%, import 17%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  246 workers spawned \u00b7 ~99ms startup each (spawn + environment, per file)\n             at least ~5.97s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261031T114014.060004Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts; include a fresh row-specific ch:trace marker and executable focused verification.: Config-discovery half PASSES: vitest.cli-e2e.config.ts:24 sets include:[\"tests/cli-bin-e2e-df012.test.ts\"]; .github/workflows/ci.yml:90-91 runs `node scripts/ci/check-cli-e2e-config.js` then `pnpm exec vitest run --config vitest.cli-e2e.config.ts`. Executed evidence: guard -> exit 0, 'TESTQ-2026-10-29-1: \"Run bin CLI E2E\" config vitest.cli-e2e.config.ts discovers tests/cli-bin-e2e-df012.test.ts (1 file(s) total)'; focused run `npx vitest run --config vitest.cli-e2e.config.ts` -> EXIT=0, 'Test Files 1 passed (1)', 'Tests 2 passed (2)'. HOWEVER the required fresh row-specific ch:trace marker is MISSING: `git show -s --format=%B 28bf89f8 | grep ch:trace` -> exit 1 (no match); merge commit 468c1f3c body also has none; grep for 'ch:trace' in vitest.cli-e2e.config.ts, scripts/ci/check-cli-e2e-config.js, ci.yml, package.json, CONTRIBUTING.md -> exit 1; .gitreins/tasks.yaml TESTQ-2026-10-29-1 entry (lines 3005-3011) has no note/ch:trace; .coding-hermes/board/tasks.jsonl row TESTQ-2026-10-29-1 is still status 'pending' with no ch_trace field. The only ch:trace in tests/cli-bin-e2e-df012.test.ts is the pre-existing DF-2026-12 row marker, not this row.\nThe bin CLI E2E now runs through a config that provably discovers tests/cli-bin-e2e-df012.test.ts (guard exit 0; focused vitest run exit 0, 2/2 tests passed), but no fresh row-specific ch:trace marker for TESTQ-2026-10-29-1 exists in the commit message, changed files, tasks.yaml, or board row.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts; include a fresh row-specific ch:trace marker and executable focused verification.: Config-discovery half PASSES: vitest.cli-e2e.config.ts:24 sets include:[\"tests/cli-bin-e2e-df012.test.ts\"]; .github/workflows/ci.yml:90-91 runs `node scripts/ci/check-cli-e2e-config.js` then `pnpm exec vitest run --config vitest.cli-e2e.config.ts`. Executed evidence: guard -> exit 0, 'TESTQ-2026-10-29-1: \"Run bin CLI E2E\" config vitest.cli-e2e.config.ts discovers tests/cli-bin-e2e-df012.test.ts (1 file(s) total)'; focused run `npx vitest run --config vitest.cli-e2e.config.ts` -> EXIT=0, 'Test Files 1 passed (1)', 'Tests 2 passed (2)'. HOWEVER the required fresh row-specific ch:trace marker is MISSING: `git show -s --format=%B 28bf89f8 | grep ch:trace` -> exit 1 (no match); merge commit 468c1f3c body also has none; grep for 'ch:trace' in vitest.cli-e2e.config.ts, scripts/ci/check-cli-e2e-config.js, ci.yml, package.json, CONTRIBUTING.md -> exit 1; .gitreins/tasks.yaml TESTQ-2026-10-29-1 entry (lines 3005-3011) has no note/ch:trace; .coding-hermes/board/tasks.jsonl row TESTQ-2026-10-29-1 is still status 'pending' with no ch_trace field. The only ch:trace in tests/cli-bin-e2e-df012.test.ts is the pre-existing DF-2026-12 row marker, not this row.\nThe bin CLI E2E now runs through a config that provably discovers tests/cli-bin-e2e-df012.test.ts (guard exit 0; focused vitest run exit 0, 2/2 tests passed), but no fresh row-specific ch:trace marker for TESTQ-2026-10-29-1 exists in the commit message, changed files, tasks.yaml, or board row.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts; include a fresh row-specific ch:trace marker and executable focused verification.",
+                "status": "FAIL",
+                "detail": "Config-discovery half PASSES: vitest.cli-e2e.config.ts:24 sets include:[\"tests/cli-bin-e2e-df012.test.ts\"]; .github/workflows/ci.yml:90-91 runs `node scripts/ci/check-cli-e2e-config.js` then `pnpm exec vitest run --config vitest.cli-e2e.config.ts`. Executed evidence: guard -> exit 0, 'TESTQ-2026-10-29-1: \"Run bin CLI E2E\" config vitest.cli-e2e.config.ts discovers tests/cli-bin-e2e-df012.test.ts (1 file(s) total)'; focused run `npx vitest run --config vitest.cli-e2e.config.ts` -> EXIT=0, 'Test Files 1 passed (1)', 'Tests 2 passed (2)'. HOWEVER the required fresh row-specific ch:trace marker is MISSING: `git show -s --format=%B 28bf89f8 | grep ch:trace` -> exit 1 (no match); merge commit 468c1f3c body also has none; grep for 'ch:trace' in vitest.cli-e2e.config.ts, scripts/ci/check-cli-e2e-config.js, ci.yml, package.json, CONTRIBUTING.md -> exit 1; .gitreins/tasks.yaml TESTQ-2026-10-29-1 entry (lines 3005-3011) has no note/ch:trace; .coding-hermes/board/tasks.jsonl row TESTQ-2026-10-29-1 is still status 'pending' with no ch_trace field. The only ch:trace in tests/cli-bin-e2e-df012.test.ts is the pre-existing DF-2026-12 row marker, not this row.",
+                "resolution_probability": 0.2,
+                "cited_path": "tests/cli-bin-e2e-df012.test.ts"
+              }
+            ],
+            "summary": "The bin CLI E2E now runs through a config that provably discovers tests/cli-bin-e2e-df012.test.ts (guard exit 0; focused vitest run exit 0, 2/2 tests passed), but no fresh row-specific ch:trace marker for TESTQ-2026-10-29-1 exists in the commit message, changed files, tasks.yaml, or board row.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: TESTQ-2026-10-29-1\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts; include a fresh row-specific ch:trace marker and executable focused verification.: Config-discovery half PASSES: vitest.cli-e2e.config.ts:24 sets include:[\"tests/cli-bin-e2e-df012.test.ts\"]; .github/workflows/ci.yml:90-91 runs `node scripts/ci/check-cli-e2e-config.js` then `pnpm exec vitest run --config vitest.cli-e2e.config.ts`. Executed evidence: guard -> exit 0, 'TESTQ-2026-10-29-1: \"Run bin CLI E2E\" config vitest.cli-e2e.config.ts discovers tests/cli-bin-e2e-df012.test.ts (1 file(s) total)'; focused run `npx vitest run --config vitest.cli-e2e.config.ts` -> EXIT=0, 'Test Files 1 passed (1)', 'Tests 2 passed (2)'. HOWEVER the required fresh row-specific ch:trace marker is MISSING: `git show -s --format=%B 28bf89f8 | grep ch:trace` -> exit 1 (no match); merge commit 468c1f3c body also has none; grep for 'ch:trace' in vitest.cli-e2e.config.ts, scripts/ci/check-cli-e2e-config.js, ci.yml, package.json, CONTRIBUTING.md -> exit 1; .gitreins/tasks.yaml TESTQ-2026-10-29-1 entry (lines 3005-3011) has no note/ch:trace; .coding-hermes/board/tasks.jsonl row TESTQ-2026-10-29-1 is still status 'pending' with no ch_trace field. The only ch:trace in tests/cli-bin-e2e-df012.test.ts is the pre-existing DF-2026-12 row marker, not this row.\nThe bin CLI E2E now runs through a config that provably discovers tests/cli-bin-e2e-df012.test.ts (guard exit 0; focused vitest run exit 0, 2/2 tests passed), but no fresh row-specific ch:trace marker for TESTQ-2026-10-29-1 exists in the commit message, changed files, tasks.yaml, or board row.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-31T11:43:19.677323",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-31T11:43:19.696530+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 792,
+        "truncated": false,
+        "source": "git show 468c1f3ccd8a"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 2551,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TESTQ-2026-10-29-1"
+  }
+}

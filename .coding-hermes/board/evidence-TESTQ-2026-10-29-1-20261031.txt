@@ -1,0 +1,18 @@
+TESTQ-2026-10-29-1 verification transcript
+
+Published integration target before closeout: origin/main at 468c1f3ccd8a712b6911803a8f4ae17c4f90570b.
+Worker implementation: 28bf89f8bec41d5a9bce1976a12e2fb7db09f56a.
+
+Executed on the merged tree:
+- node scripts/ci/check-cli-e2e-config.js
+  TESTQ-2026-10-29-1: "Run bin CLI E2E" config vitest.cli-e2e.config.ts discovers tests/cli-bin-e2e-df012.test.ts (1 file(s) total).
+- pnpm exec vitest run --config vitest.cli-e2e.config.ts
+  Test Files 1 passed (1); Tests 2 passed (2).
+- pnpm exec tsc --noEmit
+  exit 0.
+
+Fresh row-specific trace:
+ch:trace row=TESTQ-2026-10-29-1 spec=none:ci-config-regression wave=.coding-hermes/waves/duckbrain-foreman-2026-10-31-10-59-09.json#TESTQ-2026-10-29-1 test=scripts/ci/check-cli-e2e-config.js+tests/cli-bin-e2e-df012.test.ts doc=CONTRIBUTING.md evidence=.coding-hermes/board/evidence-TESTQ-2026-10-29-1-20261031.txt witness=github:run-pending-exact-head verdict=none:judge-incomplete-missing-trace commit=468c1f3ccd8a712b6911803a8f4ae17c4f90570b memory=none:status-write-pending
+STATUS: partial
+TIER: T2 (merged-tree focused acceptance observed; GitReins verdict cfdebd0a incomplete)
+EVIDENCE: .coding-hermes/board/evidence-TESTQ-2026-10-29-1-20261031.txt

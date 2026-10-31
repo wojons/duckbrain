@@ -1,0 +1,49 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 7ae5dfa4..e6fbdb80 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -2963,7 +2963,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:40.564032+00:00'
+   completed_at: '2026-10-30T01:03:49.071165+00:00'
+-  note: 'tier2 PASS verdict dir 55043021 (.gitreins/history/2026-10-30/55043021); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-11
+   title: DF-2026-11 tolerate in-flight .tmp.jsonl in namespace leak-walk
+   criteria:
+@@ -2973,7 +2972,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:39.740500+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir 761c8c9f (.gitreins/history/2026-10-30/761c8c9f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-19
+   title: DF-2026-19 read-side recall counter + daily rollup + zero-day alert
+   criteria:
+@@ -2984,7 +2982,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T01:14:46.712034+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir 3786436f (.gitreins/history/2026-10-30/3786436f); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-17
+   title: DF-2026-17 recall quality benchmark + runner + scheduled run
+   criteria:
+@@ -2995,7 +2992,6 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:41.453067+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir ed0feed3 (.gitreins/history/2026-10-30/ed0feed3); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
+ - id: DF-2026-18
+   title: DF-2026-18 nightly session distiller
+   criteria:
+@@ -3006,4 +3002,11 @@ tasks:
+   status: complete
+   created_at: '2026-10-30T00:40:42.511130+00:00'
+   completed_at: '2026-10-30T01:56:30.736816+00:00'
+-  note: 'tier2 PASS verdict dir a38df962 (.gitreins/history/2026-10-30/a38df962); tier1 tests PASS; tier1 secrets FAIL = DF-2026-10-class, dispositioned to DF-2026-20'
++- id: TESTQ-2026-10-29-1
++  title: 'CI red: bin CLI E2E config discovery mismatch'
++  criteria:
++  - Merged tree must run the bin CLI E2E through a config that discovers tests/cli-bin-e2e-df012.test.ts;
++    include a fresh row-specific ch:trace marker and executable focused verification.
++  status: complete
++  created_at: '2026-10-31T11:28:21.028217+00:00'
++  completed_at: '2026-10-31T11:40:31.316663+00:00'
