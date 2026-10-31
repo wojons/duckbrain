@@ -1222,3 +1222,4 @@
 {"id":8406,"timestamp":"2026-10-30T21:55:59Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-FOREMAN-4","actor":"foreman","detail":"{\"status\":\"pending\"}","tick_number":null}
 {"id":8407,"timestamp":"2026-10-30T22:07:09Z","event_type":"task_completed","task_id":"QA-DUCKBRAIN-FOREMAN-4","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":"evt-testq-2026-10-30-1-close","task_id":"TESTQ-2026-10-30-1","event":"close","tick":"duckbrain-foreman-2026-10-31-04-20-45","reason":"fix landed and verified: ticket-ID queries now require tier-0 exact match; benchmark 20/20 pass","commit":"e39a1110","worker_summary":"foreman-direct (serial path, single row)","timestamp":"2026-10-31T09:30:00Z"}
+{"id":8408,"timestamp":"2026-10-31T13:07:32Z","event_type":"task_created","task_id":"INT-CI-035","actor":"foreman","detail":"{\"id\":\"INT-CI-035\",\"status\":\"pending\"}","tick_number":null}
