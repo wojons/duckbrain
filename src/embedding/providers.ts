@@ -57,6 +57,38 @@ function normBase(base: string | undefined, fallback: string): string {
   return b.endsWith("/") ? b.slice(0, -1) : b;
 }
 
+/**
+ * OpenRouter upstream routing preferences for the embedding request.
+ *
+ * WHY: OpenRouter fronts three upstreams for `qwen/qwen3-embedding-8b`
+ * (Nebius, DeepInfra, SiliconFlow). Measured live 2026-11-03 with 4096d
+ * requests against the production key: DeepInfra 0.88-1.59s, SiliconFlow
+ * 1.46-2.60s, Nebius 2.15-34.13s — a 30s+ tail. OpenRouter's default routing
+ * may pick Nebius, so `/health`'s 8s embed-probe budget tripped on roughly a
+ * third of probes (32 of 88 dark-port-watchdog samples saw HTTP 503 inside 90
+ * minutes) even though recalls that landed on a fast upstream were fine, and
+ * the semantic recall leg dropped to keyword-only whenever an embed crossed
+ * its 30s ceiling. The probe budget was not the defect; the upstream choice
+ * was.
+ *
+ * OPT-IN ONLY, via `DUCKBRAIN_EMBEDDING_PROVIDER_ORDER=deepinfra,siliconflow`.
+ * Empty (the default) returns `{}`, so non-OpenRouter OpenAI-compatible
+ * endpoints never receive an unknown top-level `provider` key (OpenAI's own
+ * API rejects it) and existing deployments keep byte-identical request bodies.
+ */
+function providerRoutingBody(): Record<string, unknown> {
+  const raw = (process.env.DUCKBRAIN_EMBEDDING_PROVIDER_ORDER || "").trim();
+  if (!raw) return {};
+  const order = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (order.length === 0) return {};
+  // allow_fallbacks keeps availability ahead of preference: if the preferred
+  // upstream errors, OpenRouter still serves from the remaining ones.
+  return { provider: { order, allow_fallbacks: true } };
+}
+
 function makeHttpEmbed(
   id: string,
   model: string,
@@ -154,13 +186,15 @@ function makeHttpBatchEmbed(
   url: string,
   headers: Record<string, string>,
   timeoutMs: number,
+  /** Extra top-level request-body fields (e.g. OpenRouter provider routing). */
+  extraBody: Record<string, unknown> = {},
 ): (texts: string[]) => Promise<number[][]> {
   return async (texts: string[]): Promise<number[][]> => {
     if (texts.length === 0) return [];
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ model, input: texts }),
+      body: JSON.stringify({ model, input: texts, ...extraBody }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
@@ -497,12 +531,15 @@ export const PROVIDERS: readonly ProviderCtor[] = [
     id: "openai",
     label: "OpenAI API (remote)",
     build(cfg) {
+      // OpenRouter (or any routing gateway) can pick a slow upstream; the
+      // opt-in order below pins the fast ones. Empty = no body change.
+      const routing = providerRoutingBody();
       const single = makeHttpEmbed(
         `openai/${cfg.model}`,
         cfg.model,
         cfg.dimensions,
         embedUrl("openai", cfg),
-        { model: cfg.model },
+        { model: cfg.model, ...routing },
         { Authorization: `Bearer ${cfg.apiKey || ""}` },
         cfg.timeoutMs,
       );
@@ -514,6 +551,7 @@ export const PROVIDERS: readonly ProviderCtor[] = [
           embedUrl("openai", cfg),
           { Authorization: `Bearer ${cfg.apiKey || ""}` },
           cfg.timeoutMs,
+          routing,
         ),
       };
     },
