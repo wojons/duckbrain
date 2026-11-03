@@ -32,11 +32,18 @@ export AWS_PAGER=""
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$REPO/bin/duckbrain.js"
-RUN_TAG="dogfood-$(date +%s)"
-NS="dogfood-e2e-${RUN_TAG#dogfood-}"   # per-run ns → fresh S3 prefix, no stale-ref collisions
-ROOT="$(mktemp -d /tmp/dbg-dogfood-XXXXXX)"
+# Run-scoped scratch and held port locks; the state file is the ownership boundary.
+# shellcheck source=ops/lane-scratch.sh
+source "$REPO/ops/lane-scratch.sh"
+RUN_TAG="dogfood-$(date +%s)-$$"
+NS="dogfood-e2e-${RUN_TAG#dogfood-}"
+AGENT_ID="duckbrain-dogfood-${RUN_TAG}"
+ROOT=$(lane_scratch_allocate duckbrain dogfood "$RUN_TAG" "$AGENT_ID") || exit 1
+RUN_ID=$(basename "$ROOT")
 LOG="$ROOT/dogfood.log"
-PA=3600; PB=3601; PC=3602
+PA=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
+PB=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
+PC=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
 PROD_AUTH="$HOME/.duckbrain/auth.json"
 FP_BEFORE=$(sha256sum "$PROD_AUTH" 2>/dev/null | cut -d' ' -f1 || echo none)
 PASS=0; FAIL=0; declare -a RESULTS=()
@@ -52,7 +59,11 @@ verdict_kf(){ # verdict_kf <name> <detail> <board-id> — known failure, tracked
 }
 cleanup(){
   trap - EXIT
-  for p in "${DAPID[@]:-}"; do [ -n "$p" ] && kill -9 "$p" 2>/dev/null; done
+  for p in "${DAPID[@]:-}"; do
+    [ -n "$p" ] || continue
+    if lane_scratch_teardown_agent "$ROOT" "$RUN_ID" "$AGENT_ID" "$p"; then kill -9 "$p" 2>/dev/null || true; fi
+  done
+  lane_scratch_release_ports "$ROOT" "$RUN_ID" "$AGENT_ID"
   FP_AFTER=$(sha256sum "$PROD_AUTH" 2>/dev/null | cut -d' ' -f1 || echo none)
   if [ "$FP_BEFORE" = "$FP_AFTER" ]; then say "🔒 prod auth store untouched"
   else say "🚨 PROD AUTH STORE CHANGED — investigate"; fi
@@ -65,11 +76,13 @@ trap cleanup EXIT
 DAPID=()
 start_daemon(){ # start_daemon <port> <datadir> <nsdir> <authfile> [extra env kv...]
   local port=$1 dd=$2 nsd=$3 af=$4; shift 4
+  lane_scratch_assert_owner "$ROOT" "$RUN_ID" "$AGENT_ID" || return 1
   mkdir -p "$dd" "$nsd/$NS"
   env DUCKBRAIN_DATA_DIR="$dd" DUCKBRAIN_NAMESPACES_PATH="$nsd" \
       DUCKBRAIN_AUTH_FILE="$af" "$@" \
       nohup node "$BIN" http --port="$port" --auth=apikey >> "$ROOT/d-$port.log" 2>&1 &
   DAPID+=($!)
+  lane_scratch_claim_agent "$ROOT" "$RUN_ID" "$AGENT_ID" "${DAPID[-1]}"
 }
 write_auth(){ # write_auth <authfile> <name1:role1> ... — prints "name:key" lines
   # Optional leading --ns <ns>: scope all minted keys to <ns>. Defaults to $NS

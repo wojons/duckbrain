@@ -28,7 +28,7 @@ say ""; say "▶ Phase 8 — S3-gate era: gated push, rotation, profile creds, r
 # Dedicated canary config: gate ON with a short floor, stage prefix, profile
 # creds (the portability contract — no keys in the file). GAP-022 env override
 # keeps it out of any tracked config.
-CANARY_PORT=3603
+CANARY_PORT=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || { say "could not allocate canary port for run $RUN_ID"; exit 1; }
 CANARY_CFG="$ROOT/duckbrain-canary.config.json"
 cat > "$CANARY_CFG" <<EOF
 {
