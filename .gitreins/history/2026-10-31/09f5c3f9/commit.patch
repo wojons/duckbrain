@@ -1,0 +1,13 @@
+commit 0b422bff2009af2773f8c2cb2be7ca461feec132
+Merge: 51d2661e d761b9cc
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Oct 31 12:51:19 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Oct 31 12:51:19 2026 -0500
+
+    Merge branch 'wt/INT-CI-035' (INT-CI-035: keyword search off-by-one fix)
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ src/search/query.ts | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)

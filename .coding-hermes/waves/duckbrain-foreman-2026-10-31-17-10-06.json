@@ -1,0 +1,46 @@
+{
+  "tick_id": "duckbrain-foreman-2026-10-31-17-10-06",
+  "block": "INT-CI-035",
+  "selected_rows": ["INT-CI-035"],
+  "path": "wave-of-1",
+  "wave_budget": 1,
+  "slots_computed": 5,
+  "slots_note": "nproc=16 loadavg=10.29 -> slots=5, but block INT-CI-035 has a single ready row and WAVE_BUDGET=1 caps concurrent workers at 1",
+  "independence": "single ready row in block; no wave composition possible",
+  "recovery_ref": "duckbrain-foreman-2026-10-31-10-59-09.json (recovered and closed at 51d2661e)",
+  "worker": {
+    "task_id": "INT-CI-035",
+    "worktree": "/home/kara/worktrees/duckbrain-INT-CI-035",
+    "branch": "wt/INT-CI-035",
+    "base_sha": "51d2661e",
+    "brief": ".coding-hermes/worker-prompts/INT-CI-035.md",
+    "model": "gpt-6-luna",
+    "provider": "openai-codex"
+  },
+  "status": "closed",
+  "created_at": "2026-10-31T12:40:00-05:00",
+  "finished_at": "2026-10-31T13:07:00-05:00",
+  "implementation_commit": "d761b9ccba74402f0fa2bd46eddfb7eb32a13bf2",
+  "merged_commit": "0b422bff2009af2773f8c2cb2be7ca461feec132",
+  "merged_tree": "b7643e7155b00e5fb748137ee5148259625a49fa",
+  "worker_result": "exited 0 (402s); root cause: keywordSearch tier-0 filter from e39a1110 dropped split-token matches for ticket-ID-like queries even when an exact literal hit existed; fix refuses only when no tier-0 hit exists",
+  "gates": {
+    "focused": "pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts -> 31/31 PASS",
+    "full_suite": "pnpm test:run -> exit 0 (246 files / 2051 tests)",
+    "tsc": "pnpm exec tsc --noEmit -> exit 0",
+    "benchmark": "node scripts/recall-benchmark/run.mjs --scratch -> PASS 20/20, DF-9999-99 refuses",
+    "merge_gate": "stale-base fresh (base=main=51d2661e), deletions 0, merged tree == gated tree b7643e71"
+  },
+  "judge": {
+    "verdict_id": "895e7811",
+    "verdict_dir": ".gitreins/history/2026-10-31/09f5c3f9/verdict.json",
+    "passed": false,
+    "classification": "split: tier2 COMPLETE + tier1 tests PASS (246/2051); tier1 secrets FAIL = DF-2026-10-class pre-existing baseline (tracked .npmrc/.env.example), dispositioned to DF-2026-20"
+  },
+  "ci": {
+    "run_id": "41226572863",
+    "result": "success on merge commit 0b422bff; 'Run tests' log: Test Files 246 passed (246)",
+    "red_baseline": "41198684258"
+  },
+  "board_close": "tasks.jsonl row INT-CI-035 complete @0b422bff evidence_run=09f5c3f9; events 8412+8413"
+}

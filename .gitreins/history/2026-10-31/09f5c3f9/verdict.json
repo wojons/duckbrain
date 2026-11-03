@@ -1,0 +1,111 @@
+{
+  "task_id": "INT-CI-035",
+  "task_title": "CI red on main since e39a1110: keyword search drops one matching memory (search-retr001 + search-retr008 off-by-one)",
+  "task_criteria": [
+    "Merged tree passes pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts with documented counts restored (RETR-001 keyword set 3 hits, RETR-008 highlight set 2 hits) and full pnpm test:run green; root cause traced to the e39a1110 query-refusal/filter path that drops one matching memory from keyword results; ticket-ID refusal behavior unchanged (scripts/recall-benchmark/run.mjs still 20/20); fresh row-specific ch:trace row=INT-CI-035 present in the fix commit message or board row."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "0b422bff2009af2773f8c2cb2be7ca461feec132",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": false,
+          "output": "secrets: harness state excluded from gitleaks scope (.gitreins/**)\nsecrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n12:52PM INF scanned ~22319444 bytes (22.32 MB) in 3.64s\n12:52PM INF no leaks found\nsecrets: gitleaks: clean\nSecrets scan: 2 potential findings\nsecrets: builtin cross-check: Potential secrets found:\n.npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\n.env.example: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of content. Remedy: .gitignore it, use a secret manager, or pass an explicit override flag with a recorded reason.\nsecrets: builtin cross-check status: 2 findings\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261031T114014.060004Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:2382069) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2415204) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2425506) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2426684) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2429176) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2430211) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2430289) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2430492) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2430883) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2430876) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431015) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431009) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431101) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431291) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431298) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431388) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431434) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431551) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2431878) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  246 passed (246)\n      Tests  2051 passed (2051)\n   Start at  12:52:18\n   Duration  93.97s (tests 82%, import 15%, transform 2%, setup 1%)\n\n    Isolate  246 workers spawned \u00b7 ~101ms startup each (spawn + environment, per file)\n             at least ~6.09s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261031T114014.060004Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Merged tree passes pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts with documented counts restored (RETR-001 keyword set 3 hits, RETR-008 highlight set 2 hits) and full pnpm test:run green; root cause traced to the e39a1110 query-refusal/filter path that drops one matching memory from keyword results; ticket-ID refusal behavior unchanged (scripts/recall-benchmark/run.mjs still 20/20); fresh row-specific ch:trace row=INT-CI-035 present in the fix commit message or board row.: Targeted run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> \"Test Files 2 passed (2)\" / \"Tests 31 passed (31)\", exit_code 0. Counts restored: src/search/search-retr001.test.ts:252 `expect(res.total).toBe(3)` (GAP-020 keyword set, m1+m8+m2) and src/search/search-retr008.test.ts:162,186,243 `expect(res.total).toBe(2)` (highlight set). Full suite: `pnpm test:run` -> \"Test Files 246 passed (246)\" / \"Tests 2051 passed (2051)\", zero FAIL lines. Root cause confirmed: e39a1110 added `finalRanked = ranked.filter((hit) => hit.tier === 0)` in src/search/query.ts, dropping the tier-1 split-token match (m2); fix d761b9cc replaces it with `const hasExactLiteral = ranked.some((hit) => hit.tier === 0); if (!hasExactLiteral) finalRanked = [];` (src/search/query.ts:465-475). Refusal behavior unchanged: `node scripts/recall-benchmark/run.mjs --scratch` -> \"case pass rate 20/20 = 1.000\", \"correct refusal rate 5/5 = 1.000\", case [18] q=\"DF-9999-99\" refusal PASS, \"verdict: PASS\", exit code 0. ch:trace present in fix commit d761b9cc body: \"ch:trace row=INT-CI-035 spec=.coding-hermes/board/tasks.jsonl#INT-CI-035 test=src/search/search-retr001.test.ts+src/search/search-retr008.test.ts+scripts/recall-benchmark/run.mjs evidence=commit-body\". [resolution 0.05; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\nAll sub-requirements verified with fresh command output: targeted vitest 31/31 pass with 3-hit and 2-hit counts restored, full suite 246 files / 2051 tests green, benchmark 20/20 with ticket-ID refusal intact, root cause traced to e39a1110's tier-0 filter, and a row-specific ch:trace row=INT-CI-035 in the fix commit.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Merged tree passes pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts with documented counts restored (RETR-001 keyword set 3 hits, RETR-008 highlight set 2 hits) and full pnpm test:run green; root cause traced to the e39a1110 query-refusal/filter path that drops one matching memory from keyword results; ticket-ID refusal behavior unchanged (scripts/recall-benchmark/run.mjs still 20/20); fresh row-specific ch:trace row=INT-CI-035 present in the fix commit message or board row.: Targeted run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> \"Test Files 2 passed (2)\" / \"Tests 31 passed (31)\", exit_code 0. Counts restored: src/search/search-retr001.test.ts:252 `expect(res.total).toBe(3)` (GAP-020 keyword set, m1+m8+m2) and src/search/search-retr008.test.ts:162,186,243 `expect(res.total).toBe(2)` (highlight set). Full suite: `pnpm test:run` -> \"Test Files 246 passed (246)\" / \"Tests 2051 passed (2051)\", zero FAIL lines. Root cause confirmed: e39a1110 added `finalRanked = ranked.filter((hit) => hit.tier === 0)` in src/search/query.ts, dropping the tier-1 split-token match (m2); fix d761b9cc replaces it with `const hasExactLiteral = ranked.some((hit) => hit.tier === 0); if (!hasExactLiteral) finalRanked = [];` (src/search/query.ts:465-475). Refusal behavior unchanged: `node scripts/recall-benchmark/run.mjs --scratch` -> \"case pass rate 20/20 = 1.000\", \"correct refusal rate 5/5 = 1.000\", case [18] q=\"DF-9999-99\" refusal PASS, \"verdict: PASS\", exit code 0. ch:trace present in fix commit d761b9cc body: \"ch:trace row=INT-CI-035 spec=.coding-hermes/board/tasks.jsonl#INT-CI-035 test=src/search/search-retr001.test.ts+src/search/search-retr008.test.ts+scripts/recall-benchmark/run.mjs evidence=commit-body\". [resolution 0.05; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\nAll sub-requirements verified with fresh command output: targeted vitest 31/31 pass with 3-hit and 2-hit counts restored, full suite 246 files / 2051 tests green, benchmark 20/20 with ticket-ID refusal intact, root cause traced to e39a1110's tier-0 filter, and a row-specific ch:trace row=INT-CI-035 in the fix commit.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Merged tree passes pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts with documented counts restored (RETR-001 keyword set 3 hits, RETR-008 highlight set 2 hits) and full pnpm test:run green; root cause traced to the e39a1110 query-refusal/filter path that drops one matching memory from keyword results; ticket-ID refusal behavior unchanged (scripts/recall-benchmark/run.mjs still 20/20); fresh row-specific ch:trace row=INT-CI-035 present in the fix commit message or board row.",
+                "status": "PASS",
+                "detail": "Targeted run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> \"Test Files 2 passed (2)\" / \"Tests 31 passed (31)\", exit_code 0. Counts restored: src/search/search-retr001.test.ts:252 `expect(res.total).toBe(3)` (GAP-020 keyword set, m1+m8+m2) and src/search/search-retr008.test.ts:162,186,243 `expect(res.total).toBe(2)` (highlight set). Full suite: `pnpm test:run` -> \"Test Files 246 passed (246)\" / \"Tests 2051 passed (2051)\", zero FAIL lines. Root cause confirmed: e39a1110 added `finalRanked = ranked.filter((hit) => hit.tier === 0)` in src/search/query.ts, dropping the tier-1 split-token match (m2); fix d761b9cc replaces it with `const hasExactLiteral = ranked.some((hit) => hit.tier === 0); if (!hasExactLiteral) finalRanked = [];` (src/search/query.ts:465-475). Refusal behavior unchanged: `node scripts/recall-benchmark/run.mjs --scratch` -> \"case pass rate 20/20 = 1.000\", \"correct refusal rate 5/5 = 1.000\", case [18] q=\"DF-9999-99\" refusal PASS, \"verdict: PASS\", exit code 0. ch:trace present in fix commit d761b9cc body: \"ch:trace row=INT-CI-035 spec=.coding-hermes/board/tasks.jsonl#INT-CI-035 test=src/search/search-retr001.test.ts+src/search/search-retr008.test.ts+scripts/recall-benchmark/run.mjs evidence=commit-body\". [resolution 0.05; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]",
+                "resolution_probability": 0.05,
+                "cited_path": "src/search/search-retr001.test.ts, src/search/search-retr008.test.ts"
+              }
+            ],
+            "summary": "All sub-requirements verified with fresh command output: targeted vitest 31/31 pass with 3-hit and 2-hit counts restored, full suite 246 files / 2051 tests green, benchmark 20/20 with ticket-ID refusal intact, root cause traced to e39a1110's tier-0 filter, and a row-specific ch:trace row=INT-CI-035 in the fix commit.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: INT-CI-035\n\nStage tier1: FAIL\n    \u2717 secrets: secrets: harness state excluded from gitleaks scope (.gitreins/**)\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Merged tree passes pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts with documented counts restored (RETR-001 keyword set 3 hits, RETR-008 highlight set 2 hits) and full pnpm test:run green; root cause traced to the e39a1110 query-refusal/filter path that drops one matching memory from keyword results; ticket-ID refusal behavior unchanged (scripts/recall-benchmark/run.mjs still 20/20); fresh row-specific ch:trace row=INT-CI-035 present in the fix commit message or board row.: Targeted run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> \"Test Files 2 passed (2)\" / \"Tests 31 passed (31)\", exit_code 0. Counts restored: src/search/search-retr001.test.ts:252 `expect(res.total).toBe(3)` (GAP-020 keyword set, m1+m8+m2) and src/search/search-retr008.test.ts:162,186,243 `expect(res.total).toBe(2)` (highlight set). Full suite: `pnpm test:run` -> \"Test Files 246 passed (246)\" / \"Tests 2051 passed (2051)\", zero FAIL lines. Root cause confirmed: e39a1110 added `finalRanked = ranked.filter((hit) => hit.tier === 0)` in src/search/query.ts, dropping the tier-1 split-token match (m2); fix d761b9cc replaces it with `const hasExactLiteral = ranked.some((hit) => hit.tier === 0); if (!hasExactLiteral) finalRanked = [];` (src/search/query.ts:465-475). Refusal behavior unchanged: `node scripts/recall-benchmark/run.mjs --scratch` -> \"case pass rate 20/20 = 1.000\", \"correct refusal rate 5/5 = 1.000\", case [18] q=\"DF-9999-99\" refusal PASS, \"verdict: PASS\", exit code 0. ch:trace present in fix commit d761b9cc body: \"ch:trace row=INT-CI-035 spec=.coding-hermes/board/tasks.jsonl#INT-CI-035 test=src/search/search-retr001.test.ts+src/search/search-retr008.test.ts+scripts/recall-benchmark/run.mjs evidence=commit-body\". [resolution 0.05; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\nAll sub-requirements verified with fresh command output: targeted vitest 31/31 pass with 3-hit and 2-hit counts restored, full suite 246 files / 2051 tests green, benchmark 20/20 with ticket-ID refusal intact, root cause traced to e39a1110's tier-0 filter, and a row-specific ch:trace row=INT-CI-035 in the fix commit.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-10-31T17:59:09.898847",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-10-31T17:59:09.955883+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 531,
+        "truncated": false,
+        "source": "git show 0b422bff2009"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 15400,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-035"
+  }
+}
