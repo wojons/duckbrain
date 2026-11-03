@@ -1,0 +1,23 @@
+commit 52d474ba620c6cb5a70587a50516a8ac6232ffe4
+Merge: ae688979 58defeb0
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Mon Nov 2 21:48:17 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Mon Nov 2 21:48:17 2026 -0500
+
+    Merge branch 'wt/DF-2026-7' (DF-2026-7: collision-proof lane scratch, ports, agent ownership)
+    
+    Per-run scratch roots + lock-file port draws (ops/lane-scratch.sh), ownership
+    markers with teardown refusals, fail-closed pre-spawn deconfliction, wired into
+    ops/dogfood-e2e.sh; two-lane dry-run evidence and docs.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+
+ .../evidence/DF-2026-7-two-lane-dry-run.txt        |  7 ++
+ docs/dogfood/scratch-port-ownership-convention.md  | 51 ++++++++++++
+ ops/dogfood-e2e.sh                                 | 23 ++++--
+ ops/dogfood-phase8-s3gate.sh                       |  2 +-
+ ops/lane-scratch.sh                                | 93 ++++++++++++++++++++++
+ ops/test-lane-scratch-deconfliction.sh             | 45 +++++++++++
+ src/ops/lane-scratch.test.ts                       | 57 +++++++++++++
+ 7 files changed, 272 insertions(+), 6 deletions(-)

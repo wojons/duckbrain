@@ -3010,3 +3010,12 @@ tasks:
   status: complete
   created_at: '2026-10-31T11:28:21.028217+00:00'
   completed_at: '2026-10-31T11:40:31.316663+00:00'
+- id: DF-2026-7
+  title: DF-2026-7 collision-proof lane scratch+port convention
+  criteria:
+  - Per-run unique scratch root and TCP port convention documented and enforced; install-leg
+    ownership marker prevents cross-lane teardown; pre-spawn deconfliction probe fails
+    loudly on live-state collision; two-lane dry run proves it.
+  status: complete
+  created_at: '2026-11-03T02:58:31.081229+00:00'
+  completed_at: '2026-11-03T02:58:31.954649+00:00'

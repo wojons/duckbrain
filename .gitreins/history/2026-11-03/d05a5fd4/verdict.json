@@ -1,0 +1,110 @@
+{
+  "task_id": "DF-2026-20",
+  "task_title": "DF-2026-20 tier1 secrets scope disagreement",
+  "task_criteria": [
+    "Fresh gitreins tier1 run at origin/main HEAD reports secrets leg PASS (or the two scanners demonstrably agree on .gitreins/** scope in the shipped tool); re-running any of the five 2026-10-30 verdicts' tasks no longer prints the harness-state scope message; root-caused and regression test pinned."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "52d474ba620c6cb5a70587a50516a8ac6232ffe4",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:52PM INF scanned ~22344952 bytes (22.34 MB) in 2.82s\n9:52PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 486164 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T023554.624526Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:4013444) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4029510) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4031716) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4034629) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4035473) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4036819) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4036849) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4037976) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038070) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038110) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038460) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038469) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038777) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038797) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038840) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4038958) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4039028) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4039471) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:4039669) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  247 passed (247)\n      Tests  2055 passed (2055)\n   Start at  21:52:12\n   Duration  67.44s (tests 78%, import 19%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  247 workers spawned \u00b7 ~88ms startup each (spawn + environment, per file)\n             at least ~5.37s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T023554.624526Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Fresh gitreins tier1 run at origin/main HEAD reports secrets leg PASS (or the two scanners demonstrably agree on .gitreins/** scope in the shipped tool); re-running any of the five 2026-10-30 verdicts' tasks no longer prints the harness-state scope message; root-caused and regression test pinned.: All three sub-claims verified against the shipped tool (pipx gitreins 0.17.1, ~/.local/bin/gitreins). (1) Secrets leg PASS: executed the shipped engine's own step builder `_secrets_step_run('.')` from site-packages/engine/pipeline.py against the current tree \u2014 exit_code=0, output: 'secrets: scanners=gitleaks+builtin cross-check / secrets: gitleaks: clean / secrets: builtin cross-check: Scanned 486166 files \u2014 clean (excluded harness state: .gitreins/**) / sensitive-path override applied: .npmrc / sensitive-path override applied: .env.example / secrets: builtin cross-check status: clean'. Both scanners agree on .gitreins/** scope: gitleaks gets `(^|/)\\.gitreins/.*` via harness_state_allowlist_paths() (pipeline.py:1689, guard_manager.py:82-89) and the builtin skips via _is_harness_state_path (guard_manager.py:2254). (2) No harness-state scope message on re-run: the unconditional echo was moved into the gitleaks-failure branch only (pipeline.py:1788 `else echo \"secrets: gitleaks: findings found...\"; echo \"secrets: harness state excluded...\"`), and _summarize_stage now prefers finding lines via _SECRETS_FINDING_LINE (types.py:21, pipeline.py:1561). Replayed the shipped Pipeline._summarize_stage on the actual tier1 stages of all five 2026-10-30 verdicts (55043021/DF-2026-13, 761c8c9f/DF-2026-11, 3786436f/DF-2026-19, ed0feed3/DF-2026-17, a38df962/DF-2026-18): each now renders '\u2717 secrets: .npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of co\u2026' instead of the old 'secrets: harness state excluded from gitleaks scope (.gitreins/**)' that all five verdict.json files record. (3) Root-caused + regression test pinned: .coding-hermes/evidence/DF-2026-20-secrets-scope.md documents the real cause (builtin credential-store PATH class on tracked .npmrc/.env.example, REVIEW-GITREINS-027/GR-GAP-007, plus the always-first echo misattribution) with red/blue logs; commit afc58750 adds guards.sensitive_paths.allow (.gitreins/config.yaml:27-30) and src/test/gitleaks-scope.test.ts, which I ran fresh: `npx vitest run src/test/gitleaks-scope.test.ts` \u2192 exit_code=0, 'Test Files 1 passed (1) / Tests 3 passed (3)', including 'covers every tracked credential-store path with a sensitive_paths override' and 'keeps tracked harness state inside the gitleaks harness exclusion'. Caveat (disclosed in the evidence doc's Residual section, not a criterion failure): the summarizer/echo fix lives in the pipx venv plus an unmerged gitreins branch wt/DF-2026-20-port, so no test in this repo pins that half \u2014 a future `pipx upgrade` would revert it.\nShipped gitreins 0.17.1 now reports the secrets leg PASS on the current tree, all five 2026-10-30 verdicts re-summarize to the .npmrc SENSITIVE PATH finding instead of the harness-state scope message, and the root cause plus a green 3/3 regression test are committed.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Fresh gitreins tier1 run at origin/main HEAD reports secrets leg PASS (or the two scanners demonstrably agree on .gitreins/** scope in the shipped tool); re-running any of the five 2026-10-30 verdicts' tasks no longer prints the harness-state scope message; root-caused and regression test pinned.: All three sub-claims verified against the shipped tool (pipx gitreins 0.17.1, ~/.local/bin/gitreins). (1) Secrets leg PASS: executed the shipped engine's own step builder `_secrets_step_run('.')` from site-packages/engine/pipeline.py against the current tree \u2014 exit_code=0, output: 'secrets: scanners=gitleaks+builtin cross-check / secrets: gitleaks: clean / secrets: builtin cross-check: Scanned 486166 files \u2014 clean (excluded harness state: .gitreins/**) / sensitive-path override applied: .npmrc / sensitive-path override applied: .env.example / secrets: builtin cross-check status: clean'. Both scanners agree on .gitreins/** scope: gitleaks gets `(^|/)\\.gitreins/.*` via harness_state_allowlist_paths() (pipeline.py:1689, guard_manager.py:82-89) and the builtin skips via _is_harness_state_path (guard_manager.py:2254). (2) No harness-state scope message on re-run: the unconditional echo was moved into the gitleaks-failure branch only (pipeline.py:1788 `else echo \"secrets: gitleaks: findings found...\"; echo \"secrets: harness state excluded...\"`), and _summarize_stage now prefers finding lines via _SECRETS_FINDING_LINE (types.py:21, pipeline.py:1561). Replayed the shipped Pipeline._summarize_stage on the actual tier1 stages of all five 2026-10-30 verdicts (55043021/DF-2026-13, 761c8c9f/DF-2026-11, 3786436f/DF-2026-19, ed0feed3/DF-2026-17, a38df962/DF-2026-18): each now renders '\u2717 secrets: .npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of co\u2026' instead of the old 'secrets: harness state excluded from gitleaks scope (.gitreins/**)' that all five verdict.json files record. (3) Root-caused + regression test pinned: .coding-hermes/evidence/DF-2026-20-secrets-scope.md documents the real cause (builtin credential-store PATH class on tracked .npmrc/.env.example, REVIEW-GITREINS-027/GR-GAP-007, plus the always-first echo misattribution) with red/blue logs; commit afc58750 adds guards.sensitive_paths.allow (.gitreins/config.yaml:27-30) and src/test/gitleaks-scope.test.ts, which I ran fresh: `npx vitest run src/test/gitleaks-scope.test.ts` \u2192 exit_code=0, 'Test Files 1 passed (1) / Tests 3 passed (3)', including 'covers every tracked credential-store path with a sensitive_paths override' and 'keeps tracked harness state inside the gitleaks harness exclusion'. Caveat (disclosed in the evidence doc's Residual section, not a criterion failure): the summarizer/echo fix lives in the pipx venv plus an unmerged gitreins branch wt/DF-2026-20-port, so no test in this repo pins that half \u2014 a future `pipx upgrade` would revert it.\nShipped gitreins 0.17.1 now reports the secrets leg PASS on the current tree, all five 2026-10-30 verdicts re-summarize to the .npmrc SENSITIVE PATH finding instead of the harness-state scope message, and the root cause plus a green 3/3 regression test are committed.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Fresh gitreins tier1 run at origin/main HEAD reports secrets leg PASS (or the two scanners demonstrably agree on .gitreins/** scope in the shipped tool); re-running any of the five 2026-10-30 verdicts' tasks no longer prints the harness-state scope message; root-caused and regression test pinned.",
+                "status": "PASS",
+                "detail": "All three sub-claims verified against the shipped tool (pipx gitreins 0.17.1, ~/.local/bin/gitreins). (1) Secrets leg PASS: executed the shipped engine's own step builder `_secrets_step_run('.')` from site-packages/engine/pipeline.py against the current tree \u2014 exit_code=0, output: 'secrets: scanners=gitleaks+builtin cross-check / secrets: gitleaks: clean / secrets: builtin cross-check: Scanned 486166 files \u2014 clean (excluded harness state: .gitreins/**) / sensitive-path override applied: .npmrc / sensitive-path override applied: .env.example / secrets: builtin cross-check status: clean'. Both scanners agree on .gitreins/** scope: gitleaks gets `(^|/)\\.gitreins/.*` via harness_state_allowlist_paths() (pipeline.py:1689, guard_manager.py:82-89) and the builtin skips via _is_harness_state_path (guard_manager.py:2254). (2) No harness-state scope message on re-run: the unconditional echo was moved into the gitleaks-failure branch only (pipeline.py:1788 `else echo \"secrets: gitleaks: findings found...\"; echo \"secrets: harness state excluded...\"`), and _summarize_stage now prefers finding lines via _SECRETS_FINDING_LINE (types.py:21, pipeline.py:1561). Replayed the shipped Pipeline._summarize_stage on the actual tier1 stages of all five 2026-10-30 verdicts (55043021/DF-2026-13, 761c8c9f/DF-2026-11, 3786436f/DF-2026-19, ed0feed3/DF-2026-17, a38df962/DF-2026-18): each now renders '\u2717 secrets: .npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of co\u2026' instead of the old 'secrets: harness state excluded from gitleaks scope (.gitreins/**)' that all five verdict.json files record. (3) Root-caused + regression test pinned: .coding-hermes/evidence/DF-2026-20-secrets-scope.md documents the real cause (builtin credential-store PATH class on tracked .npmrc/.env.example, REVIEW-GITREINS-027/GR-GAP-007, plus the always-first echo misattribution) with red/blue logs; commit afc58750 adds guards.sensitive_paths.allow (.gitreins/config.yaml:27-30) and src/test/gitleaks-scope.test.ts, which I ran fresh: `npx vitest run src/test/gitleaks-scope.test.ts` \u2192 exit_code=0, 'Test Files 1 passed (1) / Tests 3 passed (3)', including 'covers every tracked credential-store path with a sensitive_paths override' and 'keeps tracked harness state inside the gitleaks harness exclusion'. Caveat (disclosed in the evidence doc's Residual section, not a criterion failure): the summarizer/echo fix lives in the pipx venv plus an unmerged gitreins branch wt/DF-2026-20-port, so no test in this repo pins that half \u2014 a future `pipx upgrade` would revert it.",
+                "resolution_probability": 0.0
+              }
+            ],
+            "summary": "Shipped gitreins 0.17.1 now reports the secrets leg PASS on the current tree, all five 2026-10-30 verdicts re-summarize to the .npmrc SENSITIVE PATH finding instead of the harness-state scope message, and the root cause plus a green 3/3 regression test are committed.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: DF-2026-20\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Fresh gitreins tier1 run at origin/main HEAD reports secrets leg PASS (or the two scanners demonstrably agree on .gitreins/** scope in the shipped tool); re-running any of the five 2026-10-30 verdicts' tasks no longer prints the harness-state scope message; root-caused and regression test pinned.: All three sub-claims verified against the shipped tool (pipx gitreins 0.17.1, ~/.local/bin/gitreins). (1) Secrets leg PASS: executed the shipped engine's own step builder `_secrets_step_run('.')` from site-packages/engine/pipeline.py against the current tree \u2014 exit_code=0, output: 'secrets: scanners=gitleaks+builtin cross-check / secrets: gitleaks: clean / secrets: builtin cross-check: Scanned 486166 files \u2014 clean (excluded harness state: .gitreins/**) / sensitive-path override applied: .npmrc / sensitive-path override applied: .env.example / secrets: builtin cross-check status: clean'. Both scanners agree on .gitreins/** scope: gitleaks gets `(^|/)\\.gitreins/.*` via harness_state_allowlist_paths() (pipeline.py:1689, guard_manager.py:82-89) and the builtin skips via _is_harness_state_path (guard_manager.py:2254). (2) No harness-state scope message on re-run: the unconditional echo was moved into the gitleaks-failure branch only (pipeline.py:1788 `else echo \"secrets: gitleaks: findings found...\"; echo \"secrets: harness state excluded...\"`), and _summarize_stage now prefers finding lines via _SECRETS_FINDING_LINE (types.py:21, pipeline.py:1561). Replayed the shipped Pipeline._summarize_stage on the actual tier1 stages of all five 2026-10-30 verdicts (55043021/DF-2026-13, 761c8c9f/DF-2026-11, 3786436f/DF-2026-19, ed0feed3/DF-2026-17, a38df962/DF-2026-18): each now renders '\u2717 secrets: .npmrc: SENSITIVE PATH (credential-store path class) \u2014 staging this file is blocked regardless of co\u2026' instead of the old 'secrets: harness state excluded from gitleaks scope (.gitreins/**)' that all five verdict.json files record. (3) Root-caused + regression test pinned: .coding-hermes/evidence/DF-2026-20-secrets-scope.md documents the real cause (builtin credential-store PATH class on tracked .npmrc/.env.example, REVIEW-GITREINS-027/GR-GAP-007, plus the always-first echo misattribution) with red/blue logs; commit afc58750 adds guards.sensitive_paths.allow (.gitreins/config.yaml:27-30) and src/test/gitleaks-scope.test.ts, which I ran fresh: `npx vitest run src/test/gitleaks-scope.test.ts` \u2192 exit_code=0, 'Test Files 1 passed (1) / Tests 3 passed (3)', including 'covers every tracked credential-store path with a sensitive_paths override' and 'keeps tracked harness state inside the gitleaks harness exclusion'. Caveat (disclosed in the evidence doc's Residual section, not a criterion failure): the summarizer/echo fix lives in the pipx venv plus an unmerged gitreins branch wt/DF-2026-20-port, so no test in this repo pins that half \u2014 a future `pipx upgrade` would revert it.\nShipped gitreins 0.17.1 now reports the secrets leg PASS on the current tree, all five 2026-10-30 verdicts re-summarize to the .npmrc SENSITIVE PATH finding instead of the harness-state scope message, and the root cause plus a green 3/3 regression test are committed.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-03T02:56:25.969247",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-03T02:56:26.002526+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1223,
+        "truncated": false,
+        "source": "git show 52d474ba620c"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 68321,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "DF-2026-20"
+  }
+}

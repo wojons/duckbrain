@@ -1,0 +1,48 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-03-01-50-12",
+  "block": "DF-2026-20",
+  "block_acceptance": "PASS — block 64/64 done: both row ACs verified on the published merged tree by tier2 judges (DF-2026-20 verdict d05a5fd4 passed=true; DF-2026-7 verdict 88552e42 passed=true), full suite 247 files / 2055 tests exit 0, tsc clean, test-counts manifest resynced (9fc44267).",
+  "selected_rows": ["DF-2026-20", "DF-2026-7"],
+  "path": "wave-of-2",
+  "wave_budget": 12,
+  "slots_computed": 6,
+  "slots_note": "nproc=16 loadavg=5.77 -> slots=6 (min(6,16-6)); WAVE_BUDGET=12 ceiling not binding",
+  "independence": "DF-2026-20 touches .gitreins/config.yaml + src/test/gitleaks-scope.test.ts + .coding-hermes/evidence/DF-2026-20-secrets-scope.md; DF-2026-7 touches lane scratch/port convention (new helper + ops/dogfood-e2e.sh wiring + docs + tests). No depends_on edges on either row; disjoint files and seams; merges serial DF-2026-20 first.",
+  "resume_ref": "board event tick=duckbrain-foreman-2026-11-02-07-00-10 row=DF-2026-20 event=worker_failed (2 consecutive zero-liveness failures, manual-investigation recommendation)",
+  "rows": [
+    {
+      "task_id": "DF-2026-20",
+      "path": "foreman-direct-reconcile",
+      "reason": "fix already written (afc587502385b0d1d784c33962c0219b77968a9d on wt/DF-2026-20) by the prior manual-investigation session and stranded unmerged; re-dispatching a worker would duplicate work over an already-edited tree",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-20",
+      "branch": "wt/DF-2026-20",
+      "base_sha": "03f98adb",
+      "implementation_commit": "afc587502385b0d1d784c33962c0219b77968a9d",
+      "merged_commit": "ae6889797c5c5b3efbb90beb9846cd479ed1e868",
+      "judge_verdict": ".gitreins/history/2026-11-03/d05a5fd4/verdict.json (id 2886d995) passed=true",
+      "gates": {"focused": "pnpm exec vitest run src/test/gitleaks-scope.test.ts -> 3/3 PASS", "full_suite": "pnpm test:run -> exit 0 (246 files / 2053 tests at merge)", "tsc": "pnpm exec tsc --noEmit -> exit 0", "tier1_secrets": "gitreins guard: secrets clean, both scanners agree (gitleaks+builtin cross-check)"}
+    },
+    {
+      "task_id": "DF-2026-7",
+      "path": "worker",
+      "worktree": "/home/kara/worktrees/duckbrain-DF-2026-7",
+      "branch": "wt/DF-2026-7",
+      "base_sha": "ccf6ddbf01c2a52b7eafe90cf59bede4557a2d33",
+      "brief": ".coding-hermes/worker-prompts/DF-2026-7.md",
+      "model": "gpt-6-luna",
+      "provider": "openai-codex",
+      "worker_result": "exited 0 (997s, proc_9ccd91b1e401); commits 4f5e18cb + 58defeb0 (7 files +272/-6); worker's own suite run hit the pre-existing ops006 load flake (filed TESTQ-2026-11-03-1) and correctly refused to claim green",
+      "implementation_commit": "4f5e18cb+58defeb0",
+      "merged_commit": "52d474ba620c6cb5a70587a50516a8ac6232ffe4",
+      "judge_verdict": ".gitreins/history/2026-11-03/88552e42/verdict.json (id 193f086c) passed=true",
+      "gates": {"focused": "pnpm exec vitest run src/ops/lane-scratch.test.ts + gitleaks-scope -> 5/5 PASS", "full_suite": "pnpm test:run -> exit 0 (247 files / 2055 tests)", "tsc": "pnpm exec tsc --noEmit -> exit 0", "dry_run": "bash ops/test-lane-scratch-deconfliction.sh -> exit 0, collision named, lane A intact"}
+    }
+  ],
+  "gate_fix_sha": "9fc442674c2cc4c5db22c965a7b69243bdd2d645",
+  "gate_fix_note": "test-counts.json resync (247/2055) after both merges added tests; CI 'Run tests' was green at both merge SHAs, only the count-manifest assert was red (runs 41566851486, 41568694558).",
+  "closeout_sha": "52d474ba620c6cb5a70587a50516a8ac6232ffe4",
+  "closeout_sha_role": "wave integration SHA (last merge of the wave); the bookkeeping commit carrying this manifest is named in the tick's DuckBrain receipt, never inside this file",
+  "status": "closed",
+  "created_at": "2026-11-02T21:28:00-05:00",
+  "finished_at": "2026-11-02T22:06:00-05:00"
+}
