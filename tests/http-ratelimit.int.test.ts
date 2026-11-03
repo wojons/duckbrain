@@ -64,7 +64,11 @@ describe("Rate Limiting Integration", () => {
       const res = await curl(`http://127.0.0.1:${rateLimitPort}/health`);
       // GAP-030: accept 503 (degraded) as well as 200.
       expect([200, 503]).toContain(res.status);
-      expect(res.headers).toMatch(/X-RateLimit-Limit/i);
+      // TESTQ-2026-11-02-1: assert the VALUE, not merely that the header
+      // exists. A port squatter would answer with ITS configured limit (the
+      // CI failure carried `X-RateLimit-Limit: 5` from a different daemon), so
+      // pinning 100 turns "measuring the wrong server" into an explicit red.
+      expect(res.headers).toMatch(/X-RateLimit-Limit:\s*100/i);
     } finally {
       killProcess(rlServer);
     }

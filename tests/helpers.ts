@@ -132,6 +132,33 @@ export async function waitForUrl(
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    // TESTQ-2026-11-02-1: a child that could not bind (EADDRINUSE against a
+    // sibling daemon's port) can never become ready, and the port it wanted is
+    // then answered by the SQUATTER — so polling it "succeeds" against a
+    // daemon this test never started. Fail immediately and say which.
+    if (child) {
+      const tail = getStderrTail(child);
+      if (/EADDRINUSE|address already in use/i.test(tail)) {
+        throw new Error(
+          `Refusing to wait for ${url}: the child never bound its port ` +
+            `(EADDRINUSE) — another daemon owns it, and any response on it ` +
+            `would be that daemon's, not this child's.` +
+            (getChildState(child) ? `\n--- child state ---\n${getChildState(child)}` : "") +
+            `\n--- child stderr tail ---\n${tail}`,
+        );
+      }
+      const exited =
+        (typeof child.exitCode === "number" && child.exitCode !== null) ||
+        (child.signalCode !== undefined && child.signalCode !== null);
+      if (exited) {
+        throw new Error(
+          `Refusing to wait for ${url}: the child already exited ` +
+            `(code=${child.exitCode}, signal=${child.signalCode}) before ` +
+            `serving.` +
+            (tail ? `\n--- child stderr tail ---\n${tail}` : ""),
+        );
+      }
+    }
     try {
       // --max-time 10 bounds each attempt: a health handler that accepts TCP
       // but stalls (e.g. a slow embedding probe) must not pin the poll loop
@@ -173,9 +200,45 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Is `port` free to bind on loopback right now?
+ *
+ * `nc -z` succeeds only when something is already listening, so a FAILED
+ * probe means the port is (currently) free. Used by getRandomPort() and by
+ * suites that must not attach to a foreign daemon.
+ */
+export function isPortFree(port: number): boolean {
+  try {
+    run(`nc -z 127.0.0.1 ${port}`);
+    return false; // something answered — the port is taken
+  } catch {
+    return true;
+  }
+}
+
 export function getRandomPort(): number {
   // 21000-29999: below the OS ephemeral range (32768-60999). Drawing from
   // 30000+ raced runner connections into EADDRINUSE (CI run 37502128620).
+  //
+  // TESTQ-2026-11-02-1: a bare random draw also lands on a port that a
+  // STILL-RUNNING sibling daemon already owns — every integration suite runs
+  // in parallel inside this same 9000-port window, and killProcess() is a
+  // fire-and-forget SIGTERM. When that happened the new child died with
+  // EADDRINUSE, the readiness probe was answered by the SQUATTER, and the
+  // test asserted against a daemon it never started: the reported symptom was
+  // a fresh `--rate-limit=100` daemon answering 429 because the squatter was
+  // an older, already-drained `--rate-limit=5` daemon (CI run 41453591399;
+  // reproduced deterministically in-repo by binding both daemons to one port
+  // — the squatter's reply carried `X-RateLimit-Limit: 5`).
+  //
+  // So: draw, and skip any port that is already bound. Bounded attempts keep
+  // this from spinning if the probe tool itself is unavailable; the last draw
+  // is returned as before (startDuckbrainHttp + waitForUrl now fail loudly on
+  // a child that never bound instead of silently reading the squatter).
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const candidate = 21000 + Math.floor(Math.random() * 9000);
+    if (isPortFree(candidate)) return candidate;
+  }
   return 21000 + Math.floor(Math.random() * 9000);
 }
 
