@@ -1248,3 +1248,6 @@
 {"id":8427,"timestamp":"2026-11-03T22:37:31Z","event_type":"task_completed","task_id":"TESTQ-2026-11-03-1","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8428,"timestamp":"2026-11-03T22:41:56Z","event_type":"task_created","task_id":"TESTQ-2026-11-03-2","actor":"foreman","detail":"{\"id\":\"TESTQ-2026-11-03-2\",\"status\":\"pending\"}","tick_number":null}
 {"id":8429,"timestamp":"2026-11-03T22:41:56Z","event_type":"task_completed","task_id":"TESTQ-2026-11-03-2","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8430,"timestamp":"2026-11-03T23:20:47Z","event_type":"task_created","task_id":"HARDEN-DUCKBRAIN-001","actor":"foreman","detail":"{\"id\":\"HARDEN-DUCKBRAIN-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8431,"timestamp":"2026-11-03T23:50:09Z","event_type":"task_completed","task_id":"OBSDB-006","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8432,"timestamp":"2026-11-03T23:50:14Z","event_type":"task_created","task_id":"HARDEN-DUCKBRAIN-002","actor":"foreman","detail":"{\"id\":\"HARDEN-DUCKBRAIN-002\",\"status\":\"pending\"}","tick_number":null}
