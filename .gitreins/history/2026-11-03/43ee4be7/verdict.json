@@ -1,0 +1,125 @@
+{
+  "task_id": "INT-CI-035-R1",
+  "task_title": "INT-CI-035 recovery verification \u2014 keyword search off-by-one fix d761b9cc already merged to main",
+  "task_criteria": [
+    "Run from the canonical control root at the published HEAD 49583100: git merge-base --is-ancestor d761b9cc HEAD exits 0 proving the fix commit is reachable from the verified tree",
+    "pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts exits 0 with 2 test files and 31 tests passing, restoring the documented keyword hit counts",
+    "pnpm exec tsc --noEmit exits 0 on the merged tree"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "4958310068be8ac4c1c1c7be31a4e4140d556161",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n4:11AM INF scanned ~22356945 bytes (22.36 MB) in 2.91s\n4:11AM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 486183 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T023554.624526Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:430950) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:449064) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:453520) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:453987) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:455543) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:456403) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:456533) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:456939) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:456961) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457049) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457059) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457070) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457094) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457134) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457226) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457313) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457381) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457541) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:457574) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  247 passed (247)\n      Tests  2055 passed (2055)\n   Start at  04:11:34\n   Duration  67.66s (tests 79%, import 18%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  247 workers spawned \u00b7 ~86ms startup each (spawn + environment, per file)\n             at least ~5.21s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T023554.624526Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Run from the canonical control root at the published HEAD 49583100: git merge-base --is-ancestor d761b9cc HEAD exits 0 proving the fix commit is reachable from the verified tree: Repo root /home/kara/duckbrain; `git rev-parse HEAD` = 4958310068be8ac4c1c1c7be31a4e4140d556161 (published HEAD 49583100). `git merge-base --is-ancestor d761b9cc HEAD` returned EXIT=0. `git log -1 d761b9cc` = 'd761b9cc fix(search): preserve keyword matches for exact ticket queries. Addresses INT-CI-035.' \u2014 fix commit is reachable from the verified tree.\n  \u2713 pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts exits 0 with 2 test files and 31 tests passing, restoring the documented keyword hit counts: Fresh run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> EXIT=0. Output: 'RUN v5.0.5 /home/kara/duckbrain', 'Test Files  2 passed (2)', 'Tests  31 passed (31)', Duration 2.34s. Exactly the required 2 files / 31 tests, all passing. [resolution 0.04; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\n  \u2713 pnpm exec tsc --noEmit exits 0 on the merged tree: Fresh run at HEAD 49583100: `pnpm exec tsc --noEmit` -> EXIT=0 with 0 lines of output (no type errors) on the merged tree.\nAll three recovery-verification criteria pass with fresh command evidence: d761b9cc is an ancestor of HEAD 49583100, the two search test files pass 2/2 files and 31/31 tests with exit 0, and tsc --noEmit exits 0 cleanly.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Run from the canonical control root at the published HEAD 49583100: git merge-base --is-ancestor d761b9cc HEAD exits 0 proving the fix commit is reachable from the verified tree: Repo root /home/kara/duckbrain; `git rev-parse HEAD` = 4958310068be8ac4c1c1c7be31a4e4140d556161 (published HEAD 49583100). `git merge-base --is-ancestor d761b9cc HEAD` returned EXIT=0. `git log -1 d761b9cc` = 'd761b9cc fix(search): preserve keyword matches for exact ticket queries. Addresses INT-CI-035.' \u2014 fix commit is reachable from the verified tree.\n  \u2713 pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts exits 0 with 2 test files and 31 tests passing, restoring the documented keyword hit counts: Fresh run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> EXIT=0. Output: 'RUN v5.0.5 /home/kara/duckbrain', 'Test Files  2 passed (2)', 'Tests  31 passed (31)', Duration 2.34s. Exactly the required 2 files / 31 tests, all passing. [resolution 0.04; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\n  \u2713 pnpm exec tsc --noEmit exits 0 on the merged tree: Fresh run at HEAD 49583100: `pnpm exec tsc --noEmit` -> EXIT=0 with 0 lines of output (no type errors) on the merged tree.\nAll three recovery-verification criteria pass with fresh command evidence: d761b9cc is an ancestor of HEAD 49583100, the two search test files pass 2/2 files and 31/31 tests with exit 0, and tsc --noEmit exits 0 cleanly.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Run from the canonical control root at the published HEAD 49583100: git merge-base --is-ancestor d761b9cc HEAD exits 0 proving the fix commit is reachable from the verified tree",
+                "status": "PASS",
+                "detail": "Repo root /home/kara/duckbrain; `git rev-parse HEAD` = 4958310068be8ac4c1c1c7be31a4e4140d556161 (published HEAD 49583100). `git merge-base --is-ancestor d761b9cc HEAD` returned EXIT=0. `git log -1 d761b9cc` = 'd761b9cc fix(search): preserve keyword matches for exact ticket queries. Addresses INT-CI-035.' \u2014 fix commit is reachable from the verified tree.",
+                "resolution_probability": 0.04
+              },
+              {
+                "criterion": "pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts exits 0 with 2 test files and 31 tests passing, restoring the documented keyword hit counts",
+                "status": "PASS",
+                "detail": "Fresh run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> EXIT=0. Output: 'RUN v5.0.5 /home/kara/duckbrain', 'Test Files  2 passed (2)', 'Tests  31 passed (31)', Duration 2.34s. Exactly the required 2 files / 31 tests, all passing. [resolution 0.04; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]",
+                "resolution_probability": 0.04,
+                "cited_path": "src/search/search-retr001.test.ts, src/search/search-retr008.test.ts"
+              },
+              {
+                "criterion": "pnpm exec tsc --noEmit exits 0 on the merged tree",
+                "status": "PASS",
+                "detail": "Fresh run at HEAD 49583100: `pnpm exec tsc --noEmit` -> EXIT=0 with 0 lines of output (no type errors) on the merged tree.",
+                "resolution_probability": 0.04
+              }
+            ],
+            "summary": "All three recovery-verification criteria pass with fresh command evidence: d761b9cc is an ancestor of HEAD 49583100, the two search test files pass 2/2 files and 31/31 tests with exit 0, and tsc --noEmit exits 0 cleanly.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: INT-CI-035-R1\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Run from the canonical control root at the published HEAD 49583100: git merge-base --is-ancestor d761b9cc HEAD exits 0 proving the fix commit is reachable from the verified tree: Repo root /home/kara/duckbrain; `git rev-parse HEAD` = 4958310068be8ac4c1c1c7be31a4e4140d556161 (published HEAD 49583100). `git merge-base --is-ancestor d761b9cc HEAD` returned EXIT=0. `git log -1 d761b9cc` = 'd761b9cc fix(search): preserve keyword matches for exact ticket queries. Addresses INT-CI-035.' \u2014 fix commit is reachable from the verified tree.\n  \u2713 pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts exits 0 with 2 test files and 31 tests passing, restoring the documented keyword hit counts: Fresh run: `pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts` -> EXIT=0. Output: 'RUN v5.0.5 /home/kara/duckbrain', 'Test Files  2 passed (2)', 'Tests  31 passed (31)', Duration 2.34s. Exactly the required 2 files / 31 tests, all passing. [resolution 0.04; src/search/search-retr001.test.ts, src/search/search-retr008.test.ts]\n  \u2713 pnpm exec tsc --noEmit exits 0 on the merged tree: Fresh run at HEAD 49583100: `pnpm exec tsc --noEmit` -> EXIT=0 with 0 lines of output (no type errors) on the merged tree.\nAll three recovery-verification criteria pass with fresh command evidence: d761b9cc is an ancestor of HEAD 49583100, the two search test files pass 2/2 files and 31/31 tests with exit 0, and tsc --noEmit exits 0 cleanly.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-03T09:13:28.200214",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-03T09:13:28.238337+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 262176,
+        "truncated": true,
+        "source": "git show 4958310068be"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1716,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-035-R1"
+  }
+}
