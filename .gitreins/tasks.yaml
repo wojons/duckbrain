@@ -3024,3 +3024,13 @@ tasks:
   status: complete
   created_at: '2026-11-03T09:11:01.319475+00:00'
   completed_at: '2026-11-03T09:11:33.494785+00:00'
+- id: TESTQ-2026-11-03-1
+  title: OPS-006 test read a SIGKILLed CLI's exit code as a product failure
+  criteria:
+  - src/git/autocommit-ops006.test.ts raises the runCli kill budget to 120s with justification,
+    waits on the durable commit + pushed-ref parity via waitFor with a bounded settle
+    window, fails on a clean nonzero exit, and gives the test an explicit 240s timeout
+  - 10 consecutive green runs of the file under a concurrent full pnpm test:run at
+    loadavg 20-23, plus 247/2055 green full suite and tsc clean
+  status: pending
+  created_at: '2026-11-03T22:08:15.831146+00:00'
