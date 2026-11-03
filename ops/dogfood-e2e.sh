@@ -38,12 +38,12 @@ source "$REPO/ops/lane-scratch.sh"
 RUN_TAG="dogfood-$(date +%s)-$$"
 NS="dogfood-e2e-${RUN_TAG#dogfood-}"
 AGENT_ID="duckbrain-dogfood-${RUN_TAG}"
-ROOT=$(lane_scratch_allocate duckbrain dogfood "$RUN_TAG" "$AGENT_ID")
+ROOT=$(lane_scratch_allocate duckbrain dogfood "$RUN_TAG" "$AGENT_ID") || exit 1
 RUN_ID=$(basename "$ROOT")
 LOG="$ROOT/dogfood.log"
-PA=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID")
-PB=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID")
-PC=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID")
+PA=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
+PB=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
+PC=$(lane_scratch_allocate_port "$ROOT" "$RUN_ID" "$AGENT_ID") || exit 1
 PROD_AUTH="$HOME/.duckbrain/auth.json"
 FP_BEFORE=$(sha256sum "$PROD_AUTH" 2>/dev/null | cut -d' ' -f1 || echo none)
 PASS=0; FAIL=0; declare -a RESULTS=()
@@ -76,6 +76,7 @@ trap cleanup EXIT
 DAPID=()
 start_daemon(){ # start_daemon <port> <datadir> <nsdir> <authfile> [extra env kv...]
   local port=$1 dd=$2 nsd=$3 af=$4; shift 4
+  lane_scratch_assert_owner "$ROOT" "$RUN_ID" "$AGENT_ID" || return 1
   mkdir -p "$dd" "$nsd/$NS"
   env DUCKBRAIN_DATA_DIR="$dd" DUCKBRAIN_NAMESPACES_PATH="$nsd" \
       DUCKBRAIN_AUTH_FILE="$af" "$@" \
