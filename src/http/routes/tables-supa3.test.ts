@@ -28,6 +28,7 @@ import os from "os";
 import path from "path";
 import { createTableRoutes, createNamespaceOpenApiRoutes } from "./tables";
 import { invalidateTableRegistry } from "../../schema/table-registry";
+import { durabilityHeaderFor } from "../../storage/durability";
 import { createServer, type Server } from "http";
 
 const FIXTURE_NS = "supa3-fixture";
@@ -440,6 +441,12 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     });
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ inserted: 1 });
+    // SUPA-1: the per-namespace write mode is surfaced on EVERY write response.
+    // This route answered 201 with no X-Durability header on either insert
+    // branch — proved on a scratch daemon 2026-11-03 (HARDEN-DUCKBRAIN-001).
+    // This pins the legacy .table.json branch; the serializer branch is pinned
+    // by that row's live probe, which fails on pre-fix code.
+    expect(res.headers["x-durability"]).toBe(durabilityHeaderFor(FIXTURE_NS));
     const read = await httpRequest(
       createApp(),
       "GET",

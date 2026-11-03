@@ -989,10 +989,12 @@ function createTableRoutes(): Router {
           }
           inserted += 1;
         }
+        res.setHeader("X-Durability", durabilityHeaderFor(ns));
         res.status(201).json({ inserted });
         return;
       }
       appendRowsToTable(namespaceDir(ns), declaration, coerced);
+      res.setHeader("X-Durability", durabilityHeaderFor(ns));
       res.status(201).json({ inserted: coerced.length });
     }),
   );
