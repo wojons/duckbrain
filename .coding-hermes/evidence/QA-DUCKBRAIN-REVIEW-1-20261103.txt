@@ -1,0 +1,57 @@
+# QA-DUCKBRAIN-REVIEW-1 — acceptance evidence
+
+Row: QA-DUCKBRAIN-REVIEW-1 ([P1] Battery launch refused: target is subdirectory of parent git repo)
+Tick: duckbrain-foreman-2026-11-03-18-21-18
+Implementation commit: 952b7c4ea3293e9452d4e48a46a4e76828bb0c7c (branch wt/QA-DUCKBRAIN-REVIEW-1, ff-merged to main)
+Published main: 952b7c4ea3293e9452d4e48a46a4e76828bb0c7c
+
+## Premise re-verified live at tick start
+
+`/home/kara/.hermes/scripts/bunker-qa.sh resolve /home/kara/.hermes/stand-in/review/duckbrain`
+  stdout: /home/kara/duckbrain
+  stderr: NOTE: ... is a stand-in; resolving product root /home/kara/duckbrain (board symlink -> /home/kara/duckbrain/.coding-hermes/board)
+  rc: 0
+
+`BUNKER_QA_SUBDIR=. /home/kara/.hermes/scripts/bunker-qa.sh resolve /home/kara/.hermes/stand-in/review/duckbrain`
+  stdout: /home/kara/.hermes/stand-in/review/duckbrain/.
+  rc: 0
+
+Conclusion: the deployed harness (QA-BUNKER-REVIEW-3 stand-in product-root resolution, present at /home/kara/.hermes/scripts/bunker-qa.sh) already resolves the DuckBrain review stand-in to the real product root and no longer refuses it as a subdirectory of the /home/kara meta-repo. The 2026-11-02 board row captured a pre-port harness state.
+
+## Row blocker: no durable home for the harness fix
+
+The harness lives at `/home/kara/.hermes/scripts/bunker-qa.sh`, inside the `/home/kara` home meta-repo, NOT in this repository. Editing it here is impossible (that repo carries large unrelated uncommitted fleet state; a product commit cannot carry it). The in-repo deliverable is therefore the durable regression proof.
+
+## Delivered in this repository
+
+scripts/qa/test-review-target-resolution.sh (new, mode 100755, 49 lines) — repository-owned acceptance probe that:
+- fails closed when the harness is not executable, the review stand-in is missing, or the stand-in board link does not resolve into a Git root;
+- runs `bunker-qa.sh resolve` against `/home/kara/.hermes/stand-in/review/duckbrain` and requires the effective root to equal the real product Git root and NOT the parent repository;
+- runs the explicit `BUNKER_QA_SUBDIR=.` control and requires it to stay non-parent;
+- writes nothing into the board and uses an isolated mktemp scratch dir with a cleanup trap.
+
+## Acceptance commands and results (merged tree, /home/kara/duckbrain @ 952b7c4e)
+
+1. `bash -n scripts/qa/test-review-target-resolution.sh` -> rc 0
+2. `BUNKER_QA_SCRIPT=/home/kara/.hermes/scripts/bunker-qa.sh scripts/qa/test-review-target-resolution.sh` -> rc 0
+   PASS: review stand-in resolves to /home/kara/duckbrain, not parent /home/kara; explicit scope control is non-parent
+   (the parent check now names /home/kara because the probe runs from the canonical checkout, which is the real product root)
+3. `pnpm exec tsc --noEmit` -> rc 0
+4. `gitreins guard --staged-only` in the worker worktree -> Tier 1 DEGRADED PASS (secrets clean; tests skipped: no test files match the changed sources in diff mode). Recorded as SKIP for the tests lane per doctrine.
+5. Local full-suite guard in the worker worktree FAILED for a documented environment reason, NOT this diff: `pnpm install --ignore-scripts` was needed to give the worktree dependencies, and `duckdb.node` remains unbuilt (`Should_ignore_scripts` skipped the native build), so duckdb-importing suites error; the identical failure class is visible in 177 test files and is unrelated to a shell script. No source file in this diff is touched by those suites.
+
+## GitReins lifecycle
+
+Task: QA-DUCKBRAIN-REVIEW-1 (recreated at 18:57Z after the earlier verification-only task attempt was judged INCOMPLETE and deleted).
+- An ephemeral Tier 2 judge on the working tree returned `COMPLETE` on the criterion (full detail recorded in the tick transcript) while Tier 1's full-suite leg was red from the worktree's unbuilt native duckdb binding (environment, not this diff).
+- `gitreins task complete` did not produce a persisted verdict artifact before the tool window expired; the task store shows `status: complete` with `completed_at: 2026-11-03T19:04:43Z`, and no verdict.json for this task exists under `.gitreins/history/`.
+- Recorded verdict: `none:task-complete-timed-out-no-verdict-artifact` (disclosed, not claimed as a judge pass).
+
+## Gates
+
+local gate: PASS (bash -n + probe rc 0 + pnpm exec tsc --noEmit rc 0 at 952b7c4e; tier1 = secrets PASS, tests SKIP via --staged-only diff mode)
+remote CI: see tick report (queried at the final pushed SHA)
+
+## Trace
+
+ch:trace row=QA-DUCKBRAIN-REVIEW-1 spec=.coding-hermes/board/tasks.jsonl#QA-DUCKBRAIN-REVIEW-1 wave=none:serial test=scripts/qa/test-review-target-resolution.sh doc=none:no-doc-surface prompt=/home/kara/.hermes/cache/scratch/duckbrain-tick-YhzePS/QA-DUCKBRAIN-REVIEW-1-brief2.txt evidence=.coding-hermes/evidence/QA-DUCKBRAIN-REVIEW-1-20261103.txt witness=local:resolve-probe verdict=none:task-complete-timed-out-no-verdict-artifact commit=952b7c4ea3293e9452d4e48a46a4e76828bb0c7c memory=/project/duckbrain/foreman/ticks/duckbrain-foreman-2026-11-03-18-21-18

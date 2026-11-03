@@ -1,0 +1,51 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-03-18-21-18",
+  "block": "QA-DUCKBRAIN-REVIEW-1",
+  "path": "recovery-then-serial-fallback",
+  "wave_size": 1,
+  "wave_reason": "slots = max(1, min(6, nproc 16 - ceil(loadavg 10.73))) = 1, so a wave cannot be composed; the chosen block is also a singleton (one ready row, no depends_on edges). Serial path per doctrine.",
+  "wave_budget": 12,
+  "base_sha": "3bfaf9f8cf129117e472ebcdefd02cb902c6f866",
+  "rows": [
+    {
+      "task_id": "QA-DUCKBRAIN-REVIEW-1",
+      "action": "serial-worker-salvage",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-REVIEW-1",
+      "branch": "wt/QA-DUCKBRAIN-REVIEW-1",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-tick-YhzePS/QA-DUCKBRAIN-REVIEW-1-brief2.txt",
+      "implementation_commit": "952b7c4ea3293e9452d4e48a46a4e76828bb0c7c",
+      "merged_commit": "952b7c4ea3293e9452d4e48a46a4e76828bb0c7c",
+      "merge": "fast-forward 3bfaf9f8..952b7c4e, pushed to origin/main",
+      "gates": {
+        "bash_n": "rc 0",
+        "probe": "scripts/qa/test-review-target-resolution.sh rc 0 (product root /home/kara/duckbrain asserted, parent rejected, explicit-scope control non-parent)",
+        "tsc": "pnpm exec tsc --noEmit rc 0",
+        "tier1": "gitreins guard --staged-only: secrets PASS, tests SKIP (diff mode, no matching test sources)"
+      },
+      "verdict": "none:task-complete-timed-out-no-verdict-artifact"
+    }
+  ],
+  "workers": [
+    {
+      "attempt": 1,
+      "pid": 2698321,
+      "outcome": "zero diff after ~5 min, no first edit; killed by explicit pid"
+    },
+    {
+      "attempt": 2,
+      "pid": 3074902,
+      "outcome": "zero diff after ~3 min; killed by explicit pid; work salvaged foreman-direct from the tree"
+    }
+  ],
+  "recovery": {
+    "manifest": ".coding-hermes/waves/duckbrain-foreman-2026-11-03-08-53-26.json",
+    "result": "closed (recovery_status=closed, finished_at set) in publish commit 3bfaf9f8; its rows were already complete and merged, workers=[]"
+  },
+  "evidence": [
+    ".coding-hermes/evidence/QA-DUCKBRAIN-REVIEW-1-20261103.txt"
+  ],
+  "created_at": "2026-11-03T18:21:18+00:00",
+  "finished_at": "2026-11-03T19:30:00Z"
+}
