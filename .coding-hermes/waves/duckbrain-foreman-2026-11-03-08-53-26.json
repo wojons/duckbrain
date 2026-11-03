@@ -1,0 +1,28 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-03-08-53-26",
+  "block": "INT-CI-035",
+  "path": "serial-fallback-recovery (verification-only closeout of already-landed fix)",
+  "wave_size": 0,
+  "wave_reason": "The block's single ready row INT-CI-035 was already implemented and merged by a prior tick: fix commit d761b9cc (origin/wt/INT-CI-035) entered main via merge 0b422bff and is an ancestor of published origin/main 49583100 (merge-base --is-ancestor rc=0, verified live). Focused acceptance suites pass at HEAD (search-retr001 + search-retr008, 2 files / 31 tests) and exact-head CI is green (runs 41570641468, 41572303698 on 49583100). Re-dispatching a worker would duplicate landed, judge-passed work (d761b9cc previously judged PASS 7/7 as 04ecf61b on its own tree; verdict stale on old base by design). slots=6, budget=12 — sizing irrelevant because no independent dispatchable rows remain in the block (it has exactly one row, already satisfied).",
+  "rows": [
+    {
+      "id": "INT-CI-035",
+      "status_at_manifest": "pending",
+      "action": "verification-closeout",
+      "evidence": {
+        "fix_commit": "d761b9cc",
+        "fix_branch": "origin/wt/INT-CI-035",
+        "merge_commit": "0b422bff",
+        "published_head": "49583100",
+        "regression_commit": "e39a1110",
+        "regression_diff": "git show e39a1110 -- src/search/query.ts (tier-0 filter drops split-token matches)",
+        "focused_tests": "pnpm exec vitest run src/search/search-retr001.test.ts src/search/search-retr008.test.ts -> 2 files / 31 tests PASS at 49583100",
+        "exact_head_ci": ["41570641468 success", "41572303698 success"],
+        "gitreins_verification_task": "INT-CI-035-R1"
+      }
+    }
+  ],
+  "workers": [],
+  "base_sha": "4958310068be8ac4c1c1c7be31a4e4140d556161",
+  "created_at": "2026-11-03T08:53:26+00:00"
+}
