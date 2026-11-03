@@ -1,0 +1,7 @@
+Two-lane dry run: 2026-11-02T21:36:30-05:00
+lane A allocates root=/var/tmp/hermes-scratch/duckbrain-df-2026-7-dryrun-dMk82w5p/duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5 port=20000 run_id=duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5 agent_id=lane-A-agent
+lane A wrote evidence file=/var/tmp/hermes-scratch/duckbrain-df-2026-7-dryrun-dMk82w5p/duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5/evidence.txt
+lane B fresh allocation root=/var/tmp/hermes-scratch/duckbrain-df-2026-7-dryrun-dMk82w5p/duckbrain-dogfood-dryrun-3467757-lane-B-3pt6N7cn port=20001 run_id=duckbrain-dogfood-dryrun-3467757-lane-B-3pt6N7cn agent_id=lane-B-agent
+lane B forced collision probe against lane A:
+scratch collision: path=/var/tmp/hermes-scratch/duckbrain-df-2026-7-dryrun-dMk82w5p/duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5 requested_run=duckbrain-dogfood-dryrun-3467757-lane-B-3pt6N7cn requested_agent=lane-B-agent existing_run=duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5 existing_agent=lane-A-agent
+lane A evidence intact after lane B: /var/tmp/hermes-scratch/duckbrain-df-2026-7-dryrun-dMk82w5p/duckbrain-dogfood-dryrun-3467757-lane-A-QAI0q1l5/evidence.txt
