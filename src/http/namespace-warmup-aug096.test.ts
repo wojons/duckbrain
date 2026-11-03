@@ -742,5 +742,9 @@ describe("AUG-096 namespace warm-up", () => {
     ).toBe(names.length);
     expect(peak).toBeLessThanOrEqual(2);
     expect(peak).toBeGreaterThanOrEqual(1);
-  });
+    // Six real DuckDB namespaces warmed two at a time exceed the 15s global
+    // default once the host is loaded (fleet batteries push loadavg past 20 on
+    // a 16-core box). The assertion here is the concurrency PEAK, not speed, so
+    // give the warm-up a load-tolerant budget instead of failing as a timeout.
+  }, 120_000);
 });
