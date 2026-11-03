@@ -17,6 +17,17 @@ guards:
   # out' while CI on the same SHAs was green). 900s ALSO starved (9f08ab48,
   # loadavg ~80 → suite >900s); 1800s covers the loaded-suite ceiling.
   test_timeout: 1800
+  # DF-2026-20: .npmrc (scoped registry config) and .env.example (template)
+  # are tracked deliberately. GitReins' credential-store PATH class
+  # (REVIEW-GITREINS-027) fails those paths REGARDLESS of content, and by
+  # design .gitleaks.toml allowlists cannot silence the class (GR-GAP-007),
+  # so the sanctioned escape is this override. Every pass still records a
+  # "sensitive-path override applied:" note in the scan output — the
+  # override is never silent.
+  sensitive_paths:
+    allow:
+      - ".npmrc"
+      - ".env.example"
   dead_code: false # Python-only
   skylos: false
   static_analysis: false
