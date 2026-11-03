@@ -4,7 +4,12 @@ All notable changes to DuckBrain will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-03
+
+Range: `v1.1.0`..`v1.2.0` — 254 commits (16 `feat`, 25 `fix`, 2 `perf`,
+12 `docs`, 12 `test`, 3 `ci`, 54 `chore`, 85 board, plus releng/merge/qa).
+Board, QA-ledger and releng bookkeeping is omitted by design; the entries below
+are the product-visible changes.
 
 ### Added
 
@@ -16,12 +21,64 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `namespace delete`. Each removed row's `.s3state` manifest is pruned in the
   same pass; S3 objects are untouched. Exit 0 success/clean, 1 refused rows,
   2 aborted.
+- **`namespace prune --residue`** (DF-2026-15) — restricts the dead set to
+  test-pattern names (`auger-pytest-*`, `auger-probe-*`, `pytest-*`,
+  `test-residue-*`) so an operator can clear test residue without pruning every
+  dead mapping. The DB-GAP-057 on-disk census contract is preserved: unmapped
+  directories still appear in `GET /api/namespaces`.
 - **Registry drift guard on `GET /api/namespaces`** — a `driftWarning`
   `{deadCount, liveCount, hint}` object when directory-missing rows reach
   >= 25 or exceed 2x the live count; omitted entirely when healthy.
 - `updateConfig()` accepts `{expectedStamp, fsync}` for crash-safe,
   concurrent-writer-safe config rewrites (used by prune; default behavior of
   existing callers unchanged).
+- **Operator-pinned embedding upstreams** — the embedding client can be pinned
+  to a chosen OpenRouter upstream instead of accepting whichever provider the
+  router picks, so a degraded upstream is an operator decision rather than a
+  silent quality shift.
+- **DuckBrain as a Hermes memory provider** (DF-2026-14) — including a
+  lossless `MEMORY.md`/`USER.md` -> `hermes-memory` migration, and `dbq`, a
+  single command that issues the correct DuckBrain call per intent.
+- **L1 to L2 memory demotion** (DF-2026-16) — a CLI path for demoting a memory
+  from working set to the archive layer without losing its provenance.
+- **Recall quality benchmark** (DF-2026-17) — a repeatable benchmark, a runner,
+  and a scheduled run, so recall regressions are measured rather than argued.
+- **Nightly session distiller** (DF-2026-18) — turns raw session traffic into
+  durable summary memories on a schedule.
+- **Read-side recall counter and daily rollup** (DF-2026-19) — with a zero-day
+  alert, so a recall path that stops being exercised is visible.
+- **Session activity receipts** (DB-GAP-66) and **skill-aware prefetch** —
+  recall packs are lane-sized, and a prefetch surfaces matching skills
+  alongside memories.
+- **Role and per-table grants enforced on every generic-table verb**
+  (DB-SUPA-4-R2) — the grant layer is now enforcement, not documentation.
+
+### Changed
+
+- `bin/duckbrain.js` has an end-to-end test and a CI validation leg
+  (DF-2026-12), so the published entrypoint is covered like the source CLI.
+- The test-count gate reads a generated `test-counts.json` instead of the
+  agent-instruction file (DF-2026-13).
+
+### Fixed
+
+- **Search** — keyword matches are preserved for exact ticket queries
+  (INT-CI-035); an absent ticket-ID query is refused instead of silently
+  matching nothing (TESTQ-2026-10-30-1); a `.tmp.jsonl` caught in flight no
+  longer trips the namespace leak-walk (DF-2026-11).
+- **HTTP error classification** — a malformed-id DELETE and an empty-body POST
+  answer 4xx instead of 5xx (DF-2026-5, DF-2026-6).
+- **CLI flags** — `--namespace` accepts the space-separated form and an unknown
+  namespace in `status` fails loudly rather than defaulting (DF-2026-9).
+- **QA and dogfood harness** — the dogfood runner fails closed before spawning a
+  daemon, isolates scratch/ports/agent ownership, and the battery's UI-probe
+  port, upgrade N/A path and act post-step were repaired.
+- **Test stability** — the namespace warm-up concurrency test and the CLI E2E
+  config mismatch no longer fail on timing or config drift.
+- **Secrets guard** (DF-2026-20) — a "harness state excluded" failure was a
+  mislabelled builtin path-class finding, not a gitleaks scope disagreement;
+  the summariser now reports the finding line instead of an unrelated echo.
+- **Users author scans are bounded** (PERF-014).
 
 ## [1.1.0] - 2026-10-21
 

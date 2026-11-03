@@ -1,5 +1,19 @@
 name: Release
 
+# Publishing a release: push an annotated tag `vX.Y.Z` whose commit already has a
+# green CI run on main. This workflow does NOT re-run the suite.
+#
+# Why not (RELEASE-2026-10-26-001 A3): the v1.1.0 tag run 39539627477 died at
+# "Run tests" on a tree that was green on main at the SAME sha, so a release was
+# blocked by a cleanup flake rather than by the code. A tag does not change the
+# tree — re-running 2000+ tests on a detached ref duplicates coverage and adds a
+# second chance to fail on timing. The gate that means something is: the exact
+# tagged commit passed CI. That is verified here, against the API, before
+# anything is published.
+#
+# actions/create-release@v1 is archived and unmaintained; `gh release create` is
+# the supported path and gh is already present on the runner.
+
 on:
   push:
     tags:
@@ -10,34 +24,63 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read # read the CI runs for this commit
 
     steps:
       - uses: actions/checkout@v4
-
-      # No version input: pnpm/action-setup reads the exact packageManager pin.
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
         with:
-          run_install: false
+          fetch-depth: 0
 
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-          cache: "pnpm"
+      - name: Verify the tagged commit passed CI on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "tag=${GITHUB_REF_NAME} commit=${sha}"
+          # A tag push does not create an event for the branch workflow, so the
+          # run that matters is the push-to-main run bound to this exact commit.
+          runs="$(gh run list --commit "$sha" --workflow CI --limit 20 \
+            --json databaseId,headBranch,conclusion,event \
+            --jq '[.[] | select(.event=="push" and (.headBranch=="main" or .headBranch=="develop"))] | sort_by(.databaseId) | last')"
+          if [ -z "$runs" ] || [ "$runs" = "null" ]; then
+            echo "::error::No CI push run found for $sha. Tag only a commit that was merged to main and passed CI." >&2
+            exit 1
+          fi
+          conclusion="$(echo "$runs" | jq -r '.conclusion')"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI for $sha is '${conclusion}', not success. Refusing to publish." >&2
+            exit 1
+          fi
+          echo "CI for $sha: success — safe to publish."
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run tests
-        run: pnpm test:run
+      - name: Write release notes from CHANGELOG
+        id: notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\["v"\\]" {flag=1; next}
+            /^## \[/ {flag=0}
+            flag {print}
+          ' CHANGELOG.md > /tmp/notes.md
+          if [ ! -s /tmp/notes.md ]; then
+            echo "No CHANGELOG section for $version; falling back to the tag." >&2
+            echo "Release ${GITHUB_REF_NAME}" > /tmp/notes.md
+          fi
+          echo "path=/tmp/notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::Release $GITHUB_REF_NAME already exists. Releases are immutable here; cut a new tag." >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Release $GITHUB_REF_NAME" \
+            --notes-file "${{ steps.notes.outputs.path }}" \
+            --verify-tag
+          echo "Published $GITHUB_REF_NAME"
