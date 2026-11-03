@@ -1246,3 +1246,5 @@
 {"id":8425,"timestamp":"2026-11-03T22:01:12Z","event_type":"task_completed","task_id":"TESTQ-2026-11-02-1","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8426,"timestamp":"2026-11-03T22:01:31Z","event_type":"task_completed","task_id":"TESTQ-2026-11-02-1","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8427,"timestamp":"2026-11-03T22:37:31Z","event_type":"task_completed","task_id":"TESTQ-2026-11-03-1","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8428,"timestamp":"2026-11-03T22:41:56Z","event_type":"task_created","task_id":"TESTQ-2026-11-03-2","actor":"foreman","detail":"{\"id\":\"TESTQ-2026-11-03-2\",\"status\":\"pending\"}","tick_number":null}
+{"id":8429,"timestamp":"2026-11-03T22:41:56Z","event_type":"task_completed","task_id":"TESTQ-2026-11-03-2","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
