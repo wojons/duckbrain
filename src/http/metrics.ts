@@ -1,0 +1,467 @@
+/**
+ * OBSDB-001 — Prometheus exposition for the DuckBrain HTTP daemon.
+ *
+ * `docs/observability-spec.md` §2/§4: the daemon already holds every fact an
+ * operator needs at 3am (a `/health` verdict, per-provider embedding health,
+ * a durable read ledger) but nothing converts any of it into a time series —
+ * the only watchers are oneshot timers that read an EXIT CODE. This module is
+ * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
+ * official Node.js Prometheus client) in the text exposition format 0.0.4.
+ *
+ * Exactly six families are exposed (spec §3.1, with `duckbrain_build_info`
+ * folded in by the same row):
+ *
+ *   duckbrain_http_up                        gauge      — answer a scrape at all
+ *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
+ *   duckbrain_health_probe_duration_seconds   histogram  — probe=embedding|keys|total
+ *   duckbrain_embedding_provider_healthy     gauge      — provider=<embedder id>
+ *   duckbrain_reads_total                    counter    — route/method/status_class
+ *   duckbrain_build_info                     gauge 1    — version/node
+ *
+ * LABEL RULES (hard, spec §3 "Label discipline") — enforced in code, not by
+ * convention:
+ *   - `route` is a NORMALIZED template from `normalizeReadRoute`
+ *     (src/http/readLedger.ts) — never a raw URL, so a memory key or namespace
+ *     in the path can never reach a label. `observeRead` additionally refuses
+ *     any route string that does not look like a template, so a future caller
+ *     cannot smuggle a value into it.
+ *   - `method` is an HTTP verb, `status_class` a 1xx–5xx bucket.
+ *   - `provider` is an embedder id (src/embedding/providers.ts PROVIDERS);
+ *     anything else — synthetic probe ids such as "deadline", or a
+ *     config-supplied string — collapses to the fixed value `unknown`.
+ *   - `probe` and `version`/`node` are fixed enums/runtime constants.
+ *   - NEVER a namespace name, memory key, memory id, principal, API-key id,
+ *     file path, raw error string, or timestamp. Cardinality is bounded at
+ *     ~12 route templates × 5 status classes × 2 verbs + <20 other series.
+ *
+ * HEALTH GAUGE / NO SPLIT-BRAIN: `duckbrain_health_status` comes from the SAME
+ * evaluator `/health` uses (`evaluateHealth` in src/cli/http.ts) — not a second
+ * copy of the probe logic, which is how a dashboard ends up green while
+ * `/health` says degraded. The evaluation is reused for HEALTH_TTL_MS (the
+ * embedding probe's own 30s cache TTL), so a scrape costs one keys probe in
+ * the steady state instead of a 8.5s embed probe per scrape.
+ *
+ * The metric state is per-app (one Registry per createHttpServer()), so
+ * in-process tests and embedders never share counters.
+ */
+
+import fs from "fs";
+import path from "path";
+import { Counter, Gauge, Histogram, Registry } from "prom-client";
+import type { Request, Response } from "express";
+import { PROVIDERS } from "../embedding/providers";
+
+/** The six families this endpoint owns, in exposition order. */
+export const METRIC_NAMES = [
+  "duckbrain_http_up",
+  "duckbrain_health_status",
+  "duckbrain_health_probe_duration_seconds",
+  "duckbrain_embedding_provider_healthy",
+  "duckbrain_reads_total",
+  "duckbrain_build_info",
+] as const;
+
+/**
+ * `duckbrain_health_status` values. The three-way split is the EXISTING
+ * daemon taxonomy, not a new one: `src/cli/health-check.ts` treats 200 and
+ * 503 as ALIVE, and reports HUNG (exit 3) when the port accepted the
+ * connection and `/health` never answered. Flattening that to up/down would
+ * page a restart-loop at a daemon that is serving REST/MCP just fine.
+ */
+export const HEALTH_STATUS_VALUES = {
+  healthy: 2,
+  degraded: 1,
+  hung: 0,
+} as const;
+
+export type HealthState = keyof typeof HEALTH_STATUS_VALUES;
+
+/** The fixed `probe` label domain for the health-probe histogram. */
+export const HEALTH_PROBES = ["embedding", "keys", "total"] as const;
+export type HealthProbe = (typeof HEALTH_PROBES)[number];
+
+/** One evaluation's result, as the metrics surface consumes it. */
+export interface HealthSnapshot {
+  status: HealthState;
+  /** Per-provider embedding verdict (`id` + `healthy` only — never a note). */
+  providers: ReadonlyArray<{ id: string; healthy: boolean }>;
+  /** Wall duration of each sub-probe and of the whole evaluation. */
+  durationsMs: Record<HealthProbe, number>;
+}
+
+/** One recorded read, as the read-ledger middleware classifies it. */
+export interface ReadEvent {
+  /** Normalized route template, e.g. `GET /api/memories/key/:key`. */
+  route: string;
+  /** Uppercase HTTP verb. */
+  method: string;
+  /** Response status code (bucketed into `status_class`). */
+  status: number;
+}
+
+export interface HttpMetricsOptions {
+  /**
+   * Runs one `/health` evaluation (production: `evaluateHealth` with its
+   * default probes). MUST be the same evaluator the health endpoint uses.
+   */
+  evaluateHealth: () => Promise<HealthSnapshot>;
+  /** Build version for `duckbrain_build_info` (default: read package.json). */
+  version?: string;
+  /** `node` label value (default: `process.version`, like /health's nodeVersion). */
+  nodeVersion?: string;
+  /** Reuse window for a health evaluation (default 30s = probe cache TTL). */
+  healthTtlMs?: number;
+  /** Hard bound on one scrape's evaluation (default 10s ≈ /health + slack). */
+  healthDeadlineMs?: number;
+  /** Clock seam (tests). */
+  now?: () => number;
+}
+
+export interface HttpMetrics {
+  /** The per-app registry (tests render it directly). */
+  registry: Registry;
+  /** Express handler for `GET /metrics`. */
+  handler: (req: Request, res: Response) => Promise<void>;
+  /** Record one `/health` evaluation (used by the endpoint and by scrapes). */
+  recordHealth(snapshot: HealthSnapshot): void;
+  /** Mirror one recorded read into `duckbrain_reads_total`. */
+  observeRead(event: ReadEvent): void;
+  /** Render the current exposition (test/debug seam). */
+  render(): Promise<string>;
+}
+
+/** Steady-state reuse window for a health evaluation (= embedding probe TTL). */
+export const HEALTH_TTL_MS = 30_000;
+
+/** A scrape never waits longer than /health's own handler deadline + slack. */
+export const HEALTH_DEADLINE_MS = 10_000;
+
+/**
+ * Buckets for `duckbrain_health_probe_duration_seconds`. The upper buckets sit
+ * around the two budgets that matter operationally: the 8s embed-probe budget
+ * (a provider slower than that IS the degraded signal) and the 9s whole-handler
+ * deadline (OPS-002's parked `/health`).
+ */
+const PROBE_DURATION_BUCKETS = [
+  0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 9, 15,
+];
+
+/**
+ * The literal path segments a normalized route template may contain.
+ *
+ * This is the `route` label's real defense: `observeRead` refuses any route
+ * whose segments are not one of these words or a `:placeholder`, so a RAW path
+ * (`/api/ns/tenant-acme/tables`) can never become a label value — `tenant-acme`
+ * is not in this vocabulary, while every template `normalizeReadRoute` produces
+ * is. The set grows with the route table (src/http/readLedger.ts); an unknown
+ * word is dropped rather than trusted.
+ */
+const TEMPLATE_SEGMENTS: ReadonlySet<string> = new Set([
+  "api",
+  "memories",
+  "key",
+  "keys",
+  "namespaces",
+  "ns",
+  "tables",
+  "events",
+  "activity",
+  "flat",
+  "stats",
+]);
+
+/** The value placeholders `normalizeReadRoute` substitutes for real values. */
+const TEMPLATE_PLACEHOLDERS: ReadonlySet<string> = new Set([
+  ":key",
+  ":id",
+  ":ns",
+  ":table",
+]);
+
+const ROUTE_RE = /^(GET|HEAD|POST|PUT|PATCH|DELETE) (\/[A-Za-z0-9_:./-]{0,120})$/;
+
+/**
+ * True when `route` is a route TEMPLATE (`GET /api/memories/key/:key`), false
+ * for anything carrying a real value. Exported so the rule is testable.
+ */
+export function isRouteTemplate(route: string): boolean {
+  if (typeof route !== "string") return false;
+  const match = ROUTE_RE.exec(route);
+  if (!match) return false;
+  const segments = match[2].split("/").filter(Boolean);
+  if (segments.length === 0 || segments.length > 6) return false;
+  return segments.every((segment) =>
+    segment.startsWith(":")
+      ? TEMPLATE_PLACEHOLDERS.has(segment)
+      : TEMPLATE_SEGMENTS.has(segment),
+  );
+}
+
+/** Provider ids are lowercase tokens from the configured provider table. */
+const PROVIDER_LABEL_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+/**
+ * The configured embedder ids — the only values allowed in `provider`.
+ *
+ * Resolved lazily and defensively: a test (or an embedder) may replace
+ * `../embedding/providers` with a partial module mock, and an absent provider
+ * table must degrade to "no id is trusted" (every value → `unknown`) instead of
+ * crashing the process at import time. Reading it lazily also keeps this module
+ * free of import-time work.
+ */
+let knownProviderIds: ReadonlySet<string> | null = null;
+
+function knownProviders(): ReadonlySet<string> {
+  if (knownProviderIds) return knownProviderIds;
+  const table = Array.isArray(PROVIDERS) ? PROVIDERS : [];
+  knownProviderIds = new Set(
+    table
+      .map((provider) => provider?.id)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  return knownProviderIds;
+}
+
+/**
+ * Map an arbitrary provider identifier onto the `provider` label domain.
+ *
+ * The health probe reports provider ids from config plus synthetic ids of its
+ * own ("deadline", "probe") in failure modes. The metric's contract is "the
+ * embedder id, or nothing meaningful" — so a synthetic/unrecognised value
+ * collapses to the fixed string `unknown` instead of inventing cardinality or
+ * leaking a config-supplied string.
+ */
+export function providerLabel(id: unknown): string {
+  const raw = typeof id === "string" ? id.trim().toLowerCase() : "";
+  return knownProviders().has(raw) && PROVIDER_LABEL_RE.test(raw)
+    ? raw
+    : "unknown";
+}
+
+/** Bucket an HTTP status into the `status_class` label domain. */
+export function statusClass(status: number): string {
+  if (!Number.isInteger(status)) return "unknown";
+  const bucket = Math.floor(status / 100);
+  return bucket >= 1 && bucket <= 5 ? `${bucket}xx` : "unknown";
+}
+
+/**
+ * The DuckBrain build version, for `duckbrain_build_info`.
+ *
+ * Walks up from this module (works from src/ under tsx and from dist/src/
+ * after a build) and reads the package.json whose name is `duckbrain`. Never
+ * throws: an unreadable tree yields "unknown" rather than killing the scrape.
+ */
+export function resolveBuildVersion(): string {
+  let dir = __dirname;
+  for (let level = 0; level <= 5; level++) {
+    try {
+      const pkgPath = path.join(dir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+          name?: unknown;
+          version?: unknown;
+        };
+        if (pkg?.name === "duckbrain" && typeof pkg.version === "string") {
+          return pkg.version;
+        }
+      }
+    } catch {
+      /* unreadable/malformed — keep walking */
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return "unknown";
+}
+
+/** Degraded snapshot used when a scrape cannot complete an evaluation. */
+function hungSnapshot(): HealthSnapshot {
+  return {
+    status: "hung",
+    providers: [],
+    durationsMs: { embedding: 0, keys: 0, total: 0 },
+  };
+}
+
+/**
+ * Build the per-app metrics surface.
+ *
+ * Every instance owns its own Registry, so two `createHttpServer()` calls in
+ * one process (in-process tests, embedders) never share series.
+ */
+export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
+  const registry = new Registry();
+  const now = options.now ?? (() => Date.now());
+  const healthTtlMs = options.healthTtlMs ?? HEALTH_TTL_MS;
+  const healthDeadlineMs = options.healthDeadlineMs ?? HEALTH_DEADLINE_MS;
+  const version = options.version ?? resolveBuildVersion();
+  const nodeVersion = options.nodeVersion ?? process.version;
+
+  // The single most important series: is the process answering a scrape? It
+  // is set to 1 by the handler — reaching the handler IS the observation, so
+  // there is no path where this reads 0 while the body was rendered. A missing
+  // series means "no process", which Prometheus turns into `up == 0`.
+  const httpUp = new Gauge({
+    name: "duckbrain_http_up",
+    help: "1 when the DuckBrain HTTP daemon answered this /metrics scrape (a missing series means the process is gone).",
+    registers: [registry],
+  });
+
+  // 2 healthy / 1 degraded / 0 hung — the health-check.ts ALIVE/DARK/HUNG split.
+  const healthStatus = new Gauge({
+    name: "duckbrain_health_status",
+    help: "Current /health verdict: 2=healthy, 1=degraded (embedding or keys probe failing), 0=hung (no verdict could be produced).",
+    registers: [registry],
+  });
+
+  // Is /health slow — the OPS-002 failure class? probe=embedding|keys|total.
+  const healthProbeDuration = new Histogram({
+    name: "duckbrain_health_probe_duration_seconds",
+    help: "Wall duration of the /health sub-probes in seconds (probe=embedding|keys|total).",
+    labelNames: ["probe"],
+    buckets: PROBE_DURATION_BUCKETS,
+    registers: [registry],
+  });
+
+  // Per-provider embedder usability — the live incident is provider=0.
+  const providerHealthy = new Gauge({
+    name: "duckbrain_embedding_provider_healthy",
+    help: "1 when the embedding provider passed its real embed probe, 0 otherwise (provider=<embedder id>|unknown).",
+    labelNames: ["provider"],
+    registers: [registry],
+  });
+
+  // How much work is the daemon doing, and how much of it is failing?
+  const reads = new Counter({
+    name: "duckbrain_reads_total",
+    help: "Recorded read requests (the .duckbrain-audit/reads.jsonl truth table) by normalized route template, method and status class.",
+    labelNames: ["route", "method", "status_class"],
+    registers: [registry],
+  });
+
+  // What is deployed? Constant 1 — the labels carry the identity.
+  const buildInfo = new Gauge({
+    name: "duckbrain_build_info",
+    help: "Constant 1; the version and node labels identify the deployed build.",
+    labelNames: ["version", "node"],
+    registers: [registry],
+  });
+
+  // NOTE: prom-client renders NO samples for a label child that was never
+  // observed, so the histogram and read counter only appear once a real
+  // measurement exists. That is deliberate — a fabricated zero observation to
+  // make the family "always present" would poison `_count` and `_sum` with a
+  // measurement that never happened. The histogram is populated by the first
+  // scrape (which evaluates /health); the read counter appears with the first
+  // recorded read, because "no reads recorded" is genuinely no series.
+  buildInfo.labels(version, nodeVersion).set(1);
+
+  let cache: { at: number; snapshot: HealthSnapshot } | null = null;
+
+  /**
+   * Publish one verdict. `fresh` says whether this evaluation ACTUALLY ran on
+   * this scrape: a verdict reused from the TTL cache must NOT be re-observed
+   * into the probe histogram, or the histogram's `_count` would track scrapes
+   * instead of probes (and `_sum` would count the same measurement N times).
+   * The gauges are idempotent, so they are set either way.
+   */
+  function applyHealth(snapshot: HealthSnapshot, fresh: boolean): void {
+    healthStatus.set(HEALTH_STATUS_VALUES[snapshot.status]);
+    if (fresh) {
+      for (const probe of HEALTH_PROBES) {
+        const ms = Number(snapshot.durationsMs?.[probe]);
+        if (!Number.isFinite(ms) || ms < 0) continue;
+        healthProbeDuration.observe({ probe }, ms / 1000);
+      }
+    }
+    // Replace the provider children wholesale: a provider removed from config
+    // must not leave a frozen series behind.
+    providerHealthy.reset();
+    const seen = new Set<string>();
+    for (const provider of snapshot.providers ?? []) {
+      const label = providerLabel(provider.id);
+      if (seen.has(label)) continue;
+      seen.add(label);
+      providerHealthy.labels(label).set(provider.healthy ? 1 : 0);
+    }
+  }
+
+  /** Record one evaluation from a caller that just ran it (observes timings). */
+  function recordHealth(snapshot: HealthSnapshot): void {
+    applyHealth(snapshot, true);
+    cache = { at: now(), snapshot };
+  }
+
+  function observeRead(event: ReadEvent): void {
+    // Defensive: a label value outside the template domain is DROPPED, never
+    // emitted. This is the last line of defence for "no key/namespace in a
+    // label" even if a future caller passes a raw path.
+    if (!isRouteTemplate(event.route)) return;
+    const method = typeof event.method === "string" ? event.method.toUpperCase() : "";
+    if (!/^[A-Z]{3,7}$/.test(method)) return;
+    reads.inc(
+      {
+        route: event.route,
+        method,
+        status_class: statusClass(event.status),
+      },
+      1,
+    );
+  }
+
+  /** One bounded evaluation; a deadline miss is the HUNG state, not an error. */
+  async function evaluateBounded(): Promise<HealthSnapshot> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const expiry = new Promise<HealthSnapshot>((resolve) => {
+        timer = setTimeout(() => resolve(hungSnapshot()), healthDeadlineMs);
+        timer.unref?.();
+      });
+      return await Promise.race([options.evaluateHealth(), expiry]);
+    } catch {
+      // A throwing evaluator means no verdict exists — /health would be
+      // failing too, so the honest value is 0 (hung), not a stale green.
+      return hungSnapshot();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** A cached verdict when it is still warm, otherwise one bounded evaluation. */
+  async function snapshotForScrape(): Promise<{
+    snapshot: HealthSnapshot;
+    fresh: boolean;
+  }> {
+    if (cache && now() - cache.at < healthTtlMs) {
+      return { snapshot: cache.snapshot, fresh: false };
+    }
+    const snapshot = await evaluateBounded();
+    const fresh = snapshot.status !== "hung";
+    if (fresh) cache = { at: now(), snapshot };
+    return { snapshot, fresh };
+  }
+
+  async function handler(_req: Request, res: Response): Promise<void> {
+    httpUp.set(1);
+    try {
+      const { snapshot, fresh } = await snapshotForScrape();
+      applyHealth(snapshot, fresh);
+    } catch {
+      // Rendering metrics must never fail because a probe misbehaved: the
+      // status gauge falls back to 0 and the exposition still ships.
+      healthStatus.set(HEALTH_STATUS_VALUES.hung);
+    }
+    res.setHeader("Content-Type", registry.contentType);
+    res.end(await registry.metrics());
+  }
+
+  return {
+    registry,
+    handler,
+    recordHealth,
+    observeRead,
+    render: () => registry.metrics(),
+  };
+}

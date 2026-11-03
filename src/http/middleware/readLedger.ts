@@ -34,9 +34,30 @@ export function isReadsQuerySurface(rawPath: string): boolean {
   return /^\/api\/reads$/.test(trimmed);
 }
 
+export interface ReadLedgerMiddlewareOptions {
+  /**
+   * OBSDB-001: sink for each RECORDED read, called with the row's normalized
+   * route template, method and status. Wired by the assembler to the in-process
+   * `duckbrain_reads_total` counter. MUST never throw into the response path —
+   * the middleware guards it, and a metric failure can never fail a read.
+   *
+   * The values passed are the same ones appended to the ledger: `route` is
+   * already a template (never a raw URL), so the metric inherits the ledger's
+   * no-keys/no-namespace guarantee by construction.
+   */
+  onRead?: (row: {
+    route: string;
+    method: string;
+    status: number;
+    durMs: number;
+  }) => void;
+}
+
 export function createReadLedgerMiddleware(
   store: ReadLedgerStore,
+  options: ReadLedgerMiddlewareOptions = {},
 ): (req: Request, res: Response, next: NextFunction) => void {
+  const onRead = options.onRead;
   return (req: Request, res: Response, next: NextFunction): void => {
     const method = req.method;
     const rawPath = req.originalUrl || req.url || "";
@@ -56,6 +77,18 @@ export function createReadLedgerMiddleware(
         startedAt === null
           ? 0
           : Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      if (onRead) {
+        try {
+          onRead({
+            route,
+            method: method.toUpperCase(),
+            status: res.statusCode,
+            durMs,
+          });
+        } catch {
+          /* metrics are never allowed to break a served read */
+        }
+      }
       store
         .append({
           ts: new Date().toISOString(),

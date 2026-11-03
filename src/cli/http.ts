@@ -7,6 +7,7 @@
  * Endpoints:
  * - POST /mcp, GET /mcp - Streamable HTTP transport
  * - GET /health - Health check (unauthenticated)
+ * - GET /metrics - Prometheus exposition (unauthenticated, OBSDB-001)
  * - GET /stats - System statistics
  * - GET /namespaces - List loaded namespaces
  * - GET /users - List unique authors
@@ -64,6 +65,7 @@ import { createActivityRoutes } from "../http/routes/activity.js";
 import { createReadsRoutes } from "../http/routes/reads.js";
 import { createReceiptsRoutes } from "../http/routes/receipts.js";
 import { createReadLedgerStore } from "../http/readLedger.js";
+import { createHttpMetrics } from "../http/metrics.js";
 import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
 import path from "path";
 import fs from "fs";
@@ -258,6 +260,133 @@ function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
 }
 
 /**
+ * The structured verdict of ONE `/health` evaluation (OPS-002, OBSDB-001).
+ *
+ * `/health` renders this as JSON; `/metrics` maps it onto
+ * `duckbrain_health_status` + `duckbrain_health_probe_duration_seconds` +
+ * `duckbrain_embedding_provider_healthy`. Both MUST come from this one
+ * function: a second copy of the probe logic is exactly how a dashboard ends
+ * up green while `/health` answers degraded (spec §3, "no split-brain").
+ */
+export interface HealthEvaluation {
+  status: "healthy" | "degraded";
+  embedding: EmbeddingHealthResult;
+  keysError: string | null;
+  durability: DurabilityHealth;
+  deadlineExceeded: string[];
+  /**
+   * Wall duration of each sub-probe and of the whole evaluation, in
+   * milliseconds. `total` covers both probes plus their deadline waits (the
+   * JSON rendering is not included). Feeds
+   * `duckbrain_health_probe_duration_seconds` (OBSDB-001).
+   */
+  durationsMs: { embedding: number; keys: number; total: number };
+}
+
+/** hrtime delta in fractional milliseconds (monotonic, unlike Date.now). */
+function elapsedMs(start: bigint): number {
+  return Number(process.hrtime.bigint() - start) / 1_000_000;
+}
+
+/**
+ * Run one `/health` evaluation: bounded embedding probe, bounded keys probe,
+ * config-derived durability, and the resulting verdict.
+ *
+ * Every await is bounded by `deadlineMs` (OPS-002) — the function ALWAYS
+ * settles inside that budget, on every path. A sub-probe whose await never
+ * settles is reported as deadline-exceeded (and degraded) instead of parking
+ * the caller forever.
+ */
+export async function evaluateHealth(
+  probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
+  keysProbe: () => Promise<string | null> = probeKeysStore,
+  durabilityProbe: () => DurabilityHealth = getDurabilityHealth,
+  deadlineMs: number = HEALTH_HANDLER_DEADLINE_MS,
+): Promise<HealthEvaluation> {
+  // OPS-002: one budget for the WHOLE evaluation. Each sub-probe gets whatever
+  // is left when its turn comes, so a slow/hung probe can never push the
+  // caller past the deadline — the rest is reported as deadline-exceeded
+  // instead of hanging.
+  const totalStart = process.hrtime.bigint();
+  const deadlineExceeded: string[] = [];
+  const deadlineAt = Date.now() + deadlineMs;
+  const remaining = (): number => Math.max(0, deadlineAt - Date.now());
+
+  let embedding: EmbeddingHealthResult;
+  const embeddingStart = process.hrtime.bigint();
+  try {
+    const outcome = await withDeadline(probe(), remaining());
+    if (outcome.ok) {
+      embedding = outcome.value;
+    } else {
+      deadlineExceeded.push("embedding");
+      embedding = embeddingDeadlineResult(
+        `embedding probe did not settle within the ${deadlineMs}ms /health deadline`,
+      );
+    }
+  } catch (e) {
+    // The probe must never take /health down (liveness) — report degraded.
+    embedding = {
+      provider: "",
+      model: "",
+      healthy: false,
+      providers: [
+        {
+          id: "probe",
+          healthy: false,
+          note: `probe error: ${e instanceof Error ? e.message : String(e)}`,
+        },
+      ],
+    };
+  }
+  const embeddingMs = elapsedMs(embeddingStart);
+
+  // DB-GAP-035: keys-store probe. Must never take /health down either —
+  // report keys_error and let the status field carry the signal.
+  let keysError: string | null = null;
+  const keysStart = process.hrtime.bigint();
+  try {
+    const outcome = await withDeadline(keysProbe(), remaining());
+    if (outcome.ok) {
+      keysError = outcome.value;
+    } else {
+      deadlineExceeded.push("keys");
+      keysError =
+        `keys probe did not settle within the ${deadlineMs}ms /health deadline`.slice(
+          0,
+          200,
+        );
+    }
+  } catch (e) {
+    keysError =
+      `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
+  }
+  const keysMs = elapsedMs(keysStart);
+
+  const degraded = !embedding.healthy || keysError !== null;
+  // SUPA-1: durability reporting can never take /health down.
+  let durability: DurabilityHealth;
+  try {
+    durability = durabilityProbe();
+  } catch {
+    durability = { defaultMode: "buffered", overrides: {} };
+  }
+
+  return {
+    status: degraded ? "degraded" : "healthy",
+    embedding,
+    keysError,
+    durability,
+    deadlineExceeded,
+    durationsMs: {
+      embedding: embeddingMs,
+      keys: keysMs,
+      total: elapsedMs(totalStart),
+    },
+  };
+}
+
+/**
  * Health check endpoint handler (DOGFOOD-020, DB-GAP-035, OPS-002)
  *
  * Reports embedding provider health alongside process liveness. The top-level
@@ -304,6 +433,7 @@ function embeddingDeadlineResult(note: string): EmbeddingHealthResult {
  * @param durabilityProbe injectable for tests (defaults to getDurabilityHealth)
  * @param deadlineMs injectable for tests (defaults to HEALTH_HANDLER_DEADLINE_MS)
  */
+
 export function createHealthHandler(
   probe: () => Promise<EmbeddingHealthResult> = getEmbeddingHealth,
   keysProbe: () => Promise<string | null> = probeKeysStore,
@@ -311,84 +441,26 @@ export function createHealthHandler(
   deadlineMs: number = HEALTH_HANDLER_DEADLINE_MS,
 ): (req: Request, res: Response) => Promise<void> {
   return async (_req: Request, res: Response) => {
-    // OPS-002: one budget for the WHOLE response. Each sub-probe gets whatever
-    // is left when its turn comes, so a slow/hung probe can never push the
-    // handler past the deadline — the rest of the response is reported as
-    // deadline-exceeded instead of hanging.
-    const deadlineExceeded: string[] = [];
-    const deadlineAt = Date.now() + deadlineMs;
-    const remaining = (): number => Math.max(0, deadlineAt - Date.now());
-
-    let embedding: EmbeddingHealthResult;
-    try {
-      const outcome = await withDeadline(probe(), remaining());
-      if (outcome.ok) {
-        embedding = outcome.value;
-      } else {
-        deadlineExceeded.push("embedding");
-        embedding = embeddingDeadlineResult(
-          `embedding probe did not settle within the ${deadlineMs}ms /health deadline`,
-        );
-      }
-    } catch (e) {
-      // The probe must never take /health down (liveness) — report degraded.
-      embedding = {
-        provider: "",
-        model: "",
-        healthy: false,
-        providers: [
-          {
-            id: "probe",
-            healthy: false,
-            note: `probe error: ${e instanceof Error ? e.message : String(e)}`,
-          },
-        ],
-      };
-    }
-
-    // DB-GAP-035: keys-store probe. Must never take /health down either —
-    // report keys_error and let the status field carry the signal.
-    let keysError: string | null = null;
-    try {
-      const outcome = await withDeadline(keysProbe(), remaining());
-      if (outcome.ok) {
-        keysError = outcome.value;
-      } else {
-        deadlineExceeded.push("keys");
-        keysError =
-          `keys probe did not settle within the ${deadlineMs}ms /health deadline`.slice(
-            0,
-            200,
-          );
-      }
-    } catch (e) {
-      keysError =
-        `probe error: ${e instanceof Error ? e.message : String(e)}`.slice(
-          0,
-          200,
-        );
-    }
-
-    const degraded = !embedding.healthy || keysError !== null;
-    // SUPA-1: durability reporting can never take /health down.
-    let durability: DurabilityHealth;
-    try {
-      durability = durabilityProbe();
-    } catch {
-      durability = { defaultMode: "buffered", overrides: {} };
-    }
+    const evaluation = await evaluateHealth(
+      probe,
+      keysProbe,
+      durabilityProbe,
+      deadlineMs,
+    );
     // GAP-030: a supervisor watching HTTP status codes must see non-200 while
     // the KB's semantic search is down — 503 when degraded, 200 when healthy.
     // OPS-002: `deadline_exceeded` names any sub-probe that missed the handler
     // deadline (empty array when everything answered in budget).
-    res.status(degraded ? 503 : 200).json({
-      status: degraded ? "degraded" : "healthy",
+    // OBSDB-001: the body is byte-for-byte the pre-existing contract — the
+    // metrics surface reuses the SAME evaluation, it does not change it.
+    res.status(evaluation.status === "degraded" ? 503 : 200).json({
+      status: evaluation.status,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
-      embedding,
-      keys_error: keysError,
-      durability,
-      deadline_exceeded: deadlineExceeded,
+      embedding: evaluation.embedding,
+      keys_error: evaluation.keysError,
+      durability: evaluation.durability,
+      deadline_exceeded: evaluation.deadlineExceeded,
     });
   };
 }
@@ -452,6 +524,40 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   }
 
   // 2. Rate limiting (before auth to prevent credential stuffing/brute force)
+  //
+  // OBSDB-001: the Prometheus scrape surface is mounted HERE — after the
+  // DNS-rebinding guard (so a scrape is host-checked exactly like /health) but
+  // BEFORE the rate limiter and BEFORE authMiddleware. Both exceptions are
+  // deliberate and required by the spec (§4): a throttled scrape must still
+  // answer (otherwise a scrape storm, or one noisy client sharing the IP,
+  // silently blinds the whole fleet), and /metrics carries no secret — it has
+  // no per-user token by design, because a scrape credential would have to be
+  // rotated on every monitor and a per-user token would be a cardinality
+  // disaster. /health already sets this precedent: authMiddleware lets
+  // req.path === "/health" through, and the dark-port watchdog reads it with
+  // no credentials at all. The route is mounted by name (app.get) here so no
+  // later middleware — rate limit, read ledger, auth, body parsers — can ever
+  // be inserted in front of it by accident.
+  const httpMetrics = createHttpMetrics({
+    // The SAME evaluator /health serves — never a second copy of the probe
+    // logic (see evaluateHealth). Its own 30s reuse window keeps a scrape from
+    // paying the 8.5s embed probe on every poll.
+    //
+    // The mapping is deliberately narrow: only id + healthy cross into the
+    // metric. The probe's free-text `note` (hostnames, timeout text) and the
+    // resolved model stay in the /health body and the logs — a note is not a
+    // label value (spec §3).
+    evaluateHealth: async () => {
+      const evaluation = await evaluateHealth();
+      return {
+        status: evaluation.status,
+        providers: evaluation.embedding.providers,
+        durationsMs: evaluation.durationsMs,
+      };
+    },
+  });
+  app.get("/metrics", httpMetrics.handler);
+
   const rateLimitConfig: RateLimitConfig = {
     requestsPerMinute: options.rateLimit ?? 100,
   };
@@ -527,7 +633,16 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // rows; writes, /health, /stats and the /api/reads query surface itself are
   // never recorded. DNS-rebinding and rate-limit blocks stay unrecorded
   // (hostile/unproven traffic is the denial auditor's domain, not a read).
-  app.use(createReadLedgerMiddleware(createReadLedgerStore(namespacesPath)));
+  // OBSDB-001: `onRead` mirrors every row this middleware records into the
+  // in-process `duckbrain_reads_total` counter, using the row's ALREADY
+  // normalized route template (the same truth table), so the metric can never
+  // carry a raw URL. Mounted at the same point, before auth, so a 401'd read is
+  // counted exactly as it is audited.
+  app.use(
+    createReadLedgerMiddleware(createReadLedgerStore(namespacesPath), {
+      onRead: httpMetrics.observeRead,
+    }),
+  );
 
   app.use(authMiddleware(authConfig));
 
