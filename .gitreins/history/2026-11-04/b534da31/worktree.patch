@@ -1,0 +1,17 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 08ae556d..f04f72a9 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3034,3 +3034,12 @@ tasks:
+     loadavg 20-23, plus 247/2055 green full suite and tsc clean
+   status: pending
+   created_at: '2026-11-03T22:08:15.831146+00:00'
++- id: TAT-139
++  title: Store PATCH rejects any null declared column - blocks every claim
++  criteria:
++  - 'A partial PATCH against a legacy table declaration does not reject pre-existing
++    nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts
++    covers legacy-declaration null varchar + partial patch; full DuckBrain suite green'
++  status: complete
++  created_at: '2026-11-04T11:34:58.643560+00:00'
++  completed_at: '2026-11-04T11:54:01.373879+00:00'

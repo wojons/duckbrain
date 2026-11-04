@@ -1,0 +1,110 @@
+{
+  "task_id": "QA-DUCKBRAIN-REVIEW-1",
+  "task_title": "Fix QA battery target subdirectory refusal",
+  "task_criteria": [
+    "Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and the exact QA launch must no longer refuse the target as a subdirectory of its parent repository; include a runnable acceptance probe and preserve unrelated repos."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "3bfaf9f8cf129117e472ebcdefd02cb902c6f866",
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n1:37PM INF scanned ~22362401 bytes (22.36 MB) in 3.33s\n1:37PM INF no leaks found\nsecrets: gitleaks: clean\nsecrets: builtin cross-check: Scanned 486240 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T182924.286975Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:2265931) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2290755) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2292285) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2296603) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2300014) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2301651) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2301694) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2302710) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2302815) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303005) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303017) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303161) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303271) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303327) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303416) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303472) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303491) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303587) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2303593) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  247 passed (247)\n      Tests  2055 passed (2055)\n   Start at  13:37:50\n   Duration  112.97s (tests 84%, import 13%, setup 2%, transform 1%)\n\n    Isolate  247 workers spawned \u00b7 ~104ms startup each (spawn + environment, per file)\n             at least ~6.32s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T182924.286975Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and the exact QA launch must no longer refuse the target as a subdirectory of its parent repository; include a runnable acceptance probe and preserve unrelated repos.: The complete diff (git diff) is an 11-line append to .gitreins/tasks.yaml only, adding a QA-DUCKBRAIN-REVIEW-1 entry with `status: complete` and timestamps \u2014 zero source code changed. `git status --porcelain --untracked-files=all` shows only ` M .gitreins/tasks.yaml`; no new files, no acceptance probe. `grep -r BUNKER_QA_SUBDIR` across the repo (excluding node_modules/.git) returns ZERO matches \u2014 the required env var does not exist anywhere. `grep -rn 'subdirectory of git repo'` matches only historical artifacts (.gitreins/history/2026-10-26/643234d7/commit.patch:24), never current source, so the refusal logic was never touched. Branch wt/QA-DUCKBRAIN-REVIEW-1 has no diff vs HEAD (`git diff --stat HEAD wt/QA-DUCKBRAIN-REVIEW-1` empty). No QA battery launch was re-pointed at the real DuckBrain git root, no BUNKER_QA_SUBDIR support was added, no runnable acceptance probe was created, and nothing demonstrates the launch no longer refuses the target. For reference, `npx vitest run src/qa/chaos-shutdown-probe.test.ts` exits 0 (1 file, 6 tests passed) but that test covers chaos shutdown, not the subdirectory refusal, so it provides no evidence for this criterion. The task was closed by flipping metadata only.\nNo fix was implemented \u2014 the only change is a tasks.yaml entry marking the task complete, with no BUNKER_QA_SUBDIR support, no re-targeted QA launch, and no acceptance probe.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and the exact QA launch must no longer refuse the target as a subdirectory of its parent repository; include a runnable acceptance probe and preserve unrelated repos.: The complete diff (git diff) is an 11-line append to .gitreins/tasks.yaml only, adding a QA-DUCKBRAIN-REVIEW-1 entry with `status: complete` and timestamps \u2014 zero source code changed. `git status --porcelain --untracked-files=all` shows only ` M .gitreins/tasks.yaml`; no new files, no acceptance probe. `grep -r BUNKER_QA_SUBDIR` across the repo (excluding node_modules/.git) returns ZERO matches \u2014 the required env var does not exist anywhere. `grep -rn 'subdirectory of git repo'` matches only historical artifacts (.gitreins/history/2026-10-26/643234d7/commit.patch:24), never current source, so the refusal logic was never touched. Branch wt/QA-DUCKBRAIN-REVIEW-1 has no diff vs HEAD (`git diff --stat HEAD wt/QA-DUCKBRAIN-REVIEW-1` empty). No QA battery launch was re-pointed at the real DuckBrain git root, no BUNKER_QA_SUBDIR support was added, no runnable acceptance probe was created, and nothing demonstrates the launch no longer refuses the target. For reference, `npx vitest run src/qa/chaos-shutdown-probe.test.ts` exits 0 (1 file, 6 tests passed) but that test covers chaos shutdown, not the subdirectory refusal, so it provides no evidence for this criterion. The task was closed by flipping metadata only.\nNo fix was implemented \u2014 the only change is a tasks.yaml entry marking the task complete, with no BUNKER_QA_SUBDIR support, no re-targeted QA launch, and no acceptance probe.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and the exact QA launch must no longer refuse the target as a subdirectory of its parent repository; include a runnable acceptance probe and preserve unrelated repos.",
+                "status": "FAIL",
+                "detail": "The complete diff (git diff) is an 11-line append to .gitreins/tasks.yaml only, adding a QA-DUCKBRAIN-REVIEW-1 entry with `status: complete` and timestamps \u2014 zero source code changed. `git status --porcelain --untracked-files=all` shows only ` M .gitreins/tasks.yaml`; no new files, no acceptance probe. `grep -r BUNKER_QA_SUBDIR` across the repo (excluding node_modules/.git) returns ZERO matches \u2014 the required env var does not exist anywhere. `grep -rn 'subdirectory of git repo'` matches only historical artifacts (.gitreins/history/2026-10-26/643234d7/commit.patch:24), never current source, so the refusal logic was never touched. Branch wt/QA-DUCKBRAIN-REVIEW-1 has no diff vs HEAD (`git diff --stat HEAD wt/QA-DUCKBRAIN-REVIEW-1` empty). No QA battery launch was re-pointed at the real DuckBrain git root, no BUNKER_QA_SUBDIR support was added, no runnable acceptance probe was created, and nothing demonstrates the launch no longer refuses the target. For reference, `npx vitest run src/qa/chaos-shutdown-probe.test.ts` exits 0 (1 file, 6 tests passed) but that test covers chaos shutdown, not the subdirectory refusal, so it provides no evidence for this criterion. The task was closed by flipping metadata only.",
+                "resolution_probability": 0.01
+              }
+            ],
+            "summary": "No fix was implemented \u2014 the only change is a tasks.yaml entry marking the task complete, with no BUNKER_QA_SUBDIR support, no re-targeted QA launch, and no acceptance probe.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: QA-DUCKBRAIN-REVIEW-1\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and the exact QA launch must no longer refuse the target as a subdirectory of its parent repository; include a runnable acceptance probe and preserve unrelated repos.: The complete diff (git diff) is an 11-line append to .gitreins/tasks.yaml only, adding a QA-DUCKBRAIN-REVIEW-1 entry with `status: complete` and timestamps \u2014 zero source code changed. `git status --porcelain --untracked-files=all` shows only ` M .gitreins/tasks.yaml`; no new files, no acceptance probe. `grep -r BUNKER_QA_SUBDIR` across the repo (excluding node_modules/.git) returns ZERO matches \u2014 the required env var does not exist anywhere. `grep -rn 'subdirectory of git repo'` matches only historical artifacts (.gitreins/history/2026-10-26/643234d7/commit.patch:24), never current source, so the refusal logic was never touched. Branch wt/QA-DUCKBRAIN-REVIEW-1 has no diff vs HEAD (`git diff --stat HEAD wt/QA-DUCKBRAIN-REVIEW-1` empty). No QA battery launch was re-pointed at the real DuckBrain git root, no BUNKER_QA_SUBDIR support was added, no runnable acceptance probe was created, and nothing demonstrates the launch no longer refuses the target. For reference, `npx vitest run src/qa/chaos-shutdown-probe.test.ts` exits 0 (1 file, 6 tests passed) but that test covers chaos shutdown, not the subdirectory refusal, so it provides no evidence for this criterion. The task was closed by flipping metadata only.\nNo fix was implemented \u2014 the only change is a tasks.yaml entry marking the task complete, with no BUNKER_QA_SUBDIR support, no re-targeted QA launch, and no acceptance probe.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-11-03T18:42:45.153639",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-03T18:42:45.169914+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 1474,
+        "truncated": false,
+        "source": "git show 3bfaf9f8cf12"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 859,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "QA-DUCKBRAIN-REVIEW-1"
+  }
+}

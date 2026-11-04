@@ -1,0 +1,19 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index e9ce3bb4..54e17a35 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3024,3 +3024,14 @@ tasks:
+   status: complete
+   created_at: '2026-11-03T09:11:01.319475+00:00'
+   completed_at: '2026-11-03T09:11:33.494785+00:00'
++- id: QA-DUCKBRAIN-REVIEW-1
++  title: Fix QA battery target subdirectory refusal
++  criteria:
++  - 'Provide a verifiable fix for QA-DUCKBRAIN-REVIEW-1: the DuckBrain QA battery
++    must target the real DuckBrain git root or pass a correct BUNKER_QA_SUBDIR, and
++    the exact QA launch must no longer refuse the target as a subdirectory of its
++    parent repository; include a runnable acceptance probe and preserve unrelated
++    repos.'
++  status: complete
++  created_at: '2026-11-03T18:32:05.091667+00:00'
++  completed_at: '2026-11-03T18:37:49.075401+00:00'

@@ -1,0 +1,111 @@
+{
+  "task_id": "TAT-139",
+  "task_title": "Store PATCH rejects any null declared column - blocks every claim",
+  "task_criteria": [
+    "A partial PATCH against a legacy table declaration does not reject pre-existing nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts covers legacy-declaration null varchar + partial patch; full DuckBrain suite green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "45c3009999f3e88949b32e96a9b9084d1bbed4c9",
+  "working_tree_content_fingerprint": "406fb0053e6d89f3b049a022b34112d1ae0dc24bebd056094dfc57c50477700d",
+  "working_tree_dirty_path_count": 6,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n6:54AM INF scanned ~6182394 bytes (6.18 MB) in 2.4s\n6:54AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 1036 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T192903.767495Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:2325113) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2354856) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2368203) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2372442) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2373164) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2374270) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2376315) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2376409) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2376791) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2377830) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2378452) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2378536) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2378917) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2378934) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2379244) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2379228) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2379324) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2379732) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2380235) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  251 passed (251)\n      Tests  2088 passed (2088)\n   Start at  06:54:02\n   Duration  79.52s (tests 77%, import 20%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  251 workers spawned \u00b7 ~102ms startup each (spawn + environment, per file)\n             at least ~6.30s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T192903.767495Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 A partial PATCH against a legacy table declaration does not reject pre-existing nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts covers legacy-declaration null varchar + partial patch; full DuckBrain suite green: (1) Fix: src/duckdb/table-store.ts:614-640 adds coercePatchAgainstDeclaration \u2014 for legacy declarations (declaredColumnsOf() returns null, table-store.ts:83-95) it copies `existing` and only coerces keys present in the patch, so a pre-existing null varchar is preserved instead of being re-validated; src/http/routes/tables.ts:1198-1202 now calls it in the PATCH route. (2) Unit test: src/duckdb/table-store.test.ts:20-30 'preserves inherited null varchar values during a partial PATCH' \u2014 legacy declaration with runner:null, patch {attempts:2} -> {id:'row-1',runner:null,attempts:2}; `npx vitest run src/duckdb/table-store.test.ts` => 'Test Files 1 passed (1) / Tests 2 passed (2)'. (3) End-to-end proof (temporary test, since removed; working tree clean): PATCH /api/ns/tat139/tables/claims?pk=eq.row-1 body {attempts:2} on a legacy .table.json with row {id:'row-1',runner:null,attempts:1} => 'PATCH status 200 {\"updated\":1}', GET => [{\"id\":\"row-1\",\"runner\":null,\"attempts\":2}]. (4) Full suite: `npx vitest run` => 'Test Files 252 passed (252) / Tests 2090 passed (2090)'. An earlier run showed one flake (tables-supa2.test.ts DELETE tombstone 503 vs 200 under parallel lock contention); that file passes 12/12 in isolation and the full re-run is fully green.\nLegacy-declaration partial PATCH now preserves inherited nulls and returns updated:1 (verified end-to-end), the unit test covers the null-varchar + partial-patch case, and the full DuckBrain suite is green (252 files / 2090 tests).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 A partial PATCH against a legacy table declaration does not reject pre-existing nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts covers legacy-declaration null varchar + partial patch; full DuckBrain suite green: (1) Fix: src/duckdb/table-store.ts:614-640 adds coercePatchAgainstDeclaration \u2014 for legacy declarations (declaredColumnsOf() returns null, table-store.ts:83-95) it copies `existing` and only coerces keys present in the patch, so a pre-existing null varchar is preserved instead of being re-validated; src/http/routes/tables.ts:1198-1202 now calls it in the PATCH route. (2) Unit test: src/duckdb/table-store.test.ts:20-30 'preserves inherited null varchar values during a partial PATCH' \u2014 legacy declaration with runner:null, patch {attempts:2} -> {id:'row-1',runner:null,attempts:2}; `npx vitest run src/duckdb/table-store.test.ts` => 'Test Files 1 passed (1) / Tests 2 passed (2)'. (3) End-to-end proof (temporary test, since removed; working tree clean): PATCH /api/ns/tat139/tables/claims?pk=eq.row-1 body {attempts:2} on a legacy .table.json with row {id:'row-1',runner:null,attempts:1} => 'PATCH status 200 {\"updated\":1}', GET => [{\"id\":\"row-1\",\"runner\":null,\"attempts\":2}]. (4) Full suite: `npx vitest run` => 'Test Files 252 passed (252) / Tests 2090 passed (2090)'. An earlier run showed one flake (tables-supa2.test.ts DELETE tombstone 503 vs 200 under parallel lock contention); that file passes 12/12 in isolation and the full re-run is fully green.\nLegacy-declaration partial PATCH now preserves inherited nulls and returns updated:1 (verified end-to-end), the unit test covers the null-varchar + partial-patch case, and the full DuckBrain suite is green (252 files / 2090 tests).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "A partial PATCH against a legacy table declaration does not reject pre-existing nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts covers legacy-declaration null varchar + partial patch; full DuckBrain suite green",
+                "status": "PASS",
+                "detail": "(1) Fix: src/duckdb/table-store.ts:614-640 adds coercePatchAgainstDeclaration \u2014 for legacy declarations (declaredColumnsOf() returns null, table-store.ts:83-95) it copies `existing` and only coerces keys present in the patch, so a pre-existing null varchar is preserved instead of being re-validated; src/http/routes/tables.ts:1198-1202 now calls it in the PATCH route. (2) Unit test: src/duckdb/table-store.test.ts:20-30 'preserves inherited null varchar values during a partial PATCH' \u2014 legacy declaration with runner:null, patch {attempts:2} -> {id:'row-1',runner:null,attempts:2}; `npx vitest run src/duckdb/table-store.test.ts` => 'Test Files 1 passed (1) / Tests 2 passed (2)'. (3) End-to-end proof (temporary test, since removed; working tree clean): PATCH /api/ns/tat139/tables/claims?pk=eq.row-1 body {attempts:2} on a legacy .table.json with row {id:'row-1',runner:null,attempts:1} => 'PATCH status 200 {\"updated\":1}', GET => [{\"id\":\"row-1\",\"runner\":null,\"attempts\":2}]. (4) Full suite: `npx vitest run` => 'Test Files 252 passed (252) / Tests 2090 passed (2090)'. An earlier run showed one flake (tables-supa2.test.ts DELETE tombstone 503 vs 200 under parallel lock contention); that file passes 12/12 in isolation and the full re-run is fully green."
+              }
+            ],
+            "summary": "Legacy-declaration partial PATCH now preserves inherited nulls and returns updated:1 (verified end-to-end), the unit test covers the null-varchar + partial-patch case, and the full DuckBrain suite is green (252 files / 2090 tests).",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: TAT-139\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 A partial PATCH against a legacy table declaration does not reject pre-existing nulls: PATCH {attempts} alone returns updated:1; unit test in src/duckdb/table-store.test.ts covers legacy-declaration null varchar + partial patch; full DuckBrain suite green: (1) Fix: src/duckdb/table-store.ts:614-640 adds coercePatchAgainstDeclaration \u2014 for legacy declarations (declaredColumnsOf() returns null, table-store.ts:83-95) it copies `existing` and only coerces keys present in the patch, so a pre-existing null varchar is preserved instead of being re-validated; src/http/routes/tables.ts:1198-1202 now calls it in the PATCH route. (2) Unit test: src/duckdb/table-store.test.ts:20-30 'preserves inherited null varchar values during a partial PATCH' \u2014 legacy declaration with runner:null, patch {attempts:2} -> {id:'row-1',runner:null,attempts:2}; `npx vitest run src/duckdb/table-store.test.ts` => 'Test Files 1 passed (1) / Tests 2 passed (2)'. (3) End-to-end proof (temporary test, since removed; working tree clean): PATCH /api/ns/tat139/tables/claims?pk=eq.row-1 body {attempts:2} on a legacy .table.json with row {id:'row-1',runner:null,attempts:1} => 'PATCH status 200 {\"updated\":1}', GET => [{\"id\":\"row-1\",\"runner\":null,\"attempts\":2}]. (4) Full suite: `npx vitest run` => 'Test Files 252 passed (252) / Tests 2090 passed (2090)'. An earlier run showed one flake (tables-supa2.test.ts DELETE tombstone 503 vs 200 under parallel lock contention); that file passes 12/12 in isolation and the full re-run is fully green.\nLegacy-declaration partial PATCH now preserves inherited nulls and returns updated:1 (verified end-to-end), the unit test covers the null-varchar + partial-patch case, and the full DuckBrain suite is green (252 files / 2090 tests).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-04T12:01:16.583483",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-04T12:01:16.636428+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 18188,
+        "truncated": false,
+        "source": "git show 45c3009999f3"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 806,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "TAT-139"
+  }
+}
