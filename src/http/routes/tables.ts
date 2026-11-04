@@ -237,6 +237,42 @@ function param(req: Request, name: string): string {
   return Array.isArray(p) ? p.join("/") : String(p ?? "");
 }
 
+/** Resolve and validate a supplied primary-key equality filter. */
+function resolvePkFilter(
+  declaration: TableDeclaration,
+  raw: unknown,
+  operation: string,
+): { col: TableDeclaration["columns"][number]; value: string } {
+  if (!declaration.primary) {
+    throw new ApiError(
+      `Table '${declaration.name}' declares no primary key; ${operation} are not available`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  const col = declaration.columns.find(
+    (c) => c.name === declaration.primary,
+  )!;
+  const pkValue = Array.isArray(raw) ? raw[0] : raw;
+  const pk = pkValue === undefined ? undefined : String(pkValue);
+  if (pk === undefined) {
+    throw new ApiError(
+      `${operation} require a primary key filter: ?pk=eq.<value>`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  const m = pk.match(/^eq[.](.+)$/s) ?? (pk === "eq.null" ? null : null);
+  if (!m) {
+    throw new ApiError(
+      `${operation} require an equality filter on the primary key: ?pk=eq.<value>`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  return { col, value: m[1]! };
+}
+
 /** Extract only the querystring entries that look like column filters. */
 function filterParams(
   req: Request,
@@ -270,6 +306,13 @@ function filterParams(
     out[key] = Array.isArray(value)
       ? (value as string[]).map(String)
       : String(value);
+  }
+  // `pk` is always the primary-key alias, even when a declared column is also
+  // literally named `pk`; that column remains addressable by its own name when
+  // the primary column has a different name.
+  if (req.query.pk !== undefined) {
+    const { col, value } = resolvePkFilter(declaration, req.query.pk, "GET");
+    out[col.name] = `eq.${value}`;
   }
   return out;
 }
@@ -1004,35 +1047,7 @@ function createTableRoutes(): Router {
     declaration: TableDeclaration,
     req: Request,
   ): { col: TableDeclaration["columns"][number]; value: string } {
-    if (!declaration.primary) {
-      throw new ApiError(
-        `Table '${declaration.name}' declares no primary key; PATCH/DELETE are not available`,
-        400,
-        "VALIDATION_ERROR",
-      );
-    }
-    const col = declaration.columns.find(
-      (c) => c.name === declaration.primary,
-    )!;
-    const pkRaw = req.query.pk;
-    const pkValue = Array.isArray(pkRaw) ? pkRaw[0] : pkRaw;
-    const pk = pkValue === undefined ? undefined : String(pkValue);
-    if (pk === undefined) {
-      throw new ApiError(
-        "PATCH/DELETE require a primary key filter: ?pk=eq.<value>",
-        400,
-        "VALIDATION_ERROR",
-      );
-    }
-    const m = pk.match(/^eq\.(.+)$/s) ?? (pk === "eq.null" ? null : null);
-    if (!m) {
-      throw new ApiError(
-        "PATCH/DELETE require an equality filter on the primary key: ?pk=eq.<value>",
-        400,
-        "VALIDATION_ERROR",
-      );
-    }
-    return { col, value: m[1]! };
+    return resolvePkFilter(declaration, req.query.pk, "PATCH/DELETE");
   }
 
   /**
