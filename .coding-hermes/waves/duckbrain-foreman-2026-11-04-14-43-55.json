@@ -25,6 +25,37 @@
       "independent_of": []
     }
   ],
-  "workers": [],
-  "created_at": "2026-11-04T09:46:58-05:00"
+  "workers": [
+    {
+      "task_id": "PERF-DUCKBRAIN-001",
+      "model": "deepseek-v4-pro",
+      "provider": "deepseek",
+      "commit": "e623f99e",
+      "result": "merged"
+    }
+  ],
+  "created_at": "2026-11-04T09:46:58-05:00",
+  "finished_at": "2026-11-04T16:05:00-05:00",
+  "outcome": {
+    "status": "PARTIAL",
+    "merged": [
+      "e623f99e"
+    ],
+    "merged_to_main": "e623f99e (ff-only), pushed, origin parity 0",
+    "row_status": {
+      "PERF-DUCKBRAIN-001": "blocked \u2014 read-path half landed; file-scan half owner-gated (PERF-DUCKBRAIN-002 filed)"
+    },
+    "gates": {
+      "build": "PASS (npm run build:cli)",
+      "tests": "PASS (82 files / 630 tests)",
+      "gitreins_tier1": "PASS",
+      "gitreins_tier2": "INCOMPLETE"
+    },
+    "worker_attempts": {
+      "gpt-6-luna x2": "partial \u2014 sampler only, design refused",
+      "deepseek-v4-pro x1": "landed e623f99e"
+    },
+    "worktree_removed": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-001",
+    "branch_deleted": "wt/PERF-DUCKBRAIN-001"
+  }
 }
