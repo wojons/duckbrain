@@ -18,6 +18,18 @@ export interface RateLimitConfig {
   requestsPerMinute: number;
   /** Burst size: allows temporary spikes above the rate (default: same as requestsPerMinute) */
   burstSize?: number;
+  /**
+   * OBSDB-002: sink for each REFUSED request (the 429 below).
+   *
+   * The limiter sits upstream of the read ledger (src/cli/http.ts mounts it
+   * before createReadLedgerMiddleware and returns without calling next()), so
+   * a throttled request leaves no ledger row and no counter anywhere. This is
+   * the only honest place to observe one. It receives the raw method/path —
+   * classification into a bounded label happens in the metrics module, never
+   * here. It MUST never be able to fail the refusal: the caller guards it and
+   * this middleware calls it defensively.
+   */
+  onReject?: (info: { method: string; path: string }) => void;
 }
 
 /**
@@ -121,6 +133,20 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
       res.setHeader("X-RateLimit-Limit", config.requestsPerMinute);
       res.setHeader("X-RateLimit-Remaining", 0);
       res.setHeader("Retry-After", retryAfterSecs);
+      // OBSDB-002: one refused request, counted where it is refused. The
+      // read ledger runs later in the chain and never sees this request, so
+      // without this hook a 429 is unobservable by construction. Guarded: a
+      // telemetry sink must never turn a clean 429 into an error path.
+      if (config.onReject) {
+        try {
+          config.onReject({
+            method: req.method,
+            path: req.originalUrl || req.url || "",
+          });
+        } catch {
+          /* the refusal below must still happen */
+        }
+      }
       // Structured WARN for every refusal — observability fields only,
       // never request bodies, auth headers, or secrets.
       console.warn(

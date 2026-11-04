@@ -194,12 +194,32 @@ export function resolveAuthStorePath(authFile?: string): {
 /**
  * DNS rebinding protection middleware
  * Validates Host header against allowed hosts
+ *
+ * OBSDB-002: `onReject` is called with the refused request's raw method/path
+ * before the 403 is written. This guard is mounted FIRST in the chain, so it
+ * is upstream of the rate limiter AND the read ledger — a rebind 403 would
+ * otherwise be invisible in every sink the daemon has. Classification into a
+ * bounded label happens in the metrics module; this hook must never be able
+ * to change the refusal, so a throwing sink is swallowed.
  */
-function dnsRebindingProtection(allowedHosts: string[]) {
+function dnsRebindingProtection(
+  allowedHosts: string[],
+  onReject?: (info: { method: string; path: string }) => void,
+) {
   return (req: Request, res: Response, next: NextFunction) => {
     const host = req.headers.host?.split(":")[0];
 
     if (!host || !allowedHosts.includes(host)) {
+      if (onReject) {
+        try {
+          onReject({
+            method: req.method,
+            path: req.originalUrl || req.url || "",
+          });
+        } catch {
+          /* the 403 below must still happen */
+        }
+      }
       res.status(403).json({ error: "Forbidden: Invalid host" });
       return;
     }
@@ -488,16 +508,48 @@ let mcpToolsRegistered = false;
  * Create Express app with MCP transport, auth, and rate limiting
  *
  * Middleware order (critical):
- * 1. DNS rebinding protection (block bad hosts immediately)
- * 2. Rate limiting (catch abuse before auth processing)
+ * 0. Metrics surface construction (no middleware — just the registry)
+ * 1. DNS rebinding protection (block bad hosts immediately)   → duckbrain_rejected_total{reason="dns_rebind"}
+ * 1a. GET /metrics (auth- and limiter-exempt scrape surface, OBSDB-001)
+ * 2. Rate limiting (catch abuse before auth processing)       → duckbrain_rejected_total{reason="rate_limit"}
+ * 2a. Read ledger (records every read incl. a 401)            → duckbrain_reads_total + duckbrain_read_duration_seconds
  * 3. Authentication (verify credentials)
  * 4. JSON body parser (after rate limit/auth to avoid parsing overhead on rejected requests)
  * 5. Routes
+ *
+ * OBSDB-002 ordering rule: the two guards above are the ONLY places a refusal
+ * can be observed, because each of them answers without calling next(). No
+ * downstream middleware — the read ledger included — can ever see a 429 or a
+ * rebind 403, which is exactly why those responses were invisible before this
+ * row. Their `onReject` hooks are wired to the same per-app metrics instance
+ * the scrape surface serves, so both families always describe ONE process.
  *
  * @param options - Server configuration options
  */
 export function createHttpServer(options: HttpServerOptions = {}): Express {
   const app = express();
+
+  // 0. The OBSDB-001/002 metrics surface. Built FIRST (it mounts nothing) so
+  // the guards below can report refusals into it; the scrape ROUTE is still
+  // mounted after the DNS guard, exactly as before.
+  const httpMetrics = createHttpMetrics({
+    // The SAME evaluator /health serves — never a second copy of the probe
+    // logic (see evaluateHealth). Its own 30s reuse window keeps a scrape from
+    // paying the 8.5s embed probe on every poll.
+    //
+    // The mapping is deliberately narrow: only id + healthy cross into the
+    // metric. The probe's free-text `note` (hostnames, timeout text) and the
+    // resolved model stay in the /health body and the logs — a note is not a
+    // label value (spec §3).
+    evaluateHealth: async () => {
+      const evaluation = await evaluateHealth();
+      return {
+        status: evaluation.status,
+        providers: evaluation.embedding.providers,
+        durationsMs: evaluation.durationsMs,
+      };
+    },
+  });
 
   // 1. DNS rebinding protection
   //
@@ -520,7 +572,17 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
       next(); // Skip DNS rebinding check when bindAll
     });
   } else {
-    app.use(dnsRebindingProtection(allowedHosts));
+    // OBSDB-002: a rebind 403 is counted at the guard that emits it. It runs
+    // before the limiter and the ledger, so nothing downstream can see it.
+    app.use(
+      dnsRebindingProtection(allowedHosts, (info) =>
+        httpMetrics.observeRejection({
+          reason: "dns_rebind",
+          method: info.method,
+          rawPath: info.path,
+        }),
+      ),
+    );
   }
 
   // 2. Rate limiting (before auth to prevent credential stuffing/brute force)
@@ -538,24 +600,6 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // no credentials at all. The route is mounted by name (app.get) here so no
   // later middleware — rate limit, read ledger, auth, body parsers — can ever
   // be inserted in front of it by accident.
-  const httpMetrics = createHttpMetrics({
-    // The SAME evaluator /health serves — never a second copy of the probe
-    // logic (see evaluateHealth). Its own 30s reuse window keeps a scrape from
-    // paying the 8.5s embed probe on every poll.
-    //
-    // The mapping is deliberately narrow: only id + healthy cross into the
-    // metric. The probe's free-text `note` (hostnames, timeout text) and the
-    // resolved model stay in the /health body and the logs — a note is not a
-    // label value (spec §3).
-    evaluateHealth: async () => {
-      const evaluation = await evaluateHealth();
-      return {
-        status: evaluation.status,
-        providers: evaluation.embedding.providers,
-        durationsMs: evaluation.durationsMs,
-      };
-    },
-  });
   app.get("/metrics", httpMetrics.handler);
 
   // Liveness probe, mounted with /metrics and for the same reason: the limiter
@@ -572,6 +616,15 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
 
   const rateLimitConfig: RateLimitConfig = {
     requestsPerMinute: options.rateLimit ?? 100,
+    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
+    // where it happens; the metrics module normalizes the route, so the raw
+    // path never reaches a label.
+    onReject: (info) =>
+      httpMetrics.observeRejection({
+        reason: "rate_limit",
+        method: info.method,
+        rawPath: info.path,
+      }),
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
 

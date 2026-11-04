@@ -37,9 +37,12 @@ export function isReadsQuerySurface(rawPath: string): boolean {
 export interface ReadLedgerMiddlewareOptions {
   /**
    * OBSDB-001: sink for each RECORDED read, called with the row's normalized
-   * route template, method and status. Wired by the assembler to the in-process
-   * `duckbrain_reads_total` counter. MUST never throw into the response path —
-   * the middleware guards it, and a metric failure can never fail a read.
+   * route template, method, status and duration. Wired by the assembler to the
+   * in-process `duckbrain_reads_total` counter and, since OBSDB-002, to
+   * `duckbrain_read_duration_seconds` — the SAME `durMs` value the row stores
+   * as `dur_ms`, so the histogram and the ledger can never disagree about how
+   * long a read took. MUST never throw into the response path — the middleware
+   * guards it, and a metric failure can never fail a read.
    *
    * The values passed are the same ones appended to the ledger: `route` is
    * already a template (never a raw URL), so the metric inherits the ledger's

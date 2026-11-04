@@ -8,14 +8,16 @@
  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
  * official Node.js Prometheus client) in the text exposition format 0.0.4.
  *
- * Exactly six families are exposed (spec §3.1, with `duckbrain_build_info`
- * folded in by the same row):
+ * Exactly eight families are exposed (spec §3.1/§3.2: the six MVP families of
+ * OBSDB-001, plus the two read-path depth families of OBSDB-002):
  *
  *   duckbrain_http_up                        gauge      — answer a scrape at all
  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
  *   duckbrain_health_probe_duration_seconds   histogram  — probe=embedding|keys|total
  *   duckbrain_embedding_provider_healthy     gauge      — provider=<embedder id>
  *   duckbrain_reads_total                    counter    — route/method/status_class
+ *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
+ *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
  *   duckbrain_build_info                     gauge 1    — version/node
  *
  * LABEL RULES (hard, spec §3 "Label discipline") — enforced in code, not by
@@ -29,6 +31,11 @@
  *   - `provider` is an embedder id (src/embedding/providers.ts PROVIDERS);
  *     anything else — synthetic probe ids such as "deadline", or a
  *     config-supplied string — collapses to the fixed value `unknown`.
+ *   - `reason` is a fixed enum (OBSDB-002): `rate_limit` | `dns_rebind`, with
+ *     `unknown` as the refusing-path fallback. The rejected counter's `route`
+ *     is the same normalized template, or the literal `(unmatched)` sentinel
+ *     for a refusal on a path the route table does not know (a write, a 404
+ *     probe, anything attacker-chosen) — never the raw path.
  *   - `probe` and `version`/`node` are fixed enums/runtime constants.
  *   - NEVER a namespace name, memory key, memory id, principal, API-key id,
  *     file path, raw error string, or timestamp. Cardinality is bounded at
@@ -50,14 +57,17 @@ import path from "path";
 import { Counter, Gauge, Histogram, Registry } from "prom-client";
 import type { Request, Response } from "express";
 import { PROVIDERS } from "../embedding/providers";
+import { normalizeReadRoute } from "./readLedger";
 
-/** The six families this endpoint owns, in exposition order. */
+/** The six+two families this endpoint owns, in exposition order. */
 export const METRIC_NAMES = [
   "duckbrain_http_up",
   "duckbrain_health_status",
   "duckbrain_health_probe_duration_seconds",
   "duckbrain_embedding_provider_healthy",
   "duckbrain_reads_total",
+  "duckbrain_read_duration_seconds",
+  "duckbrain_rejected_total",
   "duckbrain_build_info",
 ] as const;
 
@@ -97,6 +107,46 @@ export interface ReadEvent {
   method: string;
   /** Response status code (bucketed into `status_class`). */
   status: number;
+  /**
+   * OBSDB-002: server-measured wall duration of the request in MILLISECONDS —
+   * the very value the ledger stores as `dur_ms` (the middleware times the
+   * request with `process.hrtime.bigint()` and observes it on `finish`).
+   * Omitted/absent means "no measurement"; nothing is observed for it, so a
+   * non-timed caller can never plant a fake zero-latency sample.
+   */
+  durMs?: number;
+}
+
+/**
+ * The fixed `reason` domain of `duckbrain_rejected_total`.
+ *
+ * These are the ONLY two refusal paths that run before the read ledger, which
+ * is why they are invisible in the durable ledger and need their own counter
+ * (spec §2 blind spot #4):
+ *   - `rate_limit` — the 429 from src/auth/ratelimit.ts (rateLimitMiddleware,
+ *     mounted at src/cli/http.ts BEFORE the read ledger);
+ *   - `dns_rebind` — the 403 from dnsRebindingProtection (src/cli/http.ts),
+ *     mounted FIRST, before even the limiter.
+ */
+export const REJECTION_REASONS = ["rate_limit", "dns_rebind"] as const;
+export type RejectionReason = (typeof REJECTION_REASONS)[number];
+
+/**
+ * The fixed `route` value for a rejected request whose path is not one of the
+ * documented read templates — e.g. a 429 on `POST /api/memories` or a 403 on
+ * an attacker-chosen path. It is a LITERAL sentinel, never the raw path: a
+ * rejected request is exactly the traffic most likely to carry a probe for a
+ * secret, so its URL must never become a label value.
+ */
+export const REJECTION_ROUTE_SENTINEL = "(unmatched)";
+
+/** One refused request, as the refusing middleware sees it. */
+export interface RejectionEvent {
+  /** Which guard refused it (fixed enum above). */
+  reason: RejectionReason;
+  /** Raw request method/URL — classified HERE, never used as a label. */
+  method: string;
+  rawPath: string;
 }
 
 export interface HttpMetricsOptions {
@@ -126,6 +176,12 @@ export interface HttpMetrics {
   recordHealth(snapshot: HealthSnapshot): void;
   /** Mirror one recorded read into `duckbrain_reads_total`. */
   observeRead(event: ReadEvent): void;
+  /**
+   * Count one request the DNS-rebinding guard or the rate limiter REFUSED
+   * (OBSDB-002). Called from those middlewares, i.e. upstream of the read
+   * ledger, which is the only place a 403/429 can be observed at all.
+   */
+  observeRejection(event: RejectionEvent): void;
   /** Render the current exposition (test/debug seam). */
   render(): Promise<string>;
 }
@@ -144,6 +200,21 @@ export const HEALTH_DEADLINE_MS = 10_000;
  */
 const PROBE_DURATION_BUCKETS = [
   0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 9, 15,
+];
+
+/**
+ * Buckets for `duckbrain_read_duration_seconds` (OBSDB-002): 10 ms → 30 s.
+ *
+ * The floor is 10 ms because the ledger's own `dur_ms` is a millisecond
+ * integer — a sub-10 ms read is already "fast enough for any SLO" and finer
+ * buckets there would buy resolution nobody alerts on. The 2.5 s / 5 s / 10 s
+ * rungs are where a read that fans out to the embedder or to a cold DuckDB
+ * actually lands, and 30 s is the ceiling past which a read is a hang, not a
+ * latency. `histogram_quantile(0.95, ...)` over per-route series is the query
+ * this family exists to make answerable (spec §6).
+ */
+const READ_DURATION_BUCKETS = [
+  0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30,
 ];
 
 /**
@@ -246,6 +317,42 @@ export function statusClass(status: number): string {
 }
 
 /**
+ * Map a refusal cause onto the `reason` label domain. Anything outside the
+ * fixed enum collapses to `unknown` — a caller can never invent a reason
+ * string (or smuggle a principal, IP or message) into the label.
+ */
+export function rejectionReasonLabel(reason: unknown): string {
+  return typeof reason === "string" &&
+    (REJECTION_REASONS as readonly string[]).includes(reason)
+    ? reason
+    : "unknown";
+}
+
+/**
+ * Classify the path of a REFUSED request into the `route` label domain.
+ *
+ * A rejected request never reached a mounted route, so Express cannot give us
+ * a `req.route.path`; the only safe classification is the read ledger's own
+ * truth table (`normalizeReadRoute`). Anything that table does not know —
+ * a write, a 404 probe, an attacker-chosen path — collapses to the fixed
+ * `(unmatched)` sentinel. The raw path is used as INPUT to the classifier and
+ * is never returned: that is what keeps a probe for
+ * `/api/memories/key/<secret>` from becoming a metric label.
+ */
+export function rejectionRouteLabel(method: unknown, rawPath: unknown): string {
+  if (typeof method !== "string" || typeof rawPath !== "string") {
+    return REJECTION_ROUTE_SENTINEL;
+  }
+  const route = normalizeReadRoute(method, rawPath);
+  // Belt and braces: the classifier's output is re-checked against the same
+  // template allowlist the reads counter uses, so a future template that
+  // bypassed it would be dropped rather than exposed.
+  return route !== null && isRouteTemplate(route)
+    ? route
+    : REJECTION_ROUTE_SENTINEL;
+}
+
+/**
  * The DuckBrain build version, for `duckbrain_build_info`.
  *
  * Walks up from this module (works from src/ under tsx and from dist/src/
@@ -341,6 +448,32 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     registers: [registry],
   });
 
+  // OBSDB-002: how long did a read take? The ledger already stores dur_ms per
+  // row but aggregateReadRows drops it, so p95 per route had no answer
+  // anywhere; this is that answer as a time series. Labels are the SAME
+  // route/method pair the counter uses, so the cardinality is the route
+  // allowlist, not traffic.
+  const readDuration = new Histogram({
+    name: "duckbrain_read_duration_seconds",
+    help: "Server-measured wall duration of recorded read requests in seconds (the ledger's dur_ms, by normalized route template and method).",
+    labelNames: ["route", "method"],
+    buckets: READ_DURATION_BUCKETS,
+    registers: [registry],
+  });
+
+  // OBSDB-002: requests REFUSED before the read ledger ever ran — the 403 from
+  // the DNS-rebinding guard and the 429 from the rate limiter. Those responses
+  // produce zero ledger rows (and therefore zero duckbrain_reads_total) by
+  // construction: both middlewares sit upstream of the ledger and never call
+  // next(), so the only way to see them is to count them where they are
+  // emitted.
+  const rejected = new Counter({
+    name: "duckbrain_rejected_total",
+    help: "Requests refused before the read ledger by reason (rate_limit=429, dns_rebind=403) and normalized route template (or the (unmatched) sentinel).",
+    labelNames: ["reason", "route"],
+    registers: [registry],
+  });
+
   // What is deployed? Constant 1 — the labels carry the identity.
   const buildInfo = new Gauge({
     name: "duckbrain_build_info",
@@ -409,6 +542,38 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
       },
       1,
     );
+    // OBSDB-002: latency for the SAME read the counter just counted. Only a
+    // real, finite, non-negative measurement is observed — an absent durMs
+    // (a caller that did not time the request) adds no sample, so the
+    // histogram's _count can never drift above the read counter's total for
+    // reasons of missing data.
+    const ms = Number(event.durMs);
+    if (event.durMs !== undefined && Number.isFinite(ms) && ms >= 0) {
+      readDuration.observe({ route: event.route, method }, ms / 1000);
+    }
+  }
+
+  /**
+   * Count one refused request. The classification happens HERE — the caller
+   * only ever hands over the raw method/path, so a middleware cannot decide
+   * (or fabricate) a label value.
+   *
+   * Nothing here can throw into the refusing middleware: a metrics failure
+   * must never turn a clean 403/429 into a 500 (or, worse, into a served
+   * request).
+   */
+  function observeRejection(event: RejectionEvent): void {
+    try {
+      rejected.inc(
+        {
+          reason: rejectionReasonLabel(event?.reason),
+          route: rejectionRouteLabel(event?.method, event?.rawPath),
+        },
+        1,
+      );
+    } catch {
+      /* telemetry never breaks a refusal path */
+    }
   }
 
   /** One bounded evaluation; a deadline miss is the HUNG state, not an error. */
@@ -462,6 +627,7 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     handler,
     recordHealth,
     observeRead,
+    observeRejection,
     render: () => registry.metrics(),
   };
 }
