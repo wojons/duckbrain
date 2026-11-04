@@ -3050,6 +3050,6 @@ tasks:
     pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts
     asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column
     filter still behave as today; pnpm test:run green
-  status: complete
+  status: in_progress
   created_at: '2026-11-04T13:48:24.129906+00:00'
   completed_at: '2026-11-04T14:00:08.389080+00:00'
