@@ -1,0 +1,25 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-04-13-44-22",
+  "block": "SUPA9-PK-FILTER-001",
+  "path": "serial-fallback",
+  "wave_size": 1,
+  "wave_budget": 2,
+  "slots_computed": 1,
+  "slots_note": "nproc=16 loadavg=22.77 -> max(1, min(6, 16-ceil(22.77))) = 1. Box loaded by other lanes (hermes workers, cc1plus, sqlite3, python3); serial path per foreman wave sizing, not an idle reason.",
+  "reason_serial": "slots < 2",
+  "rows": [
+    {
+      "task_id": "SUPA9-PK-FILTER-001",
+      "worktree": "/home/kara/worktrees/duckbrain-SUPA9-PK-FILTER-001",
+      "branch": "wt/SUPA9-PK-FILTER-001",
+      "base": "origin/main",
+      "base_sha": "07c48a81",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-SUPA9-PK-FILTER-001.md",
+      "model": "gpt-6-luna",
+      "provider": "openai-codex",
+      "independent_of": []
+    }
+  ],
+  "workers": [],
+  "created_at": "2026-11-04T08:52:00-05:00"
+}

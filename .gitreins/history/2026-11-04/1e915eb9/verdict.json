@@ -1,0 +1,111 @@
+{
+  "task_id": "SUPA9-PK-FILTER-001",
+  "task_title": "GET ignores ?pk=eq.N while PATCH/DELETE require it",
+  "task_criteria": [
+    "GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column filter still behave as today; pnpm test:run green"
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "07c48a811315796b880e2592731b5382e68ae121",
+  "working_tree_content_fingerprint": "ce75b4a5eddcba198dd3d2e10cf73beb7c1979594737554abf185fece2442bd7",
+  "working_tree_dirty_path_count": 3,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:00AM INF scanned ~6182023 bytes (6.18 MB) in 3.08s\n9:00AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 1036 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T192903.767495Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:795216) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:847943) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:862318) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:865653) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:870777) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:873829) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:874444) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875173) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875282) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875289) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875320) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875318) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875459) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875492) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875502) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875540) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875610) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:875850) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:876118) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  251 passed (251)\n      Tests  2088 passed (2088)\n   Start at  09:00:09\n   Duration  163.77s (tests 85%, import 13%, setup 1%, transform 1%)\n\n    Isolate  251 workers spawned \u00b7 ~142ms startup each (spawn + environment, per file)\n             at least ~8.74s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261103T192903.767495Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column filter still behave as today; pnpm test:run green: Implementation: src/http/routes/tables.ts:239-270 adds shared resolvePkFilter(); tables.ts:310-314 in filterParams() maps the pk alias onto the declared primary column (`if (req.query.pk !== undefined) { const { col, value } = resolvePkFilter(declaration, req.query.pk, \"GET\"); out[col.name] = `eq.${value}`; }`); tables.ts:855-865 GET /:table feeds filterParams into buildSelectPlan, and src/duckdb/table-store.ts:315-390 compiles each filter into a real SQL WHERE comparison, so the filter is enforced in SQL. New test src/http/routes/tables-supa9-pkfilter.test.ts (149 lines, 6 tests) matches the tables-*.test.ts glob and covers: pk=eq.2 -> [{id:2,name:\"beta\"}] only; pk=eq.9 -> []; pk=gte.1 -> 400 VALIDATION_ERROR (non-eq unchanged); id=eq.2 -> [{id:2,name:\"beta\"}] (non-pk-column filter unchanged); bogus=eq.9 -> 400; unkeyed?pk=eq.x -> 400 'declares no primary key'. Test evidence: `npx vitest run src/http/routes/tables-supa9-pkfilter.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; `npx vitest run tables-supa9-pkfilter + tables-supa2 + tables-supa3` exit 0, 'Test Files 3 passed (3) / Tests 52 passed (52)'; full suite `npx vitest run --reporter=dot` (= pnpm test:run) -> 'Test Files 252 passed (252) / Tests 2094 passed (2094)', Duration 102.15s, no FAIL lines (grep FAIL/\u2717 matched only negative-path log strings from distill-sessions/durability tests). Extra edge-case check (temp test, removed; git status clean): table with primary 'id' plus a column literally named 'pk' \u2014 ?pk=eq.2 returned [{id:2,pk:\"b\",name:\"beta\"}], confirming the alias resolves to the primary column; 2/2 passed.\nGET now honours ?pk=eq.<v> via a shared resolvePkFilter wired into filterParams, with a new 6-test tables-supa9-pkfilter.test.ts covering eq/non-eq/non-pk-column cases, and the full suite is green (252 files, 2094 tests).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column filter still behave as today; pnpm test:run green: Implementation: src/http/routes/tables.ts:239-270 adds shared resolvePkFilter(); tables.ts:310-314 in filterParams() maps the pk alias onto the declared primary column (`if (req.query.pk !== undefined) { const { col, value } = resolvePkFilter(declaration, req.query.pk, \"GET\"); out[col.name] = `eq.${value}`; }`); tables.ts:855-865 GET /:table feeds filterParams into buildSelectPlan, and src/duckdb/table-store.ts:315-390 compiles each filter into a real SQL WHERE comparison, so the filter is enforced in SQL. New test src/http/routes/tables-supa9-pkfilter.test.ts (149 lines, 6 tests) matches the tables-*.test.ts glob and covers: pk=eq.2 -> [{id:2,name:\"beta\"}] only; pk=eq.9 -> []; pk=gte.1 -> 400 VALIDATION_ERROR (non-eq unchanged); id=eq.2 -> [{id:2,name:\"beta\"}] (non-pk-column filter unchanged); bogus=eq.9 -> 400; unkeyed?pk=eq.x -> 400 'declares no primary key'. Test evidence: `npx vitest run src/http/routes/tables-supa9-pkfilter.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; `npx vitest run tables-supa9-pkfilter + tables-supa2 + tables-supa3` exit 0, 'Test Files 3 passed (3) / Tests 52 passed (52)'; full suite `npx vitest run --reporter=dot` (= pnpm test:run) -> 'Test Files 252 passed (252) / Tests 2094 passed (2094)', Duration 102.15s, no FAIL lines (grep FAIL/\u2717 matched only negative-path log strings from distill-sessions/durability tests). Extra edge-case check (temp test, removed; git status clean): table with primary 'id' plus a column literally named 'pk' \u2014 ?pk=eq.2 returned [{id:2,pk:\"b\",name:\"beta\"}], confirming the alias resolves to the primary column; 2/2 passed.\nGET now honours ?pk=eq.<v> via a shared resolvePkFilter wired into filterParams, with a new 6-test tables-supa9-pkfilter.test.ts covering eq/non-eq/non-pk-column cases, and the full suite is green (252 files, 2094 tests).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column filter still behave as today; pnpm test:run green",
+                "status": "PASS",
+                "detail": "Implementation: src/http/routes/tables.ts:239-270 adds shared resolvePkFilter(); tables.ts:310-314 in filterParams() maps the pk alias onto the declared primary column (`if (req.query.pk !== undefined) { const { col, value } = resolvePkFilter(declaration, req.query.pk, \"GET\"); out[col.name] = `eq.${value}`; }`); tables.ts:855-865 GET /:table feeds filterParams into buildSelectPlan, and src/duckdb/table-store.ts:315-390 compiles each filter into a real SQL WHERE comparison, so the filter is enforced in SQL. New test src/http/routes/tables-supa9-pkfilter.test.ts (149 lines, 6 tests) matches the tables-*.test.ts glob and covers: pk=eq.2 -> [{id:2,name:\"beta\"}] only; pk=eq.9 -> []; pk=gte.1 -> 400 VALIDATION_ERROR (non-eq unchanged); id=eq.2 -> [{id:2,name:\"beta\"}] (non-pk-column filter unchanged); bogus=eq.9 -> 400; unkeyed?pk=eq.x -> 400 'declares no primary key'. Test evidence: `npx vitest run src/http/routes/tables-supa9-pkfilter.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; `npx vitest run tables-supa9-pkfilter + tables-supa2 + tables-supa3` exit 0, 'Test Files 3 passed (3) / Tests 52 passed (52)'; full suite `npx vitest run --reporter=dot` (= pnpm test:run) -> 'Test Files 252 passed (252) / Tests 2094 passed (2094)', Duration 102.15s, no FAIL lines (grep FAIL/\u2717 matched only negative-path log strings from distill-sessions/durability tests). Extra edge-case check (temp test, removed; git status clean): table with primary 'id' plus a column literally named 'pk' \u2014 ?pk=eq.2 returned [{id:2,pk:\"b\",name:\"beta\"}], confirming the alias resolves to the primary column; 2/2 passed."
+              }
+            ],
+            "summary": "GET now honours ?pk=eq.<v> via a shared resolvePkFilter wired into filterParams, with a new 6-test tables-supa9-pkfilter.test.ts covering eq/non-eq/non-pk-column cases, and the full suite is green (252 files, 2094 tests).",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: SUPA9-PK-FILTER-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column filter still behave as today; pnpm test:run green: Implementation: src/http/routes/tables.ts:239-270 adds shared resolvePkFilter(); tables.ts:310-314 in filterParams() maps the pk alias onto the declared primary column (`if (req.query.pk !== undefined) { const { col, value } = resolvePkFilter(declaration, req.query.pk, \"GET\"); out[col.name] = `eq.${value}`; }`); tables.ts:855-865 GET /:table feeds filterParams into buildSelectPlan, and src/duckdb/table-store.ts:315-390 compiles each filter into a real SQL WHERE comparison, so the filter is enforced in SQL. New test src/http/routes/tables-supa9-pkfilter.test.ts (149 lines, 6 tests) matches the tables-*.test.ts glob and covers: pk=eq.2 -> [{id:2,name:\"beta\"}] only; pk=eq.9 -> []; pk=gte.1 -> 400 VALIDATION_ERROR (non-eq unchanged); id=eq.2 -> [{id:2,name:\"beta\"}] (non-pk-column filter unchanged); bogus=eq.9 -> 400; unkeyed?pk=eq.x -> 400 'declares no primary key'. Test evidence: `npx vitest run src/http/routes/tables-supa9-pkfilter.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 6 passed (6)'; `npx vitest run tables-supa9-pkfilter + tables-supa2 + tables-supa3` exit 0, 'Test Files 3 passed (3) / Tests 52 passed (52)'; full suite `npx vitest run --reporter=dot` (= pnpm test:run) -> 'Test Files 252 passed (252) / Tests 2094 passed (2094)', Duration 102.15s, no FAIL lines (grep FAIL/\u2717 matched only negative-path log strings from distill-sessions/durability tests). Extra edge-case check (temp test, removed; git status clean): table with primary 'id' plus a column literally named 'pk' \u2014 ?pk=eq.2 returned [{id:2,pk:\"b\",name:\"beta\"}], confirming the alias resolves to the primary column; 2/2 passed.\nGET now honours ?pk=eq.<v> via a shared resolvePkFilter wired into filterParams, with a new 6-test tables-supa9-pkfilter.test.ts covering eq/non-eq/non-pk-column cases, and the full suite is green (252 files, 2094 tests).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-04T14:07:17.550397",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-04T14:07:17.572719+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 64057,
+        "truncated": false,
+        "source": "git show 07c48a811315"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 848,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "SUPA9-PK-FILTER-001"
+  }
+}

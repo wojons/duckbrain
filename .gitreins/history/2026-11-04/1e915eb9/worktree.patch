@@ -1,0 +1,18 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index f04f72a9..468e3883 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3043,3 +3043,13 @@ tasks:
+   status: complete
+   created_at: '2026-11-04T11:34:58.643560+00:00'
+   completed_at: '2026-11-04T11:54:01.373879+00:00'
++- id: SUPA9-PK-FILTER-001
++  title: GET ignores ?pk=eq.N while PATCH/DELETE require it
++  criteria:
++  - GET /api/ns/:ns/tables/:table?pk=eq.<v> returns ONLY the matching row for a declared
++    pk table (previously returned every row); a new unit test in src/http/routes/tables-*.test.ts
++    asserts pk=eq filters on GET and that a non-eq pk (pk=gte.1) and a non-pk-column
++    filter still behave as today; pnpm test:run green
++  status: complete
++  created_at: '2026-11-04T13:48:24.129906+00:00'
++  completed_at: '2026-11-04T14:00:08.389080+00:00'
