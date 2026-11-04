@@ -1,0 +1,112 @@
+{
+  "task_id": "PERF-DUCKBRAIN-001",
+  "task_title": "Cut /api/memories list latency tail by bounding the file scan (PERF-DUCKBRAIN-001)",
+  "task_criteria": [
+    "Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e623f99e76c54075634a4def3daa1deb1be7f15f",
+  "working_tree_content_fingerprint": "0f85258c0d9248a886a10cd0ed2bd5731d3b3c48b4db32a9360a20b0ec892f5f",
+  "working_tree_dirty_path_count": 8,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:07AM INF scanned ~23245668 bytes (23.25 MB) in 3.32s\n11:07AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 485952 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:134648) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:182333) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:183312) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:187741) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:189463) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:190926) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:191223) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:192716) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193002) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193068) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193184) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193296) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193344) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193425) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193597) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:193631) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:194086) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:194295) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  253 passed (253)\n      Tests  2098 passed (2098)\n   Start at  11:07:21\n   Duration  101.91s (tests 82%, import 16%, setup 1%)\n\n    Isolate  253 workers spawned \u00b7 ~108ms startup each (spawn + environment, per file)\n             at least ~6.72s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: Three of the five required outcomes are unmet. (a) <500ms cold target NOT met: the repo's own board record .coding-hermes/board/tasks.jsonl (PERF-DUCKBRAIN-001 foreman_note) states verbatim 'target (cold <500ms) NOT met yet', with measured production limit=10 at 1.42/1.88/2.00s and a compacted copy at 0.98s cold; the prior verdict .gitreins/history/2026-11-04/61c5252d/summary.md agrees: 'the <500ms cold-latency target is neither asserted by the committed benchmark nor met'. (b) The committed benchmark scripts/perf/perf001-list-latency.mjs (tracked, commit 0f712522) does sample coding-hermes and fleet-quality at limit=10 (1 cold + 3 warm), but it is 75 lines that only console.log the numbers \u2014 `grep -rn \"500\" scripts/perf/` returns nothing and there is no assertion or non-zero exit on latency, so it cannot 'prove' the target. (c) The list path STILL depends on total file count: src/duckdb/queries.ts:939 calls collectJsonlFiles(partitionPaths) which enumerates every .jsonl file, :876 builds fileList from ALL of them, and runBoundedRead at :803-810 executes read_json([${fileList}]) over the entire list; only the ORDER BY/LIMIT window is bounded (PLAIN_LIST_MAX_WINDOW=100_000 at :671), not the file scan \u2014 so latency still scales with the census counts (fleet-quality 29,080 files, coding-hermes 20,054). (d) No rows lost: PASS \u2014 src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence to the fused statement across duplicate ids, tombstones, boundary straddles and offsets; `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)', exit_code 0. (e) Tests pass: PASS \u2014 `npx vitest run src/duckdb/` => 'Test Files 13 passed (13), Tests 128 passed (128)', exit_code 0 (the full suite exceeded the 30s tool limit; the duckdb scope is the changed-code scope). The bounded top-k is a genuine, well-tested improvement, but the criterion's headline latency and file-count-independence requirements are not satisfied.\nThe bounded top-k read is implemented and its tests pass (128/128 in src/duckdb), but the <500ms cold target is explicitly recorded as NOT met, the committed benchmark asserts no latency threshold, and the list path still read_json's every file so latency remains proportional to total file count.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: Three of the five required outcomes are unmet. (a) <500ms cold target NOT met: the repo's own board record .coding-hermes/board/tasks.jsonl (PERF-DUCKBRAIN-001 foreman_note) states verbatim 'target (cold <500ms) NOT met yet', with measured production limit=10 at 1.42/1.88/2.00s and a compacted copy at 0.98s cold; the prior verdict .gitreins/history/2026-11-04/61c5252d/summary.md agrees: 'the <500ms cold-latency target is neither asserted by the committed benchmark nor met'. (b) The committed benchmark scripts/perf/perf001-list-latency.mjs (tracked, commit 0f712522) does sample coding-hermes and fleet-quality at limit=10 (1 cold + 3 warm), but it is 75 lines that only console.log the numbers \u2014 `grep -rn \"500\" scripts/perf/` returns nothing and there is no assertion or non-zero exit on latency, so it cannot 'prove' the target. (c) The list path STILL depends on total file count: src/duckdb/queries.ts:939 calls collectJsonlFiles(partitionPaths) which enumerates every .jsonl file, :876 builds fileList from ALL of them, and runBoundedRead at :803-810 executes read_json([${fileList}]) over the entire list; only the ORDER BY/LIMIT window is bounded (PLAIN_LIST_MAX_WINDOW=100_000 at :671), not the file scan \u2014 so latency still scales with the census counts (fleet-quality 29,080 files, coding-hermes 20,054). (d) No rows lost: PASS \u2014 src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence to the fused statement across duplicate ids, tombstones, boundary straddles and offsets; `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)', exit_code 0. (e) Tests pass: PASS \u2014 `npx vitest run src/duckdb/` => 'Test Files 13 passed (13), Tests 128 passed (128)', exit_code 0 (the full suite exceeded the 30s tool limit; the duckdb scope is the changed-code scope). The bounded top-k is a genuine, well-tested improvement, but the criterion's headline latency and file-count-independence requirements are not satisfied.\nThe bounded top-k read is implemented and its tests pass (128/128 in src/duckdb), but the <500ms cold target is explicitly recorded as NOT met, the committed benchmark asserts no latency threshold, and the list path still read_json's every file so latency remains proportional to total file count.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.",
+                "status": "FAIL",
+                "detail": "Three of the five required outcomes are unmet. (a) <500ms cold target NOT met: the repo's own board record .coding-hermes/board/tasks.jsonl (PERF-DUCKBRAIN-001 foreman_note) states verbatim 'target (cold <500ms) NOT met yet', with measured production limit=10 at 1.42/1.88/2.00s and a compacted copy at 0.98s cold; the prior verdict .gitreins/history/2026-11-04/61c5252d/summary.md agrees: 'the <500ms cold-latency target is neither asserted by the committed benchmark nor met'. (b) The committed benchmark scripts/perf/perf001-list-latency.mjs (tracked, commit 0f712522) does sample coding-hermes and fleet-quality at limit=10 (1 cold + 3 warm), but it is 75 lines that only console.log the numbers \u2014 `grep -rn \"500\" scripts/perf/` returns nothing and there is no assertion or non-zero exit on latency, so it cannot 'prove' the target. (c) The list path STILL depends on total file count: src/duckdb/queries.ts:939 calls collectJsonlFiles(partitionPaths) which enumerates every .jsonl file, :876 builds fileList from ALL of them, and runBoundedRead at :803-810 executes read_json([${fileList}]) over the entire list; only the ORDER BY/LIMIT window is bounded (PLAIN_LIST_MAX_WINDOW=100_000 at :671), not the file scan \u2014 so latency still scales with the census counts (fleet-quality 29,080 files, coding-hermes 20,054). (d) No rows lost: PASS \u2014 src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence to the fused statement across duplicate ids, tombstones, boundary straddles and offsets; `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)', exit_code 0. (e) Tests pass: PASS \u2014 `npx vitest run src/duckdb/` => 'Test Files 13 passed (13), Tests 128 passed (128)', exit_code 0 (the full suite exceeded the 30s tool limit; the duckdb scope is the changed-code scope). The bounded top-k is a genuine, well-tested improvement, but the criterion's headline latency and file-count-independence requirements are not satisfied.",
+                "resolution_probability": 0.09
+              }
+            ],
+            "summary": "The bounded top-k read is implemented and its tests pass (128/128 in src/duckdb), but the <500ms cold target is explicitly recorded as NOT met, the committed benchmark asserts no latency threshold, and the list path still read_json's every file so latency remains proportional to total file count.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: PERF-DUCKBRAIN-001\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: Three of the five required outcomes are unmet. (a) <500ms cold target NOT met: the repo's own board record .coding-hermes/board/tasks.jsonl (PERF-DUCKBRAIN-001 foreman_note) states verbatim 'target (cold <500ms) NOT met yet', with measured production limit=10 at 1.42/1.88/2.00s and a compacted copy at 0.98s cold; the prior verdict .gitreins/history/2026-11-04/61c5252d/summary.md agrees: 'the <500ms cold-latency target is neither asserted by the committed benchmark nor met'. (b) The committed benchmark scripts/perf/perf001-list-latency.mjs (tracked, commit 0f712522) does sample coding-hermes and fleet-quality at limit=10 (1 cold + 3 warm), but it is 75 lines that only console.log the numbers \u2014 `grep -rn \"500\" scripts/perf/` returns nothing and there is no assertion or non-zero exit on latency, so it cannot 'prove' the target. (c) The list path STILL depends on total file count: src/duckdb/queries.ts:939 calls collectJsonlFiles(partitionPaths) which enumerates every .jsonl file, :876 builds fileList from ALL of them, and runBoundedRead at :803-810 executes read_json([${fileList}]) over the entire list; only the ORDER BY/LIMIT window is bounded (PLAIN_LIST_MAX_WINDOW=100_000 at :671), not the file scan \u2014 so latency still scales with the census counts (fleet-quality 29,080 files, coding-hermes 20,054). (d) No rows lost: PASS \u2014 src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence to the fused statement across duplicate ids, tombstones, boundary straddles and offsets; `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` => 'Test Files 1 passed (1), Tests 4 passed (4)', exit_code 0. (e) Tests pass: PASS \u2014 `npx vitest run src/duckdb/` => 'Test Files 13 passed (13), Tests 128 passed (128)', exit_code 0 (the full suite exceeded the 30s tool limit; the duckdb scope is the changed-code scope). The bounded top-k is a genuine, well-tested improvement, but the criterion's headline latency and file-count-independence requirements are not satisfied.\nThe bounded top-k read is implemented and its tests pass (128/128 in src/duckdb), but the <500ms cold target is explicitly recorded as NOT met, the committed benchmark asserts no latency threshold, and the list path still read_json's every file so latency remains proportional to total file count.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-11-04T16:11:05.335599",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-04T16:11:05.357757+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 23587,
+        "truncated": false,
+        "source": "git show e623f99e76c5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1569,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-DUCKBRAIN-001"
+  }
+}

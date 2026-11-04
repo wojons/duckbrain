@@ -1,0 +1,34 @@
+diff --git a/.coding-hermes/waves/duckbrain-foreman-2026-11-04-13-44-22.json b/.coding-hermes/waves/duckbrain-foreman-2026-11-04-13-44-22.json
+index 9be23972..2bbd349c 100644
+--- a/.coding-hermes/waves/duckbrain-foreman-2026-11-04-13-44-22.json
++++ b/.coding-hermes/waves/duckbrain-foreman-2026-11-04-13-44-22.json
+@@ -21,5 +21,11 @@
+     }
+   ],
+   "workers": [],
+-  "created_at": "2026-11-04T08:52:00-05:00"
++  "created_at": "2026-11-04T08:52:00-05:00",
++  "finished_at": "2026-11-04T14:50:00-05:00",
++  "recovery": {
++    "recovered_by": "duckbrain-foreman-2026-11-04-14-43-55",
++    "result": "COMPLETE",
++    "evidence": "SUPA9-PK-FILTER-001 merged into main at 1c8e4be9, board closed, origin/main parity 0 unpushed; worktree removed and branch wt/SUPA9-PK-FILTER-001 deleted (was a6df3394)."
++  }
+ }
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 61540b87..c37d654c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3053,3 +3053,12 @@ tasks:
+   status: in_progress
+   created_at: '2026-11-04T13:48:24.129906+00:00'
+   completed_at: '2026-11-04T14:00:08.389080+00:00'
++- id: PERF-DUCKBRAIN-001
++  title: Cut /api/memories list latency tail by bounding the file scan (PERF-DUCKBRAIN-001)
++  criteria:
++  - Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no
++    rows lost, proven by a committed benchmark script; the list path no longer depends
++    on total file count; tests pass.
++  status: complete
++  created_at: '2026-11-04T14:46:24.305481+00:00'
++  completed_at: '2026-11-04T15:55:07.347071+00:00'

@@ -1,0 +1,112 @@
+{
+  "task_id": "PERF-DUCKBRAIN-001",
+  "task_title": "Cut /api/memories list latency tail by bounding the file scan (PERF-DUCKBRAIN-001)",
+  "task_criteria": [
+    "Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass."
+  ],
+  "passed": false,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "e623f99e76c54075634a4def3daa1deb1be7f15f",
+  "working_tree_content_fingerprint": "bfd2df3838e920d15a7c1494a7949e0c1f63214c32157cbd173ffa18506a34dd",
+  "working_tree_dirty_path_count": 4,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": false,
+      "any_failed": true,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2717 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n10:55AM INF scanned ~23233804 bytes (23.23 MB) in 5.57s\n10:55AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 485948 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": false,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:3925896) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n \u276f src/git/autocommit-supapair.test.ts (3 tests | 1 failed) 6542ms\n   \u276f DF-0925-02 AC-1 burst pairing (1)\n     \u00d7 30 writes at 25 writes/s: every commit's audit delta covers its data delta 2390ms\n(node:3967546) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3974420) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3978858) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3979845) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3981760) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3983719) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3984319) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3984533) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3985129) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3985362) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3985597) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n\u2026 [684 chars omitted \u2014 8 line(s)] \u2026\n(node:3986383) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3987014) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3987760) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af Failed Tests 1 \u23af\u23af\u23af\u23af\u23af\u23af\u23af\n\n FAIL  src/git/autocommit-supapair.test.ts > DF-0925-02 AC-1 burst pairing > 30 writes at 25 writes/s: every commit's audit delta covers its data delta\nAssertionError: expected 2 to be greater than or equal to 3\n \u276f src/git/autocommit-supapair.test.ts:430:28\n    428|     const census = pairCensus(nsPath);\n    429|     // Multiple commits prove the burst crossed several commit boundar\u2026\n    430|     expect(census.commits).toBeGreaterThanOrEqual(3);\n       |                            ^\n    431|     expect(census.totalDataIds).toBe(30);\n    432|     expect(census.totalAuditIds).toBe(30);\n\n\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af[1/1]\u23af\n\n\n Test Files  1 failed | 252 passed (253)\n      Tests  1 failed | 2097 passed (2098)\n   Start at  10:55:08\n   Duration  102.22s (tests 80%, import 18%, setup 1%, worker 1%)\n\n    Isolate  253 workers spawned \u00b7 ~120ms startup each (spawn + environment, per file)\n             at least ~7.50s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 1,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": false,
+      "any_failed": true,
+      "summary": "INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: The criterion has four conjunctive parts; two fail decisively. (A) '<500ms proven by a committed benchmark script' \u2014 scripts/perf/perf001-list-latency.mjs IS committed (git ls-files confirms) and does sample coding-hermes + fleet-quality at limit=10, but it contains ZERO occurrences of '500' (grep -c '500' -> 0): it never asserts a latency threshold, only throwing on HTTP error or items.length>10, so it cannot prove the target. No committed benchmark RESULT artifact exists (git ls-files | grep perf001 -> only the script plus two test files). The repo's own committed board record contradicts the claim: .coding-hermes/board/tasks.jsonl PERF-DUCKBRAIN-001 foreman_note states 'target (cold <500ms) NOT met yet, production NOT compacted', with measured production coding-hermes limit=10 at 1.42/1.88/2.00s and fleet-quality 13.26s cold / 1.82s warm; board status is still 'pending', worker_status 'pending', commit_hash null. (B) 'the list path no longer depends on total file count' \u2014 FAIL: the new runBoundedRead() at src/duckdb/queries.ts:801-812 still executes `FROM read_json([${fileList}], ...)` over the FULL file list (line 810), and collectJsonlFiles() (queries.ts:151) still readdir's every .jsonl in every partition. No index/mtime/newest-N/segment-ordering mechanism exists (grep for mtime|newest-N|bounded index|segment ordering in queries.ts -> no matches). Only the dedup SORT is bounded (page CTE LIMIT ${window}, window = limit+50, cap 100_000); the per-file ingest/metadata cost the task itself names as the cause ('the cause is FILE COUNT (20k-29k jsonl files per namespace)') is untouched, so latency still scales with file count. (C) 'no rows lost' \u2014 partially supported: src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence of page+total vs queryMemoriesWithTotalFused across duplicate ids, tombstones, boundary straddles, offsets and limit=0, and total == brute-force deduped count, but only on tiny synthetic fixtures. (D) 'tests pass' \u2014 PASS, actual output: `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; `npx vitest run src/duckdb/` exit 0, 'Test Files 13 passed (13) / Tests 128 passed (128)'; `npx vitest run src/http/ src/keys/` exit 0, 'Test Files 66 passed (66) / Tests 481 passed (481)'; `npx vitest run src/mcp/ src/search/` exit 0, 'Test Files 31 passed (31) / Tests 300 passed (300)'. The full `npx vitest run` exceeded the 30s tool cap, so the relevant subsets were run instead. Net: the bounded top-k is a real optimization and its tests are green, but the <500ms target is unproven and self-contradicted by the repo's own record, and the file-count dependency is not removed.\nThe bounded top-k change and its tests are green, but the <500ms cold-latency target is neither asserted by the committed benchmark nor met (the repo's own board note says 'NOT met yet'), and the list path still read_json's every file so latency still scales with file count.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": false,
+          "output": "INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: The criterion has four conjunctive parts; two fail decisively. (A) '<500ms proven by a committed benchmark script' \u2014 scripts/perf/perf001-list-latency.mjs IS committed (git ls-files confirms) and does sample coding-hermes + fleet-quality at limit=10, but it contains ZERO occurrences of '500' (grep -c '500' -> 0): it never asserts a latency threshold, only throwing on HTTP error or items.length>10, so it cannot prove the target. No committed benchmark RESULT artifact exists (git ls-files | grep perf001 -> only the script plus two test files). The repo's own committed board record contradicts the claim: .coding-hermes/board/tasks.jsonl PERF-DUCKBRAIN-001 foreman_note states 'target (cold <500ms) NOT met yet, production NOT compacted', with measured production coding-hermes limit=10 at 1.42/1.88/2.00s and fleet-quality 13.26s cold / 1.82s warm; board status is still 'pending', worker_status 'pending', commit_hash null. (B) 'the list path no longer depends on total file count' \u2014 FAIL: the new runBoundedRead() at src/duckdb/queries.ts:801-812 still executes `FROM read_json([${fileList}], ...)` over the FULL file list (line 810), and collectJsonlFiles() (queries.ts:151) still readdir's every .jsonl in every partition. No index/mtime/newest-N/segment-ordering mechanism exists (grep for mtime|newest-N|bounded index|segment ordering in queries.ts -> no matches). Only the dedup SORT is bounded (page CTE LIMIT ${window}, window = limit+50, cap 100_000); the per-file ingest/metadata cost the task itself names as the cause ('the cause is FILE COUNT (20k-29k jsonl files per namespace)') is untouched, so latency still scales with file count. (C) 'no rows lost' \u2014 partially supported: src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence of page+total vs queryMemoriesWithTotalFused across duplicate ids, tombstones, boundary straddles, offsets and limit=0, and total == brute-force deduped count, but only on tiny synthetic fixtures. (D) 'tests pass' \u2014 PASS, actual output: `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; `npx vitest run src/duckdb/` exit 0, 'Test Files 13 passed (13) / Tests 128 passed (128)'; `npx vitest run src/http/ src/keys/` exit 0, 'Test Files 66 passed (66) / Tests 481 passed (481)'; `npx vitest run src/mcp/ src/search/` exit 0, 'Test Files 31 passed (31) / Tests 300 passed (300)'. The full `npx vitest run` exceeded the 30s tool cap, so the relevant subsets were run instead. Net: the bounded top-k is a real optimization and its tests are green, but the <500ms target is unproven and self-contradicted by the repo's own record, and the file-count dependency is not removed.\nThe bounded top-k change and its tests are green, but the <500ms cold-latency target is neither asserted by the committed benchmark nor met (the repo's own board note says 'NOT met yet'), and the list path still read_json's every file so latency still scales with file count.",
+          "error": "",
+          "data": {
+            "verdict": "INCOMPLETE",
+            "items": [
+              {
+                "criterion": "Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.",
+                "status": "FAIL",
+                "detail": "The criterion has four conjunctive parts; two fail decisively. (A) '<500ms proven by a committed benchmark script' \u2014 scripts/perf/perf001-list-latency.mjs IS committed (git ls-files confirms) and does sample coding-hermes + fleet-quality at limit=10, but it contains ZERO occurrences of '500' (grep -c '500' -> 0): it never asserts a latency threshold, only throwing on HTTP error or items.length>10, so it cannot prove the target. No committed benchmark RESULT artifact exists (git ls-files | grep perf001 -> only the script plus two test files). The repo's own committed board record contradicts the claim: .coding-hermes/board/tasks.jsonl PERF-DUCKBRAIN-001 foreman_note states 'target (cold <500ms) NOT met yet, production NOT compacted', with measured production coding-hermes limit=10 at 1.42/1.88/2.00s and fleet-quality 13.26s cold / 1.82s warm; board status is still 'pending', worker_status 'pending', commit_hash null. (B) 'the list path no longer depends on total file count' \u2014 FAIL: the new runBoundedRead() at src/duckdb/queries.ts:801-812 still executes `FROM read_json([${fileList}], ...)` over the FULL file list (line 810), and collectJsonlFiles() (queries.ts:151) still readdir's every .jsonl in every partition. No index/mtime/newest-N/segment-ordering mechanism exists (grep for mtime|newest-N|bounded index|segment ordering in queries.ts -> no matches). Only the dedup SORT is bounded (page CTE LIMIT ${window}, window = limit+50, cap 100_000); the per-file ingest/metadata cost the task itself names as the cause ('the cause is FILE COUNT (20k-29k jsonl files per namespace)') is untouched, so latency still scales with file count. (C) 'no rows lost' \u2014 partially supported: src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence of page+total vs queryMemoriesWithTotalFused across duplicate ids, tombstones, boundary straddles, offsets and limit=0, and total == brute-force deduped count, but only on tiny synthetic fixtures. (D) 'tests pass' \u2014 PASS, actual output: `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; `npx vitest run src/duckdb/` exit 0, 'Test Files 13 passed (13) / Tests 128 passed (128)'; `npx vitest run src/http/ src/keys/` exit 0, 'Test Files 66 passed (66) / Tests 481 passed (481)'; `npx vitest run src/mcp/ src/search/` exit 0, 'Test Files 31 passed (31) / Tests 300 passed (300)'. The full `npx vitest run` exceeded the 30s tool cap, so the relevant subsets were run instead. Net: the bounded top-k is a real optimization and its tests are green, but the <500ms target is unproven and self-contradicted by the repo's own record, and the file-count dependency is not removed.",
+                "resolution_probability": 0.08
+              }
+            ],
+            "summary": "The bounded top-k change and its tests are green, but the <500ms cold-latency target is neither asserted by the committed benchmark nor met (the repo's own board note says 'NOT met yet'), and the list path still read_json's every file so latency still scales with file count.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: PERF-DUCKBRAIN-001\n\nStage tier1: FAIL\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2717 tests: scanners: nice=nice -n 10\n\nStage tier2: FAIL\n  INCOMPLETE\n  \u2717 Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no rows lost, proven by a committed benchmark script; the list path no longer depends on total file count; tests pass.: The criterion has four conjunctive parts; two fail decisively. (A) '<500ms proven by a committed benchmark script' \u2014 scripts/perf/perf001-list-latency.mjs IS committed (git ls-files confirms) and does sample coding-hermes + fleet-quality at limit=10, but it contains ZERO occurrences of '500' (grep -c '500' -> 0): it never asserts a latency threshold, only throwing on HTTP error or items.length>10, so it cannot prove the target. No committed benchmark RESULT artifact exists (git ls-files | grep perf001 -> only the script plus two test files). The repo's own committed board record contradicts the claim: .coding-hermes/board/tasks.jsonl PERF-DUCKBRAIN-001 foreman_note states 'target (cold <500ms) NOT met yet, production NOT compacted', with measured production coding-hermes limit=10 at 1.42/1.88/2.00s and fleet-quality 13.26s cold / 1.82s warm; board status is still 'pending', worker_status 'pending', commit_hash null. (B) 'the list path no longer depends on total file count' \u2014 FAIL: the new runBoundedRead() at src/duckdb/queries.ts:801-812 still executes `FROM read_json([${fileList}], ...)` over the FULL file list (line 810), and collectJsonlFiles() (queries.ts:151) still readdir's every .jsonl in every partition. No index/mtime/newest-N/segment-ordering mechanism exists (grep for mtime|newest-N|bounded index|segment ordering in queries.ts -> no matches). Only the dedup SORT is bounded (page CTE LIMIT ${window}, window = limit+50, cap 100_000); the per-file ingest/metadata cost the task itself names as the cause ('the cause is FILE COUNT (20k-29k jsonl files per namespace)') is untouched, so latency still scales with file count. (C) 'no rows lost' \u2014 partially supported: src/duckdb/queries-plainlist-bounded-perf001.test.ts proves byte-equivalence of page+total vs queryMemoriesWithTotalFused across duplicate ids, tombstones, boundary straddles, offsets and limit=0, and total == brute-force deduped count, but only on tiny synthetic fixtures. (D) 'tests pass' \u2014 PASS, actual output: `npx vitest run src/duckdb/queries-plainlist-bounded-perf001.test.ts` exit 0, 'Test Files 1 passed (1) / Tests 4 passed (4)'; `npx vitest run src/duckdb/` exit 0, 'Test Files 13 passed (13) / Tests 128 passed (128)'; `npx vitest run src/http/ src/keys/` exit 0, 'Test Files 66 passed (66) / Tests 481 passed (481)'; `npx vitest run src/mcp/ src/search/` exit 0, 'Test Files 31 passed (31) / Tests 300 passed (300)'. The full `npx vitest run` exceeded the 30s tool cap, so the relevant subsets were run instead. Net: the bounded top-k is a real optimization and its tests are green, but the <500ms target is unproven and self-contradicted by the repo's own record, and the file-count dependency is not removed.\nThe bounded top-k change and its tests are green, but the <500ms cold-latency target is neither asserted by the committed benchmark nor met (the repo's own board note says 'NOT met yet'), and the list path still read_json's every file so latency still scales with file count.\n\nOverall: FAIL \u2717",
+  "evaluated_at": "2026-11-04T16:04:12.347642",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-04T16:04:12.373052+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 23587,
+        "truncated": false,
+        "source": "git show e623f99e76c5"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1569,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-DUCKBRAIN-001"
+  }
+}

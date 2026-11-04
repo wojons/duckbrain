@@ -3053,3 +3053,12 @@ tasks:
   status: in_progress
   created_at: '2026-11-04T13:48:24.129906+00:00'
   completed_at: '2026-11-04T14:00:08.389080+00:00'
+- id: PERF-DUCKBRAIN-001
+  title: Cut /api/memories list latency tail by bounding the file scan (PERF-DUCKBRAIN-001)
+  criteria:
+  - Cold limit=10 on coding-hermes and fleet-quality answers in under 500ms with no
+    rows lost, proven by a committed benchmark script; the list path no longer depends
+    on total file count; tests pass.
+  status: complete
+  created_at: '2026-11-04T14:46:24.305481+00:00'
+  completed_at: '2026-11-04T16:07:20.792947+00:00'

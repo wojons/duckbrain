@@ -21,5 +21,11 @@
     }
   ],
   "workers": [],
-  "created_at": "2026-11-04T08:52:00-05:00"
+  "created_at": "2026-11-04T08:52:00-05:00",
+  "finished_at": "2026-11-04T14:50:00-05:00",
+  "recovery": {
+    "recovered_by": "duckbrain-foreman-2026-11-04-14-43-55",
+    "result": "COMPLETE",
+    "evidence": "SUPA9-PK-FILTER-001 merged into main at 1c8e4be9, board closed, origin/main parity 0 unpushed; worktree removed and branch wt/SUPA9-PK-FILTER-001 deleted (was a6df3394)."
+  }
 }

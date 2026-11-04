@@ -1,0 +1,30 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-04-14-43-55",
+  "block": "PERF-DUCKBRAIN-001",
+  "path": "serial-fallback",
+  "wave_size": 1,
+  "wave_budget": 1,
+  "slots_computed": 1,
+  "slots_note": "nproc=16 loadavg=17.60 -> max(1,min(6,16-ceil(17.60)))=1; WAVE_BUDGET=1 also caps at 1. Serial path by sizing, not idle.",
+  "reason_serial": "slots < 2 and WAVE_BUDGET=1",
+  "recovery_first": {
+    "tick": "duckbrain-foreman-2026-11-04-13-44-22",
+    "workers": 0,
+    "result": "nothing to recover: prior wave was serial, its single row landed and closed; manifest closed finished_at"
+  },
+  "rows": [
+    {
+      "task_id": "PERF-DUCKBRAIN-001",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-001",
+      "branch": "wt/PERF-DUCKBRAIN-001",
+      "base": "origin/main",
+      "base_sha": "db817ef8",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-PERF-DUCKBRAIN-001.md",
+      "model": "gpt-6-luna",
+      "provider": "openai-codex",
+      "independent_of": []
+    }
+  ],
+  "workers": [],
+  "created_at": "2026-11-04T09:46:58-05:00"
+}
