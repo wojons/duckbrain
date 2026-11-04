@@ -124,7 +124,7 @@ const metricsWith = (
   });
 
 describe("OBSDB-001: /metrics exposition shape", () => {
-  it("renders exactly the six MVP families, duckbrain_http_up first", async () => {
+  it("renders exactly the metric families, duckbrain_http_up first", async () => {
     const metrics = metricsWith(async () => healthySnapshot());
     // A read must have been recorded for the counter family to exist — a
     // counter with no observation genuinely has no series, so this test seeds
@@ -141,12 +141,17 @@ describe("OBSDB-001: /metrics exposition shape", () => {
       .split("\n")
       .filter((line) => line.startsWith("# TYPE "))
       .map((line) => line.replace("# TYPE ", ""));
+    // OBSDB-002 grew the set from six families to eight: read latency and
+    // refusals. The assertion stays exact on purpose — a family appearing
+    // without a row and a review is the failure mode this guards.
     expect(families).toEqual([
       "duckbrain_http_up gauge",
       "duckbrain_health_status gauge",
       "duckbrain_health_probe_duration_seconds histogram",
       "duckbrain_embedding_provider_healthy gauge",
       "duckbrain_reads_total counter",
+      "duckbrain_read_duration_seconds histogram",
+      "duckbrain_rejected_total counter",
       "duckbrain_build_info gauge",
     ]);
     // …and nothing else is exposed.
