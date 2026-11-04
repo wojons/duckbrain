@@ -31,16 +31,24 @@ describe("Rate Limiting Integration", () => {
     killProcess(server);
   });
 
+  // NOTE (HARDEN-DUCKBRAIN-003): these tests used /health as the cheapest URL
+  // to hammer. /health is now EXEMPT from the limiter on purpose — a liveness
+  // probe that can be throttled reports a healthy daemon as dead (that is how
+  // the Hermes memory provider went dark on 2026-11-03). The limiter is
+  // therefore exercised on a rate-limited route instead, and an unauthenticated
+  // 401 is a perfectly good "under the limit" answer: the limiter runs BEFORE
+  // auth, which is exactly why its headers appear on the 401 too.
+  const LIMITED_URL = () => `http://127.0.0.1:${port}/api/namespaces`;
+
   it("should allow requests under the limit", async () => {
-    const res = await curl(`http://127.0.0.1:${port}/health`);
-    // GAP-030: /health answers 503 when degraded — accept both codes.
-    expect([200, 503]).toContain(res.status);
+    const res = await curl(LIMITED_URL());
+    expect([200, 401, 503]).toContain(res.status);
   });
 
   it("should return 429 after exceeding rate limit", async () => {
     let got429 = false;
     for (let i = 0; i < 15; i++) {
-      const res = await curl(`http://127.0.0.1:${port}/health`);
+      const res = await curl(LIMITED_URL());
       if (res.status === 429) {
         got429 = true;
         break;
@@ -61,9 +69,10 @@ describe("Rate Limiting Integration", () => {
         DAEMON_READY_TIMEOUT_MS,
         rlServer,
       );
-      const res = await curl(`http://127.0.0.1:${rateLimitPort}/health`);
-      // GAP-030: accept 503 (degraded) as well as 200.
-      expect([200, 503]).toContain(res.status);
+      const res = await curl(`http://127.0.0.1:${rateLimitPort}/api/namespaces`);
+      // GAP-030: accept 503 (degraded); 401 is expected when the daemon wants
+      // a key — the limiter ran first and stamped its headers regardless.
+      expect([200, 401, 503]).toContain(res.status);
       // TESTQ-2026-11-02-1: assert the VALUE, not merely that the header
       // exists. A port squatter would answer with ITS configured limit (the
       // CI failure carried `X-RateLimit-Limit: 5` from a different daemon), so

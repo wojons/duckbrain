@@ -81,13 +81,25 @@ describe("port allocation cannot attach tests to a foreign daemon", () => {
         DAEMON_READY_TIMEOUT_MS,
         a,
       );
-      for (let i = 0; i < 15; i++) {
-        const res = await fetch(`http://127.0.0.1:${port}/health`);
-        if (res.status === 429) break;
-      }
-
-      // Daemon B asks for the SAME port with a generous limit.
+      // HARDEN-DUCKBRAIN-003: draining A's /health bucket no longer has any
+      // effect — /health is exempt from the limiter by design (a probe that can
+      // be throttled reports a healthy daemon as dead). That exemption also
+      // removed this test's accidental determinism: it used to win the race
+      // because A answered 429 to the poll, and now A answers 200 immediately
+      // from a SQUATTER that really does own the port. So the shape is made
+      // explicit instead of relying on a status code: daemon B loses the bind
+      // race and is waited out before the guard is asked. The guard's contract
+      // is unchanged — "refuse to report ready for a child that never bound" —
+      // and an already-exited child is precisely that case. Without the guard,
+      // the 200 from A would be read as B's readiness and this test would fail.
       b = await startDuckbrainHttp({ port, rateLimit: 100 });
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 20000);
+        b!.once("exit", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
 
       // Before the fix this resolved (the squatter answers 200/503) and the
       // suite then measured daemon A. Now it must reject with the reason.
