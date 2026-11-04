@@ -640,35 +640,285 @@ export interface QueryMemoriesWithTotalResult {
 }
 
 /**
- * Query memories AND their true total in ONE read_json scan (PERF-003).
+ * PERF-DUCKBRAIN-001: plain-list detection.
  *
- * The old list path ran queryMemories + countMemories back-to-back; EACH
- * mounted every chunk file via DuckDB read_json, so every recall/list
- * request paid two full re-ingests of the namespace. This fused query
- * mounts the files once, computes the dedup window ONCE, and derives both
- * the page and the total from that single materialized set.
+ * The plain-list case is a request with no search/attribute/time-range
+ * dimensions: no `query` (semantic/hybrid), no `embedding` (semantic
+ * override), no `attr` (attribute filter), and no `after`/`before` (time
+ * range). Single-value equality filters (`key` / `id` / `keyPrefix` /
+ * `domain` / `author`) are still cheap, still list-shaped, so they stay on
+ * the bounded path. (`contains` / `allNamespaces` are handled in the recall
+ * tool's keyword leg and never reach this layer.)
  *
- * Shape (combined API — NOT a module-level capture var; the probe's capture
- * var was a thread-safety/abstraction smell, PERF-003 redesign):
+ * The ledger shows 5,968 slow plain-list calls carry no query string at all;
+ * this predicate is true exactly for those requests.
+ */
+function isPlainList(filters?: MemoryQueryFilters): boolean {
+  if (!filters) return true;
+  if (filters.query !== undefined) return false;
+  if (filters.embedding !== undefined) return false;
+  if (filters.attr !== undefined) return false;
+  if (filters.after !== undefined || filters.before !== undefined) return false;
+  return true;
+}
+
+/** PERF-DUCKBRAIN-001: raw rows fetched beyond the page to absorb duplicate /
+ * tombstone collapse — a page of N live rows can require more than N raw rows. */
+const PLAIN_LIST_DEDUP_SLACK = 50;
+
+/** PERF-DUCKBRAIN-001: hard cap on raw rows scanned for one page before the
+ * bounded read gives up and falls back to the fused statement. */
+const PLAIN_LIST_MAX_WINDOW = 100_000;
+
+/** All-VARCHAR raw row shape produced by the bounded read (READ_JSON_COLUMNS). */
+interface RawJsonRow {
+  id: string;
+  key: string;
+  domain: string;
+  timestamp: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  author: string;
+  action: string;
+  embedding_text: string;
+  attributes: string;
+}
+
+/**
+ * Run a raw read_json statement with the SAME error contract as the fused
+ * statement: a connection-lost error REJECTS (so recall.ts retries on a fresh
+ * connection, BUG-034); every other error resolves to an empty result set.
+ */
+function runRawQuery(db: Database, sql: string): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    try {
+      db.all(sql, (err: any, result: any) => {
+        if (err) {
+          const errMsg = err?.message || String(err);
+          if (
+            /connection.*never established|closed already|locked/i.test(errMsg)
+          ) {
+            reject(new Error(`DUCKDB_CONNECTION_LOST: ${errMsg}`));
+            return;
+          }
+          resolve([]);
+          return;
+        }
+        resolve(Array.isArray(result) ? result : []);
+      });
+    } catch (error) {
+      resolve([]);
+    }
+  });
+}
+
+/**
+ * PERF-DUCKBRAIN-001: dedupe a bounded, recency-ordered raw window in code.
  *
- *   WITH matches AS MATERIALIZED ( … dedup + tombstone filter, UNLIMITED … )
- *   , total AS MATERIALIZED ( SELECT COUNT(*) FROM matches )
- *   , page AS ( SELECT * FROM matches ORDER BY … LIMIT … OFFSET … )
- *   SELECT … FROM (
- *     SELECT 'row' AS kind, page.*, 0 AS __total FROM page
- *     UNION ALL
- *     SELECT 'total', NULL…, total.__total FROM total
- *   ) ORDER BY kind DESC
+ * The window arrives ordered by `timestamp DESC NULLS LAST, id ASC` — the
+ * SAME recency order the fused page applies — so the FIRST occurrence of any
+ * id in the window is its newest copy (a newer copy always sorts above an
+ * older copy of the same id, so the newest copy can never be cut off below a
+ * duplicate of itself). Keep the first occurrence per id, drop the id when
+ * that newest copy is a tombstone (and drop rows with a NULL action, which
+ * `action != 'tombstone'` also excludes in SQL), then slice
+ * [offset, offset + limit) of the surviving live rows.
+ */
+function dedupePage(
+  raw: RawJsonRow[],
+  offset: number,
+  limit: number,
+): MemoryType[] {
+  const seen = new Set<string>();
+  const live: MemoryType[] = [];
+  for (const row of raw) {
+    if (row.id == null) continue;
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    if (row.action == null || row.action === "tombstone") continue;
+    live.push(mapMemoryRow(row));
+  }
+  return live.slice(offset, offset + limit);
+}
+
+/**
+ * PERF-DUCKBRAIN-001: exact live count without the full-corpus window sort.
  *
- * The count leg reads the MATERIALIZED dedup set — NOT a re-mount of
- * read_json — so there is exactly ONE read_json per list request, and the
- * total row is emitted even when LIMIT/OFFSET leaves the page empty
- * (an offset beyond the end still carries the true total).
+ * `total` must keep its GAP-024 meaning — the count of live, DEDUPED rows
+ * (newest version per id, tombstoned ids excluded). A plain
+ * `COUNT(DISTINCT id) WHERE action != 'tombstone'` is NOT that: it counts a
+ * tombstoned id's surviving older copies too (measured +51 on the compacted
+ * coding-hermes copy), so it changes total's meaning and is rejected.
  *
- * Rows and total are byte-identical to the old two-scan path: same inner
- * conditions, same dedup window, same ordering, same LIMIT/OFFSET
- * placement, same row mapper (mapMemoryRow), and the total is a COUNT(*)
- * over exactly the set countMemories counts.
+ * Instead, GROUP BY id with `arg_max(action, try_cast(timestamp AS TIMESTAMP))`
+ * — the action of the newest row per id — and count ids whose newest action is
+ * not 'tombstone'. This is a hash aggregation (no window sort) and returns the
+ * exact same 241,901 as the ROW_NUMBER window on the compacted copy.
+ *
+ * One documented equivalence caveat: an id whose every timestamp is
+ * unparseable (all-NULL) resolves to arg_max NULL → excluded here, whereas
+ * ROW_NUMBER picks an arbitrary row. Both are non-deterministic in that
+ * pathological case (and such rows are all-NULL anyway, so the page path
+ * drops them too); no real corpus exercises it.
+ */
+async function countLiveDeduped(
+  db: Database,
+  fileList: string,
+  innerWhereClause: string,
+): Promise<number> {
+  const sql = `
+    SELECT COUNT(*) AS total FROM (
+      SELECT id
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      ${innerWhereClause}
+      GROUP BY id
+      HAVING arg_max(action, try_cast(timestamp AS TIMESTAMP)) != 'tombstone'
+    ) deduped
+  `;
+  const result = await runRawQuery(db, sql);
+  // COUNT(*) comes back as BIGINT; Number() normalizes it (same as
+  // countMemories).
+  return Number(result?.[0]?.total ?? 0);
+}
+
+/**
+ * PERF-DUCKBRAIN-001: one read_json scan yielding BOTH the bounded page and
+ * the exact total, without the whole-corpus window sort.
+ *
+ * The current fused statement pays a full ROW_NUMBER dedup sort to return a
+ * single page. This variant reads the files ONCE into a materialized CTE,
+ * derives the page as a bounded recency top-k (a heap, not a sort), and
+ * derives the total as an arg_max GROUP BY over that same scan (a hash
+ * aggregation, not a sort). Sharing ONE read_json is what keeps the
+ * file-dominated namespaces fast (fleet-quality, 29k files): two separate
+ * statements would re-ingest every chunk file twice.
+ */
+interface BoundedReadResult {
+  pageRows: RawJsonRow[];
+  total: number;
+}
+
+async function runBoundedRead(
+  db: Database,
+  fileList: string,
+  innerWhereClause: string,
+  window: number,
+): Promise<BoundedReadResult> {
+  const sql = `
+    WITH src AS MATERIALIZED (
+      SELECT id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes
+      FROM read_json([${fileList}], format='newline_delimited', ignore_errors=true, ${READ_JSON_COLUMNS})
+      ${innerWhereClause}
+    ),
+    total AS (
+      SELECT COUNT(*) AS __total FROM (
+        SELECT id FROM src GROUP BY id HAVING arg_max(action, try_cast(timestamp AS TIMESTAMP)) != 'tombstone'
+      ) t
+    ),
+    page AS (
+      SELECT * FROM src ORDER BY try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC LIMIT ${window}
+    )
+    SELECT kind, id, key, domain, timestamp, valid_from, valid_until, author, action, embedding_text, attributes, __total
+    FROM (
+      SELECT 'row' AS kind, p.*, 0 AS __total FROM page p
+      UNION ALL
+      SELECT 'total' AS kind, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, t.__total FROM total t
+    ) fused
+    ORDER BY kind DESC, try_cast(timestamp AS TIMESTAMP) DESC NULLS LAST, id ASC
+  `;
+  const result = await runRawQuery(db, sql);
+  const pageRows: RawJsonRow[] = [];
+  let total = 0;
+  for (const row of result as any[]) {
+    if (row?.kind === "total") {
+      // COUNT(*) comes back as BIGINT; Number() normalizes it.
+      total = Number(row.__total ?? 0);
+    } else if (row?.kind === "row") {
+      pageRows.push(row as RawJsonRow);
+    }
+  }
+  return { pageRows, total };
+}
+
+/**
+ * PERF-DUCKBRAIN-001: bounded top-k + code dedupe for the PLAIN LIST path.
+ *
+ * The whole-corpus dedup sort (ROW_NUMBER over every row's id) is what made a
+ * limit=10 request pay a full dedup sort to return 10 rows. For the plain
+ * list there is no search/attribute/time-range dimension, so the page is just
+ * the newest live rows: fetch a bounded recency-ordered window in ONE
+ * read_json scan that also yields the exact total, dedupe the page in code,
+ * and only REFILL (re-query with a growing window) when duplicate / tombstone
+ * collapse leaves the page short. If the page cannot be satisfied within the
+ * window cap, return null so the caller falls back to the fused statement
+ * (which is exact by construction).
+ *
+ * Returns null when the request is not bounded (no LIMIT) — an unbounded
+ * page cannot be sliced by the bounded read, so the caller must use the fused
+ * statement.
+ */
+async function queryPlainListBounded(
+  db: Database,
+  jsonlFiles: string[],
+  filters: MemoryQueryFilters,
+): Promise<QueryMemoriesWithTotalResult | null> {
+  const limit = filters.limit;
+  if (limit === undefined) {
+    return null; // unbounded page — fused statement returns everything
+  }
+
+  const offset = filters.offset ?? 0;
+  const needed = offset + limit;
+
+  const innerConditions = buildWhereConditions(filters);
+  const innerWhereClause =
+    innerConditions.length > 0 ? `WHERE ${innerConditions.join(" AND ")}` : "";
+  const fileList = jsonlFiles.map((f) => `'${f}'`).join(", ");
+
+  // limit=0: empty page, but the true total is still reported (GAP-023/024).
+  if (limit === 0) {
+    const total = await countLiveDeduped(db, fileList, innerWhereClause);
+    return { memories: [], total };
+  }
+
+  // Bounded top-k page (fused with the total in one scan) + refill on
+  // under-fill.
+  let window = needed + PLAIN_LIST_DEDUP_SLACK;
+  for (;;) {
+    if (window > PLAIN_LIST_MAX_WINDOW) {
+      // Could not satisfy the page within the cap — fall back to the fused
+      // statement for exactness.
+      return null;
+    }
+    const { pageRows, total } = await runBoundedRead(
+      db,
+      fileList,
+      innerWhereClause,
+      window,
+    );
+    const exhausted = pageRows.length < window;
+    const memories = dedupePage(pageRows, offset, limit);
+    if (memories.length === limit || exhausted) {
+      return { memories, total };
+    }
+    window *= 2;
+  }
+}
+
+/**
+ * Query memories AND their true total.
+ *
+ * PERF-DUCKBRAIN-001: the plain-list case (no query/embedding/attr/time-range)
+ * is served by a bounded top-k + code dedupe read (queryPlainListBounded)
+ * instead of the whole-corpus dedup sort, because the ledger shows those
+ * requests (5,968 slow calls with no query string) paid a full dedup sort to
+ * return a single page. Every filtered/search/attribute/time-range request
+ * keeps the original fused statement (queryMemoriesWithTotalFused) verbatim.
+ *
+ * (Historical PERF-003 note — the fused statement is unchanged: it mounted
+ * the files once, computed the dedup window ONCE, and derived both the page
+ * and the total from that single materialized set, byte-identical to the old
+ * queryMemories + countMemories two-scan pair.)
  *
  * @param db - DuckDB database instance
  * @param partitionPaths - Array of absolute partition paths to query
@@ -687,6 +937,42 @@ export async function queryMemoriesWithTotal(
   }
 
   const jsonlFiles = collectJsonlFiles(partitionPaths);
+  if (jsonlFiles.length === 0) {
+    return empty;
+  }
+
+  if (isPlainList(filters)) {
+    const bounded = await queryPlainListBounded(db, jsonlFiles, filters ?? {});
+    if (bounded !== null) {
+      return bounded;
+    }
+    // Not bounded (no LIMIT, or window cap exceeded) — fall through to fused.
+  }
+
+  return queryMemoriesWithTotalFused(db, jsonlFiles, filters);
+}
+
+/**
+ * The original PERF-003 fused statement — the filtered/search path AND the
+ * exactness fallback for the bounded plain-list read.
+ *
+ * Rows and total are byte-identical to the old two-scan path: same inner
+ * conditions, same dedup window, same ordering, same LIMIT/OFFSET placement,
+ * same row mapper (mapMemoryRow), and the total is a COUNT(*) over exactly
+ * the set countMemories counts.
+ *
+ * @param db - DuckDB database instance
+ * @param jsonlFiles - Absolute JSONL chunk paths to query (pre-collected)
+ * @param filters - Optional query filters (limit/offset slice the page;
+ *   the total is always the unlimited match count)
+ * @returns { memories, total }
+ */
+export async function queryMemoriesWithTotalFused(
+  db: Database,
+  jsonlFiles: string[],
+  filters?: MemoryQueryFilters,
+): Promise<QueryMemoriesWithTotalResult> {
+  const empty: QueryMemoriesWithTotalResult = { memories: [], total: 0 };
   if (jsonlFiles.length === 0) {
     return empty;
   }
