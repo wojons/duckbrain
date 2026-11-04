@@ -558,6 +558,18 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   });
   app.get("/metrics", httpMetrics.handler);
 
+  // Liveness probe, mounted with /metrics and for the same reason: the limiter
+  // below is a per-IP token bucket, and on a daemon whose callers are all local
+  // (agents, cron, MCP servers, supervisors) 127.0.0.1 is ONE bucket — so a
+  // burst from any one caller throttled /health and made a healthy daemon
+  // answer 429. Observed live 2026-11-03: 2 of 10 sequential /health probes
+  // returned 429 while the process was healthy, which flipped the Hermes memory
+  // provider to "unavailable" (its liveness check requires 200) and silently
+  // disabled external memory for the session. A probe that can be throttled is
+  // not a probe. Cost is bounded: the health evaluation reuses a 30s-TTL cached
+  // embedding probe, so exempting this route cannot amplify upstream calls.
+  app.get("/health", createHealthHandler());
+
   const rateLimitConfig: RateLimitConfig = {
     requestsPerMinute: options.rateLimit ?? 100,
   };
@@ -684,8 +696,8 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   );
   app.use(express.json());
 
-  // Health check (bypasses auth via middleware, must be registered here)
-  app.get("/health", createHealthHandler());
+  // Health check — registered ABOVE, with /metrics and before the rate limiter,
+  // so a throttled caller can never make a healthy daemon look dead.
 
   // Stats
   app.get("/stats", statsHandler);
