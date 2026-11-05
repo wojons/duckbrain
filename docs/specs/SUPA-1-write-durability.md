@@ -57,7 +57,10 @@ durability: z
 
 **Response header and health surfacing:**
 
-- Every write route (POST to `/api/memories` today; table insert routes from SUPA-3 when they land) sets `X-Durability: buffered|fsync|direct` on the 2xx response, resolved from the namespace actually written. Implemented as a small helper in `src/storage/durability.ts` (`durabilityHeaderFor(ns)`), called by the route after the write resolves.
+- Every write route sets `X-Durability: buffered|fsync|direct` on the 2xx response, reporting the mode the write **ACHIEVED** — not the configured one. `X-Durability-Configured` carries the mode resolved from config, and when the achieved mode is weaker than the configured one the response also carries `X-Durability-Degraded: configured=<mode>; achieved=<mode>` so configuration can never be read as achievement (DURABILITY-HONESTY-001).
+  - Implemented in `src/storage/durability.ts`: `durabilityHeaders(configured, achieved)` / `setDurabilityHeaders(res, configured, achieved)`; `durabilityHeaderFor(ns)` still resolves the configured mode.
+  - A **zero-row mutation** (PATCH/DELETE matching nothing) writes no bytes; its 200 reports the configured mode on both headers because there is nothing to be durable about.
+  - `X-Durability-*` are listed in the CORS `Access-Control-Expose-Headers` (`src/cli/http.ts:658`) so browser clients can read them.
 - `createHealthHandler` (`src/cli/http.ts:162`) response gains a `durability` block: `{ "defaultMode": "buffered", "overrides": { "<ns>": "fsync" } }` — only non-default overrides are listed, keeping the payload bounded. Config-derived only (no filesystem probe), so `/health` cannot fail over durability reporting.
 
 ### Behavioral acceptance criteria
@@ -81,6 +84,32 @@ durability: z
 - **Buffered-mode power loss:** recent writes can be lost; this is the documented RPO of the mode, not a bug. Buffered mode remains process-kill safe because the page cache survives the process.
 - **Bypass guard:** fsync/direct namespaces must be written only through the SUPA-2 serializer; a direct `appendToJsonl` call targeting an fsync/direct namespace is a contract violation (the serializer owns all file writes per `docs/specs/SUPA-2-serialization.md`).
 - **Invalid env/config values:** fail config load loudly (zod enum), never fall back to buffered silently.
+
+## Write-path inventory (per path, with the barrier it runs)
+
+DURABILITY-HONESTY-001 fixed a real overstatement: `X-Durability` used to echo
+the CONFIGURED mode, and the generic-table store wrote every row with a bare
+`fs.appendFileSync` (page cache) / `fs.writeFileSync` + rename, so an
+`fsync`-configured namespace advertised `fsync` for a path that never called
+`fdatasync`. The table below is the current truth, path by path.
+
+| Write path | Entry point | Mechanism | Achieved (fsync-configured ns) |
+|---|---|---|---|
+| Memory create (`POST /api/memories`, MCP `remember`) | `src/mcp/tools/remember.ts:315` → `NamespaceWriter.enqueue` | flush dispatch at `src/serialization/namespaceWriter.ts:935-938`: `appendFsyncBatch` (one `fdatasync` per touched file + dir `fsync` on create), `appendDirectBatch`, or `appendFileSync` | `fsync` (or `direct`) |
+| Memory update (`PUT /api/memories/:id`) | tombstone + version both via `NamespaceWriter` | same dispatch | `fsync` |
+| Memory delete (`DELETE /api/memories/:id`, MCP `forget`) | `src/duckdb/queries.ts:1154` `insertMemoryToPartition` (function at `:1140`) → `NamespaceWriter.enqueue` | same dispatch; the tombstone is a real serialized append, not a buffered side-write | `fsync` |
+| Declared table write (`POST/PATCH/DELETE` where `schema.json` declares the table) | `src/http/routes/tables.ts` → `NamespaceWriter.enqueue` at the declared storage path | same dispatch | `fsync` |
+| Legacy table insert (`.table.json` declaration) | `appendRowsToTable` (`src/duckdb/table-store.ts:752`) → `appendJsonlRows` (`:198`) → `appendTextDurable` (`src/storage/durability.ts:560`) | `open('a')` → `writeSync` → `fdatasync` → close; parent dir `fsync` when the file/dirs were created | `fsync` (a `direct`-configured namespace ACHIEVES `fsync` here — legacy lines cannot be block-framed — and the response says so via `X-Durability-Degraded`) |
+| Legacy table PATCH/DELETE | `rewriteWithPredicate` (`src/duckdb/table-store.ts:806`; call at `:866`) → `rewriteTextDurable` (`src/storage/durability.ts:596`) | temp file `writeSync` → `fdatasync` → `rename` → parent dir `fsync` | `fsync` |
+| Audit / change-record ledger | `appendAuditLedger` (`src/serialization/auditLedger.ts:196`, `fs.appendFileSync` at `:242`) | page-cache append, intentionally AFTER the data barrier; SUPA-2 documents a bounded crash window for audit tails and a second `fdatasync` per batch would defeat SUPA-1's fan-in amortization (see the comment at `src/serialization/namespaceWriter.ts:940-944`) | `buffered` (audit tail only; the DATA row is fsynced) |
+| CLI `memory-demote` | `src/cli/memory-demote.ts:203` (`fs.appendFileSync`) | page-cache append — operator tooling, outside the HTTP ack path | `buffered` |
+| Embedding/search index | `src/cli/search-index.ts:110` (`fs.appendFileSync`) | derived index, rebuildable; never the source of record | `buffered` |
+| Git merge/squash internals | `src/git/merge.ts:173`, `src/git/squash.ts:452` | history transport, outside the write ack | n/a |
+
+The `fsync`/`direct` rows above are proven per path by
+`src/http/routes/tables-durability-honesty.test.ts` (an `fs.fdatasyncSync`
+spy counts the barriers that ran during the request; the same probe reports 0
+with the barrier removed) and `src/storage/durability.test.ts`.
 
 ## Non-Goals
 

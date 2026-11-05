@@ -82,6 +82,7 @@ import {
   findRowLineByPk,
   patchRowsByPk,
   deleteRowsByPk,
+  type MutationOutcome,
   type RowLineLocation,
 } from "../../duckdb/table-store";
 import { namespaceDir } from "../../schema/table-registry";
@@ -96,7 +97,10 @@ import {
   type NamespaceWriteLock,
 } from "../../serialization/lock";
 import { resolveNamespacesPath } from "../../config";
-import { durabilityHeaderFor } from "../../storage/durability";
+import {
+  durabilityHeaderFor,
+  setDurabilityHeaders,
+} from "../../storage/durability";
 import {
   assertNamespaceDdlUsable,
   partitionForStoragePath,
@@ -1032,13 +1036,24 @@ function createTableRoutes(): Router {
           }
           inserted += 1;
         }
-        res.setHeader("X-Durability", durabilityHeaderFor(ns));
+        const configured = durabilityHeaderFor(ns);
+        setDurabilityHeaders(res, configured, configured);
         res.status(201).json({ inserted });
         return;
       }
-      appendRowsToTable(namespaceDir(ns), declaration, coerced);
-      res.setHeader("X-Durability", durabilityHeaderFor(ns));
-      res.status(201).json({ inserted: coerced.length });
+      // DURABILITY-HONESTY-001: the legacy `.table.json` insert used a bare
+      // page-cache append while advertising the configured mode. The append
+      // now honours the mode (fdatasync + directory fsync) and the response
+      // reports what it achieved, not what was configured.
+      const configured = durabilityHeaderFor(ns);
+      const appended = appendRowsToTable(
+        namespaceDir(ns),
+        declaration,
+        coerced,
+        configured,
+      );
+      setDurabilityHeaders(res, configured, appended.achieved);
+      res.status(201).json({ inserted: appended.inserted });
     }),
   );
 
@@ -1185,6 +1200,8 @@ function createTableRoutes(): Router {
       }
       let coercedBody: Record<string, unknown> = {};
       let mutated = 0;
+      const configured = durabilityHeaderFor(ns);
+      let patchOutcome: MutationOutcome | null = null;
       let location: RowLineLocation | null = null;
       try {
         const existing = findRowByPk(nsDir, declaration, col, value);
@@ -1199,13 +1216,15 @@ function createTableRoutes(): Router {
           });
           for (const key of Object.keys(patchBody))
             coercedBody[key] = merged[key];
-          mutated = patchRowsByPk(
+          patchOutcome = patchRowsByPk(
             nsDir,
             declaration,
             col,
             value,
             coercedBody,
-          ).mutated;
+            { mode: configured },
+          );
+          mutated = patchOutcome.mutated;
           if (mutated > 0) {
             // DB-SUPA-5: the change record's `contentHash` must name the row
             // line as it now exists on disk, so read it back instead of
@@ -1227,7 +1246,7 @@ function createTableRoutes(): Router {
       }
       // No matching row: nothing was written and there is nothing to audit.
       if (mutated === 0) {
-        res.setHeader("X-Durability", durabilityHeaderFor(ns));
+        setDurabilityHeaders(res, configured, configured);
         res.json({ updated: 0 });
         return;
       }
@@ -1249,7 +1268,11 @@ function createTableRoutes(): Router {
           row: location.row,
         },
       );
-      res.setHeader("X-Durability", durabilityHeaderFor(ns));
+      setDurabilityHeaders(
+        res,
+        configured,
+        patchOutcome?.achieved ?? configured,
+      );
       res.json({ updated: mutated });
     }),
   );
@@ -1300,19 +1323,28 @@ function createTableRoutes(): Router {
         );
       }
       let removed = 0;
+      const configured = durabilityHeaderFor(ns);
+      let deleteOutcome: MutationOutcome | null = null;
       // DB-SUPA-5: capture the row BEFORE the rewrite — a physical delete
       // removes the line from the data file, so the tombstone record's
       // `contentHash` must name the last committed row image (resolved by
       // replay against the parent commit), not a line the child no longer has.
       const location = findRowLineByPk(nsDir, declaration, col, value);
       try {
-        removed = deleteRowsByPk(nsDir, declaration, col, value);
+        deleteOutcome = deleteRowsByPk(
+          nsDir,
+          declaration,
+          col,
+          value,
+          configured,
+        );
+        removed = deleteOutcome.mutated;
       } finally {
         releaseNamespaceWriteLock(lock);
       }
       // Nothing matched: no tombstone to record, nothing was deleted.
       if (removed === 0) {
-        res.setHeader("X-Durability", durabilityHeaderFor(ns));
+        setDurabilityHeaders(res, configured, configured);
         res.json({ deleted: 0 });
         return;
       }
@@ -1334,7 +1366,11 @@ function createTableRoutes(): Router {
           row: location.row,
         },
       );
-      res.setHeader("X-Durability", durabilityHeaderFor(ns));
+      setDurabilityHeaders(
+        res,
+        configured,
+        deleteOutcome?.achieved ?? configured,
+      );
       res.json({ deleted: removed });
     }),
   );

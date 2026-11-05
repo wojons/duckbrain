@@ -655,7 +655,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     // Response headers a browser app must be able to READ, not merely receive.
     res.setHeader(
       "Access-Control-Expose-Headers",
-      "X-Durability, X-Total-Count, X-RateLimit-Limit, X-RateLimit-Remaining",
+      "X-Durability, X-Durability-Configured, X-Durability-Degraded, X-Total-Count, X-RateLimit-Limit, X-RateLimit-Remaining",
     );
     res.setHeader("Access-Control-Max-Age", "600");
 

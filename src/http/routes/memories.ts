@@ -34,7 +34,10 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
 } from "../../mcp/tools/shared";
-import { durabilityHeaderFor } from "../../storage/durability";
+import {
+  durabilityHeaderFor,
+  setDurabilityHeaders,
+} from "../../storage/durability";
 import {
   auditRequestDenial,
   getPrincipal,
@@ -813,12 +816,14 @@ router.post(
         : {}),
     };
 
-    // SUPA-1 (AC-6): every 2xx write response advertises the durability mode
-    // of the namespace actually written, resolved from config.
-    res.setHeader(
-      "X-Durability",
-      durabilityHeaderFor(result.namespace ?? writtenNamespace),
+    // SUPA-1 (AC-6) / DURABILITY-HONESTY-001: the response reports the mode
+    // this write ACHIEVED. `remember` rides the namespace writer, which
+    // honours the configured mode before its promise resolves, so achieved ===
+    // configured here; the configured value still rides its own header.
+    const configured = durabilityHeaderFor(
+      result.namespace ?? writtenNamespace,
     );
+    setDurabilityHeaders(res, configured, configured);
 
     res.status(201).json(memory);
   }),
@@ -937,11 +942,13 @@ router.put(
     };
 
     // SUPA-1/SUPA-2: both the tombstone and new version were serialized
-    // through the same namespace writer; advertise the effective mode.
-    res.setHeader(
-      "X-Durability",
-      durabilityHeaderFor(rememberResult.namespace ?? namespace),
+    // through the same namespace writer, which honours the configured mode
+    // before the promise resolves — report the achieved mode plus the
+    // configured one (DURABILITY-HONESTY-001).
+    const configured = durabilityHeaderFor(
+      rememberResult.namespace ?? namespace,
     );
+    setDurabilityHeaders(res, configured, configured);
 
     res.json(memory);
   }),
@@ -1008,7 +1015,8 @@ router.delete(
       throwWriteError(res, result, "Failed to delete memory");
     }
 
-    res.setHeader("X-Durability", durabilityHeaderFor(namespace));
+    const configured = durabilityHeaderFor(namespace);
+    setDurabilityHeaders(res, configured, configured);
     res.status(204).send();
   }),
 );

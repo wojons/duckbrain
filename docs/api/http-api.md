@@ -339,9 +339,19 @@ already durable, so the commit is history transport, not the durability
 mechanism. RPO = 0 is a **single-node** claim: there is no synchronous
 cross-machine replication.
 
-**Response header:** every successful (2xx) write response carries
-`X-Durability: buffered|fsync|direct`, resolved from the namespace actually
-written. Denied or failed writes never emit it.
+**Response headers:** every successful (2xx) write response carries
+
+- `X-Durability: buffered|fsync|direct` — the mode the write **achieved**;
+- `X-Durability-Configured: buffered|fsync|direct` — the mode configured for
+  the namespace;
+- `X-Durability-Degraded: configured=<mode>; achieved=<mode>` — present only
+  when the write path could not reach the configured mode (e.g. a legacy
+  `.table.json` row under a `direct`-configured namespace, which achieves
+  `fsync` because a legacy line cannot be block-framed).
+
+Before DURABILITY-HONESTY-001 the single `X-Durability` header echoed the
+CONFIGURED mode, so a page-cache append could advertise `fsync`. Denied or
+failed writes never emit any of these headers.
 
 **Failure modes are loud** (HTTP 500 with the code in the error envelope,
 never a silent downgrade):
@@ -551,11 +561,12 @@ Create a new memory.
 > **Note — field naming across surfaces:** The HTTP API accepts `content` for the memory body. This maps directly to the MCP `remember` tool's `embedding_text` field — both surfaces store and return the **same** underlying text field (see [MCP Tools Reference](mcp-tools.md#remember)). A memory written via HTTP with `content` is retrievable via MCP `recall` with the text in `embedding_text`, and vice versa.
 
 > **Note — write durability (SUPA-1):** the response carries
-> `X-Durability: buffered|fsync|direct` for the namespace actually written.
-> In `fsync`/`direct` mode the `fdatasync` + directory `fsync` complete
-> **before** the 201 is sent (RPO = 0 for acked writes on a single node); in
-> `buffered` mode the write is a page-cache append with the documented
-> OS-crash/power-loss window. See
+> `X-Durability` with the mode the write **achieved**, plus
+> `X-Durability-Configured` with the namespace's configured mode (and
+> `X-Durability-Degraded` when they differ). In `fsync`/`direct` mode the
+> `fdatasync` + directory `fsync` complete **before** the 201 is sent
+> (RPO = 0 for acked writes on a single node); in `buffered` mode the write
+> is a page-cache append with the documented OS-crash/power-loss window. See
 > [Write Durability (SUPA-1)](#write-durability-supa-1).
 
 > **Note — write timestamp (DB-GAP-045):** the 201 body's `timestamp` is the

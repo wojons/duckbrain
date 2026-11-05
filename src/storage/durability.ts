@@ -467,6 +467,166 @@ function isMemoryShaped(value: unknown): boolean {
   );
 }
 
+// ── Truthful response headers (DURABILITY-HONESTY-001) ──────────────────────
+
+/**
+ * What a write path actually ACHIEVED — never wider than the configured mode.
+ *
+ * `X-Durability` used to echo the CONFIGURED mode, so a namespace configured
+ * `fsync` whose bytes went through a page-cache append advertised `fsync` on
+ * the 2xx. The header now reports what the write did; the configured mode
+ * rides `X-Durability-Configured`, and a weaker achieved mode is named by
+ * `X-Durability-Degraded` so a client cannot read configuration as
+ * achievement (DURABILITY-HONESTY-001).
+ */
+export type AchievedWriteMode = WriteMode;
+
+const WRITE_MODE_RANK: Record<WriteMode, number> = {
+  buffered: 0,
+  fsync: 1,
+  direct: 2,
+};
+
+/** The durability headers a write response carries. */
+export interface DurabilityHeaders {
+  "X-Durability": AchievedWriteMode;
+  "X-Durability-Configured": WriteMode;
+  "X-Durability-Degraded"?: string;
+}
+
+/**
+ * Build the durability response headers for one write.
+ *
+ * @param configured - Mode resolved from config for the namespace
+ * @param achieved - Mode the write path actually performed
+ */
+export function durabilityHeaders(
+  configured: WriteMode,
+  achieved: AchievedWriteMode,
+): DurabilityHeaders {
+  const headers: DurabilityHeaders = {
+    "X-Durability": achieved,
+    "X-Durability-Configured": configured,
+  };
+  if (WRITE_MODE_RANK[achieved] < WRITE_MODE_RANK[configured]) {
+    headers["X-Durability-Degraded"] =
+      `configured=${configured}; achieved=${achieved}`;
+  }
+  return headers;
+}
+
+/** Minimal response surface `setDurabilityHeaders` needs (Express Response). */
+export interface HeaderSink {
+  setHeader(name: string, value: string): unknown;
+}
+
+/**
+ * Set the durability headers on a response exactly once, from the configured
+ * and achieved modes. Never throws.
+ */
+export function setDurabilityHeaders(
+  sink: HeaderSink,
+  configured: WriteMode,
+  achieved: AchievedWriteMode,
+): void {
+  for (const [name, value] of Object.entries(
+    durabilityHeaders(configured, achieved),
+  )) {
+    if (value !== undefined) sink.setHeader(name, value);
+  }
+}
+
+// ── Generic (non-memory) durable file writes ─────────────────────────────────
+
+/**
+ * Append text to a file honouring a namespace's write mode and return the mode
+ * the append ACHIEVED.
+ *
+ * The legacy `.table.json` store used a bare `fs.appendFileSync` for every
+ * insert (no barrier) while the route advertised the configured mode. This is
+ * the barrier-bearing replacement: `writeSync` → `fdatasync` (and a parent
+ * directory `fsync` when the append created the file or its directories)
+ * before the caller can answer 2xx.
+ *
+ * `direct` (page-cache bypass) is unreachable here — a legacy table line is
+ * not block-framed — so a direct-configured namespace ACHIEVES `fsync` and the
+ * response reports the degradation instead of hiding it.
+ *
+ * @param filePath - Target JSONL/table file
+ * @param payload - Bytes to append (the caller's full line block)
+ * @param mode - Effective write mode for the namespace
+ * @throws DurabilityError when a configured barrier fails (write NOT acked)
+ */
+export function appendTextDurable(
+  filePath: string,
+  payload: string,
+  mode: WriteMode,
+): AchievedWriteMode {
+  if (mode === "buffered") {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.appendFileSync(filePath, payload, "utf-8");
+    return "buffered";
+  }
+
+  const dir = path.dirname(filePath);
+  const createdDirs = ensureJsonlDir(dir);
+  const fileExisted = fs.existsSync(filePath);
+
+  const fd = fs.openSync(filePath, "a");
+  try {
+    fs.writeSync(fd, payload);
+    barrierFile(fd, filePath);
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  fsyncParentsForCreate(filePath, fileExisted, createdDirs);
+  return "fsync";
+}
+
+/**
+ * Replace a file's contents via temp-file + rename, honouring the namespace's
+ * write mode and returning the mode ACHIEVED.
+ *
+ * PATCH/DELETE rewrite whole table files; the buffered form is the historical
+ * `writeFileSync` + `renameSync`. In fsync/direct mode the temp file is
+ * `fdatasync`ed before the rename and the parent directory is `fsync`ed after
+ * it, so the rename's directory entry survives a crash.
+ */
+export function rewriteTextDurable(
+  filePath: string,
+  payload: string,
+  mode: WriteMode,
+): AchievedWriteMode {
+  const tmp = `${filePath}.tmp-rewrite`;
+
+  if (mode === "buffered") {
+    fs.writeFileSync(tmp, payload, "utf-8");
+    fs.renameSync(tmp, filePath);
+    return "buffered";
+  }
+
+  const dir = path.dirname(filePath);
+  const createdDirs = ensureJsonlDir(dir);
+
+  const fd = fs.openSync(tmp, "w");
+  try {
+    fs.writeSync(fd, payload);
+    barrierFile(fd, tmp);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, filePath);
+  fsyncDirectory(dir, "atomic rewrite rename");
+  for (const created of createdDirs) {
+    const parent = path.dirname(created);
+    if (path.resolve(parent) !== path.resolve(dir)) {
+      fsyncDirectory(parent, "new directory created");
+    }
+  }
+  return "fsync";
+}
+
 // ── Shutdown barrier (AC-7) ──────────────────────────────────────────────────
 
 type DurabilityDrainHook = () => Promise<void> | void;

@@ -33,6 +33,12 @@ import type {
   TableColumn,
 } from "../schema/table-registry.js";
 import { deepConvertBigInts } from "../utils/serialize.js";
+import {
+  appendTextDurable,
+  rewriteTextDurable,
+  type AchievedWriteMode,
+  type WriteMode,
+} from "../storage/durability.js";
 import { ApiError } from "../http/middleware/errorHandler.js";
 import {
   applyDeclaredReadCompat,
@@ -180,9 +186,21 @@ export function resolveTableFiles(
   return files;
 }
 
-function appendJsonlRows(absPath: string, lines: string[]): void {
-  fs.mkdirSync(path.dirname(absPath), { recursive: true });
-  fs.appendFileSync(absPath, lines.join("\n") + "\n", "utf-8");
+/**
+ * Append serialized rows to a table file under the namespace's write mode.
+ *
+ * DURABILITY-HONESTY-001: this used to be a bare `appendFileSync` — the
+ * page-cache append acknowledged every legacy-table insert regardless of a
+ * configured `fsync`. It now delegates to `appendTextDurable`, which returns
+ * the mode the append ACHIEVED so the route can report it instead of echoing
+ * configuration.
+ */
+function appendJsonlRows(
+  absPath: string,
+  lines: string[],
+  mode: WriteMode,
+): AchievedWriteMode {
+  return appendTextDurable(absPath, lines.join("\n") + "\n", mode);
 }
 
 // ---------------------------------------------------------------------------
@@ -725,11 +743,18 @@ function typeMismatch(
  * jsonl-positional rows are stored as JSON arrays in declared column
  * order (the routing-namespace storage shape).
  */
+export interface AppendOutcome {
+  inserted: number;
+  /** Durability the append actually achieved (DURABILITY-HONESTY-001). */
+  achieved: AchievedWriteMode;
+}
+
 export function appendRowsToTable(
   nsDir: string,
   declaration: TableDeclaration,
   rows: Record<string, unknown>[],
-): number {
+  mode: WriteMode = "buffered",
+): AppendOutcome {
   const files = resolveTableFiles(nsDir, declaration);
   const target =
     files.length > 0
@@ -740,8 +765,8 @@ export function appendRowsToTable(
       ? JSON.stringify(declaration.columns.map((c) => row[c.name] ?? null))
       : JSON.stringify(row),
   );
-  appendJsonlRows(target, lines);
-  return rows.length;
+  const achieved = appendJsonlRows(target, lines, mode);
+  return { inserted: rows.length, achieved };
 }
 
 /** Newest file = append target: the LAST file in the resolved (sorted) list. */
@@ -767,6 +792,8 @@ export interface MutationOutcome {
   mutated: number;
   /** Inserted rows (PATCH with no matching row on a pk table upserts). */
   inserted: number;
+  /** Durability the rewrite actually achieved (DURABILITY-HONESTY-001). */
+  achieved: AchievedWriteMode;
 }
 
 /**
@@ -783,9 +810,13 @@ function rewriteWithPredicate(
   op: "patch" | "delete",
   patchMerge?: (row: Record<string, unknown>) => Record<string, unknown> | null,
   upsert?: boolean,
+  mode: WriteMode = "buffered",
 ): MutationOutcome {
   const files = resolveTableFiles(nsDir, declaration);
   let mutated = 0;
+  // Nothing written yet: the achieved mode is still reported (the route uses
+  // it for the header) but is only a claim about a write that never happened.
+  let achieved: AchievedWriteMode = mode === "buffered" ? "buffered" : "fsync";
   for (const file of files) {
     const lines = fs.readFileSync(file.absPath, "utf-8").split("\n");
     const out: string[] = [];
@@ -829,19 +860,25 @@ function rewriteWithPredicate(
       );
       mutated += 1;
     }
-    const tmp = file.absPath + ".tmp-rewrite";
-    fs.writeFileSync(tmp, out.length > 0 ? out.join("\n") + "\n" : "", "utf-8");
-    fs.renameSync(tmp, file.absPath);
+    // DURABILITY-HONESTY-001: the rewrite is a data-file write like any other
+    // and now honours the namespace mode (temp-file fdatasync + directory
+    // fsync after the rename in fsync/direct namespaces).
+    achieved = rewriteTextDurable(
+      file.absPath,
+      out.length > 0 ? out.join("\n") + "\n" : "",
+      mode,
+    );
   }
   let inserted = 0;
   if (op === "patch" && mutated === 0 && upsert === true) {
     // No row matched: append the patch as a new row (PostgREST upsert
     // semantics are NOT used by default — routes decide).
     const body = patchMerge?.({}) ?? {};
-    appendRowsToTable(nsDir, declaration, [body]);
+    const appended = appendRowsToTable(nsDir, declaration, [body], mode);
+    achieved = appended.achieved;
     inserted = 1;
   }
-  return { mutated, inserted };
+  return { mutated, inserted, achieved };
 }
 
 /**
@@ -978,7 +1015,7 @@ export function patchRowsByPk(
   pkCol: TableColumn,
   pkValue: string,
   body: Record<string, unknown>,
-  opts: { upsertBody?: Record<string, unknown> } = {},
+  opts: { upsertBody?: Record<string, unknown>; mode?: WriteMode } = {},
 ): MutationOutcome {
   const cmp = pkCompareValue(pkCol, pkValue);
   const outcome = rewriteWithPredicate(
@@ -991,13 +1028,18 @@ export function patchRowsByPk(
       return merged;
     },
     opts.upsertBody !== undefined,
+    opts.mode ?? "buffered",
   );
 
   if (outcome.mutated === 0 && opts.upsertBody !== undefined) {
-    appendRowsToTable(nsDir, declaration, [
-      coerceRowAgainstDeclaration(declaration, opts.upsertBody),
-    ]);
+    const appended = appendRowsToTable(
+      nsDir,
+      declaration,
+      [coerceRowAgainstDeclaration(declaration, opts.upsertBody)],
+      opts.mode ?? "buffered",
+    );
     outcome.inserted = 1;
+    outcome.achieved = appended.achieved;
   }
   return outcome;
 }
@@ -1013,16 +1055,18 @@ export function deleteRowsByPk(
   declaration: TableDeclaration,
   pkCol: TableColumn,
   pkValue: string,
-): number {
+  mode: WriteMode = "buffered",
+): MutationOutcome {
   const cmp = pkCompareValue(pkCol, pkValue);
-  const outcome = rewriteWithPredicate(
+  return rewriteWithPredicate(
     nsDir,
     declaration,
     (row) => cmp(row[pkCol.name]),
     "delete",
+    undefined,
+    undefined,
+    mode,
   );
-
-  return outcome.mutated;
 }
 
 /** Build an in-memory row-value comparator for a pk operand string. */

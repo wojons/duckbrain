@@ -54,7 +54,11 @@ Explicitly unsupported (return `400 UNSUPPORTED_QUERY`): `like`, `ilike`, `is`, 
 - `Accept: text/csv`: header row from declared columns, then rows.
 - `Accept: application/vnd.apache.arrow.stream`: Arrow IPC stream via the DuckDB query path (`src/duckdb/`); same caps apply.
 - `Content-Type: application/x-ndjson` on POST: batch insert; rows validated **before** enqueue (SUPA-2 AC-8) so a batch with any invalid row is refused whole with `400 VALIDATION_ERROR` and the failing line index in `fields.line`.
-- Write responses carry `X-Durability` (SUPA-1) resolved for the namespace.
+- Write responses carry `X-Durability` (SUPA-1) with the mode the write
+  ACHIEVED, `X-Durability-Configured` with the namespace's configured mode,
+  and `X-Durability-Degraded` when the two differ (DURABILITY-HONESTY-001).
+  A legacy `.table.json` write under a `direct`-configured namespace
+  achieves `fsync` — legacy lines are not block-framed — and says so.
 
 **Typed responses:** every row is validated against the table's registered Zod schema before serialization. A stored line that violates the declared schema (legacy or externally-written garbage) fails the read with `500 ROW_SCHEMA_VIOLATION` and the error message names the file and line number — corrupt rows surface loudly, never pass through. Positional-array tables (registry-declared tuple schemas with header names, per DB-SUPA-6) are returned as objects keyed by their declared headers.
 
@@ -107,7 +111,7 @@ Explicitly unsupported (return `400 UNSUPPORTED_QUERY`): `like`, `ilike`, `is`, 
 
 - **DB-SUPA-6 (declared DDL surface) — required, do not assume it exists.** SUPA-3 consumes the SUPA-6 schema registry (declared tables, views, key columns, positional-array headers) and the `/api/ns/:ns/tables` surface is only meaningful once SUPA-6 registers namespaces. Ordering: SUPA-6's registry contract lands first (or in lockstep); until then SUPA-3's own test fixtures provide an in-memory registry implementing the same interface, and the shipped routes are not mounted. SUPA-3 does not define, infer, or migrate schemas itself.
 - **DB-SUPA-2 (serialization layer)** — every POST/PATCH/DELETE enqueues through the per-namespace `NamespaceWriter` (`src/serialization/namespaceWriter.ts`), inheriting validate-at-append, role checks before enqueue, audit rows, and batch atomicity.
-- **DB-SUPA-1 (write durability)** — insert responses carry `X-Durability` and, on fsync/direct namespaces, resolve only after the durability barrier.
+- **DB-SUPA-1 (write durability)** — insert/PATCH/DELETE responses carry `X-Durability` (achieved) and `X-Durability-Configured`, and on fsync/direct namespaces resolve only after the durability barrier. Legacy `.table.json` inserts/rewrites now take that barrier too (`appendTextDurable` / `rewriteTextDurable`, `src/storage/durability.ts`).
 - **DB-SUPA-4 (roles + auth)** — per-table grants (`tables.read`/`tables.write`, SUPA-4 matrix) gate every route via middleware; denials audited.
 - **Existing code referenced:** `createHttpServer` middleware order and route mounts (`src/cli/http.ts`), `resolveNamespacePath` (`src/mcp/tools/shared.ts:27`), `readFromJsonl` scan model (`src/storage/jsonl.ts:195`), `MAX_LIMIT` pagination precedent (`src/http/routes/memories.ts:85-90`), error envelope (`src/http/middleware/errorHandler.ts`), DuckDB query path for Arrow (`src/duckdb/`), `AuthConfig`/`AuthPrincipal` (`src/auth/middleware.ts`).
 
