@@ -1,0 +1,30 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 5852b73f..7a3e6ef5 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3133,3 +3133,25 @@ tasks:
+     \ that same assert step (.github/workflows/ci.yml:99-100)."
+   status: pending
+   created_at: '2026-11-05T17:48:20.205301+00:00'
++- id: SURFACE-MCP-DATA-001
++  title: 'MCP data plane: declared-table CRUD, table declaration, keyword search and
++    read-only SQL over the same implementations the CLI and HTTP routes call'
++  criteria:
++  - Each new MCP tool (tables_declare, table_list, table_insert, table_select, table_update,
++    table_delete, search, query) calls the SAME implementation the CLI and HTTP routes
++    call (src/tables/operations.ts, src/tables/declare.ts, src/duckdb/query-surface.ts,
++    the keyword-search core) and accepts a namespace; an undeclared table is refused
++    with the same error text and code the HTTP layer returns (Table '<t>' not found
++    in namespace '<ns>' / NOT_FOUND).
++  - 'Proven from a real MCP client over BOTH stdio and /mcp on a scratch daemon: declare
++    a table, insert two rows, select one with a filter, update it, delete it, keyword-search
++    a memory and run one SELECT; transcript recorded in docs/evidence/surface-mcp-data-001-2026-11-05.md
++    via scripts/proofs/surface-mcp-data-001.mjs.'
++  - 'Grants bite on the MCP path: a token lacking table write is refused by table_insert
++    with reason table_grant and the denial lands in the namespace audit ledger with
++    op tables.write and reason table_grant, matching what requireTableGrant produces
++    on REST; the same token can still read the table.'
++  - test-counts.json is bumped in the same commit as the new suite and the full unit
++    suite is green.
++  status: pending
++  created_at: '2026-11-05T21:15:05.030355+00:00'

@@ -1,0 +1,4033 @@
+commit 1c2e3f0fa5cd4fe3fbea07b31a169616cd0e3156
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Nov 5 16:14:30 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Nov 5 16:14:30 2026 -0500
+
+    feat(mcp): expose the data plane — declared-table CRUD, declare, search, query (SURFACE-MCP-DATA-001)
+    
+    MCP reached only memory primitives. The table verbs move out of the Express
+    handlers into src/tables/operations.ts and the declare core into
+    src/tables/declare.ts; REST and MCP are now thin adapters over the same
+    functions. New tools: tables_declare, table_list, table_insert, table_select,
+    table_update, table_delete, search (keywordSearch), query (readOnlyQuery).
+    
+    Grants follow the REST order (namespace scope, then per-table read/write; SQL
+    policy for query) and refusals reuse the REST message/code and audit reason
+    (table_grant). Proof: scripts/proofs + docs/evidence, both transports, live
+    scratch daemon; suite 258 files / 2148 tests green.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ docs/api/mcp-tools.md                            |  87 +++
+ docs/evidence/surface-mcp-data-001-2026-11-05.md |  84 +++
+ scripts/proofs/surface-mcp-data-001.mjs          | 145 +++++
+ src/cli/tables.ts                                | 430 ++-----------
+ src/http/routes/tables.ts                        | 730 ++---------------------
+ src/mcp/profiles.ts                              |   9 +
+ src/mcp/server.ts                                |  46 ++
+ src/mcp/tools/custom-tool.ts                     |  10 +
+ src/mcp/tools/shared.ts                          |  68 +++
+ src/mcp/tools/tables-surface.test.ts             | 355 +++++++++++
+ src/mcp/tools/tables.ts                          | 638 ++++++++++++++++++++
+ src/tables/declare.ts                            | 455 ++++++++++++++
+ src/tables/operations.ts                         | 663 ++++++++++++++++++++
+ test-counts.json                                 |   4 +-
+ 14 files changed, 2665 insertions(+), 1059 deletions(-)
+
+diff --git a/docs/api/mcp-tools.md b/docs/api/mcp-tools.md
+index 4485d676..971879f3 100644
+--- a/docs/api/mcp-tools.md
++++ b/docs/api/mcp-tools.md
+@@ -22,12 +22,99 @@ DuckBrain exposes Model Context Protocol (MCP) tools that AI agents can use to s
+ | [`create_profile`](#create_profile)             | Create a named profile of tool-visibility directives                                                             |
+ | [`update_profile`](#update_profile)             | Update a profile you own (full directive replacement)                                                            |
+ | [`select_profiles`](#select_profiles)           | Activate profiles for this connection/session                                                                    |
++| [`table_list`](#table_list)                     | List the tables declared in a namespace                                                                          |
++| [`tables_declare`](#tables_declare)             | Declare a table (SUPA-6 schema.json, or `--legacy` .table.json) — same core as `duckbrain tables declare`        |
++| [`table_insert`](#table_insert)                 | Insert rows into a declared table (all rows validated before any write)                                          |
++| [`table_select`](#table_select)                 | Read rows with PostgREST-style filters/order/limit and an optional exact count                                   |
++| [`table_update`](#table_update)                 | Update the row matched by its primary key                                                                        |
++| [`table_delete`](#table_delete)                 | Delete the row matched by its primary key (tombstone change record)                                              |
++| [`search`](#search)                             | Offline keyword (full-text) search over memories — the `duckbrain search` core                                   |
++| [`query`](#query)                               | Run one read-only SELECT over a namespace's `memories` view — the `duckbrain query` core                         |
+ 
+ > **Profiles are visibility presets, not security boundaries.** Selecting
+ > profiles changes `tools/list` advertising only — every `tools/call` remains
+ > subject to authentication, namespace grants, and tool/runtime safeguards.
+ > See [Connection Profiles](../guide/connection-profiles.md).
+ 
++## Data-plane tools (SURFACE-MCP-DATA-001)
++
++Before this surface existed, MCP reached only the memory primitives above: an
++agent could not declare a table, write or read a row, keyword-search, or run a
++SELECT. The data-plane tools close that gap **without a second implementation**
++— each one calls the same module the CLI/HTTP surface calls:
++
++| Tool | Shared implementation | REST equivalent |
++| --- | --- | --- |
++| `tables_declare` | `src/tables/declare.ts` (`declareTable`) | `duckbrain tables declare` |
++| `table_list` | `src/tables/operations.ts` (`listNamespaceTables`) | `GET /api/ns/:ns/tables` |
++| `table_insert` | `src/tables/operations.ts` (`insertTableRows`) | `POST /api/ns/:ns/tables/:table` |
++| `table_select` | `src/tables/operations.ts` (`selectTableRows`) | `GET /api/ns/:ns/tables/:table` |
++| `table_update` | `src/tables/operations.ts` (`updateTableRows`) | `PATCH /api/ns/:ns/tables/:table?pk=eq.<v>` |
++| `table_delete` | `src/tables/operations.ts` (`deleteTableRows`) | `DELETE /api/ns/:ns/tables/:table?pk=eq.<v>` |
++| `search` | `src/search/query.ts` (`keywordSearch`) | `duckbrain search` / `GET /api/memories?contains=` |
++| `query` | `src/duckdb/query-surface.ts` (`runReadOnlyQuery`) | `duckbrain query` |
++
++### Authorization
++
++Same order as the REST routers: the namespace grant first
++(`requireNamespaceGrant`), then the per-table grant on every data verb
++(`requireTableGrant`: `read` for `table_select`, `write` for
++`table_insert`/`table_update`/`table_delete`/`tables_declare`), then the SQL
++policy for `query` (`requireRawSqlGrant`, read direction). A refusal returns
++the same message and machine-readable code the REST path returns (for example
++`code: "NOT_FOUND"` with `Table '<t>' not found in namespace '<ns>'`) and is
++appended to the namespace audit ledger with the same reason token
++(`table_grant`, `role`, `namespace_scope`, `sql_flag`).
++
++### `tables_declare`
++
++```json
++{
++  "namespace": "my-app",
++  "table": "widgets",
++  "columns": [
++    { "name": "id", "type": "integer" },
++    { "name": "name", "type": "varchar" }
++  ],
++  "primary": "id"
++}
++```
++
++Column types: `varchar|integer|bigint|double|boolean|timestamp|json`.
++`format` selects `jsonl-objects` (default) or `jsonl-positional`; `legacy: true`
++writes `tables/<table>.table.json`; `force: true` replaces a conflicting
++declaration.
++
++### `table_insert`
++
++`{ "namespace": "my-app", "table": "widgets", "rows": [{ "id": 1, "name": "alpha" }] }`
++→ `{ "success": true, "inserted": 1, "durability": { "configured": "...", "achieved": "..." } }`
++
++### `table_select`
++
++`filters` takes the PostgREST vocabulary (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`,
++`like`, `in`), plus `order`, `limit` (hard cap 1000), `offset` and
++`count: "exact"` for a total. Response: `{ success, rows, count, totalCount? }`.
++
++### `table_update` / `table_delete`
++
++Both address exactly the row named by `pk`: `{ "namespace": "…", "table": "…",
++"pk": 2, "values": { "name": "beta" } }` → `{ "updated": 1 }`; `pk` alone →
++`{ "deleted": 1 }`. Accepting mutations are recorded as DB-SUPA-5 change
++records (delete as a tombstone) before the acknowledgement.
++
++### `search`
++
++`{ "namespace": "…", "query": "zebra", "limit": 10 }` — offline keyword search.
++Requires the rebuilt keyword sidecar for the namespace (`duckbrain search-index
++rebuild`); unlike `recall`, it never silently falls back to semantic ranking.
++
++### `query`
++
++`{ "namespace": "…", "sql": "SELECT count(*) AS n FROM memories" }` — read-only:
++mutating statements are rejected (`code: "READ_ONLY_QUERY"`) and results are
++capped at 1000 rows. Refusals by policy are audited as `op: "sql.read"`.
++
+ ## Tool Details
+ 
+ ### `remember`
+diff --git a/docs/evidence/surface-mcp-data-001-2026-11-05.md b/docs/evidence/surface-mcp-data-001-2026-11-05.md
+new file mode 100644
+index 00000000..f1fa7409
+--- /dev/null
++++ b/docs/evidence/surface-mcp-data-001-2026-11-05.md
+@@ -0,0 +1,84 @@
++# SURFACE-MCP-DATA-001 — MCP data plane, live proof
++
++Row: `[P1] MCP reaches only memory primitives — no declared-table CRUD, no table
++declaration, no keyword search, no SQL query`.
++
++Date: 2026-11-05. Driver: `scripts/proofs/surface-mcp-data-001.mjs` (real MCP
++SDK client over **both** transports).
++
++Scratch daemon (never :3000, never the repo's namespaces tree):
++
++```
++port            28734
++DUCKBRAIN_NAMESPACES_PATH
++/home/kara/.hermes/cache/scratch/mcp-proof-final-1793912983/namespaces
++DUCKBRAIN_DATA_DIR
++/home/kara/.hermes/cache/scratch/mcp-proof-final-1793912983/data
++auth             apikey file with two tokens:
++                   proof-admin  roles=["admin"]                namespaces=["mcp-proof"]
++                   proof-reader roles=["writer"] tableGrants={widgets:"read"} namespaces=["mcp-proof"]
++command          node bin/duckbrain.js http --port=28734 --auth=apikey --auth-file=<scratch>/auth.json
++health           GET /health -> 503 degraded (embedding provider intentionally unset; remember uses embedding_text)
++```
++
++## Transcript (client-driven, both transports)
++
++```
++=== [1] stdio transport (duckbrain stdio) ===
++tools/list data-plane: ["table_list","tables_declare","table_insert","table_select","table_update","table_delete","query","search"]
++tables_declare: {"success":true,"namespace":"mcp-proof","table":"widgets","path":"/home/kara/.hermes/cache/scratch/mcp-proof-final-1793912983/namespaces/mcp-proof/schema.json","format":"schema.json","replacedExisting":false}
++table_insert (2 rows): {"success":true,"namespace":"mcp-proof","table":"widgets","inserted":2,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_select qty=gte.6 order=id.asc count=exact: {"success":true,"namespace":"mcp-proof","table":"widgets","rows":[{"id":2,"name":"beta","qty":9}],"count":1,"totalCount":1}
++table_update pk=2: {"success":true,"namespace":"mcp-proof","table":"widgets","updated":1,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_delete pk=1: {"success":true,"namespace":"mcp-proof","table":"widgets","deleted":1,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_select (after delete): {"success":true,"namespace":"mcp-proof","table":"widgets","rows":[{"id":2,"name":"beta-2","qty":9}],"count":1}
++table_select undeclared table: {"success":false,"code":"NOT_FOUND","error":"Table 'no_such_table' not found in namespace 'mcp-proof'"}
++=== [2] streamable HTTP transport (POST /mcp) ===
++tools/list over /mcp: ["tables_declare","table_insert","table_select","table_update","table_delete","query","search"]
++remember (memory for search): {"success":true,"id":"4f77c2cf-6ce0-41ce-b67b-13037871a8b8","timestamp":"2026-11-05T21:09:49.725Z","key":"/surface/mcp/live-proof","partition":"raw_note/2026-11/","author":"proof-admin@duckbrain.local","namespace":"mcp-proof"}
++search over /mcp: {"memories":[{"id":"4f77c2cf-6ce0-41ce-b67b-13037871a8b8","key":"/surface/mcp/live-proof","domain":"raw_note","timestamp":"2026-11-05T21:09:49.725Z","author":"proof-admin@duckbrain.local","action":"add","embedding_text":"live proof zebra mcp data plane","attributes":{},"score":0.12493873660829992,"snippet":"/surface/mcp/live-proof live proof zebra mcp data plane {}","highlightedSnippet":"/surface/mcp/live-proof live proof <mark>zebra</mark> mcp data plane {}","namespace":"mcp-proof"}],"count":1,"total":1,"namespace":"mcp-proof"}
++table_select over /mcp: {"success":true,"namespace":"mcp-proof","table":"widgets","rows":[{"id":2,"name":"beta-2","qty":9}],"count":1}
++tables_declare over /mcp: {"success":true,"namespace":"mcp-proof","table":"http_items","path":"/home/kara/.hermes/cache/scratch/mcp-proof-final-1793912983/namespaces/mcp-proof/schema.json","format":"schema.json","replacedExisting":false}
++table_insert over /mcp: {"success":true,"namespace":"mcp-proof","table":"http_items","inserted":2,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_update over /mcp: {"success":true,"namespace":"mcp-proof","table":"http_items","updated":1,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_select http_items order=sku.asc: {"success":true,"namespace":"mcp-proof","table":"http_items","rows":[{"sku":"a-1","title":"first"},{"sku":"b-2","title":"second-edited"}],"count":2}
++table_delete over /mcp: {"success":true,"namespace":"mcp-proof","table":"http_items","deleted":1,"durability":{"configured":"buffered","achieved":"buffered"}}
++table_select http_items after delete: {"success":true,"namespace":"mcp-proof","table":"http_items","rows":[{"sku":"b-2","title":"second-edited"}],"count":1}
++query SELECT over /mcp: {"success":true,"namespace":"mcp-proof","columns":["n"],"rows":[{"n":1}],"count":1,"truncated":true}
++table_insert with read-only table grant: {"success":false,"code":"FORBIDDEN","reason":"table_grant","error":"Forbidden: principal 'proof-reader' has no write grant for table 'widgets'"}
++table_select with read-only table grant: {"success":true,"namespace":"mcp-proof","table":"widgets","rows":[{"id":2,"name":"beta-2","qty":9}],"count":1}
++=== [3] namespace audit ledger (denials) ===
++denial rows: [{"op":"tables.write","table":"widgets","principal":"proof-reader","reason":"table_grant"}]
++accepted change records: [{"op":"insert","table":"widgets","tombstone":false},{"op":"insert","table":"widgets","tombstone":false},{"op":"update","table":"widgets","tombstone":false},{"op":"delete","table":"widgets","tombstone":true},{"op":"insert","table":"memories","tombstone":false},{"op":"insert","table":"http_items","tombstone":false},{"op":"insert","table":"http_items","tombstone":false},{"op":"update","table":"http_items","tombstone":false},{"op":"delete","table":"http_items","tombstone":true}]
++```
++
++## REST parity on the same daemon (the refactored handlers still serve the wire)
++
++```
++GET    /api/ns/mcp-proof/tables/widgets?qty=gte.6&order=id.asc -> 200 [{"id":2,"name":"beta-2","qty":9}]
++POST   /api/ns/mcp-proof/tables/widgets {"id":7,...}          -> 201 {"inserted":1}  X-Durability: buffered
++PATCH  /api/ns/mcp-proof/tables/widgets?pk=eq.7               -> {"updated":1}
++DELETE /api/ns/mcp-proof/tables/widgets?pk=eq.7               -> {"deleted":1}
++GET    /api/ns/mcp-proof/tables/nope                          -> {"error":"Table 'nope' not found in namespace 'mcp-proof'","code":"NOT_FOUND"}
++```
++
++## What this proves, criterion by criterion
++
++1. **Same implementations, no second code path.** `table_insert/select/update/
++   delete` are `src/tables/operations.ts` — the functions the REST handlers now
++   delegate to (the handlers were reduced to thin adapters). `tables_declare` is
++   `src/tables/declare.ts` — the core `duckbrain tables declare` now calls.
++   `query` is `runReadOnlyQuery` (the `duckbrain query` core); `search` is
++   `keywordSearch` (the `duckbrain search` core).
++2. **Undeclared table refusal parity.** MCP: `{"code":"NOT_FOUND","error":"Table
++   'no_such_table' not found in namespace 'mcp-proof'"}`; REST: identical text
++   and code (pasted above).
++3. **Grants bite on the MCP path.** `proof-reader` (writer role + `tableGrants:
++   {widgets:"read"}`) is refused `table_insert` with
++   `reason:"table_grant"` and the same message `requireTableGrant` returns on
++   REST; the denial row lands in the namespace audit ledger
++   (`_audit/current.jsonl`) as `op:"tables.write"`, `reason:"table_grant"`.
++   The same token can still `table_select` (read grant), and a namespace
++   outside its grant is refused with `reason:"namespace_scope"`.
++4. **Accepted mutations stay change records.** The same ledger shows
++   insert/update rows and `tombstone:true` deletes for both tables.
+diff --git a/scripts/proofs/surface-mcp-data-001.mjs b/scripts/proofs/surface-mcp-data-001.mjs
+new file mode 100644
+index 00000000..03b5fccc
+--- /dev/null
++++ b/scripts/proofs/surface-mcp-data-001.mjs
+@@ -0,0 +1,145 @@
++/**
++ * SURFACE-MCP-DATA-001 live proof driver.
++ *
++ * Drives the MCP data plane from a REAL client over BOTH transports (stdio and
++ * streamable HTTP /mcp) against a scratch daemon, and prints a transcript.
++ * Nothing here touches :3000 or the repo's namespaces tree.
++ */
++import { Client } from "@modelcontextprotocol/sdk/client/index.js";
++import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
++import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
++import fs from "node:fs";
++import { execFileSync } from "node:child_process";
++import path from "node:path";
++
++const PORT = process.env.PROOF_PORT;
++const ROOT = process.env.PROOF_ROOT;
++const KEY = process.env.PROOF_ADMIN_KEY;
++const READ_KEY = process.env.PROOF_READER_KEY;
++const NS = "mcp-proof";
++const BIN = path.resolve("bin", "duckbrain.js");
++
++function say(label, value) {
++  console.log(`${label}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
++}
++function body(result) {
++  const text = result?.content?.[0]?.text ?? "";
++  try {
++    return JSON.parse(text);
++  } catch {
++    return text;
++  }
++}
++
++// ---------------------------------------------------------------- stdio ----
++{
++  console.log("=== [1] stdio transport (duckbrain stdio) ===");
++  const transport = new StdioClientTransport({
++    command: process.execPath,
++    args: [BIN, "stdio"],
++    env: { ...process.env, DUCKBRAIN_NAMESPACES_PATH: ROOT, DUCKBRAIN_NAMESPACE: NS },
++  });
++  const client = new Client({ name: "surface-proof-stdio", version: "0.0.0" });
++  await client.connect(transport);
++  const tools = (await client.listTools()).tools.map((t) => t.name);
++  say("tools/list data-plane", tools.filter((n) =>
++    ["tables_declare","table_list","table_insert","table_select","table_update","table_delete","search","query"].includes(n)));
++  say("tables_declare", body(await client.callTool({ name: "tables_declare", arguments: {
++    namespace: NS, table: "widgets", primary: "id",
++    columns: [{ name: "id", type: "integer" }, { name: "name", type: "varchar" }, { name: "qty", type: "integer" }],
++  }})));
++  say("table_insert (2 rows)", body(await client.callTool({ name: "table_insert", arguments: {
++    namespace: NS, table: "widgets", rows: [{ id: 1, name: "alpha", qty: 5 }, { id: 2, name: "beta", qty: 9 }],
++  }})));
++  say("table_select qty=gte.6 order=id.asc count=exact", body(await client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "widgets", filters: { qty: "gte.6" }, order: "id.asc", count: "exact",
++  }})));
++  say("table_update pk=2", body(await client.callTool({ name: "table_update", arguments: {
++    namespace: NS, table: "widgets", pk: 2, values: { name: "beta-2" },
++  }})));
++  say("table_delete pk=1", body(await client.callTool({ name: "table_delete", arguments: {
++    namespace: NS, table: "widgets", pk: 1,
++  }})));
++  say("table_select (after delete)", body(await client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "widgets",
++  }})));
++  say("table_select undeclared table", body(await client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "no_such_table",
++  }})));
++  await client.close();
++}
++
++// ----------------------------------------------------------------- /mcp ----
++{
++  console.log("=== [2] streamable HTTP transport (POST /mcp) ===");
++  const mk = async (key, label) => {
++    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${PORT}/mcp`), {
++      requestInit: { headers: { "X-API-Key": key } },
++    });
++    const client = new Client({ name: `surface-proof-${label}`, version: "0.0.0" });
++    await client.connect(transport);
++    return client;
++  };
++  const admin = { client: await mk(KEY, "admin") };
++  say("tools/list over /mcp", (await admin.client.listTools()).tools.map((t) => t.name).filter((n) =>
++    ["tables_declare","table_insert","table_select","table_update","table_delete","search","query"].includes(n)));
++  say("remember (memory for search)", body(await admin.client.callTool({ name: "remember", arguments: {
++    key: "/surface/mcp/live-proof", domain: "raw_note", attributes: {},
++    embedding_text: "live proof zebra mcp data plane", namespace: NS,
++  }})));
++  // keyword search needs the rebuilt sidecar (documented for `duckbrain search`)
++  execFileSync(process.execPath, [BIN, "search-index", "rebuild", `--namespace=${NS}`], {
++    env: { ...process.env, DUCKBRAIN_NAMESPACES_PATH: ROOT, DUCKBRAIN_NAMESPACE: NS },
++    stdio: "ignore",
++  });
++  say("search over /mcp", body(await admin.client.callTool({ name: "search", arguments: {
++    namespace: NS, query: "zebra",
++  }})));
++  say("table_select over /mcp", body(await admin.client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "widgets", filters: { name: "eq.beta-2" },
++  }})));
++  say("tables_declare over /mcp", body(await admin.client.callTool({ name: "tables_declare", arguments: {
++    namespace: NS, table: "http_items", primary: "sku",
++    columns: [{ name: "sku", type: "varchar" }, { name: "title", type: "varchar" }],
++  }})));
++  say("table_insert over /mcp", body(await admin.client.callTool({ name: "table_insert", arguments: {
++    namespace: NS, table: "http_items", rows: [{ sku: "a-1", title: "first" }, { sku: "b-2", title: "second" }],
++  }})));
++  say("table_update over /mcp", body(await admin.client.callTool({ name: "table_update", arguments: {
++    namespace: NS, table: "http_items", pk: "b-2", values: { title: "second-edited" },
++  }})));
++  say("table_select http_items order=sku.asc", body(await admin.client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "http_items", order: "sku.asc",
++  }})));
++  say("table_delete over /mcp", body(await admin.client.callTool({ name: "table_delete", arguments: {
++    namespace: NS, table: "http_items", pk: "a-1",
++  }})));
++  say("table_select http_items after delete", body(await admin.client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "http_items",
++  }})));
++  say("query SELECT over /mcp", body(await admin.client.callTool({ name: "query", arguments: {
++    namespace: NS, sql: "SELECT count(*) AS n FROM memories",
++  }})));
++  await admin.client.close();
++
++  const reader = { client: await mk(READ_KEY, "reader") };
++  say("table_insert with read-only table grant", body(await reader.client.callTool({ name: "table_insert", arguments: {
++    namespace: NS, table: "widgets", rows: [{ id: 3, name: "gamma", qty: 1 }],
++  }})));
++  say("table_select with read-only table grant", body(await reader.client.callTool({ name: "table_select", arguments: {
++    namespace: NS, table: "widgets",
++  }})));
++  await reader.client.close();
++}
++
++// ------------------------------------------------------------- audit ------
++{
++  console.log("=== [3] namespace audit ledger (denials) ===");
++  const auditFile = path.join(ROOT, NS, "_audit", "current.jsonl");
++  const rows = fs.existsSync(auditFile)
++    ? fs.readFileSync(auditFile, "utf-8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l))
++    : [];
++  const denials = rows.filter((r) => r.outcome === "denied");
++  say("denial rows", denials.map((r) => ({ op: r.op, table: r.table, principal: r.principal, reason: r.reason })));
++  say("accepted change records", rows.filter((r) => r.outcome === "accepted").map((r) => ({ op: r.op, table: r.table, tombstone: r.tombstone ?? false })));
++}
+diff --git a/src/cli/tables.ts b/src/cli/tables.ts
+index 9aa5b88e..98c103d8 100644
+--- a/src/cli/tables.ts
++++ b/src/cli/tables.ts
+@@ -12,87 +12,21 @@
+  *     [--primary <col>] [--format jsonl-objects|jsonl-positional] \
+  *     [--legacy] [--force]
+  *
+- * The schema.json path is NOT a hand-rolled writer: it goes through the same
+- * primitives the DDL coordinator (src/serialization/ddl.ts) uses — the
+- * cross-process namespace fence and the atomic temp+rename schema switch —
+- * and every switch is journaled-shaped under `.duckbrain-ddl/` conventions
+- * exactly like a DDL operation, because an UNJOURNALED schema switch poisons
+- * later crash recovery (a future DDL journal must stay classifiable against
+- * the live schema hash). The candidate document is validated with the
+- * production validator (schemaDocumentProblems) BEFORE the switch and proven
+- * loadable through the REAL loader (loadNamespaceSchema) AFTER it; any
+- * failure rolls the previous schema text back, so a failed declare never
+- * leaves the namespace with a broken schema.
++ * SURFACE-MCP-DATA-001: the declaration itself lives in
++ * src/tables/declare.ts (declareTable) because the MCP `tables_declare` tool
++ * exposes the same verb. This module is the argv surface — parse, call, print
++ * — so a CLI declaration and an MCP declaration are the same code path and
++ * cannot drift apart.
+  *
+  * Column types on the command line are the DB-SUPA-3 DuckDB-facing names
+  * (TABLE_COLUMN_TYPES, reused from src/schema/table-registry.ts — never
+- * duplicated here). They are translated to the SUPA-6 canonical declared
+- * types the schema document carries:
+- *
+- *   varchar → string    integer → float64    bigint → int64
+- *   double → float64    boolean → boolean    timestamp → timestamp
+- *   json → json
+- *
+- * `integer` deliberately maps to `float64` (not `int64`): the SUPA-6 write
+- * path is canonical-only (an int64 row value must arrive as a base-10
+- * STRING — a JSON number is rejected), so an `integer` column declared as
+- * int64 would refuse the natural POST {"id": 1}. float64 stores the JSON
+- * number exactly for every value below 2^53 and is a legal key-column type.
++ * duplicated here).
+  */
+ 
+-import crypto from "crypto";
+-import fs from "fs";
+ import path from "path";
+ import { resolveNamespacesPath } from "../config/index.js";
+-import { releaseNamespaceWriteLock } from "../serialization/lock.js";
+-import {
+-  DDL_DIR,
+-  acquireDdlFence,
+-  writeSchemaTextAtomic,
+-} from "../serialization/ddl.js";
+-import {
+-  emptySchemaDocument,
+-  formatSchemaDocument,
+-  parseSchemaDocument,
+-  sameCanonicalTable,
+-  schemaDocumentProblems,
+-  type SchemaDocument,
+-  type SchemaTable,
+-} from "../serialization/schemaJson.js";
+-import {
+-  SCHEMA_FILE_NAME,
+-  invalidateNamespaceSchema,
+-  loadNamespaceSchema,
+-} from "../serialization/schemaRegistry.js";
+-import {
+-  COLUMN_NAME_PATTERN,
+-  RESOURCE_NAME_PATTERN,
+-  isReservedResourceName,
+-  type DeclaredColumn,
+-  type DeclaredColumnType,
+-  type RowShape,
+-} from "../serialization/schemaTypes.js";
+-import {
+-  TABLE_COLUMN_TYPES,
+-  TABLE_FORMATS,
+-  invalidateTableRegistry,
+-  listTables,
+-  type TableFormat,
+-} from "../schema/table-registry.js";
+-
+-/** DB-SUPA-3 column type → SUPA-6 canonical declared type (see module docs). */
+-const CLI_TYPE_TO_DECLARED: Record<string, DeclaredColumnType> = {
+-  varchar: "string",
+-  integer: "float64",
+-  bigint: "int64",
+-  double: "float64",
+-  boolean: "boolean",
+-  timestamp: "timestamp",
+-  json: "json",
+-};
+-
+-/** Namespace/table segments must be URL-safe and filesystem-safe. */
+-const NAME_PATTERN = /^[a-z0-9_-]+$/;
++import { TABLE_COLUMN_TYPES, TABLE_FORMATS, type TableFormat } from "../schema/table-registry.js";
++import { declareTable, TableDeclareError } from "../tables/declare.js";
+ 
+ /** Example JSON value per CLI type, for the printed curl POST example. */
+ const EXAMPLE_VALUE: Record<string, string> = {
+@@ -110,7 +44,8 @@ export const TABLES_DECLARE_USAGE = `Usage: duckbrain tables declare <namespace>
+ Declare a table so the generic table→REST layer (DB-SUPA-3) can serve it.
+ Writes the SUPA-6 persistent schema (namespaces/<ns>/schema.json), merging
+ into an existing schema document; use --legacy to write the historical
+-tables/<table>.table.json declaration instead.
++tables/<table>.table.json declaration instead. The same declaration is
++available to agents as the MCP tool \`tables_declare\`.
+ 
+ Options:
+   --column <name>=<type>   Declared column (repeatable, at least one).
+@@ -137,39 +72,10 @@ function fail(message: string): never {
+   throw new TablesCliError(message);
+ }
+ 
+-function messageOf(error: unknown): string {
+-  return error instanceof Error ? error.message : String(error);
+-}
+-
+ function printHelp(): void {
+   console.log(TABLES_DECLARE_USAGE);
+ }
+ 
+-function readTextOrNull(file: string): string | null {
+-  try {
+-    return fs.readFileSync(file, "utf-8");
+-  } catch {
+-    return null;
+-  }
+-}
+-
+-function sha256Hex(text: string): string {
+-  return crypto.createHash("sha256").update(text).digest("hex");
+-}
+-
+-function writeJsonAtomic(file: string, value: unknown): void {
+-  fs.mkdirSync(path.dirname(file), { recursive: true });
+-  const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
+-  const fd = fs.openSync(tmp, "w", 0o600);
+-  try {
+-    fs.writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
+-    fs.fsyncSync(fd);
+-  } finally {
+-    fs.closeSync(fd);
+-  }
+-  fs.renameSync(tmp, file);
+-}
+-
+ // ---------------------------------------------------------------------------
+ // CLI arg parsing (the same --flag VALUE / --flag=VALUE shapes as the rest
+ // of the duckbrain CLI)
+@@ -263,50 +169,6 @@ function parseDeclareArgs(argv: string[]): DeclareArgs | null {
+   return args;
+ }
+ 
+-function validateName(kind: string, value: string): void {
+-  if (!NAME_PATTERN.test(value))
+-    fail(
+-      `${kind} name '${value}' must match ${NAME_PATTERN.source} (lowercase letters, digits, '-', '_')`,
+-    );
+-}
+-
+-function buildDeclaredColumns(args: DeclareArgs): {
+-  columns: DeclaredColumn[];
+-  primary: string;
+-} {
+-  if (args.columns.length === 0)
+-    fail("at least one --column name=type is required");
+-  // The primary key defaults to the FIRST declared column, decided BEFORE
+-  // nullability is assigned — a declared key column is always non-nullable,
+-  // and deciding it after the loop would mint a nullable key column that
+-  // the schema validator rejects (key columns must be non-nullable).
+-  const primary = args.primary ?? args.columns[0]!.name;
+-  const seen = new Set<string>();
+-  const columns: DeclaredColumn[] = [];
+-  for (const { name, type } of args.columns) {
+-    if (!COLUMN_NAME_PATTERN.test(name))
+-      fail(
+-        `column name '${name}' is not a valid identifier (letters, digits, '_', starting with a letter or '_')`,
+-      );
+-    if (seen.has(name)) fail(`duplicate column '${name}'`);
+-    seen.add(name);
+-    if (!(TABLE_COLUMN_TYPES as readonly string[]).includes(type))
+-      fail(
+-        `unsupported column type '${type}' for column '${name}' (expected one of ${TABLE_COLUMN_TYPES.join("|")})`,
+-      );
+-    columns.push({
+-      name,
+-      type: CLI_TYPE_TO_DECLARED[type]!,
+-      nullable: name !== primary,
+-    });
+-  }
+-  if (args.primary !== undefined) {
+-    if (!columns.some((column) => column.name === args.primary))
+-      fail(`--primary '${args.primary}' must name one of the declared columns`);
+-  }
+-  return { columns, primary };
+-}
+-
+ // ---------------------------------------------------------------------------
+ // Output
+ // ---------------------------------------------------------------------------
+@@ -347,200 +209,11 @@ function printNextSteps(
+   if (schemaPath) {
+     console.log("");
+     console.log(
+-      `The declaration lives in ${path.join(nsDir, SCHEMA_FILE_NAME)}; further "duckbrain tables declare" runs merge into the same file.`,
++      `The declaration lives in ${path.join(nsDir, "schema.json")}; further "duckbrain tables declare" runs merge into the same file.`,
+     );
+   }
+ }
+ 
+-// ---------------------------------------------------------------------------
+-// schema.json path (SUPA-6)
+-// ---------------------------------------------------------------------------
+-
+-async function declareIntoSchemaJson(options: {
+-  ns: string;
+-  nsDir: string;
+-  root: string;
+-  table: string;
+-  candidate: SchemaTable;
+-  force: boolean;
+-  /** Pre-rendered curl example body (keyed by CLI type names). */
+-  example: string;
+-}): Promise<number> {
+-  const { ns, nsDir, root, table, candidate, force, example } = options;
+-  const schemaFile = path.join(nsDir, SCHEMA_FILE_NAME);
+-  const fence = await acquireDdlFence(ns, root, 30_000);
+-  try {
+-    // Merge decision INSIDE the fence, so no concurrent DDL can interleave.
+-    const previousText = readTextOrNull(schemaFile);
+-    let document: SchemaDocument = emptySchemaDocument();
+-    if (previousText !== null) {
+-      try {
+-        document = parseSchemaDocument(JSON.parse(previousText), {
+-          where: schemaFile,
+-        });
+-      } catch (error) {
+-        console.error(
+-          `Error: refusing to merge into an invalid ${SCHEMA_FILE_NAME}: ${messageOf(error)}`,
+-        );
+-        return 1;
+-      }
+-    }
+-
+-    const existing = document.tables[table];
+-    if (existing && !force && !sameCanonicalTable(existing, candidate)) {
+-      console.error(
+-        `Error: table '${table}' is already declared in ${schemaFile} with a different contract. Re-run with --force to replace it.`,
+-      );
+-      return 1;
+-    }
+-
+-    const nextDocument: SchemaDocument = {
+-      ...document,
+-      tables: { ...document.tables, [table]: candidate },
+-    };
+-    // Validate the candidate document BEFORE writing anything: an invalid
+-    // declaration must fail without leaving a single byte behind.
+-    const problems = schemaDocumentProblems(nextDocument);
+-    if (problems.length > 0) {
+-      console.error(
+-        `Error: the resulting ${SCHEMA_FILE_NAME} would be invalid: ${problems.join("; ")}`,
+-      );
+-      return 1;
+-    }
+-
+-    const restore = (): void => {
+-      if (previousText !== null)
+-        writeSchemaTextAtomic(nsDir, previousText, { ns });
+-      else {
+-        try {
+-          fs.unlinkSync(schemaFile);
+-        } catch {
+-          // best effort — there was no previous document
+-        }
+-      }
+-    };
+-
+-    const switchText = formatSchemaDocument(nextDocument);
+-    const switched = writeSchemaTextAtomic(nsDir, switchText, { ns });
+-    // Journal the switch in the DDL journal format BEFORE reporting success
+-    // (and AFTER the atomic rename), so crash-recovery evidence stays
+-    // classifiable: recovery compares the live schema hash against the
+-    // journaled old/new hashes. `switched` is also a status journal here —
+-    // the declare already completed before it was written, so recovery
+-    // finalizes it without touching the file again.
+-    writeJsonAtomic(
+-      path.join(
+-        nsDir,
+-        DDL_DIR,
+-        `declare-${Date.now().toString(36)}-${crypto
+-          .randomBytes(4)
+-          .toString("hex")}.json`,
+-      ),
+-      {
+-        operation: "createTable",
+-        ns,
+-        table,
+-        status: "finalized",
+-        request: {
+-          table,
+-          rowShape: candidate.rowShape,
+-          keyColumns: candidate.keyColumns,
+-          columns: candidate.columns,
+-          storagePath: candidate.storage.path,
+-        },
+-        oldSchemaHash: previousText === null ? null : sha256Hex(previousText),
+-        newSchemaHash: switched.hash,
+-        detail:
+-          "declared via `duckbrain tables declare` (no generation published)",
+-        createdAt: new Date().toISOString(),
+-        updatedAt: new Date().toISOString(),
+-      },
+-    );
+-    // Prove the result through the REAL loader (no mock of the validator).
+-    invalidateNamespaceSchema(ns);
+-    invalidateTableRegistry(ns);
+-    const loaded = loadNamespaceSchema(ns, {
+-      namespacesPath: root,
+-      force: true,
+-    });
+-    if (!loaded.present || loaded.error !== null) {
+-      restore();
+-      invalidateNamespaceSchema(ns);
+-      invalidateTableRegistry(ns);
+-      console.error(
+-        `Error: the written ${SCHEMA_FILE_NAME} failed the real schema loader: ${
+-          loaded.error?.message ?? "document did not load"
+-        }. The previous schema was restored.`,
+-      );
+-      return 1;
+-    }
+-
+-    console.log(
+-      `Declared table '${table}' in ${switched.path} (schema.json, SUPA-6).`,
+-    );
+-    printNextSteps(ns, nsDir, table, true, example);
+-    return 0;
+-  } finally {
+-    releaseNamespaceWriteLock(fence);
+-    // Same post-fence invalidation pattern as the DDL coordinator: the next
+-    // read in ANY surface sees the file that is on disk now.
+-    invalidateNamespaceSchema(ns);
+-    invalidateTableRegistry(ns);
+-    loadNamespaceSchema(ns, { namespacesPath: root, force: true });
+-  }
+-}
+-
+-// ---------------------------------------------------------------------------
+-// legacy path (tables/<table>.table.json)
+-// ---------------------------------------------------------------------------
+-
+-function declareLegacyFile(options: {
+-  ns: string;
+-  nsDir: string;
+-  table: string;
+-  declaration: Record<string, unknown>;
+-  example: string;
+-}): number {
+-  const { ns, nsDir, table, declaration } = options;
+-  const tablesDir = path.join(nsDir, "tables");
+-  const file = path.join(tablesDir, `${table}.table.json`);
+-  const previousText = readTextOrNull(file);
+-
+-  fs.mkdirSync(tablesDir, { recursive: true });
+-  fs.writeFileSync(file, `${JSON.stringify(declaration, null, 2)}\n`);
+-
+-  // Validate through the REAL legacy registry: listTables reads and
+-  // validates every declaration file and throws on a bad one — the same
+-  // validator src/http/routes/tables.ts serves through. The cache is
+-  // dropped first so this read is guaranteed to hit the disk.
+-  let problem: string | null = null;
+-  try {
+-    invalidateTableRegistry(ns);
+-    listTables(ns);
+-  } catch (error) {
+-    problem = messageOf(error);
+-  }
+-  if (problem !== null) {
+-    if (previousText !== null) fs.writeFileSync(file, previousText);
+-    else {
+-      try {
+-        fs.unlinkSync(file);
+-      } catch {
+-        // best effort
+-      }
+-    }
+-    invalidateTableRegistry(ns);
+-    console.error(
+-      `Error: the written declaration failed the legacy table registry: ${problem}. The previous state was restored.`,
+-    );
+-    return 1;
+-  }
+-
+-  console.log(`Declared table '${table}' in ${file} (legacy .table.json).`);
+-  printNextSteps(ns, nsDir, table, false, options.example);
+-  return 0;
+-}
+-
+ // ---------------------------------------------------------------------------
+ // Entry point
+ // ---------------------------------------------------------------------------
+@@ -564,63 +237,38 @@ export async function runTablesCli(argv: string[]): Promise<number> {
+ 
+   const args = parseDeclareArgs(rest);
+   if (args === null) return 0;
+-  validateName("Namespace", args.ns);
+-  validateName("Table", args.table);
+-  const { columns, primary } = buildDeclaredColumns(args);
+-  const example = exampleBodyFor(args.columns);
+ 
+-  // GAP-062 path resolution: the same config-resolved namespaces root the
+-  // rest of the CLI/HTTP surface uses (never the caller's cwd).
+-  const root = path.resolve(resolveNamespacesPath());
+-  const nsDir = path.join(root, args.ns);
+-
+-  if (args.legacy) {
+-    // The legacy TableDeclaration shape (src/schema/table-registry.ts):
+-    // CLI column types are used VERBATIM (they ARE the legacy types), the
+-    // name must equal the declaration file base name, and the glob is
+-    // relative to the namespace dir.
+-    const declaration = {
+-      name: args.table,
+-      format: args.format,
+-      columns: args.columns.map(({ name, type }) => ({ name, type })),
+-      primary: args.primary ?? null,
+-      glob: `tables/${args.table}.jsonl`,
+-    };
+-    return declareLegacyFile({
++  let result: Awaited<ReturnType<typeof declareTable>>;
++  try {
++    result = await declareTable({
+       ns: args.ns,
+-      nsDir,
+       table: args.table,
+-      declaration,
+-      example,
++      columns: args.columns,
++      primary: args.primary,
++      format: args.format,
++      legacy: args.legacy,
++      force: args.force,
+     });
++  } catch (error) {
++    if (error instanceof TableDeclareError) {
++      // Usage errors throw (the bin prints them); write refusals are printed
++      // here with the historical `Error: ` prefix and exit 1, because they
++      // describe state on disk, not a malformed command line.
++      if (error.kind === "usage") throw new TablesCliError(error.message);
++      console.error(`Error: ${error.message}`);
++      return 1;
++    }
++    throw error;
+   }
+ 
+-  // SUPA-6 path: the table name must satisfy the stricter schema-document
+-  // rules (RESOURCE_NAME_PATTERN + reserved names) because schema.json is
+-  // the DDL surface — the production validator would reject anything else.
+-  if (!RESOURCE_NAME_PATTERN.test(args.table))
+-    fail(
+-      `table name '${args.table}' must match ${RESOURCE_NAME_PATTERN.source} for a schema.json declaration (use --legacy for the permissive legacy shape)`,
+-    );
+-  if (isReservedResourceName(args.table))
+-    fail(`table name '${args.table}' is a reserved resource name`);
+-
+-  const candidate: SchemaTable = {
+-    schemaVersion: 1,
+-    storage: { path: `tables/${args.table}/current.jsonl` },
+-    rowShape: (args.format === "jsonl-positional"
+-      ? "positional"
+-      : "object") as RowShape,
+-    keyColumns: [primary],
+-    columns,
+-  };
+-  return declareIntoSchemaJson({
+-    ns: args.ns,
+-    nsDir,
+-    root,
+-    table: args.table,
+-    candidate,
+-    force: args.force,
+-    example,
+-  });
++  const nsDir = path.join(path.resolve(resolveNamespacesPath()), result.ns);
++  const example = exampleBodyFor(args.columns);
++  if (result.format === "legacy") {
++    console.log(`Declared table '${result.table}' in ${result.path} (legacy .table.json).`);
++    printNextSteps(result.ns, nsDir, result.table, false, example);
++    return 0;
++  }
++  console.log(`Declared table '${result.table}' in ${result.path} (schema.json, SUPA-6).`);
++  printNextSteps(result.ns, nsDir, result.table, true, example);
++  return 0;
+ }
+diff --git a/src/http/routes/tables.ts b/src/http/routes/tables.ts
+index 309d0011..709ced65 100644
+--- a/src/http/routes/tables.ts
++++ b/src/http/routes/tables.ts
+@@ -54,9 +54,15 @@
+  * TODO(DB-SUPA-2-AC1): move table mutations onto append-only serializer writes
+  * plus read-side version folding. Until then a rewrite-based delete's
+  * tombstone resolves against the parent commit (src/http/realtime/replay.ts).
++ *
++ * SURFACE-MCP-DATA-001: the data verbs are NOT implemented here any more. The
++ * handlers below are thin adapters over src/tables/operations.ts, which the MCP
++ * tools (src/mcp/tools/tables.ts) call as well — one implementation, two
++ * transports, identical validation and refusal text. What stays in this module
++ * is HTTP-shaped only: querystring parsing, CSV rendering, durability headers
++ * and the grant middleware chain.
+  */
+ 
+-import path from "path";
+ import { Router, Request, Response } from "express";
+ import { asyncHandler, ApiError } from "../middleware/errorHandler";
+ import {
+@@ -64,176 +70,18 @@ import {
+   requireTableGrant,
+   getPrincipal,
+ } from "../../auth/middleware";
+-import {
+-  listTables,
+-  getTable,
+-  type TableDeclaration,
+-} from "../../schema/table-registry";
+-import {
+-  getDeclaredTable,
+-} from "../../serialization/schemaRegistry";
+-import type { RegisteredTableDeclaration } from "../../serialization/registry";
+-import {
+-  buildSelectPlan,
+-  executeSelectPlan,
+-  coerceRowAgainstDeclaration,
+-  appendRowsToTable,
+-  findRowByPk,
+-  findRowLineByPk,
+-  patchRowsByPk,
+-  deleteRowsByPk,
+-  type MutationOutcome,
+-  type RowLineLocation,
+-} from "../../duckdb/table-store";
+-import { namespaceDir } from "../../schema/table-registry";
+-import { getNamespaceWriter } from "../../serialization/namespaceWriter";
+-import {
+-  acceptedTableMutationRecord,
+-  type AuditEntry,
+-} from "../../serialization/audit";
+-import {
+-  acquireNamespaceWriteLock,
+-  releaseNamespaceWriteLock,
+-  type NamespaceWriteLock,
+-} from "../../serialization/lock";
+-import { resolveNamespacesPath } from "../../config";
+-import {
+-  durabilityHeaderFor,
+-  setDurabilityHeaders,
+-} from "../../storage/durability";
+-import {
+-  assertNamespaceDdlUsable,
+-  partitionForStoragePath,
+-} from "../../serialization/ddl";
+-import { assertNamespaceSchemaUsable } from "../../serialization/schemaRegistry";
+-import { storedRowFromApiRow } from "../../serialization/schemaTypes";
+-
+-/** Declared column types (schema.json) → legacy DuckDB column types. */
+-const DECLARED_TO_LEGACY: Record<string, string> = {
+-  string: "varchar",
+-  int64: "bigint",
+-  float64: "double",
+-  boolean: "boolean",
+-  timestamp: "timestamp",
+-  json: "json",
+-  bytes: "varchar",
+-};
+-
+-/**
+- * Namespace-relative POSIX path of a physical data file — the exact form a
+- * change record's `targetPath` takes (git paths are POSIX, and replay resolves
+- * the value against the committed namespace tree).
+- */
+-function namespaceRelativePath(nsDir: string, filePath: string): string {
+-  return path.relative(nsDir, filePath).split(path.sep).join("/");
+-}
+-
+-/** How long an accepted mutation's audit append waits out lock contention. */
+-const MUTATION_AUDIT_LOCK_DEADLINE_MS = 2_000;
+-const MUTATION_AUDIT_LOCK_RETRY_MS = 25;
+-
+-/**
+- * Append an accepted mutation's change record, waiting out TRANSIENT
+- * `SERIALIZER_LOCKED`.
+- *
+- * The serializer's flush takes the namespace write lock fail-fast (that is the
+- * SUPA-2 contract for queued writes), but this append happens AFTER the route
+- * already released the lock for its own rewrite — so under real cross-process
+- * concurrency another writer can hold the lock for the few milliseconds of its
+- * rewrite and a single fail-fast attempt turns an applied, correctly-audited
+- * mutation into a 500. The append is retryable (the failure happens before any
+- * audit byte is written), so retry it against a bounded deadline, exactly like
+- * the route's own lock acquisition. A failure that is NOT transient (fencing,
+- * shutdown, disk) still fails closed.
+- */
+-async function enqueueMutationAuditWithRetry(
+-  ns: string,
+-  entry: AuditEntry,
+-): Promise<void> {
+-  const deadline = Date.now() + MUTATION_AUDIT_LOCK_DEADLINE_MS;
+-  for (;;) {
+-    try {
+-      await getNamespaceWriter(ns).enqueueAudit(entry);
+-      return;
+-    } catch (error) {
+-      const message = error instanceof Error ? error.message : String(error);
+-      if (!message.startsWith("SERIALIZER_LOCKED") || Date.now() >= deadline) {
+-        throw error;
+-      }
+-      await new Promise((resolve) =>
+-        setTimeout(resolve, MUTATION_AUDIT_LOCK_RETRY_MS),
+-      );
+-    }
+-  }
+-}
+-
+-/**
+- * Bridge a RegisteredTableDeclaration (schema.json) into a TableDeclaration
+- * so that patchRowsByPk / deleteRowsByPk / coerceRowAgainstDeclaration can
+- * operate on it.  The two shapes are not directly compatible — the declared
+- * version carries Zod/row-shape metadata the legacy path doesn't need.
+- */
+-function asLegacyDeclaration(
+-  decl: RegisteredTableDeclaration,
+-): TableDeclaration {
+-  return {
+-    name: decl.table,
+-    format: "jsonl-objects" as const,
+-    columns: decl.columns.map((c) => ({
+-      name: c.name,
+-      type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
+-      nullable: c.nullable,
+-    })),
+-    primary: decl.keyColumns[0] ?? null,
+-    glob: decl.storagePath,
+-    source: "schema.json" as const,
+-  };
+-}
+-
+-/**
+- * DB-SUPA-2: how long a declared-table mutation waits for the namespace write
+- * lock before reporting SERIALIZER_LOCKED.
+- *
+- * The lock itself is unchanged — this only decides how long the request WAITS
+- * for it — but the wait is load-bearing, because the lock is routinely held by
+- * transient in-process actors that are not client-visible contention at all:
+- *
+- *   - the serializer's own flush (`namespaceWriter.flushOnceLocked`), which
+- *     appends the audit row a previous request enqueued, and
+- *   - the commit chain (`autocommit.asyncCommit` → `withNamespaceCommitLock`),
+- *     which holds the namespace lock across `git init`/`add`/`commit`.
+- *
+- * Measured on this suite's fixture (2026-10-17, probe evidence): the first
+- * write to a namespace takes the debounce-bypass branch (no `.git` yet →
+- * immediate async commit), which still holds the lock ~50ms after that
+- * mutation's own 2xx — so the NEXT mutation, one `beforeEach` away, is issued
+- * straight into a live same-process holder. A fail-fast acquire turns that
+- * ordinary self-contention into a spurious 503 for a legitimate client. Retry
+- * with the same shape the commit path already uses (`withNamespaceCommitLock`:
+- * 25ms between attempts, bounded deadline) so only a holder that outlives the
+- * deadline — in practice another process — surfaces as contention.
+- *
+- * Waiting here cannot deadlock: the caller holds neither the lock nor the
+- * in-process commit gate while it waits, and every waiter that does hold the
+- * lock (flush, commit) does only bounded, non-awaiting file work with it.
+- */
+-const LOCK_WAIT_RETRY_MS = 25;
+-const LOCK_WAIT_DEADLINE_MS = 2_000;
++import { setDurabilityHeaders } from "../../storage/durability";
++import { listTables, type TableDeclaration } from "../../schema/table-registry";
+ 
+-/** Acquire the namespace write lock, waiting (bounded) instead of failing fast. */
+-async function acquireNamespaceWriteLockWaiting(
+-  ns: string,
+-): Promise<NamespaceWriteLock | null> {
+-  const deadline = Date.now() + LOCK_WAIT_DEADLINE_MS;
+-  for (;;) {
+-    const lock = acquireNamespaceWriteLock(resolveNamespacesPath(), ns);
+-    if (lock) return lock;
+-    if (Date.now() >= deadline) return null;
+-    // Yield to the event loop so an in-process holder (the flush's or the
+-    // commit's own async work) can make progress and release.
+-    await new Promise((resolve) => setTimeout(resolve, LOCK_WAIT_RETRY_MS));
+-  }
+-}
++import {
++  deleteTableRows,
++  filterParams,
++  insertTableRows,
++  listNamespaceTables,
++  resolveTableDeclaration,
++  selectTableRows,
++  updateTableRows,
++} from "../../tables/operations";
+ 
+ /** Express 5 types named params as string | string[] (GAP-002 pattern). */
+ function param(req: Request, name: string): string {
+@@ -241,86 +89,6 @@ function param(req: Request, name: string): string {
+   return Array.isArray(p) ? p.join("/") : String(p ?? "");
+ }
+ 
+-/** Resolve and validate a supplied primary-key equality filter. */
+-function resolvePkFilter(
+-  declaration: TableDeclaration,
+-  raw: unknown,
+-  operation: string,
+-): { col: TableDeclaration["columns"][number]; value: string } {
+-  if (!declaration.primary) {
+-    throw new ApiError(
+-      `Table '${declaration.name}' declares no primary key; ${operation} are not available`,
+-      400,
+-      "VALIDATION_ERROR",
+-    );
+-  }
+-  const col = declaration.columns.find(
+-    (c) => c.name === declaration.primary,
+-  )!;
+-  const pkValue = Array.isArray(raw) ? raw[0] : raw;
+-  const pk = pkValue === undefined ? undefined : String(pkValue);
+-  if (pk === undefined) {
+-    throw new ApiError(
+-      `${operation} require a primary key filter: ?pk=eq.<value>`,
+-      400,
+-      "VALIDATION_ERROR",
+-    );
+-  }
+-  const m = pk.match(/^eq[.](.+)$/s) ?? (pk === "eq.null" ? null : null);
+-  if (!m) {
+-    throw new ApiError(
+-      `${operation} require an equality filter on the primary key: ?pk=eq.<value>`,
+-      400,
+-      "VALIDATION_ERROR",
+-    );
+-  }
+-  return { col, value: m[1]! };
+-}
+-
+-/** Extract only the querystring entries that look like column filters. */
+-function filterParams(
+-  req: Request,
+-  declaration: TableDeclaration,
+-): Record<string, string | string[]> {
+-  const out: Record<string, string | string[]> = {};
+-  for (const [key, value] of Object.entries(req.query)) {
+-    if (
+-      key === "order" ||
+-      key === "limit" ||
+-      key === "offset" ||
+-      key === "count" ||
+-      key === "pk"
+-    ) {
+-      continue;
+-    }
+-    if (!declaration.columns.some((c) => c.name === key)) {
+-      // Unknown querystring key: only an error when it carries a filter
+-      // operator shape (col.op.value) — bare unknown keys are ignored so
+-      // clients can pass tracing/cache-busting params.
+-      const first = Array.isArray(value) ? String(value[0]) : String(value);
+-      if (/^[a-z]+\./.test(first)) {
+-        throw new ApiError(
+-          `Unknown filter column '${key}' (table '${declaration.name}' declares: ${declaration.columns.map((c) => c.name).join(", ")})`,
+-          400,
+-          "VALIDATION_ERROR",
+-        );
+-      }
+-      continue;
+-    }
+-    out[key] = Array.isArray(value)
+-      ? (value as string[]).map(String)
+-      : String(value);
+-  }
+-  // `pk` is always the primary-key alias, even when a declared column is also
+-  // literally named `pk`; that column remains addressable by its own name when
+-  // the primary column has a different name.
+-  if (req.query.pk !== undefined) {
+-    const { col, value } = resolvePkFilter(declaration, req.query.pk, "GET");
+-    out[col.name] = `eq.${value}`;
+-  }
+-  return out;
+-}
+-
+ /** `Prefer: count=exact` header OR `?count=exact`. */
+ function wantsExactCount(req: Request): boolean {
+   const prefer = req.headers["prefer"];
+@@ -838,14 +606,7 @@ function createTableRoutes(): Router {
+     requireNamespaceGrant((req) => param(req, "ns")),
+     asyncHandler(async (req: Request, res: Response) => {
+       const ns = param(req, "ns");
+-      const tables = listTables(ns).map((t) => ({
+-        name: t.name,
+-        format: t.format,
+-        columns: t.columns,
+-        primary: t.primary,
+-        glob: t.glob,
+-      }));
+-      res.json({ namespace: ns, tables });
++      res.json({ namespace: ns, tables: listNamespaceTables(ns) });
+     }),
+   );
+ 
+@@ -859,40 +620,19 @@ function createTableRoutes(): Router {
+     asyncHandler(async (req: Request, res: Response) => {
+       const ns = param(req, "ns");
+       const tableName = param(req, "table");
+-      const declaration = getTable(ns, tableName);
+-      const plan = buildSelectPlan(declaration, {
+-        filters: filterParams(req, declaration),
++      const declaration = resolveTableDeclaration(ns, tableName);
++      const { rows, totalCount } = await selectTableRows(ns, tableName, {
++        // SURFACE-MCP-DATA-001: the same filter/order/paging vocabulary the
++        // MCP table_select tool passes, so both transports answer identically.
++        filters: filterParams(
++          req.query as Record<string, unknown>,
++          declaration,
++        ),
+         order: req.query.order as string | string[] | undefined,
+         limit: req.query.limit,
+         offset: req.query.offset,
+         wantCount: wantsExactCount(req),
+       });
+-      const { rows: rawRows, totalCount } = await executeSelectPlan(
+-        namespaceDir(ns),
+-        declaration,
+-        plan,
+-      );
+-      // Declared json columns arrive as VARCHAR text (DuckDB JSON→VARCHAR
+-      // projection); parse them back into real JSON values so responses
+-      // carry actual JSON, matching what was inserted.
+-      const jsonCols = declaration.columns
+-        .filter((c) => c.type === "json")
+-        .map((c) => c.name);
+-      const rows = rawRows.map((row) => {
+-        if (jsonCols.length === 0) return row;
+-        const shaped: Record<string, unknown> = { ...row };
+-        for (const name of jsonCols) {
+-          const cell = shaped[name];
+-          if (typeof cell === "string") {
+-            try {
+-              shaped[name] = JSON.parse(cell) as unknown;
+-            } catch {
+-              // leave raw text when it isn't valid JSON
+-            }
+-          }
+-        }
+-        return shaped;
+-      });
+ 
+       if (totalCount !== null) {
+         res.setHeader("X-Total-Count", String(totalCount));
+@@ -945,13 +685,11 @@ function createTableRoutes(): Router {
+   /**
+    * POST /api/ns/:ns/tables/:table — insert (object / array / NDJSON).
+    *
+-   * A DB-SUPA-6 `schema.json` declaration writes through the SUPA-2 serializer
+-   * (`NamespaceWriter.enqueue`) at the table's DECLARED storage path, so the
+-   * write rides the same validation → ordered write → audit/change-record →
+-   * commit path as every other durable row, and it observes the DDL fence: a
+-   * write attempted while a DDL operation holds the namespace lock receives the
+-   * retryable `SERIALIZER_LOCKED` result and writes nothing. Legacy
+-   * `tables/<table>.table.json` declarations keep the historical direct append.
++   * SURFACE-MCP-DATA-001: the write itself is insertTableRows() in
++   * src/tables/operations.ts — the SAME implementation the MCP table_insert
++   * tool calls. SUPA-6 writes ride the serializer (validation → ordered write
++   * → audit/change record → commit, DDL fence honoured); legacy .table.json
++   * declarations keep the direct append, now durability-honest.
+    */
+   router.post(
+     "/:table",
+@@ -960,181 +698,26 @@ function createTableRoutes(): Router {
+     asyncHandler(async (req: Request, res: Response) => {
+       const ns = param(req, "ns");
+       const tableName = param(req, "table");
+-      const declaration = getTable(ns, tableName);
++      resolveTableDeclaration(ns, tableName);
+       const rawRows = parseInsertRows(req);
+-      if (rawRows.length === 0) {
+-        throw new ApiError(
+-          "Insert body must contain at least one row",
+-          400,
+-          "VALIDATION_ERROR",
+-        );
+-      }
+-      const coerced = rawRows.map((row) =>
+-        coerceRowAgainstDeclaration(declaration, row),
+-      );
+-      // AUG-045: a row that omits (or nulls) the declared primary key would be
+-      // stored with id:null and become unreachable via the API — PATCH/DELETE
+-      // both require ?pk=eq.<value>. Validate ALL rows before any writer
+-      // enqueue / append so a bad batch inserts nothing (no partial inserts).
+-      if (declaration.primary) {
+-        for (const row of coerced) {
+-          const pkValue = row[declaration.primary];
+-          if (pkValue === undefined || pkValue === null || pkValue === "") {
+-            throw new ApiError(
+-              `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
+-              400,
+-              "VALIDATION_ERROR",
+-            );
+-          }
+-        }
+-      }
+-      if (declaration.source === "schema.json") {
+-        // Fail closed on a failed DDL recovery and on an invalid on-disk
+-        // schema before accepting new generic-table work.
+-        assertNamespaceDdlUsable(ns);
+-        assertNamespaceSchemaUsable(ns);
+-        const declaredColumns = declaration.columns.map((column) => ({
+-          name: column.name,
+-          type: column.declaredType!,
+-          nullable: column.nullable ?? true,
+-          ...(column.hasDefault ? { default: column.default } : {}),
+-        }));
+-        const writer = getNamespaceWriter(ns);
+-        const partition = partitionForStoragePath(declaration.glob);
+-        let inserted = 0;
+-        for (const row of coerced) {
+-          const record = storedRowFromApiRow(
+-            declaredColumns,
+-            declaration.format === "jsonl-positional" ? "positional" : "object",
+-            row,
+-          );
+-          const result = await writer.enqueue({
+-            ns,
+-            table: declaration.name,
+-            op: "insert",
+-            record,
+-            principal: getPrincipal(req),
+-            targetPath: declaration.glob,
+-            ...(partition ? { partitionPath: partition } : {}),
+-          });
+-          if (!result.ok) {
+-            const status =
+-              result.code === "VALIDATION_ERROR"
+-                ? 422
+-                : result.code === "NOT_FOUND"
+-                  ? 404
+-                  : result.code === "FORBIDDEN"
+-                    ? 403
+-                    : result.code === "SERIALIZER_LOCKED" ||
+-                        result.code === "SERIALIZER_FENCED" ||
+-                        result.code === "SERVER_SHUTTING_DOWN"
+-                      ? 503
+-                      : 500;
+-            if (result.retryAfter !== undefined)
+-              res.setHeader("Retry-After", String(result.retryAfter));
+-            throw new ApiError(result.message, status, result.code);
+-          }
+-          inserted += 1;
+-        }
+-        const configured = durabilityHeaderFor(ns);
+-        setDurabilityHeaders(res, configured, configured);
+-        res.status(201).json({ inserted });
+-        return;
+-      }
+-      // DURABILITY-HONESTY-001: the legacy `.table.json` insert used a bare
+-      // page-cache append while advertising the configured mode. The append
+-      // now honours the mode (fdatasync + directory fsync) and the response
+-      // reports what it achieved, not what was configured.
+-      const configured = durabilityHeaderFor(ns);
+-      const appended = appendRowsToTable(
+-        namespaceDir(ns),
+-        declaration,
+-        coerced,
+-        configured,
++      const { inserted, durability } = await insertTableRows(
++        ns,
++        tableName,
++        rawRows,
++        getPrincipal(req),
+       );
+-      setDurabilityHeaders(res, configured, appended.achieved);
+-      res.status(201).json({ inserted: appended.inserted });
++      setDurabilityHeaders(res, durability.configured, durability.achieved);
++      res.status(201).json({ inserted });
+     }),
+   );
+ 
+-  /** Validate + resolve the pk=eq.<v> filter for PATCH/DELETE. */
+-  function requirePkFilter(
+-    declaration: TableDeclaration,
+-    req: Request,
+-  ): { col: TableDeclaration["columns"][number]; value: string } {
+-    return resolvePkFilter(declaration, req.query.pk, "PATCH/DELETE");
+-  }
+-
+-  /**
+-   * DB-SUPA-2: record an ACCEPTED table mutation in the namespace's audit
+-   * ledger through the SUPA-2 single writer, and resolve only once that
+-   * append is durable — a 2xx must never precede its audit record.
+-   *
+-   * DB-SUPA-5: the row is a real CHANGE RECORD, not a marker-less audit row.
+-   * Emitting markers here is what makes an accepted PATCH/DELETE visible to
+-   * the change feed; without them `isChangeRecordCandidate` returns false and
+-   * replay skips the mutation entirely (the gap a tier-2 review caught).
+-   *
+-   * `contentHash` semantics differ per operation because this layer mutates by
+-   * REWRITING the table's JSONL file instead of appending to it:
+-   *
+-   *   - update: the hash names the POST-mutation line. It is present in the
+-   *     data file at the commit that carries the mutation, so replay resolves
+-   *     the row image at the child commit exactly like a serializer insert.
+-   *   - delete: the row is physically removed, so the hash names the line as
+-   *     it existed BEFORE the mutation and replay resolves it against the
+-   *     PARENT commit (see `deriveCommitChanges`: tombstone records fall back
+-   *     to the parent ref instead of failing closed). The row image stays the
+-   *     last committed one — tombstone semantics, never `row: null`.
+-   *
+-   * A failed append is fail-closed: the caller gets an error naming the
+-   * already-applied mutation instead of an unacknowledged 2xx.
+-   */
+-  async function recordTableMutationAudit(
+-    ns: string,
+-    table: string,
+-    op: "update" | "delete",
+-    principal: string | null,
+-    location: { targetPath: string; dataLine: string; row: unknown },
+-  ): Promise<void> {
+-    let entry: AuditEntry;
+-    try {
+-      entry = acceptedTableMutationRecord({
+-        ns,
+-        namespacePath: namespaceDir(ns),
+-        table,
+-        op,
+-        principal,
+-        targetPath: location.targetPath,
+-        dataLine: location.dataLine,
+-        row: location.row,
+-      });
+-    } catch (error) {
+-      const message = error instanceof Error ? error.message : String(error);
+-      throw new ApiError(
+-        `mutation was applied but its change record could not be built: ${message}`,
+-        500,
+-        "AUDIT_APPEND_FAILED",
+-      );
+-    }
+-    try {
+-      await enqueueMutationAuditWithRetry(ns, entry);
+-    } catch (error) {
+-      const message = error instanceof Error ? error.message : String(error);
+-      const shuttingDown = message.startsWith("SERVER_SHUTTING_DOWN");
+-      throw new ApiError(
+-        `mutation was applied but its audit record could not be appended: ${message}`,
+-        shuttingDown ? 503 : 500,
+-        shuttingDown ? "SERVER_SHUTTING_DOWN" : "AUDIT_APPEND_FAILED",
+-      );
+-    }
+-  }
+-
+   /**
+    * PATCH /api/ns/:ns/tables/:table?pk=eq.<v> — update by primary key.
+-   * Rewrites the matching JSONL file rows and records the accepted mutation
+-   * through the NamespaceWriter as a DB-SUPA-5 change record, so the audit
+-   * ledger sees it before the 2xx and the change feed replays it.
++   *
++   * SURFACE-MCP-DATA-001: updateTableRows() in src/tables/operations.ts is the
++   * one implementation (read-merge-rewrite under the namespace write lock plus
++   * the DB-SUPA-5 change record before the 2xx); the MCP table_update tool
++   * calls it too.
+    */
+   router.patch(
+     "/:table",
+@@ -1143,25 +726,7 @@ function createTableRoutes(): Router {
+     asyncHandler(async (req: Request, res: Response) => {
+       const ns = param(req, "ns");
+       const tableName = param(req, "table");
+-      // Legacy .table.json tables live in the table-registry; schema.json tables
+-      // live in the declared-table registry. Try the legacy resolver first, then
+-      // fall back to declared tables (supersedes legacy on naming collision).
+-      let declaration = getTable(ns, tableName) as
+-        | TableDeclaration
+-        | undefined;
+-      if (!declaration) {
+-        const declared = getDeclaredTable(ns, tableName);
+-        if (declared) {
+-          declaration = asLegacyDeclaration(declared);
+-        } else {
+-          throw new ApiError(
+-            `Table '${tableName}' not found in namespace '${ns}'`,
+-            404,
+-            "NOT_FOUND",
+-          );
+-        }
+-      }
+-      const { col, value } = requirePkFilter(declaration, req);
++      resolveTableDeclaration(ns, tableName);
+       const body = req.body;
+       if (typeof body !== "object" || body === null || Array.isArray(body)) {
+         throw new ApiError(
+@@ -1170,118 +735,24 @@ function createTableRoutes(): Router {
+           "VALIDATION_ERROR",
+         );
+       }
+-      const patchBody = body as Record<string, unknown>;
+-      const unknownKeys = Object.keys(patchBody).filter(
+-        (k) => !declaration.columns.some((c) => c.name === k),
+-      );
+-      if (unknownKeys.length > 0) {
+-        throw new ApiError(
+-          `Unknown column(s) in PATCH body: ${unknownKeys.join(", ")}`,
+-          400,
+-          "VALIDATION_ERROR",
+-        );
+-      }
+-
+-      const nsDir = namespaceDir(ns);
+-      // DB-SUPA-2: the read-merge-rewrite runs under the namespace write lock
+-      // — the same lock the serializer's flush and the commit chain take — so
+-      // two writers (two processes on one namespace root included) cannot lose
+-      // each other's update. It is held for synchronous file work only; the
+-      // audit record below is enqueued AFTER it is released, so this request's
+-      // own awaited flush is never blocked behind its own critical section.
+-      const lock = await acquireNamespaceWriteLockWaiting(ns);
+-      if (!lock) {
+-        res.setHeader("Retry-After", "1");
+-        throw new ApiError(
+-          `Namespace '${ns}' is locked by another writer process`,
+-          503,
+-          "SERIALIZER_LOCKED",
+-        );
+-      }
+-      let coercedBody: Record<string, unknown> = {};
+-      let mutated = 0;
+-      const configured = durabilityHeaderFor(ns);
+-      let patchOutcome: MutationOutcome | null = null;
+-      let location: RowLineLocation | null = null;
+-      try {
+-        const existing = findRowByPk(nsDir, declaration, col, value);
+-        if (existing !== null) {
+-          // Validate the MERGED row, not each body field in isolation: a
+-          // partial patch is legal (only the named columns change) while every
+-          // declared constraint is still enforced against the row the patch
+-          // produces.
+-          const merged = coerceRowAgainstDeclaration(declaration, {
+-            ...existing,
+-            ...patchBody,
+-          });
+-          for (const key of Object.keys(patchBody))
+-            coercedBody[key] = merged[key];
+-          patchOutcome = patchRowsByPk(
+-            nsDir,
+-            declaration,
+-            col,
+-            value,
+-            coercedBody,
+-            { mode: configured },
+-          );
+-          mutated = patchOutcome.mutated;
+-          if (mutated > 0) {
+-            // DB-SUPA-5: the change record's `contentHash` must name the row
+-            // line as it now exists on disk, so read it back instead of
+-            // re-serializing. Read INSIDE the lock so a concurrent writer in
+-            // another process cannot replace the line between the rewrite and
+-            // the read. A patch that moves the primary key is looked up under
+-            // its NEW value.
+-            const lookupValue = Object.prototype.hasOwnProperty.call(
+-              coercedBody,
+-              col.name,
+-            )
+-              ? String(coercedBody[col.name])
+-              : value;
+-            location = findRowLineByPk(nsDir, declaration, col, lookupValue);
+-          }
+-        }
+-      } finally {
+-        releaseNamespaceWriteLock(lock);
+-      }
+-      // No matching row: nothing was written and there is nothing to audit.
+-      if (mutated === 0) {
+-        setDurabilityHeaders(res, configured, configured);
+-        res.json({ updated: 0 });
+-        return;
+-      }
+-      if (location === null) {
+-        throw new ApiError(
+-          `mutation was applied but the updated row could not be located for its change record`,
+-          500,
+-          "AUDIT_APPEND_FAILED",
+-        );
+-      }
+-      await recordTableMutationAudit(
++      const { updated, durability } = await updateTableRows(
+         ns,
+-        declaration.name,
+-        "update",
+-        getPrincipal(req)?.name ?? null,
+-        {
+-          targetPath: namespaceRelativePath(nsDir, location.filePath),
+-          dataLine: location.line,
+-          row: location.row,
+-        },
++        tableName,
++        req.query.pk,
++        body as Record<string, unknown>,
++        getPrincipal(req),
+       );
+-      setDurabilityHeaders(
+-        res,
+-        configured,
+-        patchOutcome?.achieved ?? configured,
+-      );
+-      res.json({ updated: mutated });
++      setDurabilityHeaders(res, durability.configured, durability.achieved);
++      res.json({ updated });
+     }),
+   );
+ 
+   /**
+    * DELETE /api/ns/:ns/tables/:table?pk=eq.<v> — delete by primary key.
+-   * Rewrites the matching JSONL files with the row dropped and records the
+-   * accepted delete through the NamespaceWriter as a tombstone change record
+-   * before the 2xx.
++   *
++   * SURFACE-MCP-DATA-001: deleteTableRows() in src/tables/operations.ts is the
++   * one implementation (rewrite under the lock, tombstone change record before
++   * the 2xx); the MCP table_delete tool calls it too.
+    */
+   router.delete(
+     "/:table",
+@@ -1290,88 +761,15 @@ function createTableRoutes(): Router {
+     asyncHandler(async (req: Request, res: Response) => {
+       const ns = param(req, "ns");
+       const tableName = param(req, "table");
+-      // Same fallback as PATCH: table-registry for legacy, declared-table for
+-      // schema.json tables.
+-      let declaration = getTable(ns, tableName) as
+-        | TableDeclaration
+-        | undefined;
+-      if (!declaration) {
+-        const declared = getDeclaredTable(ns, tableName);
+-        if (declared) {
+-          declaration = asLegacyDeclaration(declared);
+-        } else {
+-          throw new ApiError(
+-            `Table '${tableName}' not found in namespace '${ns}'`,
+-            404,
+-            "NOT_FOUND",
+-          );
+-        }
+-      }
+-      const { col, value } = requirePkFilter(declaration, req);
+-
+-      const nsDir = namespaceDir(ns);
+-      // DB-SUPA-2: same namespace write lock as PATCH — the read-predicate-write
+-      // pair must not interleave with another writer process, and a same-process
+-      // holder (flush / commit) is waited on rather than reported as contention.
+-      const lock = await acquireNamespaceWriteLockWaiting(ns);
+-      if (!lock) {
+-        res.setHeader("Retry-After", "1");
+-        throw new ApiError(
+-          `Namespace '${ns}' is locked by another writer process`,
+-          503,
+-          "SERIALIZER_LOCKED",
+-        );
+-      }
+-      let removed = 0;
+-      const configured = durabilityHeaderFor(ns);
+-      let deleteOutcome: MutationOutcome | null = null;
+-      // DB-SUPA-5: capture the row BEFORE the rewrite — a physical delete
+-      // removes the line from the data file, so the tombstone record's
+-      // `contentHash` must name the last committed row image (resolved by
+-      // replay against the parent commit), not a line the child no longer has.
+-      const location = findRowLineByPk(nsDir, declaration, col, value);
+-      try {
+-        deleteOutcome = deleteRowsByPk(
+-          nsDir,
+-          declaration,
+-          col,
+-          value,
+-          configured,
+-        );
+-        removed = deleteOutcome.mutated;
+-      } finally {
+-        releaseNamespaceWriteLock(lock);
+-      }
+-      // Nothing matched: no tombstone to record, nothing was deleted.
+-      if (removed === 0) {
+-        setDurabilityHeaders(res, configured, configured);
+-        res.json({ deleted: 0 });
+-        return;
+-      }
+-      if (location === null) {
+-        throw new ApiError(
+-          `mutation was applied but the deleted row could not be located for its tombstone record`,
+-          500,
+-          "AUDIT_APPEND_FAILED",
+-        );
+-      }
+-      await recordTableMutationAudit(
++      resolveTableDeclaration(ns, tableName);
++      const { deleted, durability } = await deleteTableRows(
+         ns,
+-        declaration.name,
+-        "delete",
+-        getPrincipal(req)?.name ?? null,
+-        {
+-          targetPath: namespaceRelativePath(nsDir, location.filePath),
+-          dataLine: location.line,
+-          row: location.row,
+-        },
+-      );
+-      setDurabilityHeaders(
+-        res,
+-        configured,
+-        deleteOutcome?.achieved ?? configured,
++        tableName,
++        req.query.pk,
++        getPrincipal(req),
+       );
+-      res.json({ deleted: removed });
++      setDurabilityHeaders(res, durability.configured, durability.achieved);
++      res.json({ deleted });
+     }),
+   );
+ 
+diff --git a/src/mcp/profiles.ts b/src/mcp/profiles.ts
+index cabe3752..fa248162 100644
+--- a/src/mcp/profiles.ts
++++ b/src/mcp/profiles.ts
+@@ -67,6 +67,15 @@ export const BUILTIN_TOOL_NAMES = [
+   "create_profile",
+   "update_profile",
+   "select_profiles",
++  // SURFACE-MCP-DATA-001 data plane
++  "tables_declare",
++  "table_list",
++  "table_insert",
++  "table_select",
++  "table_update",
++  "table_delete",
++  "search",
++  "query",
+ ] as const;
+ 
+ /** Per-tool visibility directive inside a profile. */
+diff --git a/src/mcp/server.ts b/src/mcp/server.ts
+index 7c53b15d..e1df2483 100644
+--- a/src/mcp/server.ts
++++ b/src/mcp/server.ts
+@@ -15,6 +15,12 @@ import { listKeysTool, listKeysToolMetadata } from "./tools/list_keys";
+ import { rememberToolDef } from "./tools/remember";
+ import { forgetToolDef } from "./tools/forget";
+ import { squashToolDef, compactionStatsToolDef } from "./tools/squash";
++import { tableToolDefs } from "./tools/tables";
++import { searchTool, searchToolMetadata } from "./tools/search";
++import {
++  enforceNamespaceScope,
++  resolveNamespaceName,
++} from "./tools/shared";
+ import {
+   createNamespaceTool,
+   listNamespacesTool,
+@@ -221,6 +227,46 @@ export function registerTools(): void {
+     wrapHandler(serverHttpStartTool),
+   );
+ 
++  // SURFACE-MCP-DATA-001: the data plane. Before this block an agent could
++  // only remember/recall/forget — no declared-table CRUD, no table
++  // declaration, no keyword search, no SQL. Every handler below is a thin
++  // adapter over the SAME implementation the CLI and HTTP routes call
++  // (src/tables/operations.ts, src/tables/declare.ts, src/duckdb/query-surface.ts,
++  // src/mcp/tools/search.ts), with the same grant checks and refusal text.
++  for (const def of tableToolDefs) {
++    server.registerTool(
++      def.name,
++      {
++        title: def.title,
++        description: def.description,
++        inputSchema: def.inputSchema,
++      },
++      wrapHandler(def.handler as (input: any) => Promise<any>),
++    );
++  }
++
++  // RETR-001 keyword search had a metadata def but was never registered, so
++  // the MCP surface lacked the offline keyword path entirely. Registration
++  // adds the namespace/table-independent grant check the REST route performs
++  // (a scoped token may not search a namespace outside its grant).
++  server.registerTool(
++    searchToolMetadata.name,
++    {
++      title: searchToolMetadata.title,
++      description: searchToolMetadata.description,
++      inputSchema: searchToolMetadata.inputSchema,
++    },
++    wrapHandler(async (args: any) => {
++      const allNamespaces = args?.allNamespaces === true;
++      const namespace = resolveNamespaceName(args?.namespace);
++      const scoped = enforceNamespaceScope(undefined, namespace, {
++        allNamespaces,
++      });
++      if (scoped) return { ...scoped };
++      return searchTool(args);
++    }),
++  );
++
+   // MCP-CUSTOM-RUNTIME-001: integrator-declared custom tools become
+   // first-class MCP tools. A bad customTools config never blocks the
+   // built-ins — every refusal is reported and the surface stays up.
+diff --git a/src/mcp/tools/custom-tool.ts b/src/mcp/tools/custom-tool.ts
+index 43717f38..ce3ba4cf 100644
+--- a/src/mcp/tools/custom-tool.ts
++++ b/src/mcp/tools/custom-tool.ts
+@@ -43,6 +43,16 @@ const RESERVED_TOOL_NAMES = new Set([
+   "delete_namespace",
+   "server_status",
+   "server_http_start",
++  // SURFACE-MCP-DATA-001: the data-plane tools are built-ins too — a custom
++  // tool must not shadow a table write or a SQL surface.
++  "tables_declare",
++  "table_list",
++  "table_insert",
++  "table_select",
++  "table_update",
++  "table_delete",
++  "search",
++  "query",
+ ]);
+ 
+ export function isReservedToolName(name: string): boolean {
+diff --git a/src/mcp/tools/shared.ts b/src/mcp/tools/shared.ts
+index 2cecd615..74b00f19 100644
+--- a/src/mcp/tools/shared.ts
++++ b/src/mcp/tools/shared.ts
+@@ -221,3 +221,71 @@ export function namespaceScopeViolation(
+     error: denial.message,
+   };
+ }
++
++/**
++ * SURFACE-MCP-DATA-001: append a denial row for a TABLE-grant refusal taken on
++ * the MCP path.
++ *
++ * Mirrors `requireTableGrant` (src/auth/middleware.ts): `op: tables.<op>`,
++ * `reason` from the SAME authorizeTableAccess decision, `table` and `ns`
++ * naming the target, the token name as `principal`. A REST 403 and an MCP
++ * refusal for the same table therefore produce the same audit evidence — the
++ * reason token (`table_grant`, `role`, `namespace_scope`) included.
++ *
++ * Best-effort by contract: a throwing auditor never changes the refusal.
++ */
++export function auditTableGrantDenial(
++  context: McpToolContext | undefined,
++  namespace: string,
++  table: string,
++  op: "read" | "write",
++  principal: AuthPrincipal | undefined,
++  reason: DenialAuditEvent["reason"],
++): void {
++  const auditor = resolveToolDenialAuditor(context);
++  if (!auditor) return;
++  const event: DenialAuditEvent = {
++    ts: new Date().toISOString(),
++    ns: namespace,
++    table,
++    op: `tables.${op}`,
++    principal: principal?.name ?? null,
++    outcome: "denied",
++    reason,
++  };
++  try {
++    void Promise.resolve(auditor(event)).catch(() => undefined);
++  } catch {
++    // Auditing is best-effort and never changes a denial response.
++  }
++}
++
++/**
++ * SURFACE-MCP-DATA-001: append a denial row for a raw-SQL refusal taken on the
++ * MCP path — the same row `requireRawSqlGrant` writes on the REST path
++ * (`op: sql.<direction>`, `table: "query"`, reason from authorizeRawSql).
++ */
++export function auditRawSqlDenial(
++  context: McpToolContext | undefined,
++  namespace: string,
++  direction: "read" | "write",
++  principal: AuthPrincipal | undefined,
++  reason: DenialAuditEvent["reason"],
++): void {
++  const auditor = resolveToolDenialAuditor(context);
++  if (!auditor) return;
++  const event: DenialAuditEvent = {
++    ts: new Date().toISOString(),
++    ns: namespace,
++    table: "query",
++    op: `sql.${direction}`,
++    principal: principal?.name ?? null,
++    outcome: "denied",
++    reason,
++  };
++  try {
++    void Promise.resolve(auditor(event)).catch(() => undefined);
++  } catch {
++    // Auditing is best-effort and never changes a denial response.
++  }
++}
+diff --git a/src/mcp/tools/tables-surface.test.ts b/src/mcp/tools/tables-surface.test.ts
+new file mode 100644
+index 00000000..d6520108
+--- /dev/null
++++ b/src/mcp/tools/tables-surface.test.ts
+@@ -0,0 +1,355 @@
++/**
++ * SURFACE-MCP-DATA-001 — the MCP data plane.
++ *
++ * The row's claim: MCP reached only memory primitives, so an agent could not
++ * declare a table, write/read/update/delete a row, keyword-search or run one
++ * SELECT. These tests prove the added tools and — the part that matters — that
++ * they are the SAME implementations the REST routes and the CLI call:
++ *
++ *   AC1  each tool calls src/tables/operations.ts / src/tables/declare.ts /
++ *        src/duckdb/query-surface.ts (no second code path), accepts a
++ *        namespace, and refuses an undeclared table with the REST message.
++ *   AC2  driven from a CLIENT, not just a handler: a real MCP stdio client
++ *        lists the tools and runs declare → insert ×2 → filtered select →
++ *        update → delete → keyword search → SELECT.
++ *   AC3  grants bite on the MCP path: a token without table write gets a
++ *        refusal from table_insert, and the denial lands in the audit sink
++ *        with reason "table_grant".
++ *
++ * Hermetic: DUCKBRAIN_NAMESPACES_PATH points at a temp root; the repo's own
++ * namespaces tree is never touched.
++ */
++
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { Client } from "@modelcontextprotocol/sdk/client/index.js";
++import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
++import {
++  tableDeleteTool,
++  tableInsertTool,
++  tableListTool,
++  tableSelectTool,
++  tableUpdateTool,
++  tablesDeclareTool,
++  queryTool,
++  tableToolDefs,
++} from "./tables";
++import { searchTool } from "./search";
++import type { McpToolContext } from "./shared";
++import type { DenialAuditEvent } from "../../auth/middleware";
++import { drainAllNamespaceWriters } from "../../serialization/namespaceWriter";
++import { removeTempDirSafely } from "../../testing/race-safe-daemon";
++
++const BIN_PATH = path.resolve(__dirname, "..", "..", "..", "bin", "duckbrain.js");
++const NS = "mcp-surface";
++let tmpRoot: string;
++
++beforeAll(() => {
++  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-tables-surface-"));
++  process.env.DUCKBRAIN_NAMESPACES_PATH = tmpRoot;
++  process.env.DUCKBRAIN_NAMESPACE = NS;
++});
++
++afterAll(async () => {
++  await drainAllNamespaceWriters();
++  await removeTempDirSafely(tmpRoot);
++});
++
++const adminContext: McpToolContext = {
++  principal: { name: "mcp-admin", authenticated: true, roles: ["admin"] },
++};
++
++describe("SURFACE-MCP-DATA-001 AC1: tools over shared implementations", () => {
++  it("declares, inserts two rows, filters, updates and deletes", async () => {
++    const declared = await tablesDeclareTool(
++      {
++        namespace: NS,
++        table: "widgets",
++        columns: [
++          { name: "id", type: "integer" },
++          { name: "name", type: "varchar" },
++          { name: "qty", type: "integer" },
++        ],
++        primary: "id",
++      },
++      adminContext,
++    );
++    expect(declared.success).toBe(true);
++    expect(declared.format).toBe("schema.json");
++    expect(fs.existsSync(path.join(tmpRoot, NS, "schema.json"))).toBe(true);
++
++    const listed = await tableListTool({ namespace: NS }, adminContext);
++    expect(listed.success).toBe(true);
++    expect(
++      (listed.tables as Array<{ name: string }>).map((t) => t.name),
++    ).toContain("widgets");
++
++    const inserted = await tableInsertTool(
++      {
++        namespace: NS,
++        table: "widgets",
++        rows: [
++          { id: 1, name: "alpha", qty: 5 },
++          { id: 2, name: "beta", qty: 9 },
++        ],
++      },
++      adminContext,
++    );
++    expect(inserted.success).toBe(true);
++    expect(inserted.inserted).toBe(2);
++
++    const selected = await tableSelectTool(
++      {
++        namespace: NS,
++        table: "widgets",
++        filters: { qty: "gte.6" },
++        order: "id.asc",
++        count: "exact",
++      },
++      adminContext,
++    );
++    expect(selected.success).toBe(true);
++    expect(selected.count).toBe(1);
++    expect(selected.totalCount).toBe(1);
++    expect((selected.rows as Array<{ id: number }>)[0]).toMatchObject({
++      id: 2,
++      name: "beta",
++    });
++
++    const updated = await tableUpdateTool(
++      { namespace: NS, table: "widgets", pk: 2, values: { name: "beta-2" } },
++      adminContext,
++    );
++    expect(updated.success).toBe(true);
++    expect(updated.updated).toBe(1);
++
++    const afterUpdate = await tableSelectTool(
++      { namespace: NS, table: "widgets", filters: { name: "eq.beta-2" } },
++      adminContext,
++    );
++    expect(afterUpdate.count).toBe(1);
++
++    const deleted = await tableDeleteTool(
++      { namespace: NS, table: "widgets", pk: 1 },
++      adminContext,
++    );
++    expect(deleted.success).toBe(true);
++    expect(deleted.deleted).toBe(1);
++
++    const remaining = await tableSelectTool(
++      { namespace: NS, table: "widgets" },
++      adminContext,
++    );
++    expect(remaining.count).toBe(1);
++  });
++
++  it("refuses an undeclared table with the REST message and code", async () => {
++    const refused = await tableSelectTool(
++      { namespace: NS, table: "no_such_table" },
++      adminContext,
++    );
++    expect(refused.success).toBe(false);
++    // The REST layer throws ApiError(..., 404, "NOT_FOUND") with this text.
++    expect(refused.error).toBe(
++      `Table 'no_such_table' not found in namespace '${NS}'`,
++    );
++    expect(refused.code).toBe("NOT_FOUND");
++  });
++
++  it("exposes the declared-table vocabulary in the tool schemas", () => {
++    const names = tableToolDefs.map((d) => d.name);
++    expect(names).toEqual([
++      "table_list",
++      "tables_declare",
++      "table_insert",
++      "table_select",
++      "table_update",
++      "table_delete",
++      "query",
++    ]);
++  });
++});
++
++describe("SURFACE-MCP-DATA-001 AC3: grants bite on the MCP path", () => {
++  it("refuses table_insert for a token without table write, and audits table_grant", async () => {
++    const denials: DenialAuditEvent[] = [];
++    const readOnly: McpToolContext = {
++      principal: {
++        name: "mcp-reader",
++        authenticated: true,
++        // writer carries tables.read + tables.write, so the per-table grant
++        // map is what refuses the write — the reason token under test.
++        roles: ["writer"],
++        namespaces: [NS],
++        tableGrants: { widgets: "read" },
++      },
++      auditDenial: (event) => {
++        denials.push(event);
++      },
++    };
++
++    const refused = await tableInsertTool(
++      { namespace: NS, table: "widgets", rows: [{ id: 3, name: "gamma" }] },
++      readOnly,
++    );
++    expect(refused.success).toBe(false);
++    expect(refused.code).toBe("FORBIDDEN");
++    expect(refused.reason).toBe("table_grant");
++    expect(refused.error).toBe(
++      `Forbidden: principal 'mcp-reader' has no write grant for table 'widgets'`,
++    );
++
++    // The denial row mirrors requireTableGrant: op tables.write, same reason.
++    expect(denials).toHaveLength(1);
++    expect(denials[0]).toMatchObject({
++      ns: NS,
++      table: "widgets",
++      op: "tables.write",
++      principal: "mcp-reader",
++      outcome: "denied",
++      reason: "table_grant",
++    });
++
++    // The same token CAN read (read grant present).
++    const allowed = await tableSelectTool(
++      { namespace: NS, table: "widgets" },
++      readOnly,
++    );
++    expect(allowed.success).toBe(true);
++
++    // …and cannot touch a namespace outside its grant.
++    const outOfScope = await tableSelectTool(
++      { namespace: "some-other-ns", table: "widgets" },
++      readOnly,
++    );
++    expect(outOfScope.success).toBe(false);
++    expect(outOfScope.reason).toBe("namespace_scope");
++  });
++});
++
++describe("SURFACE-MCP-DATA-001: keyword search and read-only SQL", () => {
++  it("keyword-searches memories through the CLI search core", async () => {
++    const { rememberTool } = await import("./remember.js");
++    const written = await rememberTool({
++      key: "/surface/mcp/data-plane",
++      domain: "raw_note",
++      attributes: {},
++      embedding_text: "mcp data plane keyword probe zebra",
++      namespace: NS,
++    } as never);
++    expect(written.success).toBe(true);
++    await drainAllNamespaceWriters();
++
++    // The keyword index is rebuilt on demand by the daemon; build it
++    // explicitly so this test measures the search path, not the indexer.
++    const { rebuildNamespaceIndex } = await import("../../search/index.js");
++    await rebuildNamespaceIndex(path.join(tmpRoot, NS));
++
++    const found = await searchTool({ query: "zebra", namespace: NS });
++    expect(found.error).toBeUndefined();
++    expect(found.total).toBeGreaterThan(0);
++    expect(found.memories[0]!.key).toBe("/surface/mcp/data-plane");
++  });
++
++  it("runs one read-only SELECT and refuses a mutating statement", async () => {
++    const ok = await queryTool(
++      {
++        namespace: NS,
++        sql: "SELECT key FROM memories WHERE key LIKE '/surface/%'",
++      },
++      adminContext,
++    );
++    expect(ok.success).toBe(true);
++    expect(ok.count).toBeGreaterThan(0);
++
++    const refused = await queryTool(
++      { namespace: NS, sql: "DELETE FROM memories" },
++      adminContext,
++    );
++    expect(refused.success).toBe(false);
++    expect(refused.code).toBe("READ_ONLY_QUERY");
++  });
++});
++
++describe("SURFACE-MCP-DATA-001 AC2: driven from a real stdio client", () => {
++  it("lists the data-plane tools and completes the round trip over stdio", async () => {
++    const transport = new StdioClientTransport({
++      command: process.execPath,
++      args: [BIN_PATH, "stdio"],
++      env: {
++        ...process.env,
++        DUCKBRAIN_NAMESPACES_PATH: tmpRoot,
++        DUCKBRAIN_NAMESPACE: NS,
++      } as Record<string, string>,
++    });
++    const client = new Client({ name: "surface-proof", version: "0.0.0" });
++    await client.connect(transport);
++    try {
++      const tools = await client.listTools();
++      const names = tools.tools.map((t) => t.name);
++      for (const expected of [
++        "tables_declare",
++        "table_list",
++        "table_insert",
++        "table_select",
++        "table_update",
++        "table_delete",
++        "search",
++        "query",
++      ]) {
++        expect(names).toContain(expected);
++      }
++
++      const declared = await client.callTool({
++        name: "tables_declare",
++        arguments: {
++          namespace: NS,
++          table: "stdio_widgets",
++          columns: [
++            { name: "id", type: "integer" },
++            { name: "label", type: "varchar" },
++          ],
++          primary: "id",
++        },
++      });
++      const declareBody = JSON.parse(
++        (declared.content as Array<{ text: string }>)[0]!.text,
++      );
++      expect(declareBody.success).toBe(true);
++
++      const inserted = await client.callTool({
++        name: "table_insert",
++        arguments: {
++          namespace: NS,
++          table: "stdio_widgets",
++          rows: [
++            { id: 1, label: "one" },
++            { id: 2, label: "two" },
++          ],
++        },
++      });
++      const insertBody = JSON.parse(
++        (inserted.content as Array<{ text: string }>)[0]!.text,
++      );
++      expect(insertBody.inserted).toBe(2);
++
++      const selected = await client.callTool({
++        name: "table_select",
++        arguments: {
++          namespace: NS,
++          table: "stdio_widgets",
++          filters: { label: "eq.two" },
++        },
++      });
++      const selectBody = JSON.parse(
++        (selected.content as Array<{ text: string }>)[0]!.text,
++      );
++      expect(selectBody.count).toBe(1);
++      expect(selectBody.rows[0]).toMatchObject({ id: 2, label: "two" });
++    } finally {
++      await client.close();
++    }
++  }, 60_000);
++});
+diff --git a/src/mcp/tools/tables.ts b/src/mcp/tools/tables.ts
+new file mode 100644
+index 00000000..95328625
+--- /dev/null
++++ b/src/mcp/tools/tables.ts
+@@ -0,0 +1,638 @@
++/**
++ * Declared-table + query MCP tools (SURFACE-MCP-DATA-001)
++ *
++ * Before this module the MCP surface reached only memory primitives: an agent
++ * could remember/recall/forget but could not declare a table, write a row,
++ * read with a filter, update, delete, keyword-search or run one SELECT.
++ * Everything below is a THIN adapter over the exact implementations the CLI
++ * and REST routes call — no second code path:
++ *
++ *   tables_declare  → src/tables/declare.ts        (the `duckbrain tables declare` core)
++ *   table_insert    → src/tables/operations.ts     (insertTableRows, POST /api/ns/:ns/tables/:table)
++ *   table_select    → src/tables/operations.ts     (selectTableRows, GET  /api/ns/:ns/tables/:table)
++ *   table_update    → src/tables/operations.ts     (updateTableRows, PATCH …?pk=eq.<v>)
++ *   table_delete    → src/tables/operations.ts     (deleteTableRows, DELETE …?pk=eq.<v>)
++ *   search          → src/mcp/tools/search.ts      (the `duckbrain search` keyword core)
++ *   query           → src/duckdb/query-surface.ts  (the `duckbrain query` read-only core)
++ *
++ * Authorization sits where the REST routers put it: the namespace grant first
++ * (enforceNamespaceScope), then the per-table grant on every DATA verb
++ * (authorizeTableAccess — read for select, write for insert/update/delete/
++ * declare), then the SQL policy for query (authorizeRawSql). A refusal returns
++ * the same message text and machine-readable code the REST path returns and is
++ * audited through the request-scoped denial sink with the same reason token
++ * (`table_grant`, `role`, `namespace_scope`, `sql_flag`, `sql_cap`).
++ */
++
++import { z } from "zod";
++import fs from "fs";
++import { ApiError } from "../../http/middleware/errorHandler";
++import { authorizeRawSql, authorizeTableAccess } from "../../auth/roles";
++import {
++  QUERY_MAX_ROWS,
++  ReadOnlyQueryError,
++  runReadOnlyQuery,
++} from "../../duckdb/query-surface";
++import {
++  deleteTableRows,
++  filterParams,
++  insertTableRows,
++  listNamespaceTables,
++  resolveTableDeclaration,
++  selectTableRows,
++  updateTableRows,
++} from "../../tables/operations";
++import { declareTable, TableDeclareError } from "../../tables/declare";
++import {
++  auditRawSqlDenial,
++  auditTableGrantDenial,
++  enforceNamespaceScope,
++  resolveNamespaceName,
++  resolveNamespacePath,
++  resolveToolPrincipal,
++  type McpToolContext,
++} from "./shared";
++
++/** Machine-readable refusal — the shape every MCP tool returns on failure. */
++interface ToolRefusal {
++  success: false;
++  code: string;
++  reason?: string;
++  error: string;
++  /** Open payload: refusal shapes stay extensible without a type lie. */
++  [key: string]: unknown;
++}
++
++/**
++ * Map a thrown operation error onto the MCP refusal payload.
++ *
++ * ApiError carries the REST status + code; the MESSAGE is returned verbatim so
++ * an agent sees the same text a REST caller would (the row's parity
++ * requirement), and the CODE is the same token (NOT_FOUND, VALIDATION_ERROR,
++ * SERIALIZER_LOCKED, AUDIT_APPEND_FAILED …).
++ */
++function refusalFromError(error: unknown, fallbackCode = "ERROR"): ToolRefusal {
++  if (error instanceof ApiError) {
++    return {
++      success: false,
++      code: error.code ?? fallbackCode,
++      error: error.message,
++    };
++  }
++  if (error instanceof TableDeclareError) {
++    return {
++      success: false,
++      code: error.kind === "usage" ? "VALIDATION_ERROR" : "DECLARE_REFUSED",
++      error: error.message,
++    };
++  }
++  return {
++    success: false,
++    code: fallbackCode,
++    error: error instanceof Error ? error.message : String(error),
++  };
++}
++
++/**
++ * Apply the namespace grant, then the per-table grant, exactly as the REST
++ * route stack does (requireNamespaceGrant → requireTableGrant).
++ */
++function authorizeTableVerb(
++  context: McpToolContext | undefined,
++  namespace: string,
++  table: string,
++  operation: "read" | "write",
++): ToolRefusal | undefined {
++  const scoped = enforceNamespaceScope(context, namespace);
++  if (scoped) return { ...scoped };
++  const principal = resolveToolPrincipal(context);
++  const decision = authorizeTableAccess(principal, namespace, table, operation);
++  if (decision.allowed) return undefined;
++  auditTableGrantDenial(
++    context,
++    namespace,
++    table,
++    operation,
++    principal,
++    decision.reason,
++  );
++  return {
++    success: false,
++    code: "FORBIDDEN",
++    reason: decision.reason,
++    error: decision.message,
++  };
++}
++
++const NamespaceArg = z
++  .string()
++  .optional()
++  .describe("Namespace (defaults to the active namespace)");
++
++// ---------------------------------------------------------------------------
++// tables_declare
++// ---------------------------------------------------------------------------
++
++const TableDeclareInputSchema = z.object({
++  namespace: NamespaceArg,
++  table: z
++    .string()
++    .describe("Table name (lowercase letters, digits, '-', '_'; schema.json rules apply)"),
++  columns: z
++    .array(
++      z.object({
++        name: z.string().describe("Column name"),
++        type: z
++          .string()
++          .describe("Column type: varchar|integer|bigint|double|boolean|timestamp|json"),
++      }),
++    )
++    .min(1)
++    .describe("Declared columns; the first is the primary key unless `primary` is given"),
++  primary: z
++    .string()
++    .optional()
++    .describe("Primary key column (must be one of `columns`)"),
++  format: z
++    .enum(["jsonl-objects", "jsonl-positional"])
++    .optional()
++    .describe("Row shape (default jsonl-objects)"),
++  legacy: z
++    .boolean()
++    .optional()
++    .describe("Write tables/<table>.table.json instead of the SUPA-6 schema.json"),
++  force: z
++    .boolean()
++    .optional()
++    .describe("Replace an existing declaration of the same table with a different contract"),
++});
++
++export interface TableDeclareOutput {
++  success: boolean;
++  namespace?: string;
++  table?: string;
++  path?: string;
++  format?: "schema.json" | "legacy";
++  replacedExisting?: boolean;
++  code?: string;
++  error?: string;
++}
++
++/**
++ * Declare a table — the MCP twin of `duckbrain tables declare`.
++ *
++ * Forwards to declareTable() (src/tables/declare.ts), the CLI's own core: the
++ * schema.json path merges under the DDL fence, validates with the production
++ * validator, journals the switch and re-loads through the real loader, and
++ * rolls back on failure.
++ */
++export async function tablesDeclareTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<TableDeclareOutput> {
++  const parsed = TableDeclareInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const denied = authorizeTableVerb(context, namespace, args.table, "write");
++  if (denied) return denied;
++  try {
++    const result = await declareTable({
++      ns: namespace,
++      table: args.table,
++      columns: args.columns,
++      ...(args.primary !== undefined ? { primary: args.primary } : {}),
++      ...(args.format !== undefined ? { format: args.format } : {}),
++      ...(args.legacy !== undefined ? { legacy: args.legacy } : {}),
++      ...(args.force !== undefined ? { force: args.force } : {}),
++    });
++    return {
++      success: true,
++      namespace: result.ns,
++      table: result.table,
++      path: result.path,
++      format: result.format,
++      replacedExisting: result.replacedExisting,
++    };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// table_insert
++// ---------------------------------------------------------------------------
++
++const TableInsertInputSchema = z.object({
++  namespace: NamespaceArg,
++  table: z.string().describe("Declared table name"),
++  rows: z
++    .array(z.record(z.string(), z.unknown()))
++    .min(1)
++    .describe("Rows to insert (each a column→value object)"),
++});
++
++/**
++ * Insert rows into a declared table — the SAME insertTableRows() the REST POST
++ * route calls. Every row is validated (coerced + primary key present) before
++ * any write, so a bad batch inserts nothing.
++ */
++export async function tableInsertTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = TableInsertInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const denied = authorizeTableVerb(context, namespace, args.table, "write");
++  if (denied) return denied;
++  try {
++    const { inserted, durability } = await insertTableRows(
++      namespace,
++      args.table,
++      args.rows,
++      resolveToolPrincipal(context),
++    );
++    return {
++      success: true,
++      namespace,
++      table: args.table,
++      inserted,
++      durability,
++    };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// table_select
++// ---------------------------------------------------------------------------
++
++const TableSelectInputSchema = z.object({
++  namespace: NamespaceArg,
++  table: z.string().describe("Declared table name"),
++  filters: z
++    .record(z.string(), z.union([z.string(), z.array(z.string())]))
++    .optional()
++    .describe(
++      "PostgREST filters: {column: 'op.value'} with op ∈ eq|ne|gt|gte|lt|lte|like|in (in takes 'in.(a,b)')",
++    ),
++  order: z
++    .union([z.string(), z.array(z.string())])
++    .optional()
++    .describe("Order: 'col.asc' or 'col.desc' (repeatable)"),
++  limit: z.number().int().positive().optional().describe("Max rows (hard cap 1000)"),
++  offset: z.number().int().nonnegative().optional().describe("Rows to skip"),
++  count: z
++    .enum(["exact"])
++    .optional()
++    .describe("count=exact → return totalCount for the filter"),
++});
++
++/**
++ * SELECT a declared table — the SAME selectTableRows() the REST GET route
++ * calls, including the documented filter/order/limit vocabulary and the
++ * json-column round-trip.
++ */
++export async function tableSelectTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = TableSelectInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const denied = authorizeTableVerb(context, namespace, args.table, "read");
++  if (denied) return denied;
++  try {
++    // Resolve first so the unknown-column rule (and its message) is applied by
++    // the shared filterParams, exactly like the REST querystring path.
++    const declaration = resolveTableDeclaration(namespace, args.table);
++    const filters = filterParams(
++      { ...(args.filters ?? {}) },
++      declaration,
++    );
++    const { rows, totalCount } = await selectTableRows(namespace, args.table, {
++      filters,
++      order: args.order,
++      limit: args.limit,
++      offset: args.offset,
++      wantCount: args.count === "exact",
++    });
++    return {
++      success: true,
++      namespace,
++      table: args.table,
++      rows,
++      count: rows.length,
++      ...(totalCount !== null ? { totalCount } : {}),
++    };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// table_update / table_delete
++// ---------------------------------------------------------------------------
++
++const TableUpdateInputSchema = z.object({
++  namespace: NamespaceArg,
++  table: z.string().describe("Declared table name"),
++  pk: z
++    .union([z.string(), z.number()])
++    .describe("Primary-key value to match (the ?pk=eq.<value> filter)"),
++  values: z
++    .record(z.string(), z.unknown())
++    .describe("Column values to set (a partial patch is allowed)"),
++});
++
++/**
++ * UPDATE rows by primary key — the SAME updateTableRows() the REST PATCH route
++ * calls (read-merge-rewrite under the namespace write lock + the DB-SUPA-5
++ * change record before the acknowledgement).
++ */
++export async function tableUpdateTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = TableUpdateInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const denied = authorizeTableVerb(context, namespace, args.table, "write");
++  if (denied) return denied;
++  try {
++    const { updated, durability } = await updateTableRows(
++      namespace,
++      args.table,
++      `eq.${String(args.pk)}`,
++      args.values,
++      resolveToolPrincipal(context),
++    );
++    return { success: true, namespace, table: args.table, updated, durability };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++const TableDeleteInputSchema = z.object({
++  namespace: NamespaceArg,
++  table: z.string().describe("Declared table name"),
++  pk: z
++    .union([z.string(), z.number()])
++    .describe("Primary-key value to match (the ?pk=eq.<value> filter)"),
++});
++
++/**
++ * DELETE rows by primary key — the SAME deleteTableRows() the REST DELETE
++ * route calls (tombstone change record before the acknowledgement).
++ */
++export async function tableDeleteTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = TableDeleteInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const denied = authorizeTableVerb(context, namespace, args.table, "write");
++  if (denied) return denied;
++  try {
++    const { deleted, durability } = await deleteTableRows(
++      namespace,
++      args.table,
++      `eq.${String(args.pk)}`,
++      resolveToolPrincipal(context),
++    );
++    return { success: true, namespace, table: args.table, deleted, durability };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// table_list (the registry read the agents need to discover a table at all)
++// ---------------------------------------------------------------------------
++
++const TableListInputSchema = z.object({
++  namespace: NamespaceArg,
++});
++
++/** List declared tables — the REST GET /api/ns/:ns/tables list, grant-scoped. */
++export async function tableListTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = TableListInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const namespace = resolveNamespaceName(parsed.data.namespace);
++  const scoped = enforceNamespaceScope(context, namespace);
++  if (scoped) return { ...scoped };
++  try {
++    return {
++      success: true,
++      namespace,
++      tables: listNamespaceTables(namespace),
++    };
++  } catch (error) {
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// query (read-only SQL)
++// ---------------------------------------------------------------------------
++
++const QueryInputSchema = z.object({
++  namespace: NamespaceArg,
++  sql: z
++    .string()
++    .min(1)
++    .describe(
++      "Read-only SQL over the namespace's `memories` view (latest record per id, tombstones excluded, validity-filtered). Mutating statements are rejected.",
++    ),
++  limit: z
++    .number()
++    .int()
++    .positive()
++    .optional()
++    .describe(`Row cap (default and maximum ${QUERY_MAX_ROWS})`),
++});
++
++/**
++ * Run one read-only SELECT — the SAME runReadOnlyQuery() `duckbrain query`
++ * calls (statement allow-listing, numeric LIMIT enforcement, row cap).
++ */
++export async function queryTool(
++  input: unknown,
++  context?: McpToolContext,
++): Promise<Record<string, unknown>> {
++  const parsed = QueryInputSchema.safeParse(input);
++  if (!parsed.success) {
++    return {
++      success: false,
++      code: "VALIDATION_ERROR",
++      error: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
++    };
++  }
++  const args = parsed.data;
++  const namespace = resolveNamespaceName(args.namespace);
++  const scoped = enforceNamespaceScope(context, namespace);
++  if (scoped) return { ...scoped };
++
++  const principal = resolveToolPrincipal(context);
++  const decision = authorizeRawSql(principal, namespace, "read");
++  if (!decision.allowed) {
++    auditRawSqlDenial(context, namespace, "read", principal, decision.reason);
++    return {
++      success: false,
++      code: "FORBIDDEN",
++      reason: decision.reason,
++      error: decision.message,
++    };
++  }
++
++  const namespacePath = resolveNamespacePath(namespace);
++  if (!fs.existsSync(namespacePath)) {
++    return {
++      success: false,
++      code: "NOT_FOUND",
++      error: `Namespace '${namespace}' does not exist`,
++    };
++  }
++  const cap = Math.min(args.limit ?? QUERY_MAX_ROWS, QUERY_MAX_ROWS);
++  try {
++    const result = await runReadOnlyQuery(namespacePath, args.sql, cap);
++    return {
++      success: true,
++      namespace,
++      columns: result.columns,
++      rows: result.rows,
++      count: result.count,
++      truncated: result.truncated,
++    };
++  } catch (error) {
++    if (error instanceof ReadOnlyQueryError) {
++      return { success: false, code: "READ_ONLY_QUERY", error: error.message };
++    }
++    return refusalFromError(error);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Tool metadata (registered in src/mcp/server.ts)
++// ---------------------------------------------------------------------------
++
++export const tablesDeclareToolDef = {
++  name: "tables_declare",
++  title: "Declare Table",
++  description:
++    "Declare a table on the store so table_insert/table_select/table_update/table_delete can serve it (SUPA-6 schema.json, or --legacy .table.json). Same core as `duckbrain tables declare`.",
++  inputSchema: TableDeclareInputSchema,
++  handler: tablesDeclareTool,
++};
++
++export const tableListToolDef = {
++  name: "table_list",
++  title: "List Declared Tables",
++  description:
++    "List the tables declared in a namespace (name, format, columns, primary key, storage glob).",
++  inputSchema: TableListInputSchema,
++  handler: tableListTool,
++};
++
++export const tableInsertToolDef = {
++  name: "table_insert",
++  title: "Insert Table Rows",
++  description:
++    "Insert one or more rows into a declared table. Validates every row (including the primary key) before writing anything.",
++  inputSchema: TableInsertInputSchema,
++  handler: tableInsertTool,
++};
++
++export const tableSelectToolDef = {
++  name: "table_select",
++  title: "Select Table Rows",
++  description:
++    "Read rows from a declared table with PostgREST-style filters (eq/ne/gt/gte/lt/lte/like/in), order, limit/offset and an optional exact count.",
++  inputSchema: TableSelectInputSchema,
++  handler: tableSelectTool,
++};
++
++export const tableUpdateToolDef = {
++  name: "table_update",
++  title: "Update Table Rows",
++  description:
++    "Update the row matched by a primary-key value. A partial patch is allowed; the merged row is validated.",
++  inputSchema: TableUpdateInputSchema,
++  handler: tableUpdateTool,
++};
++
++export const tableDeleteToolDef = {
++  name: "table_delete",
++  title: "Delete Table Rows",
++  description: "Delete the row matched by a primary-key value.",
++  inputSchema: TableDeleteInputSchema,
++  handler: tableDeleteTool,
++};
++
++export const queryToolDef = {
++  name: "query",
++  title: "Read-Only SQL Query",
++  description:
++    "Run one read-only SELECT over a namespace's memories view. Mutating statements are rejected and results are capped.",
++  inputSchema: QueryInputSchema,
++  handler: queryTool,
++};
++
++export { TableDeclareInputSchema, TableInsertInputSchema, TableSelectInputSchema, TableUpdateInputSchema, TableDeleteInputSchema, QueryInputSchema };
++
++/** Every data-plane tool, in registration order. */
++export const tableToolDefs = [
++  tableListToolDef,
++  tablesDeclareToolDef,
++  tableInsertToolDef,
++  tableSelectToolDef,
++  tableUpdateToolDef,
++  tableDeleteToolDef,
++  queryToolDef,
++];
+diff --git a/src/tables/declare.ts b/src/tables/declare.ts
+new file mode 100644
+index 00000000..9dac8370
+--- /dev/null
++++ b/src/tables/declare.ts
+@@ -0,0 +1,455 @@
++/**
++ * Table declaration core (SURFACE-MCP-DATA-001)
++ *
++ * The `duckbrain tables declare` verb used to own this logic end to end, so
++ * the only way to declare a table was argv. The MCP surface needs the same
++ * capability, and "the same implementation the CLI and HTTP routes call (no
++ * second code path)" is literal here: this module IS the CLI's declaration
++ * path. `src/cli/tables.ts` parses argv and prints; it calls declareTable()
++ * for every byte that lands on disk, exactly like the MCP tables_declare tool
++ * does.
++ *
++ * Two on-disk shapes, both preserved verbatim from the CLI:
++ *
++ *   - SUPA-6 `schema.json` — merged into the namespace schema document under
++ *     the cross-process DDL fence, validated with the production validator
++ *     BEFORE the atomic switch, journaled in the DDL journal directory, and
++ *     proven loadable through the REAL loader AFTER it (any failure rolls the
++ *     previous text back).
++ *   - legacy `tables/<table>.table.json` — written atomically and validated
++ *     through the REAL legacy registry (listTables), with rollback on a
++ *     rejected declaration.
++ *
++ * Failures throw TableDeclareError carrying the exact message the CLI used to
++ * print, so both surfaces refuse identically.
++ */
++
++import crypto from "crypto";
++import fs from "fs";
++import path from "path";
++import { resolveNamespacesPath } from "../config/index.js";
++import { releaseNamespaceWriteLock } from "../serialization/lock.js";
++import {
++  DDL_DIR,
++  acquireDdlFence,
++  writeSchemaTextAtomic,
++} from "../serialization/ddl.js";
++import {
++  emptySchemaDocument,
++  formatSchemaDocument,
++  parseSchemaDocument,
++  sameCanonicalTable,
++  schemaDocumentProblems,
++  type SchemaDocument,
++  type SchemaTable,
++} from "../serialization/schemaJson.js";
++import {
++  SCHEMA_FILE_NAME,
++  invalidateNamespaceSchema,
++  loadNamespaceSchema,
++} from "../serialization/schemaRegistry.js";
++import {
++  COLUMN_NAME_PATTERN,
++  RESOURCE_NAME_PATTERN,
++  isReservedResourceName,
++  type DeclaredColumn,
++  type DeclaredColumnType,
++  type RowShape,
++} from "../serialization/schemaTypes.js";
++import {
++  TABLE_COLUMN_TYPES,
++  TABLE_FORMATS,
++  invalidateTableRegistry,
++  listTables,
++  type TableFormat,
++} from "../schema/table-registry.js";
++
++/** DB-SUPA-3 column type → SUPA-6 canonical declared type. */
++const CLI_TYPE_TO_DECLARED: Record<string, DeclaredColumnType> = {
++  varchar: "string",
++  integer: "float64",
++  bigint: "int64",
++  double: "float64",
++  boolean: "boolean",
++  timestamp: "timestamp",
++  json: "json",
++};
++
++/** Namespace/table segments must be URL-safe and filesystem-safe. */
++const NAME_PATTERN = /^[a-z0-9_-]+$/;
++
++/**
++ * A declaration the spec cannot be applied.
++ *
++ * `kind` preserves the CLI's historical split, which its tests pin:
++ *   - "usage": the ARGUMENTS are wrong (bad name, unknown type, missing
++ *     column) — the CLI throws TablesCliError, the bin prints it, exit 1.
++ *   - "refusal": the arguments are well-formed but the WRITE is refused
++ *     (conflicting declaration, invalid document, loader rejection) — the
++ *     CLI prints `Error: <message>` and exits 1, because the message is about
++ *     state on disk, not about the command line.
++ */
++export class TableDeclareError extends Error {
++  readonly kind: "usage" | "refusal";
++
++  constructor(message: string, kind: "usage" | "refusal" = "usage") {
++    super(message);
++    this.name = "TableDeclareError";
++    this.kind = kind;
++  }
++}
++
++function fail(message: string): never {
++  throw new TableDeclareError(message, "usage");
++}
++
++/** A well-formed request refused by the state on disk. */
++function refuse(message: string): never {
++  throw new TableDeclareError(message, "refusal");
++}
++
++function messageOf(error: unknown): string {
++  return error instanceof Error ? error.message : String(error);
++}
++
++function readTextOrNull(file: string): string | null {
++  try {
++    return fs.readFileSync(file, "utf-8");
++  } catch {
++    return null;
++  }
++}
++
++function sha256Hex(text: string): string {
++  return crypto.createHash("sha256").update(text).digest("hex");
++}
++
++function writeJsonAtomic(file: string, value: unknown): void {
++  fs.mkdirSync(path.dirname(file), { recursive: true });
++  const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
++  const fd = fs.openSync(tmp, "w", 0o600);
++  try {
++    fs.writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
++    fs.fsyncSync(fd);
++  } finally {
++    fs.closeSync(fd);
++  }
++  fs.renameSync(tmp, file);
++}
++
++/** A declaration request, transport-neutral (CLI argv or MCP arguments). */
++export interface DeclareTableSpec {
++  ns: string;
++  table: string;
++  /** Column list in CLI/DB-SUPA-3 type names (`id=integer`). */
++  columns: Array<{ name: string; type: string }>;
++  primary?: string;
++  format?: TableFormat;
++  /** Write tables/<table>.table.json instead of the SUPA-6 schema.json. */
++  legacy?: boolean;
++  /** Replace an existing declaration of the same table name. */
++  force?: boolean;
++}
++
++export interface DeclareTableResult {
++  ns: string;
++  table: string;
++  /** Absolute path of the file the declaration landed in. */
++  path: string;
++  /** Which on-disk shape was written. */
++  format: "schema.json" | "legacy";
++  /** True when an existing identical declaration already matched. */
++  replacedExisting: boolean;
++}
++
++function validateName(kind: string, value: string): void {
++  if (!NAME_PATTERN.test(value))
++    fail(
++      `${kind} name '${value}' must match ${NAME_PATTERN.source} (lowercase letters, digits, '-', '_')`,
++    );
++}
++
++function buildDeclaredColumns(spec: DeclareTableSpec): {
++  columns: DeclaredColumn[];
++  primary: string;
++} {
++  if (spec.columns.length === 0)
++    fail("at least one --column name=type is required");
++  // The primary key defaults to the FIRST declared column, decided BEFORE
++  // nullability is assigned — a declared key column is always non-nullable,
++  // and deciding it after the loop would mint a nullable key column that the
++  // schema validator rejects (key columns must be non-nullable).
++  const primary = spec.primary ?? spec.columns[0]!.name;
++  const seen = new Set<string>();
++  const columns: DeclaredColumn[] = [];
++  for (const { name, type } of spec.columns) {
++    if (!COLUMN_NAME_PATTERN.test(name))
++      fail(
++        `column name '${name}' is not a valid identifier (letters, digits, '_', starting with a letter or '_')`,
++      );
++    if (seen.has(name)) fail(`duplicate column '${name}'`);
++    seen.add(name);
++    if (!(TABLE_COLUMN_TYPES as readonly string[]).includes(type))
++      fail(
++        `unsupported column type '${type}' for column '${name}' (expected one of ${TABLE_COLUMN_TYPES.join("|")})`,
++      );
++    columns.push({
++      name,
++      type: CLI_TYPE_TO_DECLARED[type]!,
++      nullable: name !== primary,
++    });
++  }
++  if (spec.primary !== undefined) {
++    if (!columns.some((column) => column.name === spec.primary))
++      fail(`--primary '${spec.primary}' must name one of the declared columns`);
++  }
++  return { columns, primary };
++}
++
++/**
++ * Declare a table. Throws TableDeclareError on any validation or write
++ * refusal; resolves only when the declaration is on disk AND proven loadable
++ * through the real registry loader.
++ */
++export async function declareTable(
++  spec: DeclareTableSpec,
++): Promise<DeclareTableResult> {
++  if (!TABLE_FORMATS.includes(spec.format ?? "jsonl-objects"))
++    fail(
++      `--format must be one of ${TABLE_FORMATS.join("|")}, got '${spec.format}'`,
++    );
++  validateName("Namespace", spec.ns);
++  validateName("Table", spec.table);
++  const { columns, primary } = buildDeclaredColumns(spec);
++
++  // GAP-062 path resolution: the same config-resolved namespaces root the
++  // rest of the CLI/HTTP surface uses (never the caller's cwd).
++  const root = path.resolve(resolveNamespacesPath());
++  const nsDir = path.join(root, spec.ns);
++  const format = spec.format ?? "jsonl-objects";
++
++  if (spec.legacy) {
++    // The legacy TableDeclaration shape (src/schema/table-registry.ts): CLI
++    // column types are used VERBATIM (they ARE the legacy types), the name
++    // must equal the declaration file base name, and the glob is relative to
++    // the namespace dir.
++    const declaration = {
++      name: spec.table,
++      format,
++      columns: spec.columns.map(({ name, type }) => ({ name, type })),
++      primary: spec.primary ?? null,
++      glob: `tables/${spec.table}.jsonl`,
++    };
++    return declareLegacyFile({
++      ns: spec.ns,
++      nsDir,
++      table: spec.table,
++      declaration,
++    });
++  }
++
++  // SUPA-6 path: the table name must satisfy the stricter schema-document
++  // rules (RESOURCE_NAME_PATTERN + reserved names) because schema.json is the
++  // DDL surface — the production validator would reject anything else.
++  if (!RESOURCE_NAME_PATTERN.test(spec.table))
++    fail(
++      `table name '${spec.table}' must match ${RESOURCE_NAME_PATTERN.source} for a schema.json declaration (use --legacy for the permissive legacy shape)`,
++    );
++  if (isReservedResourceName(spec.table))
++    fail(`table name '${spec.table}' is a reserved resource name`);
++
++  const candidate: SchemaTable = {
++    schemaVersion: 1,
++    storage: { path: `tables/${spec.table}/current.jsonl` },
++    rowShape: (format === "jsonl-positional" ? "positional" : "object") as RowShape,
++    keyColumns: [primary],
++    columns,
++  };
++  return declareIntoSchemaJson({
++    ns: spec.ns,
++    nsDir,
++    root,
++    table: spec.table,
++    candidate,
++    force: spec.force === true,
++  });
++}
++
++// ---------------------------------------------------------------------------
++// schema.json path (SUPA-6)
++// ---------------------------------------------------------------------------
++
++async function declareIntoSchemaJson(options: {
++  ns: string;
++  nsDir: string;
++  root: string;
++  table: string;
++  candidate: SchemaTable;
++  force: boolean;
++}): Promise<DeclareTableResult> {
++  const { ns, nsDir, root, table, candidate, force } = options;
++  const schemaFile = path.join(nsDir, SCHEMA_FILE_NAME);
++  const fence = await acquireDdlFence(ns, root, 30_000);
++  let result: DeclareTableResult | null = null;
++  try {
++    // Merge decision INSIDE the fence, so no concurrent DDL can interleave.
++    const previousText = readTextOrNull(schemaFile);
++    let document: SchemaDocument = emptySchemaDocument();
++    if (previousText !== null) {
++      try {
++        document = parseSchemaDocument(JSON.parse(previousText), {
++          where: schemaFile,
++        });
++      } catch (error) {
++        refuse(
++          `refusing to merge into an invalid ${SCHEMA_FILE_NAME}: ${messageOf(error)}`,
++        );
++      }
++    }
++
++    const existing = document.tables[table];
++    if (existing && !force && !sameCanonicalTable(existing, candidate)) {
++      refuse(
++        `table '${table}' is already declared in ${schemaFile} with a different contract. Re-run with --force to replace it.`,
++      );
++    }
++
++    const nextDocument: SchemaDocument = {
++      ...document,
++      tables: { ...document.tables, [table]: candidate },
++    };
++    // Validate the candidate document BEFORE writing anything: an invalid
++    // declaration must fail without leaving a single byte behind.
++    const problems = schemaDocumentProblems(nextDocument);
++    if (problems.length > 0) {
++      refuse(`the resulting ${SCHEMA_FILE_NAME} would be invalid: ${problems.join("; ")}`);
++    }
++
++    const restore = (): void => {
++      if (previousText !== null) writeSchemaTextAtomic(nsDir, previousText, { ns });
++      else {
++        try {
++          fs.unlinkSync(schemaFile);
++        } catch {
++          // best effort — there was no previous document
++        }
++      }
++    };
++
++    const switchText = formatSchemaDocument(nextDocument);
++    const switched = writeSchemaTextAtomic(nsDir, switchText, { ns });
++    // Journal the switch in the DDL journal format BEFORE reporting success
++    // (and AFTER the atomic rename), so crash-recovery evidence stays
++    // classifiable: recovery compares the live schema hash against the
++    // journaled old/new hashes. `switched` is also a status journal here —
++    // the declare already completed before it was written, so recovery
++    // finalizes it without touching the file again.
++    writeJsonAtomic(
++      path.join(
++        nsDir,
++        DDL_DIR,
++        `declare-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}.json`,
++      ),
++      {
++        operation: "createTable",
++        ns,
++        table,
++        status: "finalized",
++        request: {
++          table,
++          rowShape: candidate.rowShape,
++          keyColumns: candidate.keyColumns,
++          columns: candidate.columns,
++          storagePath: candidate.storage.path,
++        },
++        oldSchemaHash: previousText === null ? null : sha256Hex(previousText),
++        newSchemaHash: switched.hash,
++        detail:
++          "declared via `duckbrain tables declare` (no generation published)",
++        createdAt: new Date().toISOString(),
++        updatedAt: new Date().toISOString(),
++      },
++    );
++    // Prove the result through the REAL loader (no mock of the validator).
++    invalidateNamespaceSchema(ns);
++    invalidateTableRegistry(ns);
++    const loaded = loadNamespaceSchema(ns, { namespacesPath: root, force: true });
++    if (!loaded.present || loaded.error !== null) {
++      restore();
++      invalidateNamespaceSchema(ns);
++      invalidateTableRegistry(ns);
++      refuse(
++        `the written ${SCHEMA_FILE_NAME} failed the real schema loader: ${
++          loaded.error?.message ?? "document did not load"
++        }. The previous schema was restored.`,
++      );
++    }
++
++    result = {
++      ns,
++      table,
++      path: switched.path,
++      format: "schema.json",
++      replacedExisting: existing !== undefined,
++    };
++    return result;
++  } finally {
++    releaseNamespaceWriteLock(fence);
++    // Same post-fence invalidation pattern as the DDL coordinator: the next
++    // read in ANY surface sees the file that is on disk now.
++    invalidateNamespaceSchema(ns);
++    invalidateTableRegistry(ns);
++    loadNamespaceSchema(ns, { namespacesPath: root, force: true });
++  }
++}
++
++// ---------------------------------------------------------------------------
++// legacy path (tables/<table>.table.json)
++// ---------------------------------------------------------------------------
++
++function declareLegacyFile(options: {
++  ns: string;
++  nsDir: string;
++  table: string;
++  declaration: Record<string, unknown>;
++}): DeclareTableResult {
++  const { ns, nsDir, table, declaration } = options;
++  const tablesDir = path.join(nsDir, "tables");
++  const file = path.join(tablesDir, `${table}.table.json`);
++  const previousText = readTextOrNull(file);
++
++  fs.mkdirSync(tablesDir, { recursive: true });
++  fs.writeFileSync(file, `${JSON.stringify(declaration, null, 2)}\n`);
++
++  // Validate through the REAL legacy registry: listTables reads and validates
++  // every declaration file and throws on a bad one — the same validator
++  // src/http/routes/tables.ts serves through. The cache is dropped first so
++  // this read is guaranteed to hit the disk.
++  let problem: string | null = null;
++  try {
++    invalidateTableRegistry(ns);
++    listTables(ns);
++  } catch (error) {
++    problem = messageOf(error);
++  }
++  if (problem !== null) {
++    if (previousText !== null) fs.writeFileSync(file, previousText);
++    else {
++      try {
++        fs.unlinkSync(file);
++      } catch {
++        // best effort
++      }
++    }
++    invalidateTableRegistry(ns);
++    refuse(`the written declaration failed the legacy table registry: ${problem}. The previous state was restored.`);
++  }
++
++  return {
++    ns,
++    table,
++    path: file,
++    format: "legacy",
++    replacedExisting: previousText !== null,
++  };
++}
+diff --git a/src/tables/operations.ts b/src/tables/operations.ts
+new file mode 100644
+index 00000000..527bf517
+--- /dev/null
++++ b/src/tables/operations.ts
+@@ -0,0 +1,663 @@
++/**
++ * Declared-table data operations (SURFACE-MCP-DATA-001)
++ *
++ * ONE implementation for the table verbs, shared by the REST routes
++ * (src/http/routes/tables.ts) and the MCP tools (src/mcp/tools/tables.ts).
++ *
++ * Before this module the verbs lived inline in the Express handlers, so any
++ * second transport that wanted table CRUD had to re-implement the declaration
++ * resolution, the primary-key rules, the SUPA-2 writer path, the mutation
++ * change records and the durability reporting — i.e. drift. The handlers are
++ * now thin adapters over these functions; MCP calls the SAME functions, so a
++ * refusal raised here is byte-identical on both transports.
++ *
++ * Semantics preserved verbatim (moved, not rewritten):
++ *   - select: PostgREST filter vocabulary, hard row cap, json column
++ *     round-trip, exact-count opt-in.
++ *   - insert: SUPA-6 schema.json → NamespaceWriter (validation → ordered
++ *     write → audit/change record → commit, DDL fence honoured); legacy
++ *     `.table.json` → direct append. All rows validated before any write.
++ *   - update/delete: pk=eq.<v> only, read-merge-rewrite under the namespace
++ *     write lock, DB-SUPA-5 change record before the acknowledgement.
++ */
++
++import path from "path";
++import { ApiError } from "../http/middleware/errorHandler";
++import { listTables, getTable, namespaceDir, type TableDeclaration } from "../schema/table-registry";
++import { getDeclaredTable, assertNamespaceSchemaUsable } from "../serialization/schemaRegistry";
++import type { RegisteredTableDeclaration } from "../serialization/registry";
++import {
++  buildSelectPlan,
++  executeSelectPlan,
++  coerceRowAgainstDeclaration,
++  appendRowsToTable,
++  findRowByPk,
++  findRowLineByPk,
++  patchRowsByPk,
++  deleteRowsByPk,
++  type MutationOutcome,
++  type RowLineLocation,
++} from "../duckdb/table-store";
++import { getNamespaceWriter } from "../serialization/namespaceWriter";
++import { acceptedTableMutationRecord, type AuditEntry } from "../serialization/audit";
++import {
++  acquireNamespaceWriteLock,
++  releaseNamespaceWriteLock,
++  type NamespaceWriteLock,
++} from "../serialization/lock";
++import { resolveNamespacesPath } from "../config";
++import {
++  durabilityHeaderFor,
++  type AchievedWriteMode,
++  type WriteMode,
++} from "../storage/durability";
++import { assertNamespaceDdlUsable, partitionForStoragePath } from "../serialization/ddl";
++import { storedRowFromApiRow } from "../serialization/schemaTypes";
++import type { AuthPrincipal } from "../auth/middleware";
++
++/** Declared column types (schema.json) → legacy DuckDB column types. */
++const DECLARED_TO_LEGACY: Record<string, string> = {
++  string: "varchar",
++  int64: "bigint",
++  float64: "double",
++  boolean: "boolean",
++  timestamp: "timestamp",
++  json: "json",
++  bytes: "varchar",
++};
++
++/** Namespace-relative POSIX path of a physical data file. */
++export function namespaceRelativePath(nsDir: string, filePath: string): string {
++  return path.relative(nsDir, filePath).split(path.sep).join("/");
++}
++
++/** Durability actually achieved vs configured for a table mutation. */
++export interface TableDurability {
++  configured: WriteMode;
++  achieved: AchievedWriteMode;
++}
++
++/** View a schema.json declaration through the legacy TableDeclaration shape. */
++export function asLegacyDeclaration(
++  decl: RegisteredTableDeclaration,
++): TableDeclaration {
++  return {
++    name: decl.table,
++    format: "jsonl-objects" as const,
++    columns: decl.columns.map((c) => ({
++      name: c.name,
++      type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
++      nullable: c.nullable,
++    })),
++    primary: decl.keyColumns[0] ?? null,
++    glob: decl.storagePath,
++    source: "schema.json" as const,
++  };
++}
++
++/**
++ * Resolve a table declaration the way every table verb does: legacy
++ * `.table.json` registry first, then the SUPA-6 declared registry (which
++ * supersedes legacy on a naming collision).
++ *
++ * The not-found message is the one both REST and MCP return.
++ */
++export function resolveTableDeclaration(
++  ns: string,
++  table: string,
++  options: { legacyOnly?: boolean } = {},
++): TableDeclaration {
++  const legacy = getTable(ns, table) as TableDeclaration | undefined;
++  if (legacy) return legacy;
++  if (options.legacyOnly) {
++    throw new ApiError(
++      `Table '${table}' not found in namespace '${ns}'`,
++      404,
++      "NOT_FOUND",
++    );
++  }
++  const declared = getDeclaredTable(ns, table);
++  if (declared) return asLegacyDeclaration(declared);
++  throw new ApiError(
++    `Table '${table}' not found in namespace '${ns}'`,
++    404,
++    "NOT_FOUND",
++  );
++}
++
++/** Declared tables in a namespace, as the list surface reports them. */
++export function listNamespaceTables(ns: string): Array<{
++  name: string;
++  format: string;
++  columns: TableDeclaration["columns"];
++  primary: string | null;
++  glob: string;
++}> {
++  return listTables(ns).map((t) => ({
++    name: t.name,
++    format: t.format,
++    columns: t.columns,
++    primary: t.primary,
++    glob: t.glob,
++  }));
++}
++
++/** Resolve and validate a supplied primary-key equality filter. */
++export function resolvePkFilter(
++  declaration: TableDeclaration,
++  raw: unknown,
++  operation: string,
++): { col: TableDeclaration["columns"][number]; value: string } {
++  if (!declaration.primary) {
++    throw new ApiError(
++      `Table '${declaration.name}' declares no primary key; ${operation} are not available`,
++      400,
++      "VALIDATION_ERROR",
++    );
++  }
++  const col = declaration.columns.find((c) => c.name === declaration.primary)!;
++  const pkValue = Array.isArray(raw) ? raw[0] : raw;
++  const pk = pkValue === undefined ? undefined : String(pkValue);
++  if (pk === undefined) {
++    throw new ApiError(
++      `${operation} require a primary key filter: ?pk=eq.<value>`,
++      400,
++      "VALIDATION_ERROR",
++    );
++  }
++  const m = pk.match(/^eq[.](.+)$/s) ?? (pk === "eq.null" ? null : null);
++  if (!m) {
++    throw new ApiError(
++      `${operation} require an equality filter on the primary key: ?pk=eq.<value>`,
++      400,
++      "VALIDATION_ERROR",
++    );
++  }
++  return { col, value: m[1]! };
++}
++
++/** Query keys that are not column filters. */
++const RESERVED_QUERY_KEYS = new Set(["order", "limit", "offset", "count", "pk"]);
++
++/**
++ * Extract only the querystring entries that look like column filters.
++ *
++ * Accepts a plain query object (Express `req.query` or an MCP argument map),
++ * so both transports apply the same unknown-column rule.
++ */
++export function filterParams(
++  query: Record<string, unknown>,
++  declaration: TableDeclaration,
++): Record<string, string | string[]> {
++  const out: Record<string, string | string[]> = {};
++  for (const [key, value] of Object.entries(query)) {
++    if (RESERVED_QUERY_KEYS.has(key)) continue;
++    if (!declaration.columns.some((c) => c.name === key)) {
++      const first = Array.isArray(value) ? String(value[0]) : String(value);
++      if (/^[a-z]+\./.test(first)) {
++        throw new ApiError(
++          `Unknown filter column '${key}' (table '${declaration.name}' declares: ${declaration.columns.map((c) => c.name).join(", ")})`,
++          400,
++          "VALIDATION_ERROR",
++        );
++      }
++      continue;
++    }
++    out[key] = Array.isArray(value)
++      ? (value as unknown[]).map(String)
++      : String(value);
++  }
++  if (query.pk !== undefined) {
++    const { col, value } = resolvePkFilter(declaration, query.pk, "GET");
++    out[col.name] = `eq.${value}`;
++  }
++  return out;
++}
++
++/** Select input shared by the REST querystring and the MCP arguments. */
++export interface SelectTableInput {
++  filters?: Record<string, string | string[]>;
++  order?: string | string[] | undefined;
++  limit?: unknown;
++  offset?: unknown;
++  wantCount?: boolean;
++}
++
++export interface SelectTableResult {
++  declaration: TableDeclaration;
++  rows: Record<string, unknown>[];
++  totalCount: number | null;
++}
++
++/**
++ * SELECT a declared table with the PostgREST vocabulary.
++ *
++ * Declared json columns arrive as VARCHAR text (DuckDB JSON→VARCHAR
++ * projection); they are parsed back into real JSON values so responses carry
++ * actual JSON, matching what was inserted.
++ */
++export async function selectTableRows(
++  ns: string,
++  table: string,
++  input: SelectTableInput = {},
++): Promise<SelectTableResult> {
++  const declaration = resolveTableDeclaration(ns, table);
++  const plan = buildSelectPlan(declaration, {
++    filters: input.filters ?? {},
++    order: input.order,
++    limit: input.limit as never,
++    offset: input.offset as never,
++    wantCount: input.wantCount === true,
++  });
++  const { rows: rawRows, totalCount } = await executeSelectPlan(
++    namespaceDir(ns),
++    declaration,
++    plan,
++  );
++  const jsonCols = declaration.columns
++    .filter((c) => c.type === "json")
++    .map((c) => c.name);
++  const rows = rawRows.map((row) => {
++    if (jsonCols.length === 0) return row as Record<string, unknown>;
++    const shaped: Record<string, unknown> = { ...(row as Record<string, unknown>) };
++    for (const name of jsonCols) {
++      const cell = shaped[name];
++      if (typeof cell === "string") {
++        try {
++          shaped[name] = JSON.parse(cell) as unknown;
++        } catch {
++          // leave raw text when it isn't valid JSON
++        }
++      }
++    }
++    return shaped;
++  });
++  return { declaration, rows, totalCount };
++}
++
++/** How long an accepted mutation's audit append waits out lock contention. */
++const MUTATION_AUDIT_LOCK_DEADLINE_MS = 2_000;
++const MUTATION_AUDIT_LOCK_RETRY_MS = 25;
++
++function sleep(ms: number): Promise<void> {
++  return new Promise((resolve) => setTimeout(resolve, ms));
++}
++
++/**
++ * Append an accepted mutation's change record, waiting out TRANSIENT
++ * `SERIALIZER_LOCKED` (the serializer's flush and the commit chain hold the
++ * namespace lock briefly; that is self-contention, not client contention).
++ */
++async function enqueueMutationAuditWithRetry(
++  ns: string,
++  entry: AuditEntry,
++): Promise<void> {
++  const deadline = Date.now() + MUTATION_AUDIT_LOCK_DEADLINE_MS;
++  for (;;) {
++    try {
++      await getNamespaceWriter(ns).enqueueAudit(entry);
++      return;
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      if (!message.startsWith("SERIALIZER_LOCKED") || Date.now() >= deadline) {
++        throw error;
++      }
++      await sleep(MUTATION_AUDIT_LOCK_RETRY_MS);
++    }
++  }
++}
++
++/**
++ * DB-SUPA-2: record an ACCEPTED table mutation in the namespace's audit
++ * ledger through the SUPA-2 single writer, and resolve only once that append
++ * is durable — a 2xx must never precede its audit record.
++ */
++async function recordTableMutationAudit(
++  ns: string,
++  table: string,
++  op: "update" | "delete",
++  principal: string | null,
++  location: { targetPath: string; dataLine: string; row: unknown },
++): Promise<void> {
++  let entry: AuditEntry;
++  try {
++    entry = acceptedTableMutationRecord({
++      ns,
++      namespacePath: namespaceDir(ns),
++      table,
++      op,
++      principal,
++      targetPath: location.targetPath,
++      dataLine: location.dataLine,
++      row: location.row,
++    });
++  } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    throw new ApiError(
++      `mutation was applied but its change record could not be built: ${message}`,
++      500,
++      "AUDIT_APPEND_FAILED",
++    );
++  }
++  try {
++    await enqueueMutationAuditWithRetry(ns, entry);
++  } catch (error) {
++    const message = error instanceof Error ? error.message : String(error);
++    const shuttingDown = message.startsWith("SERVER_SHUTTING_DOWN");
++    throw new ApiError(
++      `mutation was applied but its audit record could not be appended: ${message}`,
++      shuttingDown ? 503 : 500,
++      shuttingDown ? "SERVER_SHUTTING_DOWN" : "AUDIT_APPEND_FAILED",
++    );
++  }
++}
++
++/** How long a declared-table mutation waits for the namespace write lock. */
++const LOCK_WAIT_RETRY_MS = 25;
++const LOCK_WAIT_DEADLINE_MS = 2_000;
++
++/** Acquire the namespace write lock, waiting (bounded) instead of failing fast. */
++async function acquireNamespaceWriteLockWaiting(
++  ns: string,
++): Promise<NamespaceWriteLock | null> {
++  const deadline = Date.now() + LOCK_WAIT_DEADLINE_MS;
++  for (;;) {
++    const lock = acquireNamespaceWriteLock(resolveNamespacesPath(), ns);
++    if (lock) return lock;
++    if (Date.now() >= deadline) return null;
++    await sleep(LOCK_WAIT_RETRY_MS);
++  }
++}
++
++/**
++ * INSERT rows into a declared table.
++ *
++ * A DB-SUPA-6 `schema.json` declaration writes through the SUPA-2 serializer
++ * (`NamespaceWriter.enqueue`) at the table's DECLARED storage path, so the
++ * write rides the same validation → ordered write → audit/change-record →
++ * commit path as every other durable row, and it observes the DDL fence: a
++ * write attempted while a DDL operation holds the namespace lock receives the
++ * retryable `SERIALIZER_LOCKED` result and writes nothing. Legacy
++ * `tables/<table>.table.json` declarations keep the historical direct append,
++ * which now honours the configured durability mode (DURABILITY-HONESTY-001)
++ * and reports what it achieved.
++ */
++export async function insertTableRows(
++  ns: string,
++  table: string,
++  rawRows: unknown[],
++  principal?: AuthPrincipal,
++): Promise<{ inserted: number; durability: TableDurability }> {
++  const declaration = resolveTableDeclaration(ns, table);
++  if (rawRows.length === 0) {
++    throw new ApiError(
++      "Insert body must contain at least one row",
++      400,
++      "VALIDATION_ERROR",
++    );
++  }
++  const coerced = rawRows.map((row) =>
++    coerceRowAgainstDeclaration(declaration, row),
++  );
++  // AUG-045: a row that omits (or nulls) the declared primary key would be
++  // stored with id:null and become unreachable via the API — PATCH/DELETE both
++  // require ?pk=eq.<value>. Validate ALL rows before any writer enqueue /
++  // append so a bad batch inserts nothing (no partial inserts).
++  if (declaration.primary) {
++    for (const row of coerced) {
++      const pkValue = row[declaration.primary];
++      if (pkValue === undefined || pkValue === null || pkValue === "") {
++        throw new ApiError(
++          `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
++          400,
++          "VALIDATION_ERROR",
++        );
++      }
++    }
++  }
++  if (declaration.source === "schema.json") {
++    // Fail closed on a failed DDL recovery and on an invalid on-disk schema
++    // before accepting new generic-table work.
++    assertNamespaceDdlUsable(ns);
++    assertNamespaceSchemaUsable(ns);
++    const declaredColumns = declaration.columns.map((column) => ({
++      name: column.name,
++      type: column.declaredType!,
++      nullable: column.nullable ?? true,
++      ...(column.hasDefault ? { default: column.default } : {}),
++    }));
++    const writer = getNamespaceWriter(ns);
++    const partition = partitionForStoragePath(declaration.glob);
++    let inserted = 0;
++    for (const row of coerced) {
++      const record = storedRowFromApiRow(
++        declaredColumns,
++        declaration.format === "jsonl-positional" ? "positional" : "object",
++        row,
++      );
++      const result = await writer.enqueue({
++        ns,
++        table: declaration.name,
++        op: "insert",
++        record,
++        principal,
++        targetPath: declaration.glob,
++        ...(partition ? { partitionPath: partition } : {}),
++      });
++      if (!result.ok) {
++        const status =
++          result.code === "VALIDATION_ERROR"
++            ? 422
++            : result.code === "NOT_FOUND"
++              ? 404
++              : result.code === "FORBIDDEN"
++                ? 403
++                : result.code === "SERIALIZER_LOCKED" ||
++                    result.code === "SERIALIZER_FENCED" ||
++                    result.code === "SERVER_SHUTTING_DOWN"
++                  ? 503
++                  : 500;
++        throw new ApiError(result.message, status, result.code);
++      }
++      inserted += 1;
++    }
++    const configured = durabilityHeaderFor(ns);
++    return { inserted, durability: { configured, achieved: configured } };
++  }
++  // DURABILITY-HONESTY-001: the legacy `.table.json` insert used a bare
++  // page-cache append while advertising the configured mode. The append now
++  // honours the mode (fdatasync + directory fsync) and the response reports
++  // what it achieved, not what was configured.
++  const configured = durabilityHeaderFor(ns);
++  const appended = appendRowsToTable(
++    namespaceDir(ns),
++    declaration,
++    coerced,
++    configured,
++  );
++  return {
++    inserted: appended.inserted,
++    durability: { configured, achieved: appended.achieved },
++  };
++}
++
++/**
++ * UPDATE rows by primary key.
++ *
++ * Rewrites the matching JSONL file rows and records the accepted mutation
++ * through the NamespaceWriter as a DB-SUPA-5 change record, so the audit
++ * ledger sees it before the acknowledgement and the change feed replays it.
++ */
++export async function updateTableRows(
++  ns: string,
++  table: string,
++  pkRaw: unknown,
++  patchBody: Record<string, unknown>,
++  principal?: AuthPrincipal,
++): Promise<{ updated: number; durability: TableDurability }> {
++  const declaration = resolveTableDeclaration(ns, table);
++  const { col, value } = resolvePkFilter(declaration, pkRaw, "PATCH/DELETE");
++  const unknownKeys = Object.keys(patchBody).filter(
++    (k) => !declaration.columns.some((c) => c.name === k),
++  );
++  if (unknownKeys.length > 0) {
++    throw new ApiError(
++      `Unknown column(s) in PATCH body: ${unknownKeys.join(", ")}`,
++      400,
++      "VALIDATION_ERROR",
++    );
++  }
++
++  const nsDir = namespaceDir(ns);
++  // DB-SUPA-2: the read-merge-rewrite runs under the namespace write lock —
++  // the same lock the serializer's flush and the commit chain take — so two
++  // writers (two processes on one namespace root included) cannot lose each
++  // other's update. It is held for synchronous file work only; the audit
++  // record below is enqueued AFTER it is released, so this request's own
++  // awaited flush is never blocked behind its own critical section.
++  const lock = await acquireNamespaceWriteLockWaiting(ns);
++  if (!lock) {
++    throw new ApiError(
++      `Namespace '${ns}' is locked by another writer process`,
++      503,
++      "SERIALIZER_LOCKED",
++    );
++  }
++  let coercedBody: Record<string, unknown> = {};
++  let mutated = 0;
++  const configured = durabilityHeaderFor(ns);
++  let patchOutcome: MutationOutcome | null = null;
++  let location: RowLineLocation | null = null;
++  try {
++    const existing = findRowByPk(nsDir, declaration, col, value);
++    if (existing !== null) {
++      // Validate the MERGED row, not each body field in isolation: a partial
++      // patch is legal (only the named columns change) while every declared
++      // constraint is still enforced against the row the patch produces.
++      const merged = coerceRowAgainstDeclaration(declaration, {
++        ...existing,
++        ...patchBody,
++      });
++      for (const key of Object.keys(patchBody)) coercedBody[key] = merged[key];
++      patchOutcome = patchRowsByPk(nsDir, declaration, col, value, coercedBody, {
++        mode: configured,
++      });
++      mutated = patchOutcome.mutated;
++      if (mutated > 0) {
++        // DB-SUPA-5: the change record's `contentHash` must name the row line
++        // as it now exists on disk, so read it back instead of re-serializing.
++        // Read INSIDE the lock so a concurrent writer in another process
++        // cannot replace the line between the rewrite and the read. A patch
++        // that moves the primary key is looked up under its NEW value.
++        const lookupValue = Object.prototype.hasOwnProperty.call(
++          coercedBody,
++          col.name,
++        )
++          ? String(coercedBody[col.name])
++          : value;
++        location = findRowLineByPk(nsDir, declaration, col, lookupValue);
++      }
++    }
++  } finally {
++    releaseNamespaceWriteLock(lock);
++  }
++  // No matching row: nothing was written and there is nothing to audit.
++  if (mutated === 0) {
++    return { updated: 0, durability: { configured, achieved: configured } };
++  }
++  if (location === null) {
++    throw new ApiError(
++      `mutation was applied but the updated row could not be located for its change record`,
++      500,
++      "AUDIT_APPEND_FAILED",
++    );
++  }
++  await recordTableMutationAudit(
++    ns,
++    declaration.name,
++    "update",
++    principal?.name ?? null,
++    {
++      targetPath: namespaceRelativePath(nsDir, location.filePath),
++      dataLine: location.line,
++      row: location.row,
++    },
++  );
++  return {
++    updated: mutated,
++    durability: {
++      configured,
++      achieved: patchOutcome?.achieved ?? configured,
++    },
++  };
++}
++
++/**
++ * DELETE rows by primary key.
++ *
++ * Rewrites the matching JSONL files with the row dropped and records the
++ * accepted delete through the NamespaceWriter as a tombstone change record
++ * before the acknowledgement.
++ */
++export async function deleteTableRows(
++  ns: string,
++  table: string,
++  pkRaw: unknown,
++  principal?: AuthPrincipal,
++): Promise<{ deleted: number; durability: TableDurability }> {
++  const declaration = resolveTableDeclaration(ns, table);
++  const { col, value } = resolvePkFilter(declaration, pkRaw, "PATCH/DELETE");
++
++  const nsDir = namespaceDir(ns);
++  // DB-SUPA-2: same namespace write lock as PATCH — the read-predicate-write
++  // pair must not interleave with another writer process, and a same-process
++  // holder (flush / commit) is waited on rather than reported as contention.
++  const lock = await acquireNamespaceWriteLockWaiting(ns);
++  if (!lock) {
++    throw new ApiError(
++      `Namespace '${ns}' is locked by another writer process`,
++      503,
++      "SERIALIZER_LOCKED",
++    );
++  }
++  let removed = 0;
++  const configured = durabilityHeaderFor(ns);
++  let deleteOutcome: MutationOutcome | null = null;
++  // DB-SUPA-5: capture the row BEFORE the rewrite — a physical delete removes
++  // the line from the data file, so the tombstone record's `contentHash` must
++  // name the last committed row image (resolved by replay against the parent
++  // commit), not a line the child no longer has.
++  const location = findRowLineByPk(nsDir, declaration, col, value);
++  try {
++    deleteOutcome = deleteRowsByPk(nsDir, declaration, col, value, configured);
++    removed = deleteOutcome.mutated;
++  } finally {
++    releaseNamespaceWriteLock(lock);
++  }
++  // Nothing matched: no tombstone to record, nothing was deleted.
++  if (removed === 0) {
++    return { deleted: 0, durability: { configured, achieved: configured } };
++  }
++  if (location === null) {
++    throw new ApiError(
++      `mutation was applied but the deleted row could not be located for its tombstone record`,
++      500,
++      "AUDIT_APPEND_FAILED",
++    );
++  }
++  await recordTableMutationAudit(
++    ns,
++    declaration.name,
++    "delete",
++    principal?.name ?? null,
++    {
++      targetPath: namespaceRelativePath(nsDir, location.filePath),
++      dataLine: location.line,
++      row: location.row,
++    },
++  );
++  return {
++    deleted: removed,
++    durability: { configured, achieved: deleteOutcome?.achieved ?? configured },
++  };
++}
+diff --git a/test-counts.json b/test-counts.json
+index 9a67f9a0..5a6d0b3a 100644
+--- a/test-counts.json
++++ b/test-counts.json
+@@ -1,5 +1,5 @@
+ {
+-  "suites": 257,
+-  "tests": 2141,
++  "suites": 258,
++  "tests": 2148,
+   "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+ }

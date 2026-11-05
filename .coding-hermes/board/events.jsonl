@@ -1294,3 +1294,5 @@
 {"id":8473,"timestamp":"2026-11-05T19:10:57Z","event_type":"task_completed","task_id":"REPLAY-BIRTH-DEATH-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8474,"timestamp":"2026-11-05T19:57:40Z","event_type":"task_updated","task_id":"DURABILITY-HONESTY-001","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
 {"id":8475,"timestamp":"2026-11-05T20:15:09Z","event_type":"task_completed","task_id":"DURABILITY-HONESTY-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8476,"timestamp":"2026-11-05T21:03:12Z","event_type":"task_updated","task_id":"SURFACE-MCP-DATA-001","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8477,"timestamp":"2026-11-05T21:20:51Z","event_type":"task_completed","task_id":"SURFACE-MCP-DATA-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
