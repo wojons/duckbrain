@@ -1,0 +1,68 @@
+# Transcript produced by: node examples/taskboard/verify.mjs
+# against examples/taskboard/start.sh (scratch daemon :28778, namespace 'taskboard')
+# recorded 2026-11-05T18:59:45Z
+
+DuckBrain task board — end-to-end transcript
+daemon http://127.0.0.1:28778   namespace taskboard   state /home/kara/.hermes/cache/scratch/taskboard-demo
+generated 2026-11-05T18:59:38.891Z
+
+=== 1. the daemon is serving declared tables ===
+  GET /health -> 200 (healthy)
+  GET /api/ns/taskboard/tables -> 3 declared tables: boards, cards, columns
+  PASS three declared tables — boards,cards,columns
+
+=== 2. create board, columns and cards (POST, one row per card) ===
+  POST /api/ns/taskboard/tables/boards -> 201 (X-Durability: buffered)
+  body: {"id":"board_mw3wtqtmwtwahl","name":"Demo board"}
+  POST /api/ns/taskboard/tables/columns (2 rows) -> 201 (X-Durability: buffered)
+  POST /api/ns/taskboard/tables/cards (3 rows) -> 201 (X-Durability: buffered)
+
+=== 3. read the board back exactly as the UI does ===
+  GET /api/ns/taskboard/tables/cards?board_id=eq.board_mw3wtqtmwtwahl&column_id=eq.col_mw3wtqtmvxvnww&order=position.asc -> 2 rows
+    1. Ship the demo [ana]
+    2. Write the README [bo]
+  PASS Todo holds 2 cards in order
+
+=== 4. filter by assignee (server-side, ?assignee=eq.ana) ===
+  GET .../cards?board_id=eq.board_mw3wtqtmwtwahl&assignee=eq.ana -> 2 rows: Ship the demo | Review grants
+  PASS assignee filter returns only ana's cards
+
+=== 5. MOVE a card between columns (PATCH by primary key, ordering changes) ===
+  PATCH /api/ns/taskboard/tables/cards?pk=eq.card_mw3wtqtmyxda5b -> 200 (X-Durability: buffered)
+  body: {"column_id":"col_mw3wtqtm250uzp","position":2}
+  Todo  -> 2. Write the README
+  Doing -> 1. Review grants | 2. Ship the demo
+  PASS cardA left Todo and is second in Doing
+
+=== 6. delete a card (DELETE by primary key) ===
+  DELETE /api/ns/taskboard/tables/cards?pk=eq.card_mw3wtqtmy2wsex -> 200 (X-Durability: buffered)
+  remaining cards: Review grants | Ship the demo
+  PASS deleted card is gone, the others survive
+
+=== 7. permissions: the reader token reads the board but cannot write ===
+  reader GET /api/ns/taskboard/tables/cards -> 2 rows (read grant honored)
+  PASS reader can read
+  reader POST /api/ns/taskboard/tables/cards -> 403 FORBIDDEN: Forbidden: principal 'taskboard-reader' has no write grant for table 'cards'
+  PASS reader write refused with 403 FORBIDDEN — Forbidden: principal 'taskboard-reader' has no write grant for table 'cards'
+  reader DELETE /api/ns/taskboard/tables/cards?pk=eq.card_mw3wtqtmyxda5b -> 403 FORBIDDEN
+  PASS reader delete refused with 403
+
+=== 8. the denial is in the namespace audit with reason table_grant ===
+  ../.hermes/cache/scratch/taskboard-demo/namespaces/taskboard/_audit/current.jsonl:
+  {"ts":"2026-11-05T18:59:01.618Z","ns":"taskboard","table":"cards","op":"tables.write","principal":"taskboard-reader","outcome":"denied","reason":"table_grant"}
+  PASS audit row recorded with reason table_grant
+
+=== 9. the change feed delivers a move made by another client ===
+  subscribed from the current head; moving cardC from another client…
+  SSE event: table=cards op=insert key={"id":"card_mw3wtqtmyxda5b"} row={"id":"card_mw3wtqtmyxda5b","board_id":"board_mw3wtqtmwtwahl","column_id":"col_mw3wtqtm250uzp","title":"Ship the demo","assignee":"ana","position":2,"created_at":"2026-11-05T18:59:38.993Z"}
+  SSE event: table=cards op=insert key={"id":"card_mw3wtqtmmx1r4n"} row={"id":"card_mw3wtqtmmx1r4n","board_id":"board_mw3wtqtmwtwahl","column_id":"col_mw3wtqtmvxvnww","title":"Review grants","assignee":"ana","position":3,"created_at":"2026-11-05T18:59:38.993Z"}
+  SSE event: table=cards op=update key={"id":"card_mw3wtqtmyxda5b"} row={"id":"card_mw3wtqtmyxda5b","board_id":"board_mw3wtqtmwtwahl","column_id":"col_mw3wtqtm250uzp","title":"Ship the demo","assignee":"ana","position":2,"created_at":"2026-11-05T18:59:38.993Z"}
+  SSE event: table=cards op=update key={"id":"card_mw3wtqtmmx1r4n"} row={"id":"card_mw3wtqtmmx1r4n","board_id":"board_mw3wtqtmwtwahl","column_id":"col_mw3wtqtmvxvnww","title":"Review grants","assignee":"ana","position":3,"created_at":"2026-11-05T18:59:38.993Z"}
+  PASS change event for the moved card arrived without polling
+
+=== 10. final state read back through the table API ===
+  GET .../cards?board_id=eq.board_mw3wtqtmwtwahl -> 2 rows
+    Doing 2. Ship the demo [ana]
+    Todo  3. Review grants [ana]
+
+RESULT: PASS — every step above was served by DuckBrain.

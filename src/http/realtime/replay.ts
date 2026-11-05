@@ -319,6 +319,90 @@ function resolveDataRowByKey(
 }
 
 /**
+ * Canonical form of a change record's declared key (sorted pairs, so two
+ * records naming the same row produce the same string regardless of the
+ * producer's field order).
+ */
+function canonicalKeyJson(key: Record<string, unknown>): string {
+  return JSON.stringify(
+    Object.keys(key)
+      .sort()
+      .map((column) => [column, key[column]]),
+  );
+}
+
+/** `table + declared key + content hash` — names one ROW IMAGE. */
+function rowImageSignature(
+  table: string,
+  key: Record<string, unknown>,
+  contentHash: string,
+): string {
+  return `${table}\u0000${canonicalKeyJson(key)}\u0000${contentHash}`;
+}
+
+/**
+ * Row images that were BORN and DESTROYED inside this one commit.
+ *
+ * The REST table layer rewrites a table's JSONL file in place, and the
+ * namespace commit is debounced. An insert followed by a delete of the same
+ * row inside one window therefore leaves a commit that carries BOTH an
+ * `insert` record and a `delete` (tombstone) record for a row image that
+ * exists at NEITHER the child nor the parent ref: the child already has the
+ * rewritten file (line gone) and the parent never had the row. Before this
+ * guard the replay could not resolve the image and turned the whole namespace
+ * feed into `CHANGELOG_CORRUPT` — permanently, for every subscriber — which a
+ * scripted create-then-delete reproduces in milliseconds (EXAMPLE-APP-001,
+ * 2026-11-05).
+ *
+ * The two records are recognised as a PAIR only when they carry the same
+ * table, the same declared key and the SAME content hash in the same commit
+ * diff; the net effect of the pair at the commit boundary is "no row", so
+ * both records are dropped from the replay. A single unresolved record — an
+ * insert without its tombstone, or a tombstone whose row never existed at the
+ * parent — still fails closed exactly as before, and a fabricated hash can
+ * only hide behind this rule by also committing the matching tombstone record
+ * into the git-committed ledger.
+ */
+function sameWindowBirthAndDeath(
+  lines: ReadonlyArray<{ text: string }>,
+): Set<string> {
+  const births = new Map<string, number>();
+  const deaths = new Set<string>();
+  for (const line of lines) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line.text);
+    } catch {
+      continue; // malformed lines are graded by the main loop, not here
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      continue;
+    }
+    const entry = parsed as Record<string, unknown>;
+    if (entry.outcome !== "accepted") continue;
+    if (typeof entry.table !== "string") continue;
+    if (typeof entry.contentHash !== "string") continue;
+    const key = entry.key;
+    if (typeof key !== "object" || key === null || Array.isArray(key)) continue;
+    const signature = rowImageSignature(
+      entry.table,
+      key as Record<string, unknown>,
+      entry.contentHash,
+    );
+    if (entry.op === "delete" && entry.tombstone === true) {
+      deaths.add(signature);
+    } else if (entry.op !== "delete" && entry.tombstone === false) {
+      births.set(signature, (births.get(signature) ?? 0) + 1);
+    }
+  }
+  const pairs = new Set<string>();
+  for (const signature of deaths) {
+    if ((births.get(signature) ?? 0) > 0) pairs.add(signature);
+  }
+  return pairs;
+}
+
+/**
  * Derive the accepted change records newly added by `childRef` versus its
  * first parent, with contiguous ordinals. `options.parentRef` may be passed
  * explicitly (tests, and the null root case).
@@ -335,7 +419,12 @@ export function deriveCommitChanges(
   const committedAt = commitTimeIso(repoDir, childRef);
   const changes: DerivedChange[] = [];
 
-  for (const added of addedAuditLines(repoDir, childRef, parentRef)) {
+  const addedLines = addedAuditLines(repoDir, childRef, parentRef);
+  // Row images born and destroyed inside this commit: neither ref can resolve
+  // them, and both records of the pair are dropped instead of failing closed.
+  const bornAndDied = sameWindowBirthAndDeath(addedLines);
+
+  for (const added of addedLines) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(added.text);
@@ -480,6 +569,13 @@ export function deriveCommitChanges(
       if (resolved !== null) resolveFailure = null;
     }
     if (resolved === null) {
+      // Born-and-died inside this commit: the insert and its tombstone name
+      // the same row image, which exists at neither ref (see
+      // sameWindowBirthAndDeath). Nothing is emitted for it — the row never
+      // existed at a commit boundary — and the feed stays alive.
+      if (bornAndDied.has(rowImageSignature(record.table, record.key, record.contentHash))) {
+        continue;
+      }
       if (resolveFailure !== null) throw resolveFailure as Error;
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' has no data row ` +

@@ -123,6 +123,25 @@ async function mutate(
   return { status: response.status, body: parsed };
 }
 
+async function postWidget(row: Record<string, unknown>): Promise<{
+  status: number;
+  body: unknown;
+}> {
+  const response = await fetch(server.url(`/api/ns/${NS}/tables/widgets`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(row),
+  });
+  const text = await response.text();
+  let parsed: unknown = text;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // keep the raw text — a non-JSON body is itself the finding
+  }
+  return { status: response.status, body: parsed };
+}
+
 /** Every accepted audit line currently on disk, in ledger file order. */
 function auditRows(): Array<Record<string, unknown>> {
   const dir = path.join(nsPath, AUDIT_DIR);
@@ -285,5 +304,52 @@ describe("DB-SUPA-2 AC-2: table mutations are replayed change records", () => {
       .filter((line) => line.trim() !== "");
     expect(onDisk).toHaveLength(1);
     expect(JSON.parse(onDisk[0]!)).toMatchObject({ id: "1", qty: 12 });
+  }, 60_000);
+  it("an insert and its delete inside one commit window do not poison the feed", async () => {
+    // EXAMPLE-APP-001 (2026-11-05): a scripted create-then-delete lands both
+    // mutations in ONE debounced commit, so the data file keeps no line for
+    // the row while the commit carries BOTH its insert record and its
+    // tombstone. Neither ref can resolve the row image. Before the guard this
+    // threw CHANGELOG_CORRUPT and closed the subscription for the whole
+    // namespace — a task-board app's delete button could kill its own feed.
+    const before = changeEvents().length;
+    const created = await postWidget({ id: "3", name: "ephemeral", qty: 1 });
+    expect({ status: created.status, body: created.body }).toEqual({
+      status: 201,
+      body: { inserted: 1 },
+    });
+    const deleted = await mutate("DELETE", "pk=eq.3");
+    expect({ status: deleted.status, body: deleted.body }).toEqual({
+      status: 200,
+      body: { deleted: 1 },
+    });
+
+    // The shape the guard recognises: one insert and one tombstone for the
+    // SAME row image (identical content hash) in the same commit.
+    const pairRows = auditRows().filter(
+      (row) => row.table === "widgets" && (row.key as { id?: string })?.id === "3",
+    );
+    expect(pairRows).toHaveLength(2);
+    expect(new Set(pairRows.map((row) => row.contentHash)).size).toBe(1);
+    expect(pairRows.filter((row) => row.tombstone === true)).toHaveLength(1);
+
+    await waitForNamespaceCommit(nsPath);
+    await hub.check(NS);
+
+    expect(logs.join("\n")).not.toMatch(/corrupt/i);
+    expect(sink.closed).toBe(false);
+
+    // Nothing is emitted for a row that never existed at a commit boundary,
+    // and the feed still delivers the NEXT real change.
+    const afterPair = changeEvents().slice(before);
+    expect(afterPair.filter((event) => (event.key as { id?: string })?.id === "3")).toHaveLength(0);
+
+    expect((await mutate("PATCH", "pk=eq.1", { qty: 21 })).status).toBe(200);
+    await waitForNamespaceCommit(nsPath);
+    await hub.check(NS);
+    const events = changeEvents().slice(before);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.op).toBe("update");
+    expect(events[0]!.row).toMatchObject({ id: "1", qty: 21 });
   }, 60_000);
 });

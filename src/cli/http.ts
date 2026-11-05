@@ -622,6 +622,51 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
     );
   }
 
+  // EXAMPLE-APP-001: CORS — including the preflight — must run BEFORE auth.
+  //
+  // This middleware used to sit AFTER authMiddleware, which made it unusable
+  // in the only mode that needs it: a page served from another origin sends an
+  // uncredentialed OPTIONS preflight first, authMiddleware answered 401 with no
+  // CORS headers, and the browser then refused every real request (probe
+  // 2026-11-05: OPTIONS /api/ns/taskboard/tables/cards -> 401, no ACAO). Two
+  // more blockers were baked into the old header set: Allow-Methods omitted
+  // PATCH (the generic table layer's update verb) and Allow-Headers omitted
+  // X-API-Key (the only credential an apikey daemon accepts), so even a
+  // preflight that got here would not have authorised a write.
+  //
+  // A preflight carries no data and no principal, so answering it grants
+  // nothing: the actual request still runs the full auth + namespace/table
+  // grant chain, and 401/403 responses now carry the CORS headers the browser
+  // needs to SHOW the caller why it was refused. It sits ahead of the rate
+  // limiter and the read ledger on purpose: a preflight is an uncredentialed
+  // envelope (no body, no namespace, nothing to count) and counting it as a
+  // read would inflate the ledger this daemon sells as its traffic truth. The
+  // DNS-rebinding guard still runs first, and real requests keep their budget.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-API-Key, Last-Event-ID, Accept",
+    );
+    // Response headers a browser app must be able to READ, not merely receive.
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "X-Durability, X-Total-Count, X-RateLimit-Limit, X-RateLimit-Remaining",
+    );
+    res.setHeader("Access-Control-Max-Age", "600");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+
+    next();
+  });
+
   // 2. Rate limiting (before auth to prevent credential stuffing/brute force)
   //
   // OBSDB-001: the Prometheus scrape surface is mounted HERE — after the
@@ -743,6 +788,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   };
   app.use(rateLimitMiddleware(rateLimitConfig));
 
+
   // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
   // so an auth-FAILED read is recorded too — authMiddleware answers 401 and
   // never calls next(), so a ledger mounted after it would see nothing. The
@@ -765,27 +811,6 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   );
 
   app.use(authMiddleware(authConfig));
-
-  // 4. CORS middleware for UI development
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS",
-    );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization",
-    );
-
-    // Handle preflight requests
-    if (req.method === "OPTIONS") {
-      res.status(200).end();
-      return;
-    }
-
-    next();
-  });
 
   // 5. Body parsers (after rate limit and auth)
   // DB-SUPA-3 REWORK: the generic table→REST layer (src/http/routes/tables.ts)

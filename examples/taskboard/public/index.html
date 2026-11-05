@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task board on DuckBrain</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Task board</h1>
+        <p>
+          Every board, column and card below is a row in a DuckBrain namespace.
+          No other database, no app server state.
+        </p>
+      </div>
+      <div class="status">
+        <span id="health" class="pill pill-unknown">checking daemon…</span>
+        <label class="acting">
+          Acting as
+          <select id="acting-as">
+            <option value="admin">admin (read + write)</option>
+            <option value="reader">reader (read only)</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <h2>Boards</h2>
+        <ul id="boards" class="board-list"></ul>
+        <form id="new-board" class="inline-form">
+          <input id="new-board-name" placeholder="New board name" required />
+          <button type="submit">Add</button>
+        </form>
+        <h2>Filter</h2>
+        <form id="filter" class="inline-form">
+          <input id="assignee-filter" placeholder="Assignee (exact)" />
+          <button type="submit">Apply</button>
+        </form>
+        <button id="clear-filter" class="link">clear filter</button>
+      </aside>
+
+      <section class="board-area">
+        <div id="columns" class="columns"></div>
+        <form id="new-column" class="inline-form column-form">
+          <input id="new-column-name" placeholder="New column name" required />
+          <button type="submit">Add column</button>
+        </form>
+      </section>
+
+      <aside class="feed">
+        <h2>Change feed</h2>
+        <p class="hint">
+          SSE from <code>/api/ns/&lt;ns&gt;/changes</code>. Moves made in another
+          shell appear here without a refresh.
+        </p>
+        <ol id="events" class="event-log"></ol>
+      </aside>
+    </main>
+
+    <footer class="footbar">
+      <span id="last-response">no request yet</span>
+      <span class="hint"
+        >Persistence: DuckBrain table API only. Nothing is cached in this
+        browser.</span
+      >
+    </footer>
+
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>
