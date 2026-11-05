@@ -1,0 +1,1038 @@
+commit 57f58cf9fcee5fb12cdd55c718e145b42fa0b9b1
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Nov 5 11:59:10 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Nov 5 11:59:10 2026 -0500
+
+    board(harden-duckbrain-003): close per-principal rate limiting (91d92c51, judge PASS 680dd883)
+    
+    Row (B) systemic half is landed: the limiter spends from the principal bucket when the
+    credential store knows the presented key, peer-IP otherwise. Proof transcript, pre-fix
+    falsifier and the unproven live-restart half are recorded in the row note.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ .coding-hermes/board/events.jsonl                  |   2 +
+ .coding-hermes/board/tasks.jsonl                   |   2 +-
+ .gitreins/history/2026-11-05/680dd883/commit.patch | 748 +++++++++++++++++++++
+ .gitreins/history/2026-11-05/680dd883/summary.md   |  36 +
+ .gitreins/history/2026-11-05/680dd883/verdict.json | 127 ++++
+ .../history/2026-11-05/680dd883/worktree.patch     |  28 +
+ .gitreins/tasks.yaml                               |  20 +
+ 7 files changed, 962 insertions(+), 1 deletion(-)
+
+diff --git a/.coding-hermes/board/events.jsonl b/.coding-hermes/board/events.jsonl
+index 8253998c..25a01f36 100644
+--- a/.coding-hermes/board/events.jsonl
++++ b/.coding-hermes/board/events.jsonl
+@@ -1284,3 +1284,5 @@
+ {"id":8463,"timestamp":"2026-11-05T14:57:19Z","event_type":"task_completed","task_id":"OBSDB-003","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+ {"id":8464,"timestamp":"2026-11-05T15:30:38Z","event_type":"task_updated","task_id":"OBSDB-004","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+ {"id":8465,"timestamp":"2026-11-05T15:49:18Z","event_type":"task_completed","task_id":"OBSDB-004","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
++{"id":8466,"timestamp":"2026-11-05T16:39:28Z","event_type":"task_updated","task_id":"HARDEN-DUCKBRAIN-003","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
++{"id":8467,"timestamp":"2026-11-05T16:59:04Z","event_type":"task_completed","task_id":"HARDEN-DUCKBRAIN-003","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+diff --git a/.coding-hermes/board/tasks.jsonl b/.coding-hermes/board/tasks.jsonl
+index bdec188f..6b47aeee 100644
+--- a/.coding-hermes/board/tasks.jsonl
++++ b/.coding-hermes/board/tasks.jsonl
+@@ -461,7 +461,7 @@
+ {"id": "HARDEN-DUCKBRAIN-001", "title": "[P0] HARDENING LOOP (contract row) — drive DuckBrain to a stranger-proof state: reproduce every claimed boundary, fix it, prove with a control, deploy as the test", "status": "pending", "priority": "P0", "complexity": 3, "created_at": "2026-11-03T23:20:47Z", "reasoning": "Owner instruction 2026-11-03: '/coding Hermes hardening duckbrain'. This row is the LOOP ITSELF, not a fix: it carries the goal, the gates, the subgoal rule and the feeder so the work survives a context loss. 15 open rows exist; four DB-SUPA rows are marked complete (SUPA-2 serialization, SUPA-3 PATCH validation, SUPA-4 grants) while scratch probes on 2026-10-15 reproduced live defects against them — a boundary marked complete that still leaks is exactly the object this loop consumes. Hardening means: measure, do not argue.", "acceptance_criteria": "GOAL: when a non-author sits down with a fresh clone and a scratch daemon, every documented claim either holds or is named as a gap with a row. It is DONE when (a) the four 2026-10-15 scratch defects (write-only grant GET returns data; read-only grant DELETE returns 200; unauthorized delete writes JSONL without a tombstone and breaks SSE replay with CHANGELOG_CORRUPT; valid PATCH answers 'required column is missing'; POST 201 without X-Durability) are each either reproduced-then-fixed with a proof that fails on pre-fix code, or proven non-reproducible with the probe pasted; (b) OBSDB-001..006 are landed except any row an owner decision blocks, and each closed row's metrics are scraped from a live scratch daemon; (c) main has zero open P0/P1 rows that are not owner-gated, with a named reason for each remaining row. SUBGOAL RULE: every subgoal maps to exactly one board row with acceptance criteria and a falsifier; a subgoal without a row is lost and a row without a subgoal is invisible. FEEDER: each worker completion notification triggers verify -> merge -> close -> dispatch next row; the loop stops only when the gates above pass, an owner decision is recorded as blocking, or the owner stops it. NON-GOALS: the v1.2.0 cut (owner authorization), ROLLOUT-DUCKBRAIN-001 default-mode decision (owner), and the three bunker-lane QA rows (owned by the qa/bunker board).", "updated_at": "2026-11-03T23:20:47Z", "detail": {"fingerprint": "1de7300e46a7ab083afeea5942e5b872e9267224bef281ed65e0b329ef9c2bac"}, "worker_status": "pending", "commit_hash": null, "guard_result": null, "ci_result": null, "worker_summary": null, "foreman_note": null}
+ {"id": "HARDEN-DUCKBRAIN-002", "title": "[P1] Live daemon's data directory (9.2G) lives INSIDE a git checkout — 'git clean -xdf' deletes live memory", "status": "pending", "priority": "P1", "complexity": 2, "created_at": "2026-11-03T23:50:14Z", "reasoning": "Found while closing OBSDB-006: the production daemon on :3000 (PID 3856050, cwd=/home/kara/duckbrain) resolves its namespaces path cwd-relatively, so live memory lives at /home/kara/duckbrain/namespaces — inside the same working tree that every worker, merge and git operation touches. It is ignored via .gitignore:13, which protects it from commits but NOT from 'git clean -xdf' (that is what -x means) and not from a branch switch that removes an ignored-but-tracked-to-nothing directory, or from a careless 'rm -rf' during a repo reset. 9.2G of the fleet's memory substrate is one flag away from deletion, and the daemon's running code is also whatever that checkout happens to contain. Every other fleet service runs from a deploy dir with data outside the repo.", "acceptance_criteria": "The live daemon's data is not reachable by any git command in its own checkout. Either (a) move the live data dir to a stable absolute path OUTSIDE the repo (e.g. /srv/duckbrain/namespaces or ~/.duckbrain/namespaces) and start the daemon with an explicit DUCKBRAIN_NAMESPACES_PATH and DUCKBRAIN_CONFIG_PATH, proven by a GET /api/namespaces that returns the same namespace count before and after the move plus a reads.jsonl row count that continues to grow; or (b) prove with a pasted transcript that the current layout is safe: run 'git clean -xdn' in /home/kara/duckbrain and show the namespaces tree is NOT in the deletion set, and state which .gitignore rule protects it. Whichever path is chosen, the daemon's start command must name its data path explicitly rather than inheriting cwd. Owner gate: restarting the production daemon at :3000 to change its paths is Bane's call — the row may be implemented and proven on a scratch port first.", "updated_at": "2026-11-04T01:14:07Z", "detail": {"fingerprint": "54095daf78486f40b34635deb13e810a798eb4767f057cd205b9e95a4edbe8b3"}, "worker_status": "pending", "commit_hash": null, "guard_result": null, "ci_result": null, "worker_summary": null, "foreman_note": "PREPARED 2026-11-04T00:1xZ, cutover owner-gated. Option (b) of this row ('prove the layout is safe') is REFUTED by measurement: 'git clean -xdn' in /home/kara/duckbrain lists 292 entries under namespaces/ (354 total, including .gitreins/history/, .gitreins/logs/, usage.jsonl and board.db). So it is a move. DONE SO FAR: (1) full copy to /home/kara/.duckbrain-live/namespaces (rsync -a, 8,164,860,572 bytes, total 8,122,949,885); (2) fidelity: 291 source dirs = 291 copy dirs, 499,169 vs 499,144 files (the 25 are files the live daemon wrote DURING the copy), 40 sampled jsonl files byte-identical (0 mismatched); (3) the copy SERVES: a scratch daemon with DUCKBRAIN_NAMESPACES_PATH pointing at it (port 28555) answered /health 200, listed 291 namespaces, returned a real recall (/project/hermes-dagger/review-2026-11-03), and appended to the COPY's read ledger while the repo checkout's ledger did not grow. DRIFT TO HANDLE: the live daemon kept writing — copy ledger 61,463 rows vs repo 61,476 — so the cutover needs a QUIESCED second rsync pass. Full runbook, acceptance commands and rollback: docs/evidence/harden-datadir-migration-2026-11-03.md. REMAINING STEP IS ONE RESTART: stop :3000, 'rsync -a --delete' the delta, restart with DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces and DUCKBRAIN_DATA_DIR=/home/kara/.duckbrain-live/data named explicitly. Rollback = restart without those two env vars; the old dir is untouched. Keep the old 9.2G for a day after the cutover, not in the same session.\n\nPROOF CAPTURED (the earlier invocation's output had been truncated; the background job's full output is now recorded). A scratch daemon started with DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces on port 28555 answered /health=200, served 288 registered namespaces (291 directories on disk — registry vs disk, the known DB-GAP-057 census gap), hermes present, and a real read GET /api/memories?namespace=hermes returned 200 in 26.9ms with 2 rows, first key /project/hermes-dagger/review-2026-11-03. That read was absorbed by the COPY's ledger (61,462 -> 61,463) while the repo checkout's ledger stayed at 61,476 — so the copy both serves the fleet's data and takes writes on its own path. Drift at that moment: 13 rows (61,476 - 61,463), which is exactly why the cutover runbook mandates a quiesced second 'rsync -a --delete' pass rather than a repoint. Still owner-gated: the cutover is one restart of :3000 with the two env vars named explicitly; rollback is a restart without them."}
+ {"id": "OBSDB-007", "title": "[P1] Deploy the /metrics endpoint: restart the live daemon, wire the scrape, add the alert rules that would have caught OBSDB-006's false silence", "status": "pending", "priority": "P1", "complexity": 2, "created_at": "2026-11-03T23:58:56Z", "reasoning": "OBSDB-001 is landed on main (a530621c + 800fc4a6) and proven on a scratch daemon, but the production daemon at :3000 still answers /metrics with 401 because it is running code from before the merge (PID 3856050, started 2026-11-03 17:06:06). A metric nobody scrapes is the same lie as an alert file nobody reads: the hardening skill names that pattern explicitly. Until a scrape exists, an outage still gets discovered by a human noticing. Two further facts make this urgent: (a) the merge added a real dependency (prom-client), so a restart of the daemon without 'pnpm install' in that checkout would crash it - that install is now done, but the restart is owner-gated; (b) there are no alert rules anywhere for duckbrain, so even after a restart nothing consumes the series.", "acceptance_criteria": "The live daemon serves /metrics and something other than a human reads it. Steps, each with pasted evidence: (1) after the owner authorises a restart, 'curl -s http://127.0.0.1:3000/metrics | head -1' returns '# HELP duckbrain_http_up' with no credentials, and /health is still 200 healthy; (2) a scrape job exists in the monitoring stack (fleet-monitor scrape config, or a systemd timer that writes a snapshot) with a proven successful scrape - show the scraped sample count and the timestamp; (3) alert rules exist for the three conditions this row's audit named as invisible: duckbrain_http_up == 0 (down), duckbrain_embedding_provider_healthy == 0 (degraded provider), and a rising ratio of duckbrain_reads_total{status_class=~\"4xx|5xx\"} - each rule must be FIRED once artificially (e.g. stop a scratch daemon, or point the rule at a fixture) and shown to reach its notification target, not merely be defined; (4) confirm liveness alerts use duckbrain_http_up (a gauge, always present) and NOT absent(duckbrain_reads_total) - the labeled counter legitimately has no series until its first read. Owner gate: the restart.", "updated_at": "2026-11-03T23:58:56Z", "detail": {"fingerprint": "a859ac9021546216502d1aff213202ea2a7e278a338df3b669e7a14a09ba03a1"}, "worker_status": "pending", "commit_hash": null, "guard_result": null, "ci_result": null, "worker_summary": null, "foreman_note": null}
+-{"id": "HARDEN-DUCKBRAIN-003", "title": "[P1] Hermes memory provider went 'unavailable' because /health could be rate-limited — 127.0.0.1 is one shared token bucket for every local caller", "status": "pending", "priority": "P1", "complexity": 2, "created_at": "2026-11-04T00:16:56Z", "reasoning": "Bane reported 2026-11-03: 'Memory provider duckbrain is selected but reports unavailable — external memory is disabled for this session'. Root cause measured, not guessed: (1) the daemon on :3000 runs --rate-limit 600 as a PER-IP token bucket (src/auth/ratelimit.ts), and every caller on this host — fleet agents, cron, MCP servers, supervisors, probes — shares 127.0.0.1; (2) /health was registered AFTER rateLimitMiddleware (src/cli/http.ts:688 vs :564), so it was itself rate-limited; (3) ten sequential unauthenticated probes returned 8x 200 (2.6ms) and 2x 429 (0.6ms) while the process was healthy; (4) the provider's is_available() required exactly r.status == 200, so one throttled probe flipped the whole session to 'external memory disabled'. /metrics escaped this only because OBSDB-001 mounted it above the limiter. The systemic half is not fixed by the route move: a single burst from ONE agent can still throttle every other local caller's API traffic, which is why this row stays open after the liveness fix.", "acceptance_criteria": "Two halves. (A) LIVENESS — landed 121aa62c: /health is registered with /metrics above the limiter; a new suite proves 25 /health probes and 25 /metrics scrapes at rateLimit=2 yield zero 429s while /stats still 429s with Retry-After (and the test fails with the fix stashed). The provider (~/.hermes/plugins/duckbrain) now treats 429/503 from a live socket as ALIVE and only 401/403/no-token/refused as unavailable, proven against local servers for 200/429/503/401/403/refused. Verify live AFTER the daemon restart: 25 back-to-back curl /health all answer 200 or 503, never 429. (B) SYSTEMIC (still open) — local callers must not share one throttle bucket in a way that lets one agent starve the rest: either exempt loopback/liveness-class routes explicitly with a documented list, or split the bucket (per-principal or per-socket class), or raise the local budget with a measured basis. Prove with a transcript: drive 200 rapid requests from one local caller and show another local caller's /api/memories still answers 200 (i.e. one caller cannot starve another). Do not simply raise the limit without the second-caller proof.", "updated_at": "2026-11-04T00:54:05Z", "detail": {"fingerprint": "d148d11072b6a4c3934b30d571fa060287252946c4483fce9496666be0848851"}, "worker_status": "pending", "commit_hash": null, "guard_result": null, "ci_result": null, "worker_summary": null, "foreman_note": "LIVENESS HALF DONE 121aa62c, but it went RED on CI (run 41745657088, 3 failures) and the repair is 37f81e19: (a) tests/http-ratelimit.int.test.ts hammered /health as the cheapest URL, so an exempt /health produced no 429 and the X-RateLimit-Limit assertion read a 503 — they now hammer /api/namespaces, treating 401 as 'under the limit' because the limiter runs before auth; (b) tests/ratelimit-squatter.int.test.ts had depended on draining A's /health bucket so the readiness poll saw 429 from the squatter — with /health exempt, A answers 200 instantly and waitForUrl correctly read a 200 from a daemon it never started, so the test now waits for B to actually lose the bind race before asking the guard (same shape, made explicit instead of accidental). Both green locally under vitest.integration.config.ts (6 tests). PROCESS ERROR WORTH RECORDING: I ran targeted suites and reported success, and CI caught what they missed — twice (the second: OBSDB-002 grew the family set to eight and OBSDB-001's exact-shape test went red, fixed in 9a4aeb57). CI is GREEN on 9a4aeb57. Local full-suite runs still show ~10 contention failures in ddl-* and memories-search suites that all pass in isolation — the known load flakes, NOT fixed here. (B) SYSTEMIC still open: one local caller can still starve another's API traffic.\n\nMEASURED BASIS FOR THE LIMIT RAISE (Bane: we will raise it soon). Ledger census over 942,228 rows, 2026-10-07T12:10Z..2026-11-04T00:53Z: 429s RECORDED IN THE LEDGER = 0, and that zero is the blind spot itself — the limiter runs before the read ledger, so a refusal cannot be recorded there. It is not evidence of no refusals: ten sequential /health probes on the live daemon produced 2x429 while the ledger shows none. Sustained rate: 7d peak 759/min, p99 532/min, p50 3/min, 56 of 7,362 active minutes (0.76%) above the 600 cap, ZERO minutes above 1000; 24h peak 693/min, p99 566/min, 9 minutes (0.89%) above 600. Bucket shape (src/auth/ratelimit.ts:90): maxTokens = burstSize ?? requestsPerMinute = 600, refill 600/60000 = 0.01 tokens/ms = 10 req/s — so sustained demand above 10/s drains the bucket and the LAST callers of that minute get 429 regardless of their own rate. That matches the observed peak (693/min ~ 11.5/s for a full minute). RECOMMENDATION with a basis: requestsPerMinute 600 -> 1200 (never exceeded in 7d, 2x headroom) and set burstSize explicitly to 300 (so a single agent's burst cannot empty a bucket sized for the whole fleet); then re-measure rejected_total{reason=rate_limit} for 48h and only raise again if it is still non-zero. Do NOT raise without OBSDB-002 live: before it, a raise is unverifiable because refusals were invisible."}
++{"id": "HARDEN-DUCKBRAIN-003", "title": "[P1] Hermes memory provider went 'unavailable' because /health could be rate-limited — 127.0.0.1 is one shared token bucket for every local caller", "status": "complete", "priority": "P1", "complexity": 2, "created_at": "2026-11-04T00:16:56Z", "reasoning": "Bane reported 2026-11-03: 'Memory provider duckbrain is selected but reports unavailable — external memory is disabled for this session'. Root cause measured, not guessed: (1) the daemon on :3000 runs --rate-limit 600 as a PER-IP token bucket (src/auth/ratelimit.ts), and every caller on this host — fleet agents, cron, MCP servers, supervisors, probes — shares 127.0.0.1; (2) /health was registered AFTER rateLimitMiddleware (src/cli/http.ts:688 vs :564), so it was itself rate-limited; (3) ten sequential unauthenticated probes returned 8x 200 (2.6ms) and 2x 429 (0.6ms) while the process was healthy; (4) the provider's is_available() required exactly r.status == 200, so one throttled probe flipped the whole session to 'external memory disabled'. /metrics escaped this only because OBSDB-001 mounted it above the limiter. The systemic half is not fixed by the route move: a single burst from ONE agent can still throttle every other local caller's API traffic, which is why this row stays open after the liveness fix.", "acceptance_criteria": "Two halves. (A) LIVENESS — landed 121aa62c: /health is registered with /metrics above the limiter; a new suite proves 25 /health probes and 25 /metrics scrapes at rateLimit=2 yield zero 429s while /stats still 429s with Retry-After (and the test fails with the fix stashed). The provider (~/.hermes/plugins/duckbrain) now treats 429/503 from a live socket as ALIVE and only 401/403/no-token/refused as unavailable, proven against local servers for 200/429/503/401/403/refused. Verify live AFTER the daemon restart: 25 back-to-back curl /health all answer 200 or 503, never 429. (B) SYSTEMIC (still open) — local callers must not share one throttle bucket in a way that lets one agent starve the rest: either exempt loopback/liveness-class routes explicitly with a documented list, or split the bucket (per-principal or per-socket class), or raise the local budget with a measured basis. Prove with a transcript: drive 200 rapid requests from one local caller and show another local caller's /api/memories still answers 200 (i.e. one caller cannot starve another). Do not simply raise the limit without the second-caller proof.", "updated_at": "2026-11-05T16:59:04Z", "detail": {"fingerprint": "d148d11072b6a4c3934b30d571fa060287252946c4483fce9496666be0848851", "evidence": [{"run_id":"680dd883","ts":"2026-11-05T16:59:04Z"}]}, "worker_status": "complete", "commit_hash": "91d92c51", "guard_result": "PASS", "ci_result": "SKIP", "worker_summary": "Per-principal rate-limit buckets landed 91d92c51 (judge PASS, run 680dd883): a known API key gets its own budget, unknown/anonymous callers keep the shared peer-IP bucket. Scratch :28761 proof: caller A 5x200/195x429 while caller B stayed 200 during and after the flood; 12 distinct bogus keys -> 401x5 then 429x7. Pre-fix falsifier red (B read 429). Suite 255 files/2124 tests green, test-counts.json updated. NOT done: live :3000 restart + post-restart probe (owner-gated), no 48h rejected_total re-measure, 600->1200 raise deliberately not applied.", "foreman_note": "LIVENESS HALF DONE 121aa62c, but it went RED on CI (run 41745657088, 3 failures) and the repair is 37f81e19: (a) tests/http-ratelimit.int.test.ts hammered /health as the cheapest URL, so an exempt /health produced no 429 and the X-RateLimit-Limit assertion read a 503 — they now hammer /api/namespaces, treating 401 as 'under the limit' because the limiter runs before auth; (b) tests/ratelimit-squatter.int.test.ts had depended on draining A's /health bucket so the readiness poll saw 429 from the squatter — with /health exempt, A answers 200 instantly and waitForUrl correctly read a 200 from a daemon it never started, so the test now waits for B to actually lose the bind race before asking the guard (same shape, made explicit instead of accidental). Both green locally under vitest.integration.config.ts (6 tests). PROCESS ERROR WORTH RECORDING: I ran targeted suites and reported success, and CI caught what they missed — twice (the second: OBSDB-002 grew the family set to eight and OBSDB-001's exact-shape test went red, fixed in 9a4aeb57). CI is GREEN on 9a4aeb57. Local full-suite runs still show ~10 contention failures in ddl-* and memories-search suites that all pass in isolation — the known load flakes, NOT fixed here. (B) SYSTEMIC still open: one local caller can still starve another's API traffic.\n\nMEASURED BASIS FOR THE LIMIT RAISE (Bane: we will raise it soon). Ledger census over 942,228 rows, 2026-10-07T12:10Z..2026-11-04T00:53Z: 429s RECORDED IN THE LEDGER = 0, and that zero is the blind spot itself — the limiter runs before the read ledger, so a refusal cannot be recorded there. It is not evidence of no refusals: ten sequential /health probes on the live daemon produced 2x429 while the ledger shows none. Sustained rate: 7d peak 759/min, p99 532/min, p50 3/min, 56 of 7,362 active minutes (0.76%) above the 600 cap, ZERO minutes above 1000; 24h peak 693/min, p99 566/min, 9 minutes (0.89%) above 600. Bucket shape (src/auth/ratelimit.ts:90): maxTokens = burstSize ?? requestsPerMinute = 600, refill 600/60000 = 0.01 tokens/ms = 10 req/s — so sustained demand above 10/s drains the bucket and the LAST callers of that minute get 429 regardless of their own rate. That matches the observed peak (693/min ~ 11.5/s for a full minute). RECOMMENDATION with a basis: requestsPerMinute 600 -> 1200 (never exceeded in 7d, 2x headroom) and set burstSize explicitly to 300 (so a single agent's burst cannot empty a bucket sized for the whole fleet); then re-measure rejected_total{reason=rate_limit} for 48h and only raise again if it is still non-zero. Do NOT raise without OBSDB-002 live: before it, a raise is unverifiable because refusals were invisible.\n\nclaimed by harden-loop 2026-11-05T16:39:27Z; worktree wt/HARDEN-DUCKBRAIN-003; working half (B) systemic bucket isolation\n\n(B) SYSTEMIC HALF LANDED + PROVEN 91d92c51 (branch wt/HARDEN-DUCKBRAIN-003, ff to main). MECHANISM: the limiter now spends from `principal:<sha256(x-api-key)>` when the live credential snapshot knows the presented key (storeSchema.matchApiKey, constant-time, via new FileAuthStore.peekSnapshot — cached, no extra file stat) and from `ip:<peer>` for anonymous / unrecognized / basic-auth callers, so a guessed key mints no fresh budget and credential stuffing stays bounded by address; store capped at 20k buckets (RateLimitConfig.maxBuckets) with oldest-first eviction. PROOF — scratch daemon :28761, own DUCKBRAIN_NAMESPACES_PATH under the scratch cache, --rate-limit=5, two known keys, BOTH callers on 127.0.0.1: caller A 200 rapid GET /api/memories -> `5x200 195x429`; caller B DURING A's flood -> 200, AFTER -> 200; A's refusal carried `X-RateLimit-Limit: 5 / Retry-After: 7`; 12 DISTINCT unrecognized keys -> `401x5 then 429x7` (one shared peer-IP budget, not 12 fresh buckets) and B still 200. FALSIFIER: same test files against pre-fix source (src/ stashed) -> tests/ratelimit-principal.int.test.ts fails `expected 429 to be 200` on the B read, src/auth/ratelimit.test.ts fails the isolation and resolver-fallback cases; stash popped, both green. SUITE: pnpm test:run = 255 files / 2124 tests passing; test-counts.json moved 255/2117 -> 255/2124 in the same commit and `scripts/sync-agents-md-counts.sh --check` exits 0 on the captured log. (A) LIVENESS untouched and still green (src/cli/http-health-ratelimit.test.ts, tests/http-ratelimit.int.test.ts). NAMED AS NOT PROVEN / NOT DONE: (1) production :3000 still runs the pre-fix binary — the daemon restart is owner-gated (same restart OBSDB-007 and HARDEN-DUCKBRAIN-002 need), so the live post-restart 25x /health probe and any 48h re-measure of rejected_total{reason=rate_limit} are NOT done; (2) the foreman-recommended 600->1200 + burst 300 raise was deliberately NOT applied — isolation removes the starvation cause and the live limit is a start flag, not code; (3) basic-auth and anonymous callers still share the peer-IP bucket by design (no cheap identity before auth); (4) eviction can reset an evicted caller's budget — bounded-store tradeoff, default 20k far above fleet principal count.", "worktree": "/home/kara/proj-wt-hardenduckbrain003", "branch": "wt/HARDEN-DUCKBRAIN-003"}
+ {"id": "HARDEN-DUCKBRAIN-004", "title": "[P2] Two lockfiles must be updated in lockstep and nothing reminds you — adding prom-client broke CI twice today", "status": "pending", "priority": "P2", "complexity": 2, "created_at": "2026-11-04T01:05:42Z", "reasoning": "The repo tracks BOTH pnpm-lock.yaml (CI installs with 'pnpm install --frozen-lockfile', .github/workflows/ci.yml:35) and package-lock.json (the Dockerfile installs with 'npm ci', Dockerfile:8). Adding prom-client in OBSDB-001 updated only pnpm, so src/test/lockfile-sync.test.ts failed the first full suite and then the CI run; the repair (90e20a0e) regenerated package-lock.json with 'npm install --package-lock-only --ignore-scripts' (+39 lines). The same class of drift is one dependency away from happening again and the reminder is a test that fails 4 minutes into a suite rather than a step that cannot be skipped. Not urgent, not cosmetic: a red main blocks every worker behind it.", "acceptance_criteria": "Make the drift impossible or immediately loud, prove it, and do not remove the npm lockfile without an owner decision (the Dockerfile depends on it). Options, pick and prove ONE: (A) a pre-commit/CI step that runs both 'pnpm install --lockfile-only' and 'npm install --package-lock-only --ignore-scripts' whenever package.json changes, and fails with a diff if either lockfile is dirty — prove by adding a throwaway dependency and showing the gate fires BEFORE the test suite; (B) a single source of truth (drop one lockfile and the install path that needs it), which requires an owner decision and a Dockerfile change — prove with a green docker build leg. Either way: record the chosen rule in the contributing docs, and show 'pnpm test:run' plus the docker leg green on the change.", "updated_at": "2026-11-04T01:05:42Z", "detail": {"fingerprint": "0b50a4ab40a0a11c059be5c38b333dd12eb0b6cc9960667b431901e21d2bb71a"}, "worker_status": "pending", "commit_hash": null, "guard_result": null, "ci_result": null, "worker_summary": null, "foreman_note": null}
+ {"id": "PERF-DUCKBRAIN-001", "title": "[P1] 11% of /api/memories reads take >=3s and the cause is FILE COUNT (20k-29k jsonl files per namespace), not embeddings", "status": "blocked", "priority": "P1", "complexity": 3, "created_at": "2026-11-04T01:10:15Z", "reasoning": "Measured against the live daemon 2026-11-04 (read-only, authenticated). Ledger census over 52,139 GET /api/memories calls: 55.7% under 300ms (median 73ms), 20.1% in 1-3s, 8.6% in 3-10s, 2.9% over 10s -> 11.45% at >=3s, and 5,968 of those slow calls carried NO query string, so this is the plain LIST path, not semantic search. My first hypothesis (embedding in the path) was wrong. Direct probes isolate the real variable: namespace 'hermes' (6 jsonl files, 145 rows, 5.6M) answers limit=10 in 32ms and limit=200 in 33ms; 'coding-hermes' (20,054 files, 494,973 rows, 2.3G) answers limit=10 in 1.42-2.00s across three repeats; 'fleet-quality' (29,080 files, 94,483 rows, 346M) took 13.26s cold then 1.82s warm. Latency tracks FILE COUNT, not row count and not payload (fleet-quality returns 2.05MB for limit=200 yet beats a 1.4s limit=10 on file-dense coding-hermes). Two consequences: the tail is a per-read directory-walk/metadata cost that no cache can hide on the first call, and 'limit' buys nothing because selection still has to visit the files.", "acceptance_criteria": "Cut the tail with a mechanism, not a cache. (1) Reproduce: a script that, for each of coding-hermes and fleet-quality, runs limit=10 three times cold and reports median vs the file count — committed so the numbers are re-derivable, not quoted. (2) Fix the read path so a limit=10 list does not depend on total file count: compact/merge the namespace's small jsonl files (there is already squash/compaction machinery — prove which one applies) and/or add a bounded index (e.g. newest-N by mtime/segment ordering) that the list endpoint consults before opening files. (3) Prove the effect with the same script: cold limit=10 on both namespaces under 500ms, and no row lost — compare namespaces prune --dry-run plus per-namespace row counts before/after, and confirm GET /api/memories?namespace=X&limit=200 returns the same first-200 newest rows as before the change. (4) Show the ledger's own p95 for GET /api/memories falling after the fix (or state honestly that the window is too short to move p95 yet and give a sampled measurement instead). Do NOT simply raise caches or add a bigger timeout.", "updated_at": "2026-11-04T16:13:43Z", "detail": {"fingerprint": "662b29f55d17e638d0a20330321b51bc441043ac924a892cf6e2b22b6c7010ab"}, "worker_status": "done", "commit_hash": "e623f99e76c54075634a4def3daa1deb1be7f15f", "guard_result": "PASS", "ci_result": "GREEN", "worker_summary": "gitreins tier1 PASS, tier2 INCOMPLETE on 3 of 5 outcomes. Landed e623f99e: bounded top-k + arg_max total for the plain list path, filtered paths verbatim, 630 tests pass, limit=200 byte-identical (total 241,901 / 53,937).", "foreman_note": "PROOF, PART 1 (compaction) — done on the COPY /home/kara/.duckbrain-live/namespaces, production untouched. 'duckbrain squash --segments --partition=config/2026-08 --namespace=coding-hermes' took the partition 10,000 segments -> 22 (dry-run) and 10,001 files -> 23 on disk; event/2026-08 went 9,798 -> 44. RECORDS PRESERVED: production config/2026-08 = 113,311 rows across 10,001 files; compacted copy = 113,311 rows across 23 files (ROWS MATCH). LATENCY, same machine, same daemon code, --auth=none so no token can distort the read (script /home/kara/clock/prove-perf001-compaction.sh, port 28701): production (fragmented) limit=10 was 1.42/1.88/2.00s across three runs; compacted copy limit=10 is 0.98s cold then 0.47/0.50s warm, and limit=200 returns 1.04MB in 0.51s. So file-count compaction is worth ~3-4x and is the cheap half. IT IS NOT THE WHOLE FIX: the compacted tree still holds ~300 files across partitions (event/2026-09 = 231, plus 23 + 44 + audit) and a limit=10 read still pays ~0.47s, which is consistent with the endpoint opening every partition of the domain and sorting before it slices — i.e. 'limit' still buys nothing. That is the read-path half of the acceptance criteria and is UNSTARTED. Honest state: mechanism identified, 3-4x proven on a copy, target (cold <500ms) NOT met yet, production NOT compacted (owner-gated: it rewrites live memory files).\n\nPRE-FLIGHT FOUND (before anyone compacts production): S3 state is CENTRAL at namespaces/.s3state (not per-namespace), and the CLI already ships 'duckbrain s3 ghosts' + 's3 clear'. Compaction deletes ~10k local files per partition, so the S3 mirror will hold ghost objects for every segment that disappeared — harmless for reads, but it means (a) a naive 'pull' could restore the fragmented layout and undo the compaction, and (b) storage accounting will overstate the namespace. So the production run MUST be: squash --segments (per partition) -> 'duckbrain s3 status <ns>' -> 'duckbrain s3 ghosts <ns>' to enumerate what disappeared -> 's3 clear' (or an explicit sync) so the mirror matches the compacted tree -> re-run 's3 status' to prove convergence. Also confirmed: namespaces/ is INSIDE the duckbrain git repo but gitignored (.gitignore:13), so compaction creates NO git churn — the risk is entirely in the S3 mirror, not git. This pre-flight is not yet exercised end to end; it is written down so the production step cannot be done half-way.\n\nFLEET CENSUS (2026-11-04): the fragmentation is not two namespaces, it is six, and they are 98.7% of every jsonl file the substrate holds. Total across 291 namespaces = 387,175 jsonl files. Top: scheduler 258,578 | pokemon-global 49,622 | fleet-quality 29,080 | coding-hermes 20,054 | hermes-telemetry 14,800 | relationships 10,010 | skills 1,758 | hermes-memory 798 | chat-archive 605 | task-router 46 | routing 40 | default 28. So the production compaction work list is 6 namespaces (~382k of 387k files), not the 2 measured in part 1. Note relationships (10,010 files) is the PERSONAL memory namespace — the one behind Bane's own assistant memory — so the tail is not only a fleet-throughput issue. scheduler at 258,578 files is 67% of the entire substrate by file count and was not in the original measurement at all. Consequence for the acceptance criteria: scale the proof per namespace (rows preserved, latency before/after) rather than declaring victory on coding-hermes alone, and expect the scheduler namespace to dominate the wall-clock of any compaction run.\n\nWorker: deepseek-v4-pro (attempts 1-2 on gpt-6-luna returned partial/design-only; attempt 3 landed). Bench: scripts/perf/perf001-list-latency.mjs (cold+warm labelled). Verdict: .gitreins/history/2026-11-04/e5650949/verdict.json. First judge run 61c5252d tier1 flaked on src/git/autocommit-supapair.test.ts under load; the same test passes in isolation (3/3) and the rerun's tier1 is PASS.", "blocked_reason": "CODE HALF LANDED, DATA HALF OWNER-GATED: the O(nRows log nRows) dedup sort is gone from the plain list path (cold coding-hermes 508->275ms, warm 355->230ms on the compacted copy), but limit=10 still scales with FILE COUNT because collectJsonlFiles() enumerates every segment (fleet-quality 29,080 files = 5.3s cold / 1.7s warm). The remaining half needs the proven segment compaction run against PRODUCTION namespaces, which is a live-data operation plus a daemon restart — Bane's call per HARDEN-DUCKBRAIN-002. Filed as PERF-DUCKBRAIN-002.", "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-001", "branch": "wt/PERF-DUCKBRAIN-001"}
+ {"id": "SUPA9-PK-FILTER-001", "title": "[P0] GET ignores ?pk=eq.N while PATCH/DELETE require it — the same address means 'one row' to a write verb and 'all rows' to a read", "status": "complete", "priority": "P0", "complexity": 2, "created_at": "2026-11-04T02:30:55Z", "reasoning": "Found by driving the declared-table REST surface end to end on a scratch daemon 2026-11-04 (/home/kara/clock/prove-supa-surface.sh, port 28801/28802, table 'widgets' with primary key id). PATCH and DELETE address rows with ?pk=eq.<value> and both work ({\"updated\":1}, {\"deleted\":1}); a GET with the SAME ?pk=eq.1 returns EVERY row in the table. It is not a general 'unknown filter is ignored' policy either: ?bogus=eq.9 is correctly refused with 400 VALIDATION_ERROR naming the declared columns, and ?id=eq.1 correctly filters on the real column. So 'pk' is special-cased into an accepted-but-unapplied parameter on the read path. Concretely: with 3 rows present, GET ?pk=eq.1 -> all 3 rows, GET ?id=eq.1 -> the one row. Why it matters: the API teaches callers that pk addresses a row (it does for PATCH/DELETE), so an agent that patches and then verifies with the same URL is told its change either did nothing or hit everything — and a delete verification reads as 'still there' only because the row is genuinely gone. That is the exact class of inconsistency that gets an autonomous caller to retry a write that already succeeded.", "acceptance_criteria": "Make read addressing agree with write addressing, and prove all three cases. (1) GET /api/ns/:ns/tables/:table?pk=eq.<v> returns exactly the row whose declared primary key equals v (or a documented 400 if the table declares no primary — not a silent full scan). (2) A falsifier in tests: with 3 rows, GET ?pk=eq.<one> returns 1 row while GET with no filter returns 3, and GET ?<pkcolumn>=eq.<one> returns the same 1 row (alias must not disagree with the column form). (3) An unknown filter column still refuses with VALIDATION_ERROR naming the declared columns (do not relax that to make the alias work). (4) PATCH and DELETE continue to accept ?pk=eq. and their responses are unchanged — prove with the existing suites plus one end-to-end run of declare -> insert 3 -> GET by pk -> PATCH by pk -> DELETE by pk -> GET by pk returns 0. Update the docs/spec (SUPA-3) to state the addressing rule once, so read and write verbs cannot drift again.", "updated_at": "2026-11-05T13:52:07Z", "detail": {"fingerprint": "cb86d95abac1f12b5de7354a2c1d471a4b402b524a98fe14632956511d1322e9", "evidence": [{"run_id":"1e915eb9","ts":"2026-11-04T14:34:15Z","tree_fp":"c6f70146d92398ba31db76c787adef85c35955e549bf7834ea21be4a66890633","artifacts":[".gitreins/history/2026-11-04/1e915eb9/verdict.json"]}]}, "worker_status": "pending", "commit_hash": "1c8e4be9", "guard_result": "SKIP", "ci_result": "GREEN", "worker_summary": "GET now honours the pk=eq primary-key alias: shared resolvePkFilter() (tables.ts) used by both write verbs and filterParams() on the read path; non-eq pk 400s, no-pk tables 400 instead of returning every row. impl a6df3394, merge 1c8e4be9. Verified: 6 new regression tests (RED pre-fix 4 failed/2 passed, GREEN at HEAD 6/6), focused 52/52, tsc clean, worker full suite 252 files/2094 tests green, test-counts.json resynced in-commit.", "foreman_note": "PRIORITY RAISED TO P0 by Bane 2026-11-04. Rationale: it is the only KNOWN live inconsistency in the Supabase-shaped REST surface, and it corrupts the thing DuckBrain sells — an agent building a feature directly on the database cannot trust that a read address means the same rows as a write address. Fix before the next release cut and before any comparison work is published."}
+diff --git a/.gitreins/history/2026-11-05/680dd883/commit.patch b/.gitreins/history/2026-11-05/680dd883/commit.patch
+new file mode 100644
+index 00000000..845f44d9
+--- /dev/null
++++ b/.gitreins/history/2026-11-05/680dd883/commit.patch
+@@ -0,0 +1,748 @@
++commit 91d92c515600d7fdace216ebe00409a99964943c
++Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++AuthorDate: Thu Nov 5 11:46:53 2026 -0500
++Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
++CommitDate: Thu Nov 5 11:46:53 2026 -0500
++
++    fix(http): key the rate-limit bucket on the principal, not the peer IP (HARDEN-DUCKBRAIN-003 B)
++    
++    Every fleet caller on this host shares 127.0.0.1, so the per-IP token bucket
++    collapsed them into one budget: one agent's burst returned 429 to every other
++    agent's requests. The limiter now spends from `principal:<sha256(key)>` when the
++    live credential snapshot knows the presented x-api-key (constant-time match,
++    cached snapshot), and from `ip:<peer>` for anonymous / unrecognized / basic-auth
++    callers — so guessing a key mints no fresh budget and credential stuffing stays
++    bounded by address. Store size is capped with oldest-bucket eviction.
++    
++    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
++---
++ src/auth/ratelimit.test.ts            | 114 ++++++++++++++++++++++++++++
++ src/auth/ratelimit.ts                 | 109 +++++++++++++++++++++++++--
++ src/auth/storeSchema.ts               |  49 ++++++++++++
++ src/auth/token-lifecycle.test.ts      |  54 +++++++++++++-
++ src/cli/http.ts                       |  87 +++++++++++++++++----
++ test-counts.json                      |   4 +-
++ tests/ratelimit-principal.int.test.ts | 137 ++++++++++++++++++++++++++++++++++
++ 7 files changed, 530 insertions(+), 24 deletions(-)
++
++diff --git a/src/auth/ratelimit.test.ts b/src/auth/ratelimit.test.ts
++index f7056e36..71b53dc8 100644
++--- a/src/auth/ratelimit.test.ts
+++++ b/src/auth/ratelimit.test.ts
++@@ -286,3 +286,117 @@ describe("rateLimitMiddleware 429 observability", () => {
++     }
++   });
++ });
+++
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): the bucket must be the PRINCIPAL, not the peer IP.
+++ *
+++ * The live failure this pins: every fleet caller on a host shares 127.0.0.1, so
+++ * one agent's burst drained the single per-IP bucket and every other agent's
+++ * request came back 429 while the daemon was healthy. These tests fail on the
+++ * pre-fix middleware, where the second caller below is refused.
+++ */
+++describe("HARDEN-DUCKBRAIN-003 principal bucketing", () => {
+++  const principalKey = (req: Partial<Request>, ip: string): string =>
+++    `principal:${String(req.headers?.["x-api-key"] ?? ip)}`;
+++
+++  it("throttles each principal separately, so one caller cannot starve another on the same IP", () => {
+++    const middleware = rateLimitMiddleware({
+++      requestsPerMinute: 1,
+++      bucketKeyOf: principalKey,
+++    });
+++
+++    // Caller A burns its only token.
+++    const a1 = mockNext();
+++    middleware(
+++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
+++      mockRes().res as Response,
+++      a1,
+++    );
+++    expect(a1).toHaveBeenCalled();
+++
+++    // Caller A's second request is refused — the limit is real, not disabled.
+++    const aRefusal = mockRes();
+++    middleware(
+++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
+++      aRefusal.res as Response,
+++      mockNext(),
+++    );
+++    expect(aRefusal.status).toHaveBeenCalledWith(429);
+++
+++    // Caller B, SAME peer IP, has its own budget and is served.
+++    const bNext = mockNext();
+++    const { status: bStatus } = mockRes();
+++    middleware(
+++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-b" } }) as Request,
+++      mockRes().res as Response,
+++      bNext,
+++    );
+++    expect(bNext).toHaveBeenCalled();
+++    expect(bStatus).not.toHaveBeenCalled();
+++  });
+++
+++  it("refuses the same principal twice at rate 1 (control: the bucket still empties)", () => {
+++    const middleware = rateLimitMiddleware({
+++      requestsPerMinute: 1,
+++      bucketKeyOf: principalKey,
+++    });
+++    const req = mockReq({
+++      ip: "127.0.0.1",
+++      headers: { "x-api-key": "harden003-control" },
+++    }) as Request;
+++
+++    middleware(req, mockRes().res as Response, mockNext());
+++    const { res, status } = mockRes();
+++    middleware(req, res as Response, mockNext());
+++    expect(status).toHaveBeenCalledWith(429);
+++  });
+++
+++  it("falls back to the peer-IP bucket when the resolver throws, without failing the request", () => {
+++    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+++    try {
+++      const middleware = rateLimitMiddleware({
+++        requestsPerMinute: 1,
+++        bucketKeyOf: () => {
+++          throw new Error("resolver exploded");
+++        },
+++      });
+++      const output = mockRes();
+++      const next = mockNext();
+++      middleware(
+++        mockReq({ ip: "10.9.9.9" }) as Request,
+++        output.res as Response,
+++        next,
+++      );
+++      expect(next).toHaveBeenCalled();
+++      expect(warn).toHaveBeenCalledTimes(1);
+++      expect(String(warn.mock.calls[0][0])).toContain(
+++        "rate_limit_bucket_resolver_failed",
+++      );
+++      // ... and the fallback bucket is still a working bucket.
+++      const { status } = mockRes();
+++      middleware(
+++        mockReq({ ip: "10.9.9.9" }) as Request,
+++        mockRes().res as Response,
+++        mockNext(),
+++      );
+++      expect(status).not.toHaveBeenCalled();
+++    } finally {
+++      warn.mockRestore();
+++    }
+++  });
+++
+++  it("bounds the bucket store: a new principal beyond maxBuckets evicts instead of growing forever", () => {
+++    const middleware = rateLimitMiddleware({
+++      requestsPerMinute: 1,
+++      maxBuckets: 2,
+++      bucketKeyOf: (_req, ip) => `ip:${ip}`,
+++    });
+++    for (const ip of ["10.7.0.1", "10.7.0.2", "10.7.0.3"]) {
+++      const next = mockNext();
+++      middleware(mockReq({ ip }) as Request, mockRes().res as Response, next);
+++      // Every caller is admitted: the store made room by evicting the oldest
+++      // bucket instead of refusing (or growing without bound).
+++      expect(next).toHaveBeenCalled();
+++    }
+++  });
+++});
++diff --git a/src/auth/ratelimit.ts b/src/auth/ratelimit.ts
++index f367d778..2409ca5e 100644
++--- a/src/auth/ratelimit.ts
+++++ b/src/auth/ratelimit.ts
++@@ -8,6 +8,7 @@
++  * Configurable via RateLimitConfig.
++  */
++ 
+++import { createHash } from "node:crypto";
++ import { Request, Response, NextFunction, RequestHandler } from "express";
++ 
++ /**
++@@ -18,6 +19,32 @@ export interface RateLimitConfig {
++   requestsPerMinute: number;
++   /** Burst size: allows temporary spikes above the rate (default: same as requestsPerMinute) */
++   burstSize?: number;
+++  /**
+++   * HARDEN-DUCKBRAIN-003 (B): the identity a request is throttled against.
+++   *
+++   * The bucket used to be keyed on the peer IP alone. On a host where every
+++   * caller is local — agents, cron, MCP servers, supervisors — that is ONE
+++   * bucket, so one agent's burst throttled every other agent on the machine
+++   * (/health was the first casualty, then the Hermes memory provider). The
+++   * resolver lets the server key on the PRINCIPAL (a credential the auth layer
+++   * already knows) while leaving anonymous and unrecognized callers on the
+++   * peer-IP bucket, so credential stuffing and anonymous floods stay bounded.
+++   *
+++   * Default: the peer IP — the historical per-IP behavior.
+++   */
+++  bucketKeyOf?: (req: Request, ip: string) => string;
+++  /**
+++   * HARDEN-DUCKBRAIN-003 (B): upper bound on simultaneously tracked buckets.
+++   *
+++   * A principal bucket key is derived from a caller-supplied credential, so an
+++   * uncapped store would let a client mint buckets without limit and turn the
+++   * limiter into a memory leak. At the cap the oldest buckets are evicted
+++   * first: they are the ones closest to fully refilled, so dropping them costs
+++   * the least accuracy. Eviction does reset an evicted caller's budget, which
+++   * is the price of a bounded store — the default is far above any plausible
+++   * live principal count.
+++   */
+++  maxBuckets?: number;
++   /**
++    * OBSDB-002: sink for each REFUSED request (the 429 below).
++    *
++@@ -44,18 +71,44 @@ interface RateLimitEntry {
++ 
++ /**
++  * In-memory rate limit store
++- * Keyed by IP address
+++ *
+++ * Keyed by BUCKET KEY: `ip:<peer>` for anonymous / unrecognized callers, or
+++ * `principal:<digest>` for a caller whose credential the server recognizes
+++ * (HARDEN-DUCKBRAIN-003 (B)). Before that change the key was always the peer
+++ * IP, which collapsed every local caller into one bucket.
++  */
++ interface RateLimitStore {
++-  [ip: string]: RateLimitEntry;
+++  [bucket: string]: RateLimitEntry;
++ }
++ 
++ // Global store — shared across all middleware instances
++ const store: RateLimitStore = {};
++ 
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): bucket key for a caller we cannot name — the peer
+++ * address, exactly the pre-existing per-IP behavior.
+++ */
+++export function ipBucketKey(ip: string): string {
+++  return `ip:${ip}`;
+++}
+++
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): bucket key for a named principal.
+++ *
+++ * The credential is hashed, never stored: the limiter keeps no secret material,
+++ * and rotating a token rotates its bucket for free. Truncated to 128 bits —
+++ * enough that two live credentials cannot collide.
+++ */
+++export function principalBucketKey(credential: string): string {
+++  const digest = createHash("sha256").update(credential, "utf-8").digest("hex");
+++  return `principal:${digest.slice(0, 32)}`;
+++}
+++
++ // Cleanup interval (every 5 minutes, remove entries older than 10 minutes)
++ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
++ const ENTRY_MAX_AGE_MS = 10 * 60 * 1000;
+++// HARDEN-DUCKBRAIN-003 (B): bound on live buckets (see RateLimitConfig.maxBuckets).
+++const DEFAULT_MAX_BUCKETS = 20_000;
++ let lastCleanup = Date.now();
++ 
++ /**
++@@ -75,6 +128,30 @@ function cleanupStore(): void {
++   }
++ }
++ 
+++/**
+++ * Bound the store (HARDEN-DUCKBRAIN-003 (B)).
+++ *
+++ * Called only when a NEW bucket is about to be created. Stale buckets go first,
+++ * then the least recently refilled ones — a bucket untouched for longest is the
+++ * most refilled and therefore the cheapest to forget.
+++ */
+++function makeRoom(maxBuckets: number): void {
+++  if (Object.keys(store).length < maxBuckets) return;
+++  const now = Date.now();
+++  for (const key of Object.keys(store)) {
+++    if (now - store[key].lastRefill > ENTRY_MAX_AGE_MS) {
+++      delete store[key];
+++    }
+++  }
+++  const remaining = Object.keys(store);
+++  if (remaining.length < maxBuckets) return;
+++  remaining.sort((a, b) => store[a].lastRefill - store[b].lastRefill);
+++  const drop = remaining.length - maxBuckets + 1; // +1 slot for the new bucket
+++  for (let i = 0; i < drop; i++) {
+++    delete store[remaining[i]];
+++  }
+++}
+++
++ /**
++  * Create rate limiting middleware
++  *
++@@ -89,6 +166,9 @@ function cleanupStore(): void {
++ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
++   const maxTokens = config.burstSize ?? config.requestsPerMinute;
++   const refillRateMs = config.requestsPerMinute / 60000; // tokens per millisecond
+++  const maxBuckets = config.maxBuckets ?? DEFAULT_MAX_BUCKETS;
+++  const bucketKeyOf =
+++    config.bucketKeyOf ?? ((_req: Request, ip: string) => ipBucketKey(ip));
++ 
++   return (req: Request, res: Response, next: NextFunction): void => {
++     cleanupStore();
++@@ -96,15 +176,34 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
++     const ip = req.ip || req.socket.remoteAddress || "unknown";
++     const now = Date.now();
++ 
+++    // HARDEN-DUCKBRAIN-003 (B): spend from the request's PRINCIPAL bucket when
+++    // the server can name one, and from the peer-IP bucket otherwise. A
+++    // resolver that throws must never fail a request — fall back to the
+++    // historical per-IP bucket and record why, loudly.
+++    let bucket: string;
+++    try {
+++      bucket = bucketKeyOf(req, ip) || ipBucketKey(ip);
+++    } catch (error) {
+++      bucket = ipBucketKey(ip);
+++      console.warn(
+++        JSON.stringify({
+++          level: "warn",
+++          event: "rate_limit_bucket_resolver_failed",
+++          detail: error instanceof Error ? error.message : String(error),
+++        }),
+++      );
+++    }
+++
++     // Initialize or get entry
++-    if (!store[ip]) {
++-      store[ip] = {
+++    if (!store[bucket]) {
+++      makeRoom(maxBuckets);
+++      store[bucket] = {
++         tokens: maxTokens,
++         lastRefill: now,
++       };
++     }
++ 
++-    const entry = store[ip];
+++    const entry = store[bucket];
++ 
++     // Refill tokens based on elapsed time
++     const elapsed = now - entry.lastRefill;
++diff --git a/src/auth/storeSchema.ts b/src/auth/storeSchema.ts
++index 91c17ad7..5fba3c76 100644
++--- a/src/auth/storeSchema.ts
+++++ b/src/auth/storeSchema.ts
++@@ -81,6 +81,14 @@ export type AuthStoreReloadListener = (store: AuthStore) => void;
++ 
++ export interface AuthStoreSource {
++   getSnapshot(): AuthStore | Promise<AuthStore>;
+++  /**
+++   * HARDEN-DUCKBRAIN-003 (B): the LAST VALIDATED snapshot, synchronously and
+++   * without touching the file. The HTTP rate limiter needs to know — before
+++   * auth runs, and without an await — whether a presented key is one it can
+++   * name; a source that cannot answer synchronously is simply treated as
+++   * "no known principals", which keeps every caller on the peer-IP bucket.
+++   */
+++  peekSnapshot?(): AuthStore;
++   /** Called after a new validated snapshot replaces the previous snapshot. */
++   onReload?(listener: AuthStoreReloadListener): () => void;
++   migrateLegacyApiKey?(name: string, plaintext: string): void | Promise<void>;
++@@ -125,6 +133,42 @@ export function hashApiKey(key: string): string {
++   return `$sha256$${crypto.createHash("sha256").update(key, "utf-8").digest("hex")}`;
++ }
++ 
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): constant-time lookup of a presented API key in a
+++ * validated snapshot.
+++ *
+++ * The rate limiter calls this BEFORE auth (it is mounted upstream, to blunt
+++ * credential stuffing). The answer decides the bucket: a key the store knows is
+++ * a named principal and gets its own budget; anything else — no key, a typo, a
+++ * guess — shares its peer IP's bucket, which is exactly the pre-existing
+++ * protection. Expired keys are NOT matched: they cannot authenticate, so they
+++ * must not be able to mint a fresh bucket.
+++ */
+++export function matchApiKey(
+++  store: AuthStore,
+++  presented: string,
+++  now: Date = new Date(),
+++): ApiKeyEntry | undefined {
+++  const presentedDigest = Buffer.from(hashApiKey(presented).slice(8), "hex");
+++  for (const entry of store.apiKeys) {
+++    if (
+++      entry.expiresAt !== undefined &&
+++      !(Date.parse(entry.expiresAt) > now.getTime())
+++    ) {
+++      continue;
+++    }
+++    const expected = "keyHash" in entry ? entry.keyHash : hashApiKey(entry.key);
+++    const expectedDigest = Buffer.from(expected.slice(8), "hex");
+++    if (
+++      presentedDigest.length === expectedDigest.length &&
+++      crypto.timingSafeEqual(presentedDigest, expectedDigest)
+++    ) {
+++      return entry;
+++    }
+++  }
+++  return undefined;
+++}
+++
++ function formatValidation(error: unknown): string {
++   if (error instanceof z.ZodError) {
++     return error.issues
++@@ -209,6 +253,11 @@ export class FileAuthStore implements AuthStoreSource {
++     return () => this.reloadListeners.delete(listener);
++   }
++ 
+++  /** HARDEN-DUCKBRAIN-003 (B): the cached, validated snapshot — no file stat. */
+++  peekSnapshot(): AuthStore {
+++    return this.snapshot;
+++  }
+++
++   getSnapshot(): AuthStore {
++     let current: string;
++     try {
++diff --git a/src/auth/token-lifecycle.test.ts b/src/auth/token-lifecycle.test.ts
++index 0f2ac3f8..a2746321 100644
++--- a/src/auth/token-lifecycle.test.ts
+++++ b/src/auth/token-lifecycle.test.ts
++@@ -4,7 +4,12 @@ import path from "path";
++ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++ import type { Request } from "express";
++ import { createAuthBackend, type AuthConfig } from "./middleware";
++-import { AuthStoreSchema, FileAuthStore, hashApiKey } from "./storeSchema";
+++import {
+++  AuthStoreSchema,
+++  FileAuthStore,
+++  hashApiKey,
+++  matchApiKey,
+++} from "./storeSchema";
++ 
++ function requestWithKey(key: string): Request {
++   return { headers: { "x-api-key": key } } as unknown as Request;
++@@ -224,3 +229,50 @@ describe("SUPA-4 token lifecycle", () => {
++     expect(log).toHaveBeenCalledWith(expect.stringContaining("reload failed"));
++   });
++ });
+++
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): the rate limiter asks this BEFORE auth whether a
+++ * presented key is one it can name. Two failure modes matter: a known key that
+++ * is not matched (the principal falls back to the shared peer-IP bucket, i.e.
+++ * the starvation bug survives) and an unknown/expired key that IS matched (an
+++ * attacker mints a fresh bucket per guess, i.e. credential stuffing becomes
+++ * free). Both are pinned here.
+++ */
+++describe("HARDEN-DUCKBRAIN-003 matchApiKey", () => {
+++  const live = "live-key-".padEnd(32, "a");
+++  const legacy = "legacy-key-".padEnd(32, "b");
+++  const expired = "expired-key-".padEnd(32, "c");
+++  const now = new Date("2026-11-05T12:00:00.000Z");
+++  const store = AuthStoreSchema.parse({
+++    users: [],
+++    apiKeys: [
+++      { keyHash: hashApiKey(live), name: "live", roles: ["writer"] },
+++      { key: legacy, name: "legacy", roles: ["writer"] },
+++      {
+++        keyHash: hashApiKey(expired),
+++        name: "expired",
+++        roles: ["writer"],
+++        expiresAt: "2026-11-05T11:59:59.999Z",
+++      },
+++    ],
+++  });
+++
+++  it("matches a hashed live key and a legacy plaintext key", () => {
+++    expect(matchApiKey(store, live, now)?.name).toBe("live");
+++    expect(matchApiKey(store, legacy, now)?.name).toBe("legacy");
+++  });
+++
+++  it("does not match an unknown key, an empty key, or a prefix of a known key", () => {
+++    expect(matchApiKey(store, "guess-".padEnd(32, "z"), now)).toBeUndefined();
+++    expect(matchApiKey(store, "", now)).toBeUndefined();
+++    expect(matchApiKey(store, live.slice(0, 31), now)).toBeUndefined();
+++  });
+++
+++  it("does not match an expired key (it cannot authenticate, so it must not mint a bucket)", () => {
+++    expect(matchApiKey(store, expired, now)).toBeUndefined();
+++    // ... while the same entry matches one millisecond before its expiry.
+++    expect(
+++      matchApiKey(store, expired, new Date("2026-11-05T11:59:59.998Z"))?.name,
+++    ).toBe("expired");
+++  });
+++});
++diff --git a/src/cli/http.ts b/src/cli/http.ts
++index 5c5e369b..d461a25b 100644
++--- a/src/cli/http.ts
+++++ b/src/cli/http.ts
++@@ -34,12 +34,17 @@ import {
++   auditRequestDenial,
++ } from "../auth/middleware.js";
++ import type { AuthPrincipal, DenialAuditor } from "../auth/middleware.js";
++-import { FileAuthStore } from "../auth/storeSchema.js";
+++import { FileAuthStore, matchApiKey } from "../auth/storeSchema.js";
++ import { authorizeTableAccess } from "../auth/roles.js";
++ import { createDenialAuditor } from "../serialization/audit.js";
++ import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
++ import { resolveNamespacesPath } from "../config/index.js";
++-import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
+++import {
+++  rateLimitMiddleware,
+++  RateLimitConfig,
+++  ipBucketKey,
+++  principalBucketKey,
+++} from "../auth/ratelimit.js";
++ import {
++   errorHandler,
++   notFoundHandler,
++@@ -504,6 +509,37 @@ function statsHandler(_req: Request, res: Response) {
++  */
++ let mcpToolsRegistered = false;
++ 
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B): bucket key for the rate limiter.
+++ *
+++ * A caller is throttled against the API key it presents ONLY when the live
+++ * credential snapshot already knows that key (constant-time match, cached
+++ * snapshot — no file stat). Everything else — no key, a wrong key, a guess, a
+++ * basic-auth caller — keeps the historical peer-IP bucket. That asymmetry is
+++ * the point: naming a principal is what stops one agent starving another
+++ * (every fleet caller shares 127.0.0.1), while recognized-only naming is what
+++ * keeps credential stuffing expensive, since an attacker cannot mint a fresh
+++ * budget by inventing a key per attempt. The store is only consulted for
+++ * `--auth=apikey`: under `none` there is no principal, and under `basic` the
+++ * credential is a password we deliberately do not parse here.
+++ */
+++function createBucketKeyResolver(
+++  authConfig: AuthConfig,
+++): (req: Request, ip: string) => string {
+++  return (req: Request, ip: string): string => {
+++    if (authConfig.type !== "apikey") return ipBucketKey(ip);
+++    const store = authConfig.store;
+++    if (!store || typeof store.peekSnapshot !== "function") {
+++      return ipBucketKey(ip);
+++    }
+++    const header = req.headers["x-api-key"];
+++    const presented = Array.isArray(header) ? header[0] : header;
+++    if (!presented) return ipBucketKey(ip);
+++    const known = matchApiKey(store.peekSnapshot(), presented);
+++    return known ? principalBucketKey(presented) : ipBucketKey(ip);
+++  };
+++}
+++
++ /**
++  * Create Express app with MCP transport, auth, and rate limiting
++  *
++@@ -511,7 +547,8 @@ let mcpToolsRegistered = false;
++  * 0. Metrics surface construction (no middleware — just the registry)
++  * 1. DNS rebinding protection (block bad hosts immediately)   → duckbrain_rejected_total{reason="dns_rebind"}
++  * 1a. GET /metrics (auth- and limiter-exempt scrape surface, OBSDB-001)
++- * 2. Rate limiting (catch abuse before auth processing)       → duckbrain_rejected_total{reason="rate_limit"}
+++ * 2. Rate limiting (catch abuse before auth processing; bucket =     → duckbrain_rejected_total{reason="rate_limit"}
+++ *    principal when the store knows the key, else peer IP — HARDEN-DUCKBRAIN-003 (B))
++  * 2a. Read ledger (records every read incl. a 401)            → duckbrain_reads_total + duckbrain_read_duration_seconds
++  * 3. Authentication (verify credentials)
++  * 4. JSON body parser (after rate limit/auth to avoid parsing overhead on rejected requests)
++@@ -614,19 +651,11 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
++   // embedding probe, so exempting this route cannot amplify upstream calls.
++   app.get("/health", createHealthHandler());
++ 
++-  const rateLimitConfig: RateLimitConfig = {
++-    requestsPerMinute: options.rateLimit ?? 100,
++-    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
++-    // where it happens; the metrics module normalizes the route, so the raw
++-    // path never reaches a label.
++-    onReject: (info) =>
++-      httpMetrics.observeRejection({
++-        reason: "rate_limit",
++-        method: info.method,
++-        rawPath: info.path,
++-      }),
++-  };
++-  app.use(rateLimitMiddleware(rateLimitConfig));
+++  // 2b. Rate limiting is MOUNTED just below (after the credential store is
+++  // constructed, before authMiddleware): HARDEN-DUCKBRAIN-003 (B) keys each
+++  // bucket on the authenticated principal, so the mount needs the store in
+++  // hand. Position in the chain is unchanged — it still runs before auth, and
+++  // still before the read ledger.
++ 
++   // 3. Authentication — production loads a validated, hot-reloadable store.
++   // Inline authConfig remains the hermetic embed/test seam.
++@@ -688,6 +717,32 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
++     authorizeTableAccess(request.principal, request.ns, request.table, "write"),
++   );
++ 
+++  // 2b. Rate limiting (mounted here, still BEFORE auth in the chain).
+++  //
+++  // HARDEN-DUCKBRAIN-003 (B): the bucket is the PRINCIPAL, not the peer IP.
+++  // Every fleet caller on this host shares 127.0.0.1, so a per-IP bucket let
+++  // one agent's burst throttle every other agent (`/health` first — its 429
+++  // flipped the Hermes memory provider to "unavailable" on 2026-11-03 — then
+++  // ordinary reads). A caller presenting a key the credential store knows
+++  // spends from that key's own budget; anonymous callers and unrecognized
+++  // guesses stay on the peer-IP bucket, so credential stuffing is still
+++  // bounded by address. The limiter stays ahead of authMiddleware so a bad
+++  // credential cannot cost a password/store lookup per attempt.
+++  const rateLimitConfig: RateLimitConfig = {
+++    requestsPerMinute: options.rateLimit ?? 100,
+++    bucketKeyOf: createBucketKeyResolver(authConfig),
+++    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
+++    // where it happens; the metrics module normalizes the route, so the raw
+++    // path never reaches a label.
+++    onReject: (info) =>
+++      httpMetrics.observeRejection({
+++        reason: "rate_limit",
+++        method: info.method,
+++        rawPath: info.path,
+++      }),
+++  };
+++  app.use(rateLimitMiddleware(rateLimitConfig));
+++
++   // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
++   // so an auth-FAILED read is recorded too — authMiddleware answers 401 and
++   // never calls next(), so a ledger mounted after it would see nothing. The
++diff --git a/test-counts.json b/test-counts.json
++index 74763d97..084c7731 100644
++--- a/test-counts.json
+++++ b/test-counts.json
++@@ -1,5 +1,5 @@
++ {
++   "suites": 255,
++-  "tests": 2117,
++-  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+++  "tests": 2124,
+++  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 \u2014 the gate moved off the protected agent-instruction file)."
++ }
++diff --git a/tests/ratelimit-principal.int.test.ts b/tests/ratelimit-principal.int.test.ts
++new file mode 100644
++index 00000000..1c793bfd
++--- /dev/null
+++++ b/tests/ratelimit-principal.int.test.ts
++@@ -0,0 +1,137 @@
+++/**
+++ * HARDEN-DUCKBRAIN-003 (B) — one local caller must not be able to starve
+++ * another.
+++ *
+++ * The live failure: the daemon on :3000 runs a token bucket keyed on the peer
+++ * IP, and EVERY caller on this host (fleet agents, cron, MCP servers,
+++ * supervisors, probes) shares 127.0.0.1 — so one agent's burst throttled
+++ * everybody else, starting with /health (which flipped the Hermes memory
+++ * provider to "unavailable"), then ordinary reads.
+++ *
+++ * The fix keys the bucket on the PRINCIPAL when the credential store knows the
+++ * presented API key, and on the peer IP for everyone else. Two properties are
+++ * pinned here, and both matter:
+++ *
+++ *   1. ISOLATION — caller A can drain its own budget dry while caller B, on the
+++ *      same address, still reads. On the pre-fix daemon this test fails: B's
+++ *      request lands in A's bucket and comes back 429.
+++ *   2. NO FREE BUCKETS — an UNRECOGNIZED key does NOT get a bucket of its own.
+++ *      If it did, the limiter would stop bounding credential stuffing (each
+++ *      guess would arrive with a fresh budget); instead those requests share
+++ *      the peer-IP bucket and are refused.
+++ */
+++import { describe, it, expect, beforeAll, afterAll } from "vitest";
+++import { ChildProcess } from "child_process";
+++import fs from "fs";
+++import os from "os";
+++import path from "path";
+++import {
+++  getRandomPort,
+++  startDuckbrainHttp,
+++  stopProcess,
+++  waitForUrl,
+++  curl,
+++  DAEMON_READY_TIMEOUT_MS,
+++} from "./helpers";
+++import { removeTempDirSafely } from "../src/testing/race-safe-daemon";
+++
+++const port = getRandomPort();
+++const RATE_LIMIT = 5;
+++const KEY_A = "harden003-caller-a-0123456789abcdef";
+++const KEY_B = "harden003-caller-b-0123456789abcdef";
+++
+++let server: ChildProcess;
+++let scratchDir: string;
+++
+++/** A read that answers 200 for a principal with an unrestricted key. */
+++const READ_URL = () =>
+++  `http://127.0.0.1:${port}/api/memories?namespace=default&limit=1`;
+++
+++const read = (key?: string) =>
+++  curl(`-H "x-api-key: ${key}" "${READ_URL()}"`);
+++
+++describe("HARDEN-DUCKBRAIN-003 (B) per-principal rate limiting", () => {
+++  beforeAll(async () => {
+++    scratchDir = fs.mkdtempSync(
+++      path.join(os.tmpdir(), "duckbrain-ratelimit-principal-"),
+++    );
+++    const authDir = path.join(scratchDir, "home", ".duckbrain");
+++    const namespacesPath = path.join(scratchDir, "namespaces");
+++    fs.mkdirSync(authDir, { recursive: true });
+++    fs.mkdirSync(path.join(namespacesPath, "default"), { recursive: true });
+++    const authFile = path.join(authDir, "auth.json");
+++    fs.writeFileSync(
+++      authFile,
+++      JSON.stringify({
+++        users: [],
+++        apiKeys: [
+++          { key: KEY_A, name: "caller-a", roles: ["writer"] },
+++          { key: KEY_B, name: "caller-b", roles: ["writer"] },
+++        ],
+++      }),
+++      "utf-8",
+++    );
+++
+++    server = await startDuckbrainHttp({
+++      port,
+++      authType: "apikey",
+++      authFile,
+++      rateLimit: RATE_LIMIT,
+++      env: {
+++        HOME: path.join(scratchDir, "home"),
+++        DUCKBRAIN_DATA_DIR: scratchDir,
+++        DUCKBRAIN_NAMESPACES_PATH: namespacesPath,
+++      },
+++    });
+++    await waitForUrl(
+++      `http://127.0.0.1:${port}/health`,
+++      DAEMON_READY_TIMEOUT_MS,
+++      server,
+++    );
+++  }, 120000);
+++
+++  afterAll(async () => {
+++    await stopProcess(server);
+++    await removeTempDirSafely(scratchDir);
+++  });
+++
+++  it("drains caller A's budget while caller B, on the same address, still reads", async () => {
+++    // A sanity read first: the route answers 200 for a known key before the drain.
+++    const before = await read(KEY_B);
+++    expect(before.status).toBe(200);
+++
+++    // Caller A: 200 requests, as the row asks. It shares 127.0.0.1 with B.
+++    const statuses: number[] = [];
+++    for (let i = 0; i < 200; i++) {
+++      const res = await read(KEY_A);
+++      statuses.push(res.status);
+++      if (statuses.filter((s) => s === 429).length >= 3) break;
+++    }
+++    expect(statuses).toContain(200);
+++    expect(statuses).toContain(429);
+++
+++    // B, same peer IP, is untouched by A's exhaustion.
+++    const b = await read(KEY_B);
+++    expect(b.status).toBe(200);
+++    expect(b.headers).toMatch(/HTTP\/\S+\s+200/);
+++
+++    // ... and A stays refused: the limit was enforced, not disabled.
+++    const aAgain = await read(KEY_A);
+++    expect(aAgain.status).toBe(429);
+++    expect(aAgain.headers).toMatch(/Retry-After:/i);
+++  });
+++
+++  it("does not mint a bucket for an unrecognized key (credential stuffing stays bounded)", async () => {
+++    const statuses: number[] = [];
+++    for (let i = 0; i < RATE_LIMIT * 3; i++) {
+++      // A different, NONEXISTENT key per attempt: if each one got its own
+++      // bucket, none of these could ever be refused.
+++      const guess = `guess-${i}-`.padEnd(40, "x");
+++      const res = await read(guess);
+++      statuses.push(res.status);
+++    }
+++    expect(statuses).toContain(429);
+++    // The refusals are the LIMITER's, not auth's: every non-429 answer is a 401.
+++    expect(statuses.filter((s) => s === 200)).toHaveLength(0);
+++  });
+++});
+diff --git a/.gitreins/history/2026-11-05/680dd883/summary.md b/.gitreins/history/2026-11-05/680dd883/summary.md
+new file mode 100644
+index 00000000..14fc8a59
+--- /dev/null
++++ b/.gitreins/history/2026-11-05/680dd883/summary.md
+@@ -0,0 +1,36 @@
++# Verdict: HARDEN-DUCKBRAIN-003
++
++**Task:** HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local caller cannot starve another
++**Evaluated:** 2026-11-05T16:54:51.854873
++**Result:** ✓ PASS
++
++## Pipeline Stages
++
++- ✓ **tier1**
++  -   ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
++  ✓ tests: scanners: nice=nice -n 10
++- ✓ **tier2**
++  - COMPLETE
++  ✓ Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller — proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.
++  ✓ An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` — an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.
++  ✓ The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).
++  ✓ The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {"suites": 255, "tests": 2124} — exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).
++Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.
++
++## Summary
++
++Judge Result: HARDEN-DUCKBRAIN-003
++
++Stage tier1: PASS
++    ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
++  ✓ tests: scanners: nice=nice -n 10
++
++Stage tier2: PASS
++  COMPLETE
++  ✓ Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller — proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.
++  ✓ An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` — an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.
++  ✓ The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).
++  ✓ The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {"suites": 255, "tests": 2124} — exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).
++Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.
++
++Overall: PASS ✓
+diff --git a/.gitreins/history/2026-11-05/680dd883/verdict.json b/.gitreins/history/2026-11-05/680dd883/verdict.json
+new file mode 100644
+index 00000000..62af6d2f
+--- /dev/null
++++ b/.gitreins/history/2026-11-05/680dd883/verdict.json
+@@ -0,0 +1,127 @@
++{
++  "task_id": "HARDEN-DUCKBRAIN-003",
++  "task_title": "HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local caller cannot starve another",
++  "task_criteria": [
++    "Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.",
++    "An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.",
++    "The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.",
++    "The full unit suite is green and test-counts.json matches the live totals reported by the run."
++  ],
++  "passed": true,
++  "worktree": "/home/kara/proj-wt-hardenduckbrain003",
++  "branch": "wt/HARDEN-DUCKBRAIN-003",
++  "commit": "91d92c515600d7fdace216ebe00409a99964943c",
++  "working_tree_content_fingerprint": "b2efe10da8273183251ef94b416bac94597578242f7edc3f06eb09b2ec2fadec",
++  "working_tree_dirty_path_count": 1,
++  "items": [],
++  "stages": {
++    "tier1": {
++      "id": "tier1",
++      "passed": true,
++      "any_failed": false,
++      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
++      "steps": [
++        {
++          "id": "secrets",
++          "type": "script",
++          "passed": true,
++          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:48AM INF scanned ~6287031 bytes (6.29 MB) in 2.26s\n11:48AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/proj-wt-hardenduckbrain003: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 1045 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
++          "error": "",
++          "data": {
++            "exit_code": 0,
++            "secrets_scanners": [
++              "gitleaks",
++              "builtin"
++            ]
++          }
++        },
++        {
++          "id": "tests",
++          "type": "script",
++          "passed": true,
++          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/proj-wt-hardenduckbrain003\n\n(node:1428141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1442140) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1451332) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1452951) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1454060) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1457535) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1457683) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458521) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458595) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458734) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458708) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459015) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459050) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459079) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459082) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459410) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459552) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459747) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1460141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  255 passed (255)\n      Tests  2124 passed (2124)\n   Start at  11:48:03\n   Duration  87.21s (tests 81%, import 17%, setup 1%)\n\n    Isolate  255 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~5.77s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
++          "error": "",
++          "data": {
++            "exit_code": 0
++          }
++        }
++      ],
++      "coverage": "secrets+tests"
++    },
++    "tier2": {
++      "id": "tier2",
++      "passed": true,
++      "any_failed": false,
++      "summary": "COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
++      "steps": [
++        {
++          "id": "tier2",
++          "type": "ai_eval",
++          "passed": true,
++          "output": "COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
++          "error": "",
++          "data": {
++            "verdict": "COMPLETE",
++            "items": [
++              {
++                "criterion": "Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.",
++                "status": "PASS",
++                "detail": "tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket."
++              },
++              {
++                "criterion": "An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.",
++                "status": "PASS",
++                "detail": "src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'."
++              },
++              {
++                "criterion": "The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.",
++                "status": "PASS",
++                "detail": "Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml)."
++              },
++              {
++                "criterion": "The full unit suite is green and test-counts.json matches the live totals reported by the run.",
++                "status": "PASS",
++                "detail": "`npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388)."
++              }
++            ],
++            "summary": "Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
++            "provenance": {
++              "model": "deepseek-v4-flash",
++              "base_url_source": "GITREINS_LLM_BASE_URL",
++              "api_key_source": "GITREINS_LLM_API_KEY"
++            }
++          }
++        }
++      ],
++      "model": "deepseek-v4-flash",
++      "base_url_source": "GITREINS_LLM_BASE_URL",
++      "api_key_source": "GITREINS_LLM_API_KEY"
++    }
++  },
++  "summary": "Judge Result: HARDEN-DUCKBRAIN-003\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.\n\nOverall: PASS \u2713",
++  "evaluated_at": "2026-11-05T16:54:51.854873",
++  "supersedes": null,
++  "superseded_by": null,
++  "evidence": {
++    "collected_at": "2026-11-05T16:54:51.876467+00:00",
++    "items": [
++      {
++        "name": "patch",
++        "label": "Landed commit patch",
++        "file": "commit.patch",
++        "bytes": 30788,
++        "truncated": false,
++        "source": "git show 91d92c515600"
++      },
++      {
++        "name": "worktree",
++        "label": "Working-tree diff (graded)",
++        "file": "worktree.patch",
++        "bytes": 1517,
++        "truncated": false,
++        "source": "git diff HEAD (working tree)"
++      }
++    ],
++    "task_id": "HARDEN-DUCKBRAIN-003"
++  }
++}
+\ No newline at end of file
+diff --git a/.gitreins/history/2026-11-05/680dd883/worktree.patch b/.gitreins/history/2026-11-05/680dd883/worktree.patch
+new file mode 100644
+index 00000000..dcf9e0ac
+--- /dev/null
++++ b/.gitreins/history/2026-11-05/680dd883/worktree.patch
+@@ -0,0 +1,28 @@
++diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
++index 9fe70992..1a69e21f 100644
++--- a/.gitreins/tasks.yaml
+++++ b/.gitreins/tasks.yaml
++@@ -3095,3 +3095,23 @@ tasks:
++   status: complete
++   created_at: '2026-11-05T15:46:33.538654+00:00'
++   completed_at: '2026-11-05T15:49:31.173839+00:00'
+++- id: HARDEN-DUCKBRAIN-003
+++  title: 'HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local
+++    caller cannot starve another'
+++  criteria:
+++  - "Two local callers on the same peer address (127.0.0.1) with different KNOWN API\
+++    \ keys do not share a rate-limit bucket: after one caller drives 200 rapid requests\
+++    \ and is refused with 429, the other caller's GET /api/memories still answers\
+++    \ 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end\
+++    \ by tests/ratelimit-principal.int.test.ts against a scratch daemon started with\
+++    \ --rate-limit=5."
+++  - 'An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded:
+++    distinct unknown keys from one address share the peer-IP budget and are refused
+++    (429) once it is spent, never answered 200.'
+++  - 'The falsifier holds: against the pre-fix source tree the new tests fail (the
+++    second caller reads 429 instead of 200) and pass only with the fix.'
+++  - The full unit suite is green and test-counts.json matches the live totals reported
+++    by the run.
+++  status: complete
+++  created_at: '2026-11-05T16:47:59.403584+00:00'
+++  completed_at: '2026-11-05T16:48:03.085783+00:00'
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 9fe70992..1a69e21f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3095,3 +3095,23 @@ tasks:
+   status: complete
+   created_at: '2026-11-05T15:46:33.538654+00:00'
+   completed_at: '2026-11-05T15:49:31.173839+00:00'
++- id: HARDEN-DUCKBRAIN-003
++  title: 'HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local
++    caller cannot starve another'
++  criteria:
++  - "Two local callers on the same peer address (127.0.0.1) with different KNOWN API\
++    \ keys do not share a rate-limit bucket: after one caller drives 200 rapid requests\
++    \ and is refused with 429, the other caller's GET /api/memories still answers\
++    \ 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end\
++    \ by tests/ratelimit-principal.int.test.ts against a scratch daemon started with\
++    \ --rate-limit=5."
++  - 'An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded:
++    distinct unknown keys from one address share the peer-IP budget and are refused
++    (429) once it is spent, never answered 200.'
++  - 'The falsifier holds: against the pre-fix source tree the new tests fail (the
++    second caller reads 429 instead of 200) and pass only with the fix.'
++  - The full unit suite is green and test-counts.json matches the live totals reported
++    by the run.
++  status: complete
++  created_at: '2026-11-05T16:47:59.403584+00:00'
++  completed_at: '2026-11-05T16:48:03.085783+00:00'

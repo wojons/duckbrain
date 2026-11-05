@@ -1,0 +1,129 @@
+{
+  "task_id": "INT-CI-036",
+  "task_title": "INT-CI-036 (verify-only): test-counts.json tracks the live suite on main and CI is green",
+  "task_criteria": [
+    "Criterion 1: a fresh 'pnpm test:run' at origin/main 57f58cf9 reports 255 test files / 2124 tests (all passing), and 'bash scripts/sync-agents-md-counts.sh --check <that fresh vitest output>' exits 0 with 'test-counts.json test counts match live suite'.",
+    "Criterion 2: the manifest is maintained by the repo's own writer in the commits that moved the suite, never hand-typed after the fact: 'git log -p -- test-counts.json' shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117 and 2124, each riding the commit that added the tests.",
+    "Criterion 3: the drift the row cites is closed on main \u2014 the red CI run failed precisely at the 'Assert test-counts.json matches live suite' step on f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes that same assert step (.github/workflows/ci.yml:99-100)."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "57f58cf9fcee5fb12cdd55c718e145b42fa0b9b1",
+  "working_tree_content_fingerprint": "ec10dd18645c89ba2167b7d23b4b3f8ff900be52eb447e70b3ba637cf809661c",
+  "working_tree_dirty_path_count": 5,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n12:48PM INF scanned ~23856462 bytes (23.86 MB) in 4.1s\n12:48PM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 486056 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:2413911) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2440424) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2444224) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2449771) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2450004) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2452916) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2453416) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2453553) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2454534) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2454593) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2454755) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2454942) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2454994) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2455057) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2455327) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2455566) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2455664) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2456186) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:2456941) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  255 passed (255)\n      Tests  2124 passed (2124)\n   Start at  12:48:27\n   Duration  79.33s (tests 76%, import 22%, setup 1%, worker 1%, transform 1%)\n\n    Isolate  255 workers spawned \u00b7 ~106ms startup each (spawn + environment, per file)\n             at least ~6.65s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Criterion 1: a fresh 'pnpm test:run' at origin/main 57f58cf9 reports 255 test files / 2124 tests (all passing), and 'bash scripts/sync-agents-md-counts.sh --check <that fresh vitest output>' exits 0 with 'test-counts.json test counts match live suite'.: Ran fresh `pnpm test:run` at HEAD 57f58cf9 (git log -1 = 57f58cf9). Output: 'Test Files  255 passed (255)' and 'Tests  2124 passed (2124)' \u2014 all passing, exactly matching the criterion. Then `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_clean.out` -> exit_code 0, stdout 'test-counts.json test counts match live suite (255 suites, 2124 tests)'. test-counts.json contains {\"suites\": 255, \"tests\": 2124}. (Note: an initial --check run returned GAP-032 'unparseable' only because my shell redirect captured NUL bytes from vitest's progress renderer; after stripping binary noise the same script parsed the same run and exited 0 \u2014 a harness artifact, not a repo defect.) [resolution 0.11; scripts/sync-agents-md-counts.sh, test-counts.json]\n  \u2713 Criterion 2: the manifest is maintained by the repo's own writer in the commits that moved the suite, never hand-typed after the fact: 'git log -p -- test-counts.json' shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117 and 2124, each riding the commit that added the tests.: `git log -p -- test-counts.json` confirms the exact chain: a4e1b660 'chore(counts): manifest 252/2094 -> 253/2098 (PERF-001 added a suite)' (252/2094 -> 253/2098); 781a3ba3 (obsdb-003) 253/2098 -> 254/2108, and `git show --stat 781a3ba3` shows it adds src/http/metrics-obsdb003.test.ts; eb96389c (OBSDB-004) 254/2108 -> 255/2117, adding src/git/metrics-obsdb004.test.ts; 91d92c51 (HARDEN-DUCKBRAIN-003 B) 255/2117 -> 255/2124, adding src/auth/ratelimit.test.ts and tests/ratelimit-principal.int.test.ts. Every bump rides the commit that added the tests, and the provenance field records the writer scripts/sync-agents-md-counts.sh. [resolution 0.11; test-counts.json]\n  \u2713 Criterion 3: the drift the row cites is closed on main \u2014 the red CI run failed precisely at the 'Assert test-counts.json matches live suite' step on f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes that same assert step (.github/workflows/ci.yml:99-100).: `gh run view 41865466392` -> headSha f327db24, conclusion 'failure', job 'test' -> failure, and the only genuinely failed step is 'Assert test-counts.json matches live suite' (all subsequent steps skipped). At f327db24 the manifest read 252/2094 while src/duckdb/queries-plainlist-bounded-perf001.test.ts was already present, i.e. live 253/2098 \u2014 matching the board's recorded GAP-012 drift line. `gh run view 42070113655` -> headSha 57f58cf9, conclusion 'success', job 'test' -> success, with step 'Assert test-counts.json matches live suite -> success'. .github/workflows/ci.yml:99-100 at HEAD is '- name: Assert test-counts.json matches live suite' / 'run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out', and `git diff f327db24 57f58cf9 -- .github/workflows/ci.yml` is empty, so the same assert step is present in both. [resolution 0.11; test-counts.json, .github/workflows/ci.yml:99-100]\nAll three verify-only criteria hold: a fresh pnpm test:run at 57f58cf9 reports 255 files/2124 tests all passing with sync-agents-md-counts.sh --check exiting 0, the manifest history shows each count bump riding the commit that added the tests, and CI is green on 57f58cf9 with the assert step passing while the cited red run on f327db24 failed precisely at that step.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Criterion 1: a fresh 'pnpm test:run' at origin/main 57f58cf9 reports 255 test files / 2124 tests (all passing), and 'bash scripts/sync-agents-md-counts.sh --check <that fresh vitest output>' exits 0 with 'test-counts.json test counts match live suite'.: Ran fresh `pnpm test:run` at HEAD 57f58cf9 (git log -1 = 57f58cf9). Output: 'Test Files  255 passed (255)' and 'Tests  2124 passed (2124)' \u2014 all passing, exactly matching the criterion. Then `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_clean.out` -> exit_code 0, stdout 'test-counts.json test counts match live suite (255 suites, 2124 tests)'. test-counts.json contains {\"suites\": 255, \"tests\": 2124}. (Note: an initial --check run returned GAP-032 'unparseable' only because my shell redirect captured NUL bytes from vitest's progress renderer; after stripping binary noise the same script parsed the same run and exited 0 \u2014 a harness artifact, not a repo defect.) [resolution 0.11; scripts/sync-agents-md-counts.sh, test-counts.json]\n  \u2713 Criterion 2: the manifest is maintained by the repo's own writer in the commits that moved the suite, never hand-typed after the fact: 'git log -p -- test-counts.json' shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117 and 2124, each riding the commit that added the tests.: `git log -p -- test-counts.json` confirms the exact chain: a4e1b660 'chore(counts): manifest 252/2094 -> 253/2098 (PERF-001 added a suite)' (252/2094 -> 253/2098); 781a3ba3 (obsdb-003) 253/2098 -> 254/2108, and `git show --stat 781a3ba3` shows it adds src/http/metrics-obsdb003.test.ts; eb96389c (OBSDB-004) 254/2108 -> 255/2117, adding src/git/metrics-obsdb004.test.ts; 91d92c51 (HARDEN-DUCKBRAIN-003 B) 255/2117 -> 255/2124, adding src/auth/ratelimit.test.ts and tests/ratelimit-principal.int.test.ts. Every bump rides the commit that added the tests, and the provenance field records the writer scripts/sync-agents-md-counts.sh. [resolution 0.11; test-counts.json]\n  \u2713 Criterion 3: the drift the row cites is closed on main \u2014 the red CI run failed precisely at the 'Assert test-counts.json matches live suite' step on f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes that same assert step (.github/workflows/ci.yml:99-100).: `gh run view 41865466392` -> headSha f327db24, conclusion 'failure', job 'test' -> failure, and the only genuinely failed step is 'Assert test-counts.json matches live suite' (all subsequent steps skipped). At f327db24 the manifest read 252/2094 while src/duckdb/queries-plainlist-bounded-perf001.test.ts was already present, i.e. live 253/2098 \u2014 matching the board's recorded GAP-012 drift line. `gh run view 42070113655` -> headSha 57f58cf9, conclusion 'success', job 'test' -> success, with step 'Assert test-counts.json matches live suite -> success'. .github/workflows/ci.yml:99-100 at HEAD is '- name: Assert test-counts.json matches live suite' / 'run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out', and `git diff f327db24 57f58cf9 -- .github/workflows/ci.yml` is empty, so the same assert step is present in both. [resolution 0.11; test-counts.json, .github/workflows/ci.yml:99-100]\nAll three verify-only criteria hold: a fresh pnpm test:run at 57f58cf9 reports 255 files/2124 tests all passing with sync-agents-md-counts.sh --check exiting 0, the manifest history shows each count bump riding the commit that added the tests, and CI is green on 57f58cf9 with the assert step passing while the cited red run on f327db24 failed precisely at that step.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Criterion 1: a fresh 'pnpm test:run' at origin/main 57f58cf9 reports 255 test files / 2124 tests (all passing), and 'bash scripts/sync-agents-md-counts.sh --check <that fresh vitest output>' exits 0 with 'test-counts.json test counts match live suite'.",
+                "status": "PASS",
+                "detail": "Ran fresh `pnpm test:run` at HEAD 57f58cf9 (git log -1 = 57f58cf9). Output: 'Test Files  255 passed (255)' and 'Tests  2124 passed (2124)' \u2014 all passing, exactly matching the criterion. Then `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_clean.out` -> exit_code 0, stdout 'test-counts.json test counts match live suite (255 suites, 2124 tests)'. test-counts.json contains {\"suites\": 255, \"tests\": 2124}. (Note: an initial --check run returned GAP-032 'unparseable' only because my shell redirect captured NUL bytes from vitest's progress renderer; after stripping binary noise the same script parsed the same run and exited 0 \u2014 a harness artifact, not a repo defect.) [resolution 0.11; scripts/sync-agents-md-counts.sh, test-counts.json]",
+                "resolution_probability": 0.11,
+                "cited_path": "scripts/sync-agents-md-counts.sh, test-counts.json"
+              },
+              {
+                "criterion": "Criterion 2: the manifest is maintained by the repo's own writer in the commits that moved the suite, never hand-typed after the fact: 'git log -p -- test-counts.json' shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117 and 2124, each riding the commit that added the tests.",
+                "status": "PASS",
+                "detail": "`git log -p -- test-counts.json` confirms the exact chain: a4e1b660 'chore(counts): manifest 252/2094 -> 253/2098 (PERF-001 added a suite)' (252/2094 -> 253/2098); 781a3ba3 (obsdb-003) 253/2098 -> 254/2108, and `git show --stat 781a3ba3` shows it adds src/http/metrics-obsdb003.test.ts; eb96389c (OBSDB-004) 254/2108 -> 255/2117, adding src/git/metrics-obsdb004.test.ts; 91d92c51 (HARDEN-DUCKBRAIN-003 B) 255/2117 -> 255/2124, adding src/auth/ratelimit.test.ts and tests/ratelimit-principal.int.test.ts. Every bump rides the commit that added the tests, and the provenance field records the writer scripts/sync-agents-md-counts.sh. [resolution 0.11; test-counts.json]",
+                "resolution_probability": 0.11,
+                "cited_path": "test-counts.json"
+              },
+              {
+                "criterion": "Criterion 3: the drift the row cites is closed on main \u2014 the red CI run failed precisely at the 'Assert test-counts.json matches live suite' step on f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes that same assert step (.github/workflows/ci.yml:99-100).",
+                "status": "PASS",
+                "detail": "`gh run view 41865466392` -> headSha f327db24, conclusion 'failure', job 'test' -> failure, and the only genuinely failed step is 'Assert test-counts.json matches live suite' (all subsequent steps skipped). At f327db24 the manifest read 252/2094 while src/duckdb/queries-plainlist-bounded-perf001.test.ts was already present, i.e. live 253/2098 \u2014 matching the board's recorded GAP-012 drift line. `gh run view 42070113655` -> headSha 57f58cf9, conclusion 'success', job 'test' -> success, with step 'Assert test-counts.json matches live suite -> success'. .github/workflows/ci.yml:99-100 at HEAD is '- name: Assert test-counts.json matches live suite' / 'run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out', and `git diff f327db24 57f58cf9 -- .github/workflows/ci.yml` is empty, so the same assert step is present in both. [resolution 0.11; test-counts.json, .github/workflows/ci.yml:99-100]",
+                "resolution_probability": 0.11,
+                "cited_path": "test-counts.json, .github/workflows/ci.yml:99-100"
+              }
+            ],
+            "summary": "All three verify-only criteria hold: a fresh pnpm test:run at 57f58cf9 reports 255 files/2124 tests all passing with sync-agents-md-counts.sh --check exiting 0, the manifest history shows each count bump riding the commit that added the tests, and CI is green on 57f58cf9 with the assert step passing while the cited red run on f327db24 failed precisely at that step.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: INT-CI-036\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Criterion 1: a fresh 'pnpm test:run' at origin/main 57f58cf9 reports 255 test files / 2124 tests (all passing), and 'bash scripts/sync-agents-md-counts.sh --check <that fresh vitest output>' exits 0 with 'test-counts.json test counts match live suite'.: Ran fresh `pnpm test:run` at HEAD 57f58cf9 (git log -1 = 57f58cf9). Output: 'Test Files  255 passed (255)' and 'Tests  2124 passed (2124)' \u2014 all passing, exactly matching the criterion. Then `bash scripts/sync-agents-md-counts.sh --check /tmp/vitest_clean.out` -> exit_code 0, stdout 'test-counts.json test counts match live suite (255 suites, 2124 tests)'. test-counts.json contains {\"suites\": 255, \"tests\": 2124}. (Note: an initial --check run returned GAP-032 'unparseable' only because my shell redirect captured NUL bytes from vitest's progress renderer; after stripping binary noise the same script parsed the same run and exited 0 \u2014 a harness artifact, not a repo defect.) [resolution 0.11; scripts/sync-agents-md-counts.sh, test-counts.json]\n  \u2713 Criterion 2: the manifest is maintained by the repo's own writer in the commits that moved the suite, never hand-typed after the fact: 'git log -p -- test-counts.json' shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117 and 2124, each riding the commit that added the tests.: `git log -p -- test-counts.json` confirms the exact chain: a4e1b660 'chore(counts): manifest 252/2094 -> 253/2098 (PERF-001 added a suite)' (252/2094 -> 253/2098); 781a3ba3 (obsdb-003) 253/2098 -> 254/2108, and `git show --stat 781a3ba3` shows it adds src/http/metrics-obsdb003.test.ts; eb96389c (OBSDB-004) 254/2108 -> 255/2117, adding src/git/metrics-obsdb004.test.ts; 91d92c51 (HARDEN-DUCKBRAIN-003 B) 255/2117 -> 255/2124, adding src/auth/ratelimit.test.ts and tests/ratelimit-principal.int.test.ts. Every bump rides the commit that added the tests, and the provenance field records the writer scripts/sync-agents-md-counts.sh. [resolution 0.11; test-counts.json]\n  \u2713 Criterion 3: the drift the row cites is closed on main \u2014 the red CI run failed precisely at the 'Assert test-counts.json matches live suite' step on f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes that same assert step (.github/workflows/ci.yml:99-100).: `gh run view 41865466392` -> headSha f327db24, conclusion 'failure', job 'test' -> failure, and the only genuinely failed step is 'Assert test-counts.json matches live suite' (all subsequent steps skipped). At f327db24 the manifest read 252/2094 while src/duckdb/queries-plainlist-bounded-perf001.test.ts was already present, i.e. live 253/2098 \u2014 matching the board's recorded GAP-012 drift line. `gh run view 42070113655` -> headSha 57f58cf9, conclusion 'success', job 'test' -> success, with step 'Assert test-counts.json matches live suite -> success'. .github/workflows/ci.yml:99-100 at HEAD is '- name: Assert test-counts.json matches live suite' / 'run: bash scripts/sync-agents-md-counts.sh --check /tmp/vitest.out', and `git diff f327db24 57f58cf9 -- .github/workflows/ci.yml` is empty, so the same assert step is present in both. [resolution 0.11; test-counts.json, .github/workflows/ci.yml:99-100]\nAll three verify-only criteria hold: a fresh pnpm test:run at 57f58cf9 reports 255 files/2124 tests all passing with sync-agents-md-counts.sh --check exiting 0, the manifest history shows each count bump riding the commit that added the tests, and CI is green on 57f58cf9 with the assert step passing while the cited red run on f327db24 failed precisely at that step.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-05T17:54:58.759223",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-05T17:54:58.847046+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 105231,
+        "truncated": false,
+        "source": "git show 57f58cf9fcee"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 29050,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "INT-CI-036"
+  }
+}

@@ -1286,3 +1286,5 @@
 {"id":8465,"timestamp":"2026-11-05T15:49:18Z","event_type":"task_completed","task_id":"OBSDB-004","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8466,"timestamp":"2026-11-05T16:39:28Z","event_type":"task_updated","task_id":"HARDEN-DUCKBRAIN-003","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
 {"id":8467,"timestamp":"2026-11-05T16:59:04Z","event_type":"task_completed","task_id":"HARDEN-DUCKBRAIN-003","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8468,"timestamp":"2026-11-05T17:45:49Z","event_type":"task_updated","task_id":"INT-CI-036","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8469,"timestamp":"2026-11-05T17:55:12Z","event_type":"task_completed","task_id":"INT-CI-036","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}

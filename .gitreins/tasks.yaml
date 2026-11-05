@@ -3115,3 +3115,21 @@ tasks:
   status: complete
   created_at: '2026-11-05T16:47:59.403584+00:00'
   completed_at: '2026-11-05T16:48:03.085783+00:00'
+- id: INT-CI-036
+  title: 'INT-CI-036 (verify-only): test-counts.json tracks the live suite on main
+    and CI is green'
+  criteria:
+  - 'Criterion 1: a fresh ''pnpm test:run'' at origin/main 57f58cf9 reports 255 test
+    files / 2124 tests (all passing), and ''bash scripts/sync-agents-md-counts.sh
+    --check <that fresh vitest output>'' exits 0 with ''test-counts.json test counts
+    match live suite''.'
+  - 'Criterion 2: the manifest is maintained by the repo''s own writer in the commits
+    that moved the suite, never hand-typed after the fact: ''git log -p -- test-counts.json''
+    shows 252/2094 -> 253/2098 (a4e1b660, PERF-001 added a suite) then 254/2108, 255/2117
+    and 2124, each riding the commit that added the tests.'
+  - "Criterion 3: the drift the row cites is closed on main \u2014 the red CI run\
+    \ failed precisely at the 'Assert test-counts.json matches live suite' step on\
+    \ f327db24, and the current tip 57f58cf9 has a green CI run whose 'test' job includes\
+    \ that same assert step (.github/workflows/ci.yml:99-100)."
+  status: pending
+  created_at: '2026-11-05T17:48:20.205301+00:00'
