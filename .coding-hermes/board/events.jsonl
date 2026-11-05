@@ -1290,3 +1290,5 @@
 {"id":8469,"timestamp":"2026-11-05T17:55:12Z","event_type":"task_completed","task_id":"INT-CI-036","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8470,"timestamp":"2026-11-05T19:02:57Z","event_type":"task_created","task_id":"REPLAY-BIRTH-DEATH-001","actor":"foreman","detail":"{\"id\":\"REPLAY-BIRTH-DEATH-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8471,"timestamp":"2026-11-05T19:03:01Z","event_type":"task_updated","task_id":"EXAMPLE-APP-001","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8472,"timestamp":"2026-11-05T19:08:55Z","event_type":"task_completed","task_id":"EXAMPLE-APP-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8473,"timestamp":"2026-11-05T19:10:57Z","event_type":"task_completed","task_id":"REPLAY-BIRTH-DEATH-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
