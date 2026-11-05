@@ -1,0 +1,28 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 9fe70992..1a69e21f 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3095,3 +3095,23 @@ tasks:
+   status: complete
+   created_at: '2026-11-05T15:46:33.538654+00:00'
+   completed_at: '2026-11-05T15:49:31.173839+00:00'
++- id: HARDEN-DUCKBRAIN-003
++  title: 'HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local
++    caller cannot starve another'
++  criteria:
++  - "Two local callers on the same peer address (127.0.0.1) with different KNOWN API\
++    \ keys do not share a rate-limit bucket: after one caller drives 200 rapid requests\
++    \ and is refused with 429, the other caller's GET /api/memories still answers\
++    \ 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end\
++    \ by tests/ratelimit-principal.int.test.ts against a scratch daemon started with\
++    \ --rate-limit=5."
++  - 'An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded:
++    distinct unknown keys from one address share the peer-IP budget and are refused
++    (429) once it is spent, never answered 200.'
++  - 'The falsifier holds: against the pre-fix source tree the new tests fail (the
++    second caller reads 429 instead of 200) and pass only with the fix.'
++  - The full unit suite is green and test-counts.json matches the live totals reported
++    by the run.
++  status: complete
++  created_at: '2026-11-05T16:47:59.403584+00:00'
++  completed_at: '2026-11-05T16:48:03.085783+00:00'

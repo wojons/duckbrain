@@ -1,0 +1,748 @@
+commit 91d92c515600d7fdace216ebe00409a99964943c
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Nov 5 11:46:53 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Nov 5 11:46:53 2026 -0500
+
+    fix(http): key the rate-limit bucket on the principal, not the peer IP (HARDEN-DUCKBRAIN-003 B)
+    
+    Every fleet caller on this host shares 127.0.0.1, so the per-IP token bucket
+    collapsed them into one budget: one agent's burst returned 429 to every other
+    agent's requests. The limiter now spends from `principal:<sha256(key)>` when the
+    live credential snapshot knows the presented x-api-key (constant-time match,
+    cached snapshot), and from `ip:<peer>` for anonymous / unrecognized / basic-auth
+    callers — so guessing a key mints no fresh budget and credential stuffing stays
+    bounded by address. Store size is capped with oldest-bucket eviction.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/auth/ratelimit.test.ts            | 114 ++++++++++++++++++++++++++++
+ src/auth/ratelimit.ts                 | 109 +++++++++++++++++++++++++--
+ src/auth/storeSchema.ts               |  49 ++++++++++++
+ src/auth/token-lifecycle.test.ts      |  54 +++++++++++++-
+ src/cli/http.ts                       |  87 +++++++++++++++++----
+ test-counts.json                      |   4 +-
+ tests/ratelimit-principal.int.test.ts | 137 ++++++++++++++++++++++++++++++++++
+ 7 files changed, 530 insertions(+), 24 deletions(-)
+
+diff --git a/src/auth/ratelimit.test.ts b/src/auth/ratelimit.test.ts
+index f7056e36..71b53dc8 100644
+--- a/src/auth/ratelimit.test.ts
++++ b/src/auth/ratelimit.test.ts
+@@ -286,3 +286,117 @@ describe("rateLimitMiddleware 429 observability", () => {
+     }
+   });
+ });
++
++/**
++ * HARDEN-DUCKBRAIN-003 (B): the bucket must be the PRINCIPAL, not the peer IP.
++ *
++ * The live failure this pins: every fleet caller on a host shares 127.0.0.1, so
++ * one agent's burst drained the single per-IP bucket and every other agent's
++ * request came back 429 while the daemon was healthy. These tests fail on the
++ * pre-fix middleware, where the second caller below is refused.
++ */
++describe("HARDEN-DUCKBRAIN-003 principal bucketing", () => {
++  const principalKey = (req: Partial<Request>, ip: string): string =>
++    `principal:${String(req.headers?.["x-api-key"] ?? ip)}`;
++
++  it("throttles each principal separately, so one caller cannot starve another on the same IP", () => {
++    const middleware = rateLimitMiddleware({
++      requestsPerMinute: 1,
++      bucketKeyOf: principalKey,
++    });
++
++    // Caller A burns its only token.
++    const a1 = mockNext();
++    middleware(
++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
++      mockRes().res as Response,
++      a1,
++    );
++    expect(a1).toHaveBeenCalled();
++
++    // Caller A's second request is refused — the limit is real, not disabled.
++    const aRefusal = mockRes();
++    middleware(
++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
++      aRefusal.res as Response,
++      mockNext(),
++    );
++    expect(aRefusal.status).toHaveBeenCalledWith(429);
++
++    // Caller B, SAME peer IP, has its own budget and is served.
++    const bNext = mockNext();
++    const { status: bStatus } = mockRes();
++    middleware(
++      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-b" } }) as Request,
++      mockRes().res as Response,
++      bNext,
++    );
++    expect(bNext).toHaveBeenCalled();
++    expect(bStatus).not.toHaveBeenCalled();
++  });
++
++  it("refuses the same principal twice at rate 1 (control: the bucket still empties)", () => {
++    const middleware = rateLimitMiddleware({
++      requestsPerMinute: 1,
++      bucketKeyOf: principalKey,
++    });
++    const req = mockReq({
++      ip: "127.0.0.1",
++      headers: { "x-api-key": "harden003-control" },
++    }) as Request;
++
++    middleware(req, mockRes().res as Response, mockNext());
++    const { res, status } = mockRes();
++    middleware(req, res as Response, mockNext());
++    expect(status).toHaveBeenCalledWith(429);
++  });
++
++  it("falls back to the peer-IP bucket when the resolver throws, without failing the request", () => {
++    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
++    try {
++      const middleware = rateLimitMiddleware({
++        requestsPerMinute: 1,
++        bucketKeyOf: () => {
++          throw new Error("resolver exploded");
++        },
++      });
++      const output = mockRes();
++      const next = mockNext();
++      middleware(
++        mockReq({ ip: "10.9.9.9" }) as Request,
++        output.res as Response,
++        next,
++      );
++      expect(next).toHaveBeenCalled();
++      expect(warn).toHaveBeenCalledTimes(1);
++      expect(String(warn.mock.calls[0][0])).toContain(
++        "rate_limit_bucket_resolver_failed",
++      );
++      // ... and the fallback bucket is still a working bucket.
++      const { status } = mockRes();
++      middleware(
++        mockReq({ ip: "10.9.9.9" }) as Request,
++        mockRes().res as Response,
++        mockNext(),
++      );
++      expect(status).not.toHaveBeenCalled();
++    } finally {
++      warn.mockRestore();
++    }
++  });
++
++  it("bounds the bucket store: a new principal beyond maxBuckets evicts instead of growing forever", () => {
++    const middleware = rateLimitMiddleware({
++      requestsPerMinute: 1,
++      maxBuckets: 2,
++      bucketKeyOf: (_req, ip) => `ip:${ip}`,
++    });
++    for (const ip of ["10.7.0.1", "10.7.0.2", "10.7.0.3"]) {
++      const next = mockNext();
++      middleware(mockReq({ ip }) as Request, mockRes().res as Response, next);
++      // Every caller is admitted: the store made room by evicting the oldest
++      // bucket instead of refusing (or growing without bound).
++      expect(next).toHaveBeenCalled();
++    }
++  });
++});
+diff --git a/src/auth/ratelimit.ts b/src/auth/ratelimit.ts
+index f367d778..2409ca5e 100644
+--- a/src/auth/ratelimit.ts
++++ b/src/auth/ratelimit.ts
+@@ -8,6 +8,7 @@
+  * Configurable via RateLimitConfig.
+  */
+ 
++import { createHash } from "node:crypto";
+ import { Request, Response, NextFunction, RequestHandler } from "express";
+ 
+ /**
+@@ -18,6 +19,32 @@ export interface RateLimitConfig {
+   requestsPerMinute: number;
+   /** Burst size: allows temporary spikes above the rate (default: same as requestsPerMinute) */
+   burstSize?: number;
++  /**
++   * HARDEN-DUCKBRAIN-003 (B): the identity a request is throttled against.
++   *
++   * The bucket used to be keyed on the peer IP alone. On a host where every
++   * caller is local — agents, cron, MCP servers, supervisors — that is ONE
++   * bucket, so one agent's burst throttled every other agent on the machine
++   * (/health was the first casualty, then the Hermes memory provider). The
++   * resolver lets the server key on the PRINCIPAL (a credential the auth layer
++   * already knows) while leaving anonymous and unrecognized callers on the
++   * peer-IP bucket, so credential stuffing and anonymous floods stay bounded.
++   *
++   * Default: the peer IP — the historical per-IP behavior.
++   */
++  bucketKeyOf?: (req: Request, ip: string) => string;
++  /**
++   * HARDEN-DUCKBRAIN-003 (B): upper bound on simultaneously tracked buckets.
++   *
++   * A principal bucket key is derived from a caller-supplied credential, so an
++   * uncapped store would let a client mint buckets without limit and turn the
++   * limiter into a memory leak. At the cap the oldest buckets are evicted
++   * first: they are the ones closest to fully refilled, so dropping them costs
++   * the least accuracy. Eviction does reset an evicted caller's budget, which
++   * is the price of a bounded store — the default is far above any plausible
++   * live principal count.
++   */
++  maxBuckets?: number;
+   /**
+    * OBSDB-002: sink for each REFUSED request (the 429 below).
+    *
+@@ -44,18 +71,44 @@ interface RateLimitEntry {
+ 
+ /**
+  * In-memory rate limit store
+- * Keyed by IP address
++ *
++ * Keyed by BUCKET KEY: `ip:<peer>` for anonymous / unrecognized callers, or
++ * `principal:<digest>` for a caller whose credential the server recognizes
++ * (HARDEN-DUCKBRAIN-003 (B)). Before that change the key was always the peer
++ * IP, which collapsed every local caller into one bucket.
+  */
+ interface RateLimitStore {
+-  [ip: string]: RateLimitEntry;
++  [bucket: string]: RateLimitEntry;
+ }
+ 
+ // Global store — shared across all middleware instances
+ const store: RateLimitStore = {};
+ 
++/**
++ * HARDEN-DUCKBRAIN-003 (B): bucket key for a caller we cannot name — the peer
++ * address, exactly the pre-existing per-IP behavior.
++ */
++export function ipBucketKey(ip: string): string {
++  return `ip:${ip}`;
++}
++
++/**
++ * HARDEN-DUCKBRAIN-003 (B): bucket key for a named principal.
++ *
++ * The credential is hashed, never stored: the limiter keeps no secret material,
++ * and rotating a token rotates its bucket for free. Truncated to 128 bits —
++ * enough that two live credentials cannot collide.
++ */
++export function principalBucketKey(credential: string): string {
++  const digest = createHash("sha256").update(credential, "utf-8").digest("hex");
++  return `principal:${digest.slice(0, 32)}`;
++}
++
+ // Cleanup interval (every 5 minutes, remove entries older than 10 minutes)
+ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+ const ENTRY_MAX_AGE_MS = 10 * 60 * 1000;
++// HARDEN-DUCKBRAIN-003 (B): bound on live buckets (see RateLimitConfig.maxBuckets).
++const DEFAULT_MAX_BUCKETS = 20_000;
+ let lastCleanup = Date.now();
+ 
+ /**
+@@ -75,6 +128,30 @@ function cleanupStore(): void {
+   }
+ }
+ 
++/**
++ * Bound the store (HARDEN-DUCKBRAIN-003 (B)).
++ *
++ * Called only when a NEW bucket is about to be created. Stale buckets go first,
++ * then the least recently refilled ones — a bucket untouched for longest is the
++ * most refilled and therefore the cheapest to forget.
++ */
++function makeRoom(maxBuckets: number): void {
++  if (Object.keys(store).length < maxBuckets) return;
++  const now = Date.now();
++  for (const key of Object.keys(store)) {
++    if (now - store[key].lastRefill > ENTRY_MAX_AGE_MS) {
++      delete store[key];
++    }
++  }
++  const remaining = Object.keys(store);
++  if (remaining.length < maxBuckets) return;
++  remaining.sort((a, b) => store[a].lastRefill - store[b].lastRefill);
++  const drop = remaining.length - maxBuckets + 1; // +1 slot for the new bucket
++  for (let i = 0; i < drop; i++) {
++    delete store[remaining[i]];
++  }
++}
++
+ /**
+  * Create rate limiting middleware
+  *
+@@ -89,6 +166,9 @@ function cleanupStore(): void {
+ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
+   const maxTokens = config.burstSize ?? config.requestsPerMinute;
+   const refillRateMs = config.requestsPerMinute / 60000; // tokens per millisecond
++  const maxBuckets = config.maxBuckets ?? DEFAULT_MAX_BUCKETS;
++  const bucketKeyOf =
++    config.bucketKeyOf ?? ((_req: Request, ip: string) => ipBucketKey(ip));
+ 
+   return (req: Request, res: Response, next: NextFunction): void => {
+     cleanupStore();
+@@ -96,15 +176,34 @@ export function rateLimitMiddleware(config: RateLimitConfig): RequestHandler {
+     const ip = req.ip || req.socket.remoteAddress || "unknown";
+     const now = Date.now();
+ 
++    // HARDEN-DUCKBRAIN-003 (B): spend from the request's PRINCIPAL bucket when
++    // the server can name one, and from the peer-IP bucket otherwise. A
++    // resolver that throws must never fail a request — fall back to the
++    // historical per-IP bucket and record why, loudly.
++    let bucket: string;
++    try {
++      bucket = bucketKeyOf(req, ip) || ipBucketKey(ip);
++    } catch (error) {
++      bucket = ipBucketKey(ip);
++      console.warn(
++        JSON.stringify({
++          level: "warn",
++          event: "rate_limit_bucket_resolver_failed",
++          detail: error instanceof Error ? error.message : String(error),
++        }),
++      );
++    }
++
+     // Initialize or get entry
+-    if (!store[ip]) {
+-      store[ip] = {
++    if (!store[bucket]) {
++      makeRoom(maxBuckets);
++      store[bucket] = {
+         tokens: maxTokens,
+         lastRefill: now,
+       };
+     }
+ 
+-    const entry = store[ip];
++    const entry = store[bucket];
+ 
+     // Refill tokens based on elapsed time
+     const elapsed = now - entry.lastRefill;
+diff --git a/src/auth/storeSchema.ts b/src/auth/storeSchema.ts
+index 91c17ad7..5fba3c76 100644
+--- a/src/auth/storeSchema.ts
++++ b/src/auth/storeSchema.ts
+@@ -81,6 +81,14 @@ export type AuthStoreReloadListener = (store: AuthStore) => void;
+ 
+ export interface AuthStoreSource {
+   getSnapshot(): AuthStore | Promise<AuthStore>;
++  /**
++   * HARDEN-DUCKBRAIN-003 (B): the LAST VALIDATED snapshot, synchronously and
++   * without touching the file. The HTTP rate limiter needs to know — before
++   * auth runs, and without an await — whether a presented key is one it can
++   * name; a source that cannot answer synchronously is simply treated as
++   * "no known principals", which keeps every caller on the peer-IP bucket.
++   */
++  peekSnapshot?(): AuthStore;
+   /** Called after a new validated snapshot replaces the previous snapshot. */
+   onReload?(listener: AuthStoreReloadListener): () => void;
+   migrateLegacyApiKey?(name: string, plaintext: string): void | Promise<void>;
+@@ -125,6 +133,42 @@ export function hashApiKey(key: string): string {
+   return `$sha256$${crypto.createHash("sha256").update(key, "utf-8").digest("hex")}`;
+ }
+ 
++/**
++ * HARDEN-DUCKBRAIN-003 (B): constant-time lookup of a presented API key in a
++ * validated snapshot.
++ *
++ * The rate limiter calls this BEFORE auth (it is mounted upstream, to blunt
++ * credential stuffing). The answer decides the bucket: a key the store knows is
++ * a named principal and gets its own budget; anything else — no key, a typo, a
++ * guess — shares its peer IP's bucket, which is exactly the pre-existing
++ * protection. Expired keys are NOT matched: they cannot authenticate, so they
++ * must not be able to mint a fresh bucket.
++ */
++export function matchApiKey(
++  store: AuthStore,
++  presented: string,
++  now: Date = new Date(),
++): ApiKeyEntry | undefined {
++  const presentedDigest = Buffer.from(hashApiKey(presented).slice(8), "hex");
++  for (const entry of store.apiKeys) {
++    if (
++      entry.expiresAt !== undefined &&
++      !(Date.parse(entry.expiresAt) > now.getTime())
++    ) {
++      continue;
++    }
++    const expected = "keyHash" in entry ? entry.keyHash : hashApiKey(entry.key);
++    const expectedDigest = Buffer.from(expected.slice(8), "hex");
++    if (
++      presentedDigest.length === expectedDigest.length &&
++      crypto.timingSafeEqual(presentedDigest, expectedDigest)
++    ) {
++      return entry;
++    }
++  }
++  return undefined;
++}
++
+ function formatValidation(error: unknown): string {
+   if (error instanceof z.ZodError) {
+     return error.issues
+@@ -209,6 +253,11 @@ export class FileAuthStore implements AuthStoreSource {
+     return () => this.reloadListeners.delete(listener);
+   }
+ 
++  /** HARDEN-DUCKBRAIN-003 (B): the cached, validated snapshot — no file stat. */
++  peekSnapshot(): AuthStore {
++    return this.snapshot;
++  }
++
+   getSnapshot(): AuthStore {
+     let current: string;
+     try {
+diff --git a/src/auth/token-lifecycle.test.ts b/src/auth/token-lifecycle.test.ts
+index 0f2ac3f8..a2746321 100644
+--- a/src/auth/token-lifecycle.test.ts
++++ b/src/auth/token-lifecycle.test.ts
+@@ -4,7 +4,12 @@ import path from "path";
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import type { Request } from "express";
+ import { createAuthBackend, type AuthConfig } from "./middleware";
+-import { AuthStoreSchema, FileAuthStore, hashApiKey } from "./storeSchema";
++import {
++  AuthStoreSchema,
++  FileAuthStore,
++  hashApiKey,
++  matchApiKey,
++} from "./storeSchema";
+ 
+ function requestWithKey(key: string): Request {
+   return { headers: { "x-api-key": key } } as unknown as Request;
+@@ -224,3 +229,50 @@ describe("SUPA-4 token lifecycle", () => {
+     expect(log).toHaveBeenCalledWith(expect.stringContaining("reload failed"));
+   });
+ });
++
++/**
++ * HARDEN-DUCKBRAIN-003 (B): the rate limiter asks this BEFORE auth whether a
++ * presented key is one it can name. Two failure modes matter: a known key that
++ * is not matched (the principal falls back to the shared peer-IP bucket, i.e.
++ * the starvation bug survives) and an unknown/expired key that IS matched (an
++ * attacker mints a fresh bucket per guess, i.e. credential stuffing becomes
++ * free). Both are pinned here.
++ */
++describe("HARDEN-DUCKBRAIN-003 matchApiKey", () => {
++  const live = "live-key-".padEnd(32, "a");
++  const legacy = "legacy-key-".padEnd(32, "b");
++  const expired = "expired-key-".padEnd(32, "c");
++  const now = new Date("2026-11-05T12:00:00.000Z");
++  const store = AuthStoreSchema.parse({
++    users: [],
++    apiKeys: [
++      { keyHash: hashApiKey(live), name: "live", roles: ["writer"] },
++      { key: legacy, name: "legacy", roles: ["writer"] },
++      {
++        keyHash: hashApiKey(expired),
++        name: "expired",
++        roles: ["writer"],
++        expiresAt: "2026-11-05T11:59:59.999Z",
++      },
++    ],
++  });
++
++  it("matches a hashed live key and a legacy plaintext key", () => {
++    expect(matchApiKey(store, live, now)?.name).toBe("live");
++    expect(matchApiKey(store, legacy, now)?.name).toBe("legacy");
++  });
++
++  it("does not match an unknown key, an empty key, or a prefix of a known key", () => {
++    expect(matchApiKey(store, "guess-".padEnd(32, "z"), now)).toBeUndefined();
++    expect(matchApiKey(store, "", now)).toBeUndefined();
++    expect(matchApiKey(store, live.slice(0, 31), now)).toBeUndefined();
++  });
++
++  it("does not match an expired key (it cannot authenticate, so it must not mint a bucket)", () => {
++    expect(matchApiKey(store, expired, now)).toBeUndefined();
++    // ... while the same entry matches one millisecond before its expiry.
++    expect(
++      matchApiKey(store, expired, new Date("2026-11-05T11:59:59.998Z"))?.name,
++    ).toBe("expired");
++  });
++});
+diff --git a/src/cli/http.ts b/src/cli/http.ts
+index 5c5e369b..d461a25b 100644
+--- a/src/cli/http.ts
++++ b/src/cli/http.ts
+@@ -34,12 +34,17 @@ import {
+   auditRequestDenial,
+ } from "../auth/middleware.js";
+ import type { AuthPrincipal, DenialAuditor } from "../auth/middleware.js";
+-import { FileAuthStore } from "../auth/storeSchema.js";
++import { FileAuthStore, matchApiKey } from "../auth/storeSchema.js";
+ import { authorizeTableAccess } from "../auth/roles.js";
+ import { createDenialAuditor } from "../serialization/audit.js";
+ import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
+ import { resolveNamespacesPath } from "../config/index.js";
+-import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
++import {
++  rateLimitMiddleware,
++  RateLimitConfig,
++  ipBucketKey,
++  principalBucketKey,
++} from "../auth/ratelimit.js";
+ import {
+   errorHandler,
+   notFoundHandler,
+@@ -504,6 +509,37 @@ function statsHandler(_req: Request, res: Response) {
+  */
+ let mcpToolsRegistered = false;
+ 
++/**
++ * HARDEN-DUCKBRAIN-003 (B): bucket key for the rate limiter.
++ *
++ * A caller is throttled against the API key it presents ONLY when the live
++ * credential snapshot already knows that key (constant-time match, cached
++ * snapshot — no file stat). Everything else — no key, a wrong key, a guess, a
++ * basic-auth caller — keeps the historical peer-IP bucket. That asymmetry is
++ * the point: naming a principal is what stops one agent starving another
++ * (every fleet caller shares 127.0.0.1), while recognized-only naming is what
++ * keeps credential stuffing expensive, since an attacker cannot mint a fresh
++ * budget by inventing a key per attempt. The store is only consulted for
++ * `--auth=apikey`: under `none` there is no principal, and under `basic` the
++ * credential is a password we deliberately do not parse here.
++ */
++function createBucketKeyResolver(
++  authConfig: AuthConfig,
++): (req: Request, ip: string) => string {
++  return (req: Request, ip: string): string => {
++    if (authConfig.type !== "apikey") return ipBucketKey(ip);
++    const store = authConfig.store;
++    if (!store || typeof store.peekSnapshot !== "function") {
++      return ipBucketKey(ip);
++    }
++    const header = req.headers["x-api-key"];
++    const presented = Array.isArray(header) ? header[0] : header;
++    if (!presented) return ipBucketKey(ip);
++    const known = matchApiKey(store.peekSnapshot(), presented);
++    return known ? principalBucketKey(presented) : ipBucketKey(ip);
++  };
++}
++
+ /**
+  * Create Express app with MCP transport, auth, and rate limiting
+  *
+@@ -511,7 +547,8 @@ let mcpToolsRegistered = false;
+  * 0. Metrics surface construction (no middleware — just the registry)
+  * 1. DNS rebinding protection (block bad hosts immediately)   → duckbrain_rejected_total{reason="dns_rebind"}
+  * 1a. GET /metrics (auth- and limiter-exempt scrape surface, OBSDB-001)
+- * 2. Rate limiting (catch abuse before auth processing)       → duckbrain_rejected_total{reason="rate_limit"}
++ * 2. Rate limiting (catch abuse before auth processing; bucket =     → duckbrain_rejected_total{reason="rate_limit"}
++ *    principal when the store knows the key, else peer IP — HARDEN-DUCKBRAIN-003 (B))
+  * 2a. Read ledger (records every read incl. a 401)            → duckbrain_reads_total + duckbrain_read_duration_seconds
+  * 3. Authentication (verify credentials)
+  * 4. JSON body parser (after rate limit/auth to avoid parsing overhead on rejected requests)
+@@ -614,19 +651,11 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
+   // embedding probe, so exempting this route cannot amplify upstream calls.
+   app.get("/health", createHealthHandler());
+ 
+-  const rateLimitConfig: RateLimitConfig = {
+-    requestsPerMinute: options.rateLimit ?? 100,
+-    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
+-    // where it happens; the metrics module normalizes the route, so the raw
+-    // path never reaches a label.
+-    onReject: (info) =>
+-      httpMetrics.observeRejection({
+-        reason: "rate_limit",
+-        method: info.method,
+-        rawPath: info.path,
+-      }),
+-  };
+-  app.use(rateLimitMiddleware(rateLimitConfig));
++  // 2b. Rate limiting is MOUNTED just below (after the credential store is
++  // constructed, before authMiddleware): HARDEN-DUCKBRAIN-003 (B) keys each
++  // bucket on the authenticated principal, so the mount needs the store in
++  // hand. Position in the chain is unchanged — it still runs before auth, and
++  // still before the read ledger.
+ 
+   // 3. Authentication — production loads a validated, hot-reloadable store.
+   // Inline authConfig remains the hermetic embed/test seam.
+@@ -688,6 +717,32 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
+     authorizeTableAccess(request.principal, request.ns, request.table, "write"),
+   );
+ 
++  // 2b. Rate limiting (mounted here, still BEFORE auth in the chain).
++  //
++  // HARDEN-DUCKBRAIN-003 (B): the bucket is the PRINCIPAL, not the peer IP.
++  // Every fleet caller on this host shares 127.0.0.1, so a per-IP bucket let
++  // one agent's burst throttle every other agent (`/health` first — its 429
++  // flipped the Hermes memory provider to "unavailable" on 2026-11-03 — then
++  // ordinary reads). A caller presenting a key the credential store knows
++  // spends from that key's own budget; anonymous callers and unrecognized
++  // guesses stay on the peer-IP bucket, so credential stuffing is still
++  // bounded by address. The limiter stays ahead of authMiddleware so a bad
++  // credential cannot cost a password/store lookup per attempt.
++  const rateLimitConfig: RateLimitConfig = {
++    requestsPerMinute: options.rateLimit ?? 100,
++    bucketKeyOf: createBucketKeyResolver(authConfig),
++    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
++    // where it happens; the metrics module normalizes the route, so the raw
++    // path never reaches a label.
++    onReject: (info) =>
++      httpMetrics.observeRejection({
++        reason: "rate_limit",
++        method: info.method,
++        rawPath: info.path,
++      }),
++  };
++  app.use(rateLimitMiddleware(rateLimitConfig));
++
+   // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
+   // so an auth-FAILED read is recorded too — authMiddleware answers 401 and
+   // never calls next(), so a ledger mounted after it would see nothing. The
+diff --git a/test-counts.json b/test-counts.json
+index 74763d97..084c7731 100644
+--- a/test-counts.json
++++ b/test-counts.json
+@@ -1,5 +1,5 @@
+ {
+   "suites": 255,
+-  "tests": 2117,
+-  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
++  "tests": 2124,
++  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 \u2014 the gate moved off the protected agent-instruction file)."
+ }
+diff --git a/tests/ratelimit-principal.int.test.ts b/tests/ratelimit-principal.int.test.ts
+new file mode 100644
+index 00000000..1c793bfd
+--- /dev/null
++++ b/tests/ratelimit-principal.int.test.ts
+@@ -0,0 +1,137 @@
++/**
++ * HARDEN-DUCKBRAIN-003 (B) — one local caller must not be able to starve
++ * another.
++ *
++ * The live failure: the daemon on :3000 runs a token bucket keyed on the peer
++ * IP, and EVERY caller on this host (fleet agents, cron, MCP servers,
++ * supervisors, probes) shares 127.0.0.1 — so one agent's burst throttled
++ * everybody else, starting with /health (which flipped the Hermes memory
++ * provider to "unavailable"), then ordinary reads.
++ *
++ * The fix keys the bucket on the PRINCIPAL when the credential store knows the
++ * presented API key, and on the peer IP for everyone else. Two properties are
++ * pinned here, and both matter:
++ *
++ *   1. ISOLATION — caller A can drain its own budget dry while caller B, on the
++ *      same address, still reads. On the pre-fix daemon this test fails: B's
++ *      request lands in A's bucket and comes back 429.
++ *   2. NO FREE BUCKETS — an UNRECOGNIZED key does NOT get a bucket of its own.
++ *      If it did, the limiter would stop bounding credential stuffing (each
++ *      guess would arrive with a fresh budget); instead those requests share
++ *      the peer-IP bucket and are refused.
++ */
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
++import { ChildProcess } from "child_process";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import {
++  getRandomPort,
++  startDuckbrainHttp,
++  stopProcess,
++  waitForUrl,
++  curl,
++  DAEMON_READY_TIMEOUT_MS,
++} from "./helpers";
++import { removeTempDirSafely } from "../src/testing/race-safe-daemon";
++
++const port = getRandomPort();
++const RATE_LIMIT = 5;
++const KEY_A = "harden003-caller-a-0123456789abcdef";
++const KEY_B = "harden003-caller-b-0123456789abcdef";
++
++let server: ChildProcess;
++let scratchDir: string;
++
++/** A read that answers 200 for a principal with an unrestricted key. */
++const READ_URL = () =>
++  `http://127.0.0.1:${port}/api/memories?namespace=default&limit=1`;
++
++const read = (key?: string) =>
++  curl(`-H "x-api-key: ${key}" "${READ_URL()}"`);
++
++describe("HARDEN-DUCKBRAIN-003 (B) per-principal rate limiting", () => {
++  beforeAll(async () => {
++    scratchDir = fs.mkdtempSync(
++      path.join(os.tmpdir(), "duckbrain-ratelimit-principal-"),
++    );
++    const authDir = path.join(scratchDir, "home", ".duckbrain");
++    const namespacesPath = path.join(scratchDir, "namespaces");
++    fs.mkdirSync(authDir, { recursive: true });
++    fs.mkdirSync(path.join(namespacesPath, "default"), { recursive: true });
++    const authFile = path.join(authDir, "auth.json");
++    fs.writeFileSync(
++      authFile,
++      JSON.stringify({
++        users: [],
++        apiKeys: [
++          { key: KEY_A, name: "caller-a", roles: ["writer"] },
++          { key: KEY_B, name: "caller-b", roles: ["writer"] },
++        ],
++      }),
++      "utf-8",
++    );
++
++    server = await startDuckbrainHttp({
++      port,
++      authType: "apikey",
++      authFile,
++      rateLimit: RATE_LIMIT,
++      env: {
++        HOME: path.join(scratchDir, "home"),
++        DUCKBRAIN_DATA_DIR: scratchDir,
++        DUCKBRAIN_NAMESPACES_PATH: namespacesPath,
++      },
++    });
++    await waitForUrl(
++      `http://127.0.0.1:${port}/health`,
++      DAEMON_READY_TIMEOUT_MS,
++      server,
++    );
++  }, 120000);
++
++  afterAll(async () => {
++    await stopProcess(server);
++    await removeTempDirSafely(scratchDir);
++  });
++
++  it("drains caller A's budget while caller B, on the same address, still reads", async () => {
++    // A sanity read first: the route answers 200 for a known key before the drain.
++    const before = await read(KEY_B);
++    expect(before.status).toBe(200);
++
++    // Caller A: 200 requests, as the row asks. It shares 127.0.0.1 with B.
++    const statuses: number[] = [];
++    for (let i = 0; i < 200; i++) {
++      const res = await read(KEY_A);
++      statuses.push(res.status);
++      if (statuses.filter((s) => s === 429).length >= 3) break;
++    }
++    expect(statuses).toContain(200);
++    expect(statuses).toContain(429);
++
++    // B, same peer IP, is untouched by A's exhaustion.
++    const b = await read(KEY_B);
++    expect(b.status).toBe(200);
++    expect(b.headers).toMatch(/HTTP\/\S+\s+200/);
++
++    // ... and A stays refused: the limit was enforced, not disabled.
++    const aAgain = await read(KEY_A);
++    expect(aAgain.status).toBe(429);
++    expect(aAgain.headers).toMatch(/Retry-After:/i);
++  });
++
++  it("does not mint a bucket for an unrecognized key (credential stuffing stays bounded)", async () => {
++    const statuses: number[] = [];
++    for (let i = 0; i < RATE_LIMIT * 3; i++) {
++      // A different, NONEXISTENT key per attempt: if each one got its own
++      // bucket, none of these could ever be refused.
++      const guess = `guess-${i}-`.padEnd(40, "x");
++      const res = await read(guess);
++      statuses.push(res.status);
++    }
++    expect(statuses).toContain(429);
++    // The refusals are the LIMITER's, not auth's: every non-429 answer is a 401.
++    expect(statuses.filter((s) => s === 200)).toHaveLength(0);
++  });
++});

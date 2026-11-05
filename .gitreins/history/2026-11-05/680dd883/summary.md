@@ -1,0 +1,36 @@
+# Verdict: HARDEN-DUCKBRAIN-003
+
+**Task:** HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local caller cannot starve another
+**Evaluated:** 2026-11-05T16:54:51.854873
+**Result:** ✓ PASS
+
+## Pipeline Stages
+
+- ✓ **tier1**
+  -   ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
+  ✓ tests: scanners: nice=nice -n 10
+- ✓ **tier2**
+  - COMPLETE
+  ✓ Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller — proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.
+  ✓ An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` — an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.
+  ✓ The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).
+  ✓ The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {"suites": 255, "tests": 2124} — exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).
+Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.
+
+## Summary
+
+Judge Result: HARDEN-DUCKBRAIN-003
+
+Stage tier1: PASS
+    ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
+  ✓ tests: scanners: nice=nice -n 10
+
+Stage tier2: PASS
+  COMPLETE
+  ✓ Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller — proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.
+  ✓ An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` — an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.
+  ✓ The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).
+  ✓ The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {"suites": 255, "tests": 2124} — exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).
+Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.
+
+Overall: PASS ✓

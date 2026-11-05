@@ -1,0 +1,127 @@
+{
+  "task_id": "HARDEN-DUCKBRAIN-003",
+  "task_title": "HARDEN-DUCKBRAIN-003 (B): per-principal rate-limit buckets so one local caller cannot starve another",
+  "task_criteria": [
+    "Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.",
+    "An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.",
+    "The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.",
+    "The full unit suite is green and test-counts.json matches the live totals reported by the run."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/proj-wt-hardenduckbrain003",
+  "branch": "wt/HARDEN-DUCKBRAIN-003",
+  "commit": "91d92c515600d7fdace216ebe00409a99964943c",
+  "working_tree_content_fingerprint": "b2efe10da8273183251ef94b416bac94597578242f7edc3f06eb09b2ec2fadec",
+  "working_tree_dirty_path_count": 1,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n11:48AM INF scanned ~6287031 bytes (6.29 MB) in 2.26s\n11:48AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/proj-wt-hardenduckbrain003: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 1045 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/proj-wt-hardenduckbrain003\n\n(node:1428141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1442140) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1451332) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1452951) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1454060) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1457535) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1457683) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458521) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458595) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458734) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1458708) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459015) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459050) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459079) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459082) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459410) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459552) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1459747) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1460141) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  255 passed (255)\n      Tests  2124 passed (2124)\n   Start at  11:48:03\n   Duration  87.21s (tests 81%, import 17%, setup 1%)\n\n    Isolate  255 workers spawned \u00b7 ~92ms startup each (spawn + environment, per file)\n             at least ~5.77s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.",
+                "status": "PASS",
+                "detail": "tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket."
+              },
+              {
+                "criterion": "An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.",
+                "status": "PASS",
+                "detail": "src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'."
+              },
+              {
+                "criterion": "The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.",
+                "status": "PASS",
+                "detail": "Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml)."
+              },
+              {
+                "criterion": "The full unit suite is green and test-counts.json matches the live totals reported by the run.",
+                "status": "PASS",
+                "detail": "`npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388)."
+              }
+            ],
+            "summary": "Per-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: HARDEN-DUCKBRAIN-003\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Two local callers on the same peer address (127.0.0.1) with different KNOWN API keys do not share a rate-limit bucket: after one caller drives 200 rapid requests and is refused with 429, the other caller's GET /api/memories still answers 200 and a Retry-After 429 stays on the drained caller \u2014 proven end to end by tests/ratelimit-principal.int.test.ts against a scratch daemon started with --rate-limit=5.: tests/ratelimit-principal.int.test.ts:31-32 sets RATE_LIMIT=5 and two distinct known keys KEY_A/KEY_B written into a scratch auth.json (lines 63-77); startDuckbrainHttp({rateLimit: RATE_LIMIT}) emits `--rate-limit=5` (tests/helpers.ts:264). The test drains KEY_A with up to 200 requests, then asserts B -> 200 (line 115) and A -> 429 with /Retry-After:/i (lines 120-122). Live run: `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> exit 0, 'Test Files 1 passed (1) / Tests 2 passed (2)'. Implementation: src/cli/http.ts:526-543 createBucketKeyResolver returns principalBucketKey(presented) only for a store-known key, else ipBucketKey(ip); src/auth/ratelimit.ts:170-190 spends from that bucket.\n  \u2713 An UNRECOGNIZED API key mints no bucket, so credential stuffing stays bounded: distinct unknown keys from one address share the peer-IP budget and are refused (429) once it is spent, never answered 200.: src/cli/http.ts:540-542: `const known = matchApiKey(store.peekSnapshot(), presented); return known ? principalBucketKey(presented) : ipBucketKey(ip);` \u2014 an unknown key falls through to the shared peer-IP bucket; matchApiKey (src/auth/storeSchema.ts:147-170) does a constant-time compare against store.apiKeys only. Test 2 (tests/ratelimit-principal.int.test.ts:126-137) sends RATE_LIMIT*3 distinct nonexistent keys from 127.0.0.1 and asserts `statuses` contains 429 and `statuses.filter(s => s === 200)` has length 0. Live run of the file: exit 0, 'Tests 2 passed (2)'.\n  \u2713 The falsifier holds: against the pre-fix source tree the new tests fail (the second caller reads 429 instead of 200) and pass only with the fix.: Reproduced live: `git checkout HEAD~1 -- src/auth/ratelimit.ts src/cli/http.ts src/auth/storeSchema.ts` (pre-fix per-IP bucket, confirmed at HEAD~1 src/auth/ratelimit.ts:96-104 `store[ip]`) then `npx vitest run --config vitest.integration.config.ts tests/ratelimit-principal.int.test.ts` -> FAIL: 'AssertionError: expected 429 to be 200' at tests/ratelimit-principal.int.test.ts:115 ('Tests 1 failed | 1 passed'). Restoring the fix (`git checkout HEAD -- ...`) and re-running the same command -> exit 0, 'Tests 2 passed (2)'. Working tree restored (git status shows only .gitreins/tasks.yaml).\n  \u2713 The full unit suite is green and test-counts.json matches the live totals reported by the run.: `npx vitest run` (the configured guards.test_command) -> exit 0, 'Test Files 255 passed (255)' / 'Tests 2124 passed (2124)', duration 78.62s. test-counts.json reads {\"suites\": 255, \"tests\": 2124} \u2014 exact match with the live totals; the commit bumped tests 2117 -> 2124 (+7: 2 integration + 5 unit tests in src/auth/ratelimit.test.ts:302-388).\nPer-principal rate-limit bucketing is implemented, proven end to end against a --rate-limit=5 scratch daemon, falsified against the pre-fix tree (caller B reads 429 there), and the full suite is green at 255 files / 2124 tests matching test-counts.json.\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-05T16:54:51.854873",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-05T16:54:51.876467+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 30788,
+        "truncated": false,
+        "source": "git show 91d92c515600"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 1517,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "HARDEN-DUCKBRAIN-003"
+  }
+}
