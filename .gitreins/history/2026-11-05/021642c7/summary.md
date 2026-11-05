@@ -1,0 +1,34 @@
+# Verdict: OBSDB-004
+
+**Task:** OBSDB-004: git commit/push write path on the metrics surface
+**Evaluated:** 2026-11-05T15:52:03.716707
+**Result:** ✓ PASS
+
+## Pipeline Stages
+
+- ✓ **tier1**
+  -   ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
+  ✓ tests: scanners: nice=nice -n 10
+- ✓ **tier2**
+  - COMPLETE
+  ✓ One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.: src/git/metrics-obsdb004.test.ts:437-462 posts one memory to a real createHttpServer daemon (scratch namespaces root, file:// bare remote with post-receive hook) and asserts commit_total{outcome=ok} and push_total{outcome=ok} both increase plus pushCount(ns.hookLog) > 0 (remote received the tip). Production wiring verified: src/git/autocommit.ts:353 setCommitQueueDepthSampler, recordGitCommitSuccess/recordGitPushSuccess in pushNamespaceAsync and immediateCommit; src/http/metrics.ts:473 registerGitMetrics(registry). Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts --reporter=verbose` -> exit_code 0, 'Tests 9 passed (9)', that test '✓ ... counts the commit and the push as ok and moves the success stamp 320ms'.
+  ✓ Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.: src/git/metrics-obsdb004.test.ts:464-500: healthy baseline stamps the gauge, then the remote is repointed at a nonexistent path; asserts push_total{outcome=fail} increases, the stamp is unchanged (frozen), staleness2 > staleness1, and pushCount(hookLog) is unchanged (remote received nothing). Implementation src/git/metrics.ts recordGitPush() sets gitLastPushSuccess only when label==='ok'. Fresh run: '✓ ... a broken remote turns the next write into fail and freezes the stamp 1333ms', exit_code 0, with real stderr 'git push --set-upstream s3daily master / fatal: .../gone.git does not appear to be a git repository'.
+  ✓ duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.: src/git/metrics.ts:120-147 commitQueueDepth() clamps to a finite non-negative integer (Math.floor; throw/negative/NaN -> 0) and the gauge uses a collect() callback sampling asyncChains.size (src/git/autocommit.ts:347,353). Tests: 'samples the queue depth at scrape time and never fails a scrape' (3, then throw/-4/NaN -> 0) and 'reads a non-zero queue depth while a burst of writes is in flight, 0 after' (3 concurrent POSTs held by a 1.2s pre-commit hook -> integer depth >= 1, then 0 after drainAsyncCommits). Label discipline: both counters declare labelNames:['outcome'] only, and the test asserts no namespace=/path=/remote=/error= and only ok|fail outcome values. Fresh run: 9/9 passed, exit_code 0; src/http/metrics.test.ts also 14/14 passed.
+All three OBSDB-004 criteria are satisfied by the new src/git/metrics.ts instrumentation wired into autocommit.ts and the HTTP scrape registry, proven by a fresh green run of src/git/metrics-obsdb004.test.ts (9/9) covering the ok commit+push with a real remote tip, the broken-remote fail counter with a frozen success stamp and no delivery, and the sampled queue-depth gauge with outcome-only labels.
+
+## Summary
+
+Judge Result: OBSDB-004
+
+Stage tier1: PASS
+    ✓ secrets: secrets: scanners=gitleaks+builtin cross-check
+  ✓ tests: scanners: nice=nice -n 10
+
+Stage tier2: PASS
+  COMPLETE
+  ✓ One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.: src/git/metrics-obsdb004.test.ts:437-462 posts one memory to a real createHttpServer daemon (scratch namespaces root, file:// bare remote with post-receive hook) and asserts commit_total{outcome=ok} and push_total{outcome=ok} both increase plus pushCount(ns.hookLog) > 0 (remote received the tip). Production wiring verified: src/git/autocommit.ts:353 setCommitQueueDepthSampler, recordGitCommitSuccess/recordGitPushSuccess in pushNamespaceAsync and immediateCommit; src/http/metrics.ts:473 registerGitMetrics(registry). Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts --reporter=verbose` -> exit_code 0, 'Tests 9 passed (9)', that test '✓ ... counts the commit and the push as ok and moves the success stamp 320ms'.
+  ✓ Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.: src/git/metrics-obsdb004.test.ts:464-500: healthy baseline stamps the gauge, then the remote is repointed at a nonexistent path; asserts push_total{outcome=fail} increases, the stamp is unchanged (frozen), staleness2 > staleness1, and pushCount(hookLog) is unchanged (remote received nothing). Implementation src/git/metrics.ts recordGitPush() sets gitLastPushSuccess only when label==='ok'. Fresh run: '✓ ... a broken remote turns the next write into fail and freezes the stamp 1333ms', exit_code 0, with real stderr 'git push --set-upstream s3daily master / fatal: .../gone.git does not appear to be a git repository'.
+  ✓ duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.: src/git/metrics.ts:120-147 commitQueueDepth() clamps to a finite non-negative integer (Math.floor; throw/negative/NaN -> 0) and the gauge uses a collect() callback sampling asyncChains.size (src/git/autocommit.ts:347,353). Tests: 'samples the queue depth at scrape time and never fails a scrape' (3, then throw/-4/NaN -> 0) and 'reads a non-zero queue depth while a burst of writes is in flight, 0 after' (3 concurrent POSTs held by a 1.2s pre-commit hook -> integer depth >= 1, then 0 after drainAsyncCommits). Label discipline: both counters declare labelNames:['outcome'] only, and the test asserts no namespace=/path=/remote=/error= and only ok|fail outcome values. Fresh run: 9/9 passed, exit_code 0; src/http/metrics.test.ts also 14/14 passed.
+All three OBSDB-004 criteria are satisfied by the new src/git/metrics.ts instrumentation wired into autocommit.ts and the HTTP scrape registry, proven by a fresh green run of src/git/metrics-obsdb004.test.ts (9/9) covering the ok commit+push with a real remote tip, the broken-remote fail counter with a frozen success stamp and no delivery, and the sampled queue-depth gauge with outcome-only labels.
+
+Overall: PASS ✓

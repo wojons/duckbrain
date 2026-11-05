@@ -1,0 +1,1059 @@
+commit eb96389c7f3edb8b7d58b5b03f4ca375762b3e8a
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Nov 5 10:45:21 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Nov 5 10:45:21 2026 -0500
+
+    feat(git): make the commit/push write path visible (OBSDB-004)
+    
+    A namespace could stop reaching its remote while /health and every read stayed
+    green: each failure was a console.warn that was swallowed, and the in-flight
+    commit chains (asyncChains) were a Map size nothing read.
+    
+    src/git/metrics.ts now owns four spec §3.2 families — duckbrain_git_commit_total
+    and duckbrain_git_push_total (outcome=ok|fail, outcome is the ONLY label, never
+    a namespace), duckbrain_git_commit_queue_depth (a collect callback sampling
+    asyncChains.size, so no interval holds a CLI process open) and
+    duckbrain_git_last_push_success_timestamp_seconds (stamped only by a real
+    success, so a broken remote freezes it while the fail counter climbs).
+    autocommit.ts records at each real operation — commit counted where the commit
+    ends (a failed push cannot look like a failed commit), push counted only when
+    `git push` was actually invoked (gate skips and unchanged-HEAD short-circuits
+    are not pushes) — and installs the depth sampler; src/http/metrics.ts attaches
+    the process-wide instances to each scrape registry.
+    
+    Tests: unit label/sampling discipline, and end to end through createHttpServer
+    with a file:// bare remote — one POSTed memory commits+pushes, a broken remote
+    increments fail while the remote receives nothing and the stamp stays frozen,
+    and a burst reads depth>0 in flight, 0 after. Suite 255 files / 2117 tests.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/git/autocommit.ts            |  39 ++-
+ src/git/metrics-obsdb004.test.ts | 523 +++++++++++++++++++++++++++++++++++++++
+ src/git/metrics.ts               | 252 +++++++++++++++++++
+ src/http/metrics.test.ts         |  10 +-
+ src/http/metrics.ts              |  23 +-
+ test-counts.json                 |   4 +-
+ 6 files changed, 843 insertions(+), 8 deletions(-)
+
+diff --git a/src/git/autocommit.ts b/src/git/autocommit.ts
+index 23dc8eec..2b239694 100644
+--- a/src/git/autocommit.ts
++++ b/src/git/autocommit.ts
+@@ -61,6 +61,13 @@ import fs from "fs";
+ import path from "path";
+ import { getConfig } from "../config";
+ import { requireGitIdentity } from "./identity";
++import {
++  recordGitCommitFailure,
++  recordGitCommitSuccess,
++  recordGitPushFailure,
++  recordGitPushSuccess,
++  setCommitQueueDepthSampler,
++} from "./metrics";
+ import type { S3Config } from "../s3/config";
+ 
+ // PERF-004 — lazy S3 loading. The AWS SDK (@aws-sdk/client-s3, ~91ms measured)
+@@ -339,6 +346,12 @@ const pending = new Map<string, PendingCommit>();
+  */
+ const asyncChains = new Map<string, Promise<void>>();
+ 
++// OBSDB-004: expose the in-flight chain count to the scrape surface. The
++// metrics module owns the gauge but must not import this one (autocommit
++// imports it to record outcomes), so the sampler is the one-way edge — read at
++// scrape time, never by an interval that would hold a CLI process open.
++setCommitQueueDepthSampler(() => asyncChains.size);
++
+ /** Tracks whether the process 'exit' flush hook has been registered. */
+ let exitFlushRegistered = false;
+ 
+@@ -535,6 +548,12 @@ async function asyncCommit(
+       }),
+     );
+ 
++    // OBSDB-004: the commit OPERATION completed (a batched flush that sweeps
++    // many lines is one operation — the unit the debounce schedules). Counted
++    // here, not after the push: a failed push must never look like a failed
++    // commit, and the push has its own counter.
++    recordGitCommitSuccess();
++
+     // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
+     // default config = zero pushes), interval-coalesced and single-flight.
+     // Fire-and-forget: never blocks or fails the write path.
+@@ -553,6 +572,7 @@ async function asyncCommit(
+     // cwd (see commitWarning) so it is never confused with the removed-
+     // namespace skip above.
+     console.warn(commitWarning(namespacePath, error));
++    recordGitCommitFailure();
+   }
+ }
+ 
+@@ -578,6 +598,7 @@ function scheduleAsyncCommit(
+         // alive if it ever throws synchronously.
+       });
+   } catch (error) {
++    recordGitCommitFailure();
+     console.warn(
+       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
+     );
+@@ -697,6 +718,9 @@ function immediateCommit(namespacePath: string, message: string): void {
+         );
+       }
+     });
++    // OBSDB-004: the synchronous exit-flush commit completed (the push below
++    // has its own counter).
++    recordGitCommitSuccess();
+     // Native S3 sync hook (object store) + gated push hook (PUSH-001: default
+     // config = zero pushes). Synchronous + best-effort so short-lived CLI
+     // processes (remember → commit → exit in <1s) push without waiting for
+@@ -712,6 +736,7 @@ function immediateCommit(namespacePath: string, message: string): void {
+     // AUTOCOMMIT-ENOENT-001: resolved binary + cwd in the warning, as on the
+     // serving path (commitWarning).
+     console.warn(commitWarning(namespacePath, error));
++    recordGitCommitFailure();
+   }
+ }
+ 
+@@ -768,6 +793,7 @@ export function commitNamespaceWithParams(
+     pending.set(namespacePath, { timer, lines: 1, message });
+     return Promise.resolve();
+   } catch (error) {
++    recordGitCommitFailure();
+     console.warn(
+       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
+     );
+@@ -973,6 +999,9 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+         },
+       );
+       gateState.lastPushedHead = head;
++      // OBSDB-004: a REAL push landed (gate skips and unchanged-HEAD
++      // short-circuits return before this point and are never counted).
++      recordGitPushSuccess();
+     } catch (error) {
+       const message = (error as Error).message;
+       let recovered = false;
+@@ -1018,7 +1047,11 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+                 ),
+               log: (line: string) => console.warn(`[Git] ${line}`),
+             });
+-            if (recovered) gateState.lastPushedHead = head;
++            if (recovered) {
++              gateState.lastPushedHead = head;
++              // OBSDB-004: the self-healed retry is the push that landed.
++              recordGitPushSuccess();
++            }
+           }
+         } catch (healError) {
+           console.warn(
+@@ -1027,6 +1060,7 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
+         }
+       }
+       if (!recovered) {
++        recordGitPushFailure();
+         console.warn(`[Git] Push warning for ${namespacePath}: ${message}`);
+       }
+     }
+@@ -1106,10 +1140,13 @@ export function pushNamespace(namespacePath: string): void {
+       },
+     });
+     gateState.lastPushedHead = head;
++    // OBSDB-004: the synchronous exit-flush push landed.
++    recordGitPushSuccess();
+   } catch (error) {
+     // OPS-012: no duplicate-bundle repair on this sync exit-flush path — the
+     // async S3 SDK repair cannot run here; the serving path
+     // (pushNamespaceAsync) self-heals instead.
++    recordGitPushFailure();
+     console.warn(
+       `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
+     );
+diff --git a/src/git/metrics-obsdb004.test.ts b/src/git/metrics-obsdb004.test.ts
+new file mode 100644
+index 00000000..363ce89c
+--- /dev/null
++++ b/src/git/metrics-obsdb004.test.ts
+@@ -0,0 +1,523 @@
++/**
++ * OBSDB-004 — the git write path on the scrape surface.
++ *
++ * What is under test (`docs/observability-spec.md` §2 blind spots #5-#6, §3.2):
++ *   1. the four families exist with the documented names/types, `outcome` is
++ *      the ONLY label, and a namespace name can never reach the exposition
++ *      (aggregate-only, per the spec's label discipline);
++ *   2. the queue-depth gauge is SAMPLED at scrape time (collect callback) and
++ *      is always a finite, non-negative sample — a broken sampler reads 0
++ *      instead of failing the scrape;
++ *   3. the push-success stamp is set only by a real success, so a failing
++ *      remote freezes it while the fail counter climbs — the staleness pair the
++ *      alert (`time() - value > 3600`) is built from;
++ *   4. END TO END through the production HTTP app: one POSTed memory commits
++ *      and pushes (ok outcomes + a moving stamp), a broken remote turns the
++ *      next write into `push_total{outcome="fail"}` while the remote receives
++ *      nothing, and the depth gauge reads non-zero while a burst is in flight.
++ *
++ * Hermetic by construction: scratch namespaces root, scratch config file, a
++ * `file://` bare remote with a post-receive hook as the push counter, and the
++ * host's global git config deliberately isolated (the dev box sets
++ * `core.hooksPath`, which would replace the bare remote's own hooks —
++ * INT-CI-030 / PUSH-001). The S3 object-store hook is pointed at a closed
++ * loopback port so enabling `pushOnCommit` cannot reach a real endpoint.
++ */
++
++import {
++  describe,
++  it,
++  expect,
++  beforeAll,
++  afterAll,
++  beforeEach,
++  afterEach,
++} from "vitest";
++import { execSync } from "child_process";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import http from "http";
++import type { AddressInfo } from "net";
++import type { Server } from "http";
++import { Registry, register as globalRegistry } from "prom-client";
++
++import { createHttpServer } from "../cli/http";
++import { createHttpMetrics } from "../http/metrics";
++import { drainAsyncCommits, pushGateStates } from "./autocommit";
++import {
++  GIT_METRIC_NAMES,
++  commitQueueDepth,
++  recordGitCommit,
++  recordGitCommitFailure,
++  recordGitCommitSuccess,
++  recordGitPushFailure,
++  recordGitPushSuccess,
++  registerGitMetrics,
++  resetGitMetrics,
++  setCommitQueueDepthSampler,
++} from "./metrics";
++
++/** Isolate the host's global git config (identity, core.hooksPath). */
++const scratchGitConfig = fs.mkdtempSync(
++  path.join(os.tmpdir(), "duckbrain-obsdb004-gitcfg-"),
++);
++process.env.GIT_CONFIG_GLOBAL = path.join(scratchGitConfig, "global");
++process.env.GIT_CONFIG_SYSTEM = path.join(scratchGitConfig, "system");
++fs.writeFileSync(process.env.GIT_CONFIG_GLOBAL, "");
++fs.writeFileSync(process.env.GIT_CONFIG_SYSTEM, "");
++
++const HEALTHY = {
++  status: "healthy" as const,
++  providers: [],
++  durationsMs: { embedding: 0, keys: 0, total: 0 },
++};
++
++/** Read one sample value out of a Prometheus text exposition body. */
++function sampleValue(
++  text: string,
++  name: string,
++  labelPart?: string,
++): number | null {
++  const prefix = labelPart ? `${name}{${labelPart}}` : name;
++  const line = text
++    .split("\n")
++    .find((candidate) => candidate.startsWith(`${prefix} `));
++  if (!line) return null;
++  const value = Number(line.slice(line.lastIndexOf(" ") + 1));
++  return Number.isFinite(value) ? value : null;
++}
++
++describe("OBSDB-004: the families are aggregate-only and never invent a sample", () => {
++  beforeEach(() => {
++    resetGitMetrics();
++  });
++
++  it("renders both outcomes of both counters with outcome as the only label", async () => {
++    const registry = new Registry();
++    registerGitMetrics(registry);
++    // Idempotent: a second createHttpServer() in one process must not throw.
++    registerGitMetrics(registry);
++
++    recordGitCommitSuccess();
++    recordGitCommitFailure();
++    recordGitPushSuccess();
++    recordGitPushFailure();
++
++    const text = await registry.metrics();
++    expect(text).toMatch(/^duckbrain_git_commit_total\{outcome="ok"\} 1$/m);
++    expect(text).toMatch(/^duckbrain_git_commit_total\{outcome="fail"\} 1$/m);
++    expect(text).toMatch(/^duckbrain_git_push_total\{outcome="ok"\} 1$/m);
++    expect(text).toMatch(/^duckbrain_git_push_total\{outcome="fail"\} 1$/m);
++
++    // Aggregate-only: no label carries a path, a namespace, a remote or an
++    // error string — the spec's cardinality/PII rule.
++    const labelNames = text
++      .split("\n")
++      .filter((line) => line.startsWith("# TYPE duckbrain_git_"))
++      .length;
++    expect(labelNames).toBe(4);
++    expect(text).not.toMatch(/namespace=/);
++    expect(text).not.toMatch(/path=/);
++    expect(text).not.toMatch(/remote=/);
++    expect(text).not.toMatch(/error=/);
++  });
++
++  it("collapses an unknown outcome onto fail instead of inventing a label value", async () => {
++    const registry = new Registry();
++    registerGitMetrics(registry);
++    recordGitCommitSuccess();
++    recordGitPushSuccess();
++    // A caller cannot invent a third outcome: anything that is not `ok` is a
++    // failure, so an unknown string lands in the fail series, never a new one.
++    recordGitCommit("exploded" as unknown as "ok");
++
++    const text = await registry.metrics();
++    expect(sampleValue(text, "duckbrain_git_commit_total", 'outcome="fail"')).toBe(1);
++    // Nothing but the two documented outcomes can appear.
++    const outcomes = text
++      .split("\n")
++      .filter((line) => /^duckbrain_git_(commit|push)_total\{/.test(line))
++      .map((line) => /outcome="([^"]+)"/.exec(line)?.[1]);
++    expect(outcomes.length).toBeGreaterThan(0);
++    for (const outcome of outcomes) {
++      expect(["ok", "fail"]).toContain(outcome);
++    }
++    // Nothing invented: no third outcome value anywhere in the exposition.
++    expect(text).not.toMatch(/outcome="(?!ok"|fail")/);
++  });
++
++  it("stamps the last-push-success gauge ONLY on a real success", async () => {
++    const registry = new Registry();
++    registerGitMetrics(registry);
++
++    // No success yet: no sample at all (a fabricated 0 would read as 56 years
++    // stale the moment the daemon boots).
++    let text = await registry.metrics();
++    expect(sampleValue(text, "duckbrain_git_last_push_success_timestamp_seconds")).toBeNull();
++
++    const before = Date.now();
++    recordGitPushSuccess();
++    const after = Date.now();
++    text = await registry.metrics();
++    const stamped = sampleValue(
++      text,
++      "duckbrain_git_last_push_success_timestamp_seconds",
++    );
++    expect(stamped).not.toBeNull();
++    expect(stamped!).toBeGreaterThanOrEqual(before / 1000 - 1);
++    expect(stamped!).toBeLessThanOrEqual(after / 1000 + 1);
++
++    // A failing push moves the counter and leaves the stamp frozen: that
++    // freeze IS the staleness signal.
++    recordGitPushFailure();
++    text = await registry.metrics();
++    expect(
++      sampleValue(text, "duckbrain_git_last_push_success_timestamp_seconds"),
++    ).toBe(stamped);
++    expect(sampleValue(text, "duckbrain_git_push_total", 'outcome="fail"')).toBe(1);
++  });
++
++  it("samples the queue depth at scrape time and never fails a scrape", async () => {
++    const previous = setCommitQueueDepthSampler(() => 3);
++    try {
++      const registry = new Registry();
++      registerGitMetrics(registry);
++      let text = await registry.metrics();
++      expect(sampleValue(text, "duckbrain_git_commit_queue_depth")).toBe(3);
++
++      // A sampler that throws, returns a negative, or returns NaN must read 0 —
++      // telemetry never turns a scrape into an error page.
++      for (const sampler of [
++        () => {
++          throw new Error("sampler exploded");
++        },
++        () => -4,
++        () => Number.NaN,
++      ]) {
++        setCommitQueueDepthSampler(sampler as () => number);
++        text = await registry.metrics();
++        expect(sampleValue(text, "duckbrain_git_commit_queue_depth")).toBe(0);
++      }
++      expect(commitQueueDepth()).toBe(0);
++      // …and the same collector is what a CLI-only process reads, unpolluted.
++      expect(Number.isFinite(commitQueueDepth())).toBe(true);
++    } finally {
++      setCommitQueueDepthSampler(previous);
++    }
++  });
++
++  it("does not leak into prom-client's global registry", () => {
++    // Module singletons are created with `registers: []`, like the embedding
++    // counters: importing the module must never pollute Registry.globalRegistry
++    // (which other processes' defaults would then render).
++    const globalNames = globalRegistry.getMetricsAsArray().map((metric) => metric.name);
++    for (const name of GIT_METRIC_NAMES) {
++      expect(globalNames).not.toContain(name);
++    }
++  });
++
++  it("reaches the daemon exposition surface with all four families", async () => {
++    const metrics = createHttpMetrics({ evaluateHealth: async () => HEALTHY });
++    recordGitCommitSuccess();
++    recordGitPushSuccess();
++    const text = await metrics.render();
++    for (const name of GIT_METRIC_NAMES) {
++      expect(text).toMatch(new RegExp(`^# TYPE ${name} `, "m"));
++    }
++    // The depth gauge renders a sample with no traffic — it is sampled, not
++    // accumulated, so 0 in-flight is a real observation.
++    expect(sampleValue(text, "duckbrain_git_commit_queue_depth")).toBe(0);
++  });
++});
++
++// ───────────────────────────────────────────────────────────────────────────
++// End to end: the production HTTP app, a real write, a real file:// remote.
++// ───────────────────────────────────────────────────────────────────────────
++
++let tmp: string;
++let nsRoot: string;
++let previousNsRoot: string | undefined;
++/** AWS env this file sets for the (dead) object-store hook, plus its prior values. */
++const AWS_KEYS = [
++  "AWS_ACCESS_KEY_ID",
++  "AWS_SECRET_ACCESS_KEY",
++  "AWS_EC2_METADATA_DISABLED",
++  "AWS_MAX_ATTEMPTS",
++] as const;
++const previousAwsEnv: Partial<Record<(typeof AWS_KEYS)[number], string>> = {};
++let cfgPath: string;
++let cfgSnapshot: string | null;
++let server: Server;
++let port: number;
++
++function git(args: string[], cwd: string): string {
++  return execSync(`git ${args.join(" ")}`, {
++    cwd,
++    stdio: ["ignore", "pipe", "pipe"],
++  })
++    .toString()
++    .trim();
++}
++
++function writeConfig(config: Record<string, unknown>): void {
++  fs.writeFileSync(cfgPath, JSON.stringify(config), "utf-8");
++}
++
++/** Scratch config: autopush ON, batching OFF, durability fsync, dead S3 endpoint. */
++function autopushConfig(): void {
++  writeConfig({
++    durability: { defaultMode: "fsync", overrides: {} },
++    gitBatching: { enabled: false, maxLines: 0, maxSeconds: 0 },
++    s3: {
++      enabled: true,
++      pushOnCommit: true,
++      intervalSec: 0,
++      // A closed loopback port: the object-store hook must never reach a real
++      // endpoint in a test (it fails fast and is swallowed by design).
++      endpoint: "http://127.0.0.1:9",
++      region: "us-east-1",
++      bucket: "obsdb004-test",
++      prefix: "obsdb004",
++      forcePathStyle: true,
++    },
++  });
++}
++
++/** A namespace repo with a file:// bare remote and a post-receive counter. */
++function makeNamespace(
++  ns: string,
++  opts: { preCommitSleepSec?: number } = {},
++): { dir: string; bare: string; hookLog: string } {
++  const dir = path.join(nsRoot, ns);
++  fs.mkdirSync(dir, { recursive: true });
++  execSync(`git init -q -b master "${dir}"`);
++  git(["config", "user.email", "obsdb004@example.test"], dir);
++  git(["config", 'user.name "OBSDB-004 Test"'], dir);
++
++  const bare = path.join(tmp, `${ns}.git`);
++  execSync(`git init -q --bare "${bare}"`);
++  const hookLog = path.join(tmp, `${ns}.pushes.log`);
++  const hook = path.join(bare, "hooks", "post-receive");
++  fs.writeFileSync(
++    hook,
++    `#!/bin/sh\nwhile read _old new _ref; do echo "$new" >> '${hookLog}'; done\n`,
++  );
++  fs.chmodSync(hook, 0o755);
++
++  if (opts.preCommitSleepSec) {
++    const pre = path.join(dir, ".git", "hooks", "pre-commit");
++    fs.writeFileSync(pre, `#!/bin/sh\nsleep ${opts.preCommitSleepSec}\n`);
++    fs.chmodSync(pre, 0o755);
++  }
++
++  git(["remote", "add", "s3daily", bare], dir);
++  fs.writeFileSync(path.join(dir, "seed.jsonl"), "{}\n");
++  git(["add", "-A"], dir);
++  git(["commit", "-q", "-m", "init"], dir);
++  return { dir, bare, hookLog };
++}
++
++function pushCount(hookLog: string): number {
++  if (!fs.existsSync(hookLog)) return 0;
++  return fs
++    .readFileSync(hookLog, "utf-8")
++    .split("\n")
++    .filter((line) => line.trim() !== "").length;
++}
++
++function scraped(): Promise<string> {
++  return new Promise((resolve, reject) => {
++    const req = http.request(
++      { host: "127.0.0.1", port, method: "GET", path: "/metrics" },
++      (res) => {
++        let data = "";
++        res.on("data", (chunk) => (data += chunk));
++        res.on("end", () => resolve(data));
++      },
++    );
++    req.on("error", reject);
++    req.end();
++  });
++}
++
++function postMemory(ns: string, key: string): Promise<number> {
++  const payload = JSON.stringify({
++    key,
++    domain: "concept",
++    content: "obsdb004 http write",
++  });
++  return new Promise((resolve, reject) => {
++    const req = http.request(
++      {
++        host: "127.0.0.1",
++        port,
++        path: `/api/memories?namespace=${ns}`,
++        method: "POST",
++        headers: {
++          "Content-Type": "application/json",
++          "Content-Length": Buffer.byteLength(payload),
++        },
++      },
++      (res) => {
++        res.resume();
++        res.on("end", () => resolve(res.statusCode ?? 0));
++      },
++    );
++    req.on("error", reject);
++    req.end(payload);
++  });
++}
++
++beforeAll(async () => {
++  cfgPath = process.env.DUCKBRAIN_CONFIG_PATH as string;
++  cfgSnapshot = fs.existsSync(cfgPath)
++    ? fs.readFileSync(cfgPath, "utf-8")
++    : null;
++  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-obsdb004-"));
++  nsRoot = path.join(tmp, "namespaces");
++  fs.mkdirSync(nsRoot, { recursive: true });
++  // The serializer/write path resolves the storage root from the ENVIRONMENT
++  // (resolveNamespacesPath), not from createHttpServer's option — so the env is
++  // what must point at this scratch root for a POSTed memory to land in a repo
++  // this test controls. The option is still passed for the route/read half.
++  previousNsRoot = process.env.DUCKBRAIN_NAMESPACES_PATH;
++  process.env.DUCKBRAIN_NAMESPACES_PATH = nsRoot;
++  autopushConfig();
++
++  // The object-store hook needs credentials to get as far as the (dead)
++  // endpoint; the SDK's instance-metadata probe is disabled so nothing hangs.
++  // These are SAVED and restored: this file shares a worker process with the
++  // real-S3 suites, and a leaked placeholder key turns their requests into 403s
++  // (observed: src/s3/client-timeout-s3git006.test.ts red on the first run).
++  for (const key of AWS_KEYS) {
++    const prior = process.env[key];
++    if (prior !== undefined) previousAwsEnv[key] = prior;
++    delete process.env[key];
++  }
++  process.env.AWS_ACCESS_KEY_ID = "obsdb004";
++  process.env.AWS_SECRET_ACCESS_KEY = "obsdb004";
++  process.env.AWS_EC2_METADATA_DISABLED = "true";
++  process.env.AWS_MAX_ATTEMPTS = "1";
++
++  const app = createHttpServer({ authConfig: { type: "none" }, namespacesPath: nsRoot });
++  server = await new Promise<Server>((resolve) => {
++    const started = app.listen(0, "127.0.0.1", () => resolve(started));
++  });
++  port = (server.address() as AddressInfo).port;
++  expect(port).not.toBe(3000);
++});
++
++afterAll(async () => {
++  await new Promise<void>((resolve) => server.close(() => resolve()));
++  await drainAsyncCommits(20_000);
++  if (cfgSnapshot === null) fs.rmSync(cfgPath, { force: true });
++  else fs.writeFileSync(cfgPath, cfgSnapshot, "utf-8");
++  if (previousNsRoot === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++  else process.env.DUCKBRAIN_NAMESPACES_PATH = previousNsRoot;
++  for (const key of AWS_KEYS) {
++    const prior = previousAwsEnv[key];
++    if (prior === undefined) delete process.env[key];
++    else process.env[key] = prior;
++  }
++  fs.rmSync(tmp, { recursive: true, force: true });
++});
++
++beforeEach(() => {
++  pushGateStates.clear();
++  autopushConfig();
++});
++
++afterEach(async () => {
++  await drainAsyncCommits(20_000);
++});
++
++describe("OBSDB-004: a real memory write commits and pushes, visible over HTTP", () => {
++  it("counts the commit and the push as ok and moves the success stamp", async () => {
++    const ns = makeNamespace("obsdb004-happy");
++    const before = await scraped();
++    const commitsBefore = sampleValue(before, "duckbrain_git_commit_total", 'outcome="ok"') ?? 0;
++    const pushesBefore = sampleValue(before, "duckbrain_git_push_total", 'outcome="ok"') ?? 0;
++
++    expect(await postMemory("obsdb004-happy", "/obsdb004/happy")).toBe(201);
++    await drainAsyncCommits(20_000);
++
++    const after = await scraped();
++    const commitsOk = sampleValue(after, "duckbrain_git_commit_total", 'outcome="ok"') ?? 0;
++    const pushesOk = sampleValue(after, "duckbrain_git_push_total", 'outcome="ok"') ?? 0;
++    const stamped = sampleValue(after, "duckbrain_git_last_push_success_timestamp_seconds");
++
++    expect(commitsOk).toBeGreaterThan(commitsBefore);
++    expect(pushesOk).toBeGreaterThan(pushesBefore);
++    expect(stamped).not.toBeNull();
++    expect(Date.now() / 1000 - stamped!).toBeLessThan(120);
++
++    // The push was REAL: the bare remote's post-receive hook saw a new tip.
++    expect(pushCount(ns.hookLog)).toBeGreaterThan(0);
++    // Depth sampled after the drain: nothing in flight.
++    expect(sampleValue(after, "duckbrain_git_commit_queue_depth")).toBe(0);
++  });
++
++  it("a broken remote turns the next write into fail and freezes the stamp", async () => {
++    const ns = makeNamespace("obsdb004-broken");
++
++    // 1. A healthy baseline: the stamp moves.
++    expect(await postMemory("obsdb004-broken", "/obsdb004/before")).toBe(201);
++    await drainAsyncCommits(20_000);
++    const healthy = await scraped();
++    const goodStamp = sampleValue(healthy, "duckbrain_git_last_push_success_timestamp_seconds");
++    expect(goodStamp).not.toBeNull();
++    const pushesThatLanded = pushCount(ns.hookLog);
++    expect(pushesThatLanded).toBeGreaterThan(0);
++
++    // 2. Break the remote the way an operator would (a moved/unreachable
++    //    repository), then write again.
++    git(["remote", "set-url", "s3daily", path.join(tmp, "gone.git")], ns.dir);
++    expect(await postMemory("obsdb004-broken", "/obsdb004/after")).toBe(201);
++    await drainAsyncCommits(20_000);
++
++    const broken = await scraped();
++    const failedPushes = sampleValue(broken, "duckbrain_git_push_total", 'outcome="fail"') ?? 0;
++    expect(failedPushes).toBeGreaterThan(0);
++
++    // The stamp is FROZEN — this is what `time() - value > 3600` measures. A
++    // failed push must never look like a success.
++    expect(
++      sampleValue(broken, "duckbrain_git_last_push_success_timestamp_seconds"),
++    ).toBe(goodStamp);
++    // …and staleness is strictly growing while no push lands.
++    const staleness1 = Date.now() / 1000 - goodStamp!;
++    expect(staleness1).toBeGreaterThan(0);
++    await new Promise((resolve) => setTimeout(resolve, 1_100));
++    const staleness2 = Date.now() / 1000 - goodStamp!;
++    expect(staleness2).toBeGreaterThan(staleness1);
++
++    // The falsifier for the whole family: the counter moved but the REMOTE did
++    // not — the failed push delivered nothing.
++    expect(pushCount(ns.hookLog)).toBe(pushesThatLanded);
++  });
++
++  it("reads a non-zero queue depth while a burst of writes is in flight, 0 after", async () => {
++    // A pre-commit hook that sleeps holds the chain open: the depth gauge is
++    // sampled at scrape time, so this is the in-flight window an operator sees.
++    const names = ["obsdb004-burst-a", "obsdb004-burst-b", "obsdb004-burst-c"];
++    for (const ns of names) makeNamespace(ns, { preCommitSleepSec: 1.2 });
++
++    const statuses = await Promise.all(
++      names.map((ns) => postMemory(ns, `/obsdb004/${ns}`)),
++    );
++    expect(statuses).toEqual([201, 201, 201]);
++
++    const during = await scraped();
++    const depth = sampleValue(during, "duckbrain_git_commit_queue_depth");
++    expect(depth).not.toBeNull();
++    expect(Number.isInteger(depth)).toBe(true);
++    expect(depth!).toBeGreaterThanOrEqual(1);
++
++    await drainAsyncCommits(20_000);
++    const after = await scraped();
++    expect(sampleValue(after, "duckbrain_git_commit_queue_depth")).toBe(0);
++    // The burst still committed: being slow is not being lost.
++    expect(sampleValue(after, "duckbrain_git_commit_total", 'outcome="ok"')).toBeGreaterThan(0);
++  });
++});
+diff --git a/src/git/metrics.ts b/src/git/metrics.ts
+new file mode 100644
+index 00000000..c3c007ae
+--- /dev/null
++++ b/src/git/metrics.ts
+@@ -0,0 +1,252 @@
++/**
++ * OBSDB-004 — git write-path instrumentation.
++ *
++ * `docs/observability-spec.md` §2 (blind spots #5 and #6) and §3.2: every write
++ * schedules a debounced per-namespace commit and push, and every failure on
++ * that path is a `console.warn` that is then swallowed (src/git/autocommit.ts
++ * `asyncCommit` catch, `pushNamespaceAsync` catch). The result is the worst
++ * kind of blind spot — a namespace can silently stop reaching its remote while
++ * the daemon answers 200 and `/health` stays green, because JSONL durability
++ * and git transport are independent. The queue depth (`asyncChains.size`) was
++ * a Map size nothing read.
++ *
++ * This module owns the four families that close those two blind spots:
++ *
++ *   duckbrain_git_commit_total                        counter  — outcome=ok|fail
++ *   duckbrain_git_push_total                          counter  — outcome=ok|fail
++ *   duckbrain_git_commit_queue_depth                  gauge    — asyncChains.size
++ *   duckbrain_git_last_push_success_timestamp_seconds gauge    — unix seconds
++ *
++ * PROCESS-WIDE, NOT PER-APP — the same rationale as `src/embedding/metrics.ts`:
++ * the facts are produced in the git layer, which is exercised by the HTTP
++ * daemon, by MCP stdio and by one-shot CLI runs (`duckbrain remember` commits
++ * and pushes before it exits). The counters are module singletons created with
++ * `registers: []` — importing this module never touches `Registry.globalRegistry`
++ * — and `registerGitMetrics()` attaches the SAME instances to each per-app
++ * scrape registry. A CLI-only process reads them through the metric objects
++ * directly; a daemon renders them on `GET /metrics`.
++ *
++ * LABEL DISCIPLINE (spec §3, hard rules): the ONLY label is `outcome`, and its
++ * domain is the two-value enum below. A NAMESPACE NAME MUST NEVER BE A LABEL —
++ * namespaces are user-chosen and unbounded, and a per-namespace series is
++ * exactly the cardinality (and PII) explosion the spec forbids. The `namespacePath`
++ * argument on the record functions exists only in log-free form: nothing here
++ * reads it, and a test asserts a namespace name cannot reach the exposition.
++ *
++ * ACCOUNTING SEMANTICS (deliberate, so the counters mean one thing):
++ *   - A commit OPERATION is one traversal of the commit path, counted ok when
++ *     it completes without throwing (including "nothing staged" — the operation
++ *     succeeded; it just had no work) and fail when it throws. It does not
++ *     count commit OBJECTS: a batched flush that sweeps 100 lines is one
++ *     operation, which is the unit the debounce actually schedules.
++ *   - A push OPERATION is one real `git push` invocation. GATE SKIPS (s3
++ *     disabled, pushOnCommit off, interval floor, HEAD unchanged, no remote)
++ *     are NOT push operations and are NOT counted — counting a skip as `ok`
++ *     would make "are writes landing?" answer yes for a deployment that never
++ *     pushes, and counting it as `fail` would page on the default config.
++ *   - `last_push_success_timestamp_seconds` is set ONLY on a real success, so
++ *     `time() - value` is the honest staleness of the last landed push. A
++ *     broken remote therefore leaves the sample frozen while the fail counter
++ *     climbs — that pair is the alert.
++ */
++
++import { Counter, Gauge, type Registry } from "prom-client";
++
++export const GIT_COMMIT_TOTAL = "duckbrain_git_commit_total";
++export const GIT_PUSH_TOTAL = "duckbrain_git_push_total";
++export const GIT_COMMIT_QUEUE_DEPTH = "duckbrain_git_commit_queue_depth";
++export const GIT_LAST_PUSH_SUCCESS_SECONDS =
++  "duckbrain_git_last_push_success_timestamp_seconds";
++
++/** The four families this module owns, in exposition order. */
++export const GIT_METRIC_NAMES = [
++  GIT_COMMIT_TOTAL,
++  GIT_PUSH_TOTAL,
++  GIT_COMMIT_QUEUE_DEPTH,
++  GIT_LAST_PUSH_SUCCESS_SECONDS,
++] as const;
++
++/** The fixed `outcome` label domain (spec §3.2). */
++export const GIT_OUTCOMES = ["ok", "fail"] as const;
++export type GitOutcome = (typeof GIT_OUTCOMES)[number];
++
++/**
++ * One completed commit operation, by outcome.
++ *
++ * `outcome` is the only label: a namespace label would be unbounded and
++ * user-controlled, and the operator question ("are writes landing?") is
++ * aggregate by construction — per-namespace debugging is a log question.
++ */
++export const gitCommits = new Counter({
++  name: GIT_COMMIT_TOTAL,
++  help: "Commit operations on the per-namespace git write path by outcome (ok|fail); aggregated, never labelled by namespace.",
++  labelNames: ["outcome"],
++  registers: [],
++});
++
++/** One real `git push` invocation, by outcome. Gate skips are not counted. */
++export const gitPushes = new Counter({
++  name: GIT_PUSH_TOTAL,
++  help: "Real git push invocations from the namespace write path by outcome (ok|fail); gate skips and unchanged-HEAD short-circuits are not counted.",
++  labelNames: ["outcome"],
++  registers: [],
++});
++
++/**
++ * Sampler for the in-flight commit/push chain count.
++ *
++ * The state lives in `src/git/autocommit.ts` (`asyncChains`, one chain per
++ * namespace, OPS-006). This module must not import it — autocommit imports
++ * THIS module to record outcomes, and an import back would be a cycle — so the
++ * owner installs a sampler at module load (`setCommitQueueDepthSampler`) and
++ * the gauge calls it at scrape time. Until a sampler is installed the depth
++ * reads 0, which is the truth for a process that never scheduled a commit.
++ */
++let queueDepthSampler: (() => number) | null = null;
++
++/**
++ * Register the in-flight chain sampler (called once, by autocommit.ts).
++ * Returns the previous sampler so a test can restore it.
++ */
++export function setCommitQueueDepthSampler(
++  sampler: (() => number) | null,
++): (() => number) | null {
++  const previous = queueDepthSampler;
++  queueDepthSampler = sampler;
++  return previous;
++}
++
++/** Read the current depth through the installed sampler, defensively. */
++export function commitQueueDepth(): number {
++  try {
++    const value = queueDepthSampler ? queueDepthSampler() : 0;
++    return typeof value === "number" && Number.isFinite(value) && value >= 0
++      ? Math.floor(value)
++      : 0;
++  } catch {
++    // A failing sampler must not turn a scrape into an error page.
++    return 0;
++  }
++}
++
++/**
++ * In-flight commit+push chains, sampled on scrape.
++ *
++ * A `collect` callback rather than a periodically-set value: the chain map is
++ * mutated by the write path, and a scrape is the only moment anything asks. An
++ * unref'd interval writing the gauge would keep a CLI process alive for a fact
++ * nobody is reading, which is why the spec asks for a collect callback.
++ */
++export const gitCommitQueueDepth = new Gauge({
++  name: GIT_COMMIT_QUEUE_DEPTH,
++  help: "In-flight async commit+push chains (asyncChains.size) sampled at scrape time; a sustained non-zero value means the git write path is backing up.",
++  registers: [],
++  collect(this: Gauge<"">) {
++    this.set(commitQueueDepth());
++  },
++});
++
++/**
++ * Unix seconds of the last SUCCESSFUL push.
++ *
++ * Never initialised: a process that has not pushed has no value, and
++ * `time() - <frozen sample>` is the staleness the alert uses. Writing a
++ * fabricated 0 at startup would make a fresh daemon look 56 years stale.
++ */
++export const gitLastPushSuccess = new Gauge({
++  name: GIT_LAST_PUSH_SUCCESS_SECONDS,
++  help: "Unix timestamp (seconds) of the last successful namespace push; the alert is time() - value > 3600 (a frozen value while git_push_total{outcome=\"fail\"} climbs means the remote is unreachable).",
++  registers: [],
++});
++
++/** Normalize an outcome onto the fixed enum; anything else is a failure. */
++export function gitOutcomeLabel(outcome: unknown): GitOutcome {
++  return outcome === "ok" ? "ok" : "fail";
++}
++
++/** Record one commit operation outcome. Never throws. */
++export function recordGitCommit(outcome: GitOutcome): void {
++  try {
++    gitCommits.inc({ outcome: gitOutcomeLabel(outcome) });
++  } catch {
++    /* telemetry never breaks the write path */
++  }
++}
++
++export function recordGitCommitSuccess(): void {
++  recordGitCommit("ok");
++}
++
++export function recordGitCommitFailure(): void {
++  recordGitCommit("fail");
++}
++
++/**
++ * Record one push operation outcome. A success also stamps the staleness
++ * gauge; a failure deliberately leaves the previous stamp untouched — that
++ * freeze is what `time() - duckbrain_git_last_push_success_timestamp_seconds`
++ * measures.
++ */
++export function recordGitPush(outcome: GitOutcome, atMs?: number): void {
++  try {
++    const label = gitOutcomeLabel(outcome);
++    gitPushes.inc({ outcome: label });
++    if (label === "ok") {
++      const at = typeof atMs === "number" && Number.isFinite(atMs) ? atMs : Date.now();
++      gitLastPushSuccess.set(at / 1000);
++    }
++  } catch {
++    /* telemetry never breaks the push path */
++  }
++}
++
++export function recordGitPushSuccess(atMs?: number): void {
++  recordGitPush("ok", atMs);
++}
++
++export function recordGitPushFailure(): void {
++  recordGitPush("fail");
++}
++
++/**
++ * Attach the process-wide git metrics to a scrape registry.
++ *
++ * Registration (not duplication) is what makes the SAME instances visible on
++ * `GET /metrics`. Idempotent: a second call for an already-registered registry
++ * is a no-op, so repeated `createHttpServer()` calls (tests, embedders) cannot
++ * throw "already registered".
++ */
++export function registerGitMetrics(registry: Registry): void {
++  // Two homogeneous loops rather than one mixed array: the labelled counters
++  // and the unlabelled gauges have different Metric<> generics, and a mixed
++  // literal would need a cast to satisfy the type checker.
++  for (const counter of [gitCommits, gitPushes]) {
++    try {
++      registry.registerMetric(counter);
++    } catch {
++      // Same metric object already registered on this registry — nothing to do.
++    }
++  }
++  for (const gauge of [gitCommitQueueDepth, gitLastPushSuccess]) {
++    try {
++      registry.registerMetric(gauge);
++    } catch {
++      // Same metric object already registered on this registry — nothing to do.
++    }
++  }
++}
++
++/**
++ * Reset the counters and REMOVE the success stamp (test seam).
++ *
++ * Production never calls it: a restart is the only reset a scrape should see.
++ * The stamp is removed rather than zeroed — a process that never pushed has no
++ * timestamp (zero would read as 56 years stale), and by design
++ * `duckbrain_git_last_push_success_timestamp_seconds` has no sample until a
++ * push lands. The depth gauge is NOT reset: it is sampled, not stored.
++ */
++export function resetGitMetrics(): void {
++  gitCommits.reset();
++  gitPushes.reset();
++  gitLastPushSuccess.remove();
++}
+diff --git a/src/http/metrics.test.ts b/src/http/metrics.test.ts
+index b17f92fa..b0cb11eb 100644
+--- a/src/http/metrics.test.ts
++++ b/src/http/metrics.test.ts
+@@ -143,8 +143,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
+       .map((line) => line.replace("# TYPE ", ""));
+     // OBSDB-002 grew the set from six families to eight (read latency and
+     // refusals); OBSDB-003 grew it to eleven (embedding outcomes plus cache
+-    // hits/misses). The assertion stays exact on purpose — a family appearing
+-    // without a row and a review is the failure mode this guards.
++    // hits/misses); OBSDB-004 grew it to fifteen (git commit/push outcomes,
++    // commit queue depth and push staleness). The assertion stays exact on
++    // purpose — a family appearing without a row and a review is the failure
++    // mode this guards.
+     expect(families).toEqual([
+       "duckbrain_http_up gauge",
+       "duckbrain_health_status gauge",
+@@ -153,6 +155,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
+       "duckbrain_embedding_requests_total counter",
+       "duckbrain_embedding_cache_hits_total counter",
+       "duckbrain_embedding_cache_misses_total counter",
++      "duckbrain_git_commit_total counter",
++      "duckbrain_git_push_total counter",
++      "duckbrain_git_commit_queue_depth gauge",
++      "duckbrain_git_last_push_success_timestamp_seconds gauge",
+       "duckbrain_reads_total counter",
+       "duckbrain_read_duration_seconds histogram",
+       "duckbrain_rejected_total counter",
+diff --git a/src/http/metrics.ts b/src/http/metrics.ts
+index 05542526..643f4de8 100644
+--- a/src/http/metrics.ts
++++ b/src/http/metrics.ts
+@@ -8,9 +8,10 @@
+  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
+  * official Node.js Prometheus client) in the text exposition format 0.0.4.
+  *
+- * Eleven families are exposed (spec §3.1/§3.2: the six MVP families of
+- * OBSDB-001, the two read-path depth families of OBSDB-002, and the three
+- * embedding-path families of OBSDB-003):
++ * Fifteen families are exposed (spec §3.1/§3.2: the six MVP families of
++ * OBSDB-001, the two read-path depth families of OBSDB-002, the three
++ * embedding-path families of OBSDB-003, and the four git write-path families
++ * of OBSDB-004):
+  *
+  *   duckbrain_http_up                        gauge      — answer a scrape at all
+  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
+@@ -19,6 +20,10 @@
+  *   duckbrain_embedding_requests_total       counter    — provider/outcome (OBSDB-003)
+  *   duckbrain_embedding_cache_hits_total     counter    — (no labels, OBSDB-003)
+  *   duckbrain_embedding_cache_misses_total   counter    — (no labels, OBSDB-003)
++ *   duckbrain_git_commit_total               counter    — outcome=ok|fail (OBSDB-004)
++ *   duckbrain_git_push_total                 counter    — outcome=ok|fail (OBSDB-004)
++ *   duckbrain_git_commit_queue_depth         gauge      — asyncChains.size (OBSDB-004)
++ *   duckbrain_git_last_push_success_..._sec  gauge      — unix seconds (OBSDB-004)
+  *   duckbrain_reads_total                    counter    — route/method/status_class
+  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
+  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
+@@ -69,6 +74,7 @@ import { Counter, Gauge, Histogram, Registry } from "prom-client";
+ import type { Request, Response } from "express";
+ import { PROVIDERS } from "../embedding/providers";
+ import { registerEmbeddingMetrics } from "../embedding/metrics";
++import { GIT_METRIC_NAMES, registerGitMetrics } from "../git/metrics";
+ import { normalizeReadRoute } from "./readLedger";
+ 
+ /** The six+two families this endpoint owns, in exposition order. */
+@@ -80,6 +86,9 @@ export const METRIC_NAMES = [
+   "duckbrain_embedding_requests_total",
+   "duckbrain_embedding_cache_hits_total",
+   "duckbrain_embedding_cache_misses_total",
++  // OBSDB-004: the git write path (commit/push outcomes, queue depth, push
++  // staleness) — owned by src/git/metrics.ts, attached below.
++  ...GIT_METRIC_NAMES,
+   "duckbrain_reads_total",
+   "duckbrain_read_duration_seconds",
+   "duckbrain_rejected_total",
+@@ -464,6 +473,14 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
+   // counters through its own registry-free metric objects.
+   registerEmbeddingMetrics(registry);
+ 
++  // OBSDB-004: the git write path. Same process-wide-owner pattern as the
++  // embedding counters: the facts are produced in src/git/autocommit.ts, which
++  // runs in the daemon, in MCP stdio and in one-shot CLI runs alike, so the
++  // counters live with that layer and are merely ATTACHED here. Without them a
++  // namespace can stop reaching its remote while /health and every read stay
++  // green (spec §2 blind spots #5-#6).
++  registerGitMetrics(registry);
++
+   // How much work is the daemon doing, and how much of it is failing?
+   const reads = new Counter({
+     name: "duckbrain_reads_total",
+diff --git a/test-counts.json b/test-counts.json
+index a74bcddc..74763d97 100644
+--- a/test-counts.json
++++ b/test-counts.json
+@@ -1,5 +1,5 @@
+ {
+-  "suites": 254,
+-  "tests": 2108,
++  "suites": 255,
++  "tests": 2117,
+   "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+ }

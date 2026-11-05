@@ -1,0 +1,126 @@
+{
+  "task_id": "OBSDB-004",
+  "task_title": "OBSDB-004: git commit/push write path on the metrics surface",
+  "task_criteria": [
+    "One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.",
+    "Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.",
+    "duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "eb96389c7f3edb8b7d58b5b03f4ca375762b3e8a",
+  "working_tree_content_fingerprint": "1c7742711fdcf1445687ae2ef1d5abaa09fb6a867450280408ccc51871859d0f",
+  "working_tree_dirty_path_count": 5,
+  "items": [],
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n10:46AM INF scanned ~23742126 bytes (23.74 MB) in 3.34s\n10:46AM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 486046 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:236784) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:250882) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:257189) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:259011) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:259066) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:259931) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:259938) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:259974) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260080) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260237) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260276) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260305) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260468) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260504) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260513) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260534) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260542) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260577) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:260633) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  255 passed (255)\n      Tests  2117 passed (2117)\n   Start at  10:46:38\n   Duration  68.86s (tests 78%, import 19%, transform 2%, setup 1%, worker 1%)\n\n    Isolate  255 workers spawned \u00b7 ~84ms startup each (spawn + environment, per file)\n             at least ~5.27s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.: src/git/metrics-obsdb004.test.ts:436-459 posts one memory through the real HTTP server (postMemory -> 201), drains async commits, then asserts commit_total{outcome=ok} and push_total{outcome=ok} both increased over the pre-write scrape, and asserts pushCount(ns.hookLog) > 0 \u2014 the bare remote's post-receive hook saw the new tip. Backed by src/git/autocommit.ts recording recordGitPushSuccess() at the real push sites and src/http/metrics.ts registering the families on the scrape registry. Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.: src/git/metrics-obsdb004.test.ts:461-497 establishes a healthy baseline (goodStamp set, pushCount(hookLog)>0), then breaks the remote with `git remote set-url s3daily <tmp>/gone.git` (line 475) and writes again. It asserts push_total{outcome=fail} > 0, asserts last_push_success_timestamp_seconds === goodStamp (frozen, not overwritten), asserts staleness2 > staleness1 after a 1100ms sleep (time minus value grows), and asserts pushCount(ns.hookLog) === pushesThatLanded so the remote received nothing. Semantics enforced in src/git/metrics.ts:190-201 recordGitPush() stamps the gauge only when label === 'ok'. Fresh run: exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.: src/git/metrics.ts:120-131 commitQueueDepth() returns Math.floor(value) only when Number.isFinite(value) && value >= 0, else 0 \u2014 finite, non-negative, integer. The gauge is a collect() callback (metrics.ts:143-146) sampling asyncChains.size installed at src/git/autocommit.ts:353, so it is sampled at scrape time. src/git/metrics-obsdb004.test.ts:500-522 runs a 3-namespace burst held open by a 1.2s pre-commit hook and asserts depth is not null, Number.isInteger(depth), depth >= 1 in flight, and 0 after drainAsyncCommits. Label discipline: both counters declare labelNames:[\"outcome\"] only (metrics.ts:80-95) and the test at :96-124 asserts the exposition contains no namespace=/path=/remote=/error= and exactly 4 duckbrain_git_ TYPE lines. Fresh runs: `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 9 passed; `npx vitest run src/http/metrics.test.ts src/git/` -> exit_code 0, 'Test Files 16 passed (16), Tests 128 passed (128)'.\nAll three OBSDB-004 criteria are satisfied by src/git/metrics.ts plus the autocommit/http wiring, with end-to-end tests against a real file:// bare remote that pass fresh (9/9 in the OBSDB-004 file, 128/128 across the git and http/metrics suites).",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.: src/git/metrics-obsdb004.test.ts:436-459 posts one memory through the real HTTP server (postMemory -> 201), drains async commits, then asserts commit_total{outcome=ok} and push_total{outcome=ok} both increased over the pre-write scrape, and asserts pushCount(ns.hookLog) > 0 \u2014 the bare remote's post-receive hook saw the new tip. Backed by src/git/autocommit.ts recording recordGitPushSuccess() at the real push sites and src/http/metrics.ts registering the families on the scrape registry. Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.: src/git/metrics-obsdb004.test.ts:461-497 establishes a healthy baseline (goodStamp set, pushCount(hookLog)>0), then breaks the remote with `git remote set-url s3daily <tmp>/gone.git` (line 475) and writes again. It asserts push_total{outcome=fail} > 0, asserts last_push_success_timestamp_seconds === goodStamp (frozen, not overwritten), asserts staleness2 > staleness1 after a 1100ms sleep (time minus value grows), and asserts pushCount(ns.hookLog) === pushesThatLanded so the remote received nothing. Semantics enforced in src/git/metrics.ts:190-201 recordGitPush() stamps the gauge only when label === 'ok'. Fresh run: exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.: src/git/metrics.ts:120-131 commitQueueDepth() returns Math.floor(value) only when Number.isFinite(value) && value >= 0, else 0 \u2014 finite, non-negative, integer. The gauge is a collect() callback (metrics.ts:143-146) sampling asyncChains.size installed at src/git/autocommit.ts:353, so it is sampled at scrape time. src/git/metrics-obsdb004.test.ts:500-522 runs a 3-namespace burst held open by a 1.2s pre-commit hook and asserts depth is not null, Number.isInteger(depth), depth >= 1 in flight, and 0 after drainAsyncCommits. Label discipline: both counters declare labelNames:[\"outcome\"] only (metrics.ts:80-95) and the test at :96-124 asserts the exposition contains no namespace=/path=/remote=/error= and exactly 4 duckbrain_git_ TYPE lines. Fresh runs: `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 9 passed; `npx vitest run src/http/metrics.test.ts src/git/` -> exit_code 0, 'Test Files 16 passed (16), Tests 128 passed (128)'.\nAll three OBSDB-004 criteria are satisfied by src/git/metrics.ts plus the autocommit/http wiring, with end-to-end tests against a real file:// bare remote that pass fresh (9/9 in the OBSDB-004 file, 128/128 across the git and http/metrics suites).",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.",
+                "status": "PASS",
+                "detail": "src/git/metrics-obsdb004.test.ts:436-459 posts one memory through the real HTTP server (postMemory -> 201), drains async commits, then asserts commit_total{outcome=ok} and push_total{outcome=ok} both increased over the pre-write scrape, and asserts pushCount(ns.hookLog) > 0 \u2014 the bare remote's post-receive hook saw the new tip. Backed by src/git/autocommit.ts recording recordGitPushSuccess() at the real push sites and src/http/metrics.ts registering the families on the scrape registry. Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 'Tests 9 passed (9)'.",
+                "resolution_probability": 0.16
+              },
+              {
+                "criterion": "Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.",
+                "status": "PASS",
+                "detail": "src/git/metrics-obsdb004.test.ts:461-497 establishes a healthy baseline (goodStamp set, pushCount(hookLog)>0), then breaks the remote with `git remote set-url s3daily <tmp>/gone.git` (line 475) and writes again. It asserts push_total{outcome=fail} > 0, asserts last_push_success_timestamp_seconds === goodStamp (frozen, not overwritten), asserts staleness2 > staleness1 after a 1100ms sleep (time minus value grows), and asserts pushCount(ns.hookLog) === pushesThatLanded so the remote received nothing. Semantics enforced in src/git/metrics.ts:190-201 recordGitPush() stamps the gauge only when label === 'ok'. Fresh run: exit_code 0, 'Tests 9 passed (9)'.",
+                "resolution_probability": 0.16
+              },
+              {
+                "criterion": "duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.",
+                "status": "PASS",
+                "detail": "src/git/metrics.ts:120-131 commitQueueDepth() returns Math.floor(value) only when Number.isFinite(value) && value >= 0, else 0 \u2014 finite, non-negative, integer. The gauge is a collect() callback (metrics.ts:143-146) sampling asyncChains.size installed at src/git/autocommit.ts:353, so it is sampled at scrape time. src/git/metrics-obsdb004.test.ts:500-522 runs a 3-namespace burst held open by a 1.2s pre-commit hook and asserts depth is not null, Number.isInteger(depth), depth >= 1 in flight, and 0 after drainAsyncCommits. Label discipline: both counters declare labelNames:[\"outcome\"] only (metrics.ts:80-95) and the test at :96-124 asserts the exposition contains no namespace=/path=/remote=/error= and exactly 4 duckbrain_git_ TYPE lines. Fresh runs: `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 9 passed; `npx vitest run src/http/metrics.test.ts src/git/` -> exit_code 0, 'Test Files 16 passed (16), Tests 128 passed (128)'.",
+                "resolution_probability": 0.16
+              }
+            ],
+            "summary": "All three OBSDB-004 criteria are satisfied by src/git/metrics.ts plus the autocommit/http wiring, with end-to-end tests against a real file:// bare remote that pass fresh (9/9 in the OBSDB-004 file, 128/128 across the git and http/metrics suites).",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: OBSDB-004\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 One POST /api/memories, the remember path, against a scratch daemon with a configured remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok} at least 1, and the remote actually receives the tip.: src/git/metrics-obsdb004.test.ts:436-459 posts one memory through the real HTTP server (postMemory -> 201), drains async commits, then asserts commit_total{outcome=ok} and push_total{outcome=ok} both increased over the pre-write scrape, and asserts pushCount(ns.hookLog) > 0 \u2014 the bare remote's post-receive hook saw the new tip. Backed by src/git/autocommit.ts recording recordGitPushSuccess() at the real push sites and src/http/metrics.ts registering the families on the scrape registry. Fresh run `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last real success and the remote receives nothing, so time minus value grows.: src/git/metrics-obsdb004.test.ts:461-497 establishes a healthy baseline (goodStamp set, pushCount(hookLog)>0), then breaks the remote with `git remote set-url s3daily <tmp>/gone.git` (line 475) and writes again. It asserts push_total{outcome=fail} > 0, asserts last_push_success_timestamp_seconds === goodStamp (frozen, not overwritten), asserts staleness2 > staleness1 after a 1100ms sleep (time minus value grows), and asserts pushCount(ns.hookLog) === pushesThatLanded so the remote received nothing. Semantics enforced in src/git/metrics.ts:190-201 recordGitPush() stamps the gauge only when label === 'ok'. Fresh run: exit_code 0, 'Tests 9 passed (9)'.\n  \u2713 duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is non-zero while a burst of writes is in flight and 0 after settlement, and neither counter carries a namespace name as a label.: src/git/metrics.ts:120-131 commitQueueDepth() returns Math.floor(value) only when Number.isFinite(value) && value >= 0, else 0 \u2014 finite, non-negative, integer. The gauge is a collect() callback (metrics.ts:143-146) sampling asyncChains.size installed at src/git/autocommit.ts:353, so it is sampled at scrape time. src/git/metrics-obsdb004.test.ts:500-522 runs a 3-namespace burst held open by a 1.2s pre-commit hook and asserts depth is not null, Number.isInteger(depth), depth >= 1 in flight, and 0 after drainAsyncCommits. Label discipline: both counters declare labelNames:[\"outcome\"] only (metrics.ts:80-95) and the test at :96-124 asserts the exposition contains no namespace=/path=/remote=/error= and exactly 4 duckbrain_git_ TYPE lines. Fresh runs: `npx vitest run src/git/metrics-obsdb004.test.ts` -> exit_code 0, 9 passed; `npx vitest run src/http/metrics.test.ts src/git/` -> exit_code 0, 'Test Files 16 passed (16), Tests 128 passed (128)'.\nAll three OBSDB-004 criteria are satisfied by src/git/metrics.ts plus the autocommit/http wiring, with end-to-end tests against a real file:// bare remote that pass fresh (9/9 in the OBSDB-004 file, 128/128 across the git and http/metrics suites).\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-05T15:49:04.761610",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-05T15:49:04.797201+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 45284,
+        "truncated": false,
+        "source": "git show eb96389c7f3e"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 27055,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "OBSDB-004"
+  }
+}

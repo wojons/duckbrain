@@ -3062,3 +3062,36 @@ tasks:
   status: complete
   created_at: '2026-11-04T14:46:24.305481+00:00'
   completed_at: '2026-11-04T16:07:20.792947+00:00'
+- id: PERF-DUCKBRAIN-002
+  title: 'PERF-DUCKBRAIN-002 (bench-script half): 500ms latency assertion + non-zero
+    exit'
+  criteria:
+  - 'Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs
+    defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1))
+    with a machine-readable FAIL summary line when any sample exceeds it; a RED arm
+    proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL
+    and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured
+    latency -> prints result=PASS and exits 0); the script can target an authenticated
+    daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it
+    as the x-api-key header (the live :3000 port answers 401 without it), so the live
+    acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is
+    confined to the perf script plus one new test that exercises the threshold helper,
+    and pnpm test:run stays green. No production mutation: no namespace data is squashed
+    and no daemon is restarted in this row.'
+  status: in_progress
+  created_at: '2026-11-04T17:01:19.751191+00:00'
+- id: OBSDB-004
+  title: 'OBSDB-004: git commit/push write path on the metrics surface'
+  criteria:
+  - One POST /api/memories, the remember path, against a scratch daemon with a configured
+    remote yields duckbrain_git_commit_total{outcome=ok} at least 1 and duckbrain_git_push_total{outcome=ok}
+    at least 1, and the remote actually receives the tip.
+  - Breaking the remote URL makes duckbrain_git_push_total{outcome=fail} increase
+    while duckbrain_git_last_push_success_timestamp_seconds stays frozen at the last
+    real success and the remote receives nothing, so time minus value grows.
+  - duckbrain_git_commit_queue_depth is a finite non-negative sampled gauge that is
+    non-zero while a burst of writes is in flight and 0 after settlement, and neither
+    counter carries a namespace name as a label.
+  status: complete
+  created_at: '2026-11-05T15:46:33.538654+00:00'
+  completed_at: '2026-11-05T15:49:31.173839+00:00'
