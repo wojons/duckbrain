@@ -21,6 +21,11 @@
  *   3. lmstudio fallback (matches historical behavior)
  */
 
+import {
+  recordEmbedFailure,
+  recordEmbedSuccess,
+} from "./metrics";
+
 export interface EmbeddingProvider {
   /** Stable identifier used as cache namespace key (e.g. "lmstudio/qwen3-0.6b") */
   readonly id: string;
@@ -380,6 +385,62 @@ export function classifyEmbedFailure(
 }
 
 /**
+ * OBSDB-003: count one REAL provider embed, then hand the result through.
+ *
+ * The counters live in `./metrics` (process-wide, scraped via `GET /metrics`),
+ * and this wrapper is the one place a provider request is observed, so the
+ * metric cannot drift from the call sites: success is `ok`, failure is
+ * classified by the SAME `classifyEmbedFailure` an operator note uses and then
+ * collapsed onto the spec's bounded outcome enum. The error is re-thrown
+ * unchanged — callers keep their provider-fallback behaviour exactly;
+ * instrumentation is invisible to them.
+ *
+ * A batch counts as ONE request (it is one HTTP call), including when it fails
+ * and `search.ts` falls back to per-text embeds.
+ */
+async function trackEmbedRequest<T>(
+  providerId: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    const value = await run();
+    recordEmbedSuccess(providerId);
+    return value;
+  } catch (error) {
+    recordEmbedFailure(providerId, classifyEmbedFailure(error).class);
+    throw error;
+  }
+}
+
+/**
+ * OBSDB-003: wrap a provider so its embeds are counted.
+ *
+ * Applied at the two PRODUCT construction points (`createProvider` and the
+ * auto-probe branch), deliberately NOT to the health probe (health.ts builds
+ * its own instance) or the preflight: those two spend a SHORT dedicated budget
+ * (3s / 8s) and are allowed to time out while real queries succeed, so
+ * counting them in `duckbrain_embedding_requests_total` would report a
+ * provider as timing out on traffic it never served.
+ */
+export function instrumentEmbedder(
+  provider: EmbeddingProvider,
+): EmbeddingProvider {
+  const wrapped: EmbeddingProvider = {
+    id: provider.id,
+    model: provider.model,
+    dimensions: provider.dimensions,
+    embed: (text: string) =>
+      trackEmbedRequest(provider.id, () => provider.embed(text)),
+  };
+  const batched = provider.embedMany;
+  if (batched) {
+    wrapped.embedMany = (texts: string[]) =>
+      trackEmbedRequest(provider.id, () => batched.call(provider, texts));
+  }
+  return wrapped;
+}
+
+/**
  * The cheap reachability route each provider's `isHealthy()` gate uses.
  *
  * OPS-004: exported so the embedding preflight (`./preflight.ts`) probes the
@@ -610,13 +671,15 @@ export function createProvider(cfg: EmbeddingConfig = {}): EmbeddingProvider {
       `Unknown embedding provider '${resolved.provider}'. Known: ${PROVIDERS.map((p) => p.id).join(", ")}`,
     );
   }
-  return ctor.build({
-    baseUrl: resolved.baseUrl ?? "",
-    model: resolved.model,
-    dimensions: resolved.dimensions,
-    timeoutMs: resolved.timeoutMs,
-    apiKey: resolved.apiKey,
-  });
+  return instrumentEmbedder(
+    ctor.build({
+      baseUrl: resolved.baseUrl ?? "",
+      model: resolved.model,
+      dimensions: resolved.dimensions,
+      timeoutMs: resolved.timeoutMs,
+      apiKey: resolved.apiKey,
+    }),
+  );
 }
 
 /**
@@ -729,13 +792,15 @@ export async function createAutoProviders(
   gates.forEach((ctor) => {
     if (ctor) {
       healthy.push(
-        ctor.build({
-          baseUrl: resolved.baseUrl ?? "",
-          model: resolved.model,
-          dimensions: resolved.dimensions,
-          timeoutMs: resolved.timeoutMs,
-          apiKey: resolved.apiKey,
-        }),
+        instrumentEmbedder(
+          ctor.build({
+            baseUrl: resolved.baseUrl ?? "",
+            model: resolved.model,
+            dimensions: resolved.dimensions,
+            timeoutMs: resolved.timeoutMs,
+            apiKey: resolved.apiKey,
+          }),
+        ),
       );
     }
   });

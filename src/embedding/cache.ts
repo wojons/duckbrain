@@ -31,6 +31,11 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
+import {
+  recordEmbeddingCacheHit,
+  recordEmbeddingCacheMiss,
+} from "./metrics";
+
 /** Default cache directory name inside a namespace */
 export const EMBEDDING_CACHE_DIR = ".embeddings";
 
@@ -103,15 +108,33 @@ export class EmbeddingCache {
     return path.join(this.root, modelId.replace(/[^a-zA-Z0-9._-]/g, "_"));
   }
 
-  /** Get cached vector for (model, contentHash). Returns null on miss/corrupt. */
+  /**
+   * Get cached vector for (model, contentHash). Returns null on miss/corrupt.
+   *
+   * OBSDB-003: this method is the ONE cache-residency decision in the codebase
+   * (`has()` delegates to it; search, rebuild and recall all read through it),
+   * so the hit/miss counters are incremented here and nowhere else. That is
+   * what makes `hits / (hits + misses)` describe every reader instead of one
+   * caller's private loop, and it is why a corrupt entry counts as a MISS — a
+   * vector the caller cannot use cost the query a provider round trip.
+   */
   get(modelId: string, contentHash: string): number[] | null {
     // New binary format first; legacy JSON kept as a read-only fallback so
     // old caches keep working until migrated.
     const bin = this.readBin(this.entryPathExt(modelId, contentHash, ".bin"));
-    if (bin) return bin;
-    return this.readLegacyJson(
+    if (bin) {
+      recordEmbeddingCacheHit();
+      return bin;
+    }
+    const legacy = this.readLegacyJson(
       this.entryPathExt(modelId, contentHash, ".json"),
     );
+    if (legacy) {
+      recordEmbeddingCacheHit();
+      return legacy;
+    }
+    recordEmbeddingCacheMiss();
+    return null;
   }
 
   private readBin(p: string): number[] | null {

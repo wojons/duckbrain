@@ -8,17 +8,28 @@
  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
  * official Node.js Prometheus client) in the text exposition format 0.0.4.
  *
- * Exactly eight families are exposed (spec §3.1/§3.2: the six MVP families of
- * OBSDB-001, plus the two read-path depth families of OBSDB-002):
+ * Eleven families are exposed (spec §3.1/§3.2: the six MVP families of
+ * OBSDB-001, the two read-path depth families of OBSDB-002, and the three
+ * embedding-path families of OBSDB-003):
  *
  *   duckbrain_http_up                        gauge      — answer a scrape at all
  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
  *   duckbrain_health_probe_duration_seconds   histogram  — probe=embedding|keys|total
  *   duckbrain_embedding_provider_healthy     gauge      — provider=<embedder id>
+ *   duckbrain_embedding_requests_total       counter    — provider/outcome (OBSDB-003)
+ *   duckbrain_embedding_cache_hits_total     counter    — (no labels, OBSDB-003)
+ *   duckbrain_embedding_cache_misses_total   counter    — (no labels, OBSDB-003)
  *   duckbrain_reads_total                    counter    — route/method/status_class
  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
  *   duckbrain_build_info                     gauge 1    — version/node
+ *
+ * The three OBSDB-003 families are owned by the EMBEDDING layer, not by this
+ * module: `src/embedding/metrics.ts` holds them as process-wide counters
+ * incremented at the real provider request and cache lookup (so CLI/MCP
+ * embedding work is counted too, not just the daemon's). This module only
+ * attaches them to the per-app registry — `registerEmbeddingMetrics` — which
+ * is why they appear here without an `observe*` seam.
  *
  * LABEL RULES (hard, spec §3 "Label discipline") — enforced in code, not by
  * convention:
@@ -57,6 +68,7 @@ import path from "path";
 import { Counter, Gauge, Histogram, Registry } from "prom-client";
 import type { Request, Response } from "express";
 import { PROVIDERS } from "../embedding/providers";
+import { registerEmbeddingMetrics } from "../embedding/metrics";
 import { normalizeReadRoute } from "./readLedger";
 
 /** The six+two families this endpoint owns, in exposition order. */
@@ -65,6 +77,9 @@ export const METRIC_NAMES = [
   "duckbrain_health_status",
   "duckbrain_health_probe_duration_seconds",
   "duckbrain_embedding_provider_healthy",
+  "duckbrain_embedding_requests_total",
+  "duckbrain_embedding_cache_hits_total",
+  "duckbrain_embedding_cache_misses_total",
   "duckbrain_reads_total",
   "duckbrain_read_duration_seconds",
   "duckbrain_rejected_total",
@@ -439,6 +454,15 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     labelNames: ["provider"],
     registers: [registry],
   });
+
+  // OBSDB-003: embedding request outcomes and cache residency. The counters
+  // themselves live in the embedding layer (src/embedding/metrics.ts) because
+  // the facts are produced there — by the daemon, by MCP stdio and by one-shot
+  // CLI runs alike. Registering the SAME instances here is what puts them in
+  // this scrape; anything that increments them from a CLI still shows up in the
+  // daemon's next scrape of a shared process, and a CLI-only process reads the
+  // counters through its own registry-free metric objects.
+  registerEmbeddingMetrics(registry);
 
   // How much work is the daemon doing, and how much of it is failing?
   const reads = new Counter({

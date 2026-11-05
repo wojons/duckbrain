@@ -141,14 +141,18 @@ describe("OBSDB-001: /metrics exposition shape", () => {
       .split("\n")
       .filter((line) => line.startsWith("# TYPE "))
       .map((line) => line.replace("# TYPE ", ""));
-    // OBSDB-002 grew the set from six families to eight: read latency and
-    // refusals. The assertion stays exact on purpose — a family appearing
+    // OBSDB-002 grew the set from six families to eight (read latency and
+    // refusals); OBSDB-003 grew it to eleven (embedding outcomes plus cache
+    // hits/misses). The assertion stays exact on purpose — a family appearing
     // without a row and a review is the failure mode this guards.
     expect(families).toEqual([
       "duckbrain_http_up gauge",
       "duckbrain_health_status gauge",
       "duckbrain_health_probe_duration_seconds histogram",
       "duckbrain_embedding_provider_healthy gauge",
+      "duckbrain_embedding_requests_total counter",
+      "duckbrain_embedding_cache_hits_total counter",
+      "duckbrain_embedding_cache_misses_total counter",
       "duckbrain_reads_total counter",
       "duckbrain_read_duration_seconds histogram",
       "duckbrain_rejected_total counter",
@@ -559,7 +563,12 @@ describe("OBSDB-001: mount order on the real app", () => {
   it("every family from the spec is present after the first read", async () => {
     const { body } = await request("GET", "/metrics");
     for (const name of METRIC_NAMES) {
-      expect(body).toMatch(new RegExp(`^${name}`, "m"));
+      // A LABELLED family that nobody observed yet (OBSDB-003's embedding
+      // request counter on a daemon that has served no recall) renders its
+      // HELP/TYPE header and no sample — Prometheus-correct, because
+      // "no request happened" is not a zero. Accept either a sample line or
+      // the family header, and never a near-miss name.
+      expect(body).toMatch(new RegExp(`^(?:# TYPE )?${name}[\\s{]`, "m"));
     }
   });
 });
