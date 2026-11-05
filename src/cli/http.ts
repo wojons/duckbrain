@@ -34,12 +34,17 @@ import {
   auditRequestDenial,
 } from "../auth/middleware.js";
 import type { AuthPrincipal, DenialAuditor } from "../auth/middleware.js";
-import { FileAuthStore } from "../auth/storeSchema.js";
+import { FileAuthStore, matchApiKey } from "../auth/storeSchema.js";
 import { authorizeTableAccess } from "../auth/roles.js";
 import { createDenialAuditor } from "../serialization/audit.js";
 import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
 import { resolveNamespacesPath } from "../config/index.js";
-import { rateLimitMiddleware, RateLimitConfig } from "../auth/ratelimit.js";
+import {
+  rateLimitMiddleware,
+  RateLimitConfig,
+  ipBucketKey,
+  principalBucketKey,
+} from "../auth/ratelimit.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -505,13 +510,45 @@ function statsHandler(_req: Request, res: Response) {
 let mcpToolsRegistered = false;
 
 /**
+ * HARDEN-DUCKBRAIN-003 (B): bucket key for the rate limiter.
+ *
+ * A caller is throttled against the API key it presents ONLY when the live
+ * credential snapshot already knows that key (constant-time match, cached
+ * snapshot — no file stat). Everything else — no key, a wrong key, a guess, a
+ * basic-auth caller — keeps the historical peer-IP bucket. That asymmetry is
+ * the point: naming a principal is what stops one agent starving another
+ * (every fleet caller shares 127.0.0.1), while recognized-only naming is what
+ * keeps credential stuffing expensive, since an attacker cannot mint a fresh
+ * budget by inventing a key per attempt. The store is only consulted for
+ * `--auth=apikey`: under `none` there is no principal, and under `basic` the
+ * credential is a password we deliberately do not parse here.
+ */
+function createBucketKeyResolver(
+  authConfig: AuthConfig,
+): (req: Request, ip: string) => string {
+  return (req: Request, ip: string): string => {
+    if (authConfig.type !== "apikey") return ipBucketKey(ip);
+    const store = authConfig.store;
+    if (!store || typeof store.peekSnapshot !== "function") {
+      return ipBucketKey(ip);
+    }
+    const header = req.headers["x-api-key"];
+    const presented = Array.isArray(header) ? header[0] : header;
+    if (!presented) return ipBucketKey(ip);
+    const known = matchApiKey(store.peekSnapshot(), presented);
+    return known ? principalBucketKey(presented) : ipBucketKey(ip);
+  };
+}
+
+/**
  * Create Express app with MCP transport, auth, and rate limiting
  *
  * Middleware order (critical):
  * 0. Metrics surface construction (no middleware — just the registry)
  * 1. DNS rebinding protection (block bad hosts immediately)   → duckbrain_rejected_total{reason="dns_rebind"}
  * 1a. GET /metrics (auth- and limiter-exempt scrape surface, OBSDB-001)
- * 2. Rate limiting (catch abuse before auth processing)       → duckbrain_rejected_total{reason="rate_limit"}
+ * 2. Rate limiting (catch abuse before auth processing; bucket =     → duckbrain_rejected_total{reason="rate_limit"}
+ *    principal when the store knows the key, else peer IP — HARDEN-DUCKBRAIN-003 (B))
  * 2a. Read ledger (records every read incl. a 401)            → duckbrain_reads_total + duckbrain_read_duration_seconds
  * 3. Authentication (verify credentials)
  * 4. JSON body parser (after rate limit/auth to avoid parsing overhead on rejected requests)
@@ -614,19 +651,11 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // embedding probe, so exempting this route cannot amplify upstream calls.
   app.get("/health", createHealthHandler());
 
-  const rateLimitConfig: RateLimitConfig = {
-    requestsPerMinute: options.rateLimit ?? 100,
-    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
-    // where it happens; the metrics module normalizes the route, so the raw
-    // path never reaches a label.
-    onReject: (info) =>
-      httpMetrics.observeRejection({
-        reason: "rate_limit",
-        method: info.method,
-        rawPath: info.path,
-      }),
-  };
-  app.use(rateLimitMiddleware(rateLimitConfig));
+  // 2b. Rate limiting is MOUNTED just below (after the credential store is
+  // constructed, before authMiddleware): HARDEN-DUCKBRAIN-003 (B) keys each
+  // bucket on the authenticated principal, so the mount needs the store in
+  // hand. Position in the chain is unchanged — it still runs before auth, and
+  // still before the read ledger.
 
   // 3. Authentication — production loads a validated, hot-reloadable store.
   // Inline authConfig remains the hermetic embed/test seam.
@@ -687,6 +716,32 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   setSerializerAuthorizationHook((request) =>
     authorizeTableAccess(request.principal, request.ns, request.table, "write"),
   );
+
+  // 2b. Rate limiting (mounted here, still BEFORE auth in the chain).
+  //
+  // HARDEN-DUCKBRAIN-003 (B): the bucket is the PRINCIPAL, not the peer IP.
+  // Every fleet caller on this host shares 127.0.0.1, so a per-IP bucket let
+  // one agent's burst throttle every other agent (`/health` first — its 429
+  // flipped the Hermes memory provider to "unavailable" on 2026-11-03 — then
+  // ordinary reads). A caller presenting a key the credential store knows
+  // spends from that key's own budget; anonymous callers and unrecognized
+  // guesses stay on the peer-IP bucket, so credential stuffing is still
+  // bounded by address. The limiter stays ahead of authMiddleware so a bad
+  // credential cannot cost a password/store lookup per attempt.
+  const rateLimitConfig: RateLimitConfig = {
+    requestsPerMinute: options.rateLimit ?? 100,
+    bucketKeyOf: createBucketKeyResolver(authConfig),
+    // OBSDB-002: the 429 is emitted HERE, upstream of the ledger. Count it
+    // where it happens; the metrics module normalizes the route, so the raw
+    // path never reaches a label.
+    onReject: (info) =>
+      httpMetrics.observeRejection({
+        reason: "rate_limit",
+        method: info.method,
+        rawPath: info.path,
+      }),
+  };
+  app.use(rateLimitMiddleware(rateLimitConfig));
 
   // OBS-DUCKBRAIN-001: per-route read ledger. Mounted immediately BEFORE auth
   // so an auth-FAILED read is recorded too — authMiddleware answers 401 and

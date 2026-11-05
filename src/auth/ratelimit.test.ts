@@ -286,3 +286,117 @@ describe("rateLimitMiddleware 429 observability", () => {
     }
   });
 });
+
+/**
+ * HARDEN-DUCKBRAIN-003 (B): the bucket must be the PRINCIPAL, not the peer IP.
+ *
+ * The live failure this pins: every fleet caller on a host shares 127.0.0.1, so
+ * one agent's burst drained the single per-IP bucket and every other agent's
+ * request came back 429 while the daemon was healthy. These tests fail on the
+ * pre-fix middleware, where the second caller below is refused.
+ */
+describe("HARDEN-DUCKBRAIN-003 principal bucketing", () => {
+  const principalKey = (req: Partial<Request>, ip: string): string =>
+    `principal:${String(req.headers?.["x-api-key"] ?? ip)}`;
+
+  it("throttles each principal separately, so one caller cannot starve another on the same IP", () => {
+    const middleware = rateLimitMiddleware({
+      requestsPerMinute: 1,
+      bucketKeyOf: principalKey,
+    });
+
+    // Caller A burns its only token.
+    const a1 = mockNext();
+    middleware(
+      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
+      mockRes().res as Response,
+      a1,
+    );
+    expect(a1).toHaveBeenCalled();
+
+    // Caller A's second request is refused — the limit is real, not disabled.
+    const aRefusal = mockRes();
+    middleware(
+      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-a" } }) as Request,
+      aRefusal.res as Response,
+      mockNext(),
+    );
+    expect(aRefusal.status).toHaveBeenCalledWith(429);
+
+    // Caller B, SAME peer IP, has its own budget and is served.
+    const bNext = mockNext();
+    const { status: bStatus } = mockRes();
+    middleware(
+      mockReq({ ip: "127.0.0.1", headers: { "x-api-key": "harden003-b" } }) as Request,
+      mockRes().res as Response,
+      bNext,
+    );
+    expect(bNext).toHaveBeenCalled();
+    expect(bStatus).not.toHaveBeenCalled();
+  });
+
+  it("refuses the same principal twice at rate 1 (control: the bucket still empties)", () => {
+    const middleware = rateLimitMiddleware({
+      requestsPerMinute: 1,
+      bucketKeyOf: principalKey,
+    });
+    const req = mockReq({
+      ip: "127.0.0.1",
+      headers: { "x-api-key": "harden003-control" },
+    }) as Request;
+
+    middleware(req, mockRes().res as Response, mockNext());
+    const { res, status } = mockRes();
+    middleware(req, res as Response, mockNext());
+    expect(status).toHaveBeenCalledWith(429);
+  });
+
+  it("falls back to the peer-IP bucket when the resolver throws, without failing the request", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const middleware = rateLimitMiddleware({
+        requestsPerMinute: 1,
+        bucketKeyOf: () => {
+          throw new Error("resolver exploded");
+        },
+      });
+      const output = mockRes();
+      const next = mockNext();
+      middleware(
+        mockReq({ ip: "10.9.9.9" }) as Request,
+        output.res as Response,
+        next,
+      );
+      expect(next).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain(
+        "rate_limit_bucket_resolver_failed",
+      );
+      // ... and the fallback bucket is still a working bucket.
+      const { status } = mockRes();
+      middleware(
+        mockReq({ ip: "10.9.9.9" }) as Request,
+        mockRes().res as Response,
+        mockNext(),
+      );
+      expect(status).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("bounds the bucket store: a new principal beyond maxBuckets evicts instead of growing forever", () => {
+    const middleware = rateLimitMiddleware({
+      requestsPerMinute: 1,
+      maxBuckets: 2,
+      bucketKeyOf: (_req, ip) => `ip:${ip}`,
+    });
+    for (const ip of ["10.7.0.1", "10.7.0.2", "10.7.0.3"]) {
+      const next = mockNext();
+      middleware(mockReq({ ip }) as Request, mockRes().res as Response, next);
+      // Every caller is admitted: the store made room by evicting the oldest
+      // bucket instead of refusing (or growing without bound).
+      expect(next).toHaveBeenCalled();
+    }
+  });
+});

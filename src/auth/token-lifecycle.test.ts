@@ -4,7 +4,12 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request } from "express";
 import { createAuthBackend, type AuthConfig } from "./middleware";
-import { AuthStoreSchema, FileAuthStore, hashApiKey } from "./storeSchema";
+import {
+  AuthStoreSchema,
+  FileAuthStore,
+  hashApiKey,
+  matchApiKey,
+} from "./storeSchema";
 
 function requestWithKey(key: string): Request {
   return { headers: { "x-api-key": key } } as unknown as Request;
@@ -222,5 +227,52 @@ describe("SUPA-4 token lifecycle", () => {
       name: "stable",
     });
     expect(log).toHaveBeenCalledWith(expect.stringContaining("reload failed"));
+  });
+});
+
+/**
+ * HARDEN-DUCKBRAIN-003 (B): the rate limiter asks this BEFORE auth whether a
+ * presented key is one it can name. Two failure modes matter: a known key that
+ * is not matched (the principal falls back to the shared peer-IP bucket, i.e.
+ * the starvation bug survives) and an unknown/expired key that IS matched (an
+ * attacker mints a fresh bucket per guess, i.e. credential stuffing becomes
+ * free). Both are pinned here.
+ */
+describe("HARDEN-DUCKBRAIN-003 matchApiKey", () => {
+  const live = "live-key-".padEnd(32, "a");
+  const legacy = "legacy-key-".padEnd(32, "b");
+  const expired = "expired-key-".padEnd(32, "c");
+  const now = new Date("2026-11-05T12:00:00.000Z");
+  const store = AuthStoreSchema.parse({
+    users: [],
+    apiKeys: [
+      { keyHash: hashApiKey(live), name: "live", roles: ["writer"] },
+      { key: legacy, name: "legacy", roles: ["writer"] },
+      {
+        keyHash: hashApiKey(expired),
+        name: "expired",
+        roles: ["writer"],
+        expiresAt: "2026-11-05T11:59:59.999Z",
+      },
+    ],
+  });
+
+  it("matches a hashed live key and a legacy plaintext key", () => {
+    expect(matchApiKey(store, live, now)?.name).toBe("live");
+    expect(matchApiKey(store, legacy, now)?.name).toBe("legacy");
+  });
+
+  it("does not match an unknown key, an empty key, or a prefix of a known key", () => {
+    expect(matchApiKey(store, "guess-".padEnd(32, "z"), now)).toBeUndefined();
+    expect(matchApiKey(store, "", now)).toBeUndefined();
+    expect(matchApiKey(store, live.slice(0, 31), now)).toBeUndefined();
+  });
+
+  it("does not match an expired key (it cannot authenticate, so it must not mint a bucket)", () => {
+    expect(matchApiKey(store, expired, now)).toBeUndefined();
+    // ... while the same entry matches one millisecond before its expiry.
+    expect(
+      matchApiKey(store, expired, new Date("2026-11-05T11:59:59.998Z"))?.name,
+    ).toBe("expired");
   });
 });

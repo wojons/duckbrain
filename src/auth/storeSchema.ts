@@ -81,6 +81,14 @@ export type AuthStoreReloadListener = (store: AuthStore) => void;
 
 export interface AuthStoreSource {
   getSnapshot(): AuthStore | Promise<AuthStore>;
+  /**
+   * HARDEN-DUCKBRAIN-003 (B): the LAST VALIDATED snapshot, synchronously and
+   * without touching the file. The HTTP rate limiter needs to know — before
+   * auth runs, and without an await — whether a presented key is one it can
+   * name; a source that cannot answer synchronously is simply treated as
+   * "no known principals", which keeps every caller on the peer-IP bucket.
+   */
+  peekSnapshot?(): AuthStore;
   /** Called after a new validated snapshot replaces the previous snapshot. */
   onReload?(listener: AuthStoreReloadListener): () => void;
   migrateLegacyApiKey?(name: string, plaintext: string): void | Promise<void>;
@@ -123,6 +131,42 @@ export function resolvesPrincipal(
 
 export function hashApiKey(key: string): string {
   return `$sha256$${crypto.createHash("sha256").update(key, "utf-8").digest("hex")}`;
+}
+
+/**
+ * HARDEN-DUCKBRAIN-003 (B): constant-time lookup of a presented API key in a
+ * validated snapshot.
+ *
+ * The rate limiter calls this BEFORE auth (it is mounted upstream, to blunt
+ * credential stuffing). The answer decides the bucket: a key the store knows is
+ * a named principal and gets its own budget; anything else — no key, a typo, a
+ * guess — shares its peer IP's bucket, which is exactly the pre-existing
+ * protection. Expired keys are NOT matched: they cannot authenticate, so they
+ * must not be able to mint a fresh bucket.
+ */
+export function matchApiKey(
+  store: AuthStore,
+  presented: string,
+  now: Date = new Date(),
+): ApiKeyEntry | undefined {
+  const presentedDigest = Buffer.from(hashApiKey(presented).slice(8), "hex");
+  for (const entry of store.apiKeys) {
+    if (
+      entry.expiresAt !== undefined &&
+      !(Date.parse(entry.expiresAt) > now.getTime())
+    ) {
+      continue;
+    }
+    const expected = "keyHash" in entry ? entry.keyHash : hashApiKey(entry.key);
+    const expectedDigest = Buffer.from(expected.slice(8), "hex");
+    if (
+      presentedDigest.length === expectedDigest.length &&
+      crypto.timingSafeEqual(presentedDigest, expectedDigest)
+    ) {
+      return entry;
+    }
+  }
+  return undefined;
 }
 
 function formatValidation(error: unknown): string {
@@ -207,6 +251,11 @@ export class FileAuthStore implements AuthStoreSource {
   onReload(listener: AuthStoreReloadListener): () => void {
     this.reloadListeners.add(listener);
     return () => this.reloadListeners.delete(listener);
+  }
+
+  /** HARDEN-DUCKBRAIN-003 (B): the cached, validated snapshot — no file stat. */
+  peekSnapshot(): AuthStore {
+    return this.snapshot;
   }
 
   getSnapshot(): AuthStore {
