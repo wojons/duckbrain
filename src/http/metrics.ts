@@ -8,9 +8,10 @@
  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
  * official Node.js Prometheus client) in the text exposition format 0.0.4.
  *
- * Eleven families are exposed (spec §3.1/§3.2: the six MVP families of
- * OBSDB-001, the two read-path depth families of OBSDB-002, and the three
- * embedding-path families of OBSDB-003):
+ * Fifteen families are exposed (spec §3.1/§3.2: the six MVP families of
+ * OBSDB-001, the two read-path depth families of OBSDB-002, the three
+ * embedding-path families of OBSDB-003, and the four git write-path families
+ * of OBSDB-004):
  *
  *   duckbrain_http_up                        gauge      — answer a scrape at all
  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
@@ -19,6 +20,10 @@
  *   duckbrain_embedding_requests_total       counter    — provider/outcome (OBSDB-003)
  *   duckbrain_embedding_cache_hits_total     counter    — (no labels, OBSDB-003)
  *   duckbrain_embedding_cache_misses_total   counter    — (no labels, OBSDB-003)
+ *   duckbrain_git_commit_total               counter    — outcome=ok|fail (OBSDB-004)
+ *   duckbrain_git_push_total                 counter    — outcome=ok|fail (OBSDB-004)
+ *   duckbrain_git_commit_queue_depth         gauge      — asyncChains.size (OBSDB-004)
+ *   duckbrain_git_last_push_success_..._sec  gauge      — unix seconds (OBSDB-004)
  *   duckbrain_reads_total                    counter    — route/method/status_class
  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
@@ -69,6 +74,7 @@ import { Counter, Gauge, Histogram, Registry } from "prom-client";
 import type { Request, Response } from "express";
 import { PROVIDERS } from "../embedding/providers";
 import { registerEmbeddingMetrics } from "../embedding/metrics";
+import { GIT_METRIC_NAMES, registerGitMetrics } from "../git/metrics";
 import { normalizeReadRoute } from "./readLedger";
 
 /** The six+two families this endpoint owns, in exposition order. */
@@ -80,6 +86,9 @@ export const METRIC_NAMES = [
   "duckbrain_embedding_requests_total",
   "duckbrain_embedding_cache_hits_total",
   "duckbrain_embedding_cache_misses_total",
+  // OBSDB-004: the git write path (commit/push outcomes, queue depth, push
+  // staleness) — owned by src/git/metrics.ts, attached below.
+  ...GIT_METRIC_NAMES,
   "duckbrain_reads_total",
   "duckbrain_read_duration_seconds",
   "duckbrain_rejected_total",
@@ -463,6 +472,14 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
   // daemon's next scrape of a shared process, and a CLI-only process reads the
   // counters through its own registry-free metric objects.
   registerEmbeddingMetrics(registry);
+
+  // OBSDB-004: the git write path. Same process-wide-owner pattern as the
+  // embedding counters: the facts are produced in src/git/autocommit.ts, which
+  // runs in the daemon, in MCP stdio and in one-shot CLI runs alike, so the
+  // counters live with that layer and are merely ATTACHED here. Without them a
+  // namespace can stop reaching its remote while /health and every read stay
+  // green (spec §2 blind spots #5-#6).
+  registerGitMetrics(registry);
 
   // How much work is the daemon doing, and how much of it is failing?
   const reads = new Counter({

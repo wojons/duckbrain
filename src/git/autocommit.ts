@@ -61,6 +61,13 @@ import fs from "fs";
 import path from "path";
 import { getConfig } from "../config";
 import { requireGitIdentity } from "./identity";
+import {
+  recordGitCommitFailure,
+  recordGitCommitSuccess,
+  recordGitPushFailure,
+  recordGitPushSuccess,
+  setCommitQueueDepthSampler,
+} from "./metrics";
 import type { S3Config } from "../s3/config";
 
 // PERF-004 — lazy S3 loading. The AWS SDK (@aws-sdk/client-s3, ~91ms measured)
@@ -339,6 +346,12 @@ const pending = new Map<string, PendingCommit>();
  */
 const asyncChains = new Map<string, Promise<void>>();
 
+// OBSDB-004: expose the in-flight chain count to the scrape surface. The
+// metrics module owns the gauge but must not import this one (autocommit
+// imports it to record outcomes), so the sampler is the one-way edge — read at
+// scrape time, never by an interval that would hold a CLI process open.
+setCommitQueueDepthSampler(() => asyncChains.size);
+
 /** Tracks whether the process 'exit' flush hook has been registered. */
 let exitFlushRegistered = false;
 
@@ -535,6 +548,12 @@ async function asyncCommit(
       }),
     );
 
+    // OBSDB-004: the commit OPERATION completed (a batched flush that sweeps
+    // many lines is one operation — the unit the debounce schedules). Counted
+    // here, not after the push: a failed push must never look like a failed
+    // commit, and the push has its own counter.
+    recordGitCommitSuccess();
+
     // Native S3 push hook — gated by s3.enabled && s3.pushOnCommit (PUSH-001:
     // default config = zero pushes), interval-coalesced and single-flight.
     // Fire-and-forget: never blocks or fails the write path.
@@ -553,6 +572,7 @@ async function asyncCommit(
     // cwd (see commitWarning) so it is never confused with the removed-
     // namespace skip above.
     console.warn(commitWarning(namespacePath, error));
+    recordGitCommitFailure();
   }
 }
 
@@ -578,6 +598,7 @@ function scheduleAsyncCommit(
         // alive if it ever throws synchronously.
       });
   } catch (error) {
+    recordGitCommitFailure();
     console.warn(
       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
     );
@@ -697,6 +718,9 @@ function immediateCommit(namespacePath: string, message: string): void {
         );
       }
     });
+    // OBSDB-004: the synchronous exit-flush commit completed (the push below
+    // has its own counter).
+    recordGitCommitSuccess();
     // Native S3 sync hook (object store) + gated push hook (PUSH-001: default
     // config = zero pushes). Synchronous + best-effort so short-lived CLI
     // processes (remember → commit → exit in <1s) push without waiting for
@@ -712,6 +736,7 @@ function immediateCommit(namespacePath: string, message: string): void {
     // AUTOCOMMIT-ENOENT-001: resolved binary + cwd in the warning, as on the
     // serving path (commitWarning).
     console.warn(commitWarning(namespacePath, error));
+    recordGitCommitFailure();
   }
 }
 
@@ -768,6 +793,7 @@ export function commitNamespaceWithParams(
     pending.set(namespacePath, { timer, lines: 1, message });
     return Promise.resolve();
   } catch (error) {
+    recordGitCommitFailure();
     console.warn(
       `[Git] Auto-commit warning for ${namespacePath}: ${(error as Error).message}`,
     );
@@ -973,6 +999,9 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
         },
       );
       gateState.lastPushedHead = head;
+      // OBSDB-004: a REAL push landed (gate skips and unchanged-HEAD
+      // short-circuits return before this point and are never counted).
+      recordGitPushSuccess();
     } catch (error) {
       const message = (error as Error).message;
       let recovered = false;
@@ -1018,7 +1047,11 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
                 ),
               log: (line: string) => console.warn(`[Git] ${line}`),
             });
-            if (recovered) gateState.lastPushedHead = head;
+            if (recovered) {
+              gateState.lastPushedHead = head;
+              // OBSDB-004: the self-healed retry is the push that landed.
+              recordGitPushSuccess();
+            }
           }
         } catch (healError) {
           console.warn(
@@ -1027,6 +1060,7 @@ async function pushNamespaceAsync(namespacePath: string): Promise<void> {
         }
       }
       if (!recovered) {
+        recordGitPushFailure();
         console.warn(`[Git] Push warning for ${namespacePath}: ${message}`);
       }
     }
@@ -1106,10 +1140,13 @@ export function pushNamespace(namespacePath: string): void {
       },
     });
     gateState.lastPushedHead = head;
+    // OBSDB-004: the synchronous exit-flush push landed.
+    recordGitPushSuccess();
   } catch (error) {
     // OPS-012: no duplicate-bundle repair on this sync exit-flush path — the
     // async S3 SDK repair cannot run here; the serving path
     // (pushNamespaceAsync) self-heals instead.
+    recordGitPushFailure();
     console.warn(
       `[Git] Push warning for ${namespacePath}: ${(error as Error).message}`,
     );
