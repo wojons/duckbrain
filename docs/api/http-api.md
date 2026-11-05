@@ -1481,6 +1481,67 @@ curl -Ns "http://localhost:3000/api/ns/my-project/changes?cursor=$LAST" \
   -H "X-API-Key: $DUCKBRAIN_API_KEY"
 ```
 
+### Operations (SURFACE-HTTP-OPS-001)
+
+Maintenance verbs used to be CLI-only, so a remote agent could write memories
+but could not maintain them. These routes close that gap. Every route requires
+the **admin** role, refuses destructive work without an explicit confirmation,
+and appends one line to the namespace lifecycle ledger
+(`<namespaces>/.s3state/lifecycle.log`). The verbs that stay CLI-only, and why,
+are recorded in [ops-surface-decisions.md](ops-surface-decisions.md).
+
+#### `POST /api/ops/namespaces/prune`
+
+Remove namespace-registry mappings whose directory no longer exists. Same
+implementation as `duckbrain namespaces prune`.
+
+**Request (all fields optional):**
+
+```json
+{ "dryRun": true, "confirm": false, "residueOnly": false }
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `dryRun` | boolean | `true` | Report the removal set without writing. |
+| `confirm` | boolean | `false` | Required as `true` when `dryRun` is `false`, otherwise `400 CONFIRMATION_REQUIRED`. |
+| `residueOnly` | boolean | `false` | Restrict the dead set to test-residue names (`pytest-*`, `auger-pytest-*`, ...). |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "dryRun": true,
+  "registry": { "mappings": 12, "live": 10, "dead": 2, "refused": 0 },
+  "dead": [{ "name": "old-probe", "path": "./namespaces/old-probe" }],
+  "refused": []
+}
+```
+
+An applied run additionally returns `removed`, `manifestsPruned`,
+`bytesBefore` and `bytesAfter`.
+
+#### `GET /api/ops/s3/status`
+
+The `duckbrain s3 status --json` report, unchanged and complete: effective
+config plus one row per namespace. Query parameters: `namespace` (one namespace
+only) and `probe=false` (skip the bucket listing; every `remote` count is then
+`null`).
+
+#### `POST /api/ops/consolidate`
+
+Read-only daily analysis: the per-namespace delta rows, dedup counts and the
+digest text for a UTC day. Body: `{ "date": "YYYY-MM-DD" }` (default
+yesterday). The `--write-digest` half stays on the CLI (see the decision doc).
+
+#### `POST /api/compaction/squash` (changed contract)
+
+The squash route now follows the same rules: admin role, dry run **by
+default**, and `confirm: true` required alongside `dryRun: false`. Every run
+writes one lifecycle-ledger line. `GET /api/compaction/stats` is unchanged and
+stays available to namespace-granted readers.
+
 ### Compaction
 
 Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`). Both routes are namespace-grant-checked: `?namespace=` — or `namespace` in the squash body — selects the namespace they operate on, and a token without a grant for it is rejected with `403 Forbidden` before the tool runs, exactly like `/api/memories`.

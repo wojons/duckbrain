@@ -57,6 +57,9 @@ import { createKeyRoutes } from "../http/routes/keys.js";
 import { createNamespaceRoutes } from "../http/routes/namespaces.js";
 import { createEventsRoutes } from "../http/routes/events.js";
 import { createCompactionRoutes } from "../http/routes/compaction.js";
+// SURFACE-HTTP-OPS-001: the operations half of the surface (prune, s3 status,
+// consolidate) — admin-only, dry-run by default where destructive.
+import { createOpsRoutes } from "../http/routes/ops.js";
 import {
   createTableRoutes,
   createNamespaceOpenApiRoutes,
@@ -841,6 +844,7 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use("/api/namespaces", createNamespaceRoutes);
   app.use("/api/events", createEventsRoutes);
   app.use("/api/compaction", createCompactionRoutes);
+  app.use("/api/ops", createOpsRoutes);
 
   // DB-SUPA-3: generic table→REST resource layer (declared tables only).
   // The factory is CALLED (passing the function itself would install it as

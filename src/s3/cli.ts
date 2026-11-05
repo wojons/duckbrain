@@ -159,38 +159,68 @@ export function unionNamespaceList(
   return out;
 }
 
-export async function s3Status(
+/**
+ * SURFACE-HTTP-OPS-001: the machine-readable `s3 status` report.
+ *
+ * The CLI renders this; GET /api/ops/s3/status returns it verbatim. One
+ * implementation, two surfaces — the network route can never drift from the
+ * verb an operator runs by hand.
+ */
+export interface S3StatusReport {
+  enabled: boolean;
+  endpoint: string | null;
+  bucket: string | null;
+  prefix: string | null;
+  pushOnCommit: boolean | null;
+  intervalSec: number | null;
+  pathStyle: boolean | null;
+  /** Total namespace population (not the rendered row count). */
+  total: number;
+  namespaces: S3StatusRow[];
+  /** Rows the text renderer hides behind STATUS_ROW_LIMIT (0 = complete). */
+  hidden: number;
+}
+
+export interface S3StatusReportOptions {
+  /** Show every namespace instead of the first STATUS_ROW_LIMIT. */
+  full?: boolean;
+  /**
+   * Probe each namespace's object count in the bucket (default true). The CLI
+   * always probes; a caller that must not touch the network can turn it off,
+   * in which case every `remote` count is null and no `listError` is set.
+   */
+  probeRemote?: boolean;
+}
+
+/**
+ * Build the status report without formatting it. Pure read: no file is
+ * written, and the only network call is the per-namespace object listing the
+ * CLI's `--json` path also makes.
+ */
+export async function collectS3StatusReport(
   configDir: string,
   nsArg?: string,
-  options: S3StatusOptions = {},
-): Promise<void> {
+  options: S3StatusReportOptions = {},
+): Promise<S3StatusReport> {
   const full = options.full === true;
-  const json = options.json === true;
+  const probe = options.probeRemote !== false;
   const cfg = getConfig(configRoot(configDir));
   const s3 = cfg.s3;
   const nsRoot = namespacesPath(configDir);
 
-  // S3-STATUS-001: `--json` owns stdout — one JSON document and nothing else,
-  // so the output is machine-readable (no header lines to strip).
-  if (!json) {
-    console.log("S3 config:", s3?.enabled ? "ENABLED" : "disabled");
-  }
   if (!s3?.enabled) {
-    if (json) {
-      console.log(
-        JSON.stringify({ enabled: false, total: 0, namespaces: [] }, null, 2),
-      );
-    }
-    return;
-  }
-
-  if (!json) {
-    console.log(`  endpoint: ${resolveEffectiveEndpoint(s3) ?? "(AWS default)"}`);
-    console.log(`  bucket:   ${s3.bucket}  prefix: ${s3.prefix}`);
-    console.log(
-      `  pushOnCommit: ${s3.pushOnCommit}  intervalSec: ${s3.intervalSec}`,
-    );
-    console.log(`  pathStyle: ${s3.forcePathStyle}`);
+    return {
+      enabled: false,
+      endpoint: null,
+      bucket: null,
+      prefix: null,
+      pushOnCommit: null,
+      intervalSec: null,
+      pathStyle: null,
+      total: 0,
+      namespaces: [],
+      hidden: 0,
+    };
   }
 
   // DF-0925-08: union the config registry with the on-disk census (never one
@@ -203,30 +233,30 @@ export async function s3Status(
 
   // S3-STATUS-001: a truncated report still has to look truncated. Only the
   // rows that will actually be rendered are probed, so the default path keeps
-  // the original 20-listing network profile; `--full` / `--json` lift the cap
-  // and therefore probe every namespace.
-  const limit =
-    full || json ? resolved.length : Math.min(resolved.length, STATUS_ROW_LIMIT);
+  // the original 20-listing network profile; `--full` lifts the cap.
+  const limit = full ? resolved.length : Math.min(resolved.length, STATUS_ROW_LIMIT);
 
-  const client = buildClient(s3);
+  const client = probe ? buildClient(s3) : null;
   const rows: S3StatusRow[] = [];
   for (const ns of resolved.slice(0, limit)) {
     const manifest = loadManifest(nsRoot, ns);
     const localCount = walkLocal(path.join(nsRoot, ns)).size;
     let remoteCount: number | null = null;
     let listError: string | undefined;
-    try {
-      const remote = await listRemoteObjects(
-        client,
-        s3.bucket,
-        `${s3.prefix}/${ns}/`,
-      );
-      remoteCount = remote.size;
-    } catch (err) {
-      remoteCount = null;
-      listError = (err as Error).message;
-      // stderr, so a `--json` document on stdout stays parseable.
-      console.warn(`  (list failed for ${ns}: ${listError})`);
+    if (client) {
+      try {
+        const remote = await listRemoteObjects(
+          client,
+          s3.bucket,
+          `${s3.prefix}/${ns}/`,
+        );
+        remoteCount = remote.size;
+      } catch (err) {
+        remoteCount = null;
+        listError = (err as Error).message;
+        // stderr, so a `--json` document on stdout stays parseable.
+        console.warn(`  (list failed for ${ns}: ${listError})`);
+      }
     }
     rows.push({
       ns,
@@ -238,16 +268,66 @@ export async function s3Status(
     });
   }
 
+  return {
+    enabled: true,
+    endpoint: resolveEffectiveEndpoint(s3) ?? null,
+    bucket: s3.bucket,
+    prefix: s3.prefix,
+    pushOnCommit: s3.pushOnCommit,
+    intervalSec: s3.intervalSec,
+    pathStyle: s3.forcePathStyle,
+    total: resolved.length,
+    namespaces: rows,
+    hidden: resolved.length - rows.length,
+  };
+}
+
+export async function s3Status(
+  configDir: string,
+  nsArg?: string,
+  options: S3StatusOptions = {},
+): Promise<void> {
+  const json = options.json === true;
+
+  // `--json` always renders the FULL population (S3-STATUS-001), so ask for it
+  // at collection time rather than truncating then remembering to un-truncate.
+  const report = await collectS3StatusReport(configDir, nsArg, {
+    full: options.full === true || json,
+  });
+
+  // S3-STATUS-001: `--json` owns stdout — one JSON document and nothing else,
+  // so the output is machine-readable (no header lines to strip).
+  if (!json) {
+    console.log("S3 config:", report.enabled ? "ENABLED" : "disabled");
+  }
+  if (!report.enabled) {
+    if (json) {
+      console.log(
+        JSON.stringify({ enabled: false, total: 0, namespaces: [] }, null, 2),
+      );
+    }
+    return;
+  }
+
+  if (!json) {
+    console.log(`  endpoint: ${report.endpoint ?? "(AWS default)"}`);
+    console.log(`  bucket:   ${report.bucket}  prefix: ${report.prefix}`);
+    console.log(
+      `  pushOnCommit: ${report.pushOnCommit}  intervalSec: ${report.intervalSec}`,
+    );
+    console.log(`  pathStyle: ${report.pathStyle}`);
+  }
+
   if (json) {
     console.log(
       JSON.stringify(
         {
           enabled: true,
-          endpoint: resolveEffectiveEndpoint(s3) ?? null,
-          bucket: s3.bucket,
-          prefix: s3.prefix,
-          total: rows.length,
-          namespaces: rows,
+          endpoint: report.endpoint,
+          bucket: report.bucket,
+          prefix: report.prefix,
+          total: report.namespaces.length,
+          namespaces: report.namespaces,
         },
         null,
         2,
@@ -258,15 +338,14 @@ export async function s3Status(
 
   // Total count is always printed — a cap without a denominator is exactly the
   // "looks complete but isn't" failure S3-STATUS-001 exists to kill.
-  console.log(`Namespaces: ${resolved.length}`);
-  for (const row of rows) {
+  console.log(`Namespaces: ${report.total}`);
+  for (const row of report.namespaces) {
     console.log(
       `  ${row.ns}: local=${row.local} remote=${row.remote ?? "?"} lastSync=${row.lastSync ?? "never"}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
     );
   }
-  const hidden = resolved.length - rows.length;
-  if (hidden > 0) {
-    console.log(`  ... and ${hidden} more (use --full to see all)`);
+  if (report.hidden > 0) {
+    console.log(`  ... and ${report.hidden} more (use --full to see all)`);
   }
 }
 

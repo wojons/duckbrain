@@ -60,7 +60,7 @@ export interface NamespacesPruneRunResult {
  * auger pytest fixtures and similar test harnesses that leave dead mappings
  * in the registry when the test suite exits without cleanup.
  */
-const TEST_RESIDUE_PATTERN = /^(auger-pytest-|auger-probe-|pytest-|test-residue-)/;
+export const TEST_RESIDUE_PATTERN = /^(auger-pytest-|auger-probe-|pytest-|test-residue-)/;
 
 export function runNamespacesPrune(
   opts: NamespacesPruneRunOptions,

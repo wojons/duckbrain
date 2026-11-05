@@ -7,6 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express, { Request, Response, NextFunction } from "express";
+import fs from "fs";
+import path from "path";
 import { createServer } from "http";
 
 // Mock MCP tools before importing the route
@@ -155,11 +157,12 @@ describe("POST /api/compaction/squash", () => {
     });
 
     const app = createApp();
+    // SURFACE-HTTP-OPS-001: a real compaction now needs the explicit opt-in.
     const { status, body } = await request(
       app,
       "POST",
       "/api/compaction/squash",
-      {},
+      { dryRun: false, confirm: true },
     );
 
     expect(status).toBe(200);
@@ -223,6 +226,84 @@ describe("POST /api/compaction/squash", () => {
 
     expect(status).toBe(400);
     expect(mockedSquashTool).not.toHaveBeenCalled();
+  });
+
+  // SURFACE-HTTP-OPS-001: squash rewrites committed history, so the route
+  // carries the destructive-op contract: dry run by default, confirm to write,
+  // admin role, one lifecycle-ledger line per run.
+
+  it("defaults to a DRY RUN when the body says nothing", async () => {
+    mockedSquashTool.mockResolvedValue({ success: true, message: "Preview" } as any);
+
+    const app = createApp();
+    const { status, body } = await request(app, "POST", "/api/compaction/squash", {});
+
+    expect(status).toBe(200);
+    expect(body.dryRun).toBe(true);
+    expect(mockedSquashTool).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true }),
+    );
+  });
+
+  it("refuses dryRun=false without confirm=true (400, tool never called)", async () => {
+    const app = createApp();
+    const { status, body } = await request(app, "POST", "/api/compaction/squash", {
+      dryRun: false,
+    });
+
+    expect(status).toBe(400);
+    expect(body.code).toBe("CONFIRMATION_REQUIRED");
+    expect(mockedSquashTool).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-admin principal (403, tool never called)", async () => {
+    const app = express();
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      (req as any).user = {
+        name: "writer-agent",
+        authenticated: true,
+        roles: ["writer"],
+      };
+      next();
+    });
+    app.use(express.json());
+    app.use("/api/compaction", createCompactionRoutes);
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      res.status(err.status || 500).json({ error: err.message, code: err.code });
+    });
+
+    const { status, body } = await request(app, "POST", "/api/compaction/squash", {
+      dryRun: true,
+    });
+
+    expect(status).toBe(403);
+    expect(body.error).toContain("lacks required role");
+    expect(mockedSquashTool).not.toHaveBeenCalled();
+  });
+
+  it("appends one lifecycle-ledger line naming the operation and principal", async () => {
+    mockedSquashTool.mockResolvedValue({ success: true, message: "Preview" } as any);
+    const nsRoot = process.env.DUCKBRAIN_NAMESPACES_PATH!;
+    const ledger = path.join(nsRoot, ".s3state", "lifecycle.log");
+    fs.rmSync(ledger, { force: true });
+
+    const app = createApp();
+    await request(app, "POST", "/api/compaction/squash", { namespace: "squash-audit-ns" });
+
+    const lines = fs
+      .readFileSync(ledger, "utf-8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    const entry = lines.find((l) => l.op === "squash-compaction");
+    expect(entry).toBeDefined();
+    expect(entry).toMatchObject({
+      surface: "rest",
+      principal: "local",
+      ns: "squash-audit-ns",
+      dryRun: true,
+      success: true,
+    });
   });
 
   it("should return 500 when squash fails", async () => {
