@@ -43,6 +43,16 @@ const RESERVED_TOOL_NAMES = new Set([
   "delete_namespace",
   "server_status",
   "server_http_start",
+  // SURFACE-MCP-DATA-001: the data-plane tools are built-ins too — a custom
+  // tool must not shadow a table write or a SQL surface.
+  "tables_declare",
+  "table_list",
+  "table_insert",
+  "table_select",
+  "table_update",
+  "table_delete",
+  "search",
+  "query",
 ]);
 
 export function isReservedToolName(name: string): boolean {

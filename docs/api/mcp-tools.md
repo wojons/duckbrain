@@ -22,11 +22,98 @@ DuckBrain exposes Model Context Protocol (MCP) tools that AI agents can use to s
 | [`create_profile`](#create_profile)             | Create a named profile of tool-visibility directives                                                             |
 | [`update_profile`](#update_profile)             | Update a profile you own (full directive replacement)                                                            |
 | [`select_profiles`](#select_profiles)           | Activate profiles for this connection/session                                                                    |
+| [`table_list`](#table_list)                     | List the tables declared in a namespace                                                                          |
+| [`tables_declare`](#tables_declare)             | Declare a table (SUPA-6 schema.json, or `--legacy` .table.json) — same core as `duckbrain tables declare`        |
+| [`table_insert`](#table_insert)                 | Insert rows into a declared table (all rows validated before any write)                                          |
+| [`table_select`](#table_select)                 | Read rows with PostgREST-style filters/order/limit and an optional exact count                                   |
+| [`table_update`](#table_update)                 | Update the row matched by its primary key                                                                        |
+| [`table_delete`](#table_delete)                 | Delete the row matched by its primary key (tombstone change record)                                              |
+| [`search`](#search)                             | Offline keyword (full-text) search over memories — the `duckbrain search` core                                   |
+| [`query`](#query)                               | Run one read-only SELECT over a namespace's `memories` view — the `duckbrain query` core                         |
 
 > **Profiles are visibility presets, not security boundaries.** Selecting
 > profiles changes `tools/list` advertising only — every `tools/call` remains
 > subject to authentication, namespace grants, and tool/runtime safeguards.
 > See [Connection Profiles](../guide/connection-profiles.md).
+
+## Data-plane tools (SURFACE-MCP-DATA-001)
+
+Before this surface existed, MCP reached only the memory primitives above: an
+agent could not declare a table, write or read a row, keyword-search, or run a
+SELECT. The data-plane tools close that gap **without a second implementation**
+— each one calls the same module the CLI/HTTP surface calls:
+
+| Tool | Shared implementation | REST equivalent |
+| --- | --- | --- |
+| `tables_declare` | `src/tables/declare.ts` (`declareTable`) | `duckbrain tables declare` |
+| `table_list` | `src/tables/operations.ts` (`listNamespaceTables`) | `GET /api/ns/:ns/tables` |
+| `table_insert` | `src/tables/operations.ts` (`insertTableRows`) | `POST /api/ns/:ns/tables/:table` |
+| `table_select` | `src/tables/operations.ts` (`selectTableRows`) | `GET /api/ns/:ns/tables/:table` |
+| `table_update` | `src/tables/operations.ts` (`updateTableRows`) | `PATCH /api/ns/:ns/tables/:table?pk=eq.<v>` |
+| `table_delete` | `src/tables/operations.ts` (`deleteTableRows`) | `DELETE /api/ns/:ns/tables/:table?pk=eq.<v>` |
+| `search` | `src/search/query.ts` (`keywordSearch`) | `duckbrain search` / `GET /api/memories?contains=` |
+| `query` | `src/duckdb/query-surface.ts` (`runReadOnlyQuery`) | `duckbrain query` |
+
+### Authorization
+
+Same order as the REST routers: the namespace grant first
+(`requireNamespaceGrant`), then the per-table grant on every data verb
+(`requireTableGrant`: `read` for `table_select`, `write` for
+`table_insert`/`table_update`/`table_delete`/`tables_declare`), then the SQL
+policy for `query` (`requireRawSqlGrant`, read direction). A refusal returns
+the same message and machine-readable code the REST path returns (for example
+`code: "NOT_FOUND"` with `Table '<t>' not found in namespace '<ns>'`) and is
+appended to the namespace audit ledger with the same reason token
+(`table_grant`, `role`, `namespace_scope`, `sql_flag`).
+
+### `tables_declare`
+
+```json
+{
+  "namespace": "my-app",
+  "table": "widgets",
+  "columns": [
+    { "name": "id", "type": "integer" },
+    { "name": "name", "type": "varchar" }
+  ],
+  "primary": "id"
+}
+```
+
+Column types: `varchar|integer|bigint|double|boolean|timestamp|json`.
+`format` selects `jsonl-objects` (default) or `jsonl-positional`; `legacy: true`
+writes `tables/<table>.table.json`; `force: true` replaces a conflicting
+declaration.
+
+### `table_insert`
+
+`{ "namespace": "my-app", "table": "widgets", "rows": [{ "id": 1, "name": "alpha" }] }`
+→ `{ "success": true, "inserted": 1, "durability": { "configured": "...", "achieved": "..." } }`
+
+### `table_select`
+
+`filters` takes the PostgREST vocabulary (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`,
+`like`, `in`), plus `order`, `limit` (hard cap 1000), `offset` and
+`count: "exact"` for a total. Response: `{ success, rows, count, totalCount? }`.
+
+### `table_update` / `table_delete`
+
+Both address exactly the row named by `pk`: `{ "namespace": "…", "table": "…",
+"pk": 2, "values": { "name": "beta" } }` → `{ "updated": 1 }`; `pk` alone →
+`{ "deleted": 1 }`. Accepting mutations are recorded as DB-SUPA-5 change
+records (delete as a tombstone) before the acknowledgement.
+
+### `search`
+
+`{ "namespace": "…", "query": "zebra", "limit": 10 }` — offline keyword search.
+Requires the rebuilt keyword sidecar for the namespace (`duckbrain search-index
+rebuild`); unlike `recall`, it never silently falls back to semantic ranking.
+
+### `query`
+
+`{ "namespace": "…", "sql": "SELECT count(*) AS n FROM memories" }` — read-only:
+mutating statements are rejected (`code: "READ_ONLY_QUERY"`) and results are
+capped at 1000 rows. Refusals by policy are audited as `op: "sql.read"`.
 
 ## Tool Details
 

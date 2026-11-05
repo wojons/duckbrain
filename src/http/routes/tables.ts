@@ -54,9 +54,15 @@
  * TODO(DB-SUPA-2-AC1): move table mutations onto append-only serializer writes
  * plus read-side version folding. Until then a rewrite-based delete's
  * tombstone resolves against the parent commit (src/http/realtime/replay.ts).
+ *
+ * SURFACE-MCP-DATA-001: the data verbs are NOT implemented here any more. The
+ * handlers below are thin adapters over src/tables/operations.ts, which the MCP
+ * tools (src/mcp/tools/tables.ts) call as well — one implementation, two
+ * transports, identical validation and refusal text. What stays in this module
+ * is HTTP-shaped only: querystring parsing, CSV rendering, durability headers
+ * and the grant middleware chain.
  */
 
-import path from "path";
 import { Router, Request, Response } from "express";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import {
@@ -64,261 +70,23 @@ import {
   requireTableGrant,
   getPrincipal,
 } from "../../auth/middleware";
-import {
-  listTables,
-  getTable,
-  type TableDeclaration,
-} from "../../schema/table-registry";
-import {
-  getDeclaredTable,
-} from "../../serialization/schemaRegistry";
-import type { RegisteredTableDeclaration } from "../../serialization/registry";
-import {
-  buildSelectPlan,
-  executeSelectPlan,
-  coerceRowAgainstDeclaration,
-  appendRowsToTable,
-  findRowByPk,
-  findRowLineByPk,
-  patchRowsByPk,
-  deleteRowsByPk,
-  type MutationOutcome,
-  type RowLineLocation,
-} from "../../duckdb/table-store";
-import { namespaceDir } from "../../schema/table-registry";
-import { getNamespaceWriter } from "../../serialization/namespaceWriter";
-import {
-  acceptedTableMutationRecord,
-  type AuditEntry,
-} from "../../serialization/audit";
-import {
-  acquireNamespaceWriteLock,
-  releaseNamespaceWriteLock,
-  type NamespaceWriteLock,
-} from "../../serialization/lock";
-import { resolveNamespacesPath } from "../../config";
-import {
-  durabilityHeaderFor,
-  setDurabilityHeaders,
-} from "../../storage/durability";
-import {
-  assertNamespaceDdlUsable,
-  partitionForStoragePath,
-} from "../../serialization/ddl";
-import { assertNamespaceSchemaUsable } from "../../serialization/schemaRegistry";
-import { storedRowFromApiRow } from "../../serialization/schemaTypes";
+import { setDurabilityHeaders } from "../../storage/durability";
+import { listTables, type TableDeclaration } from "../../schema/table-registry";
 
-/** Declared column types (schema.json) → legacy DuckDB column types. */
-const DECLARED_TO_LEGACY: Record<string, string> = {
-  string: "varchar",
-  int64: "bigint",
-  float64: "double",
-  boolean: "boolean",
-  timestamp: "timestamp",
-  json: "json",
-  bytes: "varchar",
-};
-
-/**
- * Namespace-relative POSIX path of a physical data file — the exact form a
- * change record's `targetPath` takes (git paths are POSIX, and replay resolves
- * the value against the committed namespace tree).
- */
-function namespaceRelativePath(nsDir: string, filePath: string): string {
-  return path.relative(nsDir, filePath).split(path.sep).join("/");
-}
-
-/** How long an accepted mutation's audit append waits out lock contention. */
-const MUTATION_AUDIT_LOCK_DEADLINE_MS = 2_000;
-const MUTATION_AUDIT_LOCK_RETRY_MS = 25;
-
-/**
- * Append an accepted mutation's change record, waiting out TRANSIENT
- * `SERIALIZER_LOCKED`.
- *
- * The serializer's flush takes the namespace write lock fail-fast (that is the
- * SUPA-2 contract for queued writes), but this append happens AFTER the route
- * already released the lock for its own rewrite — so under real cross-process
- * concurrency another writer can hold the lock for the few milliseconds of its
- * rewrite and a single fail-fast attempt turns an applied, correctly-audited
- * mutation into a 500. The append is retryable (the failure happens before any
- * audit byte is written), so retry it against a bounded deadline, exactly like
- * the route's own lock acquisition. A failure that is NOT transient (fencing,
- * shutdown, disk) still fails closed.
- */
-async function enqueueMutationAuditWithRetry(
-  ns: string,
-  entry: AuditEntry,
-): Promise<void> {
-  const deadline = Date.now() + MUTATION_AUDIT_LOCK_DEADLINE_MS;
-  for (;;) {
-    try {
-      await getNamespaceWriter(ns).enqueueAudit(entry);
-      return;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.startsWith("SERIALIZER_LOCKED") || Date.now() >= deadline) {
-        throw error;
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, MUTATION_AUDIT_LOCK_RETRY_MS),
-      );
-    }
-  }
-}
-
-/**
- * Bridge a RegisteredTableDeclaration (schema.json) into a TableDeclaration
- * so that patchRowsByPk / deleteRowsByPk / coerceRowAgainstDeclaration can
- * operate on it.  The two shapes are not directly compatible — the declared
- * version carries Zod/row-shape metadata the legacy path doesn't need.
- */
-function asLegacyDeclaration(
-  decl: RegisteredTableDeclaration,
-): TableDeclaration {
-  return {
-    name: decl.table,
-    format: "jsonl-objects" as const,
-    columns: decl.columns.map((c) => ({
-      name: c.name,
-      type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
-      nullable: c.nullable,
-    })),
-    primary: decl.keyColumns[0] ?? null,
-    glob: decl.storagePath,
-    source: "schema.json" as const,
-  };
-}
-
-/**
- * DB-SUPA-2: how long a declared-table mutation waits for the namespace write
- * lock before reporting SERIALIZER_LOCKED.
- *
- * The lock itself is unchanged — this only decides how long the request WAITS
- * for it — but the wait is load-bearing, because the lock is routinely held by
- * transient in-process actors that are not client-visible contention at all:
- *
- *   - the serializer's own flush (`namespaceWriter.flushOnceLocked`), which
- *     appends the audit row a previous request enqueued, and
- *   - the commit chain (`autocommit.asyncCommit` → `withNamespaceCommitLock`),
- *     which holds the namespace lock across `git init`/`add`/`commit`.
- *
- * Measured on this suite's fixture (2026-10-17, probe evidence): the first
- * write to a namespace takes the debounce-bypass branch (no `.git` yet →
- * immediate async commit), which still holds the lock ~50ms after that
- * mutation's own 2xx — so the NEXT mutation, one `beforeEach` away, is issued
- * straight into a live same-process holder. A fail-fast acquire turns that
- * ordinary self-contention into a spurious 503 for a legitimate client. Retry
- * with the same shape the commit path already uses (`withNamespaceCommitLock`:
- * 25ms between attempts, bounded deadline) so only a holder that outlives the
- * deadline — in practice another process — surfaces as contention.
- *
- * Waiting here cannot deadlock: the caller holds neither the lock nor the
- * in-process commit gate while it waits, and every waiter that does hold the
- * lock (flush, commit) does only bounded, non-awaiting file work with it.
- */
-const LOCK_WAIT_RETRY_MS = 25;
-const LOCK_WAIT_DEADLINE_MS = 2_000;
-
-/** Acquire the namespace write lock, waiting (bounded) instead of failing fast. */
-async function acquireNamespaceWriteLockWaiting(
-  ns: string,
-): Promise<NamespaceWriteLock | null> {
-  const deadline = Date.now() + LOCK_WAIT_DEADLINE_MS;
-  for (;;) {
-    const lock = acquireNamespaceWriteLock(resolveNamespacesPath(), ns);
-    if (lock) return lock;
-    if (Date.now() >= deadline) return null;
-    // Yield to the event loop so an in-process holder (the flush's or the
-    // commit's own async work) can make progress and release.
-    await new Promise((resolve) => setTimeout(resolve, LOCK_WAIT_RETRY_MS));
-  }
-}
+import {
+  deleteTableRows,
+  filterParams,
+  insertTableRows,
+  listNamespaceTables,
+  resolveTableDeclaration,
+  selectTableRows,
+  updateTableRows,
+} from "../../tables/operations";
 
 /** Express 5 types named params as string | string[] (GAP-002 pattern). */
 function param(req: Request, name: string): string {
   const p: unknown = req.params[name];
   return Array.isArray(p) ? p.join("/") : String(p ?? "");
-}
-
-/** Resolve and validate a supplied primary-key equality filter. */
-function resolvePkFilter(
-  declaration: TableDeclaration,
-  raw: unknown,
-  operation: string,
-): { col: TableDeclaration["columns"][number]; value: string } {
-  if (!declaration.primary) {
-    throw new ApiError(
-      `Table '${declaration.name}' declares no primary key; ${operation} are not available`,
-      400,
-      "VALIDATION_ERROR",
-    );
-  }
-  const col = declaration.columns.find(
-    (c) => c.name === declaration.primary,
-  )!;
-  const pkValue = Array.isArray(raw) ? raw[0] : raw;
-  const pk = pkValue === undefined ? undefined : String(pkValue);
-  if (pk === undefined) {
-    throw new ApiError(
-      `${operation} require a primary key filter: ?pk=eq.<value>`,
-      400,
-      "VALIDATION_ERROR",
-    );
-  }
-  const m = pk.match(/^eq[.](.+)$/s) ?? (pk === "eq.null" ? null : null);
-  if (!m) {
-    throw new ApiError(
-      `${operation} require an equality filter on the primary key: ?pk=eq.<value>`,
-      400,
-      "VALIDATION_ERROR",
-    );
-  }
-  return { col, value: m[1]! };
-}
-
-/** Extract only the querystring entries that look like column filters. */
-function filterParams(
-  req: Request,
-  declaration: TableDeclaration,
-): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
-  for (const [key, value] of Object.entries(req.query)) {
-    if (
-      key === "order" ||
-      key === "limit" ||
-      key === "offset" ||
-      key === "count" ||
-      key === "pk"
-    ) {
-      continue;
-    }
-    if (!declaration.columns.some((c) => c.name === key)) {
-      // Unknown querystring key: only an error when it carries a filter
-      // operator shape (col.op.value) — bare unknown keys are ignored so
-      // clients can pass tracing/cache-busting params.
-      const first = Array.isArray(value) ? String(value[0]) : String(value);
-      if (/^[a-z]+\./.test(first)) {
-        throw new ApiError(
-          `Unknown filter column '${key}' (table '${declaration.name}' declares: ${declaration.columns.map((c) => c.name).join(", ")})`,
-          400,
-          "VALIDATION_ERROR",
-        );
-      }
-      continue;
-    }
-    out[key] = Array.isArray(value)
-      ? (value as string[]).map(String)
-      : String(value);
-  }
-  // `pk` is always the primary-key alias, even when a declared column is also
-  // literally named `pk`; that column remains addressable by its own name when
-  // the primary column has a different name.
-  if (req.query.pk !== undefined) {
-    const { col, value } = resolvePkFilter(declaration, req.query.pk, "GET");
-    out[col.name] = `eq.${value}`;
-  }
-  return out;
 }
 
 /** `Prefer: count=exact` header OR `?count=exact`. */
@@ -838,14 +606,7 @@ function createTableRoutes(): Router {
     requireNamespaceGrant((req) => param(req, "ns")),
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
-      const tables = listTables(ns).map((t) => ({
-        name: t.name,
-        format: t.format,
-        columns: t.columns,
-        primary: t.primary,
-        glob: t.glob,
-      }));
-      res.json({ namespace: ns, tables });
+      res.json({ namespace: ns, tables: listNamespaceTables(ns) });
     }),
   );
 
@@ -859,39 +620,18 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      const declaration = getTable(ns, tableName);
-      const plan = buildSelectPlan(declaration, {
-        filters: filterParams(req, declaration),
+      const declaration = resolveTableDeclaration(ns, tableName);
+      const { rows, totalCount } = await selectTableRows(ns, tableName, {
+        // SURFACE-MCP-DATA-001: the same filter/order/paging vocabulary the
+        // MCP table_select tool passes, so both transports answer identically.
+        filters: filterParams(
+          req.query as Record<string, unknown>,
+          declaration,
+        ),
         order: req.query.order as string | string[] | undefined,
         limit: req.query.limit,
         offset: req.query.offset,
         wantCount: wantsExactCount(req),
-      });
-      const { rows: rawRows, totalCount } = await executeSelectPlan(
-        namespaceDir(ns),
-        declaration,
-        plan,
-      );
-      // Declared json columns arrive as VARCHAR text (DuckDB JSON→VARCHAR
-      // projection); parse them back into real JSON values so responses
-      // carry actual JSON, matching what was inserted.
-      const jsonCols = declaration.columns
-        .filter((c) => c.type === "json")
-        .map((c) => c.name);
-      const rows = rawRows.map((row) => {
-        if (jsonCols.length === 0) return row;
-        const shaped: Record<string, unknown> = { ...row };
-        for (const name of jsonCols) {
-          const cell = shaped[name];
-          if (typeof cell === "string") {
-            try {
-              shaped[name] = JSON.parse(cell) as unknown;
-            } catch {
-              // leave raw text when it isn't valid JSON
-            }
-          }
-        }
-        return shaped;
       });
 
       if (totalCount !== null) {
@@ -945,13 +685,11 @@ function createTableRoutes(): Router {
   /**
    * POST /api/ns/:ns/tables/:table — insert (object / array / NDJSON).
    *
-   * A DB-SUPA-6 `schema.json` declaration writes through the SUPA-2 serializer
-   * (`NamespaceWriter.enqueue`) at the table's DECLARED storage path, so the
-   * write rides the same validation → ordered write → audit/change-record →
-   * commit path as every other durable row, and it observes the DDL fence: a
-   * write attempted while a DDL operation holds the namespace lock receives the
-   * retryable `SERIALIZER_LOCKED` result and writes nothing. Legacy
-   * `tables/<table>.table.json` declarations keep the historical direct append.
+   * SURFACE-MCP-DATA-001: the write itself is insertTableRows() in
+   * src/tables/operations.ts — the SAME implementation the MCP table_insert
+   * tool calls. SUPA-6 writes ride the serializer (validation → ordered write
+   * → audit/change record → commit, DDL fence honoured); legacy .table.json
+   * declarations keep the direct append, now durability-honest.
    */
   router.post(
     "/:table",
@@ -960,181 +698,26 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      const declaration = getTable(ns, tableName);
+      resolveTableDeclaration(ns, tableName);
       const rawRows = parseInsertRows(req);
-      if (rawRows.length === 0) {
-        throw new ApiError(
-          "Insert body must contain at least one row",
-          400,
-          "VALIDATION_ERROR",
-        );
-      }
-      const coerced = rawRows.map((row) =>
-        coerceRowAgainstDeclaration(declaration, row),
+      const { inserted, durability } = await insertTableRows(
+        ns,
+        tableName,
+        rawRows,
+        getPrincipal(req),
       );
-      // AUG-045: a row that omits (or nulls) the declared primary key would be
-      // stored with id:null and become unreachable via the API — PATCH/DELETE
-      // both require ?pk=eq.<value>. Validate ALL rows before any writer
-      // enqueue / append so a bad batch inserts nothing (no partial inserts).
-      if (declaration.primary) {
-        for (const row of coerced) {
-          const pkValue = row[declaration.primary];
-          if (pkValue === undefined || pkValue === null || pkValue === "") {
-            throw new ApiError(
-              `Row is missing the required primary key '${declaration.primary}' for table '${declaration.name}'`,
-              400,
-              "VALIDATION_ERROR",
-            );
-          }
-        }
-      }
-      if (declaration.source === "schema.json") {
-        // Fail closed on a failed DDL recovery and on an invalid on-disk
-        // schema before accepting new generic-table work.
-        assertNamespaceDdlUsable(ns);
-        assertNamespaceSchemaUsable(ns);
-        const declaredColumns = declaration.columns.map((column) => ({
-          name: column.name,
-          type: column.declaredType!,
-          nullable: column.nullable ?? true,
-          ...(column.hasDefault ? { default: column.default } : {}),
-        }));
-        const writer = getNamespaceWriter(ns);
-        const partition = partitionForStoragePath(declaration.glob);
-        let inserted = 0;
-        for (const row of coerced) {
-          const record = storedRowFromApiRow(
-            declaredColumns,
-            declaration.format === "jsonl-positional" ? "positional" : "object",
-            row,
-          );
-          const result = await writer.enqueue({
-            ns,
-            table: declaration.name,
-            op: "insert",
-            record,
-            principal: getPrincipal(req),
-            targetPath: declaration.glob,
-            ...(partition ? { partitionPath: partition } : {}),
-          });
-          if (!result.ok) {
-            const status =
-              result.code === "VALIDATION_ERROR"
-                ? 422
-                : result.code === "NOT_FOUND"
-                  ? 404
-                  : result.code === "FORBIDDEN"
-                    ? 403
-                    : result.code === "SERIALIZER_LOCKED" ||
-                        result.code === "SERIALIZER_FENCED" ||
-                        result.code === "SERVER_SHUTTING_DOWN"
-                      ? 503
-                      : 500;
-            if (result.retryAfter !== undefined)
-              res.setHeader("Retry-After", String(result.retryAfter));
-            throw new ApiError(result.message, status, result.code);
-          }
-          inserted += 1;
-        }
-        const configured = durabilityHeaderFor(ns);
-        setDurabilityHeaders(res, configured, configured);
-        res.status(201).json({ inserted });
-        return;
-      }
-      // DURABILITY-HONESTY-001: the legacy `.table.json` insert used a bare
-      // page-cache append while advertising the configured mode. The append
-      // now honours the mode (fdatasync + directory fsync) and the response
-      // reports what it achieved, not what was configured.
-      const configured = durabilityHeaderFor(ns);
-      const appended = appendRowsToTable(
-        namespaceDir(ns),
-        declaration,
-        coerced,
-        configured,
-      );
-      setDurabilityHeaders(res, configured, appended.achieved);
-      res.status(201).json({ inserted: appended.inserted });
+      setDurabilityHeaders(res, durability.configured, durability.achieved);
+      res.status(201).json({ inserted });
     }),
   );
 
-  /** Validate + resolve the pk=eq.<v> filter for PATCH/DELETE. */
-  function requirePkFilter(
-    declaration: TableDeclaration,
-    req: Request,
-  ): { col: TableDeclaration["columns"][number]; value: string } {
-    return resolvePkFilter(declaration, req.query.pk, "PATCH/DELETE");
-  }
-
-  /**
-   * DB-SUPA-2: record an ACCEPTED table mutation in the namespace's audit
-   * ledger through the SUPA-2 single writer, and resolve only once that
-   * append is durable — a 2xx must never precede its audit record.
-   *
-   * DB-SUPA-5: the row is a real CHANGE RECORD, not a marker-less audit row.
-   * Emitting markers here is what makes an accepted PATCH/DELETE visible to
-   * the change feed; without them `isChangeRecordCandidate` returns false and
-   * replay skips the mutation entirely (the gap a tier-2 review caught).
-   *
-   * `contentHash` semantics differ per operation because this layer mutates by
-   * REWRITING the table's JSONL file instead of appending to it:
-   *
-   *   - update: the hash names the POST-mutation line. It is present in the
-   *     data file at the commit that carries the mutation, so replay resolves
-   *     the row image at the child commit exactly like a serializer insert.
-   *   - delete: the row is physically removed, so the hash names the line as
-   *     it existed BEFORE the mutation and replay resolves it against the
-   *     PARENT commit (see `deriveCommitChanges`: tombstone records fall back
-   *     to the parent ref instead of failing closed). The row image stays the
-   *     last committed one — tombstone semantics, never `row: null`.
-   *
-   * A failed append is fail-closed: the caller gets an error naming the
-   * already-applied mutation instead of an unacknowledged 2xx.
-   */
-  async function recordTableMutationAudit(
-    ns: string,
-    table: string,
-    op: "update" | "delete",
-    principal: string | null,
-    location: { targetPath: string; dataLine: string; row: unknown },
-  ): Promise<void> {
-    let entry: AuditEntry;
-    try {
-      entry = acceptedTableMutationRecord({
-        ns,
-        namespacePath: namespaceDir(ns),
-        table,
-        op,
-        principal,
-        targetPath: location.targetPath,
-        dataLine: location.dataLine,
-        row: location.row,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new ApiError(
-        `mutation was applied but its change record could not be built: ${message}`,
-        500,
-        "AUDIT_APPEND_FAILED",
-      );
-    }
-    try {
-      await enqueueMutationAuditWithRetry(ns, entry);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const shuttingDown = message.startsWith("SERVER_SHUTTING_DOWN");
-      throw new ApiError(
-        `mutation was applied but its audit record could not be appended: ${message}`,
-        shuttingDown ? 503 : 500,
-        shuttingDown ? "SERVER_SHUTTING_DOWN" : "AUDIT_APPEND_FAILED",
-      );
-    }
-  }
-
   /**
    * PATCH /api/ns/:ns/tables/:table?pk=eq.<v> — update by primary key.
-   * Rewrites the matching JSONL file rows and records the accepted mutation
-   * through the NamespaceWriter as a DB-SUPA-5 change record, so the audit
-   * ledger sees it before the 2xx and the change feed replays it.
+   *
+   * SURFACE-MCP-DATA-001: updateTableRows() in src/tables/operations.ts is the
+   * one implementation (read-merge-rewrite under the namespace write lock plus
+   * the DB-SUPA-5 change record before the 2xx); the MCP table_update tool
+   * calls it too.
    */
   router.patch(
     "/:table",
@@ -1143,25 +726,7 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      // Legacy .table.json tables live in the table-registry; schema.json tables
-      // live in the declared-table registry. Try the legacy resolver first, then
-      // fall back to declared tables (supersedes legacy on naming collision).
-      let declaration = getTable(ns, tableName) as
-        | TableDeclaration
-        | undefined;
-      if (!declaration) {
-        const declared = getDeclaredTable(ns, tableName);
-        if (declared) {
-          declaration = asLegacyDeclaration(declared);
-        } else {
-          throw new ApiError(
-            `Table '${tableName}' not found in namespace '${ns}'`,
-            404,
-            "NOT_FOUND",
-          );
-        }
-      }
-      const { col, value } = requirePkFilter(declaration, req);
+      resolveTableDeclaration(ns, tableName);
       const body = req.body;
       if (typeof body !== "object" || body === null || Array.isArray(body)) {
         throw new ApiError(
@@ -1170,118 +735,24 @@ function createTableRoutes(): Router {
           "VALIDATION_ERROR",
         );
       }
-      const patchBody = body as Record<string, unknown>;
-      const unknownKeys = Object.keys(patchBody).filter(
-        (k) => !declaration.columns.some((c) => c.name === k),
-      );
-      if (unknownKeys.length > 0) {
-        throw new ApiError(
-          `Unknown column(s) in PATCH body: ${unknownKeys.join(", ")}`,
-          400,
-          "VALIDATION_ERROR",
-        );
-      }
-
-      const nsDir = namespaceDir(ns);
-      // DB-SUPA-2: the read-merge-rewrite runs under the namespace write lock
-      // — the same lock the serializer's flush and the commit chain take — so
-      // two writers (two processes on one namespace root included) cannot lose
-      // each other's update. It is held for synchronous file work only; the
-      // audit record below is enqueued AFTER it is released, so this request's
-      // own awaited flush is never blocked behind its own critical section.
-      const lock = await acquireNamespaceWriteLockWaiting(ns);
-      if (!lock) {
-        res.setHeader("Retry-After", "1");
-        throw new ApiError(
-          `Namespace '${ns}' is locked by another writer process`,
-          503,
-          "SERIALIZER_LOCKED",
-        );
-      }
-      let coercedBody: Record<string, unknown> = {};
-      let mutated = 0;
-      const configured = durabilityHeaderFor(ns);
-      let patchOutcome: MutationOutcome | null = null;
-      let location: RowLineLocation | null = null;
-      try {
-        const existing = findRowByPk(nsDir, declaration, col, value);
-        if (existing !== null) {
-          // Validate the MERGED row, not each body field in isolation: a
-          // partial patch is legal (only the named columns change) while every
-          // declared constraint is still enforced against the row the patch
-          // produces.
-          const merged = coerceRowAgainstDeclaration(declaration, {
-            ...existing,
-            ...patchBody,
-          });
-          for (const key of Object.keys(patchBody))
-            coercedBody[key] = merged[key];
-          patchOutcome = patchRowsByPk(
-            nsDir,
-            declaration,
-            col,
-            value,
-            coercedBody,
-            { mode: configured },
-          );
-          mutated = patchOutcome.mutated;
-          if (mutated > 0) {
-            // DB-SUPA-5: the change record's `contentHash` must name the row
-            // line as it now exists on disk, so read it back instead of
-            // re-serializing. Read INSIDE the lock so a concurrent writer in
-            // another process cannot replace the line between the rewrite and
-            // the read. A patch that moves the primary key is looked up under
-            // its NEW value.
-            const lookupValue = Object.prototype.hasOwnProperty.call(
-              coercedBody,
-              col.name,
-            )
-              ? String(coercedBody[col.name])
-              : value;
-            location = findRowLineByPk(nsDir, declaration, col, lookupValue);
-          }
-        }
-      } finally {
-        releaseNamespaceWriteLock(lock);
-      }
-      // No matching row: nothing was written and there is nothing to audit.
-      if (mutated === 0) {
-        setDurabilityHeaders(res, configured, configured);
-        res.json({ updated: 0 });
-        return;
-      }
-      if (location === null) {
-        throw new ApiError(
-          `mutation was applied but the updated row could not be located for its change record`,
-          500,
-          "AUDIT_APPEND_FAILED",
-        );
-      }
-      await recordTableMutationAudit(
+      const { updated, durability } = await updateTableRows(
         ns,
-        declaration.name,
-        "update",
-        getPrincipal(req)?.name ?? null,
-        {
-          targetPath: namespaceRelativePath(nsDir, location.filePath),
-          dataLine: location.line,
-          row: location.row,
-        },
+        tableName,
+        req.query.pk,
+        body as Record<string, unknown>,
+        getPrincipal(req),
       );
-      setDurabilityHeaders(
-        res,
-        configured,
-        patchOutcome?.achieved ?? configured,
-      );
-      res.json({ updated: mutated });
+      setDurabilityHeaders(res, durability.configured, durability.achieved);
+      res.json({ updated });
     }),
   );
 
   /**
    * DELETE /api/ns/:ns/tables/:table?pk=eq.<v> — delete by primary key.
-   * Rewrites the matching JSONL files with the row dropped and records the
-   * accepted delete through the NamespaceWriter as a tombstone change record
-   * before the 2xx.
+   *
+   * SURFACE-MCP-DATA-001: deleteTableRows() in src/tables/operations.ts is the
+   * one implementation (rewrite under the lock, tombstone change record before
+   * the 2xx); the MCP table_delete tool calls it too.
    */
   router.delete(
     "/:table",
@@ -1290,88 +761,15 @@ function createTableRoutes(): Router {
     asyncHandler(async (req: Request, res: Response) => {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
-      // Same fallback as PATCH: table-registry for legacy, declared-table for
-      // schema.json tables.
-      let declaration = getTable(ns, tableName) as
-        | TableDeclaration
-        | undefined;
-      if (!declaration) {
-        const declared = getDeclaredTable(ns, tableName);
-        if (declared) {
-          declaration = asLegacyDeclaration(declared);
-        } else {
-          throw new ApiError(
-            `Table '${tableName}' not found in namespace '${ns}'`,
-            404,
-            "NOT_FOUND",
-          );
-        }
-      }
-      const { col, value } = requirePkFilter(declaration, req);
-
-      const nsDir = namespaceDir(ns);
-      // DB-SUPA-2: same namespace write lock as PATCH — the read-predicate-write
-      // pair must not interleave with another writer process, and a same-process
-      // holder (flush / commit) is waited on rather than reported as contention.
-      const lock = await acquireNamespaceWriteLockWaiting(ns);
-      if (!lock) {
-        res.setHeader("Retry-After", "1");
-        throw new ApiError(
-          `Namespace '${ns}' is locked by another writer process`,
-          503,
-          "SERIALIZER_LOCKED",
-        );
-      }
-      let removed = 0;
-      const configured = durabilityHeaderFor(ns);
-      let deleteOutcome: MutationOutcome | null = null;
-      // DB-SUPA-5: capture the row BEFORE the rewrite — a physical delete
-      // removes the line from the data file, so the tombstone record's
-      // `contentHash` must name the last committed row image (resolved by
-      // replay against the parent commit), not a line the child no longer has.
-      const location = findRowLineByPk(nsDir, declaration, col, value);
-      try {
-        deleteOutcome = deleteRowsByPk(
-          nsDir,
-          declaration,
-          col,
-          value,
-          configured,
-        );
-        removed = deleteOutcome.mutated;
-      } finally {
-        releaseNamespaceWriteLock(lock);
-      }
-      // Nothing matched: no tombstone to record, nothing was deleted.
-      if (removed === 0) {
-        setDurabilityHeaders(res, configured, configured);
-        res.json({ deleted: 0 });
-        return;
-      }
-      if (location === null) {
-        throw new ApiError(
-          `mutation was applied but the deleted row could not be located for its tombstone record`,
-          500,
-          "AUDIT_APPEND_FAILED",
-        );
-      }
-      await recordTableMutationAudit(
+      resolveTableDeclaration(ns, tableName);
+      const { deleted, durability } = await deleteTableRows(
         ns,
-        declaration.name,
-        "delete",
-        getPrincipal(req)?.name ?? null,
-        {
-          targetPath: namespaceRelativePath(nsDir, location.filePath),
-          dataLine: location.line,
-          row: location.row,
-        },
+        tableName,
+        req.query.pk,
+        getPrincipal(req),
       );
-      setDurabilityHeaders(
-        res,
-        configured,
-        deleteOutcome?.achieved ?? configured,
-      );
-      res.json({ deleted: removed });
+      setDurabilityHeaders(res, durability.configured, durability.achieved);
+      res.json({ deleted });
     }),
   );
 

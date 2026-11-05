@@ -67,6 +67,15 @@ export const BUILTIN_TOOL_NAMES = [
   "create_profile",
   "update_profile",
   "select_profiles",
+  // SURFACE-MCP-DATA-001 data plane
+  "tables_declare",
+  "table_list",
+  "table_insert",
+  "table_select",
+  "table_update",
+  "table_delete",
+  "search",
+  "query",
 ] as const;
 
 /** Per-tool visibility directive inside a profile. */

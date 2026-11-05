@@ -221,3 +221,71 @@ export function namespaceScopeViolation(
     error: denial.message,
   };
 }
+
+/**
+ * SURFACE-MCP-DATA-001: append a denial row for a TABLE-grant refusal taken on
+ * the MCP path.
+ *
+ * Mirrors `requireTableGrant` (src/auth/middleware.ts): `op: tables.<op>`,
+ * `reason` from the SAME authorizeTableAccess decision, `table` and `ns`
+ * naming the target, the token name as `principal`. A REST 403 and an MCP
+ * refusal for the same table therefore produce the same audit evidence — the
+ * reason token (`table_grant`, `role`, `namespace_scope`) included.
+ *
+ * Best-effort by contract: a throwing auditor never changes the refusal.
+ */
+export function auditTableGrantDenial(
+  context: McpToolContext | undefined,
+  namespace: string,
+  table: string,
+  op: "read" | "write",
+  principal: AuthPrincipal | undefined,
+  reason: DenialAuditEvent["reason"],
+): void {
+  const auditor = resolveToolDenialAuditor(context);
+  if (!auditor) return;
+  const event: DenialAuditEvent = {
+    ts: new Date().toISOString(),
+    ns: namespace,
+    table,
+    op: `tables.${op}`,
+    principal: principal?.name ?? null,
+    outcome: "denied",
+    reason,
+  };
+  try {
+    void Promise.resolve(auditor(event)).catch(() => undefined);
+  } catch {
+    // Auditing is best-effort and never changes a denial response.
+  }
+}
+
+/**
+ * SURFACE-MCP-DATA-001: append a denial row for a raw-SQL refusal taken on the
+ * MCP path — the same row `requireRawSqlGrant` writes on the REST path
+ * (`op: sql.<direction>`, `table: "query"`, reason from authorizeRawSql).
+ */
+export function auditRawSqlDenial(
+  context: McpToolContext | undefined,
+  namespace: string,
+  direction: "read" | "write",
+  principal: AuthPrincipal | undefined,
+  reason: DenialAuditEvent["reason"],
+): void {
+  const auditor = resolveToolDenialAuditor(context);
+  if (!auditor) return;
+  const event: DenialAuditEvent = {
+    ts: new Date().toISOString(),
+    ns: namespace,
+    table: "query",
+    op: `sql.${direction}`,
+    principal: principal?.name ?? null,
+    outcome: "denied",
+    reason,
+  };
+  try {
+    void Promise.resolve(auditor(event)).catch(() => undefined);
+  } catch {
+    // Auditing is best-effort and never changes a denial response.
+  }
+}

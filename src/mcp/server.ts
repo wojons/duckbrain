@@ -15,6 +15,12 @@ import { listKeysTool, listKeysToolMetadata } from "./tools/list_keys";
 import { rememberToolDef } from "./tools/remember";
 import { forgetToolDef } from "./tools/forget";
 import { squashToolDef, compactionStatsToolDef } from "./tools/squash";
+import { tableToolDefs } from "./tools/tables";
+import { searchTool, searchToolMetadata } from "./tools/search";
+import {
+  enforceNamespaceScope,
+  resolveNamespaceName,
+} from "./tools/shared";
 import {
   createNamespaceTool,
   listNamespacesTool,
@@ -219,6 +225,46 @@ export function registerTools(): void {
       inputSchema: ServerHttpStartInputSchema,
     },
     wrapHandler(serverHttpStartTool),
+  );
+
+  // SURFACE-MCP-DATA-001: the data plane. Before this block an agent could
+  // only remember/recall/forget — no declared-table CRUD, no table
+  // declaration, no keyword search, no SQL. Every handler below is a thin
+  // adapter over the SAME implementation the CLI and HTTP routes call
+  // (src/tables/operations.ts, src/tables/declare.ts, src/duckdb/query-surface.ts,
+  // src/mcp/tools/search.ts), with the same grant checks and refusal text.
+  for (const def of tableToolDefs) {
+    server.registerTool(
+      def.name,
+      {
+        title: def.title,
+        description: def.description,
+        inputSchema: def.inputSchema,
+      },
+      wrapHandler(def.handler as (input: any) => Promise<any>),
+    );
+  }
+
+  // RETR-001 keyword search had a metadata def but was never registered, so
+  // the MCP surface lacked the offline keyword path entirely. Registration
+  // adds the namespace/table-independent grant check the REST route performs
+  // (a scoped token may not search a namespace outside its grant).
+  server.registerTool(
+    searchToolMetadata.name,
+    {
+      title: searchToolMetadata.title,
+      description: searchToolMetadata.description,
+      inputSchema: searchToolMetadata.inputSchema,
+    },
+    wrapHandler(async (args: any) => {
+      const allNamespaces = args?.allNamespaces === true;
+      const namespace = resolveNamespaceName(args?.namespace);
+      const scoped = enforceNamespaceScope(undefined, namespace, {
+        allNamespaces,
+      });
+      if (scoped) return { ...scoped };
+      return searchTool(args);
+    }),
   );
 
   // MCP-CUSTOM-RUNTIME-001: integrator-declared custom tools become
