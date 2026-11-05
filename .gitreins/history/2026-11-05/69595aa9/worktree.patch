@@ -1,0 +1,25 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 8debfcde..51e2660c 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3062,3 +3062,20 @@ tasks:
+   status: complete
+   created_at: '2026-11-04T14:46:24.305481+00:00'
+   completed_at: '2026-11-04T16:07:20.792947+00:00'
++- id: OBSDB-003
++  title: 'OBSDB-003: embedding request outcomes by provider plus cache hit/miss counters'
++  criteria:
++  - After a semantic recall, GET /metrics on a scratch daemon renders at least one
++    duckbrain_embedding_requests_total{provider,outcome=ok} series, and the counters
++    are incremented at the real provider embed call (search/rebuild/recall path),
++    not only by the /health probe.
++  - 'A provider that accepts a connection and never answers makes duckbrain_embedding_requests_total{outcome=timeout}
++    increase, and the falsifier holds: with providers.ts and cache.ts reverted to
++    the pre-fix tree the new instrumentation tests fail (7 failed / 3 passed) instead
++    of passing.'
++  - 'duckbrain_embedding_cache_hits_total over (hits + misses) is defined after two
++    identical queries (hits > 0 and misses > 0), counted at EmbeddingCache.get, and
++    the labels stay bounded: provider is a registry id or unknown, outcome is ok|timeout|auth|quota|error,
++    never a model id, host, path or error string.'
++  status: in_progress
++  created_at: '2026-11-05T14:53:33.237086+00:00'

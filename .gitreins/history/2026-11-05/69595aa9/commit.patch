@@ -1,0 +1,1028 @@
+commit 781a3ba357cd937a091fba8e0514463ce289d1f8
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Thu Nov 5 09:52:36 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Thu Nov 5 09:52:36 2026 -0500
+
+    feat(obsdb-003): count embedding request outcomes and cache residency
+    
+    Adds duckbrain_embedding_requests_total{provider,outcome} plus
+    duckbrain_embedding_cache_hits_total / _misses_total, incremented at the real
+    provider call (instrumentEmbedder on both product construction points) and at
+    the single cache-residency decision (EmbeddingCache.get), and registers the
+    process-wide counters on the per-app scrape registry. Labels collapse the
+    eleven internal failure classes onto ok|timeout|auth|quota|error and keep only
+    the registry provider id — never the model, host or error text.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ src/embedding/cache.ts            |  29 ++-
+ src/embedding/metrics.ts          | 246 +++++++++++++++++++++
+ src/embedding/providers.ts        |  93 ++++++--
+ src/http/metrics-obsdb003.test.ts | 443 ++++++++++++++++++++++++++++++++++++++
+ src/http/metrics.test.ts          |  15 +-
+ src/http/metrics.ts               |  28 ++-
+ test-counts.json                  |   6 +-
+ 7 files changed, 835 insertions(+), 25 deletions(-)
+
+diff --git a/src/embedding/cache.ts b/src/embedding/cache.ts
+index bf66eb88..b317d83a 100644
+--- a/src/embedding/cache.ts
++++ b/src/embedding/cache.ts
+@@ -31,6 +31,11 @@ import crypto from "crypto";
+ import fs from "fs";
+ import path from "path";
+ 
++import {
++  recordEmbeddingCacheHit,
++  recordEmbeddingCacheMiss,
++} from "./metrics";
++
+ /** Default cache directory name inside a namespace */
+ export const EMBEDDING_CACHE_DIR = ".embeddings";
+ 
+@@ -103,15 +108,33 @@ export class EmbeddingCache {
+     return path.join(this.root, modelId.replace(/[^a-zA-Z0-9._-]/g, "_"));
+   }
+ 
+-  /** Get cached vector for (model, contentHash). Returns null on miss/corrupt. */
++  /**
++   * Get cached vector for (model, contentHash). Returns null on miss/corrupt.
++   *
++   * OBSDB-003: this method is the ONE cache-residency decision in the codebase
++   * (`has()` delegates to it; search, rebuild and recall all read through it),
++   * so the hit/miss counters are incremented here and nowhere else. That is
++   * what makes `hits / (hits + misses)` describe every reader instead of one
++   * caller's private loop, and it is why a corrupt entry counts as a MISS — a
++   * vector the caller cannot use cost the query a provider round trip.
++   */
+   get(modelId: string, contentHash: string): number[] | null {
+     // New binary format first; legacy JSON kept as a read-only fallback so
+     // old caches keep working until migrated.
+     const bin = this.readBin(this.entryPathExt(modelId, contentHash, ".bin"));
+-    if (bin) return bin;
+-    return this.readLegacyJson(
++    if (bin) {
++      recordEmbeddingCacheHit();
++      return bin;
++    }
++    const legacy = this.readLegacyJson(
+       this.entryPathExt(modelId, contentHash, ".json"),
+     );
++    if (legacy) {
++      recordEmbeddingCacheHit();
++      return legacy;
++    }
++    recordEmbeddingCacheMiss();
++    return null;
+   }
+ 
+   private readBin(p: string): number[] | null {
+diff --git a/src/embedding/metrics.ts b/src/embedding/metrics.ts
+new file mode 100644
+index 00000000..5e7e1c07
+--- /dev/null
++++ b/src/embedding/metrics.ts
+@@ -0,0 +1,246 @@
++/**
++ * OBSDB-003 — embedding-path instrumentation.
++ *
++ * `docs/observability-spec.md` §2 (blind spots #2 and #9) and §3.2: the daemon
++ * already CLASSIFIES every embed failure (`classifyEmbedFailure`, providers.ts)
++ * and already tells the truth about cache residency in a stderr timing line
++ * (search.ts `[search-timing]`), but neither fact reaches a time series. An
++ * operator looking at `/health` sees `embedding.healthy=false` with one note
++ * string and no history, and nothing anywhere says whether a recall paid for a
++ * provider round trip or was served entirely from `.embeddings/`.
++ *
++ * This module owns the three families that answer those two questions:
++ *
++ *   duckbrain_embedding_requests_total     counter  — provider, outcome
++ *   duckbrain_embedding_cache_hits_total   counter  — (no labels)
++ *   duckbrain_embedding_cache_misses_total counter  — (no labels)
++ *
++ * THE COUNTERS ARE PROCESS-WIDE, NOT PER-APP. This is the one place the
++ * design deliberately differs from `src/http/metrics.ts`: the facts being
++ * counted happen in the embedding layer, which is exercised by the HTTP
++ * daemon, by MCP stdio (`recall`), by the CLI (`duckbrain recall`,
++ * `duckbrain embeddings rebuild`) and by the health probe — a counter owned by
++ * `createHttpServer()` would miss every one of those except the daemon's own
++ * traffic and would read zero in exactly the CLI-only deployments where
++ * chasing a cold cache is most expensive. So the counters are module
++ * singletons created with `registers: []` (no default registry, so importing
++ * this module never pollutes `Registry.globalRegistry`) and
++ * `registerEmbeddingMetrics()` attaches the SAME instances to each app
++ * registry, which is how the values reach `GET /metrics` while remaining
++ * readable from a one-shot CLI.
++ *
++ * LABEL DISCIPLINE (spec §3, hard rules): `provider` is a registry id
++ * (`lmstudio` | `ollama` | `openai`) or the fixed value `unknown`; `outcome`
++ * is a fixed five-value enum. NEVER a namespace, memory key, model id, host,
++ * URL, raw error string or timestamp — the model id and the error note are
++ * exactly the two things that would otherwise leak into a label here, and
++ * both are dropped (`embeddingProviderLabel` keeps only the registry prefix).
++ *
++ * Enum values are the SPEC's, not the internal classifier's: the internal
++ * `EmbedFailureClass` has eleven values (OPS-004 needs that detail in a
++ * human-readable note), but a metric label must stay bounded and stable, so
++ * ten of them collapse onto four outcomes (auth/quota/timeout/error).
++ */
++
++import { Counter, type Registry } from "prom-client";
++
++export const EMBEDDING_REQUEST_TOTAL = "duckbrain_embedding_requests_total";
++export const EMBEDDING_CACHE_HITS_TOTAL = "duckbrain_embedding_cache_hits_total";
++export const EMBEDDING_CACHE_MISSES_TOTAL =
++  "duckbrain_embedding_cache_misses_total";
++
++/** The three families this module owns, in exposition order. */
++export const EMBEDDING_METRIC_NAMES = [
++  EMBEDDING_REQUEST_TOTAL,
++  EMBEDDING_CACHE_HITS_TOTAL,
++  EMBEDDING_CACHE_MISSES_TOTAL,
++] as const;
++
++/** The fixed `outcome` label domain (spec §3.2). */
++export const EMBED_OUTCOMES = ["ok", "timeout", "auth", "quota", "error"] as const;
++export type EmbedOutcome = (typeof EMBED_OUTCOMES)[number];
++
++/**
++ * The `provider` label domain: the embedder REGISTRY ids in
++ * `src/embedding/providers.ts` PROVIDERS. Mirrored (not imported) so this
++ * module has no import edge back into the provider table — the parity is
++ * asserted by test, which fails if the registry grows without this list.
++ */
++export const EMBEDDING_PROVIDER_IDS = ["lmstudio", "ollama", "openai"] as const;
++
++/** Every value the `provider` label may hold (ids plus the fallback). */
++export const UNKNOWN_PROVIDER = "unknown";
++
++/**
++ * One increment per provider HTTP request that carried embed input.
++ *
++ * A BATCH COUNTS ONCE: `embedMany` issues one request for N texts, and this
++ * family counts requests, not texts — counting texts would make the metric
++ * incomparable between the batched path and the per-text fallback that
++ * `search.ts` uses when a provider rejects batches. A batch failure therefore
++ * reads as one failed request even though N vectors were lost, which is the
++ * honest request-level accounting; the texts lost are a `rebuild`/recall
++ * concern, not a scrape concern.
++ */
++export const embeddingRequests = new Counter({
++  name: EMBEDDING_REQUEST_TOTAL,
++  help: "Provider embedding HTTP requests by embedder id and outcome (ok|timeout|auth|quota|error); a batch request counts once.",
++  labelNames: ["provider", "outcome"],
++  registers: [],
++});
++
++/**
++ * Cache lookups answered from `.embeddings/` (hit) or not (miss).
++ *
++ * Counted at `EmbeddingCache.get()` — the ONE residency decision in the
++ * codebase (`has()` delegates to it, and search/rebuild/recall all go through
++ * it), so a hit rate computed from these two counters describes every reader
++ * rather than one caller's private loop.
++ */
++export const embeddingCacheHits = new Counter({
++  name: EMBEDDING_CACHE_HITS_TOTAL,
++  help: "Embedding cache lookups served from .embeddings/ (no provider request needed).",
++  labelNames: [],
++  registers: [],
++});
++
++export const embeddingCacheMisses = new Counter({
++  name: EMBEDDING_CACHE_MISSES_TOTAL,
++  help: "Embedding cache lookups with no usable vector on disk (a provider request is required).",
++  labelNames: [],
++  registers: [],
++});
++
++/**
++ * Map an embedder id onto the `provider` label domain.
++ *
++ * Provider instances carry a MODEL-QUALIFIED id (`lmstudio/qwen3-embedding`,
++ * `openai/text-embedding-3-small` — providers.ts makeHttpEmbed), because that
++ * id is also the embedding-cache directory key. The label must not carry the
++ * model: it is configured per host, changes with every upgrade, and is not a
++ * fixed domain. Only the registry prefix survives, and only when it is one of
++ * the known ids; anything else — a synthetic probe id, a config-supplied
++ * string, a future provider — collapses to `unknown`.
++ */
++export function embeddingProviderLabel(id: unknown): string {
++  const raw = typeof id === "string" ? id.trim().toLowerCase() : "";
++  if (!raw) return UNKNOWN_PROVIDER;
++  const registryId = raw.includes("/") ? raw.slice(0, raw.indexOf("/")) : raw;
++  return (EMBEDDING_PROVIDER_IDS as readonly string[]).includes(registryId)
++    ? registryId
++    : UNKNOWN_PROVIDER;
++}
++
++/**
++ * Collapse an internal `EmbedFailureClass` onto the metric's `outcome` enum.
++ *
++ *   timeout                         → timeout  (the 3s/8s budget expired)
++ *   credential_* / forbidden        → auth     (the request was refused)
++ *   rate_limited                    → quota    (429 = plan/rate ceiling)
++ *   everything else                 → error    (transport, 5xx, empty vector…)
++ *
++ * `ok` is never produced here: only a resolved embed reports success, so a
++ * failure can never be counted as a success by a mapping mistake.
++ */
++export function embedOutcomeForFailure(failureClass: unknown): EmbedOutcome {
++  switch (failureClass) {
++    case "timeout":
++      return "timeout";
++    case "credential_not_presented":
++    case "credential_rejected":
++    case "forbidden":
++      return "auth";
++    case "rate_limited":
++      return "quota";
++    default:
++      return "error";
++  }
++}
++
++/**
++ * Record one provider request outcome. Never throws: a telemetry failure must
++ * not turn a working embed into a failed one (or a failed one into a crash the
++ * caller cannot classify).
++ */
++export function recordEmbedRequest(
++  providerId: unknown,
++  outcome: EmbedOutcome,
++): void {
++  try {
++    const label = (EMBED_OUTCOMES as readonly string[]).includes(outcome)
++      ? outcome
++      : "error";
++    embeddingRequests.inc({
++      provider: embeddingProviderLabel(providerId),
++      outcome: label,
++    });
++  } catch {
++    /* telemetry never breaks the embed path */
++  }
++}
++
++export function recordEmbedSuccess(providerId: unknown): void {
++  recordEmbedRequest(providerId, "ok");
++}
++
++export function recordEmbedFailure(
++  providerId: unknown,
++  failureClass: unknown,
++): void {
++  recordEmbedRequest(providerId, embedOutcomeForFailure(failureClass));
++}
++
++/** Record one cache lookup that produced a usable vector. */
++export function recordEmbeddingCacheHit(): void {
++  try {
++    embeddingCacheHits.inc();
++  } catch {
++    /* telemetry never breaks a cache read */
++  }
++}
++
++/** Record one cache lookup that did not. */
++export function recordEmbeddingCacheMiss(): void {
++  try {
++    embeddingCacheMisses.inc();
++  } catch {
++    /* telemetry never breaks a cache read */
++  }
++}
++
++/**
++ * Attach the process-wide embedding counters to a scrape registry.
++ *
++ * Registration (not duplication) is what makes the SAME instances visible on
++ * `GET /metrics`: prom-client's `Counter#inc()` updates the metric object, and
++ * every registry that registered it renders the current values. Idempotent —
++ * a second call for an already-registered registry is a no-op, so repeated
++ * `createHttpServer()` calls (tests, embedders) cannot throw
++ * "already registered".
++ */
++export function registerEmbeddingMetrics(registry: Registry): void {
++  for (const metric of [
++    embeddingRequests,
++    embeddingCacheHits,
++    embeddingCacheMisses,
++  ]) {
++    try {
++      registry.registerMetric(metric);
++    } catch {
++      // Same metric object already registered on this registry — nothing to do.
++    }
++  }
++}
++
++/**
++ * Zero the counters (test seam).
++ *
++ * Process-wide counters accumulate across an entire process; a test that
++ * asserts a delta from a clean zero needs this. Production never calls it —
++ * a restart is the only reset a scrape should ever see.
++ */
++export function resetEmbeddingMetrics(): void {
++  embeddingRequests.reset();
++  embeddingCacheHits.reset();
++  embeddingCacheMisses.reset();
++}
+diff --git a/src/embedding/providers.ts b/src/embedding/providers.ts
+index d84d17f3..06409aea 100644
+--- a/src/embedding/providers.ts
++++ b/src/embedding/providers.ts
+@@ -21,6 +21,11 @@
+  *   3. lmstudio fallback (matches historical behavior)
+  */
+ 
++import {
++  recordEmbedFailure,
++  recordEmbedSuccess,
++} from "./metrics";
++
+ export interface EmbeddingProvider {
+   /** Stable identifier used as cache namespace key (e.g. "lmstudio/qwen3-0.6b") */
+   readonly id: string;
+@@ -379,6 +384,62 @@ export function classifyEmbedFailure(
+   return { class: "provider_error", status: null, detail };
+ }
+ 
++/**
++ * OBSDB-003: count one REAL provider embed, then hand the result through.
++ *
++ * The counters live in `./metrics` (process-wide, scraped via `GET /metrics`),
++ * and this wrapper is the one place a provider request is observed, so the
++ * metric cannot drift from the call sites: success is `ok`, failure is
++ * classified by the SAME `classifyEmbedFailure` an operator note uses and then
++ * collapsed onto the spec's bounded outcome enum. The error is re-thrown
++ * unchanged — callers keep their provider-fallback behaviour exactly;
++ * instrumentation is invisible to them.
++ *
++ * A batch counts as ONE request (it is one HTTP call), including when it fails
++ * and `search.ts` falls back to per-text embeds.
++ */
++async function trackEmbedRequest<T>(
++  providerId: string,
++  run: () => Promise<T>,
++): Promise<T> {
++  try {
++    const value = await run();
++    recordEmbedSuccess(providerId);
++    return value;
++  } catch (error) {
++    recordEmbedFailure(providerId, classifyEmbedFailure(error).class);
++    throw error;
++  }
++}
++
++/**
++ * OBSDB-003: wrap a provider so its embeds are counted.
++ *
++ * Applied at the two PRODUCT construction points (`createProvider` and the
++ * auto-probe branch), deliberately NOT to the health probe (health.ts builds
++ * its own instance) or the preflight: those two spend a SHORT dedicated budget
++ * (3s / 8s) and are allowed to time out while real queries succeed, so
++ * counting them in `duckbrain_embedding_requests_total` would report a
++ * provider as timing out on traffic it never served.
++ */
++export function instrumentEmbedder(
++  provider: EmbeddingProvider,
++): EmbeddingProvider {
++  const wrapped: EmbeddingProvider = {
++    id: provider.id,
++    model: provider.model,
++    dimensions: provider.dimensions,
++    embed: (text: string) =>
++      trackEmbedRequest(provider.id, () => provider.embed(text)),
++  };
++  const batched = provider.embedMany;
++  if (batched) {
++    wrapped.embedMany = (texts: string[]) =>
++      trackEmbedRequest(provider.id, () => batched.call(provider, texts));
++  }
++  return wrapped;
++}
++
+ /**
+  * The cheap reachability route each provider's `isHealthy()` gate uses.
+  *
+@@ -610,13 +671,15 @@ export function createProvider(cfg: EmbeddingConfig = {}): EmbeddingProvider {
+       `Unknown embedding provider '${resolved.provider}'. Known: ${PROVIDERS.map((p) => p.id).join(", ")}`,
+     );
+   }
+-  return ctor.build({
+-    baseUrl: resolved.baseUrl ?? "",
+-    model: resolved.model,
+-    dimensions: resolved.dimensions,
+-    timeoutMs: resolved.timeoutMs,
+-    apiKey: resolved.apiKey,
+-  });
++  return instrumentEmbedder(
++    ctor.build({
++      baseUrl: resolved.baseUrl ?? "",
++      model: resolved.model,
++      dimensions: resolved.dimensions,
++      timeoutMs: resolved.timeoutMs,
++      apiKey: resolved.apiKey,
++    }),
++  );
+ }
+ 
+ /**
+@@ -729,13 +792,15 @@ export async function createAutoProviders(
+   gates.forEach((ctor) => {
+     if (ctor) {
+       healthy.push(
+-        ctor.build({
+-          baseUrl: resolved.baseUrl ?? "",
+-          model: resolved.model,
+-          dimensions: resolved.dimensions,
+-          timeoutMs: resolved.timeoutMs,
+-          apiKey: resolved.apiKey,
+-        }),
++        instrumentEmbedder(
++          ctor.build({
++            baseUrl: resolved.baseUrl ?? "",
++            model: resolved.model,
++            dimensions: resolved.dimensions,
++            timeoutMs: resolved.timeoutMs,
++            apiKey: resolved.apiKey,
++          }),
++        ),
+       );
+     }
+   });
+diff --git a/src/http/metrics-obsdb003.test.ts b/src/http/metrics-obsdb003.test.ts
+new file mode 100644
+index 00000000..166e0524
+--- /dev/null
++++ b/src/http/metrics-obsdb003.test.ts
+@@ -0,0 +1,443 @@
++/**
++ * OBSDB-003 — embedding-path instrumentation, proven against the row's own
++ * acceptance criteria (`docs/observability-spec.md` §2 blind spots 2 and 9,
++ * §3.2):
++ *
++ *   1. after a semantic recall, `sum by (provider, outcome)
++ *      (rate(duckbrain_embedding_requests_total[10m]))` has at least one
++ *      series — proven on the real provider + real `semanticSearch` path and
++ *      read back from a real daemon's `GET /metrics` over HTTP;
++ *   2. pointing the embedder at a host that never answers makes
++ *      `increase(duckbrain_embedding_requests_total{outcome="timeout"}[10m])
++ *      > 0` true — the falsifier: without the fix there is no counter at all;
++ *   3. `duckbrain_embedding_cache_hits_total /
++ *      (hits + misses)` is DEFINED after two identical queries — evaluated
++ *      from the rendered samples with the same arithmetic PromQL performs.
++ *
++ * Provider traffic is served by a scratch HTTP server bound to 127.0.0.1 on an
++ * ephemeral port. No live embedder, no port 3000, no production namespace:
++ * the cache and the daemon's namespace root are both under a fresh mkdtemp.
++ */
++
++import { describe, it, expect, afterAll, beforeEach } from "vitest";
++import fs from "fs";
++import http from "http";
++import os from "os";
++import path from "path";
++import type { Server } from "http";
++import { createHttpServer } from "../cli/http";
++import { createHttpMetrics, type HealthSnapshot } from "./metrics";
++import {
++  EMBEDDING_METRIC_NAMES,
++  EMBEDDING_PROVIDER_IDS,
++  EMBED_OUTCOMES,
++  embedOutcomeForFailure,
++  embeddingProviderLabel,
++  resetEmbeddingMetrics,
++} from "../embedding/metrics";
++import {
++  createAutoProviders,
++  createProvider,
++  PROVIDERS,
++  resetAutoProvidersCache,
++  type EmbeddingProvider,
++} from "../embedding/providers";
++import { EmbeddingCache } from "../embedding/cache";
++import { semanticSearch, type SearchCandidate } from "../embedding/search";
++
++const HEALTHY: HealthSnapshot = {
++  status: "healthy",
++  providers: [{ id: "lmstudio", healthy: true }],
++  durationsMs: { embedding: 1, keys: 1, total: 2 },
++};
++
++/** Deterministic 4-dim vector for a text — no randomness, no model. */
++function vectorFor(text: string): number[] {
++  const seed = Array.from(text).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
++  return [1, (seed % 7) / 7, (seed % 11) / 11, 0.5];
++}
++
++interface FakeEmbedServer {
++  server: Server;
++  baseUrl: string;
++  /** Request log — proves the counter matches REAL requests, not calls. */
++  requests: string[];
++  mode: "ok" | "hang" | "401" | "429";
++  close: () => Promise<void>;
++}
++
++/**
++ * An OpenAI-compatible /v1/embeddings endpoint on 127.0.0.1:0.
++ *
++ * `mode` is mutable so one server can serve the ok, auth, quota and hang cases
++ * (the last one never answers, which is how a timeout is produced without a
++ * 60-second sleep).
++ */
++async function fakeEmbedServer(): Promise<FakeEmbedServer> {
++  const state = {
++    requests: [] as string[],
++    mode: "ok" as FakeEmbedServer["mode"],
++    hanging: [] as http.ServerResponse[],
++  };
++  const server = http.createServer((req, res) => {
++    state.requests.push(`${req.method} ${req.url}`);
++    if (req.url?.startsWith("/v1/models")) {
++      res.writeHead(200, { "Content-Type": "application/json" });
++      res.end(JSON.stringify({ data: [{ id: "text-embedding-test" }] }));
++      return;
++    }
++    if (state.mode === "hang") {
++      // Accept the request and never answer: only the provider's own
++      // AbortSignal.timeout can end it, which is the class we want to count.
++      state.hanging.push(res);
++      return;
++    }
++    if (state.mode === "401") {
++      res.writeHead(401, { "Content-Type": "application/json" });
++      res.end(JSON.stringify({ message: "Invalid API key" }));
++      return;
++    }
++    if (state.mode === "429") {
++      res.writeHead(429, { "Content-Type": "application/json" });
++      res.end(JSON.stringify({ message: "rate limit exceeded" }));
++      return;
++    }
++    let body = "";
++    req.on("data", (chunk) => (body += chunk));
++    req.on("end", () => {
++      const parsed = JSON.parse(body || "{}") as { input?: string | string[] };
++      const inputs = Array.isArray(parsed.input) ? parsed.input : [parsed.input ?? ""];
++      res.writeHead(200, { "Content-Type": "application/json" });
++      res.end(
++        JSON.stringify({
++          data: inputs.map((text) => ({ embedding: vectorFor(String(text)) })),
++        }),
++      );
++    });
++  });
++  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address();
++  if (!address || typeof address === "string") throw new Error("no ephemeral port");
++  return {
++    server,
++    baseUrl: `http://127.0.0.1:${address.port}/v1`,
++    get requests() {
++      return state.requests;
++    },
++    get mode() {
++      return state.mode;
++    },
++    set mode(next: FakeEmbedServer["mode"]) {
++      state.mode = next;
++    },
++    close: async () => {
++      for (const res of state.hanging) res.destroy();
++      await new Promise<void>((resolve) => server.close(() => resolve()));
++    },
++  } as FakeEmbedServer;
++}
++
++/** The provider the daemon itself would build for this base URL. */
++function providerFor(baseUrl: string, timeoutMs = 2_000): EmbeddingProvider {
++  return createProvider({
++    provider: "lmstudio",
++    baseUrl,
++    model: "text-embedding-test",
++    dimensions: 4,
++    timeoutMs,
++  });
++}
++
++function sampleValue(text: string, name: string, labels = ""): number | null {
++  const line = text
++    .split("\n")
++    .find((l) => l.startsWith(`${name}${labels} `) || l.startsWith(`${name}{${labels}} `));
++  if (!line) return null;
++  return Number.parseFloat(line.slice(line.lastIndexOf(" ") + 1));
++}
++
++const scratchDirs: string[] = [];
++function scratch(): string {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-obsdb003-"));
++  scratchDirs.push(dir);
++  return dir;
++}
++
++afterAll(() => {
++  for (const dir of scratchDirs) fs.rmSync(dir, { recursive: true, force: true });
++});
++
++beforeEach(() => resetEmbeddingMetrics());
++
++describe("OBSDB-003: the label domains are the spec's, not the internals", () => {
++  it("collapses every internal failure class onto the five-value outcome enum", () => {
++    const classes = [
++      "credential_not_presented",
++      "credential_rejected",
++      "forbidden",
++      "rate_limited",
++      "route_or_model_missing",
++      "upstream_error",
++      "timeout",
++      "unreachable",
++      "empty_vector",
++      "http_error",
++      "provider_error",
++    ];
++    const observed = classes.map((cls) => embedOutcomeForFailure(cls));
++    // Every mapping lands in the enum (bounded cardinality) and never in "ok":
++    // only a resolved embed may report success.
++    for (const outcome of observed) expect(EMBED_OUTCOMES).toContain(outcome);
++    expect(observed).not.toContain("ok");
++    expect(observed).toEqual([
++      "auth",
++      "auth",
++      "auth",
++      "quota",
++      "error",
++      "error",
++      "timeout",
++      "error",
++      "error",
++      "error",
++      "error",
++    ]);
++  });
++
++  it("keeps only the registry id in the provider label — never the model", () => {
++    expect(embeddingProviderLabel("lmstudio/text-embedding-qwen3")).toBe("lmstudio");
++    expect(embeddingProviderLabel("openai/text-embedding-3-small")).toBe("openai");
++    expect(embeddingProviderLabel("ollama/nomic-embed-text")).toBe("ollama");
++    expect(embeddingProviderLabel("deadline")).toBe("unknown");
++    expect(embeddingProviderLabel("http://127.0.0.1:1234/v1")).toBe("unknown");
++    expect(embeddingProviderLabel(undefined)).toBe("unknown");
++  });
++
++  it("stays in step with the provider registry it mirrors", () => {
++    // Drift guard: a new provider in PROVIDERS must be added to the label
++    // domain, or its requests would be counted as "unknown".
++    expect([...EMBEDDING_PROVIDER_IDS]).toEqual(PROVIDERS.map((p) => p.id));
++  });
++});
++
++describe("OBSDB-003: request outcomes come from the real embed call", () => {
++  it("records ok with the registry id after one real provider request", async () => {
++    const fake = await fakeEmbedServer();
++    try {
++      const provider = providerFor(fake.baseUrl);
++      const vector = await provider.embed("first memory");
++      expect(vector).toHaveLength(4);
++
++      const metrics = createHttpMetrics({ evaluateHealth: async () => HEALTHY });
++      const text = await metrics.render();
++      expect(text).toMatch(
++        /^duckbrain_embedding_requests_total\{provider="lmstudio",outcome="ok"\} 1$/m,
++      );
++      // One real request, one increment — the counter is not counting calls.
++      expect(fake.requests.filter((r) => r.includes("/embeddings"))).toHaveLength(1);
++      // Label discipline: the model id (cache key) must never reach a label.
++      expect(text).not.toMatch(/qwen|text-embedding-test|127\.0\.0\.1/);
++    } finally {
++      await fake.close();
++    }
++  });
++
++  it("records timeout when the provider accepts and never answers (the falsifier)", async () => {
++    const fake = await fakeEmbedServer();
++    fake.mode = "hang";
++    try {
++      const provider = providerFor(fake.baseUrl, 60);
++      await expect(provider.embed("never answered")).rejects.toThrow();
++
++      const metrics = createHttpMetrics({ evaluateHealth: async () => HEALTHY });
++      const text = await metrics.render();
++      expect(sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="timeout"')).toBe(1);
++      expect(sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="ok"')).toBeNull();
++    } finally {
++      await fake.close();
++    }
++  });
++
++  it("distinguishes auth (401) from quota (429)", async () => {
++    const fake = await fakeEmbedServer();
++    try {
++      const provider = providerFor(fake.baseUrl);
++      fake.mode = "401";
++      await expect(provider.embed("refused")).rejects.toThrow();
++      fake.mode = "429";
++      await expect(provider.embed("throttled")).rejects.toThrow();
++
++      const text = await createHttpMetrics({
++        evaluateHealth: async () => HEALTHY,
++      }).render();
++      expect(
++        sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="auth"'),
++      ).toBe(1);
++      expect(
++        sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="quota"'),
++      ).toBe(1);
++    } finally {
++      await fake.close();
++    }
++  });
++
++  it("counts a batch as one request and still counts each hit as a hit", async () => {
++    const fake = await fakeEmbedServer();
++    try {
++      const provider = providerFor(fake.baseUrl);
++      expect(provider.embedMany).toBeTypeOf("function");
++      const vectors = await provider.embedMany!(["a", "b", "c"]);
++      expect(vectors).toHaveLength(3);
++      const text = await createHttpMetrics({
++        evaluateHealth: async () => HEALTHY,
++      }).render();
++      expect(
++        sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="ok"'),
++      ).toBe(1);
++    } finally {
++      await fake.close();
++    }
++  });
++
++  it("instruments the auto-probe branch too, not only the explicit provider", async () => {
++    const fake = await fakeEmbedServer();
++    const saved = { ...process.env };
++    try {
++      process.env.DUCKBRAIN_EMBEDDING_PROVIDER = "auto";
++      process.env.DUCKBRAIN_EMBEDDING_BASE_URL = fake.baseUrl;
++      process.env.DUCKBRAIN_EMBEDDING_MODEL = "text-embedding-test";
++      process.env.DUCKBRAIN_EMBEDDING_DIMENSIONS = "4";
++      resetAutoProvidersCache();
++      const providers = await createAutoProviders();
++      expect(providers.length).toBeGreaterThan(0);
++      await providers[0].embed("auto branch");
++
++      const text = await createHttpMetrics({
++        evaluateHealth: async () => HEALTHY,
++      }).render();
++      expect(
++        sampleValue(text, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="ok"'),
++      ).toBe(1);
++    } finally {
++      resetAutoProvidersCache();
++      for (const key of Object.keys(process.env)) {
++        if (key.startsWith("DUCKBRAIN_EMBEDDING_")) delete process.env[key];
++      }
++      Object.assign(process.env, saved);
++      await fake.close();
++    }
++  });
++});
++
++describe("OBSDB-003: cache residency after two identical queries", () => {
++  it("reports hits and misses such that hits/(hits+misses) is defined", async () => {
++    const fake = await fakeEmbedServer();
++    try {
++      const provider = providerFor(fake.baseUrl);
++      const cache = new EmbeddingCache(path.join(scratch(), ".embeddings"));
++      const candidates: SearchCandidate[] = ["alpha", "beta", "gamma"].map((text) => ({
++        id: text,
++        key: `notes/${text}`,
++        domain: "concept",
++        timestamp: "2026-11-05T00:00:00.000Z",
++        author: "obsdb003",
++        action: "write",
++        embedding_text: `memory ${text}`,
++        attributes: {},
++      }));
++      const queryVector = await provider.embed("identical query");
++
++      // Query 1: cold cache — every candidate is a miss.
++      await semanticSearch(candidates, queryVector, cache, provider, { minScore: 0 });
++      const afterCold = await createHttpMetrics({
++        evaluateHealth: async () => HEALTHY,
++      }).render();
++      expect(sampleValue(afterCold, "duckbrain_embedding_cache_misses_total")).toBe(3);
++      expect(sampleValue(afterCold, "duckbrain_embedding_cache_hits_total")).toBe(0);
++
++      // Query 2: identical query — every candidate is now a hit.
++      await semanticSearch(candidates, queryVector, cache, provider, { minScore: 0 });
++      const text = await createHttpMetrics({
++        evaluateHealth: async () => HEALTHY,
++      }).render();
++      const hits = sampleValue(text, "duckbrain_embedding_cache_hits_total") ?? 0;
++      const misses = sampleValue(text, "duckbrain_embedding_cache_misses_total") ?? 0;
++      expect(hits).toBe(3);
++      expect(misses).toBe(3);
++      // The ratio the spec asks for, computed exactly as PromQL would.
++      const ratio = hits / (hits + misses);
++      expect(Number.isFinite(ratio)).toBe(true);
++      expect(ratio).toBeCloseTo(0.5);
++    } finally {
++      await fake.close();
++    }
++  });
++});
++
++describe("OBSDB-003: the families reach a live daemon's /metrics", () => {
++  it("serves the embedding series over HTTP after a semantic recall", async () => {
++    const fake = await fakeEmbedServer();
++    const namespacesPath = scratch();
++    const app = createHttpServer({ authConfig: { type: "apikey" }, namespacesPath });
++    const server = http.createServer(app);
++    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
++    const address = server.address();
++    if (!address || typeof address === "string") throw new Error("no port");
++    const port = address.port;
++
++    try {
++      // The daemon must not be reachable on anything but this ephemeral port.
++      expect(port).not.toBe(3000);
++
++      const provider = providerFor(fake.baseUrl);
++      const cache = new EmbeddingCache(path.join(namespacesPath, "demo", ".embeddings"));
++      const candidates: SearchCandidate[] = [
++        {
++          id: "m1",
++          key: "notes/one",
++          domain: "concept",
++          timestamp: "2026-11-05T00:00:00.000Z",
++          author: "obsdb003",
++          action: "write",
++          embedding_text: "the deploy is on friday",
++          attributes: {},
++        },
++      ];
++      const queryVector = await provider.embed("when is the deploy");
++      await semanticSearch(candidates, queryVector, cache, provider, { minScore: 0 });
++
++      const body = await new Promise<string>((resolve, reject) => {
++        const req = http.request(
++          { host: "127.0.0.1", port, method: "GET", path: "/metrics" },
++          (res) => {
++            let data = "";
++            res.on("data", (chunk) => (data += chunk));
++            res.on("end", () => resolve(data));
++          },
++        );
++        req.on("error", reject);
++        req.end();
++      });
++
++      // Criterion 1: at least one provider/outcome series exists.
++      expect(body).toMatch(
++        /^duckbrain_embedding_requests_total\{provider="lmstudio",outcome="ok"\} \d+$/m,
++      );
++      expect(
++        sampleValue(body, "duckbrain_embedding_requests_total", 'provider="lmstudio",outcome="ok"'),
++      ).toBeGreaterThan(0);
++      // Criteria for the cache pair: both present, denominator non-zero.
++      const hits = sampleValue(body, "duckbrain_embedding_cache_hits_total") ?? 0;
++      const misses = sampleValue(body, "duckbrain_embedding_cache_misses_total") ?? -1;
++      expect(misses).toBeGreaterThan(0);
++      expect(Number.isFinite(hits / (hits + misses))).toBe(true);
++      // The families are all present by name (README/spec parity).
++      for (const name of EMBEDDING_METRIC_NAMES) {
++        expect(body).toMatch(new RegExp(`^# TYPE ${name} counter$`, "m"));
++      }
++    } finally {
++      await new Promise<void>((resolve) => server.close(() => resolve()));
++      await fake.close();
++    }
++  });
++});
+diff --git a/src/http/metrics.test.ts b/src/http/metrics.test.ts
+index df1e4f42..b17f92fa 100644
+--- a/src/http/metrics.test.ts
++++ b/src/http/metrics.test.ts
+@@ -141,14 +141,18 @@ describe("OBSDB-001: /metrics exposition shape", () => {
+       .split("\n")
+       .filter((line) => line.startsWith("# TYPE "))
+       .map((line) => line.replace("# TYPE ", ""));
+-    // OBSDB-002 grew the set from six families to eight: read latency and
+-    // refusals. The assertion stays exact on purpose — a family appearing
++    // OBSDB-002 grew the set from six families to eight (read latency and
++    // refusals); OBSDB-003 grew it to eleven (embedding outcomes plus cache
++    // hits/misses). The assertion stays exact on purpose — a family appearing
+     // without a row and a review is the failure mode this guards.
+     expect(families).toEqual([
+       "duckbrain_http_up gauge",
+       "duckbrain_health_status gauge",
+       "duckbrain_health_probe_duration_seconds histogram",
+       "duckbrain_embedding_provider_healthy gauge",
++      "duckbrain_embedding_requests_total counter",
++      "duckbrain_embedding_cache_hits_total counter",
++      "duckbrain_embedding_cache_misses_total counter",
+       "duckbrain_reads_total counter",
+       "duckbrain_read_duration_seconds histogram",
+       "duckbrain_rejected_total counter",
+@@ -559,7 +563,12 @@ describe("OBSDB-001: mount order on the real app", () => {
+   it("every family from the spec is present after the first read", async () => {
+     const { body } = await request("GET", "/metrics");
+     for (const name of METRIC_NAMES) {
+-      expect(body).toMatch(new RegExp(`^${name}`, "m"));
++      // A LABELLED family that nobody observed yet (OBSDB-003's embedding
++      // request counter on a daemon that has served no recall) renders its
++      // HELP/TYPE header and no sample — Prometheus-correct, because
++      // "no request happened" is not a zero. Accept either a sample line or
++      // the family header, and never a near-miss name.
++      expect(body).toMatch(new RegExp(`^(?:# TYPE )?${name}[\\s{]`, "m"));
+     }
+   });
+ });
+diff --git a/src/http/metrics.ts b/src/http/metrics.ts
+index 34977b17..05542526 100644
+--- a/src/http/metrics.ts
++++ b/src/http/metrics.ts
+@@ -8,18 +8,29 @@
+  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
+  * official Node.js Prometheus client) in the text exposition format 0.0.4.
+  *
+- * Exactly eight families are exposed (spec §3.1/§3.2: the six MVP families of
+- * OBSDB-001, plus the two read-path depth families of OBSDB-002):
++ * Eleven families are exposed (spec §3.1/§3.2: the six MVP families of
++ * OBSDB-001, the two read-path depth families of OBSDB-002, and the three
++ * embedding-path families of OBSDB-003):
+  *
+  *   duckbrain_http_up                        gauge      — answer a scrape at all
+  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
+  *   duckbrain_health_probe_duration_seconds   histogram  — probe=embedding|keys|total
+  *   duckbrain_embedding_provider_healthy     gauge      — provider=<embedder id>
++ *   duckbrain_embedding_requests_total       counter    — provider/outcome (OBSDB-003)
++ *   duckbrain_embedding_cache_hits_total     counter    — (no labels, OBSDB-003)
++ *   duckbrain_embedding_cache_misses_total   counter    — (no labels, OBSDB-003)
+  *   duckbrain_reads_total                    counter    — route/method/status_class
+  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
+  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
+  *   duckbrain_build_info                     gauge 1    — version/node
+  *
++ * The three OBSDB-003 families are owned by the EMBEDDING layer, not by this
++ * module: `src/embedding/metrics.ts` holds them as process-wide counters
++ * incremented at the real provider request and cache lookup (so CLI/MCP
++ * embedding work is counted too, not just the daemon's). This module only
++ * attaches them to the per-app registry — `registerEmbeddingMetrics` — which
++ * is why they appear here without an `observe*` seam.
++ *
+  * LABEL RULES (hard, spec §3 "Label discipline") — enforced in code, not by
+  * convention:
+  *   - `route` is a NORMALIZED template from `normalizeReadRoute`
+@@ -57,6 +68,7 @@ import path from "path";
+ import { Counter, Gauge, Histogram, Registry } from "prom-client";
+ import type { Request, Response } from "express";
+ import { PROVIDERS } from "../embedding/providers";
++import { registerEmbeddingMetrics } from "../embedding/metrics";
+ import { normalizeReadRoute } from "./readLedger";
+ 
+ /** The six+two families this endpoint owns, in exposition order. */
+@@ -65,6 +77,9 @@ export const METRIC_NAMES = [
+   "duckbrain_health_status",
+   "duckbrain_health_probe_duration_seconds",
+   "duckbrain_embedding_provider_healthy",
++  "duckbrain_embedding_requests_total",
++  "duckbrain_embedding_cache_hits_total",
++  "duckbrain_embedding_cache_misses_total",
+   "duckbrain_reads_total",
+   "duckbrain_read_duration_seconds",
+   "duckbrain_rejected_total",
+@@ -440,6 +455,15 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
+     registers: [registry],
+   });
+ 
++  // OBSDB-003: embedding request outcomes and cache residency. The counters
++  // themselves live in the embedding layer (src/embedding/metrics.ts) because
++  // the facts are produced there — by the daemon, by MCP stdio and by one-shot
++  // CLI runs alike. Registering the SAME instances here is what puts them in
++  // this scrape; anything that increments them from a CLI still shows up in the
++  // daemon's next scrape of a shared process, and a CLI-only process reads the
++  // counters through its own registry-free metric objects.
++  registerEmbeddingMetrics(registry);
++
+   // How much work is the daemon doing, and how much of it is failing?
+   const reads = new Counter({
+     name: "duckbrain_reads_total",
+diff --git a/test-counts.json b/test-counts.json
+index e1fc0136..a74bcddc 100644
+--- a/test-counts.json
++++ b/test-counts.json
+@@ -1,5 +1,5 @@
+ {
+-  "suites": 253,
+-  "tests": 2098,
+-  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 \u2014 the gate moved off the protected agent-instruction file)."
++  "suites": 254,
++  "tests": 2108,
++  "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+ }

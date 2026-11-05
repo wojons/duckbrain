@@ -1280,3 +1280,5 @@
 {"id":8459,"timestamp":"2026-11-05T14:43:54Z","event_type":"task_created","task_id":"REST-OPERATORS-001","actor":"foreman","detail":"{\"id\":\"REST-OPERATORS-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8460,"timestamp":"2026-11-05T14:44:02Z","event_type":"task_created","task_id":"SDK-PARITY-001","actor":"foreman","detail":"{\"id\":\"SDK-PARITY-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8461,"timestamp":"2026-11-05T14:44:02Z","event_type":"task_created","task_id":"HORIZON-DECISIONS-001","actor":"foreman","detail":"{\"id\":\"HORIZON-DECISIONS-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8462,"timestamp":"2026-11-05T14:46:54Z","event_type":"task_updated","task_id":"OBSDB-003","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8463,"timestamp":"2026-11-05T14:57:19Z","event_type":"task_completed","task_id":"OBSDB-003","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
