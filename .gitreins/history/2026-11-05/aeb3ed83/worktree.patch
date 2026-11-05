@@ -1,0 +1,42 @@
+diff --git a/.gitreins/tasks.yaml b/.gitreins/tasks.yaml
+index 5852b73f..fadc0586 100644
+--- a/.gitreins/tasks.yaml
++++ b/.gitreins/tasks.yaml
+@@ -3133,3 +3133,37 @@ tasks:
+     \ that same assert step (.github/workflows/ci.yml:99-100)."
+   status: pending
+   created_at: '2026-11-05T17:48:20.205301+00:00'
++- id: EXAMPLE-APP-001
++  title: 'Ship one application on the memory store: a task board whose entire persistence
++    is DuckBrain'
++  criteria:
++  - 'AC1: examples/taskboard declares boards/columns/cards in schema.json and persists
++    only through /api/ns/:ns/tables; grep for browser storage, sqlite or file writes
++    in the app returns no hits.'
++  - 'AC2: a scratch-daemon transcript shows create board -> create column -> create
++    card -> move a card between columns with the ordering change visible -> filter
++    by assignee -> delete a card, and the rows read back correctly.'
++  - 'AC3: a token without a write grant reads the board (200) and gets 403 on POST/PATCH/DELETE,
++    and the denial is recorded in the namespace audit with reason table_grant.'
++  - 'AC4: the README states how a user declares their own tables and gets the same
++    CRUD + grants + audit surface.'
++  - 'AC5: the change feed is used: a subscription to /api/ns/:ns/changes delivers
++    an event for a card moved by another client, without polling.'
++  - 'AC6: test-counts.json is bumped in the same commit and the full suite is green.'
++  status: complete
++  created_at: '2026-11-05T19:06:44.616958+00:00'
++  completed_at: '2026-11-05T19:06:48.496937+00:00'
++- id: REPLAY-BIRTH-DEATH-001
++  title: A row inserted and deleted inside one commit window must not poison the change
++    feed
++  criteria:
++  - 'A commit carrying both an insert record and its delete/tombstone record for the
++    same table+key+contentHash must not fail replay: GET /api/ns/:ns/changes stays
++    200 and the next real change is delivered.'
++  - 'The falsifier holds: the new replay test fails against pre-fix replay.ts with
++    CHANGELOG_CORRUPT and a closed subscription, and passes with the fix.'
++  - 'Integrity is not weakened: a single unresolved record (insert without tombstone,
++    or a tombstone whose row never existed at the parent) still fails closed.'
++  status: complete
++  created_at: '2026-11-05T19:08:59.113235+00:00'
++  completed_at: '2026-11-05T19:08:59.838796+00:00'
