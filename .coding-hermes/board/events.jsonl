@@ -1269,3 +1269,4 @@
 {"id":8448,"timestamp":"2026-11-04T18:06:06Z","event_type":"task_created","task_id":"SEC-AUTHZ-001","actor":"foreman","detail":"{\"id\":\"SEC-AUTHZ-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8449,"timestamp":"2026-11-04T18:06:07Z","event_type":"task_created","task_id":"DURABILITY-HONESTY-001","actor":"foreman","detail":"{\"id\":\"DURABILITY-HONESTY-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8450,"timestamp":"2026-11-04T18:06:15Z","event_type":"task_created","task_id":"ADOPT-DECLARED-001","actor":"foreman","detail":"{\"id\":\"ADOPT-DECLARED-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8451,"timestamp":"2026-11-05T13:52:07Z","event_type":"task_updated","task_id":"SUPA9-PK-FILTER-001","actor":"foreman","detail":"{\"title\":\"[P0] GET ignores ?pk=eq.N while PATCH/DELETE require it — the same address means 'one row' to a write verb and 'all rows' to a read\"}","tick_number":null}
