@@ -1270,3 +1270,7 @@
 {"id":8449,"timestamp":"2026-11-04T18:06:07Z","event_type":"task_created","task_id":"DURABILITY-HONESTY-001","actor":"foreman","detail":"{\"id\":\"DURABILITY-HONESTY-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8450,"timestamp":"2026-11-04T18:06:15Z","event_type":"task_created","task_id":"ADOPT-DECLARED-001","actor":"foreman","detail":"{\"id\":\"ADOPT-DECLARED-001\",\"status\":\"pending\"}","tick_number":null}
 {"id":8451,"timestamp":"2026-11-05T13:52:07Z","event_type":"task_updated","task_id":"SUPA9-PK-FILTER-001","actor":"foreman","detail":"{\"title\":\"[P0] GET ignores ?pk=eq.N while PATCH/DELETE require it — the same address means 'one row' to a write verb and 'all rows' to a read\"}","tick_number":null}
+{"id":8452,"timestamp":"2026-11-05T14:36:35Z","event_type":"task_created","task_id":"SURFACE-MCP-DATA-001","actor":"foreman","detail":"{\"id\":\"SURFACE-MCP-DATA-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8453,"timestamp":"2026-11-05T14:36:35Z","event_type":"task_created","task_id":"SURFACE-HTTP-OPS-001","actor":"foreman","detail":"{\"id\":\"SURFACE-HTTP-OPS-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8454,"timestamp":"2026-11-05T14:36:43Z","event_type":"task_created","task_id":"SURFACE-S3-001","actor":"foreman","detail":"{\"id\":\"SURFACE-S3-001\",\"status\":\"pending\"}","tick_number":null}
+{"id":8455,"timestamp":"2026-11-05T14:36:43Z","event_type":"task_created","task_id":"SURFACE-PARITY-001","actor":"foreman","detail":"{\"id\":\"SURFACE-PARITY-001\",\"status\":\"pending\"}","tick_number":null}
