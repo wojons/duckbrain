@@ -17,6 +17,19 @@
  *                                              array / NDJSON)
  *   PATCH  /api/ns/:ns/tables/:table?pk=eq.v  — update rows by primary key
  *   DELETE /api/ns/:ns/tables/:table?pk=eq.v  — delete rows by primary key
+ *   PUT    /api/ns/:ns/tables/:table/:pk      — upsert one row by primary key
+ *                                              (201 inserted / 200 updated,
+ *                                              body carries which happened and
+ *                                              the resulting row)
+ *   POST   /api/ns/:ns/tables/_transaction    — ordered envelope of N
+ *                                              mutations applied as a UNIT
+ *                                              (all-or-nothing, one durability
+ *                                              barrier, one change record per
+ *                                              action, `applied:0` + the
+ *                                              failing action on failure)
+ *   GET    /api/ns/:ns/tables/:table?embed=…  — one-level embedding over a
+ *                                              relation DECLARED in schema.json
+ *                                              (`columns[].references`)
  *   GET    /api/ns/:ns/openapi.json           — OpenAPI 3.1 generated from
  *                                              the registry
  *
@@ -63,13 +76,15 @@
  * and the grant middleware chain.
  */
 
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { asyncHandler, ApiError } from "../middleware/errorHandler";
 import {
   requireNamespaceGrant,
   requireTableGrant,
   getPrincipal,
+  auditRequestDenial,
 } from "../../auth/middleware";
+import { authorizeTableAccess } from "../../auth/roles";
 import { setDurabilityHeaders } from "../../storage/durability";
 import { listTables, type TableDeclaration } from "../../schema/table-registry";
 
@@ -79,8 +94,10 @@ import {
   insertTableRows,
   listNamespaceTables,
   resolveTableDeclaration,
+  runTableTransaction,
   selectTableRows,
   updateTableRows,
+  upsertTableRow,
 } from "../../tables/operations";
 
 /** Express 5 types named params as string | string[] (GAP-002 pattern). */
@@ -293,6 +310,104 @@ function tablePathItem(declaration: TableDeclaration): Record<string, unknown> {
   };
 }
 
+/**
+ * REST-ATOMICITY-001: the upsert resource (`/tables/:table/:pk`) as its own
+ * path — a PUT to a key-addressed resource, not a verb on the collection.
+ */
+function tableUpsertPathItem(declaration: TableDeclaration): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const col of declaration.columns) {
+    properties[col.name] = columnSchema(col);
+  }
+  const rowSchema = {
+    type: "object",
+    properties,
+    required: declaration.columns.filter(Boolean).map((c) => c.name),
+  };
+  return {
+    put: {
+      operationId: `upsert_${declaration.name}`,
+      summary: `Insert or replace one row of '${declaration.name}' by primary key`,
+      parameters: [
+        {
+          name: "pk",
+          in: "path",
+          required: true,
+          description: `Primary key value on '${declaration.primary ?? "(none)"}'.`,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: rowSchema } },
+      },
+      responses: {
+        "201": { description: "Inserted (outcome: inserted, body carries the row)" },
+        "200": { description: "Replaced (outcome: updated, body carries the row)" },
+        "409": apiErrorSchemaRef,
+      },
+    },
+  };
+}
+
+/** REST-ATOMICITY-001: the ordered mutation envelope, per namespace. */
+function transactionPathItem(): Record<string, unknown> {
+  return {
+    post: {
+      operationId: "run_table_transaction",
+      summary:
+        "Apply an ordered list of table mutations as ONE unit (all-or-nothing)",
+      description:
+        "Every action is validated before anything is written. The envelope takes one durability barrier at commit and appends one change record per action. On failure nothing is applied: the response carries `applied: 0`, `rolledBack: true` and `failedAction`.",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              required: ["actions"],
+              properties: {
+                actions: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    required: ["op", "table"],
+                    properties: {
+                      op: {
+                        type: "string",
+                        enum: ["insert", "update", "upsert", "delete"],
+                      },
+                      table: { type: "string" },
+                      row: { type: "object", additionalProperties: true },
+                      patch: { type: "object", additionalProperties: true },
+                      pk: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "Applied — `applied`, `results[]` and the achieved durability",
+        },
+        "409": apiErrorSchemaRef,
+        "413": apiErrorSchemaRef,
+      },
+    },
+  };
+}
+
+const apiErrorSchemaRef = {
+  description: "Refused",
+  content: {
+    "application/json": { schema: { $ref: "#/components/schemas/ApiError" } },
+  },
+};
+
 const memoryResponseSchema = {
   type: "object",
   required: [
@@ -436,7 +551,14 @@ function generateOpenApi(ns: string): Record<string, unknown> {
   for (const declaration of tables) {
     paths[`/api/ns/${ns}/tables/${declaration.name}`] =
       tablePathItem(declaration);
+    // REST-ATOMICITY-001: the key-addressed upsert resource, when the table has
+    // a single primary key (`{pk}` needs one addressable column).
+    if (declaration.primary !== null) {
+      paths[`/api/ns/${ns}/tables/${declaration.name}/{pk}`] =
+        tableUpsertPathItem(declaration);
+    }
   }
+  paths[`/api/ns/${ns}/tables/_transaction`] = transactionPathItem();
 
   // These are the existing global memory routes. They intentionally keep
   // their namespace query/body semantics; the namespace in this document
@@ -632,6 +754,8 @@ function createTableRoutes(): Router {
         limit: req.query.limit,
         offset: req.query.offset,
         wantCount: wantsExactCount(req),
+        // REST-ATOMICITY-001: one-level embedding over DECLARED relations.
+        embed: req.query.embed as string | string[] | undefined,
       });
 
       if (totalCount !== null) {
@@ -681,6 +805,128 @@ function createTableRoutes(): Router {
       "VALIDATION_ERROR",
     );
   }
+
+  /**
+   * POST /api/ns/:ns/tables/_transaction — run N mutations as ONE unit.
+   *
+   * REST-ATOMICITY-001 AC-2. Registered BEFORE `/:table` so a table route can
+   * never shadow the envelope (declared table names must start with a letter,
+   * so `_transaction` is not a name a table can take).
+   *
+   * A multi-table envelope cannot be authorized by the single-table
+   * `requireTableGrant`: each action's table is checked for a WRITE grant here,
+   * and a denial is audited on the same path as the single-table middleware.
+   */
+  const requireTransactionTableGrants = (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    const principal = getPrincipal(req);
+    if (!principal) return next();
+    const ns = param(req, "ns");
+    const body = req.body as { actions?: unknown } | undefined;
+    const actions = Array.isArray(body?.actions) ? body.actions : [];
+    for (const action of actions) {
+      const table = (action as { table?: unknown } | null)?.table;
+      if (typeof table !== "string") continue; // structure is validated later
+      const decision = authorizeTableAccess(principal, ns, table, "write");
+      if (!decision.allowed) {
+        auditRequestDenial(req, {
+          ns,
+          table,
+          op: "tables.write",
+          principal: principal.name,
+          reason: decision.reason,
+        });
+        res.status(403).json({ error: decision.message, code: "FORBIDDEN" });
+        return;
+      }
+    }
+    next();
+  };
+
+  router.post(
+    "/_transaction",
+    requireNamespaceGrant((req) => param(req, "ns")),
+    requireTransactionTableGrants,
+    asyncHandler(async (req: Request, res: Response) => {
+      const ns = param(req, "ns");
+      const body = req.body as { actions?: unknown } | undefined;
+      const outcome = await runTableTransaction(
+        ns,
+        body?.actions,
+        getPrincipal(req),
+      );
+      if (!outcome.ok) {
+        res.status(outcome.status).json({
+          error: outcome.message,
+          code: outcome.code,
+          failedAction: outcome.failedAction,
+          action: outcome.action,
+          applied: 0,
+          rolledBack: outcome.rolledBack,
+        });
+        return;
+      }
+      setDurabilityHeaders(
+        res,
+        outcome.durability.configured,
+        outcome.durability.achieved,
+      );
+      res.json({
+        applied: outcome.applied,
+        results: outcome.results,
+        durability: outcome.durability.achieved,
+      });
+    }),
+  );
+
+  /**
+   * PUT /api/ns/:ns/tables/:table/:pk — upsert one row by primary key.
+   *
+   * REST-ATOMICITY-001 AC-1: insert-or-replace in ONE serialized operation
+   * under the namespace write lock, answering which branch ran plus the
+   * resulting row (201 inserted / 200 updated).
+   */
+  router.put(
+    "/:table/:pk",
+    requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const ns = param(req, "ns");
+      const tableName = param(req, "table");
+      // Resolve first so an unknown table is a 404 before the body is judged.
+      resolveTableDeclaration(ns, tableName);
+      const body = req.body;
+      if (typeof body !== "object" || body === null || Array.isArray(body)) {
+        throw new ApiError(
+          "PUT body must be a JSON object of column values",
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      const rawPk = param(req, "pk");
+      const pkFilter = rawPk.startsWith("eq.") ? rawPk : `eq.${rawPk}`;
+      const result = await upsertTableRow(
+        ns,
+        tableName,
+        pkFilter,
+        body as Record<string, unknown>,
+        getPrincipal(req),
+      );
+      setDurabilityHeaders(
+        res,
+        result.durability.configured,
+        result.durability.achieved,
+      );
+      res.status(result.outcome === "inserted" ? 201 : 200).json({
+        outcome: result.outcome,
+        inserted: result.outcome === "inserted",
+        row: result.row,
+      });
+    }),
+  );
 
   /**
    * POST /api/ns/:ns/tables/:table — insert (object / array / NDJSON).

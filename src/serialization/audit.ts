@@ -57,7 +57,13 @@ export interface AcceptedTableMutationAuditInput {
   /** Namespace directory — resolves declared key columns and schema version. */
   namespacePath: string;
   table: string;
-  op: "update" | "delete";
+  /**
+   * `insert` was added by REST-ATOMICITY-001: a transaction envelope appends
+   * every action's change record itself (it cannot hand the serializer a
+   * WriteRequest per action), and an insert action must produce the same
+   * accepted change record the insert path would have.
+   */
+  op: "insert" | "update" | "delete";
   principal: string | null;
   /** Namespace-relative POSIX path of the data file the row lives in. */
   targetPath: string;

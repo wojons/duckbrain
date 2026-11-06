@@ -21,6 +21,7 @@
  *     write lock, DB-SUPA-5 change record before the acknowledgement.
  */
 
+import fs from "fs";
 import path from "path";
 import { ApiError } from "../http/middleware/errorHandler";
 import { listTables, getTable, namespaceDir, type TableDeclaration } from "../schema/table-registry";
@@ -35,6 +36,9 @@ import {
   findRowLineByPk,
   patchRowsByPk,
   deleteRowsByPk,
+  resolveTableFiles,
+  serializeRowLine,
+  deriveSyntheticFilePath,
   type MutationOutcome,
   type RowLineLocation,
 } from "../duckdb/table-store";
@@ -47,6 +51,7 @@ import {
 } from "../serialization/lock";
 import { resolveNamespacesPath } from "../config";
 import {
+  barrierWrittenPaths,
   durabilityHeaderFor,
   type AchievedWriteMode,
   type WriteMode,
@@ -88,6 +93,7 @@ export function asLegacyDeclaration(
       name: c.name,
       type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
       nullable: c.nullable,
+      ...(c.references ? { references: { ...c.references } } : {}),
     })),
     primary: decl.keyColumns[0] ?? null,
     glob: decl.storagePath,
@@ -177,7 +183,14 @@ export function resolvePkFilter(
 }
 
 /** Query keys that are not column filters. */
-const RESERVED_QUERY_KEYS = new Set(["order", "limit", "offset", "count", "pk"]);
+const RESERVED_QUERY_KEYS = new Set([
+  "order",
+  "limit",
+  "offset",
+  "count",
+  "pk",
+  "embed",
+]);
 
 /**
  * Extract only the querystring entries that look like column filters.
@@ -221,6 +234,11 @@ export interface SelectTableInput {
   limit?: unknown;
   offset?: unknown;
   wantCount?: boolean;
+  /**
+   * REST-ATOMICITY-001 AC-3: declared relations to EMBED, one level deep.
+   * Each name must be the `references.table` of a column on this table.
+   */
+  embed?: string | string[] | undefined;
 }
 
 export interface SelectTableResult {
@@ -272,7 +290,83 @@ export async function selectTableRows(
     }
     return shaped;
   });
-  return { declaration, rows, totalCount };
+  const embeds = normalizeEmbeds(input.embed);
+  const withEmbeds =
+    embeds.length > 0 ? embedDeclaredRelations(ns, declaration, rows, embeds) : rows;
+  return { declaration, rows: withEmbeds, totalCount };
+}
+
+/** `?embed=a,b` / `?embed=a` / `["a","b"]` → names (order preserved). */
+function normalizeEmbeds(raw: string | string[] | undefined): string[] {
+  if (raw === undefined) return [];
+  const parts = Array.isArray(raw) ? raw : String(raw).split(",");
+  const out: string[] = [];
+  for (const part of parts) {
+    const name = String(part).trim();
+    if (name.length > 0 && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * REST-ATOMICITY-001 AC-3: one-level resource embedding over a DECLARED
+ * relation.
+ *
+ * The relation comes from the SUPA-6 declaration (`columns[].references`) —
+ * JSONL has no foreign key to introspect, and there is deliberately no second
+ * declaration format. Each embedded row is resolved with the same key lookup
+ * PATCH/DELETE use, so an embedded row is the row the API would serve for that
+ * key (a missing target is `null`, never an omission).
+ */
+function embedDeclaredRelations(
+  ns: string,
+  declaration: TableDeclaration,
+  rows: Record<string, unknown>[],
+  embeds: string[],
+): Record<string, unknown>[] {
+  const nsDir = namespaceDir(ns);
+  let current = rows;
+  for (const name of embeds) {
+    if (name.includes(".")) {
+      throw new ApiError(
+        `Only one level of embedding is supported: '${name}' names a nested relation`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    const referencing = declaration.columns.find(
+      (column) => column.references?.table === name,
+    );
+    if (!referencing) {
+      const declared = declaration.columns
+        .filter((column) => column.references)
+        .map((column) => column.references!.table);
+      throw new ApiError(
+        `Table '${declaration.name}' declares no reference to '${name}' (declared references: ${declared.length > 0 ? [...new Set(declared)].join(", ") : "none"})`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    const target = resolveTableDeclaration(ns, name);
+    const targetKeyName = referencing.references!.column;
+    const targetKey = target.columns.find((column) => column.name === targetKeyName);
+    if (!targetKey) {
+      throw new ApiError(
+        `Table '${name}' has no column '${targetKeyName}' named by '${declaration.name}.${referencing.name}.references'`,
+        500,
+        "SCHEMA_INVALID",
+      );
+    }
+    current = current.map((row) => {
+      const value = row[referencing.name];
+      const embedded =
+        value === null || value === undefined
+          ? null
+          : findRowByPk(nsDir, target, targetKey, String(value));
+      return { ...row, [name]: embedded };
+    });
+  }
+  return current;
 }
 
 /** How long an accepted mutation's audit append waits out lock contention. */
@@ -315,7 +409,7 @@ async function enqueueMutationAuditWithRetry(
 async function recordTableMutationAudit(
   ns: string,
   table: string,
-  op: "update" | "delete",
+  op: "insert" | "update" | "delete",
   principal: string | null,
   location: { targetPath: string; dataLine: string; row: unknown },
 ): Promise<void> {
@@ -659,5 +753,789 @@ export async function deleteTableRows(
   return {
     deleted: removed,
     durability: { configured, achieved: deleteOutcome?.achieved ?? configured },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// REST-ATOMICITY-001 — upsert by primary key + a transaction envelope
+// ---------------------------------------------------------------------------
+//
+// Both verbs exist because an app built on the store could not be atomic:
+// PATCH answers `{updated:0}` for a missing row (a read-then-write by the
+// client is a lost-update race), and N independent requests have no unit of
+// work. Both therefore run the READ and the WRITE inside ONE namespace write
+// lock — the same lock the serializer's flush and the commit chain take — so
+// the decision cannot interleave with another writer process.
+//
+// Why the in-lock writes are the store's own primitives rather than
+// `NamespaceWriter.enqueue`: the serializer is asynchronous and takes this very
+// lock to flush, so an `await enqueue()` while holding the lock would deadlock
+// against its own flush. Validation still runs through the SUPA-6 validator
+// (`coerceRowAgainstDeclaration`), the DDL/schema fences are asserted before
+// the lock is taken, and every accepted action's change record is appended
+// through the serializer AFTER the lock is released — one record per action,
+// which is also one change-feed entry per action.
+
+/** Default bound on the actions one envelope may carry. */
+export const TRANSACTION_MAX_ACTIONS = 100;
+/** Bound on the bytes an envelope may snapshot for rollback. */
+export const TRANSACTION_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024;
+
+/** Type a URL-supplied primary key into the column's API representation. */
+function typedPkValue(
+  col: TableDeclaration["columns"][number],
+  value: string,
+): unknown {
+  // Declared v1 (SUPA-6) representations are canonical STRINGS for int64 /
+  // timestamp / bytes — hand them through and let the declared validator
+  // normalise; legacy `.table.json` declarations take real JSON primitives.
+  if (col.declaredType !== undefined) return value;
+  switch (col.type) {
+    case "integer":
+    case "bigint": {
+      if (!/^-?\d+$/.test(value)) {
+        throw new ApiError(
+          `Primary key '${col.name}' requires an integer, got ${JSON.stringify(value)}`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      const numeric = Number(value);
+      if (!Number.isSafeInteger(numeric)) {
+        throw new ApiError(
+          `Primary key '${col.name}' value ${JSON.stringify(value)} is outside the safe integer range`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      return numeric;
+    }
+    case "double": {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        throw new ApiError(
+          `Primary key '${col.name}' requires a finite number, got ${JSON.stringify(value)}`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      return numeric;
+    }
+    case "boolean": {
+      if (value === "true") return true;
+      if (value === "false") return false;
+      throw new ApiError(
+        `Primary key '${col.name}' requires true|false, got ${JSON.stringify(value)}`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    default:
+      return value;
+  }
+}
+
+/** Which branch of an upsert ran, the resulting row, and durability achieved. */
+export interface UpsertTableResult {
+  outcome: "inserted" | "updated";
+  row: Record<string, unknown>;
+  durability: TableDurability;
+}
+
+/**
+ * PUT semantics: insert-or-replace one row by primary key, atomically.
+ *
+ * One serialized operation under the namespace write lock: the row lookup and
+ * the write that follows it cannot be split by another writer, so two
+ * concurrent upserts of one key produce exactly one row (the falsifier the
+ * row's acceptance criteria name). Returns which branch ran plus the resulting
+ * row image, so a client never has to follow up with a GET.
+ */
+export async function upsertTableRow(
+  ns: string,
+  table: string,
+  pkRaw: unknown,
+  body: Record<string, unknown>,
+  principal?: AuthPrincipal,
+): Promise<UpsertTableResult> {
+  const declaration = resolveTableDeclaration(ns, table);
+  const { col, value } = resolvePkFilter(declaration, pkRaw, "PUT");
+  const unknownKeys = Object.keys(body).filter(
+    (key) => !declaration.columns.some((column) => column.name === key),
+  );
+  if (unknownKeys.length > 0) {
+    throw new ApiError(
+      `Unknown column(s) in PUT body: ${unknownKeys.join(", ")}`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (declaration.source === "schema.json") {
+    assertNamespaceDdlUsable(ns);
+    assertNamespaceSchemaUsable(ns);
+  }
+
+  const pkTyped = typedPkValue(col, String(value));
+  if (Object.prototype.hasOwnProperty.call(body, col.name)) {
+    const supplied = body[col.name];
+    if (supplied !== null && String(supplied) !== String(pkTyped)) {
+      throw new ApiError(
+        `PUT body carries '${col.name}: ${JSON.stringify(supplied)}' which does not match the resource key '${value}'`,
+        409,
+        "PRIMARY_KEY_CONFLICT",
+      );
+    }
+  }
+
+  const nsDir = namespaceDir(ns);
+  const configured = durabilityHeaderFor(ns);
+  const lock = await acquireNamespaceWriteLockWaiting(ns);
+  if (!lock) {
+    throw new ApiError(
+      `Namespace '${ns}' is locked by another writer process`,
+      503,
+      "SERIALIZER_LOCKED",
+    );
+  }
+
+  let outcome: "inserted" | "updated" = "updated";
+  let resultRow: Record<string, unknown> = {};
+  let achieved: AchievedWriteMode = configured;
+  let record:
+    | { op: "insert" | "update"; targetPath: string; dataLine: string; row: unknown }
+    | null = null;
+  try {
+    const existing = findRowByPk(nsDir, declaration, col, value);
+    if (existing !== null) {
+      // The path key wins over the stored row's key: a PUT replaces the
+      // resource the URL names, it does not move it.
+      const merged = coerceRowAgainstDeclaration(declaration, {
+        ...existing,
+        ...body,
+        [col.name]: existing[col.name],
+      });
+      const patched = patchRowsByPk(nsDir, declaration, col, value, merged, {
+        mode: configured,
+      });
+      if (patched.mutated === 0) {
+        throw new ApiError(
+          `PUT could not replace '${declaration.name}' row ${col.name}=${value}: the row changed under the write lock`,
+          409,
+          "CONFLICT",
+        );
+      }
+      achieved = patched.achieved;
+      resultRow = merged;
+      const location = findRowLineByPk(
+        nsDir,
+        declaration,
+        col,
+        String(merged[col.name] ?? value),
+      );
+      if (location === null) {
+        throw new ApiError(
+          "mutation was applied but the replaced row could not be located for its change record",
+          500,
+          "AUDIT_APPEND_FAILED",
+        );
+      }
+      record = {
+        op: "update",
+        targetPath: namespaceRelativePath(nsDir, location.filePath),
+        dataLine: location.line,
+        row: location.row,
+      };
+    } else {
+      outcome = "inserted";
+      const candidate = coerceRowAgainstDeclaration(declaration, {
+        ...body,
+        [col.name]: pkTyped,
+      });
+      const appended = appendRowsToTable(nsDir, declaration, [candidate], configured);
+      achieved = appended.achieved;
+      resultRow = candidate;
+      const files = resolveTableFiles(nsDir, declaration);
+      const targetPath =
+        files.length > 0
+          ? files[files.length - 1]!.absPath
+          : deriveSyntheticFilePath(nsDir, declaration);
+      record = {
+        op: "insert",
+        targetPath: namespaceRelativePath(nsDir, targetPath),
+        dataLine: serializeRowLine(declaration, candidate),
+        row: candidate,
+      };
+    }
+  } finally {
+    releaseNamespaceWriteLock(lock);
+  }
+
+  await recordTableMutationAudit(ns, declaration.name, record.op, principal?.name ?? null, {
+    targetPath: record.targetPath,
+    dataLine: record.dataLine,
+    row: record.row,
+  });
+  return { outcome, row: resultRow, durability: { configured, achieved } };
+}
+
+/** One action of a transaction envelope. */
+export interface TableTransactionAction {
+  op: "insert" | "update" | "upsert" | "delete";
+  table: string;
+  /** Full row (insert), replacement row (upsert). */
+  row?: Record<string, unknown>;
+  /** Partial row (update). */
+  patch?: Record<string, unknown>;
+  /** Primary-key equality filter: `eq.<v>` or the bare value. */
+  pk?: unknown;
+}
+
+export interface TableTransactionActionResult {
+  index: number;
+  op: TableTransactionAction["op"];
+  table: string;
+  outcome: "inserted" | "updated" | "deleted";
+  affected: number;
+  row: Record<string, unknown> | null;
+}
+
+export interface TableTransactionSuccess {
+  ok: true;
+  applied: number;
+  results: TableTransactionActionResult[];
+  durability: TableDurability;
+}
+
+/**
+ * Every action failed: NOTHING from the envelope is on disk. `applied: 0` is a
+ * claim the envelope proves by restoring the pre-transaction bytes of every
+ * file it could have touched (and deleting any file it created).
+ */
+export interface TableTransactionFailure {
+  ok: false;
+  applied: 0;
+  failedAction: number;
+  action: TableTransactionAction | null;
+  status: number;
+  code: string;
+  message: string;
+  rolledBack: true;
+}
+
+export type TableTransactionOutcome =
+  | TableTransactionSuccess
+  | TableTransactionFailure;
+
+/**
+ * Fault-injection seam. Production callers never pass hooks; the rollback
+ * falsifier needs a throw BETWEEN two actions, which no request body can
+ * produce on its own.
+ */
+export interface TableTransactionOptions {
+  hooks?: {
+    afterAction?: (index: number) => void;
+    afterBarrier?: () => void;
+  };
+}
+
+interface PreparedTransactionAction {
+  action: TableTransactionAction;
+  declaration: TableDeclaration;
+  pkCol: TableDeclaration["columns"][number] | null;
+  pkValue: string | null;
+  row: Record<string, unknown> | null;
+  patch: Record<string, unknown> | null;
+}
+
+/** Structural + per-action validation. Throws `ApiError` before any write. */
+function prepareTransactionActions(
+  ns: string,
+  rawActions: unknown,
+): PreparedTransactionAction[] {
+  if (!Array.isArray(rawActions) || rawActions.length === 0) {
+    throw new ApiError(
+      "Transaction body must be { actions: [...] } with at least one action",
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (rawActions.length > TRANSACTION_MAX_ACTIONS) {
+    throw new ApiError(
+      `Transaction carries ${rawActions.length} actions; the envelope limit is ${TRANSACTION_MAX_ACTIONS}`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  const prepared: PreparedTransactionAction[] = [];
+  for (const [index, raw] of rawActions.entries()) {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+      throw new ApiError(
+        `Transaction action ${index} must be an object`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    const action = raw as TableTransactionAction;
+    if (
+      action.op !== "insert" &&
+      action.op !== "update" &&
+      action.op !== "upsert" &&
+      action.op !== "delete"
+    ) {
+      throw new ApiError(
+        `Transaction action ${index} has unknown op ${JSON.stringify(action.op)}; expected insert|update|upsert|delete`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    if (typeof action.table !== "string" || action.table.length === 0) {
+      throw new ApiError(
+        `Transaction action ${index} requires a table name`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    const declaration = resolveTableDeclaration(ns, action.table);
+    let pkCol: PreparedTransactionAction["pkCol"] = null;
+    let pkValue: string | null = null;
+    if (action.op !== "insert") {
+      const filter = resolvePkFilter(declaration, action.pk, action.op.toUpperCase());
+      pkCol = filter.col;
+      pkValue = filter.value;
+    }
+    let row: Record<string, unknown> | null = null;
+    let patch: Record<string, unknown> | null = null;
+    const objectBody = (value: unknown, what: string): Record<string, unknown> => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        throw new ApiError(
+          `Transaction action ${index} (${action.op} ${action.table}): ${what} must be a JSON object`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      return value as Record<string, unknown>;
+    };
+    if (action.op === "insert" || action.op === "upsert") {
+      row = objectBody(action.row, "row");
+      // Validate the FULL row now (SUPA-6 canonical rules included) so a bad
+      // action fails before the envelope has written anything.
+      const seeded =
+        action.op === "upsert" && pkCol !== null && pkValue !== null
+          ? { ...row, [pkCol.name]: typedPkValue(pkCol, pkValue) }
+          : row;
+      row = coerceRowAgainstDeclaration(declaration, seeded);
+      if (declaration.primary !== null) {
+        const pk = row[declaration.primary];
+        if (pk === undefined || pk === null || pk === "") {
+          throw new ApiError(
+            `Transaction action ${index} is missing the primary key '${declaration.primary}' for table '${declaration.name}'`,
+            400,
+            "VALIDATION_ERROR",
+          );
+        }
+      }
+    }
+    if (action.op === "update") {
+      patch = objectBody(action.patch, "patch");
+      const unknown = Object.keys(patch).filter(
+        (key) => !declaration.columns.some((column) => column.name === key),
+      );
+      if (unknown.length > 0) {
+        throw new ApiError(
+          `Transaction action ${index} (update ${action.table}): unknown column(s) ${unknown.join(", ")}`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+    }
+    prepared.push({ action, declaration, pkCol, pkValue, row, patch });
+  }
+  return prepared;
+}
+
+interface SnapshotFile {
+  path: string;
+  bytes: Buffer | null;
+}
+
+/** Pre-image of every file the envelope could touch, or a 413 when too large. */
+function snapshotCandidateFiles(
+  nsDir: string,
+  declarations: TableDeclaration[],
+): Map<string, SnapshotFile> {
+  const snapshot = new Map<string, SnapshotFile>();
+  let total = 0;
+  for (const declaration of declarations) {
+    const candidates = new Set<string>(
+      resolveTableFiles(nsDir, declaration).map((file) => file.absPath),
+    );
+    candidates.add(deriveSyntheticFilePath(nsDir, declaration));
+    for (const candidate of candidates) {
+      if (snapshot.has(candidate)) continue;
+      let bytes: Buffer | null = null;
+      try {
+        bytes = fs.readFileSync(candidate);
+      } catch {
+        bytes = null;
+      }
+      total += bytes?.length ?? 0;
+      if (total > TRANSACTION_SNAPSHOT_MAX_BYTES) {
+        throw new ApiError(
+          `Transaction would snapshot ${total} bytes; the envelope cap is ${TRANSACTION_SNAPSHOT_MAX_BYTES} bytes — split it into smaller envelopes`,
+          413,
+          "PAYLOAD_TOO_LARGE",
+        );
+      }
+      snapshot.set(candidate, { path: candidate, bytes });
+    }
+  }
+  return snapshot;
+}
+
+/** Restore every snapshotted file to its pre-envelope bytes. */
+function restoreSnapshot(
+  snapshot: Map<string, SnapshotFile>,
+  mode: WriteMode,
+): void {
+  const touched: string[] = [];
+  for (const entry of snapshot.values()) {
+    if (entry.bytes === null) {
+      // Did not exist before: anything there now was created by this envelope.
+      if (fs.existsSync(entry.path)) {
+        fs.unlinkSync(entry.path);
+        touched.push(path.dirname(entry.path));
+      }
+      continue;
+    }
+    const current = fs.existsSync(entry.path)
+      ? fs.readFileSync(entry.path)
+      : null;
+    if (current !== null && entry.bytes.equals(current)) continue;
+    fs.mkdirSync(path.dirname(entry.path), { recursive: true });
+    fs.writeFileSync(entry.path, entry.bytes);
+    touched.push(entry.path);
+  }
+  if (touched.length > 0) {
+    // Rollback is not acknowledged as a write, but a restored file must still
+    // be on stable storage before the failure response claims "nothing applied".
+    barrierWrittenPaths(touched, mode);
+  }
+}
+
+interface AppliedAction {
+  summary: TableTransactionActionResult;
+  record: {
+    op: "insert" | "update" | "delete";
+    table: string;
+    targetPath: string;
+    dataLine: string;
+    row: unknown;
+  };
+}
+
+/**
+ * Apply ONE action against the store primitives, with the namespace write lock
+ * already held. Buffered writes: the envelope bars everything once at commit.
+ */
+function applyTransactionActionLocked(
+  nsDir: string,
+  prepared: PreparedTransactionAction,
+  index: number,
+): AppliedAction {
+  const { action, declaration } = prepared;
+  const table = declaration.name;
+  if (action.op === "insert") {
+    if (declaration.primary !== null) {
+      const pk = prepared.row![declaration.primary];
+      const pkCol = declaration.columns.find(
+        (column) => column.name === declaration.primary,
+      )!;
+      if (findRowByPk(nsDir, declaration, pkCol, String(pk)) !== null) {
+        throw new ApiError(
+          `insert '${table}' would create a duplicate primary key ${declaration.primary}=${String(pk)}`,
+          409,
+          "PRIMARY_KEY_CONFLICT",
+        );
+      }
+    }
+    appendRowsToTable(nsDir, declaration, [prepared.row!], "buffered");
+    const files = resolveTableFiles(nsDir, declaration);
+    const targetPath =
+      files.length > 0
+        ? files[files.length - 1]!.absPath
+        : deriveSyntheticFilePath(nsDir, declaration);
+    return {
+      summary: {
+        index,
+        op: action.op,
+        table,
+        outcome: "inserted",
+        affected: 1,
+        row: prepared.row,
+      },
+      record: {
+        op: "insert",
+        table,
+        targetPath: namespaceRelativePath(nsDir, targetPath),
+        dataLine: serializeRowLine(declaration, prepared.row!),
+        row: prepared.row,
+      },
+    };
+  }
+
+  const pkCol = prepared.pkCol!;
+  const pkValue = prepared.pkValue!;
+  if (action.op === "update") {
+    const mutated = patchRowsByPk(nsDir, declaration, pkCol, pkValue, prepared.patch!, {
+      mode: "buffered",
+    });
+    if (mutated.mutated === 0) {
+      throw new ApiError(
+        `update '${table}' matched no row for ?pk=eq.${pkValue}`,
+        404,
+        "NOT_FOUND",
+      );
+    }
+    const location = findRowLineByPk(nsDir, declaration, pkCol, pkValue);
+    if (location === null) {
+      throw new ApiError(
+        `update '${table}' applied but the updated row could not be located for its change record`,
+        500,
+        "AUDIT_APPEND_FAILED",
+      );
+    }
+    return {
+      summary: {
+        index,
+        op: action.op,
+        table,
+        outcome: "updated",
+        affected: mutated.mutated,
+        row: location.row as Record<string, unknown>,
+      },
+      record: {
+        op: "update",
+        table,
+        targetPath: namespaceRelativePath(nsDir, location.filePath),
+        dataLine: location.line,
+        row: location.row,
+      },
+    };
+  }
+
+  if (action.op === "delete") {
+    const location = findRowLineByPk(nsDir, declaration, pkCol, pkValue);
+    if (location === null) {
+      throw new ApiError(
+        `delete '${table}' matched no row for ?pk=eq.${pkValue}`,
+        404,
+        "NOT_FOUND",
+      );
+    }
+    const removed = deleteRowsByPk(nsDir, declaration, pkCol, pkValue, "buffered");
+    if (removed.mutated === 0) {
+      throw new ApiError(
+        `delete '${table}' matched no row for ?pk=eq.${pkValue}`,
+        404,
+        "NOT_FOUND",
+      );
+    }
+    return {
+      summary: {
+        index,
+        op: action.op,
+        table,
+        outcome: "deleted",
+        affected: removed.mutated,
+        row: null,
+      },
+      record: {
+        op: "delete",
+        table,
+        targetPath: namespaceRelativePath(nsDir, location.filePath),
+        dataLine: location.line,
+        row: location.row,
+      },
+    };
+  }
+
+  // upsert: the same decision `upsertTableRow` makes, inside the envelope.
+  const existing = findRowByPk(nsDir, declaration, pkCol, pkValue);
+  if (existing !== null) {
+    const merged = coerceRowAgainstDeclaration(declaration, {
+      ...existing,
+      ...prepared.row!,
+      [pkCol.name]: existing[pkCol.name],
+    });
+    const patched = patchRowsByPk(nsDir, declaration, pkCol, pkValue, merged, {
+      mode: "buffered",
+    });
+    if (patched.mutated === 0) {
+      throw new ApiError(
+        `upsert '${table}' could not replace ?pk=eq.${pkValue}`,
+        409,
+        "CONFLICT",
+      );
+    }
+    const location = findRowLineByPk(nsDir, declaration, pkCol, pkValue);
+    if (location === null) {
+      throw new ApiError(
+        `upsert '${table}' applied but the replaced row could not be located for its change record`,
+        500,
+        "AUDIT_APPEND_FAILED",
+      );
+    }
+    return {
+      summary: {
+        index,
+        op: action.op,
+        table,
+        outcome: "updated",
+        affected: patched.mutated,
+        row: location.row as Record<string, unknown>,
+      },
+      record: {
+        op: "update",
+        table,
+        targetPath: namespaceRelativePath(nsDir, location.filePath),
+        dataLine: location.line,
+        row: location.row,
+      },
+    };
+  }
+  appendRowsToTable(nsDir, declaration, [prepared.row!], "buffered");
+  const files = resolveTableFiles(nsDir, declaration);
+  const targetPath =
+    files.length > 0
+      ? files[files.length - 1]!.absPath
+      : deriveSyntheticFilePath(nsDir, declaration);
+  return {
+    summary: {
+      index,
+      op: action.op,
+      table,
+      outcome: "inserted",
+      affected: 1,
+      row: prepared.row,
+    },
+    record: {
+      op: "insert",
+      table,
+      targetPath: namespaceRelativePath(nsDir, targetPath),
+      dataLine: serializeRowLine(declaration, prepared.row!),
+      row: prepared.row,
+    },
+  };
+}
+
+/**
+ * Run an ordered envelope of mutations as a UNIT.
+ *
+ * Contract (REST-ATOMICITY-001 AC-2):
+ *   - all-or-nothing: on any failure every file the envelope could have
+ *     touched is restored to its pre-envelope bytes (and any file it created
+ *     is removed), so the failure response's `applied: 0` is true;
+ *   - one durability barrier at commit (not one per action);
+ *   - one audit record — and therefore one change-feed entry — per action;
+ *   - the failure names the action that failed (`failedAction`).
+ *
+ * Validation of the whole envelope happens BEFORE any write, so a malformed
+ * action never gets as far as the rollback path.
+ */
+export async function runTableTransaction(
+  ns: string,
+  rawActions: unknown,
+  principal?: AuthPrincipal,
+  options: TableTransactionOptions = {},
+): Promise<TableTransactionOutcome> {
+  const prepared = prepareTransactionActions(ns, rawActions);
+  const declarations = [...new Map(
+    prepared.map((entry) => [entry.declaration.name, entry.declaration]),
+  ).values()];
+  if (declarations.some((declaration) => declaration.source === "schema.json")) {
+    assertNamespaceDdlUsable(ns);
+    assertNamespaceSchemaUsable(ns);
+  }
+  const nsDir = namespaceDir(ns);
+  const configured = durabilityHeaderFor(ns);
+
+  const lock = await acquireNamespaceWriteLockWaiting(ns);
+  if (!lock) {
+    throw new ApiError(
+      `Namespace '${ns}' is locked by another writer process`,
+      503,
+      "SERIALIZER_LOCKED",
+    );
+  }
+
+  const results: TableTransactionActionResult[] = [];
+  const records: AppliedAction["record"][] = [];
+  let achieved: AchievedWriteMode = configured;
+  try {
+    const snapshot = snapshotCandidateFiles(nsDir, declarations);
+    try {
+      for (const [index, entry] of prepared.entries()) {
+        const applied = applyTransactionActionLocked(nsDir, entry, index);
+        results.push(applied.summary);
+        records.push(applied.record);
+        options.hooks?.afterAction?.(index);
+      }
+      // ONE barrier for the whole envelope.
+      achieved = barrierWrittenPaths(
+        [...snapshot.values()]
+          .map((entry) => entry.path)
+          .filter((file) => fs.existsSync(file)),
+        configured,
+      );
+      options.hooks?.afterBarrier?.();
+    } catch (error) {
+      try {
+        restoreSnapshot(snapshot, configured);
+      } catch (rollbackError) {
+        // Never report "rolled back" when the rollback itself failed.
+        throw new ApiError(
+          `Transaction failed AND the rollback could not restore the pre-envelope bytes: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)} — inspect the namespace before retrying`,
+          500,
+          "ROLLBACK_FAILED",
+        );
+      }
+      const status = error instanceof ApiError ? error.status : 500;
+      const code = error instanceof ApiError ? error.code ?? "TRANSACTION_FAILED" : "TRANSACTION_FAILED";
+      const message = error instanceof Error ? error.message : String(error);
+      const failedAction = results.length;
+      const failedEntry = prepared[failedAction];
+      const where = failedEntry
+        ? `${failedEntry.action.op} ${failedEntry.action.table}`
+        : "commit barrier";
+      return {
+        ok: false,
+        applied: 0,
+        failedAction,
+        action: failedEntry?.action ?? null,
+        status,
+        code,
+        message: `Transaction failed at action ${failedAction} (${where}): ${message}. Nothing from this envelope was applied — every touched file was restored.`,
+        rolledBack: true,
+      };
+    }
+  } finally {
+    releaseNamespaceWriteLock(lock);
+  }
+
+  // One change record per action, appended through the serializer AFTER the
+  // lock is released (its flush takes the same lock).
+  for (const record of records) {
+    await recordTableMutationAudit(ns, record.table, record.op, principal?.name ?? null, {
+      targetPath: record.targetPath,
+      dataLine: record.dataLine,
+      row: record.row,
+    });
+  }
+
+  return {
+    ok: true,
+    applied: results.length,
+    results,
+    durability: { configured, achieved },
   };
 }

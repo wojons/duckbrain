@@ -78,6 +78,12 @@ export interface TableColumn {
   default?: unknown;
   /** True when a `default` was declared (an explicit `null` default counts). */
   hasDefault?: boolean;
+  /**
+   * REST-ATOMICITY-001: the DB-SUPA-6 DECLARED relation on this column
+   * (`references: { table, column }`), when one was declared. Absent on
+   * legacy `.table.json` tables — they have no declaration surface for it.
+   */
+  references?: { table: string; column: string };
 }
 
 export interface TableDeclaration {
@@ -363,6 +369,9 @@ export function tableDeclarationFromSchema(
       nullable: column.nullable,
       ...(column.default !== undefined ? { default: column.default } : {}),
       hasDefault: column.default !== undefined,
+      // REST-ATOMICITY-001: carry the DECLARED relation through to the read
+      // layer — `?embed=` resolves only relations the schema declared.
+      ...(column.references ? { references: { ...column.references } } : {}),
     })),
     primary: singleKeyColumn(declaration.keyColumns),
     glob: declaration.storagePath,

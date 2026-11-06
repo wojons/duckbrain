@@ -56,12 +56,26 @@ export interface SchemaDocument {
 // Structural schema (closed world)
 // ---------------------------------------------------------------------------
 
+const ColumnReferenceSchema = z
+  .object({
+    table: z.string(),
+    column: z.string(),
+  })
+  .strict();
+
 const ColumnSchema = z
   .object({
     name: z.string(),
     type: z.string(),
     nullable: z.boolean(),
     default: z.any().optional(),
+    /**
+     * REST-ATOMICITY-001 AC-3: a DECLARED one-level relation on this column.
+     * Optional and additive inside the v1 document (closed-world stays: an
+     * unknown FIELD is still rejected), so a document written before this
+     * change parses byte-identically.
+     */
+    references: ColumnReferenceSchema.optional(),
   })
   .strict();
 
@@ -205,6 +219,58 @@ function validateTable(
     }
     const problem = keyColumnProblem(column);
     if (problem) problems.push(`tables.${name}.${key}: ${problem}`);
+  }
+}
+
+/**
+ * REST-ATOMICITY-001 AC-3: validate every DECLARED relation.
+ *
+ * A relation is resolved by a key lookup (the REST embed projection calls the
+ * same `findRowByPk` the PATCH/DELETE paths use), so the target column must be
+ * its table's SINGLE key column and the two columns must carry the same
+ * declared type. Anything else is a declaration error, reported here rather
+ * than discovered as a wrong join at request time.
+ */
+function validateReferences(
+  document: SchemaDocument,
+  problems: string[],
+): void {
+  for (const [name, rawTable] of Object.entries(document.tables)) {
+    for (const column of rawTable.columns) {
+      const reference = column.references;
+      if (!reference) continue;
+      const where = `tables.${name}.${column.name}.references`;
+      const target = document.tables[reference.table];
+      if (!target) {
+        problems.push(
+          `${where}: table '${reference.table}' is not declared in this schema`,
+        );
+        continue;
+      }
+      const targetColumn = target.columns.find(
+        (candidate) => candidate.name === reference.column,
+      );
+      if (!targetColumn) {
+        problems.push(
+          `${where}: column '${reference.column}' is not declared on table '${reference.table}'`,
+        );
+        continue;
+      }
+      if (
+        target.keyColumns.length !== 1 ||
+        target.keyColumns[0] !== reference.column
+      ) {
+        problems.push(
+          `${where}: '${reference.table}.${reference.column}' must be the target's single key column (declared keyColumns: ${target.keyColumns.join(", ") || "(none)"})`,
+        );
+        continue;
+      }
+      if (targetColumn.type !== column.type) {
+        problems.push(
+          `${where}: type mismatch — '${name}.${column.name}' is ${column.type} but '${reference.table}.${reference.column}' is ${targetColumn.type}`,
+        );
+      }
+    }
   }
 }
 
@@ -605,6 +671,7 @@ export function schemaDocumentProblems(raw: unknown): string[] {
       }
     }
   }
+  validateReferences(document, problems);
   for (const [name, view] of Object.entries(document.views)) {
     validateView(name, view as unknown as SchemaView, document, problems);
   }
@@ -643,6 +710,12 @@ function canonicalColumn(column: DeclaredColumn): Record<string, unknown> {
     nullable: column.nullable,
   };
   if (column.default !== undefined) out.default = column.default;
+  if (column.references !== undefined) {
+    out.references = {
+      table: column.references.table,
+      column: column.references.column,
+    };
+  }
   return out;
 }
 

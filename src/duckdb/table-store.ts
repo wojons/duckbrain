@@ -749,6 +749,22 @@ export interface AppendOutcome {
   achieved: AchievedWriteMode;
 }
 
+/**
+ * The exact JSONL line a row is stored as, in this table's declared shape.
+ *
+ * REST-ATOMICITY-001: one serializer, so a caller that needs the LINE (a
+ * transaction envelope's per-action change record hashes it) cannot drift from
+ * what the append actually wrote.
+ */
+export function serializeRowLine(
+  declaration: TableDeclaration,
+  row: Record<string, unknown>,
+): string {
+  return declaration.format === "jsonl-positional"
+    ? JSON.stringify(declaration.columns.map((c) => row[c.name] ?? null))
+    : JSON.stringify(row);
+}
+
 export function appendRowsToTable(
   nsDir: string,
   declaration: TableDeclaration,
@@ -760,17 +776,13 @@ export function appendRowsToTable(
     files.length > 0
       ? files[files.length - 1]!.absPath
       : deriveSyntheticFilePath(nsDir, declaration);
-  const lines = rows.map((row) =>
-    declaration.format === "jsonl-positional"
-      ? JSON.stringify(declaration.columns.map((c) => row[c.name] ?? null))
-      : JSON.stringify(row),
-  );
+  const lines = rows.map((row) => serializeRowLine(declaration, row));
   const achieved = appendJsonlRows(target, lines, mode);
   return { inserted: rows.length, achieved };
 }
 
 /** Newest file = append target: the LAST file in the resolved (sorted) list. */
-function deriveSyntheticFilePath(
+export function deriveSyntheticFilePath(
   nsDir: string,
   declaration: TableDeclaration,
 ): string {

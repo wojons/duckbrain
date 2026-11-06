@@ -627,6 +627,42 @@ export function rewriteTextDurable(
   return "fsync";
 }
 
+/**
+ * REST-ATOMICITY-001: ONE durability barrier over every file a transaction
+ * envelope touched, instead of one per mutation.
+ *
+ * The envelope writes with the `buffered` primitives while it applies actions
+ * (so a failure can be rolled back in-memory without paying a barrier per
+ * action), then calls this once before acknowledging. `fdatasync` per touched
+ * file, then one `fsync` per distinct parent directory (which is what makes a
+ * newly created file's NAME durable). In `buffered` mode nothing is barred and
+ * the honest answer is `buffered` — the same contract every other write path
+ * reports through X-Durability.
+ */
+export function barrierWrittenPaths(
+  files: readonly string[],
+  mode: WriteMode,
+): AchievedWriteMode {
+  if (mode === "buffered") return "buffered";
+  const unique = [...new Set(files.map((file) => path.resolve(file)))];
+  const directories = new Set<string>();
+  for (const file of unique) {
+    if (!fs.existsSync(file)) continue;
+    const fd = fs.openSync(file, "r");
+    try {
+      barrierFile(fd, file);
+    } finally {
+      fs.closeSync(fd);
+    }
+    directories.add(path.dirname(file));
+  }
+  for (const dir of directories) {
+    if (!fs.existsSync(dir)) continue;
+    fsyncDirectory(dir, "transaction envelope barrier");
+  }
+  return "fsync";
+}
+
 // ── Shutdown barrier (AC-7) ──────────────────────────────────────────────────
 
 type DurabilityDrainHook = () => Promise<void> | void;

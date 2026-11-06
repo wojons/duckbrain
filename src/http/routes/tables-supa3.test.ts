@@ -695,11 +695,17 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.1.0");
+    // REST-ATOMICITY-001 extended the generated surface: `widgets/{pk}` is the
+    // key-addressed upsert resource (only for tables with a primary key — the
+    // positional `lane_scores` fixture declares none) and `_transaction` is the
+    // namespace-level mutation envelope.
     expect(Object.keys(res.body.paths).sort()).toEqual([
       "/api/memories",
       "/api/memories/key/{key}",
+      `/api/ns/${FIXTURE_NS}/tables/_transaction`,
       `/api/ns/${FIXTURE_NS}/tables/lane_scores`,
       `/api/ns/${FIXTURE_NS}/tables/widgets`,
+      `/api/ns/${FIXTURE_NS}/tables/widgets/{pk}`,
     ]);
     const widgets = res.body.paths[`/api/ns/${FIXTURE_NS}/tables/widgets`];
     expect(widgets.get.parameters.some((p: any) => p.name === "order")).toBe(

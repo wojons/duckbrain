@@ -71,6 +71,25 @@ export const TIMESTAMP_CANONICAL_PATTERN =
 
 export const BYTES_PREFIX = "base64url:";
 
+/**
+ * A DECLARED one-level relation (REST-ATOMICITY-001 AC-3).
+ *
+ * JSONL has no foreign keys to introspect, so a relation is declared on the
+ * REFERENCING column: `{ "table": "customers", "column": "id" }` means "this
+ * column's value is the `id` key of a row in `customers`". It rides the
+ * DB-SUPA-6 `schema.json` declaration (there is no second declaration format)
+ * and is what the REST `?embed=` projection resolves.
+ *
+ * Constraint: the target column must be the target table's single key column
+ * (see `validateReferences` in schemaJson.ts), because embedding resolves a
+ * reference with a key lookup — a relation to a non-unique column would make
+ * one embed value ambiguous.
+ */
+export interface DeclaredColumnReference {
+  table: string;
+  column: string;
+}
+
 export interface DeclaredColumn {
   name: string;
   type: DeclaredColumnType;
@@ -80,6 +99,8 @@ export interface DeclaredColumn {
    * cannot carry `undefined`, so an explicit `null` default stays distinct.
    */
   default?: unknown;
+  /** Declared one-level relation; absent means "not a foreign key". */
+  references?: DeclaredColumnReference;
 }
 
 export function isDeclaredColumnType(
