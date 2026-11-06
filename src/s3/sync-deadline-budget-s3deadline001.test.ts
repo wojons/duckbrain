@@ -142,7 +142,10 @@ describe("deadline behaviour (S3-GIT-007 protection, work-derived size)", () => 
     const stats = await syncNamespace(cfg(), "slow", nsPath, "push");
 
     expect(stats?.uploaded).toBe(40);
-    expect(wire.putCalls).toBe(40);
+    // 40 data objects + 1 checksum ledger object (S3-PULL-INTEGRITY-001: the
+    // push publishes `.s3state/checksums.json`; it is metadata, so it does not
+    // increment `uploaded`).
+    expect(wire.putCalls).toBe(41);
     expect(stats?.durationMs).toBeGreaterThan(1000); // exceeded the old cap
   }, 20000);
 

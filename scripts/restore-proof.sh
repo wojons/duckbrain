@@ -23,6 +23,12 @@
 # Either way the proof MUST exit 1 and name the divergent/missing file — a
 # proof whose control still passes is not a proof.
 #
+# S3-PULL-INTEGRITY-001: with `--fault corrupt-one` the failure must now be
+# raised BY THE ENGINE — `pull` exits nonzero and names the object key in its
+# own output — not merely discovered afterwards by the sha256 comparison. The
+# script asserts that attribution explicitly (step 5) and reports "NEGATIVE
+# CONTROL: PASS — the ENGINE refused ..." when it holds.
+#
 # EXIT: 0 = PASS, 1 = FAIL (mismatch / incomplete restore), 2 = usage or
 #       precondition error.
 #
@@ -225,8 +231,12 @@ PUSH_TOTAL_S=$(( $(date +%s) - PUSH_START ))
 POST_PUSH_CENSUS=$(node "$HELPER" census --bucket "$BUCKET" --prefix "$PREFIX")
 say "remote after push: $POST_PUSH_CENSUS"
 REMOTE_OBJECTS=$(echo "$POST_PUSH_CENSUS" | jq -r .objects)
-[ "$REMOTE_OBJECTS" = "$BASE_COUNT" ] || die "remote holds $REMOTE_OBJECTS objects but the baseline has $BASE_COUNT files — the push is not complete"
-say "remote object count == baseline file count ($REMOTE_OBJECTS) — PASS"
+# S3-PULL-INTEGRITY-001: every push also publishes one checksum ledger object
+# per namespace (<ns>/.s3state/checksums.json) — metadata, never restored as a
+# file. Data objects still have to account for every baseline file.
+EXPECTED_OBJECTS=$(( BASE_COUNT + ${#NS_LIST[@]} ))
+[ "$REMOTE_OBJECTS" = "$EXPECTED_OBJECTS" ] || die "remote holds $REMOTE_OBJECTS objects but $EXPECTED_OBJECTS were expected ($BASE_COUNT data files + ${#NS_LIST[@]} checksum ledgers) — the push is not complete"
+say "remote object count == baseline files + one checksum ledger per namespace ($REMOTE_OBJECTS) — PASS"
 
 if [ -n "$FAULT" ]; then
   step "3b/8 INJECT FAULT ($FAULT) — the negative control"
@@ -241,10 +251,35 @@ say "local source tree removed: $SRC_NS does not exist"
 
 step "5/8 restore with 'sync all pull' into an EMPTY root (namespace list comes from the remote)"
 PULL_START=$(date +%s)
+# S3-PULL-INTEGRITY-001: the pull's EXIT CODE is a first-class result. Capture
+# it (the pipe through tee would otherwise lose it behind `set -e`) so the
+# negative control can assert that the ENGINE caught the fault, not that the
+# hash comparison below noticed afterwards.
+PULL_RC=0
+set +e
 DUCKBRAIN_NAMESPACES_PATH="$RESTORE_NS" cli s3 sync all pull 2>&1 | tee "$LOGS/pull.log"
+PULL_RC=${PIPESTATUS[0]}
+set -e
 PULL_TOTAL_S=$(( $(date +%s) - PULL_START ))
-say "restore wall clock: ${PULL_TOTAL_S}s"
+say "restore wall clock: ${PULL_TOTAL_S}s (engine exit ${PULL_RC})"
 grep -E '^\[S3\] pull complete' "$LOGS/pull.log" | sed 's/^/[restore-proof] remote-enumerated: /' || true
+
+ENGINE_CAUGHT_FAULT=0
+if [ -n "$FAULT" ]; then
+  FAULT_KEY=$(jq -r '.corrupted // .deleted // empty' "$LOGS/fault.json" 2>/dev/null || true)
+  # The engine must REJECT the faulted object: nonzero exit AND the key named
+  # in its own output. A hash mismatch found by step 6 alone means the engine
+  # accepted corrupt bytes — the defect this control exists to catch.
+  if [ "$PULL_RC" -ne 0 ] && [ -n "$FAULT_KEY" ] && grep -qF "$FAULT_KEY" "$LOGS/pull.log"; then
+    ENGINE_CAUGHT_FAULT=1
+    say "NEGATIVE CONTROL: PASS — the ENGINE refused the faulted object (pull exit ${PULL_RC}) and named $FAULT_KEY in its own output"
+    grep -E 'FAILED \((integrity|transfer)\)' "$LOGS/pull.log" | head -3 | sed 's/^/[restore-proof]   engine: /' || true
+  else
+    printf '[restore-proof] NEGATIVE CONTROL DID NOT FIRE AT THE ENGINE: pull exit=%s, faulted key=%s, key named in pull log=%s\n' \
+      "$PULL_RC" "${FAULT_KEY:-<unknown>}" "$(grep -qF "${FAULT_KEY:-@@none@@}" "$LOGS/pull.log" && echo yes || echo no)"
+    printf '[restore-proof] That is the S3-PULL-INTEGRITY-001 defect: bytes the engine cannot verify were accepted silently.\n'
+  fi
+fi
 
 step "6/8 prove equivalence — namespace list, file count, per-file sha256"
 FAILURES=0
@@ -382,6 +417,12 @@ done
 say "projection = files x ${PER_OBJ}s per object (rate measured on the largest namespace above, at S3_SYNC_CONCURRENCY=${S3_SYNC_CONCURRENCY:-8}); per-object latency dominates, so the rate is a function of the pool width"
 
 step "result"
+if [ -n "$FAULT" ] && [ "$ENGINE_CAUGHT_FAULT" = "1" ]; then
+  say "NEGATIVE CONTROL RESULT: PASS — fault '${FAULT}' was caught AT THE ENGINE (exit ${PULL_RC}, key named, corrupt bytes never written)."
+  say "Exit 1 is the EXPECTED outcome of a --fault run: the restore is incomplete BY DESIGN, and a proof whose control still passed would be worthless."
+  say "The criteria counted above ($FAILURES) describe the resulting gap; the control's job was to make the engine report it, which it did."
+  exit 1
+fi
 if [ "$FAILURES" -eq 0 ]; then
   say "PASS — restore is byte-identical for $BASE_COUNT files across ${#NS_LIST[@]} namespace(s), and a scratch daemon read a known key out of the restored tree."
   exit 0

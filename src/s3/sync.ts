@@ -82,6 +82,161 @@ function md5Hex(buf: Buffer): string {
 }
 
 /**
+ * S3-PULL-INTEGRITY-001 — verify the bytes we just DOWNLOADED.
+ *
+ * The delta layer decides what to transfer from content identity; nothing
+ * verified what arrived. A remote object overwritten with same-length garbage
+ * was written to disk, the pull reported success, and a restore into an empty
+ * root served the corrupt bytes. Every downloaded body is now checked before
+ * it is allowed on disk, strongest evidence first:
+ *
+ *  1. LISTING SIZE — a body whose length differs from the object's listed size
+ *     was truncated/extended in transit. Always available, always decisive.
+ *  2. LEDGER sha256 — the hash our own push published for this path. Content
+ *     authority: it is the ONLY tier that catches an object rewritten
+ *     server-side, because such an object carries a self-consistent ETag
+ *     (the bucket derives it from whatever bytes it now holds) and passes any
+ *     md5 check. Checked FIRST, so a matching ETag can never short-circuit it.
+ *  3. SINGLE-PART ETag — an ETag without a '-' is the object's md5, so the
+ *     downloaded bytes' md5 must equal it. Transport/at-rest integrity for
+ *     objects we have no ledger entry for.
+ *  4. MANIFEST sha256 — our own local record of the bytes last synced for this
+ *     path, usable only while the listing's ETag still EQUALS the ETag
+ *     recorded with it: that version token is what proves the hash describes
+ *     the object we just fetched. A changed token means the remote was
+ *     rewritten since, so the recorded hash describes DIFFERENT bytes.
+ *  5. Nothing — no ledger entry, no usable ETag and no still-valid manifest
+ *     hash (fresh machine with pre-ledger data, multipart ETag, legacy
+ *     record). The bytes are accepted but REPORTED as unverified: a restore
+ *     that silently trusts them is how corruption becomes live memory, and a
+ *     restore that refuses them cannot run on a fresh machine at all.
+ */
+export interface DownloadEvidence {
+  /** ETag from the remote listing of the object being downloaded. */
+  etag?: string;
+  /** Size from the remote listing (the remote object's authoritative length). */
+  size?: number;
+  /**
+   * sha256 published in the namespace's checksum LEDGER (`<prefix>/<ns>/
+   * .s3state/checksums.json`, written by the push that uploaded the objects).
+   * This is the only evidence that survives a fresh machine: the listing ETag
+   * is recomputed from whatever bytes are stored now, so an object overwritten
+   * server-side carries a self-consistent ETag and passes the md5 tier.
+   */
+  ledgerSha256?: string;
+  /** sha256 recorded in our manifest at the last successful sync of this path. */
+  manifestSha256?: string;
+  /** ETag recorded in our manifest at that same sync (a version token). */
+  manifestEtag?: string;
+}
+
+export type DownloadVerdict =
+  | {
+      kind: "verified";
+      evidence: "etag-md5" | "ledger-sha256" | "manifest-sha256";
+    }
+  | { kind: "unverified"; reason: string }
+  | {
+      kind: "mismatch";
+      evidence: "listing-size" | "etag-md5" | "ledger-sha256" | "manifest-sha256";
+      expected: string;
+      actual: string;
+      detail: string;
+    };
+
+/** Verify one downloaded object body against the evidence we hold for it. */
+export function verifyDownloadedObject(
+  body: Buffer,
+  evidence: DownloadEvidence,
+): DownloadVerdict {
+  // Tier 0 — the listing's size is free and always comparable.
+  if (evidence.size !== undefined && body.length !== evidence.size) {
+    return {
+      kind: "mismatch",
+      evidence: "listing-size",
+      expected: String(evidence.size),
+      actual: String(body.length),
+      detail: `downloaded ${body.length} bytes but the listing says ${evidence.size}`,
+    };
+  }
+
+  // Tier 1 — the published checksum ledger: our own record of what these
+  // bytes were when they were uploaded. It is the only tier that survives a
+  // restore onto a machine with no local state, and the only one that can
+  // catch an object rewritten server-side (whose ETag is self-consistent).
+  if (evidence.ledgerSha256 !== undefined) {
+    const actual = sha256Hex(body);
+    if (actual === evidence.ledgerSha256) {
+      return { kind: "verified", evidence: "ledger-sha256" };
+    }
+    return {
+      kind: "mismatch",
+      evidence: "ledger-sha256",
+      expected: evidence.ledgerSha256,
+      actual,
+      detail: `sha256 ${actual} != ledger ${evidence.ledgerSha256}`,
+    };
+  }
+
+  // Tier 2 — a single-part ETag IS the md5 of the object.
+  const checksum = etagChecksum(evidence.etag);
+  if (checksum) {
+    const actual = md5Hex(body);
+    if (actual === checksum) return { kind: "verified", evidence: "etag-md5" };
+    return {
+      kind: "mismatch",
+      evidence: "etag-md5",
+      expected: checksum,
+      actual,
+      detail: `md5 ${actual} != listing ETag ${checksum}`,
+    };
+  }
+
+  // Tier 3 — our own manifest hash, valid only while the version token holds.
+  if (evidence.manifestSha256 !== undefined) {
+    const listed = (evidence.etag ?? "").replace(/"/g, "").trim();
+    const tokenHolds =
+      evidence.manifestEtag !== undefined &&
+      listed !== "" &&
+      listed === evidence.manifestEtag.replace(/"/g, "").trim();
+    if (tokenHolds) {
+      const actual = sha256Hex(body);
+      if (actual === evidence.manifestSha256) {
+        return { kind: "verified", evidence: "manifest-sha256" };
+      }
+      return {
+        kind: "mismatch",
+        evidence: "manifest-sha256",
+        expected: evidence.manifestSha256,
+        actual,
+        detail: `sha256 ${actual} != manifest ${evidence.manifestSha256} (remote version token unchanged)`,
+      };
+    }
+    return {
+      kind: "unverified",
+      reason: `manifest hash recorded but the remote version token changed (listing=${listed || "none"} recorded=${evidence.manifestEtag ?? "none"})`,
+    };
+  }
+
+  return {
+    kind: "unverified",
+    reason:
+      listedReason(evidence) ??
+      "no single-part ETag and no manifest identity for this object",
+  };
+}
+
+/** Why an object carries no checksum evidence (for the loud unverified report). */
+function listedReason(evidence: DownloadEvidence): string | null {
+  if (evidence.etag === undefined) return "listing carries no ETag";
+  const hex = evidence.etag.replace(/"/g, "").trim();
+  if (hex.includes("-")) {
+    return `multipart ETag (${hex.split("-")[1]} parts) is not a content checksum`;
+  }
+  return null;
+}
+
+/**
  * Remote identity verdict for `localBytes` vs the listed remote object.
  * Two outcomes — "same" is only ever returned when sameness is PROVEN;
  * every unproven case ("transfer") makes the caller act conservatively:
@@ -148,12 +303,103 @@ const EXCLUDED_DIRS = new Set([
 const EXCLUDED_EXTENSIONS = new Set([".db", ".parquet", ".tmp", ".bak"]);
 const EXCLUDED_FILES = new Set([".DS_Store"]);
 
+/**
+ * S3-PULL-INTEGRITY-001 — the published checksum ledger.
+ *
+ * The pull verifies what it downloads, but the strongest evidence we have —
+ * our own sha256 per path — lived only in `<namespacesPath>/.s3state/<ns>.json`
+ * on the machine that PUSHED. A restore onto an empty root therefore had no
+ * authority at all: the listing's ETag is recomputed from whatever bytes the
+ * bucket holds NOW, so a same-length overwrite produces a perfectly
+ * self-consistent ETag and passes any md5 tier. That is exactly the fault the
+ * negative control injects.
+ *
+ * So the push publishes its identity record next to the data, at
+ * `<prefix>/<ns>/.s3state/checksums.json` (a path walkLocal() never syncs as
+ * data and computeDeltas() never downloads as a file), and every pull fetches
+ * it before deciding what the download should contain. The ledger is metadata:
+ * it does not change file counts, and its own upload failure is a loud push
+ * failure rather than a silent gap.
+ */
+export const LEDGER_REL_PATH = ".s3state/checksums.json";
+
+export interface LedgerEntry {
+  sha256: string;
+  size: number;
+  etag?: string;
+}
+
+export interface ChecksumLedger {
+  version: 1;
+  ns: string;
+  generatedAt: string;
+  files: Record<string, LedgerEntry>;
+}
+
+/** Remote key of a namespace's checksum ledger object. */
+export function ledgerKey(cfg: S3Config, ns: string): string {
+  return `${cfg.prefix}/${ns}/${LEDGER_REL_PATH}`;
+}
+
+/** Build the ledger from the identity the push just recorded in the manifest. */
+export function buildLedger(
+  ns: string,
+  files: Record<string, FileMeta>,
+  now: Date = new Date(),
+): ChecksumLedger {
+  const entries: Record<string, LedgerEntry> = {};
+  for (const [relPath, meta] of Object.entries(files)) {
+    if (meta.sha256 === undefined) continue;
+    entries[relPath] = {
+      sha256: meta.sha256,
+      size: meta.size,
+      ...(meta.etag !== undefined ? { etag: meta.etag } : {}),
+    };
+  }
+  return {
+    version: 1,
+    ns,
+    generatedAt: now.toISOString(),
+    files: entries,
+  };
+}
+
+/** Parse a downloaded ledger; null means "unusable", never "trust it anyway". */
+export function parseLedger(raw: Buffer, ns: string): ChecksumLedger | null {
+  try {
+    const parsed = JSON.parse(raw.toString("utf-8")) as ChecksumLedger;
+    if (parsed.version !== 1) return null;
+    if (parsed.ns !== undefined && parsed.ns !== ns) return null;
+    if (!parsed.files || typeof parsed.files !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+
 const CONTENT_TYPES: Record<string, string> = {
   ".jsonl": "application/x-ndjson",
   ".json": "application/json",
   ".md": "text/markdown",
   ".txt": "text/plain",
 };
+
+/**
+ * S3-PULL-INTEGRITY-001 — one object the pull could not put on disk.
+ *
+ * `kind: "transfer"` means the GET itself failed; `kind: "verification"` means
+ * the bytes arrived and were REJECTED (corrupt or truncated), so nothing was
+ * written. Both are failures of the restore, not warnings: the object is named
+ * and the caller exits nonzero.
+ */
+export interface SyncFailure {
+  ns: string;
+  key: string;
+  relPath: string;
+  kind: "transfer" | "verification";
+  detail: string;
+}
 
 export interface SyncStats {
   ns: string;
@@ -162,6 +408,32 @@ export interface SyncStats {
   downloaded: number;
   skipped: number;
   durationMs: number;
+  /**
+   * S3-PULL-INTEGRITY-001 (pull only): objects whose bytes were PROVEN equal
+   * to the remote (listing size + single-part ETag md5, or a manifest sha256
+   * still pinned by an unchanged ETag version token).
+   */
+  verified: number;
+  /**
+   * S3-PULL-INTEGRITY-001 (pull only): objects accepted with NO checksum
+   * evidence — a fresh machine with no manifest, a multipart ETag, or a legacy
+   * record. They are restored (a restore must work on a machine that has
+   * nothing) but counted and reported, never silently trusted.
+   */
+  unverified: number;
+  /** The keys behind `unverified` (same order, so the report can name them). */
+  unverifiedKeys: string[];
+  /** Objects that were NOT restored: transfer error or rejected bytes. */
+  failed: number;
+  failures: SyncFailure[];
+  /**
+   * S3-PULL-INTEGRITY-001: state of the namespace's published checksum ledger.
+   * `pushed` (push) / `present` (pull) mean the identity record was available;
+   * `absent` means there was nothing to verify against (pre-ledger push, or a
+   * ledger that could not be read) — the restore ran on trusted, unproven
+   * bytes and says so.
+   */
+  checksumLedger: "pushed" | "present" | "absent";
 }
 
 export interface LocalFile {
@@ -297,6 +569,10 @@ export function computeDeltas(
   for (const [key, obj] of remote) {
     if (!key.startsWith(prefix)) continue;
     const relPath = key.slice(prefix.length);
+    // S3-PULL-INTEGRITY-001: the checksum ledger is engine metadata that lives
+    // under the namespace prefix; it is fetched deliberately, never "restored"
+    // as if it were one of the namespace's data files.
+    if (relPath === LEDGER_REL_PATH) continue;
     const localFile = local.get(relPath);
 
     if (!localFile) {
@@ -553,6 +829,34 @@ export async function pushNamespace(
 
   saveManifest(makeManifest(ns, syncedFiles), namespacesPath);
 
+  // S3-PULL-INTEGRITY-001: publish the identity record next to the data, so a
+  // restore onto an empty machine has something to verify against. A push that
+  // cannot publish it is a FAILED push: the objects would be restorable but
+  // unverifiable, and the next pull would say so at the worst possible time.
+  const failures: SyncFailure[] = [];
+  let checksumLedger: "pushed" | "absent" = "absent";
+  const key = ledgerKey(cfg, ns);
+  try {
+    const payload = Buffer.from(
+      JSON.stringify(buildLedger(ns, syncedFiles)),
+      "utf-8",
+    );
+    await putObject(client, cfg.bucket, key, payload, "application/json", signal);
+    checksumLedger = "pushed";
+  } catch (err) {
+    const detail = (err as Error).message;
+    failures.push({
+      ns,
+      key,
+      relPath: LEDGER_REL_PATH,
+      kind: "transfer",
+      detail,
+    });
+    console.error(
+      `[S3] push ${ns}: checksum ledger NOT published (${detail}) — the namespace is restorable but its restore cannot be verified`,
+    );
+  }
+
   return {
     ns,
     direction: "push",
@@ -560,7 +864,53 @@ export async function pushNamespace(
     downloaded: 0,
     skipped: deltas.skipped,
     durationMs: Date.now() - start,
+    verified: 0,
+    unverified: 0,
+    unverifiedKeys: [],
+    failed: failures.length,
+    failures,
+    checksumLedger,
   };
+}
+
+/**
+ * S3-PULL-INTEGRITY-001: per-object messages are throttled. A bulk corruption
+ * (or a large pre-ledger restore) can touch hundreds of thousands of objects;
+ * one line each would bury the summary that says what happened. The COUNTS in
+ * SyncStats are never throttled — only the printed lines.
+ */
+const MAX_OBJECT_LINES = 20;
+let objectFailureLines = 0;
+let objectUnverifiedLines = 0;
+
+function logObjectFailure(message: string): void {
+  objectFailureLines += 1;
+  if (objectFailureLines <= MAX_OBJECT_LINES) {
+    console.error(`[S3] pull ${message}`);
+    if (objectFailureLines === MAX_OBJECT_LINES) {
+      console.error(
+        `[S3] pull: further per-object failure lines suppressed after ${MAX_OBJECT_LINES}; the summary counts and the full failure list are authoritative`,
+      );
+    }
+  }
+}
+
+function logObjectUnverified(message: string): void {
+  objectUnverifiedLines += 1;
+  if (objectUnverifiedLines <= MAX_OBJECT_LINES) {
+    console.warn(`[S3] pull ${message}`);
+    if (objectUnverifiedLines === MAX_OBJECT_LINES) {
+      console.warn(
+        `[S3] pull: further per-object unverified lines suppressed after ${MAX_OBJECT_LINES}; the summary count is authoritative`,
+      );
+    }
+  }
+}
+
+/** Reset the throttles (tests run many pulls in one process). */
+export function resetPullLogThrottle(): void {
+  objectFailureLines = 0;
+  objectUnverifiedLines = 0;
 }
 
 /**
@@ -579,17 +929,46 @@ export async function pullNamespace(
   hooks?: SyncHooks,
 ): Promise<SyncStats> {
   const start = Date.now();
+  // Each pull gets its own throttle window (the counters are module-global so
+  // the parallel pool can share them; a long-lived daemon must not run out).
+  resetPullLogThrottle();
   const { buildClient, listRemoteObjects, getObject } = await loadClient();
   const client = buildClient(cfg);
   const nsDir = namespacePath(namespacesPath, ns);
   const prefix = `${cfg.prefix}/${ns}/`;
 
-  const [local, remote, manifest] = await Promise.all([
+  const [local, remote, manifest, ledger] = await Promise.all([
     Promise.resolve(walkLocal(nsDir)),
     listRemoteObjects(client, cfg.bucket, prefix, signal),
     // S3-GIT-008: the pull comparison needs the previously recorded ETags
     // (version tokens) to prove which remote objects are untouched.
     Promise.resolve(loadManifest(namespacesPath, ns)),
+    // S3-PULL-INTEGRITY-001: the published identity record is the authority a
+    // fresh machine otherwise lacks. Missing ledger = restore unverified (and
+    // said so); unreadable ledger = same, but loudly.
+    (async (): Promise<ChecksumLedger | null> => {
+      const key = ledgerKey(cfg, ns);
+      let raw: Buffer;
+      try {
+        raw = await getObject(client, cfg.bucket, key, signal);
+      } catch (err) {
+        const message = (err as Error).message;
+        const missing = /\b(NoSuchKey|not exist|NotFound|404)\b/i.test(message);
+        if (!missing) {
+          console.warn(
+            `[S3] pull ${ns}: checksum ledger unreadable (${message}) — downloaded bytes cannot be verified against our own record`,
+          );
+        }
+        return null;
+      }
+      const parsed = parseLedger(raw, ns);
+      if (!parsed) {
+        console.error(
+          `[S3] pull ${ns}: checksum ledger at ${key} is not a usable ledger (${raw.length} bytes) — downloaded bytes cannot be verified against our own record`,
+        );
+      }
+      return parsed;
+    })(),
   ]);
   const contents = readLocalContents(nsDir, local);
   const deltas = computeDeltas(cfg, ns, local, remote, manifest, contents);
@@ -599,25 +978,96 @@ export async function pullNamespace(
 
   const toDownload = deltas.toDownload;
   hooks?.plan?.(toDownload.length);
+  // S3-PULL-INTEGRITY-001: counters the caller can act on. A pull used to
+  // report only `downloaded`, so a rejected/corrupt object was invisible in
+  // the summary and the CLI said "0 failed".
+  const failures: SyncFailure[] = [];
+  const unverifiedKeys: string[] = [];
+  let verified = 0;
+  let unverified = 0;
+
   await runPool(
     toDownload,
     syncConcurrency(),
     async (item) => {
+      let body: Buffer;
       try {
-        const body = await getObject(client, cfg.bucket, item.key, signal);
-        const dest = path.join(nsDir, item.relPath);
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, body);
-        downloaded++;
-        repaired.add(item.relPath);
+        body = await getObject(client, cfg.bucket, item.key, signal);
       } catch (err) {
-        console.warn(
-          `[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`,
+        const detail = (err as Error).message;
+        failures.push({
+          ns,
+          key: item.key,
+          relPath: item.relPath,
+          kind: "transfer",
+          detail,
+        });
+        logObjectFailure(
+          `${ns}/${item.relPath} FAILED (transfer): ${detail} [key ${item.key}]`,
+        );
+        return;
+      }
+
+      // Verify BEFORE the write: the point of the check is that corrupt bytes
+      // never reach the restored tree, so there is nothing to clean up after a
+      // rejection and no window in which a reader sees them.
+      const prev = manifest?.files?.[item.relPath];
+      const ledgerEntry = ledger?.files?.[item.relPath];
+      const verdict = verifyDownloadedObject(body, {
+        etag: remote.get(item.key)?.etag,
+        size: remote.get(item.key)?.size ?? item.size,
+        ...(ledgerEntry?.sha256 !== undefined
+          ? { ledgerSha256: ledgerEntry.sha256 }
+          : {}),
+        ...(prev?.sha256 !== undefined ? { manifestSha256: prev.sha256 } : {}),
+        ...(prev?.etag !== undefined ? { manifestEtag: prev.etag } : {}),
+      });
+
+      if (verdict.kind === "mismatch") {
+        failures.push({
+          ns,
+          key: item.key,
+          relPath: item.relPath,
+          kind: "verification",
+          detail: `${verdict.evidence}: ${verdict.detail}`,
+        });
+        const existing = fs.existsSync(path.join(nsDir, item.relPath))
+          ? " (existing local file left untouched)"
+          : "";
+        logObjectFailure(
+          `${ns}/${item.relPath} FAILED (integrity): ${verdict.evidence}: ${verdict.detail} — corrupt bytes NOT written${existing} [key ${item.key}]`,
+        );
+        return;
+      }
+
+      const dest = path.join(nsDir, item.relPath);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, body);
+      downloaded++;
+      repaired.add(item.relPath);
+      if (verdict.kind === "verified") {
+        verified++;
+      } else {
+        unverified++;
+        unverifiedKeys.push(item.key);
+        logObjectUnverified(
+          `${ns}/${item.relPath} restored UNVERIFIED: ${verdict.reason} [key ${item.key}]`,
         );
       }
     },
     (done) => hooks?.progress?.(done, toDownload.length),
   );
+
+  if (failures.length > 0) {
+    console.error(
+      `[S3] pull ${ns}: ${failures.length} object(s) NOT restored (${downloaded} restored, ${verified} verified, ${unverified} unverified)`,
+    );
+  }
+  if (unverified > 0) {
+    console.warn(
+      `[S3] pull ${ns}: ${unverified} object(s) restored with NO checksum evidence (fresh machine / multipart ETag / legacy record) — bytes are trusted, not proven`,
+    );
+  }
 
   /**
    * S3-GIT-008 manifest refresh. The saved manifest now carries content
@@ -630,11 +1080,19 @@ export async function pullNamespace(
   const fresh = walkLocal(nsDir);
   const freshContents = readLocalContents(nsDir, fresh);
   const files: Record<string, FileMeta> = {};
+  // S3-PULL-INTEGRITY-001: a path whose object we REFUSED must not be
+  // re-identified from whatever local bytes happen to be on disk — that would
+  // bless corrupt content as synced and let a later pass skip the repair.
+  const rejected = new Set(failures.map((f) => f.relPath));
   for (const [relPath, f] of fresh) {
     const bytes = freshContents.get(relPath);
     const key = `${prefix}${relPath}`;
     const listedEtag = remote.get(key)?.etag;
     const prev = manifest?.files?.[relPath];
+    if (rejected.has(relPath)) {
+      if (prev) files[relPath] = prev;
+      continue;
+    }
     files[relPath] = {
       size: f.size,
       mtimeMs: f.mtimeMs,
@@ -662,6 +1120,12 @@ export async function pullNamespace(
     downloaded,
     skipped: deltas.skipped,
     durationMs: Date.now() - start,
+    verified,
+    unverified,
+    unverifiedKeys,
+    failed: failures.length,
+    failures,
+    checksumLedger: ledger ? "present" : "absent",
   };
 }
 
@@ -995,6 +1459,17 @@ export async function syncAllNamespacesResult(
     try {
       const nsStats = await syncNamespace(cfg, ns, namespacesPath, direction);
       if (nsStats) stats.push(nsStats);
+      // S3-PULL-INTEGRITY-001: per-OBJECT restore failures are namespace
+      // failures. Before this they only reached a console.warn inside
+      // pullNamespace, so `sync all pull` counted the namespace as succeeded
+      // and the CLI printed "0 failed" over a corrupt restore.
+      if (nsStats && nsStats.failed > 0) {
+        const first = nsStats.failures[0];
+        failures.push({
+          namespace: ns,
+          error: `${nsStats.failed} object(s) not restored — first: ${first.key} (${first.kind}: ${first.detail})`,
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       failures.push({ namespace: ns, error: message });

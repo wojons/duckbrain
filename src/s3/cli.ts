@@ -359,9 +359,28 @@ export async function s3Sync(
   if (nsArg && nsArg !== "all") {
     const stats = await syncNamespace(s3, nsArg, nsRoot, direction);
     if (stats) {
+      const failed = stats.failed ?? 0;
+      const detail =
+        direction === "pull"
+          ? ` verified=${stats.verified ?? 0} unverified=${stats.unverified ?? 0} failed=${failed}`
+          : failed > 0
+            ? ` failed=${failed}`
+            : "";
       console.log(
-        `[S3] ${direction} ${stats.ns}: uploaded=${stats.uploaded} downloaded=${stats.downloaded} skipped=${stats.skipped} in ${stats.durationMs}ms`,
+        `[S3] ${direction} ${stats.ns}: uploaded=${stats.uploaded} downloaded=${stats.downloaded} skipped=${stats.skipped}${detail} in ${stats.durationMs}ms`,
       );
+      // S3-PULL-INTEGRITY-001: an object that failed verification (or its
+      // transfer) is not a warning — the restore is incomplete, so name every
+      // failed key and exit nonzero.
+      if (failed > 0) {
+        console.error(`Failed objects (${failed}) in namespace ${stats.ns}:`);
+        for (const failure of stats.failures) {
+          console.error(
+            `  ${failure.key} [${failure.kind}] ${failure.detail}`,
+          );
+        }
+        process.exit(Math.min(failed, 125));
+      }
     }
     return;
   }
@@ -389,8 +408,29 @@ export async function s3Sync(
   if (direction === "pull") {
     for (const s of all) {
       console.log(
-        `[S3] pull ${s.ns}: downloaded=${s.downloaded} skipped=${s.skipped} in ${s.durationMs}ms`,
+        `[S3] pull ${s.ns}: downloaded=${s.downloaded} skipped=${s.skipped} verified=${s.verified ?? 0} unverified=${s.unverified ?? 0} failed=${s.failed ?? 0} in ${s.durationMs}ms`,
       );
+      // S3-PULL-INTEGRITY-001: name every object the restore could not put on
+      // disk. The aggregate failure count below already makes the exit nonzero.
+      for (const failure of s.failures ?? []) {
+        console.error(
+          `  NOT RESTORED ${failure.key} [${failure.kind}] ${failure.detail}`,
+        );
+      }
+    }
+    const unverifiedTotal = all.reduce(
+      (acc, s) => acc + (s.unverified ?? 0),
+      0,
+    );
+    if (unverifiedTotal > 0) {
+      console.warn(
+        `[S3] WARNING: ${unverifiedTotal} restored object(s) carried NO checksum evidence (fresh machine with no sync manifest, multipart ETag, or legacy record). They were written because a restore must run on a machine that has nothing, but their bytes are trusted, not proven.`,
+      );
+      for (const s of all) {
+        for (const key of (s.unverifiedKeys ?? []).slice(0, 10)) {
+          console.warn(`  UNVERIFIED ${key}`);
+        }
+      }
     }
     let remoteCount = -1;
     try {

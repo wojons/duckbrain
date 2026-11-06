@@ -145,6 +145,90 @@ version token when the local manifest already recorded one; a fresh machine has
 no manifest, so nothing compares the downloaded bytes to anything. A restore
 that verifies nothing turns silent remote corruption into live memory.
 
+## Defect 2 — FIXED 2026-11-06 (S3-PULL-INTEGRITY-001)
+
+The reproduction above is the pre-fix transcript: the object was corrupted,
+`pull` wrote it, the engine printed `0 failed`. Two things were missing, and
+both are now in place.
+
+**1. The download is verified before it is written.** Each body is checked
+against (a) the listing's size, (b) the namespace's published checksum ledger,
+(c) a single-part ETag md5, (d) the local manifest hash while its version token
+still holds. A mismatch names the key, writes nothing, and makes `sync` exit
+nonzero; objects with no evidence at all are restored but counted as
+`unverified` and reported.
+
+**2. The push publishes the checksum ledger** the pull needs, at
+`<prefix>/<ns>/.s3state/checksums.json`. Without it a fresh machine has no
+authority: a server-side overwrite yields a *self-consistent* ETag (the bucket
+derives it from the bytes it now holds), so an md5 tier alone calls the garbage
+"verified". The ledger is our own sha256 per path, written by the same push
+that uploaded the objects.
+
+### The control now fires at the ENGINE
+
+`AWS_PROFILE=duckbrain scripts/restore-proof.sh --namespaces hermes --fault corrupt-one`
+
+```
+[restore-proof] remote object count == baseline files + one checksum ledger per namespace (15) — PASS
+{"corrupted":"restore-proof/20261106T022241Z/hermes/event/2026-11/current.jsonl","bytes":67137}
+[S3] pull hermes/event/2026-11/current.jsonl FAILED (integrity): ledger-sha256: sha256 eba9b757…73e6e != ledger af1037f5…b4a24 — corrupt bytes NOT written [key restore-proof/20261106T022241Z/hermes/event/2026-11/current.jsonl]
+[S3] pull hermes: 1 object(s) NOT restored (13 restored, 13 verified, 0 unverified)
+[S3] pull hermes: downloaded=13 skipped=0 verified=13 unverified=0 failed=1 in 3360ms
+  NOT RESTORED restore-proof/20261106T022241Z/hermes/event/2026-11/current.jsonl [verification] ledger-sha256: …
+Sync complete: 1 attempted, 0 succeeded, 1 failed
+[restore-proof] restore wall clock: 5s (engine exit 1)
+[restore-proof] NEGATIVE CONTROL: PASS — the ENGINE refused the faulted object (pull exit 1) and named restore-proof/20261106T022241Z/hermes/event/2026-11/current.jsonl in its own output
+[restore-proof] NEGATIVE CONTROL RESULT: PASS — fault 'corrupt-one' was caught AT THE ENGINE (exit 1, key named, corrupt bytes never written).
+```
+
+Step 6 then reports the file as missing (`baseline-only=1 restored-only=0`),
+which is the correct consequence: the restore is incomplete because the engine
+refused to fabricate it. Exit 1 is the EXPECTED outcome of a `--fault` run.
+
+### The clean run stays green
+
+`AWS_PROFILE=duckbrain scripts/restore-proof.sh --namespaces hermes`
+
+```
+[restore-proof] remote object count == baseline files + one checksum ledger per namespace (15) — PASS
+[S3] pull hermes: downloaded=14 skipped=0 verified=14 unverified=0 failed=0 in 3030ms
+Sync complete: 1 attempted, 1 succeeded, 0 failed
+[restore-proof] namespace list: PASS (hermes )
+[restore-proof] file count: PASS (14 files)
+[restore-proof] per-file sha256 (ALL 14 files): PASS — no differences
+[restore-proof] known-key read: PASS (3703 bytes served from the restored tree)
+[restore-proof] PASS — restore is byte-identical for 14 files across 1 namespace(s), and a scratch daemon read a known key out of the restored tree.
+exit status 0
+```
+
+Both runs above are from the fixed tree on branch `wt/S3-PULL-INTEGRITY-001`
+(2026-11-06T02:22Z). The ledger object is metadata: 14 data files + 1 ledger =
+15 remote objects, and the restored tree still holds exactly 14 files.
+
+### Fresh machine with neither ETag nor ledger
+
+Stated rather than papered over: with no ledger entry and no usable ETag
+(multipart ETag, or a namespace pushed before the ledger existed) the bytes
+**cannot be proven**. They are restored — a DR restore must work on a machine
+that has nothing — and the run says so: `unverified=<n>` on the per-namespace
+line, the keys listed, and a warning that the bytes are trusted, not proven.
+One push fixes it permanently (the ledger travels with the next push).
+
+### What this does NOT prove
+
+- **Not tamper-proofing.** The ledger is unsigned and lives in the same bucket:
+  anyone who can rewrite an object can rewrite its ledger entry too. This
+  detects corruption and accidental/mid-flight damage, not a malicious writer.
+- **A missing object is still only caught by the comparison.** `--fault
+  delete-one` removes the object; a pull cannot "verify" bytes that do not
+  arrive, so the run is caught by the file-count/sha256 step, not by the
+  engine. Fixing that needs a manifest-completeness check (ledger entry present
+  on the remote but no object) — filed as a follow-up, not claimed here.
+- **Ledger cost scales with the namespace.** `scheduler` (258k files) would
+  publish a ~25 MB ledger fetched on every pull; measured only on `hermes`
+  (15 objects) here.
+
 ## RTO (measured, then projected)
 
 | namespace | files | bytes | push | pull (engine) |

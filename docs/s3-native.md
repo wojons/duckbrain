@@ -316,6 +316,52 @@ on a corrupted object) are in
 > still aborts, nonzero, naming the namespace and the progress it reached; a
 > merely large one finishes.
 
+### Pull verifies what it restores — and the backup carries its own checksums (S3-PULL-INTEGRITY-001)
+
+Until 2026-11-06 a pull wrote whatever bytes `GetObject` returned. A remote
+object overwritten with same-length garbage was restored, the pass printed
+`0 failed`, and a scratch daemon served the corrupt content — the proof's
+sha256 comparison found it, the ENGINE did not.
+
+Every downloaded body is now verified **before** it is written, strongest
+evidence first:
+
+1. **listing size** — a body whose length differs from the object's listed size
+   was truncated or extended in transit;
+2. **checksum ledger** — `<prefix>/<ns>/.s3state/checksums.json`, published by
+   the push that uploaded the objects, records our own sha256 (and the ETag
+   observed then) for every file. Checked first, because it is the only
+   authority that catches a server-side overwrite: such an object carries a
+   *self-consistent* ETag (the bucket derives it from whatever bytes it holds
+   now), so an md5 tier alone passes it;
+3. **single-part ETag** — an ETag without a `-` is the object's md5 (transport
+   and at-rest integrity for objects we hold no ledger entry for; multipart
+   ETags are composites and are never treated as checksums);
+4. **local manifest sha256** — usable only while the listing's ETag still equals
+   the ETag recorded with it (the version token proves the hash describes the
+   object we just fetched; a changed token means it does not).
+
+A **mismatch** is a failure, not a warning: the object key is named, the bytes
+are never written (a pre-existing local file is left untouched, never
+overwritten with unverified content), `s3 sync` exits nonzero, and the
+namespace appears in the `sync all` failure list with its key.
+
+**Objects restored with no checksum evidence are counted, not trusted.** The
+honest answer for a fresh machine that has neither an ETag nor a ledger entry
+(multipart ETag, or a namespace pushed before the ledger existed) is that the
+bytes cannot be proven. They are still restored — a DR restore must run on a
+machine that has nothing — but the per-namespace line carries
+`unverified=<n>`, each key is listed (first 20), and the pass warns that the
+bytes are trusted, not proven. The escape from that state is one push: the
+next `s3 sync <ns> push` publishes the ledger, after which restores verify
+every object.
+
+A push whose ledger cannot be uploaded is a **failed push** (nonzero exit,
+key named): the objects would be restorable but unverifiable, and the next pull
+would have to say so at the worst possible moment. The ledger is metadata — it
+does not change file counts, is never restored as a data file, and `walkLocal`
+never syncs a local `.s3state`.
+
 A restored namespace arrives **data-only**: JSONL + manifest files. Git
 history never travels through S3 objects, so the restored namespace has no
 `.git` until tracking is reinitialized (matches the daemon's own identity,
