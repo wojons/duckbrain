@@ -1311,3 +1311,6 @@
 {"id":8490,"timestamp":"2026-11-06T04:41:41Z","event_type":"task_completed","task_id":"REST-ATOMICITY-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8491,"timestamp":"2026-11-06T05:35:20Z","event_type":"task_updated","task_id":"HARDEN-DUCKBRAIN-004","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
 {"id":8492,"timestamp":"2026-11-06T05:54:02Z","event_type":"task_completed","task_id":"HARDEN-DUCKBRAIN-004","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8493,"timestamp":"2026-11-06T06:42:11Z","event_type":"task_updated","task_id":"OBSDB-005","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8494,"timestamp":"2026-11-06T06:42:11Z","event_type":"task_updated","task_id":"OBSDB-005","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
+{"id":8495,"timestamp":"2026-11-06T07:03:28Z","event_type":"task_completed","task_id":"OBSDB-005","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
