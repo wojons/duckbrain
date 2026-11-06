@@ -168,8 +168,19 @@ describe("EXAMPLE-APP-001 CORS: a cross-origin app can drive the table API", () 
       Origin: ORIGIN,
       Host: "localhost",
     });
-    expect(reply.status).toBe(200);
+    // GAP-030: /health is 200 while healthy and 503 while degraded, and a host
+    // with no reachable embedding provider is a LEGITIMATE degraded host (a CI
+    // runner reaches neither LM Studio nor Ollama). This test owns CORS on the
+    // liveness read, not host health: accept both statuses and prove the header
+    // on whichever path the host actually took — the degraded path is the one
+    // that used to go unproven, and it is the path a real runner walks.
+    expect([200, 503]).toContain(reply.status);
     expect(reply.headers.get("access-control-allow-origin")).toBe("*");
+    expect(reply.headers.get("content-type") ?? "").toContain("application/json");
+    if (reply.status === 503) {
+      // A browser must be able to READ the degradation, not just the OK.
+      expect(JSON.parse(reply.body).status).toBe("degraded");
+    }
   });
 
   it("exposes the accounting headers the app displays", async () => {
