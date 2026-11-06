@@ -699,13 +699,20 @@ describe("DB-SUPA-3: generic table→REST layer", () => {
     // key-addressed upsert resource (only for tables with a primary key — the
     // positional `lane_scores` fixture declares none) and `_transaction` is the
     // namespace-level mutation envelope.
+    // SDK-PARITY-001 extended the generated document to the routes it had not
+    // described yet: the rest of the memory resource, the SSE feed, and the
+    // declared-table registry + declaration sub-resource.
     expect(Object.keys(res.body.paths).sort()).toEqual([
+      "/api/events/{namespace}",
       "/api/memories",
       "/api/memories/key/{key}",
+      "/api/memories/{id}",
+      `/api/ns/${FIXTURE_NS}/tables`,
       `/api/ns/${FIXTURE_NS}/tables/_transaction`,
       `/api/ns/${FIXTURE_NS}/tables/lane_scores`,
       `/api/ns/${FIXTURE_NS}/tables/widgets`,
       `/api/ns/${FIXTURE_NS}/tables/widgets/{pk}`,
+      `/api/ns/${FIXTURE_NS}/tables/{table}/declare`,
     ]);
     const widgets = res.body.paths[`/api/ns/${FIXTURE_NS}/tables/widgets`];
     expect(widgets.get.parameters.some((p: any) => p.name === "order")).toBe(

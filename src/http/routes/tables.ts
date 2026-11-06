@@ -544,6 +544,78 @@ function transactionPathItem(): Record<string, unknown> {
   };
 }
 
+/** SDK-PARITY-001: the declared-table registry itself, as a resource. */
+function tableListPathItem(): Record<string, unknown> {
+  return {
+    get: {
+      operationId: "list_tables",
+      summary: "List the tables DECLARED in this namespace",
+      description:
+        "Registry metadata only (name, format, columns, primary, source) — no rows. Namespace-granted: the grant model has no wildcard table name.",
+      responses: {
+        "200": {
+          description: "The namespace and its declared tables.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["namespace", "tables"],
+                properties: {
+                  namespace: { type: "string" },
+                  tables: {
+                    type: "array",
+                    items: { $ref: "#/components/schemas/TableDeclaration" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "403": apiErrorSchemaRef,
+        "404": apiErrorSchemaRef,
+      },
+    },
+  };
+}
+
+/**
+ * SDK-PARITY-001: declaration as a sub-resource of the table (ADOPT-DECLARED-001
+ * shipped the route; the document had not described it yet, so a generated
+ * client could not have declared a table).
+ */
+function declareTablePathItem(): Record<string, unknown> {
+  return {
+    post: {
+      operationId: "declare_table",
+      summary: "Create or replace a table declaration",
+      description:
+        "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it.",
+      parameters: [
+        {
+          name: "table",
+          in: "path",
+          required: true,
+          description: "Table name (must match /^[a-z0-9_-]+$/).",
+          schema: { type: "string", pattern: "^[a-z0-9_-]+$" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": { schema: { $ref: "#/components/schemas/TableDeclarationRequest" } },
+        },
+      },
+      responses: {
+        "201": { description: "Declared (new contract)." },
+        "200": { description: "Idempotent re-declare, or `force` replacement." },
+        "400": apiErrorSchemaRef,
+        "403": apiErrorSchemaRef,
+        "409": apiErrorSchemaRef,
+      },
+    },
+  };
+}
+
 const apiErrorSchemaRef = {
   description: "Refused",
   content: {
@@ -688,8 +760,18 @@ function memoryErrorResponse(description: string) {
   };
 }
 
-function generateOpenApi(ns: string): Record<string, unknown> {
-  const tables = listTables(ns);
+/**
+ * SDK-PARITY-001: exported, and the declared-table set is INJECTABLE.
+ * The route calls it with the live registry; the SDK generator and its
+ * drift test call it with a fixed fixture set so the published document
+ * (and therefore the checked-in client) is reproducible on any machine,
+ * with no data directory and no daemon.
+ */
+export function generateOpenApi(
+  ns: string,
+  tablesOverride?: TableDeclaration[],
+): Record<string, unknown> {
+  const tables = tablesOverride ?? listTables(ns);
   const paths: Record<string, unknown> = {};
   for (const declaration of tables) {
     paths[`/api/ns/${ns}/tables/${declaration.name}`] =
@@ -702,6 +784,8 @@ function generateOpenApi(ns: string): Record<string, unknown> {
     }
   }
   paths[`/api/ns/${ns}/tables/_transaction`] = transactionPathItem();
+  paths[`/api/ns/${ns}/tables`] = tableListPathItem();
+  paths[`/api/ns/${ns}/tables/{table}/declare`] = declareTablePathItem();
 
   // These are the existing global memory routes. They intentionally keep
   // their namespace query/body semantics; the namespace in this document
@@ -793,6 +877,129 @@ function generateOpenApi(ns: string): Record<string, unknown> {
     },
   };
 
+  // SDK-PARITY-001: the rest of the memory resource, and the SSE feed. The
+  // routes already answer these verbs (src/http/routes/memories.ts,
+  // src/http/routes/events.ts); the document simply did not describe them, so
+  // no generated client could call them. Document catching up with the
+  // routing table — not a new surface.
+  paths["/api/memories/{id}"] = {
+    get: {
+      operationId: "getMemory",
+      summary: "Get one memory by id",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          description: "Memory id (UUID).",
+          schema: { type: "string", format: "uuid" },
+        },
+        memoryNamespaceParameter,
+      ],
+      responses: {
+        "200": {
+          description: "The memory.",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+          },
+        },
+        "404": memoryErrorResponse("No memory exists for the id."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "500": memoryErrorResponse("The memory lookup failed."),
+      },
+    },
+    put: {
+      operationId: "updateMemory",
+      summary: "Update a memory (new version; the previous version stays in the ledger)",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          description: "Memory id (UUID).",
+          schema: { type: "string", format: "uuid" },
+        },
+        memoryNamespaceParameter,
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": { schema: { $ref: "#/components/schemas/MemoryUpdateRequest" } },
+        },
+      },
+      responses: {
+        "200": {
+          description: "The NEW memory version (the updated row).",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/MemoryResponse" },
+            },
+          },
+        },
+        "400": memoryErrorResponse("No update data, or invalid content."),
+        "404": memoryErrorResponse("No memory exists for the id."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "500": memoryErrorResponse("The memory could not be updated."),
+      },
+    },
+    delete: {
+      operationId: "deleteMemory",
+      summary: "Delete a memory (writes a tombstone; nothing is erased)",
+      parameters: [
+        {
+          name: "id",
+          in: "path",
+          required: true,
+          description: "Memory id (UUID).",
+          schema: { type: "string", format: "uuid" },
+        },
+        memoryNamespaceParameter,
+      ],
+      responses: {
+        "204": { description: "Tombstone written; no body." },
+        "404": memoryErrorResponse("No memory exists for the id."),
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+        "500": memoryErrorResponse("The tombstone could not be written."),
+      },
+    },
+  };
+
+  paths["/api/events/{namespace}"] = {
+    get: {
+      operationId: "streamEvents",
+      summary: "Server-Sent Events feed for a namespace",
+      description:
+        "Long-lived text/event-stream. The first frame is {type:'connected', timestamp, namespace}; later frames carry memory/table activity for that namespace.",
+      parameters: [
+        {
+          name: "namespace",
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": {
+          description: "SSE stream of JSON frames (one `data:` line per frame).",
+          content: {
+            "text/event-stream": { schema: { type: "string" } },
+          },
+        },
+        "403": memoryErrorResponse(
+          "The caller is not authorized for this memory namespace.",
+        ),
+      },
+    },
+  };
+
   return {
     openapi: "3.1.0",
     info: {
@@ -836,6 +1043,60 @@ function generateOpenApi(ns: string): Record<string, unknown> {
           },
         },
         ApiError: apiErrorSchema,
+        // SDK-PARITY-001: request/registry shapes the paths above reference.
+        MemoryUpdateRequest: {
+          type: "object",
+          properties: {
+            content: { type: "string" },
+            attributes: { type: "object", additionalProperties: true },
+          },
+          description:
+            "At least one of content/attributes is required; the server answers 400 VALIDATION_ERROR otherwise.",
+        },
+        TableDeclaration: {
+          type: "object",
+          required: ["name", "format", "columns", "primary", "glob"],
+          properties: {
+            name: { type: "string" },
+            format: { type: "string", enum: ["jsonl-objects", "jsonl-positional"] },
+            columns: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["name", "type"],
+                properties: {
+                  name: { type: "string" },
+                  type: { type: "string", enum: ["varchar", "integer", "bigint", "double", "boolean", "timestamp", "json"] },
+                },
+              },
+            },
+            primary: { type: ["string", "null"] },
+            glob: { type: "string" },
+            declaredKeyColumns: { type: "array", items: { type: "string" } },
+            schemaVersion: { type: "integer" },
+            source: { type: "string", enum: ["schema.json", "legacy"] },
+          },
+        },
+        TableDeclarationRequest: {
+          type: "object",
+          required: ["columns"],
+          properties: {
+            columns: {
+              type: "array",
+              minItems: 1,
+              items: {
+                type: "object",
+                required: ["name", "type"],
+                properties: { name: { type: "string" }, type: { type: "string" } },
+              },
+            },
+            primary: { type: "string" },
+            format: { type: "string", enum: ["jsonl-objects", "jsonl-positional"] },
+            policy: { type: "object", additionalProperties: true },
+            legacy: { type: "boolean" },
+            force: { type: "boolean" },
+          },
+        },
       },
     },
   };

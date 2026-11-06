@@ -1,0 +1,1806 @@
+{
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "MemoryListResponse": {
+        "properties": {
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memories": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryResponse"
+            },
+            "type": "array"
+          },
+          "nextOffset": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "offset": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "hasMore",
+          "nextOffset",
+          "count",
+          "memories"
+        ],
+        "type": "object"
+      },
+      "MemoryRequest": {
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "content": {
+            "type": "string"
+          },
+          "domain": {
+            "enum": [
+              "person",
+              "event",
+              "concept",
+              "message",
+              "config",
+              "raw_note"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "pattern": "^/",
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "domain",
+          "content"
+        ],
+        "type": "object"
+      },
+      "MemoryResponse": {
+        "properties": {
+          "action": {
+            "enum": [
+              "add",
+              "update",
+              "tombstone"
+            ],
+            "type": "string"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "author": {
+            "format": "email",
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "domain": {
+            "enum": [
+              "person",
+              "event",
+              "concept",
+              "message",
+              "config",
+              "raw_note"
+            ],
+            "type": "string"
+          },
+          "highlightedSnippet": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "isTombstone": {
+            "type": "boolean"
+          },
+          "key": {
+            "pattern": "^/",
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "namespace_autocreated": {
+            "const": true,
+            "type": "boolean"
+          },
+          "score": {
+            "type": "number"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "domain",
+          "content",
+          "attributes",
+          "timestamp",
+          "author",
+          "isTombstone",
+          "action"
+        ],
+        "type": "object"
+      },
+      "MemoryUpdateRequest": {
+        "description": "At least one of content/attributes is required; the server answers 400 VALIDATION_ERROR otherwise.",
+        "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TableDeclaration": {
+        "properties": {
+          "columns": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "varchar",
+                    "integer",
+                    "bigint",
+                    "double",
+                    "boolean",
+                    "timestamp",
+                    "json"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "declaredKeyColumns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "format": {
+            "enum": [
+              "jsonl-objects",
+              "jsonl-positional"
+            ],
+            "type": "string"
+          },
+          "glob": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "primary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "schema.json",
+              "legacy"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "format",
+          "columns",
+          "primary",
+          "glob"
+        ],
+        "type": "object"
+      },
+      "TableDeclarationRequest": {
+        "properties": {
+          "columns": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "type"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "force": {
+            "type": "boolean"
+          },
+          "format": {
+            "enum": [
+              "jsonl-objects",
+              "jsonl-positional"
+            ],
+            "type": "string"
+          },
+          "legacy": {
+            "type": "boolean"
+          },
+          "policy": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "primary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "columns"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Generated from the declared table registry (namespaces/<ns>/tables/*.table.json). PostgREST-style filters/order/paging on every table. This namespace document also describes the global memory routes; those routes retain their existing namespace query/body behavior.",
+    "title": "DuckBrain tables — namespace 'sdk_fixture'",
+    "version": "1.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/events/{namespace}": {
+      "get": {
+        "description": "Long-lived text/event-stream. The first frame is {type:'connected', timestamp, namespace}; later frames carry memory/table activity for that namespace.",
+        "operationId": "streamEvents",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "SSE stream of JSON frames (one `data:` line per frame)."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          }
+        },
+        "summary": "Server-Sent Events feed for a namespace"
+      }
+    },
+    "/api/memories": {
+      "get": {
+        "description": "Query memories. Namespace selection remains the existing optional namespace query parameter.",
+        "operationId": "listMemories",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "domain",
+            "schema": {
+              "enum": [
+                "person",
+                "event",
+                "concept",
+                "message",
+                "config",
+                "raw_note"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "author",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contains",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "allNamespaces",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "between",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "historical",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Attribute filter; replace <name> with the attribute name.",
+            "in": "query",
+            "name": "attr.<name>",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryListResponse"
+                }
+              }
+            },
+            "description": "A paginated memory list."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Invalid query parameters."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The memory query failed."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Semantic search is unavailable."
+          }
+        },
+        "summary": "List memories"
+      },
+      "post": {
+        "description": "Create a memory. The namespace query parameter takes precedence over the optional body namespace field.",
+        "operationId": "createMemory",
+        "parameters": [
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "attributes": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "enum": [
+                      "person",
+                      "event",
+                      "concept",
+                      "message",
+                      "config",
+                      "raw_note"
+                    ],
+                    "type": "string"
+                  },
+                  "key": {
+                    "pattern": "^/",
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "validFrom": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "validUntil": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "valid_from": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "valid_until": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "domain",
+                  "content"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            },
+            "description": "The created memory."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The request body is invalid."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The target namespace does not exist."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The memory could not be created."
+          }
+        },
+        "summary": "Create a memory"
+      }
+    },
+    "/api/memories/key/{key}": {
+      "get": {
+        "operationId": "getMemoryByKey",
+        "parameters": [
+          {
+            "description": "Filesystem-style memory key without the leading slash; slash-separated segments are accepted.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            },
+            "description": "The latest non-tombstoned memory for the key."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "No memory exists for the key."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The memory lookup failed."
+          }
+        },
+        "summary": "Get the latest memory by key"
+      }
+    },
+    "/api/memories/{id}": {
+      "delete": {
+        "operationId": "deleteMemory",
+        "parameters": [
+          {
+            "description": "Memory id (UUID).",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Tombstone written; no body."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "No memory exists for the id."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The tombstone could not be written."
+          }
+        },
+        "summary": "Delete a memory (writes a tombstone; nothing is erased)"
+      },
+      "get": {
+        "operationId": "getMemory",
+        "parameters": [
+          {
+            "description": "Memory id (UUID).",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            },
+            "description": "The memory."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "No memory exists for the id."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The memory lookup failed."
+          }
+        },
+        "summary": "Get one memory by id"
+      },
+      "put": {
+        "operationId": "updateMemory",
+        "parameters": [
+          {
+            "description": "Memory id (UUID).",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Namespace to query or write. If omitted, the existing active/default namespace resolution applies.",
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            },
+            "description": "The NEW memory version (the updated row)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "No update data, or invalid content."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The caller is not authorized for this memory namespace."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "No memory exists for the id."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "The memory could not be updated."
+          }
+        },
+        "summary": "Update a memory (new version; the previous version stays in the ledger)"
+      }
+    },
+    "/api/ns/sdk_fixture/tables": {
+      "get": {
+        "description": "Registry metadata only (name, format, columns, primary, source) — no rows. Namespace-granted: the grant model has no wildcard table name.",
+        "operationId": "list_tables",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "namespace": {
+                      "type": "string"
+                    },
+                    "tables": {
+                      "items": {
+                        "$ref": "#/components/schemas/TableDeclaration"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "namespace",
+                    "tables"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The namespace and its declared tables."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "List the tables DECLARED in this namespace"
+      }
+    },
+    "/api/ns/sdk_fixture/tables/_transaction": {
+      "post": {
+        "description": "Every action is validated before anything is written. The envelope takes one durability barrier at commit and appends one change record per action. On failure nothing is applied: the response carries `applied: 0`, `rolledBack: true` and `failedAction`.",
+        "operationId": "run_table_transaction",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "actions": {
+                    "items": {
+                      "properties": {
+                        "op": {
+                          "enum": [
+                            "insert",
+                            "update",
+                            "upsert",
+                            "delete"
+                          ],
+                          "type": "string"
+                        },
+                        "patch": {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        "pk": {
+                          "type": "string"
+                        },
+                        "row": {
+                          "additionalProperties": true,
+                          "type": "object"
+                        },
+                        "table": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "op",
+                        "table"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "actions"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Applied — `applied`, `results[]` and the achieved durability"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Apply an ordered list of table mutations as ONE unit (all-or-nothing)"
+      }
+    },
+    "/api/ns/sdk_fixture/tables/lane_scores": {
+      "delete": {
+        "operationId": "delete_lane_scores",
+        "parameters": [
+          {
+            "description": "Required. Primary key equality filter: pk=eq.<value> on '(none)'.",
+            "in": "query",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted (rows removed)"
+          }
+        },
+        "summary": "Delete rows of 'lane_scores' by primary key"
+      },
+      "get": {
+        "operationId": "list_lane_scores",
+        "parameters": [
+          {
+            "description": "Filter by lane. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?lane=eq.5, ?lane=not.is.null, ?lane=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "lane",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by score. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?score=eq.5, ?score=not.is.null, ?score=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "score",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by tags. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?tags=eq.5, ?tags=not.is.null, ?tags=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc).",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Row limit (default 100, hard cap 1000 — larger values clamp).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Row offset for paging.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "enum": [
+                "exact"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "lane": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "tags": {}
+                    },
+                    "required": [
+                      "lane",
+                      "score",
+                      "tags"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rows (JSON array, or CSV with Accept: text/csv)"
+          }
+        },
+        "summary": "Select rows from 'lane_scores'"
+      },
+      "patch": {
+        "operationId": "update_lane_scores",
+        "parameters": [
+          {
+            "description": "Required. Primary key equality filter: pk=eq.<value> on '(none)'.",
+            "in": "query",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "lane": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "tags": {}
+                },
+                "required": [
+                  "lane",
+                  "score",
+                  "tags"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated (rows mutated)"
+          }
+        },
+        "summary": "Update rows of 'lane_scores' by primary key"
+      },
+      "post": {
+        "operationId": "insert_lane_scores",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "lane": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "tags": {}
+                    },
+                    "required": [
+                      "lane",
+                      "score",
+                      "tags"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "items": {
+                      "properties": {
+                        "lane": {
+                          "type": "string"
+                        },
+                        "score": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "tags": {}
+                      },
+                      "required": [
+                        "lane",
+                        "score",
+                        "tags"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                ]
+              }
+            },
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "inserted": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Inserted"
+          }
+        },
+        "summary": "Insert row(s) into 'lane_scores'"
+      }
+    },
+    "/api/ns/sdk_fixture/tables/notes": {
+      "delete": {
+        "operationId": "delete_notes",
+        "parameters": [
+          {
+            "description": "Required. Primary key equality filter: pk=eq.<value> on 'id'.",
+            "in": "query",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted (rows removed)"
+          }
+        },
+        "summary": "Delete rows of 'notes' by primary key"
+      },
+      "get": {
+        "operationId": "list_notes",
+        "parameters": [
+          {
+            "description": "Filter by id. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?id=eq.5, ?id=not.is.null, ?id=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by title. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?title=eq.5, ?title=not.is.null, ?title=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "title",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by score. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?score=eq.5, ?score=not.is.null, ?score=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "score",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by created. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?created=eq.5, ?created=not.is.null, ?created=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
+            "in": "query",
+            "name": "created",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc).",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Row limit (default 100, hard cap 1000 — larger values clamp).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Row offset for paging.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`count=exact` adds the X-Total-Count response header (same as Prefer: count=exact).",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "enum": [
+                "exact"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "created": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "score",
+                      "created"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Rows (JSON array, or CSV with Accept: text/csv)"
+          }
+        },
+        "summary": "Select rows from 'notes'"
+      },
+      "patch": {
+        "operationId": "update_notes",
+        "parameters": [
+          {
+            "description": "Required. Primary key equality filter: pk=eq.<value> on 'id'.",
+            "in": "query",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "created": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "score",
+                  "created"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated (rows mutated)"
+          }
+        },
+        "summary": "Update rows of 'notes' by primary key"
+      },
+      "post": {
+        "operationId": "insert_notes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "created": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "score",
+                      "created"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "items": {
+                      "properties": {
+                        "created": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "score": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "score",
+                        "created"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                ]
+              }
+            },
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "inserted": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Inserted"
+          }
+        },
+        "summary": "Insert row(s) into 'notes'"
+      }
+    },
+    "/api/ns/sdk_fixture/tables/notes/{pk}": {
+      "put": {
+        "operationId": "upsert_notes",
+        "parameters": [
+          {
+            "description": "Primary key value on 'id'.",
+            "in": "path",
+            "name": "pk",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "created": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "score",
+                  "created"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Replaced (outcome: updated, body carries the row)"
+          },
+          "201": {
+            "description": "Inserted (outcome: inserted, body carries the row)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Insert or replace one row of 'notes' by primary key"
+      }
+    },
+    "/api/ns/sdk_fixture/tables/{table}/declare": {
+      "post": {
+        "description": "Writes through the SAME core the CLI (`duckbrain tables declare`) and the MCP `tables_declare` tool call. 201 when the declaration is new, 200 when an identical contract already existed or `force` replaced it.",
+        "operationId": "declare_table",
+        "parameters": [
+          {
+            "description": "Table name (must match /^[a-z0-9_-]+$/).",
+            "in": "path",
+            "name": "table",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableDeclarationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent re-declare, or `force` replacement."
+          },
+          "201": {
+            "description": "Declared (new contract)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Refused"
+          }
+        },
+        "summary": "Create or replace a table declaration"
+      }
+    }
+  }
+}

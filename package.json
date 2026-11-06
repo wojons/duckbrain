@@ -30,7 +30,9 @@
     "ops:embedding-preflight": "node scripts/embedding-preflight.js",
     "docs:check": "node scripts/docs-check.js",
     "deps:lockstep": "bash scripts/ci/check-lockfile-lockstep.sh",
-    "docs:surface": "tsx scripts/gen-surface-matrix.ts"
+    "docs:surface": "tsx scripts/gen-surface-matrix.ts",
+    "sdk:gen": "tsx scripts/gen-sdk.ts",
+    "sdk:check": "tsx scripts/gen-sdk.ts --check"
   },
   "repository": {
     "type": "git",
