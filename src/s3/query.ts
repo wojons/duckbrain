@@ -12,20 +12,31 @@
  * Credentials (DB-GAP-048) — resolved ONCE per query, in this precedence:
  *   1. direct env: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or the
  *      DUCKBRAIN_S3_* overrides — injected verbatim, no SDK call at all;
- *   2. else, when a profile is named (env AWS_PROFILE, or the `s3.profile`
- *      config value), the AWS SDK v3 default provider chain resolves that
- *      profile (~/.aws/credentials, SSO, process, …) — the SAME chain
- *      src/s3/client.ts uses — and the returned key id / secret / session
- *      token are SET on the httpfs session for the duration of the query;
- *   3. else nothing is injected and httpfs raises its own
- *      "Authentication Failure — no credentials are provided".
+ *   2. else the AWS SDK v3 default provider chain — the SAME chain
+ *      src/s3/client.ts uses — resolves credentials (~/.aws env/shared
+ *      config, a profile named by env AWS_PROFILE or the `s3.profile`
+ *      config value, SSO, process, …) and the returned key id / secret /
+ *      session token are SET on the httpfs session for the duration of the
+ *      query. The chain runs whether or not a profile is NAMED: naming one
+ *      is a narrowing hint, never a precondition (S3-QUERY-CREDENTIALS-001);
+ *   3. if the chain genuinely resolves nothing, the query fails HERE with an
+ *      explicit message naming every source it consulted (profiles included,
+ *      never values) instead of letting httpfs answer with its opaque
+ *      "Authentication Failure — No credentials are provided" 403.
  *
  * Step 2 exists because DuckDB httpfs reads standard AWS_* env vars and does
  * NOT understand the ~/.aws profile chain that boto3 / git-remote-s3 / the
  * AWS SDK honor — so before this, `s3 query` failed on any profile-based
  * install (bunker staging, 2026-09-17) while `s3 status`/`s3 sync` worked.
+ * Requiring a NAMED profile was the second half of that bug: on a host whose
+ * credentials live in the [default] profile the documented fallback never
+ * ran, so the headline read-without-restoring feature 403'd while the SDK
+ * paths authenticated (S3-QUERY-CREDENTIALS-001).
  */
 
+import { readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 import { Database } from "duckdb";
 import type { S3Config } from "./config";
 import { buildClient } from "./client";
@@ -43,8 +54,14 @@ export interface QueryCredentials {
   sessionToken?: string;
 }
 
-/** Where the credentials came from — diagnostics only, never the values. */
-export type CredentialSource = "env" | "profile";
+/**
+ * Where the credentials came from — diagnostics only, never the values.
+ *
+ * `chain` = the SDK default chain resolved them without a NAMED profile
+ * (typically the [default] profile in ~/.aws/credentials);
+ * `profile` = they were resolved by the chain for a named profile.
+ */
+export type CredentialSource = "env" | "profile" | "chain";
 
 export interface ResolvedQueryCredentials extends QueryCredentials {
   source: CredentialSource;
@@ -121,35 +138,90 @@ export function configuredProfile(cfg: S3Config): string | undefined {
 }
 
 /**
+ * The shared credentials file the SDK chain reads, for diagnostics only.
+ * Honors AWS_SHARED_CREDENTIALS_FILE exactly as the SDK does.
+ */
+function credentialsFileDisplay(): string {
+  const override = process.env.AWS_SHARED_CREDENTIALS_FILE?.trim();
+  return override ? override : "~/.aws/credentials";
+}
+
+/**
+ * Profile NAMES present in the shared credentials file — never any value.
+ *
+ * Used only to make the no-credentials error honest ("looked at [default],
+ * [hetzner]"). Any read failure yields [] — diagnostics must never turn a
+ * missing file into a different error.
+ */
+export function knownProfileNames(
+  file: string = process.env.AWS_SHARED_CREDENTIALS_FILE?.trim() ||
+    join(homedir(), ".aws", "credentials"),
+): string[] {
+  try {
+    const text = readFileSync(file, "utf8");
+    return Array.from(text.matchAll(/^\s*\[([^\]]+)\]\s*$/gm), (m) =>
+      m[1]!.trim(),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The honest failure when the chain resolves nothing: say so, name every
+ * source consulted (profiles by NAME only), and never fall through to
+ * httpfs' opaque 403 (S3-QUERY-CREDENTIALS-001).
+ */
+function noCredentialsError(cfg: S3Config, cause?: string): Error {
+  const named = configuredProfile(cfg);
+  const file = credentialsFileDisplay();
+  const known = knownProfileNames();
+  const profileSource = named
+    ? `AWS profile "${named}" (${known.includes(named) ? `present in ${file}` : `NOT present in ${file}`})`
+    : `the [default] profile in ${file}`;
+  const looked = named
+    ? profileSource
+    : `AWS_PROFILE (unset) and s3.profile (unset), then ${profileSource}`;
+  const present = known.length > 0 ? ` — profiles found there: ${known.join(", ")}` : "";
+  return new Error(
+    `s3 query: no AWS credentials resolved by the SDK default chain; checked ` +
+      `env AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (and DUCKBRAIN_S3_* overrides), ` +
+      `${looked}${present}. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, name a ` +
+      `profile with AWS_PROFILE, or add a [default] profile to ${file}.` +
+      (cause ? ` Chain error: ${cause}` : ""),
+  );
+}
+
+/**
  * Resolve the credentials to inject into the httpfs session.
  *
- * Returns undefined when nothing is configured — deliberately: httpfs must
- * then raise its own authentication error, exactly as before. A profile that
- * IS named but cannot be resolved throws, naming the profile, rather than
- * degrading into a misleading "no credentials are provided".
+ * Throws (never returns undefined) when nothing resolves: httpfs must not be
+ * reached with no identity, because its own failure is an opaque HTTP 403
+ * that names no source. `provider` is the injectable seam over the SDK chain.
  */
 export async function resolveQueryCredentials(
   cfg: S3Config,
   provider?: CredentialProvider,
-): Promise<ResolvedQueryCredentials | undefined> {
+): Promise<ResolvedQueryCredentials> {
   const direct = envCredentials();
   if (direct) return { ...direct, source: "env" };
 
   const profile = configuredProfile(cfg);
-  if (!profile) return undefined;
-
   const resolve = provider ?? defaultCredentialProvider(cfg);
   let creds: QueryCredentials | undefined;
+  let chainError: string | undefined;
   try {
     creds = await resolve();
   } catch (err) {
-    const cause = err instanceof Error ? err.message : String(err);
+    chainError = err instanceof Error ? err.message : String(err);
+    if (!profile) throw noCredentialsError(cfg, chainError);
     throw new Error(
       `s3 query: could not resolve credentials for AWS profile "${profile}" ` +
-        `(set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, or fix ~/.aws/credentials): ${cause}`,
+        `(set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, or fix ~/.aws/credentials): ${chainError}`,
     );
   }
   if (!creds?.accessKeyId || !creds?.secretAccessKey) {
+    if (!profile) throw noCredentialsError(cfg, chainError);
     throw new Error(
       `s3 query: AWS profile "${profile}" resolved without a usable access key`,
     );
@@ -158,7 +230,7 @@ export async function resolveQueryCredentials(
     accessKeyId: creds.accessKeyId,
     secretAccessKey: creds.secretAccessKey,
     ...(creds.sessionToken ? { sessionToken: creds.sessionToken } : {}),
-    source: "profile",
+    source: profile ? "profile" : "chain",
   };
 }
 
@@ -214,17 +286,14 @@ export async function runS3Query(
     if (cfg.forcePathStyle) {
       db.exec("SET s3_url_style='path';");
     }
-    // httpfs reads AWS_* env automatically; SET explicitly when present.
-    if (credentials) {
-      db.exec(`SET s3_access_key_id=${sqlLiteral(credentials.accessKeyId)};`);
-      db.exec(
-        `SET s3_secret_access_key=${sqlLiteral(credentials.secretAccessKey)};`,
-      );
-      if (credentials.sessionToken) {
-        db.exec(
-          `SET s3_session_token=${sqlLiteral(credentials.sessionToken)};`,
-        );
-      }
+    // httpfs reads AWS_* env automatically, but the resolved chain identity is
+    // always SET explicitly — resolveQueryCredentials() guarantees one exists.
+    db.exec(`SET s3_access_key_id=${sqlLiteral(credentials.accessKeyId)};`);
+    db.exec(
+      `SET s3_secret_access_key=${sqlLiteral(credentials.secretAccessKey)};`,
+    );
+    if (credentials.sessionToken) {
+      db.exec(`SET s3_session_token=${sqlLiteral(credentials.sessionToken)};`);
     }
 
     const rows = await new Promise<Record<string, unknown>[]>(

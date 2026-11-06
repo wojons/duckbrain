@@ -94,9 +94,10 @@ describe("runS3Query applies the endpoint scheme (S3-QUERY-SCHEME-001)", () => {
       cfgWithEndpoint("http://minio.internal:9000"),
       "SELECT 1",
       {
-        credentialProvider: vi.fn(async () => {
-          throw new Error("provider must not be called for these tests");
-        }),
+        credentialProvider: vi.fn(async () => ({
+        accessKeyId: "test-key",
+        secretAccessKey: "test-secret",
+        })),
       },
     );
 
@@ -107,9 +108,10 @@ describe("runS3Query applies the endpoint scheme (S3-QUERY-SCHEME-001)", () => {
 
   it("an https:// endpoint sets s3_use_ssl='true'", async () => {
     await runS3Query(cfgWithEndpoint("https://s3.provider.com"), "SELECT 1", {
-      credentialProvider: vi.fn(async () => {
-        throw new Error("provider must not be called for these tests");
-      }),
+      credentialProvider: vi.fn(async () => ({
+        accessKeyId: "test-key",
+        secretAccessKey: "test-secret",
+        })),
     });
 
     const applied = appliedSettings();
@@ -120,9 +122,10 @@ describe("runS3Query applies the endpoint scheme (S3-QUERY-SCHEME-001)", () => {
   it("no endpoint configured: neither setting is touched (httpfs default stands)", async () => {
     const cfg: S3Config = { ...DEFAULT_S3_CONFIG, enabled: true };
     await runS3Query(cfg, "SELECT 1", {
-      credentialProvider: vi.fn(async () => {
-        throw new Error("provider must not be called for these tests");
-      }),
+      credentialProvider: vi.fn(async () => ({
+        accessKeyId: "test-key",
+        secretAccessKey: "test-secret",
+        })),
     });
 
     const applied = appliedSettings();

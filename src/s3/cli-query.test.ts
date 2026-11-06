@@ -10,12 +10,21 @@
  *
  * DB-GAP-048 adds credential-resolution coverage for `duckbrain s3 query`:
  * (a) direct env keys still win (regression), (b) with env keys absent and a
- * profile named, the profile provider's credentials reach the query path,
- * (c) with no env keys and no profile, nothing is injected — httpfs raises
- * its own "Authentication Failure" error, unchanged.
+ * profile named, the profile provider's credentials reach the query path.
+ *
+ * S3-QUERY-CREDENTIALS-001 changes (c): with no env keys and NO named profile
+ * the SDK default chain STILL runs (that is what authenticates `s3 status` and
+ * `s3 sync` on a [default]-profile host), and when it resolves nothing the
+ * query fails with an explicit message naming the sources/profiles it looked
+ * at — never an opaque httpfs 403. The regression that would catch a relapse
+ * to "profile must be named" is case (c) itself: the provider must be called
+ * and its credentials must reach the httpfs session.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { Database } from "duckdb";
 import { formatS3Row } from "./cli";
 import {
@@ -60,6 +69,8 @@ describe("s3 query credentials (DB-GAP-048)", () => {
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
     "DUCKBRAIN_S3_ACCESS_KEY_ID",
     "DUCKBRAIN_S3_SECRET_ACCESS_KEY",
   ] as const;
@@ -67,6 +78,10 @@ describe("s3 query credentials (DB-GAP-048)", () => {
   const ENV_KEY = "test-env-access-key";
   const ENV_SECRET = "test-env-secret-key";
   const PROFILE_KEY = "test-profile-access-key";
+  const CHAIN_KEY = "test-chain-access-key";
+  const CHAIN_SECRET = "test-chain-secret-key";
+  /** A secret that must never appear in an error message, only in a fixture file. */
+  const FIXTURE_SECRET = "fixture-secret-must-not-leak";
   const PROFILE_SECRET = "test-profile-secret-key";
   const PROFILE_TOKEN = "test-profile-session-token";
 
@@ -163,28 +178,83 @@ describe("s3 query credentials (DB-GAP-048)", () => {
     expect(configuredProfile(cfgProfile)).toBe("env-profile");
   });
 
-  it("(c) no env keys and no profile: nothing is injected and the failure still surfaces", async () => {
-    // No AWS_PROFILE, no cfg.profile, no direct keys.
-    console.log(""); // keep console spies from other files from hiding output
-    const provider = vi.fn(async (): Promise<QueryCredentials> => {
-      throw new Error(
-        "provider must not be called without a configured profile",
-      );
-    });
-    const resolved = await resolveQueryCredentials(cfg, provider);
-    expect(resolved).toBeUndefined();
-    expect(provider).not.toHaveBeenCalled();
+  it("(c) S3-QUERY-CREDENTIALS-001: no env keys and NO named profile — the SDK chain still resolves and its credentials reach httpfs", async () => {
+    // THE REGRESSION: before the fix the provider was consulted only when
+    // AWS_PROFILE / s3.profile NAMED a profile, so a host whose keys live in
+    // the [default] profile injected nothing and httpfs answered 403 while
+    // `s3 status` / `s3 sync` authenticated fine on the same host.
     expect(configuredProfile(cfg)).toBeUndefined();
+    const provider = vi.fn(async (): Promise<QueryCredentials> => ({
+      accessKeyId: CHAIN_KEY,
+      secretAccessKey: CHAIN_SECRET,
+    }));
+    vi.spyOn(Database.prototype, "exec").mockImplementation(((sql: string) => {
+      execCalls.push(sql);
+    }) as never);
 
-    // The httpfs query path issues NO credential SET, so DuckDB raises its own
-    // "Authentication Failure — no credentials are provided" (verified live in
-    // the DB-GAP-048 report); and a query failure still rejects, unchanged.
+    const resolved = await resolveQueryCredentials(cfg, provider);
+    expect(resolved).toEqual({
+      accessKeyId: CHAIN_KEY,
+      secretAccessKey: CHAIN_SECRET,
+      source: "chain",
+    });
+    expect(provider).toHaveBeenCalledTimes(1);
+
+    await runS3Query(cfg, "SELECT 1", { credentialProvider: provider });
+    const injected = credentialSetCalls().join("\n");
+    expect(injected).toContain(`s3_access_key_id='${CHAIN_KEY}'`);
+    expect(injected).toContain(`s3_secret_access_key='${CHAIN_SECRET}'`);
+  });
+
+  it("(e) chain resolves nothing: an explicit error names the sources and the profiles it looked at, and leaks no secret", async () => {
+    // A credentials file with two profile NAMES only — the error may quote the
+    // names, never a value from the file.
+    const dir = mkdtempSync(join(tmpdir(), "s3q-creds-"));
+    const credsFile = join(dir, "credentials");
+    writeFileSync(
+      credsFile,
+      `[default]\naws_access_key_id = ${FIXTURE_SECRET}\n` +
+        `[hetzner]\naws_access_key_id = ${FIXTURE_SECRET}\n` +
+        `[broken-profile]\naws_access_key_id = ${FIXTURE_SECRET}\n`,
+    );
+    process.env.AWS_SHARED_CREDENTIALS_FILE = credsFile;
+    const provider = vi.fn(async (): Promise<QueryCredentials> => {
+      throw new Error("Could not load credentials from any providers");
+    });
+    vi.spyOn(Database.prototype, "exec").mockImplementation(((sql: string) => {
+      execCalls.push(sql);
+    }) as never);
+
+    const message = await resolveQueryCredentials(cfg, provider).then(
+      () => "RESOLVED — expected a failure",
+      (err: Error) => err.message,
+    );
+    // Says the CHAIN resolved nothing (not httpfs' generic 403) …
+    expect(message).toMatch(/no AWS credentials resolved by the SDK default chain/);
+    // … names the sources it consulted and the profiles present, by name …
+    expect(message).toContain("AWS_PROFILE (unset)");
+    expect(message).toContain("[default] profile");
+    expect(message).toContain("hetzner");
+    expect(message).toContain("Could not load credentials from any providers");
+    // … and carries no key material.
+    expect(message).not.toContain(FIXTURE_SECRET);
+
+    // runS3Query fails BEFORE any httpfs statement runs: no half-configured
+    // session, no opaque 403 from the HTTP layer.
     await expect(
-      runS3Query(cfg, "SELECT * FROM dbgap048_no_such_table", {
-        credentialProvider: provider,
-      }),
-    ).rejects.toThrow(/dbgap048_no_such_table/);
-    expect(credentialSetCalls()).toEqual([]);
+      runS3Query(cfg, "SELECT 1", { credentialProvider: provider }),
+    ).rejects.toThrow(/no AWS credentials resolved/);
+    expect(execCalls).toEqual([]);
+  });
+
+  it("(f) chain resolves without a usable key: same explicit error, not a silent unauthenticated query", async () => {
+    const provider = vi.fn(
+      async (): Promise<QueryCredentials> =>
+        ({ accessKeyId: "", secretAccessKey: "" }) as QueryCredentials,
+    );
+    await expect(resolveQueryCredentials(cfg, provider)).rejects.toThrow(
+      /no AWS credentials resolved by the SDK default chain/,
+    );
   });
 
   it("(d) a named profile that cannot be resolved fails loudly, naming the profile", async () => {
