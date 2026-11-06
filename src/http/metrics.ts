@@ -75,7 +75,32 @@ import type { Request, Response } from "express";
 import { PROVIDERS } from "../embedding/providers";
 import { registerEmbeddingMetrics } from "../embedding/metrics";
 import { GIT_METRIC_NAMES, registerGitMetrics } from "../git/metrics";
-import { normalizeReadRoute } from "./readLedger";
+import {
+  RECALL_METRIC_NAMES,
+  registerRecallMetrics,
+  syncRecallPacksFromCounterFile,
+} from "../metrics/recall";
+import {
+  createStorageSampler,
+  STORAGE_SCAN_TTL_MS,
+  type StorageSampler,
+  type StorageUsage,
+} from "../metrics/storage";
+import {
+  normalizeReadRoute,
+  READ_LEDGER_METRIC_NAMES,
+  registerReadLedgerMetrics,
+} from "./readLedger";
+
+/** The two OBSDB-005 storage gauges, sampled at collect time. */
+export const STORAGE_NAMESPACES_BYTES = "duckbrain_storage_namespaces_bytes";
+export const STORAGE_EMBEDDING_CACHE_BYTES =
+  "duckbrain_storage_embedding_cache_bytes";
+
+export const STORAGE_METRIC_NAMES = [
+  STORAGE_NAMESPACES_BYTES,
+  STORAGE_EMBEDDING_CACHE_BYTES,
+] as const;
 
 /** The six+two families this endpoint owns, in exposition order. */
 export const METRIC_NAMES = [
@@ -89,6 +114,14 @@ export const METRIC_NAMES = [
   // OBSDB-004: the git write path (commit/push outcomes, queue depth, push
   // staleness) — owned by src/git/metrics.ts, attached below.
   ...GIT_METRIC_NAMES,
+  // OBSDB-005: storage growth, ledger churn and recall usefulness — the
+  // file-backed families. The storage gauges are sampled at collect time by
+  // this module; the rotation and recall counters live with the code that
+  // produces the fact (src/http/readLedger.ts, src/metrics/recall.ts) and are
+  // attached here.
+  ...STORAGE_METRIC_NAMES,
+  ...READ_LEDGER_METRIC_NAMES,
+  ...RECALL_METRIC_NAMES,
   "duckbrain_reads_total",
   "duckbrain_read_duration_seconds",
   "duckbrain_rejected_total",
@@ -189,6 +222,24 @@ export interface HttpMetricsOptions {
   healthDeadlineMs?: number;
   /** Clock seam (tests). */
   now?: () => number;
+  /**
+   * OBSDB-005: the resolved namespaces root whose footprint
+   * `duckbrain_storage_namespaces_bytes` reports. A getter so the daemon can
+   * hand over a path it resolves later in startup. When absent, the storage
+   * gauges emit NO sample — an embedder that never declared a storage root has
+   * nothing to measure, and a fabricated 0 would read as "the store is empty".
+   */
+  namespacesPath?: string | (() => string);
+  /**
+   * OBSDB-005: the recall counter JSONL the MCP server appends to
+   * (`<data-dir>/metrics/recall-counter.jsonl`). Defaults to the path resolved
+   * from config, i.e. beside the configured namespaces directory.
+   */
+  recallCounterFile?: string;
+  /** Reuse window for one storage walk (default STORAGE_SCAN_TTL_MS = 60 s). */
+  storageScanTtlMs?: number;
+  /** Measurement seam (tests): defaults to the real tree walk. */
+  measureStorage?: (namespacesPath: string) => Promise<StorageUsage>;
 }
 
 export interface HttpMetrics {
@@ -206,6 +257,12 @@ export interface HttpMetrics {
    * ledger, which is the only place a 403/429 can be observed at all.
    */
   observeRejection(event: RejectionEvent): void;
+  /**
+   * OBSDB-005: pull the file-backed counters into this registry. Called by the
+   * scrape handler before rendering, because the MCP server that appends recall
+   * events is a different process — an in-process increment would read 0.
+   */
+  syncExternalCounters(): void;
   /** Render the current exposition (test/debug seam). */
   render(): Promise<string>;
 }
@@ -481,6 +538,108 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
   // green (spec §2 blind spots #5-#6).
   registerGitMetrics(registry);
 
+  // OBSDB-005: storage footprint, sampled AT COLLECT TIME so the daemon gains
+  // no background loop (spec §3.2). `du -sb namespaces` is the number this
+  // gauge must reproduce; the `.embeddings` subset is the reclaimable cache.
+  //
+  // No declared namespaces root ⇒ no sampler ⇒ NO sample (both collect
+  // callbacks remove the series). That is the honest state for an embedded
+  // app: it is not "0 bytes of memory", it is "this process does not own a
+  // store to measure".
+  const storagePath =
+    typeof options.namespacesPath === "function"
+      ? options.namespacesPath
+      : options.namespacesPath
+        ? () => options.namespacesPath as string
+        : null;
+  const storageSampler: StorageSampler | null = storagePath
+    ? createStorageSampler({
+        namespacesPath: storagePath,
+        ttlMs: options.storageScanTtlMs ?? STORAGE_SCAN_TTL_MS,
+        now,
+        measure: options.measureStorage,
+      })
+    : null;
+
+  let storageNamespacesBytes!: Gauge;
+  let storageEmbeddingCacheBytes!: Gauge;
+
+  /**
+   * Publish one measurement (or withdraw both series when there is none).
+   *
+   * SINGLE-FLIGHT: both gauges render from one measurement, and prom-client
+   * calls collect for each of them — so two concurrent collect callbacks would
+   * race otherwise (one gets the sampler's in-flight placeholder and would
+   * withdraw the series the other just set). One shared promise means both
+   * gauges always describe the same walk.
+   */
+  let publishingStorage: Promise<void> | null = null;
+  const publishStorage = (): Promise<void> => {
+    if (publishingStorage) return publishingStorage;
+    const run = (async (): Promise<void> => {
+      if (!storageSampler) {
+        storageNamespacesBytes.remove();
+        storageEmbeddingCacheBytes.remove();
+        return;
+      }
+      let usage: StorageUsage | null = null;
+      try {
+        usage = await storageSampler.read();
+      } catch {
+        usage = null; // a failed walk is no measurement, never a 0
+      }
+      if (!usage) {
+        storageNamespacesBytes.remove();
+        storageEmbeddingCacheBytes.remove();
+        return;
+      }
+      storageNamespacesBytes.set(usage.namespacesBytes);
+      storageEmbeddingCacheBytes.set(usage.embeddingCacheBytes);
+    })();
+    publishingStorage = run.finally(() => {
+      publishingStorage = null;
+    });
+    return publishingStorage;
+  };
+
+  storageNamespacesBytes = new Gauge({
+    name: STORAGE_NAMESPACES_BYTES,
+    help: "Bytes of every regular file under the namespaces root, measured when the scrape asks (du -sb namespaces); it is the fleet's memory substrate, so a flat line is suspicious and a climb is disk pressure.",
+    registers: [registry],
+    collect: publishStorage,
+  });
+
+  storageEmbeddingCacheBytes = new Gauge({
+    name: STORAGE_EMBEDDING_CACHE_BYTES,
+    help: "Bytes under .embeddings/ directories inside the namespaces root — the derivable embedding cache, reclaimable by a rebuild.",
+    registers: [registry],
+    collect: publishStorage,
+  });
+
+  // OBSDB-005: the read ledger's rotation counter (src/http/readLedger.ts) and
+  // the recall pack counters (src/metrics/recall.ts) are process-wide facts
+  // produced outside this module — a seal happens in the ledger writer, a
+  // recall happens in the MCP process — so they are ATTACHED here, not
+  // reimplemented. Registration is idempotent, and order follows the spec's
+  // §3.2 table (storage, then ledger churn, then recall usefulness).
+  registerReadLedgerMetrics(registry);
+  registerRecallMetrics(registry);
+
+  /**
+   * OBSDB-005: count recall events appended since the last scrape.
+   *
+   * The MCP server is a different process from this daemon, so the only shared
+   * truth is the counter file. Nothing here may throw into the scrape: a
+   * malformed line or a racing truncation leaves the previous totals in place.
+   */
+  function syncExternalCounters(): void {
+    try {
+      syncRecallPacksFromCounterFile(options.recallCounterFile);
+    } catch {
+      /* telemetry must never fail a scrape */
+    }
+  }
+
   // How much work is the daemon doing, and how much of it is failing?
   const reads = new Counter({
     name: "duckbrain_reads_total",
@@ -651,6 +810,10 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
 
   async function handler(_req: Request, res: Response): Promise<void> {
     httpUp.set(1);
+    // OBSDB-005: file-backed counters first, so this scrape carries the events
+    // that landed since the previous one (the storage gauges sample themselves
+    // through collect when the registry renders).
+    syncExternalCounters();
     try {
       const { snapshot, fresh } = await snapshotForScrape();
       applyHealth(snapshot, fresh);
@@ -669,6 +832,10 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     recordHealth,
     observeRead,
     observeRejection,
-    render: () => registry.metrics(),
+    syncExternalCounters,
+    render: async () => {
+      syncExternalCounters();
+      return registry.metrics();
+    },
   };
 }

@@ -74,6 +74,7 @@ import { createReadsRoutes } from "../http/routes/reads.js";
 import { createReceiptsRoutes } from "../http/routes/receipts.js";
 import { createReadLedgerStore } from "../http/readLedger.js";
 import { createHttpMetrics } from "../http/metrics.js";
+import { recallCounterFileFor } from "../metrics/recall.js";
 import { createReadLedgerMiddleware } from "../http/middleware/readLedger.js";
 import path from "path";
 import fs from "fs";
@@ -569,10 +570,23 @@ function createBucketKeyResolver(
 export function createHttpServer(options: HttpServerOptions = {}): Express {
   const app = express();
 
+  // The namespaces root is resolved BEFORE the metrics surface (OBSDB-005):
+  // `duckbrain_storage_namespaces_bytes` has to measure the store this daemon
+  // actually serves, not whatever a later default would resolve to. GAP-062:
+  // server-side root = the config file's own directory, never cwd.
+  const namespacesPath = path.resolve(
+    options.namespacesPath ?? resolveNamespacesPath(),
+  );
+
   // 0. The OBSDB-001/002 metrics surface. Built FIRST (it mounts nothing) so
   // the guards below can report refusals into it; the scrape ROUTE is still
   // mounted after the DNS guard, exactly as before.
   const httpMetrics = createHttpMetrics({
+    // OBSDB-005: the storage gauges sample this store at scrape time, and the
+    // recall counters mirror the counter file that lives beside it (the MCP
+    // server appends there from a different process).
+    namespacesPath,
+    recallCounterFile: recallCounterFileFor(namespacesPath),
     // The SAME evaluator /health serves — never a second copy of the probe
     // logic (see evaluateHealth). Its own 30s reuse window keeps a scrape from
     // paying the 8.5s embed probe on every poll.
@@ -709,9 +723,6 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   // Inline authConfig remains the hermetic embed/test seam.
   // GAP-062: server-side root = the config file's own directory, never cwd
   // (the server must serve the same namespaces regardless of where it started).
-  const namespacesPath = path.resolve(
-    options.namespacesPath ?? resolveNamespacesPath(),
-  );
   const authConfig: AuthConfig = {
     // The CLI front door is fail-closed by default. Embedded callers and
     // explicit --auth=none still provide an intentional local/test opt-out.

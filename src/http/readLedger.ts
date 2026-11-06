@@ -35,6 +35,7 @@
 
 import fs from "fs";
 import path from "path";
+import { Counter, type Registry } from "prom-client";
 import { z } from "zod";
 
 /** Storage directory — the existing server audit dir convention. */
@@ -54,6 +55,48 @@ export const READS_MAX_BYTES = 10 * 1024 * 1024;
  */
 export function readsSegmentName(value: number): string {
   return `reads.${String(value).padStart(4, "0")}.jsonl`;
+}
+
+/**
+ * OBSDB-005 — `duckbrain_read_ledger_rotation_total`.
+ *
+ * Rotation is the one storage event this ledger emits that nothing counts:
+ * every 10 MB the active `reads.jsonl` is sealed into `reads.NNNN.jsonl`
+ * (`append` below) and, before this counter, that was visible only as a new
+ * file on disk. The operator question the series answers is "is the audit
+ * ledger churning?" — a rotation rate that jumps means traffic (or a hot
+ * namespace) changed by an order of magnitude; a rate of zero on a daemon
+ * that serves traffic means the ledger stopped being written.
+ *
+ * PROCESS-WIDE, like src/git/metrics.ts and src/embedding/metrics.ts: the
+ * ledger is appended from the daemon, from MCP stdio and from one-shot CLI
+ * runs, so the counter lives with the fact rather than with one HTTP app, and
+ * `registerReadLedgerMetrics` merely attaches it to a scrape registry.
+ */
+export const READ_LEDGER_ROTATION_TOTAL = "duckbrain_read_ledger_rotation_total";
+
+/** The families this module owns, in exposition order. */
+export const READ_LEDGER_METRIC_NAMES = [READ_LEDGER_ROTATION_TOTAL] as const;
+
+/** One sealed 10 MB segment. Renames only — a seal never loses a row. */
+export const readLedgerRotations = new Counter({
+  name: READ_LEDGER_ROTATION_TOTAL,
+  help: "Times the read ledger sealed its active segment into a new reads.NNNN.jsonl (10 MB bound); a jump means the ledger is churning.",
+  registers: [],
+});
+
+/** Attach the ledger families to a scrape registry (idempotent). */
+export function registerReadLedgerMetrics(registry: Registry): void {
+  try {
+    registry.registerMetric(readLedgerRotations);
+  } catch {
+    // Same metric object already registered on this registry — nothing to do.
+  }
+}
+
+/** Zero the counter (test seam; production only resets by restarting). */
+export function resetReadLedgerMetrics(): void {
+  readLedgerRotations.reset();
 }
 
 export function readsSegmentNumber(name: string): number | null {
@@ -140,6 +183,9 @@ export function createReadLedgerStore(
             file,
             path.join(dir, readsSegmentName(highest + 1)),
           );
+          // OBSDB-005: count the seal AFTER the rename lands — a failed rename
+          // is not a rotation, and counting the attempt would overstate churn.
+          readLedgerRotations.inc();
         }
         await fs.promises.appendFile(file, line, {
           encoding: "utf-8",

@@ -144,9 +144,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
     // OBSDB-002 grew the set from six families to eight (read latency and
     // refusals); OBSDB-003 grew it to eleven (embedding outcomes plus cache
     // hits/misses); OBSDB-004 grew it to fifteen (git commit/push outcomes,
-    // commit queue depth and push staleness). The assertion stays exact on
-    // purpose — a family appearing without a row and a review is the failure
-    // mode this guards.
+    // commit queue depth and push staleness); OBSDB-005 grew it to twenty
+    // (storage footprint, ledger churn and recall usefulness). The assertion
+    // stays exact on purpose — a family appearing without a row and a review
+    // is the failure mode this guards.
     expect(families).toEqual([
       "duckbrain_http_up gauge",
       "duckbrain_health_status gauge",
@@ -159,6 +160,14 @@ describe("OBSDB-001: /metrics exposition shape", () => {
       "duckbrain_git_push_total counter",
       "duckbrain_git_commit_queue_depth gauge",
       "duckbrain_git_last_push_success_timestamp_seconds gauge",
+      // OBSDB-005: file-backed families (storage sampled at collect time,
+      // rotation counted by the ledger writer, recall mirrored from the MCP
+      // counter file).
+      "duckbrain_storage_namespaces_bytes gauge",
+      "duckbrain_storage_embedding_cache_bytes gauge",
+      "duckbrain_read_ledger_rotation_total counter",
+      "duckbrain_recall_packs_total counter",
+      "duckbrain_recall_packs_nonempty_total counter",
       "duckbrain_reads_total counter",
       "duckbrain_read_duration_seconds histogram",
       "duckbrain_rejected_total counter",
