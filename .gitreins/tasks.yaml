@@ -3164,3 +3164,68 @@ tasks:
     measured restore RTO.
   status: pending
   created_at: '2026-11-06T00:10:13.467040+00:00'
+- id: S3-DEADLINE-001
+  title: 'S3-DEADLINE-001: the per-namespace S3 sync deadline is a fixed 300s cap,
+    so no namespace above ~560 objects can be pushed or pulled'
+  criteria:
+  - The defect is reproduced with S3_SYNC_NAMESPACE_DEADLINE_S unset, and the fix
+    makes the total allowance derive from the object count (or transfers concurrent)
+    while a genuinely stuck namespace still aborts nonzero naming the namespace (pasted
+    transcripts).
+  - scripts/restore-proof.sh --namespaces chat-archive PASSES end to end on a scratch
+    prefix with NO deadline env override, with the measured RTO recorded, and the
+    script no longer exports an override of its own.
+  - The full suite is green and test-counts.json is bumped in the same commit.
+  status: pending
+  created_at: '2026-11-06T01:19:34.951173+00:00'
+- id: HARDEN-DUCKBRAIN-004
+  title: 'Both lockfiles must move with package.json: one offline gate proves it before
+    the suite and before the commit'
+  criteria:
+  - 'A single gate runs both arms offline and names every offending package: package.json
+    vs package-lock.json (npm ci / Dockerfile) and package.json vs the importers block
+    of pnpm-lock.yaml for the root and packages/ui workspaces, reporting declared-but-unlocked,
+    specifier drift and stale entries.'
+  - Adding a throwaway dependency to package.json makes the gate fail in well under
+    a second, naming the package, before any test suite runs; the tracked .githooks/pre-commit
+    refuses such a commit.
+  - CI runs the same gate before the test suite, and the chosen rule is recorded in
+    CONTRIBUTING.md together with the two-lockfile install paths and the core.hooksPath
+    activation step.
+  - The full suite is green and test-counts.json is bumped in the same commit.
+  status: pending
+  created_at: '2026-11-06T05:42:15.956376+00:00'
+- id: OBSDB-005
+  title: Emit storage growth, recall usefulness and audit-ledger rotation metrics
+  criteria:
+  - duckbrain_storage_namespaces_bytes returns a positive sample within 5% of du -sb
+    on the namespaces root, sampled at collect time rather than by a periodic timer.
+  - duckbrain_storage_embedding_cache_bytes returns a non-negative sample for the
+    .embeddings subset.
+  - duckbrain_read_ledger_rotation_total counts real read-ledger segment seals.
+  - After one MCP recall, duckbrain_recall_packs_total increases by at least 1 and
+    duckbrain_recall_packs_nonempty_total / duckbrain_recall_packs_total is defined,
+    with the counters mirrored from the counter file written by another process.
+  - The full suite is green and test-counts.json is bumped in the same commit.
+  status: pending
+  created_at: '2026-11-06T06:57:35.120307+00:00'
+- id: ADOPT-DECLARED-001
+  title: Declare a table over HTTP and publish declaration adoption on /metrics
+  criteria:
+  - POST /api/ns/:ns/tables/:table/declare writes a declaration through the SAME core
+    as the CLI verb and the MCP tool (declareTable in src/tables/declare.ts), returning
+    the resulting declaration, and an unauthenticated/grant-restricted caller cannot
+    use it (namespace + per-table write grant).
+  - An end-to-end run on a scratch daemon proves an HTTP client can declare a table
+    and immediately insert and read a row, with a pre-fix control (origin/main tree)
+    answering 404 for the same request.
+  - 'Declaration adoption is a number on the scrape surface: duckbrain_table_declaration_namespaces{format=schema.json|legacy}
+    and duckbrain_table_declarations{format} are sampled from the namespaces root
+    at collect time, emit NO sample when there is no store, and move when a namespace
+    adopts schema.json.'
+  - The legacy-vs-schema.json shape decision is recorded in docs (why a partial migration
+    is worse than none, what legacy costs, the per-table recipe with rollback), and
+    the docs name the one path a user should take.
+  - The full suite is green and test-counts.json is bumped in the same commit.
+  status: pending
+  created_at: '2026-11-06T07:57:57.788514+00:00'

@@ -1,0 +1,1409 @@
+commit d0264bd4159d76e9e2fe5ab230fba0e05b688cb4
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Fri Nov 6 02:57:16 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Fri Nov 6 02:57:16 2026 -0500
+
+    ADOPT-DECLARED-001: declare a table over HTTP; adoption on /metrics
+    
+    POST /api/ns/:ns/tables/:table/declare turns an HTTP body into the same
+    declareTable() core the CLI and MCP use (a sub-resource of the row-insert verb,
+    so a data insert can never be read as a declaration) and is gated by the
+    namespace + per-table write grant, like every other table write.
+    
+    GET /metrics gains duckbrain_table_declaration_namespaces{format} and
+    duckbrain_table_declarations{format} from a collect-time census of schema.json
+    vs tables/*.table.json, so adoption is a number instead of a one-off find.
+    Docs name the recommended shape; the legacy-shape decision and the owner-gated
+    migration recipe are recorded in docs/decisions/ and filed as DECLARE-MIGRATE-001.
+---
+ docs/api/http-api.md                               |  63 +++-
+ .../ADOPT-DECLARED-001-declaration-shape.md        |  85 ++++++
+ docs/guide/cli-reference.md                        |   7 +
+ src/http/metrics.test.ts                           |   4 +
+ src/http/metrics.ts                                | 100 ++++++-
+ src/http/routes/tables-declare-adopt001.test.ts    | 317 +++++++++++++++++++++
+ src/http/routes/tables.ts                          | 189 +++++++++++-
+ src/metrics/declarations-adopt001.test.ts          | 253 ++++++++++++++++
+ src/metrics/declarations.ts                        | 198 +++++++++++++
+ test-counts.json                                   |   4 +-
+ 10 files changed, 1212 insertions(+), 8 deletions(-)
+
+diff --git a/docs/api/http-api.md b/docs/api/http-api.md
+index 7f5091a9..58711f19 100644
+--- a/docs/api/http-api.md
++++ b/docs/api/http-api.md
+@@ -1042,6 +1042,7 @@ Every route below is wrapped in the namespace-grant check exactly like
+ | Method | Path | Purpose |
+ |---|---|---|
+ | `GET` | `/api/ns/:ns/tables` | List declared tables |
++| `POST` | `/api/ns/:ns/tables/:table/declare` | Declare a table (same core as the CLI verb and the MCP tool) |
+ | `GET` | `/api/ns/:ns/tables/:table` | Read rows (filter / order / page) |
+ | `POST` | `/api/ns/:ns/tables/:table` | Insert row(s) |
+ | `PATCH` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Update rows by primary key |
+@@ -1051,8 +1052,19 @@ Every route below is wrapped in the namespace-grant check exactly like
+ #### Declare a table
+ 
+ Tables are served ONLY from declarations on disk — a fresh install has no
+-declarations and the layer stays empty until you create one. The CLI verb
+-writes the SUPA-6 persistent schema (merging into an existing
++declarations and the layer stays empty until you create one. There are three
++transports and **one implementation** (`declareTable()` in
++`src/tables/declare.ts`): the CLI verb, the HTTP route below, and the MCP
++`tables_declare` tool. They validate identically, journal identically and
++refuse identically.
++
++**Recommended path for a new table: declare it over HTTP (or MCP) without
++`legacy`**, so `schema.json` is written and inserts ride the SUPA-2 serializer
++(validation → ordered write → audit + DB-SUPA-5 change record → commit). See
++`docs/decisions/ADOPT-DECLARED-001-declaration-shape.md` for why the 949
++pre-existing legacy declarations are NOT migrated as part of this route.
++
++The CLI verb writes the SUPA-6 persistent schema (merging into an existing
+ `schema.json`) or the legacy per-table file:
+ 
+ ```bash
+@@ -1104,6 +1116,53 @@ declaration shape) instead of `schema.json`. Re-declaring an identical
+ contract is idempotent. The schema switch goes through the DDL fence and is
+ journaled under `<ns>/.duckbrain-ddl/` like every other schema change.
+ 
++#### `POST /api/ns/:ns/tables/:table/declare` — declare over HTTP
++
++An agent with an API key can create the table it wants to write to; no shell on
++the box is required. The body is the same document the MCP `tables_declare` tool
++takes:
++
++```json
++{
++  "columns": [
++    { "name": "id", "type": "integer" },
++    { "name": "label", "type": "varchar" }
++  ],
++  "primary": "id",
++  "format": "jsonl-objects",
++  "legacy": false,
++  "force": false
++}
++```
++
++`columns` is required (each `{name, type}`, types as in the CLI). `primary`
++defaults to the first column; `format` defaults to `jsonl-objects`. Unknown
++fields are rejected rather than ignored, so a typo cannot silently declare
++nothing.
++
++```bash
++curl -s -X POST "http://localhost:3000/api/ns/e2e-supagap/tables/widgets/declare" \
++  -H "x-api-key: $DUCKBRAIN_API_KEY" -H "Content-Type: application/json" \
++  -d '{"columns":[{"name":"id","type":"integer"},{"name":"name","type":"varchar"}],"primary":"id"}'
++# 201 {"namespace":"e2e-supagap","table":"widgets","path":"…/schema.json",
++#      "format":"schema.json","replacedExisting":false,"declaration":{…}}
++```
++
++| Status | Meaning |
++|---|---|
++| `201` | Declaration written; `declaration` is the resulting REST contract |
++| `200` | Identical contract already existed, or `force` replaced a different one |
++| `400` `INVALID_DECLARATION` | Body shape or column names/types are invalid (the CLI's own message) |
++| `403` `FORBIDDEN` | No namespace grant, or no per-table **write** grant for this table |
++| `409` `DECLARATION_REFUSED` | Well-formed, refused by state on disk (conflicting contract without `force`) |
++
++The route is a **sub-resource** of the table (`/:table/declare`) rather than the
++row-insert verb `POST /:table`: overloading the data verb would make an insert
++whose columns happened to look like a declaration write schema instead of rows.
++Declaring is a write, so it is gated exactly like `POST /:table` — namespace
++grant plus per-table write grant — and a token restricted to specific tables
++cannot invent a new one.
++
+ #### `GET /api/ns/:ns/tables` — discovery
+ 
+ Lists the namespace's declarations. Columns, types, and the primary key are
+diff --git a/docs/decisions/ADOPT-DECLARED-001-declaration-shape.md b/docs/decisions/ADOPT-DECLARED-001-declaration-shape.md
+new file mode 100644
+index 00000000..05142a9f
+--- /dev/null
++++ b/docs/decisions/ADOPT-DECLARED-001-declaration-shape.md
+@@ -0,0 +1,85 @@
++# Decision: which declaration shape is canonical (ADOPT-DECLARED-001)
++
++**Status:** decided (2026-11-06) — legacy stays canonical for the tables that
++already use it; `schema.json` is the path every NEW table must take.
++**Row:** ADOPT-DECLARED-001. **Follow-up:** DECLARE-MIGRATE-001 (owner-gated).
++
++## The measurement
++
++Re-measured on the production store on 2026-11-06 (read-only):
++
++```
++find namespaces -maxdepth 2 -name schema.json   → 0
++find namespaces -name '*.table.json'            → 949  (across 71 namespaces)
++find namespaces -maxdepth 1 -mindepth 1 -type d  → 297 namespace directories
++```
++
++The same 0 / 949 split was measured by the 2026-11-04 bakeoff. Nothing had
++adopted the SUPA-6 persistent schema in production, while every real table was
++declared the legacy way. That is the gap ADOPT-DECLARED-001 exists to close —
++and the first half of closing it was the missing network surface: declaration
++was reachable only from a shell on the box (CLI) and, since SURFACE-MCP-DATA-001,
++over MCP; `POST /api/ns/:ns/tables/:table/declare` now exposes the same core to
++any HTTP agent.
++
++## Decision
++
++1. **New tables declare `schema.json`** (the default for the CLI verb, the MCP
++   `tables_declare` tool and the new HTTP route). Their inserts ride the SUPA-2
++   serializer: validation → ordered write → audit + DB-SUPA-5 change record →
++   commit, with the DDL fence honoured for declaration changes.
++2. **The 949 existing legacy declarations are NOT migrated here.** Migration is
++   a rewrite of live namespace declarations and is owner-gated (the hardening
++   loop may not touch production namespaces). It is filed as
++   DECLARE-MIGRATE-001 with the recipe below.
++3. **Legacy is not deprecated on paper before it is empty in practice.** The
++   docs now name the recommended path instead of implying `schema.json` is what
++   production already runs.
++
++## Why a partial migration is worse than none
++
++`src/schema/table-registry.ts`: *"Legacy declarations are unchanged by DB-SUPA-6
++and always win on a name conflict."* So writing a `schema.json` entry for a table
++that still has `tables/<table>.table.json` does nothing visible — the table
++keeps serving from the legacy file and the `schema.json` entry is dead weight
++that makes a namespace look migrated. A real migration is therefore two steps
++per table (declare in `schema.json`, then delete the legacy file) and the
++switch happens at the delete. Doing that partially across 71 namespaces produces
++a store where "which path is this table on?" can only be answered by reading the
++filesystem, which is exactly the ambiguity this row set out to remove.
++
++## What the legacy shape costs (sourced)
++
++| Cost | Where it is visible |
++|---|---|
++| No DB-SUPA-5 change record on inserts — no change event for realtime/replay consumers | `docs/api/http-api.md`, "Legacy table declaration … no `schema.json` serializer involvement" |
++| No SUPA-2 ordering/commit barrier; durability is the direct append + fsync, not the serializer's audit trail | same table; `docs/specs/SUPA-1-write-durability.md` |
++| No declared relations (`columns[].references`), so `?embed=` cannot be used | REST-ATOMICITY-001 surface, `GET /api/ns/:ns/tables/:table?embed=…` |
++| No composite `keyColumns`, no per-table `schemaVersion`, no views | `docs/specs/SUPA-6-ddl.md` |
++| Declaration collisions resolve to the legacy file, silently | `src/schema/table-registry.ts` |
++
++## Migration recipe (DECLARE-MIGRATE-001)
++
++Per namespace, per table, with the daemon serving:
++
++1. `POST /api/ns/<ns>/tables/<table>/declare` with the table's exact columns,
++   primary key and row shape (no `legacy`) — `force` only where the contract
++   genuinely must change.
++2. Prove parity BEFORE deleting anything: `GET /api/ns/<ns>/tables/<table>` and
++   `Prefer: count=exact` must match the pre-change response row-for-row.
++3. Delete `namespaces/<ns>/tables/<table>.table.json` — this is the switch: the
++   table now resolves from `schema.json` and its writes ride the serializer.
++4. Re-prove (1)-(2), then insert one probe row and confirm the write went
++   through the namespace writer rather than the legacy direct append: the
++   SUPA-6 branch in `insertTableRows` (`src/tables/operations.ts`) enqueues on
++   the NamespaceWriter, which is what writes the DB-SUPA-5 change record and
++   the audit entry the legacy branch never produces.
++5. Rollback at any point: restore the deleted legacy file — legacy wins again.
++
++## How adoption stays visible
++
++`GET /metrics` now carries `duckbrain_table_declaration_namespaces{format}` and
++`duckbrain_table_declarations{format}` (`format="schema.json"|"legacy"`),
++sampled from the namespaces root at scrape time. Current values on this store:
++`schema.json` = 0 namespaces / 0 tables, `legacy` = 71 namespaces / 949 tables.
++The migration's progress is those two numbers converging, not a checklist.
+diff --git a/docs/guide/cli-reference.md b/docs/guide/cli-reference.md
+index 7c146ee6..a820736a 100644
+--- a/docs/guide/cli-reference.md
++++ b/docs/guide/cli-reference.md
+@@ -630,6 +630,13 @@ conflicting existing declaration of the same table name is refused.
+ **Safety:** additive/metadata-only until `--force`, which REPLACES an
+ existing declaration — run a plain declare first to see the conflict.
+ 
++The same declaration exists on the other two surfaces and goes through this
++same core (`declareTable()`): `POST /api/ns/:ns/tables/:table/declare` (see
++`docs/api/http-api.md`) and the MCP `tables_declare` tool. Declare NEW tables
++without `--legacy`: the SUPA-6 `schema.json` path is the one whose inserts carry
++change records; the shape decision is recorded in
++`docs/decisions/ADOPT-DECLARED-001-declaration-shape.md`.
++
+ ```bash
+ duckbrain tables declare e2e-supagap widgets --column id=integer --column name=varchar --primary id
+ duckbrain tables declare notes events --column id=bigint --column at=timestamp --legacy
+diff --git a/src/http/metrics.test.ts b/src/http/metrics.test.ts
+index 5d4cb171..06103308 100644
+--- a/src/http/metrics.test.ts
++++ b/src/http/metrics.test.ts
+@@ -165,6 +165,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
+       // counter file).
+       "duckbrain_storage_namespaces_bytes gauge",
+       "duckbrain_storage_embedding_cache_bytes gauge",
++      // ADOPT-DECLARED-001: declaration adoption per shape (sampled at collect
++      // time from the same namespaces root).
++      "duckbrain_table_declaration_namespaces gauge",
++      "duckbrain_table_declarations gauge",
+       "duckbrain_read_ledger_rotation_total counter",
+       "duckbrain_recall_packs_total counter",
+       "duckbrain_recall_packs_nonempty_total counter",
+diff --git a/src/http/metrics.ts b/src/http/metrics.ts
+index ca08604b..141fd91e 100644
+--- a/src/http/metrics.ts
++++ b/src/http/metrics.ts
+@@ -8,10 +8,11 @@
+  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
+  * official Node.js Prometheus client) in the text exposition format 0.0.4.
+  *
+- * Fifteen families are exposed (spec §3.1/§3.2: the six MVP families of
++ * Seventeen families are exposed (spec §3.1/§3.2: the six MVP families of
+  * OBSDB-001, the two read-path depth families of OBSDB-002, the three
+- * embedding-path families of OBSDB-003, and the four git write-path families
+- * of OBSDB-004):
++ * embedding-path families of OBSDB-003, the four git write-path families of
++ * OBSDB-004, and — with OBSDB-005 and ADOPT-DECLARED-001 — storage, ledger,
++ * recall and declaration-adoption families):
+  *
+  *   duckbrain_http_up                        gauge      — answer a scrape at all
+  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
+@@ -28,6 +29,8 @@
+  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
+  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
+  *   duckbrain_build_info                     gauge 1    — version/node
++ *   duckbrain_table_declaration_namespaces   gauge      — format=schema.json|legacy (ADOPT-DECLARED-001)
++ *   duckbrain_table_declarations             gauge      — format=schema.json|legacy (ADOPT-DECLARED-001)
+  *
+  * The three OBSDB-003 families are owned by the EMBEDDING layer, not by this
+  * module: `src/embedding/metrics.ts` holds them as process-wide counters
+@@ -91,6 +94,13 @@ import {
+   READ_LEDGER_METRIC_NAMES,
+   registerReadLedgerMetrics,
+ } from "./readLedger";
++import {
++  createDeclarationSampler,
++  DECLARATION_METRIC_NAMES,
++  DECLARATION_SCAN_TTL_MS,
++  type DeclarationCensus,
++  type DeclarationSampler,
++} from "../metrics/declarations";
+ 
+ /** The two OBSDB-005 storage gauges, sampled at collect time. */
+ export const STORAGE_NAMESPACES_BYTES = "duckbrain_storage_namespaces_bytes";
+@@ -102,6 +112,14 @@ export const STORAGE_METRIC_NAMES = [
+   STORAGE_EMBEDDING_CACHE_BYTES,
+ ] as const;
+ 
++/**
++ * ADOPT-DECLARED-001: declaration adoption — namespaces per declaration SHAPE,
++ * and the declared-table totals behind them. Sampled at collect time from the
++ * same namespaces root as the storage gauges.
++ */
++export const DECLARATION_NAMESPACES = DECLARATION_METRIC_NAMES[0];
++export const DECLARATION_TABLES = DECLARATION_METRIC_NAMES[1];
++
+ /** The six+two families this endpoint owns, in exposition order. */
+ export const METRIC_NAMES = [
+   "duckbrain_http_up",
+@@ -120,6 +138,8 @@ export const METRIC_NAMES = [
+   // produces the fact (src/http/readLedger.ts, src/metrics/recall.ts) and are
+   // attached here.
+   ...STORAGE_METRIC_NAMES,
++  // ADOPT-DECLARED-001: is the declared-schema path actually adopted?
++  ...DECLARATION_METRIC_NAMES,
+   ...READ_LEDGER_METRIC_NAMES,
+   ...RECALL_METRIC_NAMES,
+   "duckbrain_reads_total",
+@@ -616,6 +636,80 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
+     collect: publishStorage,
+   });
+ 
++  // ADOPT-DECLARED-001: the declared-schema path had zero production adoption
++  // (0 schema.json vs 949 legacy .table.json on 2026-11-04) while every SUPA-6
++  // feature rode it. Adoption is now a moving number rather than a one-off
++  // `find`: namespaces per shape, plus the declared-table totals behind them.
++  const declarationSampler: DeclarationSampler | null = storagePath
++    ? createDeclarationSampler({
++        namespacesPath: storagePath,
++        ttlMs: options.storageScanTtlMs ?? DECLARATION_SCAN_TTL_MS,
++        now,
++      })
++    : null;
++
++  let declarationNamespaces!: Gauge;
++  let declarationTables!: Gauge;
++
++  /** Same single-flight rule as publishStorage: both gauges, one walk. */
++  let publishingDeclarations: Promise<void> | null = null;
++  const declarationFormats = ["schema.json", "legacy"] as const;
++  const publishDeclarations = (): Promise<void> => {
++    if (publishingDeclarations) return publishingDeclarations;
++    const run = (async (): Promise<void> => {
++      const withdraw = (): void => {
++        for (const format of declarationFormats) {
++          declarationNamespaces.remove({ format });
++          declarationTables.remove({ format });
++        }
++      };
++      if (!declarationSampler) {
++        withdraw();
++        return;
++      }
++      let census: DeclarationCensus | null = null;
++      try {
++        census = await declarationSampler.read();
++      } catch {
++        census = null; // unmeasurable is not "nobody adopted"
++      }
++      if (!census) {
++        withdraw();
++        return;
++      }
++      declarationNamespaces.set(
++        { format: "schema.json" },
++        census.namespacesWithSchemaJson,
++      );
++      declarationNamespaces.set(
++        { format: "legacy" },
++        census.namespacesWithLegacy,
++      );
++      declarationTables.set({ format: "schema.json" }, census.tablesInSchemaJson);
++      declarationTables.set({ format: "legacy" }, census.tablesLegacy);
++    })();
++    publishingDeclarations = run.finally(() => {
++      publishingDeclarations = null;
++    });
++    return publishingDeclarations;
++  };
++
++  declarationNamespaces = new Gauge({
++    name: DECLARATION_NAMESPACES,
++    help: "Namespaces holding each table-declaration shape (format=schema.json is the SUPA-6 persistent schema, format=legacy is tables/<table>.table.json); a flat 0 for schema.json means nobody has adopted the documented path.",
++    labelNames: ["format"],
++    registers: [registry],
++    collect: publishDeclarations,
++  });
++
++  declarationTables = new Gauge({
++    name: DECLARATION_TABLES,
++    help: "Declared tables per declaration shape across the store (format=schema.json counts schema.json table entries, format=legacy counts tables/*.table.json files).",
++    labelNames: ["format"],
++    registers: [registry],
++    collect: publishDeclarations,
++  });
++
+   // OBSDB-005: the read ledger's rotation counter (src/http/readLedger.ts) and
+   // the recall pack counters (src/metrics/recall.ts) are process-wide facts
+   // produced outside this module — a seal happens in the ledger writer, a
+diff --git a/src/http/routes/tables-declare-adopt001.test.ts b/src/http/routes/tables-declare-adopt001.test.ts
+new file mode 100644
+index 00000000..4b0a7a17
+--- /dev/null
++++ b/src/http/routes/tables-declare-adopt001.test.ts
+@@ -0,0 +1,317 @@
++/**
++ * ADOPT-DECLARED-001 — declaration over HTTP.
++ *
++ * The row's first half: declaration was host-CLI-only, so an agent on the
++ * network could not create the table it wanted to write to. `POST
++ * /api/ns/:ns/tables/:table/declare` now exists and calls the SAME core as
++ * `duckbrain tables declare` and the MCP `tables_declare` tool
++ * (src/tables/declare.ts declareTable) — no second writer.
++ *
++ * Proven here, over a real express stack on the route module:
++ *   1. an HTTP client (no shell) declares a table and immediately inserts and
++ *      reads a row through the REST data verbs — the agent path end to end;
++ *   2. a re-declaration of an identical contract is idempotent (200,
++ *      replacedExisting) and a conflicting one is refused 409 unless force;
++ *   3. a malformed body is 400 INVALID_DECLARATION, naming the field;
++ *   4. `legacy: true` writes the historical tables/<table>.table.json shape
++ *      and the resulting table is immediately servable;
++ *   5. authz is the namespace + per-table WRITE grant: a token with a
++ *      tableGrants map that does not name this table gets 403 table_grant,
++ *      and a token without the namespace gets 403 — declaring is a write.
++ */
++
++import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
++import express, { Request, Response, NextFunction } from "express";
++import fs from "fs";
++import os from "os";
++import path from "path";
++import { createServer, type Server } from "http";
++
++import { createTableRoutes } from "./tables";
++import { invalidateTableRegistry } from "../../schema/table-registry";
++import { invalidateNamespaceSchema } from "../../serialization/schemaRegistry";
++
++const NS = "adopt-fixture";
++
++let tmpRoot = "";
++let previousRoot: string | undefined;
++
++function createApp(): express.Express {
++  const app = express();
++  app.use(express.json());
++  app.use(express.text({ type: "application/x-ndjson", limit: "1mb" }));
++  app.use("/api/ns/:ns/tables", createTableRoutes());
++  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
++    res
++      .status(err.status || 500)
++      .json({ error: err.message, code: err.code });
++  });
++  return app;
++}
++
++interface HttpResult {
++  status: number;
++  body: any;
++  text: string;
++}
++
++function httpRequest(
++  app: express.Express,
++  method: string,
++  reqPath: string,
++  opts: { headers?: Record<string, string>; body?: unknown } = {},
++): Promise<HttpResult> {
++  return new Promise((resolve, reject) => {
++    const server: Server = createServer(app);
++    server.listen(0, "127.0.0.1", () => {
++      const addr = server.address();
++      const port = addr && typeof addr !== "string" ? addr.port : 0;
++      // eslint-disable-next-line @typescript-eslint/no-var-requires
++      const http = require("http");
++      const options: any = {
++        hostname: "127.0.0.1",
++        port,
++        path: reqPath,
++        method,
++        headers: {
++          Host: "localhost",
++          ...(opts.body !== undefined && !opts.headers?.["Content-Type"]
++            ? { "Content-Type": "application/json" }
++            : {}),
++          ...(opts.headers || {}),
++        },
++      };
++      const req = http.request(options, (res: any) => {
++        let data = "";
++        res.on("data", (chunk: Buffer) => {
++          data += chunk.toString();
++        });
++        res.on("end", () => {
++          server.close();
++          let parsed: any = data;
++          try {
++            parsed = JSON.parse(data);
++          } catch {
++            /* non-JSON bodies stay raw */
++          }
++          resolve({ status: res.statusCode, body: parsed, text: data });
++        });
++      });
++      req.on("error", (err: Error) => {
++        server.close();
++        reject(err);
++      });
++      if (opts.body !== undefined) {
++        req.write(
++          typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body),
++        );
++      }
++      req.end();
++    });
++  });
++}
++
++beforeAll(() => {
++  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "adopt-declared-"));
++  previousRoot = process.env.DUCKBRAIN_NAMESPACES_PATH;
++  process.env.DUCKBRAIN_NAMESPACES_PATH = tmpRoot;
++  fs.mkdirSync(path.join(tmpRoot, NS), { recursive: true });
++});
++
++beforeEach(() => {
++  invalidateTableRegistry();
++  invalidateNamespaceSchema();
++});
++
++afterAll(() => {
++  if (previousRoot === undefined) delete process.env.DUCKBRAIN_NAMESPACES_PATH;
++  else process.env.DUCKBRAIN_NAMESPACES_PATH = previousRoot;
++  fs.rmSync(tmpRoot, { recursive: true, force: true });
++});
++
++const BASE = `/api/ns/${NS}/tables`;
++
++describe("ADOPT-DECLARED-001 — POST /api/ns/:ns/tables/:table/declare", () => {
++  it("declares, then inserts and reads a row over the same REST surface", async () => {
++    const app = createApp();
++
++    const declared = await httpRequest(app, "POST", `${BASE}/agent_widgets/declare`, {
++      body: {
++        columns: [
++          { name: "id", type: "integer" },
++          { name: "label", type: "varchar" },
++        ],
++        primary: "id",
++      },
++    });
++
++    expect(declared.status).toBe(201);
++    expect(declared.body).toMatchObject({
++      namespace: NS,
++      table: "agent_widgets",
++      format: "schema.json",
++      replacedExisting: false,
++    });
++    expect(declared.body.path.endsWith(path.join(NS, "schema.json"))).toBe(true);
++    expect(declared.body.declaration).toMatchObject({
++      name: "agent_widgets",
++      primary: "id",
++      source: "schema.json",
++    });
++    // The declaration is reported in the REST vocabulary the route layer
++    // serves (schema.json canonical types mapped back to legacy names), so a
++    // caller can POST a row against exactly what it was told.
++    expect(
++      declared.body.declaration.columns.map((c: any) => [c.name, c.type]),
++    ).toEqual([
++      ["id", "double"],
++      ["label", "varchar"],
++    ]);
++
++    const inserted = await httpRequest(app, "POST", `${BASE}/agent_widgets`, {
++      body: { id: 1, label: "alpha" },
++    });
++    expect(inserted.status).toBe(201);
++    expect(inserted.body).toMatchObject({ inserted: 1 });
++
++    const read = await httpRequest(app, "GET", `${BASE}/agent_widgets`);
++    expect(read.status).toBe(200);
++    expect(read.body).toEqual([{ id: 1, label: "alpha" }]);
++  });
++
++  it("is idempotent for an identical contract and 409s a conflicting one without force", async () => {
++    const app = createApp();
++    const body = {
++      columns: [
++        { name: "id", type: "integer" },
++        { name: "label", type: "varchar" },
++      ],
++      primary: "id",
++    };
++
++    expect((await httpRequest(app, "POST", `${BASE}/idem/declare`, { body })).status).toBe(201);
++
++    const again = await httpRequest(app, "POST", `${BASE}/idem/declare`, { body });
++    expect(again.status).toBe(200);
++    expect(again.body.replacedExisting).toBeDefined();
++
++    const conflicting = await httpRequest(app, "POST", `${BASE}/idem/declare`, {
++      body: {
++        columns: [{ name: "id", type: "integer" }, { name: "label", type: "double" }],
++        primary: "id",
++      },
++    });
++    expect(conflicting.status).toBe(409);
++    expect(conflicting.body.code).toBe("DECLARATION_REFUSED");
++
++    const forced = await httpRequest(app, "POST", `${BASE}/idem/declare`, {
++      body: {
++        columns: [{ name: "id", type: "integer" }, { name: "label", type: "double" }],
++        primary: "id",
++        force: true,
++      },
++    });
++    expect(forced.status).toBe(200);
++    expect(forced.body.replacedExisting).toBe(true);
++  });
++
++  it("rejects a malformed declaration body with 400 INVALID_DECLARATION", async () => {
++    const app = createApp();
++
++    const noColumns = await httpRequest(app, "POST", `${BASE}/bad/declare`, {
++      body: { columns: [] },
++    });
++    expect(noColumns.status).toBe(400);
++    expect(noColumns.body.code).toBe("INVALID_DECLARATION");
++
++    const unknownKey = await httpRequest(app, "POST", `${BASE}/bad/declare`, {
++      body: { columns: [{ name: "id", type: "integer" }], colums: [] },
++    });
++    expect(unknownKey.status).toBe(400);
++    expect(unknownKey.body.error).toContain("colums");
++
++    const badType = await httpRequest(app, "POST", `${BASE}/bad/declare`, {
++      body: { columns: [{ name: "id", type: "uuid" }] },
++    });
++    expect(badType.status).toBe(400);
++    expect(badType.body.error).toContain("unsupported column type");
++
++    // Nothing was written by any of the refusals.
++    expect(fs.existsSync(path.join(tmpRoot, NS, "tables", "bad.table.json"))).toBe(
++      false,
++    );
++  });
++
++  it("writes the legacy declaration shape on request and serves it immediately", async () => {
++    const app = createApp();
++    const declared = await httpRequest(app, "POST", `${BASE}/legacy_widget/declare`, {
++      body: {
++        columns: [
++          { name: "id", type: "integer" },
++          { name: "name", type: "varchar" },
++        ],
++        primary: "id",
++        legacy: true,
++      },
++    });
++    expect(declared.status).toBe(201);
++    expect(declared.body.format).toBe("legacy");
++    expect(
++      fs.existsSync(
++        path.join(tmpRoot, NS, "tables", "legacy_widget.table.json"),
++      ),
++    ).toBe(true);
++
++    const inserted = await httpRequest(app, "POST", `${BASE}/legacy_widget`, {
++      body: { id: 7, name: "seven" },
++    });
++    expect(inserted.status).toBe(201);
++    const read = await httpRequest(app, "GET", `${BASE}/legacy_widget`);
++    expect(read.body).toEqual([{ id: 7, name: "seven" }]);
++  });
++
++  it("403s a table-restricted token that holds no grant for the NEW table", async () => {
++    const { authMiddleware } = await import("../../auth/middleware.js");
++    const app = express();
++    app.use(express.json());
++    app.use(
++      authMiddleware({
++        type: "apikey",
++        apiKeys: [
++          {
++            key: "adopt-writer-key",
++            name: "writer",
++            namespaces: [NS],
++            roles: ["writer"],
++            tableGrants: { existing_table: "rw" },
++          },
++        ],
++      }),
++    );
++    app.use("/api/ns/:ns/tables", createTableRoutes());
++    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
++      res.status(err.status || 500).json({ error: err.message, code: err.code });
++    });
++
++    const denied = await httpRequest(app, "POST", `${BASE}/new_table/declare`, {
++      headers: { "x-api-key": "adopt-writer-key" },
++      body: { columns: [{ name: "id", type: "integer" }] },
++    });
++    expect(denied.status).toBe(403);
++    expect(denied.body.code).toBe("FORBIDDEN");
++    expect(denied.body.error).toContain("no write grant for table 'new_table'");
++
++    const allowed = await httpRequest(app, "POST", `${BASE}/existing_table/declare`, {
++      headers: { "x-api-key": "adopt-writer-key" },
++      body: { columns: [{ name: "id", type: "integer" }] },
++    });
++    expect(allowed.status).toBe(201);
++
++    // The refused namespace never reached the route: no declaration on disk.
++    expect(fs.existsSync(path.join(tmpRoot, NS, "schema.json"))).toBe(true);
++    const schema = JSON.parse(
++      fs.readFileSync(path.join(tmpRoot, NS, "schema.json"), "utf-8"),
++    );
++    expect(Object.keys(schema.tables)).not.toContain("new_table");
++  });
++});
+diff --git a/src/http/routes/tables.ts b/src/http/routes/tables.ts
+index 37c12aa6..44ae0027 100644
+--- a/src/http/routes/tables.ts
++++ b/src/http/routes/tables.ts
+@@ -5,6 +5,15 @@
+  * /api/ns/:ns/tables with PostgREST conventions:
+  *
+  *   GET    /api/ns/:ns/tables                 — list declared tables
++ *
++ *   ADOPT-DECLARED-001: declaration itself has a network surface now —
++ *   POST /api/ns/:ns/tables/:table/declare writes through the SAME core the
++ *   CLI (`duckbrain tables declare`) and MCP (`tables_declare`) call —
++ *   src/tables/declare.ts declareTable() — so an agent with an API key can
++ *   create a table instead of needing a shell on the box. It is a SUB-RESOURCE
++ *   of the table rather than the row-insert verb (POST /:table) because that
++ *   verb is the data contract: overloading it would make an insert whose
++ *   columns happened to look like a declaration write schema instead of rows.
+  *   GET    /api/ns/:ns/tables/:table          — SELECT with col=op.value
+  *                                              filters (eq/ne/gt/gte/lt/
+  *                                              lte/like/in), order=col.asc|
+@@ -86,7 +95,19 @@ import {
+ } from "../../auth/middleware";
+ import { authorizeTableAccess } from "../../auth/roles";
+ import { setDurabilityHeaders } from "../../storage/durability";
+-import { listTables, type TableDeclaration } from "../../schema/table-registry";
++import {
++  TABLE_COLUMN_TYPES,
++  TABLE_FORMATS,
++  listTables,
++  type TableFormat,
++  type TableDeclaration,
++} from "../../schema/table-registry";
++import {
++  declareTable,
++  TableDeclareError,
++  type DeclareTableResult,
++  type DeclareTableSpec,
++} from "../../tables/declare";
+ 
+ import {
+   deleteTableRows,
+@@ -116,6 +137,112 @@ function wantsExactCount(req: Request): boolean {
+   return (Array.isArray(q) ? q[0] : q) === "exact";
+ }
+ 
++// ---------------------------------------------------------------------------
++// ADOPT-DECLARED-001 — declaration body
++// ---------------------------------------------------------------------------
++
++/** Keys a declaration body may carry; anything else is a typo, not a feature. */
++const DECLARATION_BODY_KEYS = [
++  "columns",
++  "primary",
++  "format",
++  "legacy",
++  "force",
++] as const;
++
++function badDeclaration(message: string): ApiError {
++  return new ApiError(message, 400, "INVALID_DECLARATION");
++}
++
++/**
++ * Turn an HTTP declaration body into the transport-neutral DeclareTableSpec.
++ *
++ * The shape mirrors the MCP `tables_declare` arguments exactly (columns:
++ * [{name,type}], primary, format, legacy, force) so the two agent transports
++ * accept the same document; validation of the VALUES stays in declareTable()
++ * — this function only refuses shapes the core cannot even read, and refuses
++ * unknown keys instead of silently ignoring them (`colums` would otherwise
++ * declare nothing and report success).
++ */
++export function parseDeclarationBody(
++  ns: string,
++  table: string,
++  body: unknown,
++): DeclareTableSpec {
++  if (typeof body !== "object" || body === null || Array.isArray(body)) {
++    throw badDeclaration(
++      "Declaration body must be a JSON object: {columns: [{name, type}], primary?, format?, legacy?, force?}",
++    );
++  }
++  const record = body as Record<string, unknown>;
++  const unknownKeys = Object.keys(record).filter(
++    (key) => !(DECLARATION_BODY_KEYS as readonly string[]).includes(key),
++  );
++  if (unknownKeys.length > 0) {
++    throw badDeclaration(
++      `Unknown declaration field(s): ${unknownKeys.join(", ")} (expected ${DECLARATION_BODY_KEYS.join(", ")})`,
++    );
++  }
++  if (!Array.isArray(record.columns) || record.columns.length === 0) {
++    throw badDeclaration(
++      "columns must be a non-empty array of {name, type} objects",
++    );
++  }
++  const columns: Array<{ name: string; type: string }> = record.columns.map(
++    (column, index) => {
++      if (typeof column !== "object" || column === null || Array.isArray(column)) {
++        throw badDeclaration(`columns[${index}] must be a {name, type} object`);
++      }
++      const entry = column as Record<string, unknown>;
++      const extra = Object.keys(entry).filter(
++        (key) => key !== "name" && key !== "type",
++      );
++      if (extra.length > 0) {
++        throw badDeclaration(
++          `columns[${index}] has unknown field(s): ${extra.join(", ")}`,
++        );
++      }
++      if (typeof entry.name !== "string" || entry.name.length === 0) {
++        throw badDeclaration(`columns[${index}].name must be a non-empty string`);
++      }
++      if (typeof entry.type !== "string") {
++        throw badDeclaration(
++          `columns[${index}].type must be a string (one of ${TABLE_COLUMN_TYPES.join("|")})`,
++        );
++      }
++      return { name: entry.name, type: entry.type };
++    },
++  );
++
++  const spec: DeclareTableSpec = { ns, table, columns };
++
++  if (record.primary !== undefined) {
++    if (typeof record.primary !== "string") {
++      throw badDeclaration("primary must be a string naming one of the columns");
++    }
++    spec.primary = record.primary;
++  }
++  if (record.format !== undefined) {
++    if (
++      typeof record.format !== "string" ||
++      !(TABLE_FORMATS as readonly string[]).includes(record.format)
++    ) {
++      throw badDeclaration(
++        `format must be one of ${TABLE_FORMATS.join("|")}, got '${String(record.format)}'`,
++      );
++    }
++    spec.format = record.format as TableFormat;
++  }
++  for (const flag of ["legacy", "force"] as const) {
++    if (record[flag] === undefined) continue;
++    if (typeof record[flag] !== "boolean") {
++      throw badDeclaration(`${flag} must be a boolean`);
++    }
++    spec[flag] = record[flag] as boolean;
++  }
++  return spec;
++}
++
+ // ---------------------------------------------------------------------------
+ // CSV rendering
+ // ---------------------------------------------------------------------------
+@@ -928,6 +1055,66 @@ function createTableRoutes(): Router {
+     }),
+   );
+ 
++  /**
++   * POST /api/ns/:ns/tables/:table/declare — create/replace a table declaration.
++   *
++   * ADOPT-DECLARED-001: declaration was host-CLI-only (and then MCP-only), so
++   * an agent on the network could not create the table it wanted to write to.
++   * This route parses an HTTP declaration body into the transport-neutral
++   * spec and calls declareTable() — the SAME core as `duckbrain tables declare`
++   * and the MCP `tables_declare` tool. No second writer: the schema.json path
++   * still validates before the atomic switch, journals under the DDL fence and
++   * re-loads through the real registry loader.
++   *
++   * Authz is the namespace write grant plus the per-table write grant, exactly
++   * like the row-insert verb — declaring is a write, and a token restricted to
++   * specific tables cannot invent a new one.
++   *
++   * Status: 201 when the declaration is new, 200 when an identical contract
++   * already existed (idempotent re-declare) or `force` replaced it. The body
++   * carries the resulting declaration so the caller never has to GET it back.
++   */
++  router.post(
++    "/:table/declare",
++    requireNamespaceGrant((req) => param(req, "ns")),
++    requireTableGrant(grantNs, grantTable, "write"),
++    asyncHandler(async (req: Request, res: Response) => {
++      const ns = param(req, "ns");
++      const tableName = param(req, "table");
++      const spec = parseDeclarationBody(ns, tableName, req.body);
++      let result: DeclareTableResult;
++      try {
++        result = await declareTable(spec);
++      } catch (error) {
++        if (error instanceof TableDeclareError) {
++          // `usage` → the request is malformed (400); `refusal` → the state on
++          // disk refused a well-formed request (409). The message is the CLI's
++          // own text, so all three surfaces refuse identically.
++          throw error.kind === "refusal"
++            ? new ApiError(error.message, 409, "DECLARATION_REFUSED")
++            : new ApiError(error.message, 400, "INVALID_DECLARATION");
++        }
++        throw error;
++      }
++      let declaration: TableDeclaration | undefined;
++      try {
++        declaration = resolveTableDeclaration(ns, tableName);
++      } catch {
++        // The declaration is on disk and proven loadable by declareTable();
++        // a registry miss here is a reporting gap, not a failed write.
++        declaration = undefined;
++      }
++      res.status(result.replacedExisting ? 200 : 201).json({
++        namespace: result.ns,
++        table: result.table,
++        path: result.path,
++        format: result.format,
++        replacedExisting: result.replacedExisting,
++        ...(declaration ? { declaration } : {}),
++      });
++    }),
++  );
++
+   /**
+    * POST /api/ns/:ns/tables/:table — insert (object / array / NDJSON).
+    *
+diff --git a/src/metrics/declarations-adopt001.test.ts b/src/metrics/declarations-adopt001.test.ts
+new file mode 100644
+index 00000000..8b13ba27
+--- /dev/null
++++ b/src/metrics/declarations-adopt001.test.ts
+@@ -0,0 +1,253 @@
++/**
++ * ADOPT-DECLARED-001 — declaration adoption is a number, not a one-off `find`.
++ *
++ * The gap the row records: 0 namespaces ran the SUPA-6 `schema.json` path while
++ * 949 legacy `tables/*.table.json` declarations served every real table, and
++ * nothing on the scrape surface could notice the difference. These tests pin
++ * the census (what is counted, and that a namespace holding both shapes is
++ * counted honestly in both populations) and the two gauges that publish it.
++ *
++ * Also pinned: an unmeasurable store produces NO sample — never a 0, which
++ * would read as "nobody adopted" when the truth is "we could not look".
++ */
++
++import { describe, it, expect, beforeEach, afterEach } from "vitest";
++import fs from "fs";
++import os from "os";
++import path from "path";
++
++import {
++  measureDeclarations,
++  createDeclarationSampler,
++  DECLARATION_SCAN_TTL_MS,
++} from "./declarations";
++import { createHttpMetrics } from "../http/metrics";
++
++const HEALTHY = {
++  status: "healthy" as const,
++  providers: [],
++  durationsMs: { embedding: 0, keys: 0, total: 0 },
++};
++
++let root = "";
++
++function scratchDir(): string {
++  return fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-adopt-declared-"));
++}
++
++function writeSchema(ns: string, tables: string[]): void {
++  const dir = path.join(root, ns);
++  fs.mkdirSync(dir, { recursive: true });
++  const doc: Record<string, unknown> = {
++    schemaVersion: 1,
++    tables: Object.fromEntries(
++      tables.map((table) => [
++        table,
++        {
++          schemaVersion: 1,
++          storage: { path: `tables/${table}/current.jsonl` },
++          rowShape: "object",
++          keyColumns: ["id"],
++          columns: [{ name: "id", type: "int64", nullable: false }],
++        },
++      ]),
++    ),
++    views: {},
++  };
++  fs.writeFileSync(path.join(dir, "schema.json"), JSON.stringify(doc, null, 2));
++}
++
++function writeLegacy(ns: string, tables: string[]): void {
++  const dir = path.join(root, ns, "tables");
++  fs.mkdirSync(dir, { recursive: true });
++  for (const table of tables) {
++    fs.writeFileSync(
++      path.join(dir, `${table}.table.json`),
++      JSON.stringify({
++        name: table,
++        format: "jsonl-objects",
++        columns: [{ name: "id", type: "integer" }],
++        primary: "id",
++        glob: `tables/${table}.jsonl`,
++      }),
++    );
++  }
++}
++
++/** Read one labeled series out of a Prometheus text exposition body. */
++function seriesValue(
++  text: string,
++  name: string,
++  labels: Record<string, string>,
++): number | null {
++  const matcher = new RegExp(
++    `^${name}\\{${Object.entries(labels)
++      .map(([key, value]) => `${key}="${value}"`)
++      .join(",")}\\} (\\S+)$`,
++    "m",
++  );
++  const match = text.match(matcher);
++  return match ? Number(match[1]) : null;
++}
++
++beforeEach(() => {
++  root = scratchDir();
++});
++
++afterEach(() => {
++  fs.rmSync(root, { recursive: true, force: true });
++});
++
++describe("measureDeclarations", () => {
++  it("counts both declaration shapes per namespace, including namespaces holding both", async () => {
++    writeSchema("alpha", ["widgets", "gadgets"]); // schema.json, 2 tables
++    writeLegacy("beta", ["lanes"]); // legacy only, 1 table
++    writeSchema("gamma", ["items"]); // both shapes in one namespace
++    writeLegacy("gamma", ["scores", "runs"]);
++    fs.mkdirSync(path.join(root, "delta"), { recursive: true }); // declares nothing
++
++    const census = await measureDeclarations(root);
++
++    expect(census).toEqual({
++      namespaces: 4,
++      namespacesWithSchemaJson: 2,
++      namespacesWithLegacy: 2,
++      tablesInSchemaJson: 3,
++      tablesLegacy: 3,
++    });
++  });
++
++  it("counts an unreadable schema.json as a namespace with the file but no readable tables", async () => {
++    const dir = path.join(root, "broken");
++    fs.mkdirSync(dir, { recursive: true });
++    fs.writeFileSync(path.join(dir, "schema.json"), "{ not json");
++
++    const census = await measureDeclarations(root);
++    expect(census.namespacesWithSchemaJson).toBe(1);
++    expect(census.tablesInSchemaJson).toBe(0);
++  });
++
++  it("throws when the store itself cannot be read (no measurement, no fabricated zero)", async () => {
++    await expect(
++      measureDeclarations(path.join(root, "does-not-exist")),
++    ).rejects.toThrow();
++  });
++});
++
++describe("createDeclarationSampler", () => {
++  it("reuses one walk inside the TTL and re-walks after it", async () => {
++    writeSchema("alpha", ["widgets"]);
++    let now = 1_000;
++    let walks = 0;
++    const sampler = createDeclarationSampler({
++      namespacesPath: () => root,
++      now: () => now,
++      measure: async (namespacesPath) => {
++        walks += 1;
++        return measureDeclarations(namespacesPath);
++      },
++    });
++
++    const first = await sampler.read();
++    expect(first?.namespacesWithSchemaJson).toBe(1);
++
++    writeSchema("beta", ["items"]);
++    now += DECLARATION_SCAN_TTL_MS - 1;
++    const cached = await sampler.read();
++    expect(cached?.namespacesWithSchemaJson).toBe(1);
++    expect(walks).toBe(1);
++
++    now += 2;
++    const fresh = await sampler.read();
++    expect(fresh?.namespacesWithSchemaJson).toBe(2);
++    expect(walks).toBe(2);
++  });
++
++  it("keeps the last real measurement when a later walk fails", async () => {
++    let fail = false;
++    let now = 1_000;
++    const sampler = createDeclarationSampler({
++      namespacesPath: () => root,
++      now: () => now,
++      measure: async (namespacesPath) => {
++        if (fail) throw new Error("store unreadable");
++        return measureDeclarations(namespacesPath);
++      },
++    });
++    writeSchema("alpha", ["widgets"]);
++    expect((await sampler.read())?.namespacesWithSchemaJson).toBe(1);
++
++    fs.rmSync(root, { recursive: true, force: true });
++    fail = true;
++    now += DECLARATION_SCAN_TTL_MS + 1;
++    expect((await sampler.read())?.namespacesWithSchemaJson).toBe(1);
++  });
++});
++
++describe("/metrics — declaration adoption gauges", () => {
++  it("publishes namespaces and tables per declaration shape", async () => {
++    writeSchema("alpha", ["widgets", "gadgets"]);
++    writeLegacy("beta", ["lanes"]);
++
++    const metrics = createHttpMetrics({
++      evaluateHealth: async () => HEALTHY,
++      namespacesPath: root,
++    });
++    const text = await metrics.render();
++
++    expect(
++      seriesValue(text, "duckbrain_table_declaration_namespaces", {
++        format: "schema.json",
++      }),
++    ).toBe(1);
++    expect(
++      seriesValue(text, "duckbrain_table_declaration_namespaces", {
++        format: "legacy",
++      }),
++    ).toBe(1);
++    expect(
++      seriesValue(text, "duckbrain_table_declarations", { format: "schema.json" }),
++    ).toBe(2);
++    expect(
++      seriesValue(text, "duckbrain_table_declarations", { format: "legacy" }),
++    ).toBe(1);
++  });
++
++  it("follows the store: a namespace that adopts schema.json moves the number", async () => {
++    writeLegacy("beta", ["lanes"]);
++    let now = 1_000;
++    const metrics = createHttpMetrics({
++      evaluateHealth: async () => HEALTHY,
++      namespacesPath: root,
++      now: () => now,
++    });
++
++    let text = await metrics.render();
++    expect(
++      seriesValue(text, "duckbrain_table_declaration_namespaces", {
++        format: "schema.json",
++      }),
++    ).toBe(0);
++    expect(
++      seriesValue(text, "duckbrain_table_declaration_namespaces", {
++        format: "legacy",
++      }),
++    ).toBe(1);
++
++    writeSchema("alpha", ["widgets"]);
++    now += DECLARATION_SCAN_TTL_MS + 1;
++    text = await metrics.render();
++    expect(
++      seriesValue(text, "duckbrain_table_declaration_namespaces", {
++        format: "schema.json",
++      }),
++    ).toBe(1);
++  });
++
++  it("emits no adoption series for an embedder that declared no store", async () => {
++    const metrics = createHttpMetrics({ evaluateHealth: async () => HEALTHY });
++    const text = await metrics.render();
++    expect(text).not.toMatch(/^duckbrain_table_declaration_namespaces\{/m);
++    expect(text).not.toMatch(/^duckbrain_table_declarations\{/m);
++  });
++});
+diff --git a/src/metrics/declarations.ts b/src/metrics/declarations.ts
+new file mode 100644
+index 00000000..741bc6b5
+--- /dev/null
++++ b/src/metrics/declarations.ts
+@@ -0,0 +1,198 @@
++/**
++ * ADOPT-DECLARED-001 — how many namespaces actually run the declared-schema
++ * path, as a number on the scrape surface.
++ *
++ * The 2026-11-04 bakeoff measured the gap this module exists to keep visible:
++ * `find namespaces -maxdepth 2 -name schema.json` returned 0 while
++ * `find namespaces -name '*.table.json'` returned 949. The SUPA-6 persistent
++ * schema (schema.json) is the path every new feature rides — DDL fence,
++ * validation before the atomic switch, change records on writes — and no
++ * namespace had adopted it, while the legacy per-table declaration served every
++ * real table. A one-off shell count cannot notice a regression; a gauge that
++ * moves can.
++ *
++ * WHAT IS COUNTED (per namespace directory directly under the namespaces root):
++ *
++ *   - `schema.json` — the SUPA-6 persistent declaration document. One per
++ *     namespace, holding every declared table.
++ *   - `tables/<name>.table.json` — the legacy per-table declaration. A
++ *     namespace counts as legacy when at least one such file exists.
++ *
++ * A namespace may honestly be BOTH (a schema.json plus legacy declarations it
++ * inherited); the two gauges are independent populations, not a partition.
++ *
++ * SAMPLING — collect time, exactly like src/metrics/storage.ts: no background
++ * timer, a TTL cache (60 s) so a 15 s scrape does not re-walk the tree, and
++ * single-flight so concurrent scrapes share one walk. A walk that fails leaves
++ * the sampler returning `null`, which the metrics layer renders as NO SAMPLE —
++ * never a fabricated 0, because "0 adopted" and "we could not measure" are the
++ * opposite facts and this row is about telling them apart.
++ */
++
++import fs from "fs";
++import path from "path";
++
++/** The SUPA-6 persistent schema document (src/serialization/schemaJson.ts). */
++export const SCHEMA_FILE = "schema.json";
++
++/** The legacy per-table declaration directory. */
++export const LEGACY_TABLE_DIR = "tables";
++
++/** The legacy per-table declaration suffix. */
++export const LEGACY_DECLARATION_SUFFIX = ".table.json";
++
++/** Steady-state reuse window for one census walk. */
++export const DECLARATION_SCAN_TTL_MS = 60_000;
++
++export interface DeclarationCensus {
++  /** Namespace directories examined (proof the walk traversed the store). */
++  namespaces: number;
++  /** Namespaces holding a schema.json. */
++  namespacesWithSchemaJson: number;
++  /** Namespaces holding at least one tables/*.table.json. */
++  namespacesWithLegacy: number;
++  /** Tables declared across all schema.json documents. */
++  tablesInSchemaJson: number;
++  /** Legacy declaration files across all namespaces. */
++  tablesLegacy: number;
++}
++
++function emptyCensus(): DeclarationCensus {
++  return {
++    namespaces: 0,
++    namespacesWithSchemaJson: 0,
++    namespacesWithLegacy: 0,
++    tablesInSchemaJson: 0,
++    tablesLegacy: 0,
++  };
++}
++
++/** Table entries in one schema.json text, or 0 when it cannot be read. */
++function countSchemaTables(file: string): number {
++  try {
++    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
++    if (typeof parsed !== "object" || parsed === null) return 0;
++    const tables = (parsed as { tables?: unknown }).tables;
++    if (typeof tables !== "object" || tables === null) return 0;
++    return Object.keys(tables as Record<string, unknown>).length;
++  } catch {
++    return 0;
++  }
++}
++
++/**
++ * Count declaration adoption under `namespacesPath`.
++ *
++ * Throws only when the ROOT cannot be read (the caller's cue that no
++ * measurement exists). A per-namespace failure — a directory deleted mid-walk,
++ * an unreadable `tables/` — is skipped, never turned into a zero for the whole
++ * store.
++ */
++export async function measureDeclarations(
++  namespacesPath: string,
++): Promise<DeclarationCensus> {
++  const root = path.resolve(namespacesPath);
++  const census = emptyCensus();
++
++  let entries: fs.Dirent[];
++  try {
++    entries = await fs.promises.readdir(root, { withFileTypes: true });
++  } catch (error) {
++    throw error;
++  }
++
++  for (const entry of entries) {
++    if (!entry.isDirectory()) continue;
++    const nsDir = path.join(root, entry.name);
++    census.namespaces += 1;
++
++    const schemaFile = path.join(nsDir, SCHEMA_FILE);
++    try {
++      if ((await fs.promises.stat(schemaFile)).isFile()) {
++        census.namespacesWithSchemaJson += 1;
++        census.tablesInSchemaJson += countSchemaTables(schemaFile);
++      }
++    } catch {
++      /* no schema.json — the legacy path, not a measurement failure */
++    }
++
++    try {
++      const declarations = await fs.promises.readdir(
++        path.join(nsDir, LEGACY_TABLE_DIR),
++        { withFileTypes: true },
++      );
++      const legacy = declarations.filter(
++        (file) =>
++          file.isFile() && file.name.endsWith(LEGACY_DECLARATION_SUFFIX),
++      ).length;
++      if (legacy > 0) {
++        census.namespacesWithLegacy += 1;
++        census.tablesLegacy += legacy;
++      }
++    } catch {
++      /* no tables/ dir — nothing declared the legacy way */
++    }
++  }
++
++  return census;
++}
++
++/** The two label values the gauges expose. */
++export type DeclarationFormat = "schema.json" | "legacy";
++
++export const DECLARATION_METRIC_NAMES = [
++  "duckbrain_table_declaration_namespaces",
++  "duckbrain_table_declarations",
++] as const;
++
++export interface DeclarationSamplerOptions {
++  /** Resolved namespaces root. A getter so the daemon can pass a late value. */
++  namespacesPath: () => string;
++  /** Reuse window (default DECLARATION_SCAN_TTL_MS). */
++  ttlMs?: number;
++  /** Clock seam (tests). */
++  now?: () => number;
++  /** Measurement seam (tests): defaults to measureDeclarations. */
++  measure?: (namespacesPath: string) => Promise<DeclarationCensus>;
++}
++
++export interface DeclarationSampler {
++  /** The current census, or `null` when none has ever completed. */
++  read(): Promise<DeclarationCensus | null>;
++}
++
++/**
++ * TTL-cached, single-flight wrapper around `measureDeclarations`.
++ *
++ * Same contract as `createStorageSampler` (src/metrics/storage.ts): a failure
++ * keeps the previous real measurement instead of publishing a zero.
++ */
++export function createDeclarationSampler(
++  options: DeclarationSamplerOptions,
++): DeclarationSampler {
++  const ttlMs = options.ttlMs ?? DECLARATION_SCAN_TTL_MS;
++  const now = options.now ?? (() => Date.now());
++  const measure = options.measure ?? measureDeclarations;
++
++  let cached: { at: number; census: DeclarationCensus } | null = null;
++  let inFlight: Promise<DeclarationCensus | null> | null = null;
++
++  return {
++    async read(): Promise<DeclarationCensus | null> {
++      if (cached && now() - cached.at < ttlMs) return cached.census;
++      if (inFlight) return cached?.census ?? null;
++      inFlight = (async () => {
++        try {
++          const census = await measure(options.namespacesPath());
++          cached = { at: now(), census };
++          return census;
++        } catch {
++          return cached?.census ?? null;
++        } finally {
++          inFlight = null;
++        }
++      })();
++      return inFlight;
++    },
++  };
++}
+diff --git a/test-counts.json b/test-counts.json
+index a69e7e53..6ae55bd0 100644
+--- a/test-counts.json
++++ b/test-counts.json
+@@ -1,5 +1,5 @@
+ {
+-  "suites": 266,
+-  "tests": 2248,
++  "suites": 268,
++  "tests": 2261,
+   "provenance": "Totals extracted from the vitest summary (parenthesized Test Files / Tests totals) by scripts/sync-agents-md-counts.sh. Regenerate and commit in the SAME commit that changes the suite/test counts; CI asserts this manifest against the live suite (DF-2026-13 — the gate moved off the protected agent-instruction file)."
+ }
