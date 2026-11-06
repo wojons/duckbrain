@@ -286,6 +286,31 @@ big-data scans without transferring everything.
   namespaces but ALL restores fail, the CLI prints a loud warning and exits
   nonzero — a restore is never a silent zero.
 
+### Restore proof and measured RTO (2026-11-05)
+
+`scripts/restore-proof.sh` exercises this path end to end against a throwaway
+prefix (`s3://<bucket>/restore-proof/<utc-stamp>/`, deleted on exit): copy real
+namespaces → sha256 every syncable file → push → **delete the local tree** →
+`sync all pull` into an empty root → compare the namespace list, the file
+count and the sha256 of EVERY file → read a known key through a scratch
+daemon. `--fault corrupt-one|delete-one` is the negative control: the proof
+must fail loudly when one remote object is altered or removed.
+
+Measured on 2026-11-05 (Hetzner hel1, `hermes` + `chat-archive`, 631 files /
+159 MB): pull 287 s, push 342 s, every file byte-identical, known key served
+HTTP 200 from the restored tree. Largest namespace exercised, `chat-archive`
+(617 files / 156 MB): **4.6 min restore**. Throughput is ~2 objects/s because
+transfers are sequential — projected (not measured) `scheduler` (258k objects)
+≈ 32 h, `fleet-quality` (29k) ≈ 3.6 h. Full transcript, controls and the two
+defects found (the 300 s per-namespace deadline, and `pull` reporting success
+on a corrupted object) are in
+[docs/evidence/backup-restore-proof-2026-11-05.md](evidence/backup-restore-proof-2026-11-05.md).
+
+> **Known limit at the time of writing:** `S3_SYNC_NAMESPACE_DEADLINE_S`
+> defaults to 300 s, which aborts any namespace above ~560 objects (570 of 617
+> objects landed before the abort on this host). Raise it for real restores, or
+> wait for the follow-up row that makes the deadline count-aware.
+
 A restored namespace arrives **data-only**: JSONL + manifest files. Git
 history never travels through S3 objects, so the restored namespace has no
 `.git` until tracking is reinitialized (matches the daemon's own identity,
