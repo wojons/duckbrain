@@ -159,13 +159,17 @@ router.post(
 );
 
 /**
- * GET /api/ops/s3/status?namespace=<ns>&probe=false
+ * GET /api/ops/s3/status?namespace=<ns>[&verify=true][&sample=N][&allowManyObjects=true]
  *
  * The `s3 status` report as JSON — the exact object `s3 status --json` prints,
  * built by the same collector (`collectS3StatusReport`, SURFACE-HTTP-OPS-001).
- * Read-only: no manifest is written and no sync lock is taken. `probe=false`
- * skips the bucket listing (config + local census only) for callers that must
- * not touch the network.
+ * Read-only: no manifest is written and no sync lock is taken.
+ *
+ * S3-STATUS-SCALE-001: the DEFAULT is the recorded state — no bucket listing.
+ * A status GET used to LIST every object in the namespace, which for
+ * scheduler (258,578 objects, ~23 pages) meant the route could not answer at
+ * all. `verify=true` (or the legacy `probe=true`) compares a bounded sample;
+ * a sample above the budget is a 400, not a hung request.
  */
 router.get(
   "/s3/status",
@@ -174,23 +178,38 @@ router.get(
       typeof req.query.namespace === "string" && req.query.namespace
         ? req.query.namespace
         : undefined;
-    const probe = req.query.probe === undefined || req.query.probe !== "false";
+    const verify =
+      req.query.verify === "true" || req.query.probe === "true";
+    const sample =
+      typeof req.query.sample === "string" && req.query.sample !== ""
+        ? Number(req.query.sample)
+        : undefined;
 
     // Lazy: src/s3/cli pulls in @aws-sdk/client-s3 (~91ms, PERF-004). Loading
     // it here instead of at module scope keeps daemon startup unchanged for
     // the overwhelmingly common case where nobody asks for S3 status.
     const { collectS3StatusReport } = await import("../../s3/cli.js");
-    const report = await collectS3StatusReport(".", ns, {
-      full: true,
-      probeRemote: probe,
-    });
+    let report: Awaited<ReturnType<typeof collectS3StatusReport>>;
+    try {
+      report = await collectS3StatusReport(".", ns, {
+        full: true,
+        verify,
+        ...(sample === undefined ? {} : { sample }),
+        allowManyObjects: req.query.allowManyObjects === "true",
+      });
+    } catch (err) {
+      // A sample over budget is a caller error with a fixable message, not a
+      // 500 and not a request that hangs until the client gives up.
+      res.status(400).json({ success: false, error: (err as Error).message });
+      return;
+    }
 
     auditOps(req, {
       op: "s3-status",
       ns: ns ?? null,
       enabled: report.enabled,
       total: report.total,
-      probed: probe,
+      probed: verify,
       success: true,
     });
 

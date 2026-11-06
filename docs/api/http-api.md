@@ -1620,9 +1620,17 @@ An applied run additionally returns `removed`, `manifestsPruned`,
 #### `GET /api/ops/s3/status`
 
 The `duckbrain s3 status --json` report, unchanged and complete: effective
-config plus one row per namespace. Query parameters: `namespace` (one namespace
-only) and `probe=false` (skip the bucket listing; every `remote` count is then
-`null`).
+config plus one row per namespace. Query parameters:
+
+- `namespace` — restrict the report to one namespace.
+- `verify=true` (or the legacy `probe=true`) — compare a bounded remote sample
+  against the push manifest; `sample=N` sets its size (default 1000) and
+  `allowManyObjects=true` lifts the 5000-object budget. A sample over budget is
+  a `400` that names the flag.
+- default — **recorded state only**, no bucket listing: each row carries
+  `objectsRecorded`/`bytesRecorded` and `countSource: "recorded"`, and `remote`
+  is `null`. A status GET used to LIST every object in the namespace, which for
+  scheduler (258,578 objects) meant it could not answer (S3-STATUS-SCALE-001).
 
 #### `POST /api/ops/consolidate`
 

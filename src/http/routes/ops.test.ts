@@ -332,6 +332,55 @@ describe("GET /api/ops/s3/status", () => {
     expect(live).toMatchObject({ local: expect.any(Number), remote: null, registered: true });
   });
 
+  it("answers from the RECORD by default — no bucket listing on a status GET", async () => {
+    writeConfig({
+      s3: {
+        enabled: true,
+        bucket: "ops-bucket",
+        prefix: "fleet",
+        pushOnCommit: false,
+        intervalSec: 300,
+        forcePathStyle: true,
+      },
+    });
+
+    // No probe/verify parameter: the pre-fix route listed every object in the
+    // namespace here (and for scheduler could not answer at all).
+    const { status, body } = await httpRequest("GET", "/api/ops/s3/status", {
+      key: "admin-key",
+    });
+
+    expect(status).toBe(200);
+    expect(body.verifyPlan).toBeNull();
+    for (const row of body.namespaces) {
+      expect(row.remote).toBeNull();
+      expect(row.countSource).toBe("recorded");
+    }
+  });
+
+  it("refuses a sample over budget with a 400 that names the flag", async () => {
+    writeConfig({
+      s3: {
+        enabled: true,
+        bucket: "ops-bucket",
+        prefix: "fleet",
+        pushOnCommit: false,
+        intervalSec: 300,
+        forcePathStyle: true,
+      },
+    });
+
+    const { status, body } = await httpRequest(
+      "GET",
+      "/api/ops/s3/status?verify=true&sample=999999",
+      { key: "admin-key" },
+    );
+
+    expect(status).toBe(400);
+    expect(body.success).toBe(false);
+    expect(body.error).toContain("--allow-many-objects");
+  });
+
   it("refuses a non-admin token (403)", async () => {
     const { status } = await httpRequest("GET", "/api/ops/s3/status", {
       key: "writer-key",

@@ -30,7 +30,6 @@ import {
   listRemoteNamespaces,
 } from "./sync";
 import { runS3Query } from "./query";
-import { listRemoteObjects, buildClient } from "./client";
 import {
   findGhostSyncState,
   sweepGhostSyncState,
@@ -38,6 +37,22 @@ import {
   planS3Clear,
   logLifecycle,
 } from "../namespaces/lifecycle";
+
+import type { S3Client } from "@aws-sdk/client-s3";
+import type { S3Config } from "./config";
+
+/**
+ * S3-STATUS-SCALE-001: the S3 SDK is imported LAZILY. `s3 status` without
+ * `--verify` makes no bucket request, so loading @aws-sdk/client-s3 (~150ms of
+ * startup on this host) on the recorded path was pure cost against the 2s
+ * budget the row sets.
+ */
+type S3ClientModule = typeof import("./client.js");
+
+/** Load the S3 SDK surface only when a verb actually talks to the bucket. */
+async function loadS3ClientModule(): Promise<S3ClientModule> {
+  return await import("./client.js");
+}
 
 /**
  * S3-STATUS-001: the human `s3 status` report caps itself at this many
@@ -49,18 +64,88 @@ import {
  */
 export const STATUS_ROW_LIMIT = 20;
 
+/**
+ * S3-STATUS-SCALE-001: how many objects `s3 status --verify` lists when the
+ * caller does not say, and the ceiling it REFUSES to cross without an explicit
+ * `--allow-many-objects`.
+ *
+ * Status used to LIST every object in the namespace on every call. For
+ * scheduler (258,578 objects) that is ~23 ListObjectsV2 pages — measured
+ * 5,504ms for 10,002 objects, and `s3 status scheduler --json` produced no
+ * output at all inside a 60s budget. The namespace most in need of a status
+ * check was the one whose check could not finish, so the default path now
+ * answers from the push manifest (already written on every push) and a bucket
+ * comparison is a bounded SAMPLE the caller asks for.
+ */
+export const S3_VERIFY_SAMPLE_DEFAULT = 1000;
+export const S3_VERIFY_SAMPLE_MAX = 5000;
+
+/**
+ * S3-STATUS-SCALE-001: the local half has the same pathology as the remote
+ * half. Enumerating scheduler's 261,094 directory entries costs ~0.94s on this
+ * host (and statSync-ing each file ~1.1s), all of it to produce `local=` and
+ * `unpushed=` — so a namespace whose RECORD already says it holds more than
+ * this many objects is not walked by default; the row says so and `--deep`
+ * measures it on request. A recorded count is data-driven and deterministic;
+ * a wall-clock budget would make the same command report different things.
+ */
+export const S3_LOCAL_WALK_MAX = 100_000;
+
 /** `duckbrain s3 status` output options (S3-STATUS-001). */
 export interface S3StatusOptions {
   /** Show every namespace instead of the first STATUS_ROW_LIMIT. */
   full?: boolean;
   /** Emit one JSON document (full list, no truncation) — machine-readable. */
   json?: boolean;
+  /** S3-STATUS-SCALE-001: compare a bounded remote sample (--verify). */
+  verify?: boolean;
+  /** How many objects that sample may list (--sample=N). */
+  sample?: number;
+  /** Lift the S3_VERIFY_SAMPLE_MAX budget (--allow-many-objects). */
+  allowManyObjects?: boolean;
+  /**
+   * S3-STATUS-SCALE-001: measure live local state (`local=`, `unpushed=`) even
+   * for a namespace above the local-walk budget.
+   */
+  deep?: boolean;
+  /** Override S3_LOCAL_WALK_MAX for this call (--local-walk-max=N). */
+  localWalkMax?: number;
+}
+
+/**
+ * S3-STATUS-SCALE-001: the outcome of comparing a bounded remote sample with
+ * the push manifest. `drift` is the number of sampled objects the record does
+ * not explain, so "recorded" can never masquerade as "verified".
+ */
+export interface S3VerifySample {
+  /** Objects the caller allowed us to list. */
+  requested: number;
+  /** Objects actually listed (<= requested). */
+  listed: number;
+  /** True when S3 says the prefix holds more than this page. */
+  truncated: boolean;
+  /** Listed objects absent from the manifest (written by someone else/since). */
+  unrecorded: number;
+  /** Listed objects whose size disagrees with the manifest record. */
+  mismatched: number;
+  /** unrecorded + mismatched — the sample's disagreement with the record. */
+  drift: number;
+  /** Up to five example keys behind `drift`, relative to the namespace. */
+  examples: string[];
+  elapsedMs: number;
 }
 
 /** One per-namespace status row (the shape both the text and JSON paths use). */
 export interface S3StatusRow {
   ns: string;
-  local: number;
+  /**
+   * Live syncable files on disk. `null` when the tree was not walked because
+   * its recorded population exceeds S3_LOCAL_WALK_MAX — `localOmitted` says so
+   * and `--deep` measures it (S3-STATUS-SCALE-001).
+   */
+  local: number | null;
+  /** Why `local` is null (never a bare null — the reason travels with it). */
+  localOmitted?: string;
   remote: number | null;
   /**
    * S3-SYNC-STOPPED-001: staleness as a number, not an inference. `lastSync`
@@ -75,6 +160,21 @@ export interface S3StatusRow {
   unpushedSample?: string[];
   lastSync: string | null;
   registered: boolean;
+  /**
+   * S3-STATUS-SCALE-001: object count and bytes as RECORDED by the last push
+   * manifest. Free (the manifest is already open), and the count the default
+   * `s3 status` path answers with — no bucket request.
+   */
+  objectsRecorded?: number | null;
+  bytesRecorded?: number | null;
+  /**
+   * Where this row's object count came from: "recorded" (manifest — may be
+   * stale) or "verified" (a live, bounded sample). Never assume freshness of
+   * a recorded count; the label is the difference.
+   */
+  countSource?: "recorded" | "verified";
+  /** Present only when --verify ran: what the sample found. */
+  verify?: S3VerifySample;
   /** Set when the remote listing failed for this namespace (remote is null). */
   listError?: string;
 }
@@ -87,6 +187,16 @@ Usage:
                                       (default: first ${STATUS_ROW_LIMIT} namespaces + a
                                        truncation marker; --full shows all,
                                        --json emits the full list as JSON)
+  duckbrain s3 status [ns] --verify [--sample=N] [--allow-many-objects]
+                                    — compare a BOUNDED remote sample against
+                                      the push manifest and report drift.
+                                      Default path never lists the bucket;
+                                      --sample defaults to ${S3_VERIFY_SAMPLE_DEFAULT},
+                                      above ${S3_VERIFY_SAMPLE_MAX} requires --allow-many-objects
+  duckbrain s3 status [ns] --deep    — also walk the live local tree for
+                                      local=/unpushed= on a namespace above
+                                      ${S3_LOCAL_WALK_MAX} recorded objects
+                                      (--local-walk-max=N overrides the budget)
   duckbrain s3 sync [ns|all] [push|pull]
   duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
   duckbrain s3 config               — print effective config (no secrets)
@@ -203,17 +313,147 @@ export interface S3StatusReport {
    * is firing" and "the schedule fired once, in October".
    */
   lastRun: PushRunRecord | null;
+  /**
+   * S3-STATUS-SCALE-001: the read plan this report was built under. `null`
+   * means every count on every row came from the recorded state and no bucket
+   * listing happened.
+   */
+  verifyPlan: S3VerifyPlan | null;
 }
 
 export interface S3StatusReportOptions {
   /** Show every namespace instead of the first STATUS_ROW_LIMIT. */
   full?: boolean;
   /**
-   * Probe each namespace's object count in the bucket (default true). The CLI
-   * always probes; a caller that must not touch the network can turn it off,
-   * in which case every `remote` count is null and no `listError` is set.
+   * S3-STATUS-SCALE-001: compare a BOUNDED remote sample against the manifest.
+   * Default false — the default path never lists the namespace, because a
+   * listing is O(objects) and the largest namespace cannot afford it.
+   */
+  verify?: boolean;
+  /** How many objects that sample may list (default S3_VERIFY_SAMPLE_DEFAULT). */
+  sample?: number;
+  /** Consent to exceed S3_VERIFY_SAMPLE_MAX. */
+  allowManyObjects?: boolean;
+  /** Walk the local tree even above the local-walk budget (--deep). */
+  deep?: boolean;
+  /** Override S3_LOCAL_WALK_MAX for this report (--local-walk-max=N). */
+  localWalkMax?: number;
+  /**
+   * Legacy alias for `verify` (SURFACE-HTTP-OPS-001 `?probe=`). It used to
+   * default to TRUE, which is exactly the unbounded listing this row removed;
+   * it is now opt-in like `verify`.
    */
   probeRemote?: boolean;
+}
+
+/** The verified-sample plan, resolved once per report. */
+export interface S3VerifyPlan {
+  sample: number;
+  allowManyObjects: boolean;
+}
+
+/**
+ * Resolve `--verify --sample=N --allow-many-objects` into a budgeted plan, or
+ * null when the caller did not ask for a listing.
+ *
+ * Refusal is the point (S3-STATUS-SCALE-001 AC-2): an unbounded listing is
+ * indistinguishable from a hang, so a request above the budget throws with the
+ * number, the budget and the escape hatch named — instead of starting work it
+ * cannot finish.
+ */
+export function resolveVerifyPlan(
+  options: S3StatusReportOptions,
+): S3VerifyPlan | null {
+  const asked = options.verify === true || options.probeRemote === true;
+  if (!asked) return null;
+  const requested = options.sample ?? S3_VERIFY_SAMPLE_DEFAULT;
+  if (!Number.isFinite(requested) || requested < 1) {
+    throw new Error(
+      `invalid --sample=${String(options.sample)}: expected a positive object count`,
+    );
+  }
+  const sample = Math.floor(requested);
+  const allowManyObjects = options.allowManyObjects === true;
+  if (sample > S3_VERIFY_SAMPLE_MAX && !allowManyObjects) {
+    throw new Error(
+      `refusing to list ${sample} objects: the --verify budget is ${S3_VERIFY_SAMPLE_MAX} ` +
+        `(status listing is O(objects) and a whole-namespace listing is how 's3 status' stopped returning). ` +
+        `Re-run with --sample=${S3_VERIFY_SAMPLE_MAX} for a bounded sample, or --allow-many-objects to pay for all ${sample}.`,
+    );
+  }
+  return { sample, allowManyObjects };
+}
+
+/**
+ * What the last push recorded: object count and total bytes, straight out of
+ * the manifest. No filesystem walk, no bucket request — the answer exists
+ * because every push already wrote it.
+ */
+export function recordedPopulation(
+  manifest: S3SyncManifestLike | null,
+): { objects: number | null; bytes: number | null } {
+  if (!manifest) return { objects: null, bytes: null };
+  let objects = 0;
+  let bytes = 0;
+  for (const rel of Object.keys(manifest.files)) {
+    objects += 1;
+    bytes += manifest.files[rel]?.size ?? 0;
+  }
+  return { objects, bytes };
+}
+
+/** Minimal shape `recordedPopulation` needs (keeps it importable from tests). */
+export interface S3SyncManifestLike {
+  files: Record<string, { size?: number }>;
+}
+
+/**
+ * Compare a bounded remote page with the manifest record.
+ *
+ * Drift is deliberately one-directional: the sample can prove an object is
+ * UNRECORDED (present remotely, absent from the manifest) or CHANGED (size
+ * disagrees), but a page cannot prove an object is missing remotely — that
+ * would need the full listing this row exists to avoid.
+ */
+export function compareSample(
+  sampled: { objects: Map<string, { key: string; size: number }>; truncated: boolean },
+  manifest: S3SyncManifestLike | null,
+  prefix: string,
+  requested: number,
+  elapsedMs: number,
+): S3VerifySample {
+  let unrecorded = 0;
+  let mismatched = 0;
+  const examples: string[] = [];
+  for (const [key, obj] of sampled.objects) {
+    const rel = key.startsWith(prefix) ? key.slice(prefix.length) : key;
+    // The push's OWN artifacts live in the prefix but are not namespace files:
+    // `.s3state/checksums.json` (sync.ts LEDGER_REL_PATH) is published by every
+    // push and excluded from the manifest by construction, so counting it as
+    // drift would raise an alarm that can never clear — the fastest way to
+    // teach a reader to ignore drift.
+    if (rel.startsWith(".s3state/")) continue;
+    const record = manifest?.files?.[rel];
+    const differs =
+      record === undefined
+        ? "unrecorded"
+        : record.size !== undefined && record.size !== obj.size
+          ? "mismatched"
+          : null;
+    if (differs === "unrecorded") unrecorded += 1;
+    if (differs === "mismatched") mismatched += 1;
+    if (differs !== null && examples.length < 5) examples.push(rel);
+  }
+  return {
+    requested,
+    listed: sampled.objects.size,
+    truncated: sampled.truncated,
+    unrecorded,
+    mismatched,
+    drift: unrecorded + mismatched,
+    examples,
+    elapsedMs,
+  };
 }
 
 /**
@@ -227,7 +467,9 @@ export async function collectS3StatusReport(
   options: S3StatusReportOptions = {},
 ): Promise<S3StatusReport> {
   const full = options.full === true;
-  const probe = options.probeRemote !== false;
+  // S3-STATUS-SCALE-001: resolved BEFORE anything is listed, so a request over
+  // budget refuses instead of starting work it cannot finish.
+  const plan = resolveVerifyPlan(options);
   const cfg = getConfig(configRoot(configDir));
   const s3 = cfg.s3;
   const nsRoot = namespacesPath(configDir);
@@ -245,6 +487,7 @@ export async function collectS3StatusReport(
       namespaces: [],
       hidden: 0,
       lastRun: null,
+      verifyPlan: null,
     };
   }
 
@@ -261,48 +504,86 @@ export async function collectS3StatusReport(
   // the original 20-listing network profile; `--full` lifts the cap.
   const limit = full ? resolved.length : Math.min(resolved.length, STATUS_ROW_LIMIT);
 
-  const client = probe ? buildClient(s3) : null;
+  let client: S3Client | null = null;
+  let listBounded: S3ClientModule["listRemoteObjectsBounded"] | null = null;
+  if (plan) {
+    const mod = await loadS3ClientModule();
+    const cfgForClient: S3Config = s3;
+    client = mod.buildClient(cfgForClient);
+    listBounded = mod.listRemoteObjectsBounded;
+  }
   const nowMs = Date.now();
   const rows: S3StatusRow[] = [];
   for (const ns of resolved.slice(0, limit)) {
     const manifest = loadManifest(nsRoot, ns);
+    // S3-STATUS-SCALE-001: the recorded population answers "how many objects
+    // does the bucket hold" without a single bucket request — and it also
+    // decides whether walking the local tree is affordable.
+    const recorded = recordedPopulation(manifest);
+    const recordedObjects = recorded.objects ?? 0;
+    const walkMax = options.localWalkMax ?? S3_LOCAL_WALK_MAX;
+    const walk = options.deep === true || recordedObjects <= walkMax;
     // ONE walk feeds both `local=` and the freshness measurement.
-    const localFiles = walkLocal(path.join(nsRoot, ns));
-    const localCount = localFiles.size;
-    const freshness = freshnessFromFiles(
-      ns,
-      localFiles,
-      loadPushState(nsRoot, ns),
-      { now: nowMs, manifest },
-    );
+    const localFiles = walk ? walkLocal(path.join(nsRoot, ns)) : null;
+    const push = loadPushState(nsRoot, ns);
+    const freshness = localFiles
+      ? freshnessFromFiles(ns, localFiles, push, { now: nowMs, manifest })
+      : null;
+    const localOmitted = walk
+      ? undefined
+      : `${recordedObjects} recorded objects exceed the ${walkMax} local-walk budget — pass --deep to measure the live tree`;
     let remoteCount: number | null = null;
+    let verify: S3VerifySample | undefined;
     let listError: string | undefined;
-    if (client) {
+    if (client && plan && listBounded) {
+      const prefix = `${s3.prefix}/${ns}/`;
+      const startedAt = Date.now();
       try {
-        const remote = await listRemoteObjects(
+        const sampled = await listBounded(
           client,
           s3.bucket,
-          `${s3.prefix}/${ns}/`,
+          prefix,
+          plan.sample,
         );
-        remoteCount = remote.size;
+        remoteCount = sampled.objects.size;
+        verify = compareSample(
+          sampled,
+          manifest,
+          prefix,
+          plan.sample,
+          Date.now() - startedAt,
+        );
       } catch (err) {
         remoteCount = null;
         listError = (err as Error).message;
         // stderr, so a `--json` document on stdout stays parseable.
-        console.warn(`  (list failed for ${ns}: ${listError})`);
+        console.warn(`  (sample failed for ${ns}: ${listError})`);
       }
     }
     rows.push({
       ns,
-      local: localCount,
+      local: localFiles ? localFiles.size : null,
       remote: remoteCount,
       lastSync: manifest?.lastSyncAt ?? null,
       registered: registered.has(ns),
-      lastPushAt: freshness.lastPushAt,
-      lastPushAgeSeconds: freshness.pushAgeSeconds,
-      lastPushOk: freshness.lastPushOk,
-      unpushed: freshness.unpushed,
-      unpushedSample: freshness.unpushedSample,
+      // The push record answers "when did this host last push" and its age —
+      // neither needs the walk, which is the point of the recorded path.
+      lastPushAt: push?.lastPushAt ?? null,
+      lastPushAgeSeconds: push?.lastPushAt
+        ? Math.max(0, Math.round((nowMs - Date.parse(push.lastPushAt)) / 1000))
+        : null,
+      lastPushOk: push?.lastPushOk ?? null,
+      ...(freshness === null
+        ? {}
+        : {
+            unpushed: freshness.unpushed,
+            unpushedSample: freshness.unpushedSample,
+          }),
+      ...(localOmitted === undefined ? {} : { localOmitted }),
+      objectsRecorded: recorded.objects,
+      bytesRecorded: recorded.bytes,
+      countSource: verify === undefined ? "recorded" : "verified",
+      ...(verify === undefined ? {} : { verify }),
       ...(listError === undefined ? {} : { listError }),
     });
   }
@@ -319,7 +600,21 @@ export async function collectS3StatusReport(
     namespaces: rows,
     hidden: resolved.length - rows.length,
     lastRun: loadPushRun(nsRoot),
+    verifyPlan: plan,
   };
+}
+
+/** "2.16 GiB" / "912 KiB" — recorded bytes without a 10-digit integer. */
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null || !Number.isFinite(bytes)) return "unknown";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return unit === 0 ? `${value} B` : `${value.toFixed(2)} ${units[unit]}`;
 }
 
 /** "8d 3h" / "12m" / "45s" — an age a human can compare to a calendar. */
@@ -371,9 +666,27 @@ export async function s3Status(
 
   // `--json` always renders the FULL population (S3-STATUS-001), so ask for it
   // at collection time rather than truncating then remembering to un-truncate.
-  const report = await collectS3StatusReport(configDir, nsArg, {
-    full: options.full === true || json,
-  });
+  // S3-STATUS-SCALE-001: a --verify request over budget REFUSES here, before
+  // any network call, with the number and the escape hatch named.
+  let report: S3StatusReport;
+  try {
+    report = await collectS3StatusReport(configDir, nsArg, {
+      full: options.full === true || json,
+      verify: options.verify === true,
+      ...(options.sample === undefined ? {} : { sample: options.sample }),
+      allowManyObjects: options.allowManyObjects === true,
+      deep: options.deep === true,
+      ...(options.localWalkMax === undefined
+        ? {}
+        : { localWalkMax: options.localWalkMax }),
+    });
+  } catch (err) {
+    console.error(`Error: ${(err as Error).message}`);
+    process.exit(1);
+    // Unreachable in a real process; keeps the refusal total for embedders
+    // (and tests) that stub process.exit.
+    return;
+  }
 
   // S3-STATUS-001: `--json` owns stdout — one JSON document and nothing else,
   // so the output is machine-readable (no header lines to strip).
@@ -396,6 +709,13 @@ export async function s3Status(
       `  pushOnCommit: ${report.pushOnCommit}  intervalSec: ${report.intervalSec}`,
     );
     console.log(`  pathStyle: ${report.pathStyle}`);
+    // S3-STATUS-SCALE-001: say which counts the reader is looking at. A
+    // recorded count can be stale; a verified one is a bounded sample.
+    console.log(
+      report.verifyPlan
+        ? `  remote check: bounded sample of ${report.verifyPlan.sample} object(s) per namespace (--verify)`
+        : `  remote check: recorded state only, no bucket listing (pass --verify --sample=${S3_VERIFY_SAMPLE_DEFAULT} to compare a sample)`,
+    );
   }
 
   if (json) {
@@ -425,13 +745,39 @@ export async function s3Status(
   // run for eight days.
   console.log(`Last pushed run: ${describePushRun(report.lastRun, Date.now())}`);
   for (const row of report.namespaces) {
+    // `unpushed=?` is not zero: an unmeasured count and a clean count are
+    // different facts (S3-STATUS-SCALE-001).
+    const unpushed = row.unpushed === undefined ? "?" : String(row.unpushed);
     const push =
       row.lastPushAt === null || row.lastPushAt === undefined
-        ? `lastPush=never (this host) unpushed=${row.unpushed ?? 0}`
-        : `lastPush=${row.lastPushAt} (${formatAge(row.lastPushAgeSeconds ?? null)} ago)${row.lastPushOk === false ? " [last attempt FAILED]" : ""} unpushed=${row.unpushed ?? 0}`;
+        ? `lastPush=never (this host) unpushed=${unpushed}`
+        : `lastPush=${row.lastPushAt} (${formatAge(row.lastPushAgeSeconds ?? null)} ago)${row.lastPushOk === false ? " [last attempt FAILED]" : ""} unpushed=${unpushed}`;
+    const local =
+      row.local === null
+        ? `local=? (not measured: ${row.localOmitted ?? "over the walk budget"})`
+        : `local=${row.local}`;
+    // S3-STATUS-SCALE-001: the count is labelled with where it came from, so a
+    // stale record is not read as a fresh listing.
+    const objects =
+      row.countSource === "verified"
+        ? `objects=${row.remote} (verified sample: ${row.verify?.listed ?? 0}/${row.verify?.requested ?? 0} listed in ${row.verify?.elapsedMs ?? 0}ms${row.verify?.truncated ? ", prefix holds more" : ""})`
+        : `objects=${row.objectsRecorded ?? "?"}${row.bytesRecorded === null || row.bytesRecorded === undefined ? "" : ` ${formatBytes(row.bytesRecorded)}`} (recorded${row.lastSync ? ` ${row.lastSync}` : ", never pushed"})`;
     console.log(
-      `  ${row.ns}: local=${row.local} remote=${row.remote ?? "?"} lastSync=${row.lastSync ?? "never"} ${push}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
+      `  ${row.ns}: ${local} ${objects} lastSync=${row.lastSync ?? "never"} ${push}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
     );
+    if (row.verify && row.verify.drift > 0) {
+      console.log(
+        `    drift: ${row.verify.drift}/${row.verify.listed} sampled objects disagree with the record (unrecorded=${row.verify.unrecorded}, size-changed=${row.verify.mismatched}): ${row.verify.examples.join(", ")}${row.verify.drift > row.verify.examples.length ? ", …" : ""}`,
+      );
+    }
+    if (row.verify && row.verify.drift === 0) {
+      console.log(
+        `    drift: none in ${row.verify.listed} sampled object(s) (${row.verify.elapsedMs}ms) — the record matches the bucket for this sample`,
+      );
+    }
+    if (row.listError !== undefined) {
+      console.log(`    sample FAILED: ${row.listError} — count above is the record, not the bucket`);
+    }
     if ((row.unpushed ?? 0) > 0 && (row.unpushedSample?.length ?? 0) > 0) {
       console.log(`    unpushed: ${row.unpushedSample!.join(", ")}${(row.unpushed ?? 0) > row.unpushedSample!.length ? `, … (+${(row.unpushed ?? 0) - row.unpushedSample!.length} more)` : ""}`);
     }
@@ -526,6 +872,7 @@ export async function s3Sync(
     }
     let remoteCount = -1;
     try {
+      const { buildClient } = await loadS3ClientModule();
       remoteCount = (await listRemoteNamespaces(buildClient(s3), s3)).length;
     } catch (err) {
       console.warn(
@@ -585,18 +932,38 @@ export function s3ConfigShow(configDir: string): void {
   console.log(JSON.stringify(parsed, null, 2));
 }
 
-/** Parse `--flag` booleans and `--key=value` pairs from CLI args. */
-function parseCliFlags(args: string[]): {
+/**
+ * Parse `--flag` booleans and `--key=value` pairs from CLI args.
+ *
+ * S3-STATUS-SCALE-001: flags named in `valueFlags` also accept the space form
+ * (`--sample 100`), because that is how the row documents the call and reading
+ * `100` as a namespace name would silently point the sample at nothing.
+ */
+function parseCliFlags(
+  args: string[],
+  valueFlags: Set<string> = new Set(),
+): {
   flags: Record<string, string>;
   positional: string[];
 } {
   const flags: Record<string, string> = {};
   const positional: string[] = [];
-  for (const a of args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i]!;
     if (a.startsWith("--")) {
       const eq = a.indexOf("=");
-      if (eq > 2) flags[a.slice(2, eq)] = a.slice(eq + 1);
-      else flags[a.slice(2)] = "true";
+      if (eq > 2) {
+        flags[a.slice(2, eq)] = a.slice(eq + 1);
+      } else {
+        const name = a.slice(2);
+        const next = args[i + 1];
+        if (valueFlags.has(name) && next !== undefined && !next.startsWith("--")) {
+          flags[name] = next;
+          i += 1;
+        } else {
+          flags[name] = "true";
+        }
+      }
     } else {
       positional.push(a);
     }
@@ -743,10 +1110,24 @@ export async function s3Command(
       // S3-STATUS-001: `status` takes an optional namespace plus display
       // flags. Parsing here (not `args[1]`) keeps `s3 status --full` from
       // treating the flag as a namespace name.
-      const { flags, positional } = parseCliFlags(args.slice(1));
+      const { flags, positional } = parseCliFlags(
+        args.slice(1),
+        new Set(["sample", "local-walk-max"]),
+      );
+      const sample =
+        flags["sample"] === undefined ? undefined : Number(flags["sample"]);
+      const localWalkMax =
+        flags["local-walk-max"] === undefined
+          ? undefined
+          : Number(flags["local-walk-max"]);
       await s3Status(configDir, positional[0], {
         full: flags["full"] !== undefined,
         json: flags["json"] !== undefined,
+        verify: flags["verify"] !== undefined,
+        ...(sample === undefined ? {} : { sample }),
+        allowManyObjects: flags["allow-many-objects"] !== undefined,
+        deep: flags["deep"] !== undefined,
+        ...(localWalkMax === undefined ? {} : { localWalkMax }),
       });
       break;
     }

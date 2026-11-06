@@ -80,6 +80,41 @@ export async function listRemoteObjects(
   return out;
 }
 
+/**
+ * S3-STATUS-SCALE-001: a BOUNDED listing — one page, no continuation loop.
+ *
+ * `s3 status` paged the whole namespace prefix on every call, so the
+ * namespace with the most objects (scheduler: 258,578 files) was the one whose
+ * own status check could not finish. A bounded sample answers the only
+ * question a status check needs ("does the bucket still match what we
+ * recorded?") at a cost the caller can quote before paying it.
+ *
+ * `truncated` is S3's own IsTruncated, so a caller can say "this is a sample"
+ * instead of presenting a page as the population.
+ */
+export async function listRemoteObjectsBounded(
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+  maxKeys: number,
+  signal?: AbortSignal,
+): Promise<{ objects: Map<string, RemoteObject>; truncated: boolean }> {
+  const out = new Map<string, RemoteObject>();
+  const resp = await client.send(
+    new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      MaxKeys: Math.max(1, Math.floor(maxKeys)),
+      ...(signal ? { signal } : {}),
+    }),
+  );
+  for (const o of resp.Contents ?? []) {
+    if (!o.Key) continue;
+    out.set(o.Key, { key: o.Key, size: o.Size ?? 0, etag: o.ETag });
+  }
+  return { objects: out, truncated: resp.IsTruncated === true };
+}
+
 /** Upload a local file buffer to a key. Returns the ETag S3 assigned. */
 export async function putObject(
   client: S3Client,

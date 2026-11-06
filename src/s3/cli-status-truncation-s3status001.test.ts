@@ -43,6 +43,24 @@ vi.mock("./client", () => ({
       ["b.jsonl", { key: "b.jsonl", size: 1 }],
     ]);
   },
+  // S3-STATUS-SCALE-001: the status path now asks for a BOUNDED page, so the
+  // mock has to answer the bounded call (same fixture, one page).
+  listRemoteObjectsBounded: async (
+    _client: unknown,
+    _bucket: string,
+    prefix: string,
+    maxKeys: number,
+  ) => {
+    if (prefix.includes("bad-ns")) throw new Error("AccessDenied");
+    return {
+      objects: new Map([
+        ["a.jsonl", { key: "a.jsonl", size: 1 }],
+        ["b.jsonl", { key: "b.jsonl", size: 1 }],
+      ]),
+      truncated: false,
+      maxKeys,
+    };
+  },
 }));
 
 const ENV_KEYS = [
@@ -172,8 +190,10 @@ describe("S3-STATUS-001: s3 status never truncates silently", () => {
     expect(lines.join("\n")).not.toContain("use --full");
     expect(lines).toContain(`Namespaces: ${all.length}`);
 
-    // Remote counts are real, not the "?" failure sentinel.
-    expect(rows[0]).toContain("remote=2");
+    // S3-STATUS-SCALE-001: the DEFAULT path never lists the bucket — the
+    // count is the recorded one, and it says so.
+    expect(rows[0]).toContain("(recorded");
+    expect(rows[0]).not.toContain("remote=");
   });
 
   it("--json emits one valid JSON document with the FULL list", async () => {
@@ -192,13 +212,22 @@ describe("S3-STATUS-001: s3 status never truncates silently", () => {
     const doc = JSON.parse(stdout) as {
       enabled: boolean;
       total: number;
-      namespaces: Array<{ ns: string; local: number; remote: number | null; registered: boolean }>;
+      namespaces: Array<{
+        ns: string;
+        local: number;
+        remote: number | null;
+        registered: boolean;
+        countSource?: string;
+      }>;
     };
     expect(doc.enabled).toBe(true);
     expect(doc.total).toBe(all.length);
     expect(doc.namespaces).toHaveLength(all.length); // NO truncation
     expect(new Set(doc.namespaces.map((r) => r.ns))).toEqual(new Set(all));
-    expect(doc.namespaces[0].remote).toBe(2);
+    // No --verify: no listing, so no remote count — and the row says the
+    // number it does carry came from the record.
+    expect(doc.namespaces[0].remote).toBeNull();
+    expect(doc.namespaces[0].countSource).toBe("recorded");
   });
 
   it("--json keeps a failed remote listing valid JSON (remote null + listError)", async () => {
@@ -207,7 +236,8 @@ describe("S3-STATUS-001: s3 status never truncates silently", () => {
     fs.mkdirSync(path.join(nsRoot, "ok-ns"), { recursive: true });
 
     const { stdout } = await captureStdout(() =>
-      s3Status(".", undefined, { json: true }),
+      // --verify is what makes a listing happen at all now.
+      s3Status(".", undefined, { json: true, verify: true }),
     );
     const doc = JSON.parse(stdout) as {
       namespaces: Array<{ ns: string; remote: number | null; listError?: string }>;

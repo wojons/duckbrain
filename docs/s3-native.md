@@ -456,14 +456,32 @@ cover (named in the JSON path):
 
 ```
 Last pushed run: ok at 2026-11-06T19:02:11Z (3m ago) attempted=294 succeeded=294 failed=0 uploaded=1528
-  hermes: local=14 remote=15 lastSync=2026-11-06T18:36:35.597Z lastPush=2026-11-06T18:36:36.259Z (4s ago) unpushed=0
+  hermes: local=14 objects=15 4.10 KiB (recorded 2026-11-06T18:36:35.597Z) lastSync=2026-11-06T18:36:35.597Z lastPush=2026-11-06T18:36:36.259Z (4s ago) unpushed=0
 ```
 
 A file counts as unpushed when it was written after the last clean push, when
 no sync manifest covers it (nothing ever confirmed it exists remotely), or when
 the host has neither a push record nor a manifest (nothing can testify that any
-of the tree reached the mirror). One walk feeds both `local=` and the freshness
-number, so the scheduler namespace's 258k files are stats, not reads.
+of the tree reached the mirror).
+
+**Status answers from the record first (S3-STATUS-SCALE-001).** The object
+count and bytes come from the manifest the last push wrote (`objects=… (recorded
+…)`); the default path makes no bucket request at all (`s3 status scheduler`:
+258,696 recorded objects, 0.8s — the same command never returned pre-fix). A
+comparison with the bucket is a bounded SAMPLE the caller asks for:
+
+```
+duckbrain s3 status scheduler --verify --sample 100
+  remote check: bounded sample of 100 object(s) per namespace (--verify)
+  scheduler: local=? (not measured: 258696 recorded objects exceed the 100000 local-walk budget — pass --deep) objects=100 (verified sample: 100/100 listed in 836ms, prefix holds more) …
+    drift: none in 100 sampled object(s) (836ms) — the record matches the bucket for this sample
+```
+
+`--sample` defaults to 1000 and anything above 5000 refuses without
+`--allow-many-objects` (naming the count, the budget and the flag). A local
+namespace above 100,000 recorded objects is not walked either — `local=?` and
+`unpushed=?` say "not measured" rather than "zero" — because enumerating
+scheduler's 261k directory entries costs ~1s on its own; `--deep` measures it.
 
 **Pull refuses a mirror older than the tree.** With a local sync manifest
 present, `pull` is now a pre-flight check as well as a transfer:
