@@ -29,7 +29,8 @@
     "ops:check": "node scripts/check-no-pattern-kill.js",
     "ops:embedding-preflight": "node scripts/embedding-preflight.js",
     "docs:check": "node scripts/docs-check.js",
-    "deps:lockstep": "bash scripts/ci/check-lockfile-lockstep.sh"
+    "deps:lockstep": "bash scripts/ci/check-lockfile-lockstep.sh",
+    "docs:surface": "tsx scripts/gen-surface-matrix.ts"
   },
   "repository": {
     "type": "git",
