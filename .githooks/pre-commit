@@ -1,0 +1,11 @@
+#!/bin/sh
+# HARDEN-DUCKBRAIN-004 — both lockfiles must move with package.json.
+# DuckBrain installs from pnpm-lock.yaml (CI, local dev) and package-lock.json
+# (Dockerfile, npm ci). Refreshing one and not the other has broken CI twice;
+# this refuses the commit while the drift is still one command to fix.
+# Enable once per clone:  git config core.hooksPath .githooks
+# Bypass deliberately:    git commit --no-verify
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+gate="$root/scripts/ci/check-lockfile-lockstep.sh"
+[ -f "$gate" ] || exit 0
+exec bash "$gate" --staged

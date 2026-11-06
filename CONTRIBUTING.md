@@ -44,6 +44,48 @@ duckbrain/
 └── docs/               # Documentation
 ```
 
+## Dependency Changes: Both Lockfiles, One Command
+
+This repository has **two install paths and therefore two lockfiles**:
+
+- `pnpm-lock.yaml` — CI (`.github/workflows/ci.yml`) and local development
+  (`pnpm install --frozen-lockfile`);
+- `package-lock.json` — the Docker image (`npm ci`, `Dockerfile:8`).
+
+**Rule: a change to `package.json` is committed together with BOTH
+lockfiles.** Refreshing one and not the other leaves the other install path
+broken, and it has already cost two CI outages (adding `prom-client` in
+OBSDB-001). Regenerate both, in one commit:
+
+```bash
+pnpm install --lockfile-only
+npm install --package-lock-only --ignore-scripts
+```
+
+Then prove it before committing — the check is offline and takes ~0.1s:
+
+```bash
+pnpm deps:lockstep          # same as: bash scripts/ci/check-lockfile-lockstep.sh
+```
+
+It runs two arms and names every offending package: arm 1 compares
+`package.json` with `package-lock.json`, arm 2 compares `package.json` with
+the `importers` block of `pnpm-lock.yaml` (root and `packages/ui`). It also
+reports a locked dependency the manifest no longer declares.
+
+To have the same check refuse the commit locally, enable the tracked hook
+once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+CI runs the same command as its own step, before any test, and the pre-commit
+hook only fires when a `package.json` or a lockfile is staged. A deliberate
+bypass is `git commit --no-verify`. Note that pnpm 12 writes `pnpm-lock.yaml`
+as two YAML documents (a self-management document plus the real lock) — that
+shape is expected, do not "fix" it by hand.
+
 ## Making Changes
 
 1. Create a feature branch: `git checkout -b feature/my-feature`
