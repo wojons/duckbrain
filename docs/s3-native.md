@@ -306,10 +306,15 @@ defects found (the 300 s per-namespace deadline, and `pull` reporting success
 on a corrupted object) are in
 [docs/evidence/backup-restore-proof-2026-11-05.md](evidence/backup-restore-proof-2026-11-05.md).
 
-> **Known limit at the time of writing:** `S3_SYNC_NAMESPACE_DEADLINE_S`
-> defaults to 300 s, which aborts any namespace above ~560 objects (570 of 617
-> objects landed before the abort on this host). Raise it for real restores, or
-> wait for the follow-up row that makes the deadline count-aware.
+> **Fixed by S3-DEADLINE-001:** `S3_SYNC_NAMESPACE_DEADLINE_S` used to be a
+> total wall-clock cap, which made every namespace above ~560 objects
+> unrestorable with shipped defaults (570 of 617 objects landed before the
+> abort). It is now the **no-progress window** the watchdog enforces (re-armed
+> per completed object) and the floor of a **work-derived total allowance**
+> (`syncDeadlineBudgetSeconds`), while transfers run in a bounded pool of 8
+> (`S3_SYNC_CONCURRENCY`) instead of strictly sequentially. A stuck namespace
+> still aborts, nonzero, naming the namespace and the progress it reached; a
+> merely large one finishes.
 
 A restored namespace arrives **data-only**: JSONL + manifest files. Git
 history never travels through S3 objects, so the restored namespace has no

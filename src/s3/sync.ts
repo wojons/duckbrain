@@ -440,6 +440,7 @@ export async function pushNamespace(
   ns: string,
   namespacesPath: string,
   signal?: AbortSignal,
+  hooks?: SyncHooks,
 ): Promise<SyncStats> {
   const start = Date.now();
   const { buildClient, listRemoteObjects, putObject } = await loadClient();
@@ -472,56 +473,67 @@ export async function pushNamespace(
    */
   const syncedFiles: Record<string, FileMeta> = {};
 
-  for (const file of deltas.toUpload) {
-    const content = contents.get(file.relPath);
-    let body: Buffer;
-    if (content !== undefined) {
-      body = content;
-    } else {
-      try {
-        body = fs.readFileSync(path.join(nsDir, file.relPath));
-      } catch {
-        // File vanished between the walk and the read — the namespace was
-        // deleted (or the file removed) mid-push. Skip it SILENTLY: the next
-        // pass must not retry it forever, and the ENOENT storm this once
-        // produced (98 log lines over auger-pytest ghosts, 2026-09-21/22) is
-        // noise, not signal. It is also NOT recorded in the manifest (its
-        // bytes could not be confirmed anywhere).
-        continue;
+  // S3-DEADLINE-001: transfers run in a bounded pool instead of strictly
+  // sequentially. Per-object latency (~0.5 s/object to hel1) was the whole
+  // RTO while the loops were serial; the pool keeps a fixed number of socket
+  // round-trips in flight and reports each completion to the watchdog.
+  const toUpload = deltas.toUpload;
+  hooks?.plan?.(toUpload.length);
+  await runPool(
+    toUpload,
+    syncConcurrency(),
+    async (file) => {
+      const content = contents.get(file.relPath);
+      let body: Buffer;
+      if (content !== undefined) {
+        body = content;
+      } else {
+        try {
+          body = fs.readFileSync(path.join(nsDir, file.relPath));
+        } catch {
+          // File vanished between the walk and the read — the namespace was
+          // deleted (or the file removed) mid-push. Skip it SILENTLY: the next
+          // pass must not retry it forever, and the ENOENT storm this once
+          // produced (98 log lines over auger-pytest ghosts, 2026-09-21/22) is
+          // noise, not signal. It is also NOT recorded in the manifest (its
+          // bytes could not be confirmed anywhere).
+          return;
+        }
       }
-    }
-    const key = remoteKeyFor(cfg, ns, file.relPath);
-    try {
-      const ext = path.extname(file.relPath).toLowerCase();
-      // The PUT's own response ETag is the version token for EXACTLY the
-      // bytes just uploaded (the pre-push listing's ETag may be absent or
-      // stale for a fresh/changed object). Recording it is what lets later
-      // passes prove remote sameness without re-uploading.
-      const putEtag = await putObject(
-        client,
-        cfg.bucket,
-        key,
-        body,
-        CONTENT_TYPES[ext] ?? "application/octet-stream",
-        signal,
-      );
-      uploaded++;
-      // Success ONLY here — after the PUT resolved. A failed PUT must never
-      // be recorded as synced, or the next pass would trust the manifest and
-      // skip the retry forever (S3-GIT-008).
-      syncedFiles[file.relPath] = {
-        size: file.size,
-        mtimeMs: file.mtimeMs,
-        ...fileContentsIdentity(body, putEtag),
-      };
-    } catch (err) {
-      // Failed PUT: loud warn, and NOT added to syncedFiles — the next pass
-      // retries this object (S3-GIT-008).
-      console.warn(
-        `[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`,
-      );
-    }
-  }
+      const key = remoteKeyFor(cfg, ns, file.relPath);
+      try {
+        const ext = path.extname(file.relPath).toLowerCase();
+        // The PUT's own response ETag is the version token for EXACTLY the
+        // bytes just uploaded (the pre-push listing's ETag may be absent or
+        // stale for a fresh/changed object). Recording it is what lets later
+        // passes prove remote sameness without re-uploading.
+        const putEtag = await putObject(
+          client,
+          cfg.bucket,
+          key,
+          body,
+          CONTENT_TYPES[ext] ?? "application/octet-stream",
+          signal,
+        );
+        uploaded++;
+        // Success ONLY here — after the PUT resolved. A failed PUT must never
+        // be recorded as synced, or the next pass would trust the manifest and
+        // skip the retry forever (S3-GIT-008).
+        syncedFiles[file.relPath] = {
+          size: file.size,
+          mtimeMs: file.mtimeMs,
+          ...fileContentsIdentity(body, putEtag),
+        };
+      } catch (err) {
+        // Failed PUT: loud warn, and NOT added to syncedFiles — the next pass
+        // retries this object (S3-GIT-008).
+        console.warn(
+          `[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`,
+        );
+      }
+    },
+    (done) => hooks?.progress?.(done, toUpload.length),
+  );
 
   // Carry forward previously-synced files that were skipped this pass as
   // unchanged (their bytes are already confirmed on the remote), preserving
@@ -564,6 +576,7 @@ export async function pullNamespace(
   ns: string,
   namespacesPath: string,
   signal?: AbortSignal,
+  hooks?: SyncHooks,
 ): Promise<SyncStats> {
   const start = Date.now();
   const { buildClient, listRemoteObjects, getObject } = await loadClient();
@@ -584,20 +597,27 @@ export async function pullNamespace(
   /** relPaths whose bytes were written to disk this pass. */
   const repaired = new Set<string>();
 
-  for (const item of deltas.toDownload) {
-    try {
-      const body = await getObject(client, cfg.bucket, item.key, signal);
-      const dest = path.join(nsDir, item.relPath);
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, body);
-      downloaded++;
-      repaired.add(item.relPath);
-    } catch (err) {
-      console.warn(
-        `[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`,
-      );
-    }
-  }
+  const toDownload = deltas.toDownload;
+  hooks?.plan?.(toDownload.length);
+  await runPool(
+    toDownload,
+    syncConcurrency(),
+    async (item) => {
+      try {
+        const body = await getObject(client, cfg.bucket, item.key, signal);
+        const dest = path.join(nsDir, item.relPath);
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.writeFileSync(dest, body);
+        downloaded++;
+        repaired.add(item.relPath);
+      } catch (err) {
+        console.warn(
+          `[S3] pull ${ns}/${item.relPath} failed: ${(err as Error).message}`,
+        );
+      }
+    },
+    (done) => hooks?.progress?.(done, toDownload.length),
+  );
 
   /**
    * S3-GIT-008 manifest refresh. The saved manifest now carries content
@@ -646,11 +666,20 @@ export async function pullNamespace(
 }
 
 /**
- * Per-namespace wall-clock deadline (seconds). Default 300s; override with
+ * No-progress window (seconds) for ONE namespace. Default 300s; override with
  * S3_SYNC_NAMESPACE_DEADLINE_S. S3-GIT-007: a namespace whose push/pull never
  * resolves (e.g. an SDK call stuck in epoll) used to hang the whole sync-all
  * pass until the cron watchdog killed the process ~2h later, then the next
  * run cleared the stale lock and repeated the hang.
+ *
+ * S3-DEADLINE-001: this value is the STALL window and the deadline FLOOR, not
+ * a total wall-clock cap. Used as a cap it was arithmetically impossible for
+ * any namespace above ~560 objects (300s / 0.53 s per object measured against
+ * Hetzner hel1) to ever complete — six live namespaces are far above that, so
+ * "backed up nightly" was false for all of them. What a watchdog actually has
+ * to catch is a run that stopped making progress, so the stall window is
+ * re-armed on every completed object and the total allowance is derived from
+ * the work (`syncDeadlineBudgetSeconds`).
  */
 export function namespaceDeadlineSeconds(): number {
   const raw = process.env.S3_SYNC_NAMESPACE_DEADLINE_S;
@@ -659,30 +688,190 @@ export function namespaceDeadlineSeconds(): number {
 }
 
 /**
- * Reject after `seconds` unless `p` settles first — AND abort the
- * underlying HTTP requests so the SDK actually cancels the in-flight
- * I/O instead of leaving a zombie request after the lock is released.
+ * Measured serial transfer cost against Hetzner hel1 from one vCPU
+ * (BACKUP-RESTORE-PROOF-001, 2026-11-05): 0.535 s/object push, 0.449 s/object
+ * pull. The deadline budget is derived from this, so it scales with the work
+ * instead of assuming every namespace looks like the one that was measured.
  */
-async function withDeadline<T>(
-  p: Promise<T>,
-  seconds: number,
-  onTimeout: (s: number) => void,
-): Promise<T> {
-  const controller = new AbortController();
-  const deadline = new Promise<never>((_, reject) => {
-    const timer = setTimeout(() => {
-      controller.abort(); // cancel in-flight SDK calls
-      onTimeout(seconds);
-      reject(new Error(`sync deadline exceeded after ${seconds}s`));
-    }, seconds * 1000);
-    timer.unref(); // don't prevent process exit
-  });
-  try {
-    return await Promise.race([p, deadline]);
-  } finally {
-    // timer.unref() above lets the process exit even if this promise never settles;
-    // the controller remains alive but the signal is fire-and-forget.
+export const MEASURED_SECONDS_PER_OBJECT = 0.53;
+
+/**
+ * Headroom over the measured cost. A restore over a slower link (a fresh
+ * machine on hotel wifi) is a legitimate slow run, not a stuck one; 3x still
+ * bounds a pathological namespace to hours, and the stall watchdog — not this
+ * budget — is what catches a hang.
+ */
+const DEADLINE_BUDGET_HEADROOM = 3;
+
+/**
+ * Total per-namespace allowance (seconds) for a transfer of `workItems`
+ * objects: the stall window as a floor plus the measured cost of the work,
+ * with headroom. `scheduler` (258,672 syncable objects) therefore gets
+ * ~114h instead of 300s; `chat-archive` (617) gets ~1,281s.
+ */
+export function syncDeadlineBudgetSeconds(
+  workItems: number,
+  stallSeconds: number = namespaceDeadlineSeconds(),
+): number {
+  const items = Number.isFinite(workItems) && workItems > 0 ? workItems : 0;
+  return Math.max(
+    stallSeconds,
+    Math.ceil(stallSeconds + items * MEASURED_SECONDS_PER_OBJECT * DEADLINE_BUDGET_HEADROOM),
+  );
+}
+
+/**
+ * Objects transferred in parallel. The engine was strictly sequential, which
+ * made the per-object latency the whole RTO: 8 sockets turns chat-archive's
+ * 4.6 min restore into ~1 min on the same link. Override with
+ * S3_SYNC_CONCURRENCY (clamped 1..32, default 8).
+ */
+export function syncConcurrency(): number {
+  const raw = process.env.S3_SYNC_CONCURRENCY;
+  const parsed = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(parsed) || parsed < 1) return 8;
+  return Math.min(32, Math.floor(parsed));
+}
+
+/**
+ * The two conditions a per-namespace watchdog has to enforce, tracked
+ * separately because they mean different things:
+ *  - STALL: nothing completed for `stallSeconds` → the transfer is stuck
+ *    (S3-GIT-007's epoll hang, a black-holed endpoint). Aborts fast.
+ *  - BUDGET: total elapsed exceeded the work-derived allowance → the run is
+ *    progressing absurdly slowly. Aborts, but only after a compute-derived
+ *    window, so it can no longer kill an honest large namespace.
+ *
+ * Both abort the in-flight SDK calls before the lock is released, and both
+ * name the namespace and the progress made, because "sync deadline exceeded
+ * after 300s" without a namespace is not an actionable error.
+ */
+export class NamespaceDeadline {
+  /** The stall window timer — re-armed on every completed object. */
+  private stallTimer: NodeJS.Timeout | undefined;
+  /** The work-derived total allowance timer — armed once, never re-armed. */
+  private budgetTimer: NodeJS.Timeout | undefined;
+  private settled = false;
+  private rejectFn!: (err: Error) => void;
+  private total = 0;
+  private done = 0;
+  private startedAt = Date.now();
+  /** Aborted when either condition fires, so the SDK cancels in-flight I/O. */
+  readonly controller = new AbortController();
+  /** Rejects (never resolves) when the namespace is out of time. */
+  readonly failure: Promise<never>;
+
+  constructor(
+    private readonly ns: string,
+    private readonly stallSeconds: number = namespaceDeadlineSeconds(),
+    private readonly onTimeout: (seconds: number) => void = () => undefined,
+  ) {
+    this.failure = new Promise<never>((_, reject) => {
+      this.rejectFn = reject;
+    });
+    this.armStall();
   }
+
+  /** The number of objects to transfer is known — start the budget clock. */
+  plan(total: number): void {
+    if (this.settled) return;
+    this.total = total;
+    const budget = syncDeadlineBudgetSeconds(total, this.stallSeconds);
+    this.budgetTimer = this.arm(
+      setTimeout(() => {
+        this.fire(budget, `budget ${budget}s exhausted; ${this.done}/${this.total} objects`);
+      }, budget * 1000),
+    );
+  }
+
+  /** One object finished (success or failure) — the transfer is alive. */
+  progress(done: number, total?: number): void {
+    if (this.settled) return;
+    this.done = done;
+    if (total !== undefined) this.total = total;
+    this.armStall();
+  }
+
+  /** Stop the clocks. Call from a `finally` — a late fire must be a no-op. */
+  dispose(): void {
+    this.settled = true;
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    if (this.budgetTimer) clearTimeout(this.budgetTimer);
+    this.stallTimer = undefined;
+    this.budgetTimer = undefined;
+  }
+
+  private armStall(): void {
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    this.stallTimer = this.arm(
+      setTimeout(() => {
+        this.fire(
+          this.stallSeconds,
+          `no progress for ${this.stallSeconds}s; ${this.done}/${this.total} objects transferred, ${Math.round((Date.now() - this.startedAt) / 1000)}s elapsed`,
+        );
+      }, this.stallSeconds * 1000),
+    );
+  }
+
+  private arm(t: NodeJS.Timeout): NodeJS.Timeout {
+    t.unref(); // don't hold the process open
+    return t;
+  }
+
+  private fire(seconds: number, detail: string): void {
+    if (this.settled) return;
+    this.settled = true;
+    if (this.stallTimer) clearTimeout(this.stallTimer);
+    if (this.budgetTimer) clearTimeout(this.budgetTimer);
+    this.stallTimer = undefined;
+    this.budgetTimer = undefined;
+    this.controller.abort(); // cancel in-flight SDK calls
+    this.onTimeout(seconds);
+    this.rejectFn(
+      new Error(`sync deadline exceeded after ${seconds}s for namespace ${this.ns} (${detail})`),
+    );
+  }
+}
+
+/**
+ * Hooks the engine reports its plan and its progress through. The deadline
+ * needs the object count to derive a budget, and needs a heartbeat per object
+ * to tell "slow" from "stuck".
+ */
+export interface SyncHooks {
+  /** Number of objects this namespace will transfer. */
+  plan?: (total: number) => void;
+  /** Completed transfers so far (successes + failures). */
+  progress?: (done: number, total: number) => void;
+}
+
+/**
+ * Run `worker` over `items` with at most `limit` in flight, preserving the
+ * per-item error isolation the sequential loops had (a worker failure is the
+ * worker's own business). Progress is reported once per completed item.
+ */
+async function runPool<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+  onDone?: (done: number) => void,
+): Promise<void> {
+  const width = Math.max(1, Math.min(limit, items.length));
+  let next = 0;
+  let done = 0;
+  const runners = Array.from({ length: width }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      try {
+        await worker(items[index]);
+      } finally {
+        done++;
+        onDone?.(done);
+      }
+    }
+  });
+  await Promise.all(runners);
 }
 
 /** Sync one namespace in the given direction (guarded by config + lock). */
@@ -713,21 +902,28 @@ export async function syncNamespace(
   if (!lock) {
     throw new Error("[S3] another sync is in progress (lock held)");
   }
+  // S3-DEADLINE-001: the watchdog's signal is threaded through to every SDK
+  // call so a timeout cancels the in-flight I/O before the lock is released
+  // (S3-GIT-007), and the engine reports its plan + per-object progress back
+  // so the stall window measures "stopped moving" instead of wall clock.
+  const deadline = new NamespaceDeadline(ns, namespaceDeadlineSeconds(), (s) => {
+    console.warn(`[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`);
+  });
   try {
-    const deadlineS = namespaceDeadlineSeconds();
-    // Create an AbortController that the deadline will fire — this signal
-    // is threaded through to every SDK call so a timeout cancels the
-    // in-flight I/O before the lock is released (S3-GIT-007 fix).
-    const deadlineController = new AbortController();
+    const hooks: SyncHooks = {
+      plan: (total) => deadline.plan(total),
+      progress: (done, total) => deadline.progress(done, total),
+    };
     const innerPromise =
       direction === "push"
-        ? pushNamespace(cfg, ns, namespacesPath, deadlineController.signal)
-        : pullNamespace(cfg, ns, namespacesPath, deadlineController.signal);
-    const inner = withDeadline(innerPromise, deadlineS, (s) => {
-      console.warn(`[S3] sync ${ns} timed out after ${s}s (S3-GIT-007)`);
-    });
-    return await inner;
+        ? pushNamespace(cfg, ns, namespacesPath, deadline.controller.signal, hooks)
+        : pullNamespace(cfg, ns, namespacesPath, deadline.controller.signal, hooks);
+    // Losing the race means the transfer is being aborted; its own rejection
+    // must not surface as an unhandled rejection.
+    innerPromise.catch(() => undefined);
+    return await Promise.race([innerPromise, deadline.failure]);
   } finally {
+    deadline.dispose();
     releaseLock(lock);
   }
 }

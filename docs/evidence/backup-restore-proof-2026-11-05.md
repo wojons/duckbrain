@@ -197,3 +197,82 @@ sequential worker, or a few hours per large namespace with a raised deadline.*
   `restore-proof/` root was re-listed as `objects: 0` afterwards.
 - No `git clean`, no `rm` outside the scratch work dir, no restart of the live
   daemon on `:3000`, no writes under `/home/kara/duckbrain/namespaces`.
+
+## Resolved: S3-DEADLINE-001 — work-derived deadline + bounded concurrency
+
+The two defects above were filed as `S3-DEADLINE-001` (deadline) and
+`S3-PULL-INTEGRITY-001` (checksums). This section records the closing evidence
+for the **deadline** row; the checksum defect is a separate row.
+
+### What changed (`src/s3/sync.ts`)
+
+- `S3_SYNC_NAMESPACE_DEADLINE_S` (default 300) is now the **no-progress
+  window**, re-armed every time an object completes, instead of a total
+  wall-clock cap. `NamespaceDeadline` runs two clocks: the stall window (a
+  hang — S3-GIT-007's epoll case, a black-holed endpoint) and a total
+  allowance derived from the work (`syncDeadlineBudgetSeconds` =
+  window + objects × 0.53 s × 3 headroom). Both abort the in-flight SDK calls
+  before the lock is released and the error **names the namespace and the
+  progress reached**.
+- Transfers run in a bounded pool — `S3_SYNC_CONCURRENCY`, default 8, clamped
+  1..32 — instead of strictly sequentially (`runPool` in `src/s3/sync.ts`).
+- `scripts/restore-proof.sh` no longer exports `S3_SYNC_NAMESPACE_DEADLINE_S=1800`.
+  That workaround hid the defect it had just found: the proof now runs under
+  the shipped defaults, which is the only version of the proof that means
+  anything.
+
+### Control that fails on the pre-fix engine
+
+Same scenario, both engines, 40 objects × 60 ms of PUT work, 1 s window
+(`syncNamespace(..., "push")`): pre-fix `origin/main` `src/s3/sync.ts` aborts —
+`Error: sync deadline exceeded after 1s` — while the fixed engine uploads all
+40 (`uploaded=40`, 2.4 s of work). The new suite pins it:
+`src/s3/sync-deadline-budget-s3deadline001.test.ts`.
+
+### The stuck case still aborts (black-holed endpoint, real SDK)
+
+```
+$ env DUCKBRAIN_CONFIG_PATH=.../duckbrain.config.json \
+      DUCKBRAIN_NAMESPACES_PATH=.../namespaces \
+      S3_SYNC_NAMESPACE_DEADLINE_S=5 \
+      node bin/duckbrain.js s3 sync probe push     # endpoint http://10.255.255.1:9000
+[S3] sync probe timed out after 5s (S3-GIT-007)
+Error: sync deadline exceeded after 5s for namespace probe (no progress for 5s; 0/0 objects transferred, 5s elapsed)
+EXIT=1
+```
+
+### End-to-end restore under SHIPPED defaults (no override anywhere)
+
+```
+$ env -u S3_SYNC_NAMESPACE_DEADLINE_S -u S3_SYNC_CONCURRENCY \
+      AWS_PROFILE=duckbrain scripts/restore-proof.sh --namespaces chat-archive
+[restore-proof] sync deadline: shipped default (work-derived)s per namespace
+[restore-proof] copied chat-archive: 617 files, 156444434 bytes
+[S3] push chat-archive: uploaded=617 downloaded=0 skipped=0 in 37410ms
+[restore-proof] remote object count == baseline file count (617) — PASS
+[restore-proof] local source tree removed: .../source/namespaces does not exist
+[S3] pull chat-archive: downloaded=617 skipped=0 in 50719ms
+[restore-proof] namespace list: PASS (chat-archive )
+[restore-proof] file count: PASS (617 files)
+[restore-proof] per-file sha256 (ALL 617 files): PASS — no differences
+[restore-proof] known-key read: GET /api/memories/key/chats/karahermes-set/2026-11-04/part-10?namespace=chat-archive -> HTTP 200
+[restore-proof] known-key read: PASS (37978 bytes served from the restored tree)
+[restore-proof] MEASURED RTO (largest namespace exercised): chat-archive — 156444434 bytes / 617 files restored in 50.7s
+[restore-proof] PASS — restore is byte-identical for 617 files across 1 namespace(s)
+```
+
+Measured RTO for `chat-archive` (the namespace that could not be restored at
+all under the old default): **50.7 s pull / 38 s push**, 12.17 files/s — the
+same namespace was 277.4 s pull / 329.8 s push and *aborted at 570 of 617*
+before the fix. The throwaway prefix was deleted by the script's trap.
+
+### What this does NOT prove
+
+- `scheduler` (258,674 syncable objects ≈ 5.9 h at the measured rate) and the
+  other large namespaces were **not** transferred end to end; the deadline now
+  allows them, the wall clock was not available here. The projection above is
+  labelled as a projection.
+- The whole-run wrapper cap `S3_SYNC_ALL_DEADLINE_S` (3600 s,
+  `scripts/s3/duckbrain-s3-native-sync.sh`) still bounds one `sync all` pass.
+  Steady-state passes only move the delta, so it is not the ceiling it was —
+  but a COLD full sync of `scheduler` cannot finish inside one wrapper window.

@@ -156,13 +156,16 @@ printf '{"s3": {"enabled": true, "endpoint": "%s", "region": "%s", "bucket": "%s
 export DUCKBRAIN_CONFIG_PATH="$CFG"
 export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_DEFAULT_REGION="$REGION"
-# S3-GIT-007 gives every namespace a 300s wall-clock deadline. Measured, the
-# engine transfers objects SEQUENTIALLY at ~0.5-1.4 objects/s, so the shipped
-# default aborts any namespace above ~400 objects — reproduced on chat-archive
-# (617 objects): "[S3] sync chat-archive timed out after 300s (S3-GIT-007)".
-# The proof raises the deadline so the exercise can finish; the default's
-# ceiling is recorded in docs/evidence/backup-restore-proof-2026-11-05.md.
-export S3_SYNC_NAMESPACE_DEADLINE_S="${S3_SYNC_NAMESPACE_DEADLINE_S:-1800}"
+# NO DEADLINE OVERRIDE HERE. This proof used to export
+# S3_SYNC_NAMESPACE_DEADLINE_S=1800 because the shipped 300s cap aborted
+# chat-archive (617 objects) at 570 — the workaround hid the defect it had
+# just found (S3-DEADLINE-001). The deadline is now derived from the object
+# count and enforced as a no-progress window, so the proof must exercise the
+# SHIPPED default: an override set by the operator is passed through, never
+# invented by this script.
+if [ -n "${S3_SYNC_NAMESPACE_DEADLINE_S:-}" ]; then
+  say "NOTE: operator override S3_SYNC_NAMESPACE_DEADLINE_S=${S3_SYNC_NAMESPACE_DEADLINE_S}s (shipped default: work-derived)"
+fi
 
 # The same exclusion rules src/s3/sync.ts walkLocal() applies. Keeping them in
 # lockstep is what makes "file count" comparable between source and restore.
@@ -189,7 +192,7 @@ say "namespaces  : ${NS_LIST[*]}"
 say "remote      : s3://$BUCKET/$PREFIX  (throwaway — deleted on exit)"
 say "work dir    : $WORK_DIR"
 say "fault       : ${FAULT:-none}"
-say "sync deadline: ${S3_SYNC_NAMESPACE_DEADLINE_S}s per namespace (shipped default is 300s — see the evidence doc)"
+say "sync deadline: ${S3_SYNC_NAMESPACE_DEADLINE_S:-shipped default (work-derived)}s per namespace"
 
 step "1/8 copy the real namespaces into a scratch root (source is read-only)"
 for ns in "${NS_LIST[@]}"; do
@@ -376,7 +379,7 @@ echo "$PROJ_INPUT" | while read -r f b ns; do
   printf '  PROJECTION (not measured): %-24s %8s files %12s bytes -> ~%ss (~%.1fh) at the measured sequential rate\n' \
     "$ns" "$f" "$b" "$projected" "$(awk -v p="$projected" 'BEGIN{printf "%.1f", p/3600}')"
 done
-say "projection = files x ${PER_OBJ}s per object (rate measured on the largest namespace above); the sync engine transfers objects SEQUENTIALLY, so per-object latency dominates"
+say "projection = files x ${PER_OBJ}s per object (rate measured on the largest namespace above, at S3_SYNC_CONCURRENCY=${S3_SYNC_CONCURRENCY:-8}); per-object latency dominates, so the rate is a function of the pool width"
 
 step "result"
 if [ "$FAILURES" -eq 0 ]; then
