@@ -3133,3 +3133,34 @@ tasks:
     \ that same assert step (.github/workflows/ci.yml:99-100)."
   status: pending
   created_at: '2026-11-05T17:48:20.205301+00:00'
+- id: SURFACE-HTTP-OPS-001
+  title: 'SURFACE-HTTP-OPS-001: HTTP serves data but no operations'
+  criteria:
+  - Each of squash, prune, s3 status/sync, consolidate, distill-sessions, embeddings
+    rebuild, token create/revoke is either exposed as a route using the same implementation
+    the CLI calls with an admin grant, a dry-run default where destructive, and a
+    response reporting counts/bytes, or has a written decision in docs naming the
+    security or safety reason plus a test that asserts that decision.
+  - Destructive routes refuse without an explicit confirm flag and are audited (op
+    + outcome + principal) in the same ledger the other mutations use.
+  - A live scratch daemon transcript proves squash, prune dry-run, s3 status, and
+    a token/CLI-only decision.
+  - test-counts.json is bumped in the same commit and the full suite is green.
+  status: pending
+  created_at: '2026-11-05T22:14:57.791990+00:00'
+- id: BACKUP-RESTORE-PROOF-001
+  title: 'BACKUP-RESTORE-PROOF-001: restore has never been proven end to end'
+  criteria:
+  - scripts/restore-proof.sh restores real namespaces from a throwaway S3 prefix after
+    the local tree is DELETED, and proves the namespace list, the file count and the
+    sha256 of EVERY file match, plus a known-key read through a scratch daemon (pasted
+    transcript).
+  - 'The falsifier is demonstrated: corrupting one remote object with same-length
+    garbage makes the proof exit nonzero and name the divergent file, while the sync
+    engine itself reported success.'
+  - 'Non-destructive: the throwaway prefix is emptied on pass and fail, and the helper
+    refuses any prefix outside restore-proof/ (pasted refusal + post-run census).'
+  - The full suite is green on the landed commit and docs/s3-native.md carries the
+    measured restore RTO.
+  status: pending
+  created_at: '2026-11-06T00:10:13.467040+00:00'
