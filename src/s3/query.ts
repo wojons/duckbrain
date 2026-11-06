@@ -40,6 +40,14 @@ import { join } from "path";
 import { Database } from "duckdb";
 import type { S3Config } from "./config";
 import { buildClient } from "./client";
+import {
+  DEFAULT_MAX_WILDCARD_OBJECTS,
+  S3ManyObjectsError,
+  formatReadPlanWarning,
+  planWildcardReads,
+  type ObjectLister,
+  type WildcardReadPlan,
+} from "./read-plan";
 
 export interface S3QueryResult {
   columns: string[];
@@ -78,6 +86,25 @@ export interface S3QueryDeps {
    * profile path is provable with no AWS calls and no network.
    */
   credentialProvider?: CredentialProvider;
+  /**
+   * S3-READ-AMPLIFICATION-001: object lister used by the wildcard read plan.
+   * Defaults to one paginated LIST through the SDK chain; tests inject a stub
+   * so the refusal is provable with no AWS call.
+   */
+  listObjects?: ObjectLister;
+  /** Objects a wildcard read may cover without --allow-many-objects. */
+  maxObjects?: number;
+  /** `--allow-many-objects`: pay for the full scan instead of refusing. */
+  allowManyObjects?: boolean;
+  /** Per-object cost assumption for the estimate (measured default). */
+  perObjectSeconds?: number;
+  /** Where the plan warning goes; defaults to stderr. */
+  onPlanWarning?: (message: string) => void;
+  /**
+   * SQL execution seam. Defaults to the real DuckDB httpfs session; tests
+   * inject a stub so ordering ("plan first, bytes second") is provable.
+   */
+  execute?: (sql: string) => Promise<Record<string, unknown>[]>;
 }
 
 /**
@@ -251,20 +278,12 @@ function defaultCredentialProvider(cfg: S3Config): CredentialProvider {
   };
 }
 
-/**
- * Run a SQL statement with httpfs loaded, against s3:// paths under the
- * configured bucket/prefix. Returns all rows as objects.
- */
-export async function runS3Query(
+/** The real read: one in-memory DuckDB with httpfs and the resolved identity. */
+async function executeWithHttpfs(
   cfg: S3Config,
+  credentials: QueryCredentials,
   sql: string,
-  deps: S3QueryDeps = {},
-): Promise<S3QueryResult> {
-  const credentials = await resolveQueryCredentials(
-    cfg,
-    deps.credentialProvider,
-  );
-
+): Promise<Record<string, unknown>[]> {
   const db = new Database(":memory:");
   try {
     // INSTALL is idempotent-ish; swallow "already installed" errors.
@@ -296,22 +315,89 @@ export async function runS3Query(
       db.exec(`SET s3_session_token=${sqlLiteral(credentials.sessionToken)};`);
     }
 
-    const rows = await new Promise<Record<string, unknown>[]>(
-      (resolve, reject) => {
-        db.all(sql, (err, result) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          const typed = (result ?? []) as Record<string, unknown>[];
-          resolve(typed);
-        });
-      },
-    );
-
-    const columns = rows.length > 0 ? Object.keys(rows[0]!) : [];
-    return { columns, rows, count: rows.length };
+    return await new Promise<Record<string, unknown>[]>((resolve, reject) => {
+      db.all(sql, (err, result) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve((result ?? []) as Record<string, unknown>[]);
+      });
+    });
   } finally {
     db.close();
   }
+}
+
+/**
+ * S3-READ-AMPLIFICATION-001 — ask the cheap question before the expensive one.
+ *
+ * A wildcard statement is planned from ONE LIST of its prefix: how many objects
+ * it matches, their total/typical size, the largest object, and the wall-clock
+ * estimate at the measured per-object cost. Above the budget it refuses by
+ * default (naming the count, the estimate and the compaction that fixes the
+ * layout) instead of starting a scan that cannot finish; `--allow-many-objects`
+ * pays for it deliberately. Statements without a wildcard issue no LIST at all.
+ */
+export async function preflightWildcardRead(
+  cfg: S3Config,
+  sql: string,
+  deps: S3QueryDeps = {},
+): Promise<WildcardReadPlan[]> {
+  const maxObjects = deps.maxObjects ?? DEFAULT_MAX_WILDCARD_OBJECTS;
+  const warn = deps.onPlanWarning ?? ((m: string) => process.stderr.write(`${m}\n`));
+  const plans = await planWildcardReads(sql, cfg, {
+    ...(deps.listObjects ? { listObjects: deps.listObjects } : {}),
+    maxObjects,
+    ...(deps.perObjectSeconds ? { perObjectSeconds: deps.perObjectSeconds } : {}),
+  });
+
+  const built: WildcardReadPlan[] = [];
+  for (const entry of plans) {
+    if (!entry.plan) {
+      // A plan that cannot be built must never become a new way to fail: say
+      // so and let the read report its own error.
+      warn(
+        `s3 query: could not build a read plan for ${entry.path} (${entry.error ?? "unknown error"}); ` +
+          `running the statement unscanned.`,
+      );
+      continue;
+    }
+    if (entry.plan.overBudget && deps.allowManyObjects !== true) {
+      throw new S3ManyObjectsError(formatReadPlanWarning(entry.plan), entry.plan);
+    }
+    // Over budget only when the caller paid for it: a routine read of a few
+    // objects must stay silent, or the warning becomes noise nobody reads.
+    if (entry.plan.overBudget) warn(formatReadPlanWarning(entry.plan));
+    built.push(entry.plan);
+  }
+  return built;
+}
+
+/**
+ * Run a SQL statement with httpfs loaded, against s3:// paths under the
+ * configured bucket/prefix. Returns all rows as objects.
+ *
+ * S3-READ-AMPLIFICATION-001: the wildcard read plan runs FIRST — before the
+ * credential resolution that would hand bytes to httpfs — so an unbudgeted
+ * 10,000-object scan is refused instead of hanging for an hour.
+ */
+export async function runS3Query(
+  cfg: S3Config,
+  sql: string,
+  deps: S3QueryDeps = {},
+): Promise<S3QueryResult> {
+  await preflightWildcardRead(cfg, sql, deps);
+
+  const credentials = await resolveQueryCredentials(
+    cfg,
+    deps.credentialProvider,
+  );
+
+  const rows = deps.execute
+    ? await deps.execute(sql)
+    : await executeWithHttpfs(cfg, credentials, sql);
+
+  const columns = rows.length > 0 ? Object.keys(rows[0]!) : [];
+  return { columns, rows, count: rows.length };
 }

@@ -259,6 +259,37 @@ range requests.
 (client-side httpfs). AWS adds server-side pushdown (Athena/S3 Select) for
 big-data scans without transferring everything.
 
+## Wildcard reads are planned before bytes move
+
+`duckbrain s3 query` plans any statement that contains a wildcard `s3://` path
+before it starts reading (S3-READ-AMPLIFICATION-001). The plan is one paginated
+LIST of the pattern's prefix — cheap — and reports how many objects the glob
+matches, their total and typical size, the single largest object, and the
+wall-clock estimate at the measured per-object cost (~0.35s per GET on
+Hetzner; the cost is per request, not per byte).
+
+Above **500** matched objects the query REFUSES to start (exit 1) instead of
+scanning for an hour. Fragmentation is what makes a wildcard read expensive:
+`coding-hermes/config/2026-08` holds 10,001 objects — one 46MB segment and
+10,000 files of about 1.1KB — so a `*.jsonl` read over it is ~10,000 GETs
+(~58 minutes) even though the partition is only 57MB.
+
+The fix is compaction, not patience:
+
+```bash
+duckbrain squash --segments --partition=config/2026-08 --namespace=coding-hermes --dry-run
+duckbrain squash --segments --partition=config/2026-08 --namespace=coding-hermes
+```
+
+That merges near-empty segments up to the 1000-line/1MB rotation bound, turning
+the same read into tens of GETs. To pay for a large scan deliberately, pass
+`--allow-many-objects` (the plan is still printed as a warning) or raise the
+budget for one call with `--max-objects=<N>`. Statements without a wildcard —
+a single `current.jsonl`, a squashed Parquet object — issue no LIST and behave
+exactly as before. A plan that cannot be built (no credentials, endpoint down)
+warns and lets the read report its own error; it never becomes a new way to
+fail before starting.
+
 ## Activation checklist (when ready)
 
 1. `duckbrain.config.json` → `"s3": { "enabled": true, "endpoint": "https://s3.<your-region>.your-provider.com", "bucket": "my-duckbrain", "prefix": "duckbrain", "pushOnCommit": true }`

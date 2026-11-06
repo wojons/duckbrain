@@ -7,7 +7,11 @@
  *   duckbrain s3 status [ns] [--full] [--json]
  *                                     — effective config + per-ns sync state
  *   duckbrain s3 sync [ns|all] [push|pull]
- *   duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
+ *   duckbrain s3 query "SELECT ..." [--allow-many-objects] [--max-objects=N]
+ *                                     — SQL over s3:// via DuckDB httpfs; a
+ *                                       wildcard path is planned from one LIST
+ *                                       first and refused above the object
+ *                                       budget instead of scanning for an hour
  *   duckbrain s3 config               — print effective config (no secrets)
  */
 
@@ -30,6 +34,10 @@ import {
   listRemoteNamespaces,
 } from "./sync";
 import { runS3Query } from "./query";
+import {
+  DEFAULT_MAX_WILDCARD_OBJECTS,
+  S3ManyObjectsError,
+} from "./read-plan";
 import {
   findGhostSyncState,
   sweepGhostSyncState,
@@ -198,7 +206,12 @@ Usage:
                                       ${S3_LOCAL_WALK_MAX} recorded objects
                                       (--local-walk-max=N overrides the budget)
   duckbrain s3 sync [ns|all] [push|pull]
-  duckbrain s3 query "SELECT ..."   — SQL over s3:// via DuckDB httpfs
+  duckbrain s3 query "SELECT ..." [--allow-many-objects] [--max-objects=N]
+                                    — SQL over s3:// via DuckDB httpfs. A
+                                      wildcard path is planned from one LIST
+                                      first: above ${DEFAULT_MAX_WILDCARD_OBJECTS}
+                                      matched objects it refuses rather than
+                                      starting a scan that cannot finish
   duckbrain s3 config               — print effective config (no secrets)
   duckbrain s3 clear <ns> --dry-run | --yes --requested-by=<who> --reason=<why>
                                     — DESTROY the namespace's remote S3 objects
@@ -909,15 +922,70 @@ export function formatS3Row(row: Record<string, unknown>): string {
   return safeJsonStringify(row);
 }
 
-export async function s3Query(configDir: string, sql: string): Promise<void> {
+/**
+ * S3-READ-AMPLIFICATION-001: split the query flags out of the SQL.
+ *
+ * `--allow-many-objects` and `--max-objects=N` are the CLI's, never SQL: they
+ * are removed wherever they sit so a caller cannot change the budget by
+ * wrapping the statement differently.
+ */
+export function parseS3QueryArgs(args: string[]): {
+  sql: string;
+  allowManyObjects: boolean;
+  maxObjects: number | undefined;
+} {
+  const allowManyObjects = args.includes("--allow-many-objects");
+  const maxArg = args.find((a) => a.startsWith("--max-objects="));
+  const maxObjects =
+    maxArg === undefined ? undefined : Number(maxArg.slice("--max-objects=".length));
+  if (maxObjects !== undefined && (!Number.isFinite(maxObjects) || maxObjects < 1)) {
+    console.error("✗ --max-objects must be a positive number (e.g. --max-objects=2000).");
+    process.exit(1);
+  }
+  const sql = args
+    .filter((a) => a !== "--allow-many-objects" && !a.startsWith("--max-objects="))
+    .join(" ");
+  return { sql, allowManyObjects, maxObjects };
+}
+
+export interface S3QueryOptions {
+  /**
+   * S3-READ-AMPLIFICATION-001: pay for a wildcard scan above the object budget
+   * instead of being refused.
+   */
+  allowManyObjects?: boolean;
+  /** Raise the budget for this call (`--max-objects=N`). */
+  maxObjects?: number;
+}
+
+export async function s3Query(
+  configDir: string,
+  sql: string,
+  options: S3QueryOptions = {},
+): Promise<void> {
   const s3 = requireEnabled(configDir);
   if (!sql.trim()) {
     console.error(
-      "Usage: duckbrain s3 query \"SELECT ... FROM read_json_auto('s3://bucket/prefix/ns/**/*.jsonl')\"",
+      "Usage: duckbrain s3 query \"SELECT ... FROM read_json_auto('s3://bucket/prefix/ns/**/*.jsonl')\"\n" +
+        "       [--allow-many-objects] [--max-objects=N]",
     );
     process.exit(1);
   }
-  const result = await runS3Query(s3, sql);
+  let result: Awaited<ReturnType<typeof runS3Query>>;
+  try {
+    result = await runS3Query(s3, sql, {
+      ...(options.allowManyObjects === true ? { allowManyObjects: true } : {}),
+      ...(options.maxObjects === undefined ? {} : { maxObjects: options.maxObjects }),
+    });
+  } catch (err) {
+    // The read plan is a REFUSAL, not a crash: print the plan (count, estimate,
+    // compacted alternative) and exit non-zero without a stack trace.
+    if (err instanceof S3ManyObjectsError) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    throw err;
+  }
   console.log(`columns: ${result.columns.join(", ")}`);
   console.log(`rows: ${result.count}`);
   for (const row of result.rows.slice(0, 50)) {
@@ -1134,9 +1202,14 @@ export async function s3Command(
     case "sync":
       await s3Sync(configDir, args[1], (args[2] as "push" | "pull") ?? "push");
       break;
-    case "query":
-      await s3Query(configDir, args.slice(1).join(" "));
+    case "query": {
+      const parsed = parseS3QueryArgs(args.slice(1));
+      await s3Query(configDir, parsed.sql, {
+        ...(parsed.allowManyObjects ? { allowManyObjects: true } : {}),
+        ...(parsed.maxObjects === undefined ? {} : { maxObjects: parsed.maxObjects }),
+      });
       break;
+    }
     case "config":
       s3ConfigShow(configDir);
       break;
