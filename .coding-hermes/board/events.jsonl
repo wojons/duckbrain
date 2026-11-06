@@ -1329,3 +1329,4 @@
 {"id":8508,"timestamp":"2026-11-06T14:14:43Z","event_type":"task_completed","task_id":"RLS-001","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
 {"id":8509,"timestamp":"2026-11-06T15:01:57Z","event_type":"task_updated","task_id":"TESTQ-2026-11-06-1","actor":"foreman","detail":"{\"status\":\"in_progress\"}","tick_number":null}
 {"id":8510,"timestamp":"2026-11-06T15:37:51Z","event_type":"task_completed","task_id":"TESTQ-2026-11-06-1","actor":"foreman","detail":"{\"status\":\"complete\"}","tick_number":null}
+{"id":8511,"timestamp":"2026-11-06T15:42:34Z","event_type":"task_created","task_id":"JUDGE-JOB-001","actor":"foreman","detail":"{\"id\":\"JUDGE-JOB-001\",\"status\":\"pending\"}","tick_number":null}
