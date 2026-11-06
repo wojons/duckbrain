@@ -99,6 +99,12 @@ interface Subscriber {
   principal: AuthPrincipal | undefined;
   tables: string[];
   ops: ChangeOperation[];
+  /**
+   * RLS-001: the declared row policy of the change's table, already resolved
+   * for this subscriber's principal. False drops the event on BOTH the replay
+   * and the live path — a feed must never reveal a row the data verbs hide.
+   */
+  rowAllowed?: ((table: string, row: unknown) => boolean) | undefined;
   sink: SseSink;
   queue: Frame[];
   queueBytes: number;
@@ -144,6 +150,12 @@ export interface SubscribeRequest {
   ops: ChangeOperation[];
   /** Raw cursor (already unwrapped from `cursor` / `Last-Event-ID`). */
   cursor: string | null;
+  /**
+   * RLS-001: row-level visibility for this subscriber, resolved by the route
+   * from the namespace's declared policies. Applied inside the SAME allow-list
+   * predicate as tables/ops, so replay and live delivery cannot disagree.
+   */
+  rowAllowed?: ((table: string, row: unknown) => boolean) | undefined;
   sink: SseSink;
   onClose?: () => void;
 }
@@ -283,6 +295,7 @@ export class RealtimeHub {
         const replayAllow = {
           tables: [...request.tables],
           ops: [...request.ops],
+          rowAllowed: request.rowAllowed,
         };
         const anchor = deriveCommitChanges(repoDir, boundary.commit, {
           ns: request.ns,
@@ -523,6 +536,7 @@ export class RealtimeHub {
       principal: request.principal,
       tables: [...request.tables],
       ops: [...request.ops],
+      rowAllowed: request.rowAllowed,
       sink: request.sink,
       queue: [],
       queueBytes: 0,
@@ -697,13 +711,23 @@ export class RealtimeHub {
    * never receive the historical inserts the live filter would exclude.
    */
   private changeMatchesSubscriber(
-    allow: { tables: string[]; ops: ChangeOperation[] },
+    allow: {
+      tables: string[];
+      ops: ChangeOperation[];
+      rowAllowed?: ((table: string, row: unknown) => boolean) | undefined;
+    },
     change: DerivedChange,
   ): boolean {
-    return (
-      allow.tables.includes(change.record.table) &&
-      allow.ops.includes(change.record.op)
-    );
+    if (
+      !allow.tables.includes(change.record.table) ||
+      !allow.ops.includes(change.record.op)
+    ) {
+      return false;
+    }
+    if (allow.rowAllowed && !allow.rowAllowed(change.record.table, change.row)) {
+      return false;
+    }
+    return true;
   }
 
   private deliver(feed: FeedState, changes: DerivedChange[]): void {

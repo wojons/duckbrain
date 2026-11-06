@@ -50,6 +50,7 @@ import {
   resolveNamespaceName,
   resolveNamespacePath,
   resolveToolPrincipal,
+  resolveToolDenialAuditor,
   type McpToolContext,
 } from "./shared";
 
@@ -157,6 +158,21 @@ const TableDeclareInputSchema = z.object({
     .enum(["jsonl-objects", "jsonl-positional"])
     .optional()
     .describe("Row shape (default jsonl-objects)"),
+  policy: z
+    .object({
+      read: z
+        .object({ column: z.string(), equals: z.string() })
+        .optional()
+        .describe("Row-level READ policy: { column, equals } — equals is a literal or .id/.name"),
+      write: z
+        .object({ column: z.string(), equals: z.string() })
+        .optional()
+        .describe("Row-level WRITE policy: { column, equals } — equals is a literal or .id/.name"),
+    })
+    .optional()
+    .describe(
+      "RLS-001 row policy declared with the columns: which ROWS a read/write may touch, after the table grant",
+    ),
   legacy: z
     .boolean()
     .optional()
@@ -207,6 +223,7 @@ export async function tablesDeclareTool(
       ns: namespace,
       table: args.table,
       columns: args.columns,
+      ...(args.policy !== undefined ? { policy: args.policy } : {}),
       ...(args.primary !== undefined ? { primary: args.primary } : {}),
       ...(args.format !== undefined ? { format: args.format } : {}),
       ...(args.legacy !== undefined ? { legacy: args.legacy } : {}),
@@ -265,6 +282,9 @@ export async function tableInsertTool(
       args.table,
       args.rows,
       resolveToolPrincipal(context),
+      // RLS-001: a row-policy refusal is audited to the SAME sink a REST 403
+      // uses, so the MCP transport cannot refuse silently.
+      resolveToolDenialAuditor(context),
     );
     return {
       success: true,
@@ -338,6 +358,9 @@ export async function tableSelectTool(
       limit: args.limit,
       offset: args.offset,
       wantCount: args.count === "exact",
+      // RLS-001: the declared row policy applies to this transport too.
+      principal: resolveToolPrincipal(context),
+      auditPolicyDenial: resolveToolDenialAuditor(context),
     });
     return {
       success: true,
@@ -395,6 +418,7 @@ export async function tableUpdateTool(
       `eq.${String(args.pk)}`,
       args.values,
       resolveToolPrincipal(context),
+      resolveToolDenialAuditor(context),
     );
     return { success: true, namespace, table: args.table, updated, durability };
   } catch (error) {
@@ -436,6 +460,7 @@ export async function tableDeleteTool(
       args.table,
       `eq.${String(args.pk)}`,
       resolveToolPrincipal(context),
+      resolveToolDenialAuditor(context),
     );
     return { success: true, namespace, table: args.table, deleted, durability };
   } catch (error) {

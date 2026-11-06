@@ -31,6 +31,27 @@ import {
 
 export const SCHEMA_DOCUMENT_VERSION = 1;
 
+/**
+ * RLS-001: one declared row-level policy rule. `column` names a declared
+ * column of the same table; `equals` is a literal, or a `.field` reference to
+ * the authenticated principal (`.id` / `.name`).
+ */
+export interface RowPolicyRule {
+  column: string;
+  equals: string;
+}
+
+/**
+ * RLS-001: the row-level policy of one table, declared in the same DB-SUPA-6
+ * declaration document as the columns (never a second format). `read` gates
+ * which rows a SELECT / change feed may reveal; `write` gates which rows
+ * PATCH / DELETE / upsert / insert may change.
+ */
+export interface TablePolicy {
+  read?: RowPolicyRule;
+  write?: RowPolicyRule;
+}
+
 export interface SchemaTable {
   /** Table version, incremented by every accepted evolution operation. */
   schemaVersion: number;
@@ -38,6 +59,12 @@ export interface SchemaTable {
   rowShape: RowShape;
   keyColumns: string[];
   columns: DeclaredColumn[];
+  /**
+   * RLS-001 optional row-level policy. Optional and additive inside the v1
+   * document (closed-world stays: an unknown FIELD is still rejected), so a
+   * document written before this change parses byte-identically.
+   */
+  policy?: TablePolicy;
 }
 
 export interface SchemaView {
@@ -79,6 +106,20 @@ const ColumnSchema = z
   })
   .strict();
 
+const RowPolicyRuleSchema = z
+  .object({
+    column: z.string().min(1),
+    equals: z.string().min(1),
+  })
+  .strict();
+
+const TablePolicySchema = z
+  .object({
+    read: RowPolicyRuleSchema.optional(),
+    write: RowPolicyRuleSchema.optional(),
+  })
+  .strict();
+
 const TableSchema = z
   .object({
     schemaVersion: z.number(),
@@ -86,6 +127,7 @@ const TableSchema = z
     rowShape: z.string(),
     keyColumns: z.array(z.string()),
     columns: z.array(ColumnSchema),
+    policy: TablePolicySchema.optional(),
   })
   .strict();
 

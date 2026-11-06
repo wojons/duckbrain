@@ -233,6 +233,7 @@ function registerDocument(
       rowShape: definition.rowShape,
       keyColumns: [...definition.keyColumns],
       columns: definition.columns.map((column) => ({ ...column })),
+      ...(definition.policy ? { policy: definition.policy } : {}),
       schemaVersion: definition.schemaVersion,
       documentHash: hash,
     };

@@ -469,6 +469,14 @@ export interface SelectOptions {
   limit?: unknown;
   offset?: unknown;
   wantCount?: boolean;
+  /**
+   * RLS-001: the row-level policy already resolved for this request's
+   * principal (`{ column, value }`). It is pushed into the SAME WHERE clause
+   * as the caller's filters, so `limit`/`offset` and X-Total-Count count only
+   * the rows the policy admits — a post-filter in JS would page across rows
+   * the caller may not see.
+   */
+  rowPolicy?: { column: string; value: string } | undefined;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -611,6 +619,25 @@ export function buildSelectPlan(
         orderParts.push(`${quoteIdentifier(colName)} ${dir.toUpperCase()}`);
       }
     }
+  }
+
+  // RLS-001: the declared row policy becomes one more equality predicate. A
+  // row that does not carry the column (absent / NULL) is excluded by SQL
+  // three-valued logic, which is the fail-closed answer a policy wants.
+  if (opts.rowPolicy) {
+    const policyCol = declaration.columns.find(
+      (column) => column.name === opts.rowPolicy!.column,
+    );
+    if (!policyCol) {
+      throw new ApiError(
+        `Row policy column '${opts.rowPolicy.column}' is not declared on table '${declaration.name}'`,
+        500,
+        "TABLE_REGISTRY_ERROR",
+      );
+    }
+    const built = sqlPredicate(policyCol, "eq", opts.rowPolicy.value);
+    params.push(...built.params);
+    whereParts.push(built.sql);
   }
 
   const columnsSql = declaration.columns

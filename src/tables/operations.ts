@@ -59,6 +59,13 @@ import {
 import { assertNamespaceDdlUsable, partitionForStoragePath } from "../serialization/ddl";
 import { storedRowFromApiRow } from "../serialization/schemaTypes";
 import type { AuthPrincipal } from "../auth/middleware";
+import {
+  auditPolicyDenial,
+  resolveRowPolicy,
+  ROW_POLICY_REASON,
+  rowPolicyDecision,
+  type PolicyAuditSink,
+} from "./policy";
 
 /** Declared column types (schema.json) → legacy DuckDB column types. */
 const DECLARED_TO_LEGACY: Record<string, string> = {
@@ -70,6 +77,14 @@ const DECLARED_TO_LEGACY: Record<string, string> = {
   json: "json",
   bytes: "varchar",
 };
+
+/**
+ * RLS-001: internal control-flow signal for "the row exists but this principal
+ * may not touch it". The public verbs answer it as `updated: 0` / `deleted: 0`
+ * (no existence oracle) and record the real reason in the namespace audit; it
+ * is never returned to a caller as an error string.
+ */
+class PolicyRefusal extends Error {}
 
 /** Namespace-relative POSIX path of a physical data file. */
 export function namespaceRelativePath(nsDir: string, filePath: string): string {
@@ -239,6 +254,15 @@ export interface SelectTableInput {
    * Each name must be the `references.table` of a column on this table.
    */
   embed?: string | string[] | undefined;
+  /**
+   * RLS-001: the authenticated principal whose declared ROW policy is graded.
+   * Applied AFTER the caller's grant check (which happens on the transport)
+   * and pushed into the SELECT's WHERE clause, so paging and X-Total-Count
+   * count only visible rows.
+   */
+  principal?: AuthPrincipal | undefined;
+  /** RLS-001: where a row-policy denial is recorded (namespace audit). */
+  auditPolicyDenial?: PolicyAuditSink | undefined;
 }
 
 export interface SelectTableResult {
@@ -260,18 +284,53 @@ export async function selectTableRows(
   input: SelectTableInput = {},
 ): Promise<SelectTableResult> {
   const declaration = resolveTableDeclaration(ns, table);
+  // RLS-001: grant says "may touch this table"; policy says "which rows".
+  const policy = resolveRowPolicy(declaration.policy, "read", input.principal);
+  if (policy.kind === "deny") {
+    await auditPolicyDenial(input.auditPolicyDenial, {
+      ns,
+      table: declaration.name,
+      op: "tables.read",
+      principal: input.principal?.name ?? null,
+      reason: ROW_POLICY_REASON,
+    });
+    throw new ApiError(policy.message, 403, "FORBIDDEN");
+  }
   const plan = buildSelectPlan(declaration, {
     filters: input.filters ?? {},
     order: input.order,
     limit: input.limit as never,
     offset: input.offset as never,
     wantCount: input.wantCount === true,
+    ...(policy.kind === "filter" ? { rowPolicy: policy.filter } : {}),
   });
   const { rows: rawRows, totalCount } = await executeSelectPlan(
     namespaceDir(ns),
     declaration,
     plan,
   );
+  // A read that the policy emptied out is a DENIAL when rows exist: record it
+  // with the row_policy reason (distinct from table_grant) so an operator can
+  // see it. The unfiltered count runs only in the empty case.
+  if (policy.kind === "filter" && rawRows.length === 0) {
+    const unfiltered = await executeSelectPlan(
+      namespaceDir(ns),
+      declaration,
+      buildSelectPlan(declaration, {
+        filters: input.filters ?? {},
+        wantCount: true,
+      }),
+    );
+    if ((unfiltered.totalCount ?? 0) > 0) {
+      await auditPolicyDenial(input.auditPolicyDenial, {
+        ns,
+        table: declaration.name,
+        op: "tables.read",
+        principal: input.principal?.name ?? null,
+        reason: ROW_POLICY_REASON,
+      });
+    }
+  }
   const jsonCols = declaration.columns
     .filter((c) => c.type === "json")
     .map((c) => c.name);
@@ -481,6 +540,7 @@ export async function insertTableRows(
   table: string,
   rawRows: unknown[],
   principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): Promise<{ inserted: number; durability: TableDurability }> {
   const declaration = resolveTableDeclaration(ns, table);
   if (rawRows.length === 0) {
@@ -506,6 +566,29 @@ export async function insertTableRows(
           400,
           "VALIDATION_ERROR",
         );
+      }
+    }
+  }
+  // RLS-001: every row of the batch must satisfy the declared WRITE policy
+  // before ANY row is written — a row the principal may not own is refused
+  // whole-batch, never partially inserted.
+  if (declaration.policy?.write) {
+    for (const row of coerced) {
+      const decision = rowPolicyDecision(
+        declaration.policy,
+        "write",
+        row,
+        principal,
+      );
+      if (!decision.allowed) {
+        await auditPolicyDenial(audit, {
+          ns,
+          table: declaration.name,
+          op: "tables.write",
+          principal: principal?.name ?? null,
+          reason: ROW_POLICY_REASON,
+        });
+        throw new ApiError(decision.message, 403, "FORBIDDEN");
       }
     }
   }
@@ -588,6 +671,7 @@ export async function updateTableRows(
   pkRaw: unknown,
   patchBody: Record<string, unknown>,
   principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): Promise<{ updated: number; durability: TableDurability }> {
   const declaration = resolveTableDeclaration(ns, table);
   const { col, value } = resolvePkFilter(declaration, pkRaw, "PATCH/DELETE");
@@ -622,9 +706,35 @@ export async function updateTableRows(
   const configured = durabilityHeaderFor(ns);
   let patchOutcome: MutationOutcome | null = null;
   let location: RowLineLocation | null = null;
+  let policyDenial: string | null = null;
   try {
     const existing = findRowByPk(nsDir, declaration, col, value);
     if (existing !== null) {
+      // RLS-001: BOTH the row on disk and the row the patch produces must
+      // satisfy the write policy. Checking only the merged row would let a
+      // principal legalize a theft in one request (`{owner: "me"}`); checking
+      // only the existing row would let a patch move the row to somebody else.
+      // The refusal is reported as `updated: 0`, the same shape as "no row
+      // matched", so the verb is not an existence oracle; the REAL reason is
+      // recorded in the namespace audit.
+      const existingDecision = rowPolicyDecision(
+        declaration.policy,
+        "write",
+        existing,
+        principal,
+      );
+      const policyDecision = existingDecision.allowed
+        ? rowPolicyDecision(
+            declaration.policy,
+            "write",
+            { ...existing, ...patchBody },
+            principal,
+          )
+        : existingDecision;
+      if (!policyDecision.allowed) {
+        policyDenial = policyDecision.message;
+        throw new PolicyRefusal(policyDecision.message);
+      }
       // Validate the MERGED row, not each body field in isolation: a partial
       // patch is legal (only the named columns change) while every declared
       // constraint is still enforced against the row the patch produces.
@@ -652,8 +762,19 @@ export async function updateTableRows(
         location = findRowLineByPk(nsDir, declaration, col, lookupValue);
       }
     }
+  } catch (error) {
+    if (!(error instanceof PolicyRefusal)) throw error;
   } finally {
     releaseNamespaceWriteLock(lock);
+  }
+  if (policyDenial !== null) {
+    await auditPolicyDenial(audit, {
+      ns,
+      table: declaration.name,
+      op: "tables.write",
+      principal: principal?.name ?? null,
+      reason: ROW_POLICY_REASON,
+    });
   }
   // No matching row: nothing was written and there is nothing to audit.
   if (mutated === 0) {
@@ -698,6 +819,7 @@ export async function deleteTableRows(
   table: string,
   pkRaw: unknown,
   principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): Promise<{ deleted: number; durability: TableDurability }> {
   const declaration = resolveTableDeclaration(ns, table);
   const { col, value } = resolvePkFilter(declaration, pkRaw, "PATCH/DELETE");
@@ -722,6 +844,28 @@ export async function deleteTableRows(
   // name the last committed row image (resolved by replay against the parent
   // commit), not a line the child no longer has.
   const location = findRowLineByPk(nsDir, declaration, col, value);
+  // RLS-001: a row outside the principal's write policy is not deleted, and
+  // the answer is the same `deleted: 0` a missing row gets (no oracle). The
+  // row image the tombstone would have named is never read for the caller.
+  if (location !== null) {
+    const policyDecision = rowPolicyDecision(
+      declaration.policy,
+      "write",
+      location.row,
+      principal,
+    );
+    if (!policyDecision.allowed) {
+      releaseNamespaceWriteLock(lock);
+      await auditPolicyDenial(audit, {
+        ns,
+        table: declaration.name,
+        op: "tables.write",
+        principal: principal?.name ?? null,
+        reason: ROW_POLICY_REASON,
+      });
+      return { deleted: 0, durability: { configured, achieved: configured } };
+    }
+  }
   try {
     deleteOutcome = deleteRowsByPk(nsDir, declaration, col, value, configured);
     removed = deleteOutcome.mutated;
@@ -857,6 +1001,7 @@ export async function upsertTableRow(
   pkRaw: unknown,
   body: Record<string, unknown>,
   principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): Promise<UpsertTableResult> {
   const declaration = resolveTableDeclaration(ns, table);
   const { col, value } = resolvePkFilter(declaration, pkRaw, "PUT");
@@ -901,12 +1046,35 @@ export async function upsertTableRow(
   let outcome: "inserted" | "updated" = "updated";
   let resultRow: Record<string, unknown> = {};
   let achieved: AchievedWriteMode = configured;
+  let policyDenial: string | null = null;
   let record:
     | { op: "insert" | "update"; targetPath: string; dataLine: string; row: unknown }
     | null = null;
   try {
     const existing = findRowByPk(nsDir, declaration, col, value);
     if (existing !== null) {
+      // RLS-001: replacing a row is a WRITE on it — a row another principal
+      // owns is refused, and so is a replacement that moves ownership away.
+      // Unlike PATCH this verb answers 403 (see below), so the refusal is
+      // named rather than shaped as a zero-match.
+      const existingDecision = rowPolicyDecision(
+        declaration.policy,
+        "write",
+        existing,
+        principal,
+      );
+      const policyDecision = existingDecision.allowed
+        ? rowPolicyDecision(
+            declaration.policy,
+            "write",
+            { ...existing, ...body },
+            principal,
+          )
+        : existingDecision;
+      if (!policyDecision.allowed) {
+        policyDenial = policyDecision.message;
+        throw new PolicyRefusal(policyDecision.message);
+      }
       // The path key wins over the stored row's key: a PUT replaces the
       // resource the URL names, it does not move it.
       const merged = coerceRowAgainstDeclaration(declaration, {
@@ -951,6 +1119,16 @@ export async function upsertTableRow(
         ...body,
         [col.name]: pkTyped,
       });
+      const policyDecision = rowPolicyDecision(
+        declaration.policy,
+        "write",
+        candidate,
+        principal,
+      );
+      if (!policyDecision.allowed) {
+        policyDenial = policyDecision.message;
+        throw new PolicyRefusal(policyDecision.message);
+      }
       const appended = appendRowsToTable(nsDir, declaration, [candidate], configured);
       achieved = appended.achieved;
       resultRow = candidate;
@@ -966,10 +1144,33 @@ export async function upsertTableRow(
         row: candidate,
       };
     }
+  } catch (error) {
+    if (!(error instanceof PolicyRefusal)) throw error;
   } finally {
     releaseNamespaceWriteLock(lock);
   }
 
+  if (policyDenial !== null) {
+    await auditPolicyDenial(audit, {
+      ns,
+      table: declaration.name,
+      op: "tables.write",
+      principal: principal?.name ?? null,
+      reason: ROW_POLICY_REASON,
+    });
+    // PUT is replace-or-create: refusing it cannot be shaped as a silent
+    // zero-match without inviting a retry loop, so it names the refusal. The
+    // PATCH/DELETE verbs above keep the no-oracle shape.
+    throw new ApiError(policyDenial, 403, "FORBIDDEN");
+  }
+
+  if (record === null) {
+    throw new ApiError(
+      "upsert produced no change record",
+      500,
+      "AUDIT_APPEND_FAILED",
+    );
+  }
   await recordTableMutationAudit(ns, declaration.name, record.op, principal?.name ?? null, {
     targetPath: record.targetPath,
     dataLine: record.dataLine,
@@ -1032,6 +1233,8 @@ export type TableTransactionOutcome =
  * produce on its own.
  */
 export interface TableTransactionOptions {
+  /** RLS-001: where a row-policy denial is recorded (namespace audit). */
+  auditPolicyDenial?: PolicyAuditSink;
   hooks?: {
     afterAction?: (index: number) => void;
     afterBarrier?: () => void;
@@ -1051,6 +1254,8 @@ interface PreparedTransactionAction {
 function prepareTransactionActions(
   ns: string,
   rawActions: unknown,
+  principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): PreparedTransactionAction[] {
   if (!Array.isArray(rawActions) || rawActions.length === 0) {
     throw new ApiError(
@@ -1131,6 +1336,30 @@ function prepareTransactionActions(
             `Transaction action ${index} is missing the primary key '${declaration.primary}' for table '${declaration.name}'`,
             400,
             "VALIDATION_ERROR",
+          );
+        }
+      }
+      // RLS-001: the row a transaction wants to write must satisfy the
+      // table's declared WRITE policy, exactly like the single-row verbs.
+      if (declaration.policy?.write) {
+        const policyDecision = rowPolicyDecision(
+          declaration.policy,
+          "write",
+          row,
+          principal,
+        );
+        if (!policyDecision.allowed) {
+          void auditPolicyDenial(audit, {
+            ns,
+            table: declaration.name,
+            op: "tables.write",
+            principal: principal?.name ?? null,
+            reason: ROW_POLICY_REASON,
+          });
+          throw new ApiError(
+            `Transaction action ${index} (${action.op} ${action.table}): ${policyDecision.message}`,
+            403,
+            "FORBIDDEN",
           );
         }
       }
@@ -1241,6 +1470,8 @@ function applyTransactionActionLocked(
   nsDir: string,
   prepared: PreparedTransactionAction,
   index: number,
+  principal?: AuthPrincipal,
+  audit?: PolicyAuditSink,
 ): AppliedAction {
   const { action, declaration } = prepared;
   const table = declaration.name;
@@ -1286,6 +1517,27 @@ function applyTransactionActionLocked(
   const pkCol = prepared.pkCol!;
   const pkValue = prepared.pkValue!;
   if (action.op === "update") {
+    // RLS-001: the merged row must satisfy the write policy — the envelope
+    // cannot silently rewrite a row another principal owns.
+    const existing = findRowByPk(nsDir, declaration, pkCol, pkValue);
+    if (existing !== null) {
+      const policyDecision = rowPolicyDecision(
+        declaration.policy,
+        "write",
+        { ...existing, ...prepared.patch! },
+        principal,
+      );
+      if (!policyDecision.allowed) {
+        void auditPolicyDenial(audit, {
+          ns: path.basename(nsDir),
+          table,
+          op: "tables.write",
+          principal: principal?.name ?? null,
+          reason: ROW_POLICY_REASON,
+        });
+        throw new ApiError(policyDecision.message, 403, "FORBIDDEN");
+      }
+    }
     const mutated = patchRowsByPk(nsDir, declaration, pkCol, pkValue, prepared.patch!, {
       mode: "buffered",
     });
@@ -1331,6 +1583,22 @@ function applyTransactionActionLocked(
         404,
         "NOT_FOUND",
       );
+    }
+    const policyDecision = rowPolicyDecision(
+      declaration.policy,
+      "write",
+      location.row,
+      principal,
+    );
+    if (!policyDecision.allowed) {
+      void auditPolicyDenial(audit, {
+        ns: path.basename(nsDir),
+        table,
+        op: "tables.write",
+        principal: principal?.name ?? null,
+        reason: ROW_POLICY_REASON,
+      });
+      throw new ApiError(policyDecision.message, 403, "FORBIDDEN");
     }
     const removed = deleteRowsByPk(nsDir, declaration, pkCol, pkValue, "buffered");
     if (removed.mutated === 0) {
@@ -1448,7 +1716,7 @@ export async function runTableTransaction(
   principal?: AuthPrincipal,
   options: TableTransactionOptions = {},
 ): Promise<TableTransactionOutcome> {
-  const prepared = prepareTransactionActions(ns, rawActions);
+  const prepared = prepareTransactionActions(ns, rawActions, principal, options.auditPolicyDenial);
   const declarations = [...new Map(
     prepared.map((entry) => [entry.declaration.name, entry.declaration]),
   ).values()];
@@ -1475,7 +1743,13 @@ export async function runTableTransaction(
     const snapshot = snapshotCandidateFiles(nsDir, declarations);
     try {
       for (const [index, entry] of prepared.entries()) {
-        const applied = applyTransactionActionLocked(nsDir, entry, index);
+        const applied = applyTransactionActionLocked(
+          nsDir,
+          entry,
+          index,
+          principal,
+          options.auditPolicyDenial,
+        );
         results.push(applied.summary);
         records.push(applied.record);
         options.hooks?.afterAction?.(index);

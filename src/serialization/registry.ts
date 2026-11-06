@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import { MemorySchema } from "../schema/memory";
 import type { DeclaredColumn, RowShape } from "./schemaTypes.js";
+import type { TablePolicy } from "./schemaJson.js";
 
 /**
  * Per-namespace table schema registry. `memories` is built in for every
@@ -15,6 +16,8 @@ import type { DeclaredColumn, RowShape } from "./schemaTypes.js";
  *     additionally carries the physical layout + key columns + version a
  *     generic read/write path needs.
  */
+export type { TablePolicy };
+
 export interface RegisteredTableDeclaration {
   ns: string;
   table: string;
@@ -25,6 +28,8 @@ export interface RegisteredTableDeclaration {
   rowShape: RowShape;
   keyColumns: string[];
   columns: DeclaredColumn[];
+  /** RLS-001: the table's declared row-level policy, when it has one. */
+  policy?: TablePolicy;
   schemaVersion: number;
   /** sha256 of the validated `schema.json` this declaration came from. */
   documentHash: string;

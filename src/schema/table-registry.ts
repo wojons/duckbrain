@@ -39,6 +39,11 @@ import {
   type DeclaredColumnType,
 } from "../serialization/schemaTypes.js";
 import type { RegisteredTableDeclaration } from "../serialization/registry.js";
+import type { TablePolicy } from "../serialization/schemaJson.js";
+import {
+  parseTablePolicy,
+  RowPolicyDeclarationError,
+} from "../tables/policy.js";
 import {
   invalidateNamespaceSchema,
   listDeclaredTables,
@@ -100,6 +105,12 @@ export interface TableDeclaration {
   declaredKeyColumns?: string[];
   /** DB-SUPA-6 table version from the persistent declaration. */
   schemaVersion?: number;
+  /**
+   * RLS-001: the declared row-level policy (read/write rules per column),
+   * carried from the same declaration the columns came from. Absent = no row
+   * policy (the table is granted as a whole, DB-SUPA-4 semantics).
+   */
+  policy?: TablePolicy;
   /**
    * Provenance: `"schema.json"` for a persistent DB-SUPA-6 declaration,
    * `"legacy"` for `tables/<table>.table.json`. Legacy declarations are
@@ -232,12 +243,33 @@ function validateTableDeclaration(
     );
   }
 
+  // RLS-001: a legacy declaration may carry the same row policy. A malformed
+  // policy is a 500 like every other declaration defect — it must never load
+  // as "no policy" (that would silently widen access).
+  let policy: TablePolicy | undefined;
+  try {
+    policy = parseTablePolicy(raw_.policy, {
+      table: name,
+      columns: columns.map((column) => column.name),
+    });
+  } catch (error) {
+    if (error instanceof RowPolicyDeclarationError) {
+      throw new ApiError(
+        `Invalid table declaration ${fileName}: ${error.message}`,
+        500,
+        "TABLE_REGISTRY_ERROR",
+      );
+    }
+    throw error;
+  }
+
   return {
     name,
     format: format as TableFormat,
     columns,
     primary: primary as string | null,
     glob: raw_.glob,
+    ...(policy ? { policy } : {}),
     source: "legacy",
   };
 }
@@ -356,6 +388,26 @@ function snapshotsDiffer(
 export function tableDeclarationFromSchema(
   declaration: RegisteredTableDeclaration,
 ): TableDeclaration {
+  // RLS-001: the policy's column must be one of THIS table's declared columns.
+  // The zod document schema cannot know the column list, so the cross-check
+  // happens here — a policy naming a non-column can never be evaluated and
+  // must not degrade to "no policy".
+  let policy: TablePolicy | undefined;
+  try {
+    policy = parseTablePolicy(declaration.policy, {
+      table: declaration.table,
+      columns: declaration.columns.map((column) => column.name),
+    });
+  } catch (error) {
+    if (error instanceof RowPolicyDeclarationError) {
+      throw new ApiError(
+        `Invalid row policy in schema.json table '${declaration.table}' of namespace '${declaration.ns}': ${error.message}`,
+        500,
+        "TABLE_REGISTRY_ERROR",
+      );
+    }
+    throw error;
+  }
   return {
     name: declaration.table,
     format:
@@ -376,6 +428,7 @@ export function tableDeclarationFromSchema(
     primary: singleKeyColumn(declaration.keyColumns),
     glob: declaration.storagePath,
     declaredKeyColumns: [...declaration.keyColumns],
+    ...(policy ? { policy } : {}),
     schemaVersion: declaration.schemaVersion,
     source: "schema.json",
   };

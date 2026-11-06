@@ -56,6 +56,17 @@ SUPA-3 explicitly depends on this row for declared tables, views, key columns, a
 }
 ```
 
+RLS-001 (row-level policy) adds one OPTIONAL table field to this same document — a policy is declared next to the columns it governs, never in a second file:
+
+```json
+"policy": {
+  "read":  { "column": "owner", "equals": ".id" },
+  "write": { "column": "owner", "equals": ".id" }
+}
+```
+
+`column` must name a declared column of the same table; `equals` is a literal string (a row everybody may read) or a principal reference — `.id` / `.name` both resolve to the authenticated principal's name, and any other `.field` is refused. The grant layer (SUPA-4) answers "may this principal touch this table?"; `policy` answers "which rows?" and is evaluated AFTER the grant: reads, PATCH, DELETE, PUT, insert, the transaction envelope and the change feed all hide or refuse excluded rows. A row missing the policy column is DENIED, not shared; a denial is audited with `reason: "row_policy"` (distinct from `table_grant`), and a PATCH that matches only excluded rows answers the same `{updated: 0}` a missing row answers. `auth=none` local mode has no principal and therefore leaves `policy` unenforced, exactly as it leaves the grant model unenforced. Backward compatibility: the field is optional inside the v1 document, so a document written before RLS-001 parses byte-identically; a malformed policy is a validation error, never "no policy".
+
 Names match `^[a-z][a-z0-9_]{0,62}$`, are case-sensitive, and may not be `_audit`, `schema`, `manifest`, or `memories`. `memories` remains an internal built-in compatibility table backed by `MemorySchema`; it is not serialized into a namespace `schema.json` in v1. A generic DDL request naming a reserved name fails `409 RESERVED_RESOURCE`. Unknown top-level keys and unknown object fields fail validation: schema files are closed-world contracts, not an extensible bag of metadata.
 
 `type` is one of `string`, `int64`, `float64`, `boolean`, `timestamp`, `json`, or `bytes`. `nullable` is required. `default`, when present, is a JSON literal validated against `type`; `null` is allowed only for nullable columns. Defaults are values, not SQL or JavaScript expressions. Each table has non-empty `columns`, unique column names, one existing `storage.path` relative to the namespace root ending in `.jsonl`, and `keyColumns` that are a non-empty unique subset of non-nullable columns. A table with no stable key is outside generic PATCH/DELETE and must not be declared through this v1 DDL surface.

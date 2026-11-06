@@ -32,7 +32,13 @@ export type DenialReason =
   | "namespace_scope"
   | "expired"
   | "sql_flag"
-  | "sql_cap";
+  | "sql_cap"
+  /**
+   * RLS-001: the grant admitted the table, the declared ROW policy did not
+   * admit this row. Deliberately distinct from `table_grant`: one says "you may
+   * not touch this table", the other "not this row of it".
+   */
+  | "row_policy";
 
 export type GrantDecision =
   { allowed: true } | { allowed: false; reason: DenialReason; message: string };

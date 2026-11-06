@@ -56,6 +56,11 @@ import {
   type DeclaredColumnType,
   type RowShape,
 } from "../serialization/schemaTypes.js";
+import type { TablePolicy } from "../serialization/schemaJson.js";
+import {
+  parseTablePolicy,
+  RowPolicyDeclarationError,
+} from "./policy.js";
 import {
   TABLE_COLUMN_TYPES,
   TABLE_FORMATS,
@@ -145,6 +150,11 @@ export interface DeclareTableSpec {
   columns: Array<{ name: string; type: string }>;
   primary?: string;
   format?: TableFormat;
+  /**
+   * RLS-001: optional row-level policy, declared in the SAME declaration as
+   * the columns. Validated against the declared columns before any write.
+   */
+  policy?: unknown;
   /** Write tables/<table>.table.json instead of the SUPA-6 schema.json. */
   legacy?: boolean;
   /** Replace an existing declaration of the same table name. */
@@ -228,6 +238,20 @@ export async function declareTable(
   const nsDir = path.join(root, spec.ns);
   const format = spec.format ?? "jsonl-objects";
 
+  // RLS-001: validate the policy against the columns being declared. A policy
+  // that names a non-column (or an unknown principal field) refuses the whole
+  // declaration — it must never land as "no policy".
+  let policy: TablePolicy | undefined;
+  try {
+    policy = parseTablePolicy(spec.policy, {
+      table: spec.table,
+      columns: columns.map((column) => column.name),
+    });
+  } catch (error) {
+    if (error instanceof RowPolicyDeclarationError) fail(error.message);
+    throw error;
+  }
+
   if (spec.legacy) {
     // The legacy TableDeclaration shape (src/schema/table-registry.ts): CLI
     // column types are used VERBATIM (they ARE the legacy types), the name
@@ -239,6 +263,7 @@ export async function declareTable(
       columns: spec.columns.map(({ name, type }) => ({ name, type })),
       primary: spec.primary ?? null,
       glob: `tables/${spec.table}.jsonl`,
+      ...(policy ? { policy } : {}),
     };
     return declareLegacyFile({
       ns: spec.ns,
@@ -264,6 +289,7 @@ export async function declareTable(
     rowShape: (format === "jsonl-positional" ? "positional" : "object") as RowShape,
     keyColumns: [primary],
     columns,
+    ...(policy ? { policy } : {}),
   };
   return declareIntoSchemaJson({
     ns: spec.ns,

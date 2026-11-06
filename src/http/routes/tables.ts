@@ -149,6 +149,7 @@ const DECLARATION_BODY_KEYS = [
   "columns",
   "primary",
   "format",
+  "policy",
   "legacy",
   "force",
 ] as const;
@@ -224,6 +225,18 @@ export function parseDeclarationBody(
       throw badDeclaration("primary must be a string naming one of the columns");
     }
     spec.primary = record.primary;
+  }
+  if (record.policy !== undefined) {
+    // RLS-001: the shape is checked by declareTable() against the columns it
+    // is about to declare; here we only refuse a value that is not an object.
+    if (
+      typeof record.policy !== "object" ||
+      record.policy === null ||
+      Array.isArray(record.policy)
+    ) {
+      throw badDeclaration("policy must be an object { read?, write? }");
+    }
+    spec.policy = record.policy;
   }
   if (record.format !== undefined) {
     if (
@@ -880,6 +893,11 @@ function createTableRoutes(): Router {
           req.query as Record<string, unknown>,
           declaration,
         ),
+        // RLS-001: the declared row policy is graded for THIS principal after
+        // the table grant above; excluded rows never reach the response,
+        // X-Total-Count or CSV rendering.
+        principal: getPrincipal(req),
+        auditPolicyDenial: (event) => auditRequestDenial(req, event),
         order: req.query.order as string | string[] | undefined,
         limit: req.query.limit,
         offset: req.query.offset,
@@ -987,6 +1005,11 @@ function createTableRoutes(): Router {
         ns,
         body?.actions,
         getPrincipal(req),
+        {
+          // RLS-001: row-policy denials inside the envelope audit on the same
+          // path as the single-row verbs.
+          auditPolicyDenial: (event) => auditRequestDenial(req, event),
+        },
       );
       if (!outcome.ok) {
         res.status(outcome.status).json({
@@ -1044,6 +1067,7 @@ function createTableRoutes(): Router {
         pkFilter,
         body as Record<string, unknown>,
         getPrincipal(req),
+        (event) => auditRequestDenial(req, event),
       );
       setDurabilityHeaders(
         res,
@@ -1141,6 +1165,7 @@ function createTableRoutes(): Router {
         tableName,
         rawRows,
         getPrincipal(req),
+        (event) => auditRequestDenial(req, event),
       );
       setDurabilityHeaders(res, durability.configured, durability.achieved);
       res.status(201).json({ inserted });
@@ -1177,6 +1202,7 @@ function createTableRoutes(): Router {
         req.query.pk,
         body as Record<string, unknown>,
         getPrincipal(req),
+        (event) => auditRequestDenial(req, event),
       );
       setDurabilityHeaders(res, durability.configured, durability.achieved);
       res.json({ updated });
@@ -1203,6 +1229,7 @@ function createTableRoutes(): Router {
         tableName,
         req.query.pk,
         getPrincipal(req),
+        (event) => auditRequestDenial(req, event),
       );
       setDurabilityHeaders(res, durability.configured, durability.achieved);
       res.json({ deleted });

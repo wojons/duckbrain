@@ -28,13 +28,15 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { getPrincipal } from "../../auth/middleware";
+import { getPrincipal, type AuthPrincipal } from "../../auth/middleware";
 import { authorizeTableAccess } from "../../auth/roles";
 import { getConfig } from "../../config";
 import {
+  getTable,
   invalidateTableRegistry,
   listTables,
 } from "../../schema/table-registry";
+import { rowPolicyDecision, type TablePolicy } from "../../tables/policy";
 import { ChangelogCorruptError } from "../../serialization/auditLedger";
 import {
   CHANGE_OPERATIONS,
@@ -136,6 +138,31 @@ function sendError(
     code,
     ...(guidance ? { guidance } : {}),
   });
+}
+
+/**
+ * RLS-001: resolve the declared READ policy of every subscribed table once and
+ * return the per-event predicate the hub applies on BOTH the replay and the
+ * live path. `memories` is the built-in table and declares no row policy.
+ *
+ * Exported so a test can grade the exact predicate the route installs rather
+ * than a re-implementation of it.
+ */
+export function buildRowAllowed(
+  namespace: string,
+  tables: readonly string[],
+  principal: AuthPrincipal | undefined,
+): (table: string, row: unknown) => boolean {
+  const policyByTable = new Map<string, TablePolicy | undefined>();
+  for (const table of tables) {
+    if (table === MEMORIES_TABLE) {
+      policyByTable.set(table, undefined);
+      continue;
+    }
+    policyByTable.set(table, getTable(namespace, table).policy);
+  }
+  return (table: string, row: unknown): boolean =>
+    rowPolicyDecision(policyByTable.get(table), "read", row, principal).allowed;
 }
 
 export function createRealtimeRoutes(
@@ -273,6 +300,14 @@ export function createRealtimeRoutes(
             authorizeTableAccess(principal, namespace, table, "read").allowed,
         );
 
+      // ---- row policy ---------------------------------------------------
+      // RLS-001: the feed is a READ path, so the declared row policy of every
+      // selected table is resolved once, here, for this principal. Delivery
+      // (live and replay) then applies it in the SAME allow-list predicate the
+      // table/op filters use — a row the data verbs hide must never arrive as
+      // an event. `memories` is the built-in table and has no declared policy.
+      const rowAllowed = buildRowAllowed(namespace, selected, principal);
+
       // ---- commit ------------------------------------------------------
       const subscription = await hub.subscribe(
         {
@@ -281,6 +316,7 @@ export function createRealtimeRoutes(
           tables: selected,
           ops,
           cursor,
+          rowAllowed,
           sink: createHttpSseSink(res),
         },
         () => {
