@@ -362,6 +362,35 @@ would have to say so at the worst possible moment. The ledger is metadata — it
 does not change file counts, is never restored as a data file, and `walkLocal`
 never syncs a local `.s3state`.
 
+### Pull also verifies what NEVER ARRIVES (S3-PULL-COMPLETENESS-001)
+
+Verification above covers bytes that arrive. An object that was deleted (or
+never landed) remotely produces no download at all, so the per-object loop
+never sees it: `scripts/restore-proof.sh --fault delete-one` removed one
+object, the engine reported success, and only the proof's own file-count /
+sha256 comparison noticed afterwards.
+
+The ledger makes completeness decidable without a network round-trip per path.
+When a namespace's checksum ledger is present, every path it lists is compared
+against the remote listing **before anything is written**:
+
+- **ledger path + no object in the remote listing = failure** (`kind:
+  missing`). The key is named with the ledger's size/sha256, `s3 sync` exits
+  nonzero, `sync all` counts the namespace as failed, and nothing local is
+  written **or deleted** — a missing remote object never removes the copy that
+  is already on disk. The fix is a push of that namespace, which re-uploads
+  objects absent remotely (`computeDeltas` uploads any local file with no
+  remote object).
+- **no ledger = no completeness claim.** Nothing can be compared, so the pull
+  restores what the listing offers and prints that it CANNOT claim completeness
+  (an absent object is indistinguishable from one that was never pushed).
+  `checksumLedger: "absent"` in the stats and the warning are the signal; one
+  push publishes the ledger.
+
+This is why the ledger is published by every push and why a failed ledger
+upload fails the push: without it, a restore can only prove what it received,
+never that it received everything.
+
 A restored namespace arrives **data-only**: JSONL + manifest files. Git
 history never travels through S3 objects, so the restored namespace has no
 `.git` until tracking is reinitialized (matches the daemon's own identity,

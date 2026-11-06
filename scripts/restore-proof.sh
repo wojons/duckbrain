@@ -29,6 +29,13 @@
 # script asserts that attribution explicitly (step 5) and reports "NEGATIVE
 # CONTROL: PASS — the ENGINE refused ..." when it holds.
 #
+# S3-PULL-COMPLETENESS-001: the same assertion applies to `--fault delete-one`.
+# A deleted object produces no download, so before that fix the ENGINE reported
+# success and only this script's own file-count/sha256 comparison noticed. The
+# pull now compares the published checksum ledger against the remote listing and
+# reports the absent path as a `missing` failure (exit nonzero); step 5 asserts
+# that attribution for both faults.
+#
 # EXIT: 0 = PASS, 1 = FAIL (mismatch / incomplete restore), 2 = usage or
 #       precondition error.
 #
@@ -270,14 +277,20 @@ if [ -n "$FAULT" ]; then
   # The engine must REJECT the faulted object: nonzero exit AND the key named
   # in its own output. A hash mismatch found by step 6 alone means the engine
   # accepted corrupt bytes — the defect this control exists to catch.
+  FAULT_VERB="refused"
+  [ "$FAULT" = "delete-one" ] && FAULT_VERB="reported as missing from the remote listing"
   if [ "$PULL_RC" -ne 0 ] && [ -n "$FAULT_KEY" ] && grep -qF "$FAULT_KEY" "$LOGS/pull.log"; then
     ENGINE_CAUGHT_FAULT=1
-    say "NEGATIVE CONTROL: PASS — the ENGINE refused the faulted object (pull exit ${PULL_RC}) and named $FAULT_KEY in its own output"
-    grep -E 'FAILED \((integrity|transfer)\)' "$LOGS/pull.log" | head -3 | sed 's/^/[restore-proof]   engine: /' || true
+    say "NEGATIVE CONTROL: PASS — the ENGINE ${FAULT_VERB} (pull exit ${PULL_RC}) and named $FAULT_KEY in its own output"
+    grep -E 'FAILED \((integrity|transfer|missing)\)' "$LOGS/pull.log" | head -3 | sed 's/^/[restore-proof]   engine: /' || true
   else
     printf '[restore-proof] NEGATIVE CONTROL DID NOT FIRE AT THE ENGINE: pull exit=%s, faulted key=%s, key named in pull log=%s\n' \
       "$PULL_RC" "${FAULT_KEY:-<unknown>}" "$(grep -qF "${FAULT_KEY:-@@none@@}" "$LOGS/pull.log" && echo yes || echo no)"
-    printf '[restore-proof] That is the S3-PULL-INTEGRITY-001 defect: bytes the engine cannot verify were accepted silently.\n'
+    if [ "$FAULT" = "delete-one" ]; then
+      printf '[restore-proof] That is the S3-PULL-COMPLETENESS-001 defect: an object the ledger lists was ABSENT from the remote listing and the engine reported success.\n'
+    else
+      printf '[restore-proof] That is the S3-PULL-INTEGRITY-001 defect: bytes the engine cannot verify were accepted silently.\n'
+    fi
   fi
 fi
 
@@ -418,7 +431,7 @@ say "projection = files x ${PER_OBJ}s per object (rate measured on the largest n
 
 step "result"
 if [ -n "$FAULT" ] && [ "$ENGINE_CAUGHT_FAULT" = "1" ]; then
-  say "NEGATIVE CONTROL RESULT: PASS — fault '${FAULT}' was caught AT THE ENGINE (exit ${PULL_RC}, key named, corrupt bytes never written)."
+  say "NEGATIVE CONTROL RESULT: PASS — fault '${FAULT}' was caught AT THE ENGINE (exit ${PULL_RC}, key named, no unproven bytes written)."
   say "Exit 1 is the EXPECTED outcome of a --fault run: the restore is incomplete BY DESIGN, and a proof whose control still passed would be worthless."
   say "The criteria counted above ($FAILURES) describe the resulting gap; the control's job was to make the engine report it, which it did."
   exit 1

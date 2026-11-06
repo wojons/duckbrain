@@ -397,7 +397,12 @@ export interface SyncFailure {
   ns: string;
   key: string;
   relPath: string;
-  kind: "transfer" | "verification";
+  /**
+   * S3-PULL-COMPLETENESS-001 adds `missing`: the published checksum ledger
+   * lists this path but the remote listing has no object for it. Nothing was
+   * transferred and nothing local was touched — the BACKUP is incomplete.
+   */
+  kind: "transfer" | "verification" | "missing";
   detail: string;
 }
 
@@ -972,6 +977,28 @@ export async function pullNamespace(
   ]);
   const contents = readLocalContents(nsDir, local);
   const deltas = computeDeltas(cfg, ns, local, remote, manifest, contents);
+  /**
+   * S3-PULL-COMPLETENESS-001: everything above verifies bytes that ARRIVE. A
+   * path whose object was deleted (or never landed) remotely produces no
+   * download, so the loop below never sees it and the pull used to report
+   * success over an incomplete backup. The published ledger names every path
+   * that is supposed to exist, so completeness is decidable here: ledger path
+   * with no object in the remote listing = failure, named, exit nonzero.
+   *
+   * No ledger = nothing to compare. The pull then restores what the listing
+   * offers and says plainly that it cannot claim completeness (the ledger is
+   * engine metadata, never a data file, so it is excluded from the comparison).
+   */
+  const missingFromRemote: string[] = ledger
+    ? Object.keys(ledger.files)
+        .filter((rel) => rel !== LEDGER_REL_PATH && !remote.has(`${prefix}${rel}`))
+        .sort()
+    : [];
+  if (!ledger) {
+    console.warn(
+      `[S3] pull ${ns}: no usable checksum ledger — the remote listing is the only evidence available, so this pull CANNOT claim completeness (a remote object that is absent is indistinguishable from one that was never pushed). Re-push the namespace to publish one.`,
+    );
+  }
   let downloaded = 0;
   /** relPaths whose bytes were written to disk this pass. */
   const repaired = new Set<string>();
@@ -985,6 +1012,24 @@ export async function pullNamespace(
   const unverifiedKeys: string[] = [];
   let verified = 0;
   let unverified = 0;
+
+  // S3-PULL-COMPLETENESS-001: the ledger knows the paths; the listing knows the
+  // objects. A path in the first and not the second is a failure of the restore,
+  // not a warning — and it is decided BEFORE any byte is written, so a missing
+  // object can never be confused with a repair.
+  for (const relPath of missingFromRemote) {
+    const entry = ledger!.files[relPath];
+    failures.push({
+      ns,
+      key: `${prefix}${relPath}`,
+      relPath,
+      kind: "missing",
+      detail: `listed in the published checksum ledger (${entry.size} bytes, sha256 ${entry.sha256.slice(0, 12)}…) but ABSENT from the remote listing — the published backup is incomplete; nothing local was written or deleted`,
+    });
+    logObjectFailure(
+      `${ns}/${relPath} FAILED (missing): in the checksum ledger but not in the remote listing [key ${prefix}${relPath}]`,
+    );
+  }
 
   await runPool(
     toDownload,
