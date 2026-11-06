@@ -1199,27 +1199,63 @@ Returns a JSON array of rows (declared `json` columns come back as real JSON
 values, not strings).
 
 **Filters** are `<column>=<op>.<value>` query parameters, using PostgREST
-conventions:
+conventions. The supported set is fixed and auditable — every operator below
+is either implemented, deliberately absent (with the reason a JSONL document
+store gives), or a tracked TODO. Nothing is silently dropped.
 
-| Operator | Meaning |
-|---|---|
-| `eq` | Equal |
-| `ne` | Not equal |
-| `gt` / `gte` | Greater than / greater than or equal |
-| `lt` / `lte` | Less than / less than or equal |
-| `like` | SQL `LIKE` pattern (`%` wildcards) |
-| `in` | Membership in a parenthesized list |
+| Operator | Status | Meaning / why it is absent |
+|---|---|---|
+| `eq` | IMPLEMENTED | Equal |
+| `neq` (alias `ne`) | IMPLEMENTED | Not equal |
+| `gt` / `gte` | IMPLEMENTED | Greater than / greater than or equal — numeric on a `int64`/`float64` column, chronological on `timestamp`, lexicographic on `string` |
+| `lt` / `lte` | IMPLEMENTED | Less than / less than or equal |
+| `like` | IMPLEMENTED | SQL `LIKE` pattern (`%` wildcards, `_` single char) |
+| `ilike` | IMPLEMENTED | Case-insensitive `LIKE` |
+| `in` | IMPLEMENTED | Membership in a parenthesized list |
+| `is` | IMPLEMENTED | `is.null` / `is.true` / `is.false` / `is.unknown` — the NULL-safe exact check |
+| `isdistinct` | IMPLEMENTED | `IS DISTINCT FROM`: unlike `neq`, a NULL column **is** distinct from a value |
+| `fts` | IMPLEMENTED | Full-text: comma-separated terms, all must match (AND), whole tokens, case-insensitive |
+| `plfts` | IMPLEMENTED | Full-text: whitespace-separated words, all must match (AND) |
+| `phfts` | DELIBERATELY-ABSENT | `phraseto_tsquery` needs a text-search config (stemmer + stopwords); a JSONL table has no tsvector or dictionaries, so a "phrase" here would be a term-AND wearing a different name — use `plfts` |
+| `wfts` | DELIBERATELY-ABSENT | `websearch_to_tsquery` syntax (`OR`, `-term`, quoted phrases) would need its own parser; `fts`/`plfts` terms are literals and boolean tsquery punctuation (`&`, `|`, `!`, `(`, `)`, `:`) is rejected by name rather than reinterpreted |
+| `match` | DELIBERATELY-ABSENT | Regex over documents: RE2 is linear so it is cheap to add, but a regex operator invites clients to re-implement word matching that `fts` already does; no consumer has asked |
+| `imatch` | DELIBERATELY-ABSENT | Same as `match`, case-insensitive |
+| `cs` | DELIBERATELY-ABSENT | Postgres array "contains": a `json` column is opaque text here, with no array element semantics |
+| `cd` | DELIBERATELY-ABSENT | Postgres array "contained in": same reason |
+| `ov` | DELIBERATELY-ABSENT | Array/range "overlaps": no range type on a document store |
+| `sl` | DELIBERATELY-ABSENT | Range "strictly left of": no range type |
+| `sr` | DELIBERATELY-ABSENT | Range "strictly right of": no range type |
+| `nxr` | DELIBERATELY-ABSENT | Range "does not extend right": no range type |
+| `nxl` | DELIBERATELY-ABSENT | Range "does not extend left": no range type |
+| `adj` | DELIBERATELY-ABSENT | Range "adjacent": no range type |
 
 - A value with no operator prefix is `eq`: `?qty=5` is `?qty=eq.5`.
 - `in` takes a comma-separated, parenthesized list:
   `?name=in.(widget,gadget)`.
 - Several filters AND together: `?qty=gte.10&name=like.wid%25`.
+- **Negation:** any operator takes the PostgREST `not.` prefix —
+  `?name=not.eq.widget`, `?qty=not.in.(5,9)`, `?archived_at=not.is.null`.
+  The predicate is wrapped in `NOT (...)`, so a NULL column never satisfies a
+  negated comparison (SQL three-valued logic), exactly as `NOT (col = x)`
+  behaves. Use `isdistinct` when you want NULL to count as "different".
+- **Full text** (`fts.opts`): `?title=fts.alpha,beta` matches rows whose
+  `title` contains **all** terms as whole words (case-insensitive); `helloworld`
+  does not match `fts.hello`. `plfts` is the same with whitespace as the term
+  separator. There is no stemmer: a term matches the token exactly, so search
+  for the stem you indexed (`report` does not match `reports`). The filter is
+  a predicate on the same JSONL scan every table read performs — no second
+  index is maintained. It does **not** route to the namespace's
+  `.search/fts.duckdb` memory index: that index covers memory records
+  (`id` / `content` / `key` / `attributes`), so a table column called `title`
+  is not in it, and matching against it would return rows by the wrong text.
 - An unknown filter column (`?typo=eq.1`) returns
   `400 VALIDATION_ERROR`, and the error names the declared columns. A
   querystring key that is neither a declared column nor shaped like
   `op.value` is ignored, so tracing/cache-busting parameters pass through.
 - An unknown operator (`?qty=between.1`) returns `400 VALIDATION_ERROR`
-  listing the allowed operators.
+  naming the operator, the closest supported operator
+  (`closest supported: 'lte'`) and the full supported list. A filter is never
+  ignored: an operator this grammar does not know is an error, not a no-op.
 
 **Ordering:** `order=<column>.asc` or `order=<column>.desc`, comma-separated
 for multiple keys (`order=qty.desc,name.asc`).

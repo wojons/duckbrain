@@ -92,9 +92,12 @@ declaration.
 
 ### `table_select`
 
-`filters` takes the PostgREST vocabulary (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`,
-`like`, `in`), plus `order`, `limit` (hard cap 1000), `offset` and
-`count: "exact"` for a total. Response: `{ success, rows, count, totalCount? }`.
+`filters` takes the PostgREST vocabulary (`eq`, `ne`/`neq`, `gt`, `gte`, `lt`,
+`lte`, `like`, `ilike`, `in`, `is`, `isdistinct`, `fts`, `plfts`) — every one
+of them also accepts the `not.` prefix — plus `order`, `limit` (hard cap
+1000), `offset` and `count: "exact"` for a total. The full operator coverage
+table (including the PostgREST operators that are deliberately absent and
+why) is in [the HTTP API reference](http-api.md#get-apinsnstablestable--filtered-row-read). Response: `{ success, rows, count, totalCount? }`.
 
 ### `table_update` / `table_delete`
 

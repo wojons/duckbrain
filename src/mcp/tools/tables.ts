@@ -289,7 +289,7 @@ const TableSelectInputSchema = z.object({
     .record(z.string(), z.union([z.string(), z.array(z.string())]))
     .optional()
     .describe(
-      "PostgREST filters: {column: 'op.value'} with op ∈ eq|ne|gt|gte|lt|lte|like|in (in takes 'in.(a,b)')",
+      "PostgREST filters: {column: 'op.value'} with op ∈ eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, each optionally prefixed not. (in takes 'in.(a,b)'; fts/plfts take literal terms)",
     ),
   order: z
     .union([z.string(), z.array(z.string())])
@@ -593,7 +593,7 @@ export const tableSelectToolDef = {
   name: "table_select",
   title: "Select Table Rows",
   description:
-    "Read rows from a declared table with PostgREST-style filters (eq/ne/gt/gte/lt/lte/like/in), order, limit/offset and an optional exact count.",
+    "Read rows from a declared table with PostgREST-style filters (eq/ne/neq/gt/gte/lt/lte/like/ilike/in/is/isdistinct/fts/plfts, not.-negatable), order, limit/offset and an optional exact count.",
   inputSchema: TableSelectInputSchema,
   handler: tableSelectTool,
 };

@@ -207,70 +207,251 @@ function appendJsonlRows(
 // SELECT
 // ---------------------------------------------------------------------------
 
-/** The comparison operators a filter value may use (PostgREST conventions). */
+/**
+ * Comparison operators the table filter grammar accepts.
+ *
+ * REST-OPERATORS-001: PostgREST ships 25 comparison operators. The ones that
+ * have a meaning over a JSONL document store are listed here; the rest are
+ * recorded — with the reason — in docs/api/http-api.md
+ * ("PostgREST operator coverage"), so the absence is a decision rather than a
+ * gap. Anything outside this set is a 400 naming the operator and the closest
+ * supported one; a filter is never silently ignored.
+ */
 export const FILTER_OPS = [
   "eq",
   "ne",
+  "neq",
   "gt",
   "gte",
   "lt",
   "lte",
   "like",
+  "ilike",
   "in",
+  "is",
+  "isdistinct",
+  "fts",
+  "plfts",
 ] as const;
 
 export type FilterOp = (typeof FILTER_OPS)[number];
+
+/** The operands `is.` / `isdistinct.` accept (PostgREST `.is()` values). */
+const IS_OPERANDS = new Set(["null", "unknown", "true", "false"]);
+
+/** Boolean tsquery punctuation this grammar does not interpret. */
+const TSQUERY_SYNTAX = /[&|!():]/;
 
 function castPlaceholder(col: TableColumn): string {
   return `?::${duckType(col.type)}`;
 }
 
 /**
- * Parse one PostgREST-style filter value ("eq.5", "in.(a,b,c)") into an
- * op + operand string, with PostgREST parenthesized-value unescaping.
+ * The column expression a comparison reads.
+ *
+ * A DB-SUPA-6 declared column is READ as its canonical text (readType), so a
+ * bare `"qty" >= ?::BIGINT` compares VARCHAR with BIGINT and DuckDB refuses
+ * the statement ("Cannot compare values of type VARCHAR and type BIGINT") —
+ * which is why gt/gte/lt/lte used to 500 on a declared numeric column even
+ * though `eq` silently worked by implicit cast. Casting the column to its
+ * DECLARED type is what makes ordered comparisons numeric again.
  */
-function parseFilterValue(raw: string): { op: FilterOp; operand: string } {
-  const dot = raw.indexOf(".");
+function compareExpression(col: TableColumn): string {
+  const id = quoteIdentifier(col.name);
+  if (col.type === "json") return `CAST(${id} AS VARCHAR)`;
+  return `CAST(${id} AS ${duckType(col.type)})`;
+}
+
+/** The column expression text predicates (like/ilike/fts) read. */
+function textExpression(col: TableColumn): string {
+  return `CAST(${quoteIdentifier(col.name)} AS VARCHAR)`;
+}
+
+/** Edit distance, for the "closest supported" hint on an unknown operator. */
+function editDistance(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = prev[0]!;
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const above = prev[j]!;
+      prev[j] = Math.min(
+        prev[j]! + 1,
+        prev[j - 1]! + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      diagonal = above;
+    }
+  }
+  return prev[b.length]!;
+}
+
+/** Nearest supported operator (always named: a 400 must say what to use). */
+function closestFilterOp(op: string): FilterOp | null {
+  let best: FilterOp | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of FILTER_OPS) {
+    const distance = editDistance(op.toLowerCase(), candidate);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+interface ParsedFilter {
+  op: FilterOp;
+  operand: string;
+  /** `not.` prefix: PostgREST negation, applied to the whole predicate. */
+  negated: boolean;
+}
+
+/**
+ * Parse one PostgREST-style filter value ("eq.5", "in.(a,b,c)", "not.is.null",
+ * "fts.alpha,beta") into op + operand (+ negation), with PostgREST
+ * parenthesized-value unescaping done by the caller.
+ */
+function parseFilterValue(raw: string): ParsedFilter {
+  let rest = raw;
+  let negated = false;
+  if (rest.startsWith("not.")) {
+    negated = true;
+    rest = rest.slice("not.".length);
+  }
+  const dot = rest.indexOf(".");
   if (dot === -1) {
     // Bare value: PostgREST treats a value without an op prefix as eq.
-    return { op: "eq", operand: raw };
+    return { op: "eq", operand: rest, negated };
   }
-  const op = raw.slice(0, dot);
-  const operand = raw.slice(dot + 1);
-  if (!FILTER_OPS.includes(op as FilterOp)) {
+  const op = rest.slice(0, dot);
+  const operand = rest.slice(dot + 1);
+  if (!(FILTER_OPS as readonly string[]).includes(op)) {
+    const closest = closestFilterOp(op);
     throw new ApiError(
-      `Unknown filter operator '${op}' (allowed: ${FILTER_OPS.join(", ")})`,
+      `Unknown filter operator '${op}'` +
+        (closest ? ` (closest supported: '${closest}')` : "") +
+        `; supported: ${FILTER_OPS.join(", ")} — prefix 'not.' negates any of them (e.g. not.eq.5)`,
       400,
       "VALIDATION_ERROR",
     );
   }
-  return { op: op as FilterOp, operand };
+  return { op: op as FilterOp, operand, negated };
 }
 
-function sqlComparison(col: TableColumn, op: FilterOp): string {
-  const id = quoteIdentifier(col.name);
+/**
+ * Split an fts/plfts operand into literal terms.
+ *
+ * fts takes a comma-separated AND list (PostgREST's `fts.word1,word2`), plfts
+ * takes whitespace-separated words (plainto_tsquery semantics). Terms are
+ * literals: tsquery boolean punctuation is rejected by name rather than being
+ * reinterpreted as SQL.
+ */
+function fullTextTerms(op: "fts" | "plfts", operand: string): string[] {
+  const parts = op === "fts" ? operand.split(",") : operand.split(/\s+/);
+  const terms = parts.map((p) => p.trim()).filter((p) => p.length > 0);
+  if (terms.length === 0) {
+    throw new ApiError(
+      `${op}. filter requires at least one search term (e.g. ${op}.alpha${op === "fts" ? ",beta" : " beta"})`,
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  for (const term of terms) {
+    const punctuation = term.match(TSQUERY_SYNTAX);
+    if (punctuation) {
+      throw new ApiError(
+        `${op}. terms are literal words on a JSONL store — boolean tsquery syntax ('${punctuation[0]}' in '${term}') is not interpreted; separate terms with ${op === "fts" ? "commas" : "spaces"} and use 'not.' to negate the filter`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+  }
+  return terms;
+}
+
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** SQL builder result: the predicate plus the operands it bound. */
+interface Predicate {
+  sql: string;
+  params: unknown[];
+}
+
+/**
+ * SQL predicate for ONE non-`in` filter value.
+ *
+ * Identifier positions come from the declaration; every user value is a bound
+ * `?` — including fts patterns, which are built as parameters rather than
+ * interpolated into the statement.
+ */
+function sqlPredicate(col: TableColumn, op: FilterOp, operand: string): Predicate {
+  const id = compareExpression(col);
+  const text = textExpression(col);
   const ph = castPlaceholder(col);
+  const bound = (): unknown[] => [
+    operand === "null" || operand === "" ? null : coercePrimitiveOperand(operand, col.type),
+  ];
   switch (op) {
     case "eq":
-      return `${id} = ${ph}`;
+      return { sql: `${id} = ${ph}`, params: bound() };
     case "ne":
-      return `${id} != ${ph}`;
+    case "neq":
+      return { sql: `${id} != ${ph}`, params: bound() };
     case "gt":
-      return `${id} > ${ph}`;
+      return { sql: `${id} > ${ph}`, params: bound() };
     case "gte":
-      return `${id} >= ${ph}`;
+      return { sql: `${id} >= ${ph}`, params: bound() };
     case "lt":
-      return `${id} < ${ph}`;
+      return { sql: `${id} < ${ph}`, params: bound() };
     case "lte":
-      return `${id} <= ${ph}`;
+      return { sql: `${id} <= ${ph}`, params: bound() };
     case "like":
-      return `${id} LIKE ${ph}`;
-    case "in": {
-      // in.(a,b,c) → one placeholder per element, NULL excluded from SQL IN
-      // (DuckDB IN (…, NULL) would kill equality for the whole list; the
-      // COALESCE-free form below drops NULLs, matching PostgREST).
-      return `${id} IN (${ph})`;
+      return { sql: `${text} LIKE ${ph}`, params: bound() };
+    case "ilike":
+      return { sql: `${text} ILIKE ${ph}`, params: bound() };
+    case "is": {
+      const value = operand.toLowerCase();
+      if (!IS_OPERANDS.has(value)) {
+        throw new ApiError(
+          `is. filter accepts null|true|false (PostgREST .is() values), got '${operand}'`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      if (value === "null" || value === "unknown") {
+        return { sql: `${id} IS NULL`, params: [] };
+      }
+      return { sql: `${id} IS ${value === "true" ? "TRUE" : "FALSE"}`, params: [] };
     }
+    case "isdistinct": {
+      // PostgREST: col=isdistinct.value → IS DISTINCT FROM, NULL-safe.
+      if (operand === "null" || operand === "") {
+        return { sql: `${id} IS NOT NULL`, params: [] };
+      }
+      return { sql: `${id} IS DISTINCT FROM ${ph}`, params: bound() };
+    }
+    case "fts":
+    case "plfts": {
+      const terms = fullTextTerms(op, operand);
+      const params: unknown[] = [];
+      const predicates = terms.map((term) => {
+        // Word-boundary, case-insensitive literal match: no stemmer is
+        // configured for a JSONL table, so a term matches whole tokens only
+        // (never inside a longer word).
+        params.push(`(?i)(?:^|[^a-z0-9])${escapeRegExp(term)}(?:[^a-z0-9]|$)`);
+        return `regexp_matches(${text}, ?)`;
+      });
+      return {
+        sql: predicates.length === 1 ? predicates[0]! : predicates.map((p) => `(${p})`).join(" AND "),
+        params,
+      };
+    }
+    case "in":
+      // in. expands to one placeholder per element — buildSelectPlan does it.
+      throw new Error("in. filter is expanded by buildSelectPlan");
   }
 }
 
@@ -359,7 +540,8 @@ export function buildSelectPlan(
     }
     const values = Array.isArray(rawValue) ? rawValue : [rawValue];
     for (const value of values) {
-      const { op, operand } = parseFilterValue(String(value));
+      const { op, operand, negated } = parseFilterValue(String(value));
+      let predicate: string;
       if (op === "in") {
         if (!operand.startsWith("(") || !operand.endsWith(")")) {
           throw new ApiError(
@@ -387,17 +569,16 @@ export function buildSelectPlan(
           .map(() => `?::${duckType(col.type)}`)
           .join(", ");
         params.push(...nonNull);
-        whereParts.push(
-          `${quoteIdentifier(col.name)} IN (${placeholders.length > 0 ? placeholders : "NULL"})`,
-        );
+        predicate = `${compareExpression(col)} IN (${placeholders.length > 0 ? placeholders : "NULL"})`;
       } else {
-        params.push(
-          operand === "null" || operand === ""
-            ? null
-            : coercePrimitiveOperand(operand, col.type),
-        );
-        whereParts.push(sqlComparison(col, op));
+        const built = sqlPredicate(col, op, operand);
+        params.push(...built.params);
+        predicate = built.sql;
       }
+      // REST-OPERATORS-001: `not.` negates the whole predicate (PostgREST
+      // semantics). NULL rows are excluded by SQL three-valued logic, exactly
+      // as `NOT (col = x)` behaves.
+      whereParts.push(negated ? `NOT (${predicate})` : predicate);
     }
   }
 

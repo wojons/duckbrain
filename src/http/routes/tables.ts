@@ -15,8 +15,11 @@
  *   verb is the data contract: overloading it would make an insert whose
  *   columns happened to look like a declaration write schema instead of rows.
  *   GET    /api/ns/:ns/tables/:table          — SELECT with col=op.value
- *                                              filters (eq/ne/gt/gte/lt/
- *                                              lte/like/in), order=col.asc|
+ *                                              filters (eq/ne/neq/gt/gte/lt/
+ *                                              lte/like/ilike/in/is/
+ *                                              isdistinct/fts/plfts, each
+ *                                              optionally not.-prefixed),
+ *                                              order=col.asc|
  *                                              col.desc, limit/offset
  *                                              (hard cap 1000, clamped),
  *                                              Prefer: count=exact →
@@ -302,7 +305,7 @@ function filterParameters(
     params.push({
       name: col.name,
       in: "query",
-      description: `Filter by ${col.name}. PostgREST conventions: eq|ne|gt|gte|lt|lte|like|in (e.g. ?${col.name}=eq.5, ?${col.name}=in.(a,b,c)).`,
+      description: `Filter by ${col.name}. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?${col.name}=eq.5, ?${col.name}=not.is.null, ?${col.name}=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.`,
       required: false,
       schema: { type: "string" },
     });
