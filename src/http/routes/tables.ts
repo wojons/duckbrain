@@ -5,6 +5,15 @@
  * /api/ns/:ns/tables with PostgREST conventions:
  *
  *   GET    /api/ns/:ns/tables                 — list declared tables
+ *
+ *   ADOPT-DECLARED-001: declaration itself has a network surface now —
+ *   POST /api/ns/:ns/tables/:table/declare writes through the SAME core the
+ *   CLI (`duckbrain tables declare`) and MCP (`tables_declare`) call —
+ *   src/tables/declare.ts declareTable() — so an agent with an API key can
+ *   create a table instead of needing a shell on the box. It is a SUB-RESOURCE
+ *   of the table rather than the row-insert verb (POST /:table) because that
+ *   verb is the data contract: overloading it would make an insert whose
+ *   columns happened to look like a declaration write schema instead of rows.
  *   GET    /api/ns/:ns/tables/:table          — SELECT with col=op.value
  *                                              filters (eq/ne/gt/gte/lt/
  *                                              lte/like/in), order=col.asc|
@@ -86,7 +95,19 @@ import {
 } from "../../auth/middleware";
 import { authorizeTableAccess } from "../../auth/roles";
 import { setDurabilityHeaders } from "../../storage/durability";
-import { listTables, type TableDeclaration } from "../../schema/table-registry";
+import {
+  TABLE_COLUMN_TYPES,
+  TABLE_FORMATS,
+  listTables,
+  type TableFormat,
+  type TableDeclaration,
+} from "../../schema/table-registry";
+import {
+  declareTable,
+  TableDeclareError,
+  type DeclareTableResult,
+  type DeclareTableSpec,
+} from "../../tables/declare";
 
 import {
   deleteTableRows,
@@ -114,6 +135,112 @@ function wantsExactCount(req: Request): boolean {
   }
   const q = req.query.count;
   return (Array.isArray(q) ? q[0] : q) === "exact";
+}
+
+// ---------------------------------------------------------------------------
+// ADOPT-DECLARED-001 — declaration body
+// ---------------------------------------------------------------------------
+
+/** Keys a declaration body may carry; anything else is a typo, not a feature. */
+const DECLARATION_BODY_KEYS = [
+  "columns",
+  "primary",
+  "format",
+  "legacy",
+  "force",
+] as const;
+
+function badDeclaration(message: string): ApiError {
+  return new ApiError(message, 400, "INVALID_DECLARATION");
+}
+
+/**
+ * Turn an HTTP declaration body into the transport-neutral DeclareTableSpec.
+ *
+ * The shape mirrors the MCP `tables_declare` arguments exactly (columns:
+ * [{name,type}], primary, format, legacy, force) so the two agent transports
+ * accept the same document; validation of the VALUES stays in declareTable()
+ * — this function only refuses shapes the core cannot even read, and refuses
+ * unknown keys instead of silently ignoring them (`colums` would otherwise
+ * declare nothing and report success).
+ */
+export function parseDeclarationBody(
+  ns: string,
+  table: string,
+  body: unknown,
+): DeclareTableSpec {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw badDeclaration(
+      "Declaration body must be a JSON object: {columns: [{name, type}], primary?, format?, legacy?, force?}",
+    );
+  }
+  const record = body as Record<string, unknown>;
+  const unknownKeys = Object.keys(record).filter(
+    (key) => !(DECLARATION_BODY_KEYS as readonly string[]).includes(key),
+  );
+  if (unknownKeys.length > 0) {
+    throw badDeclaration(
+      `Unknown declaration field(s): ${unknownKeys.join(", ")} (expected ${DECLARATION_BODY_KEYS.join(", ")})`,
+    );
+  }
+  if (!Array.isArray(record.columns) || record.columns.length === 0) {
+    throw badDeclaration(
+      "columns must be a non-empty array of {name, type} objects",
+    );
+  }
+  const columns: Array<{ name: string; type: string }> = record.columns.map(
+    (column, index) => {
+      if (typeof column !== "object" || column === null || Array.isArray(column)) {
+        throw badDeclaration(`columns[${index}] must be a {name, type} object`);
+      }
+      const entry = column as Record<string, unknown>;
+      const extra = Object.keys(entry).filter(
+        (key) => key !== "name" && key !== "type",
+      );
+      if (extra.length > 0) {
+        throw badDeclaration(
+          `columns[${index}] has unknown field(s): ${extra.join(", ")}`,
+        );
+      }
+      if (typeof entry.name !== "string" || entry.name.length === 0) {
+        throw badDeclaration(`columns[${index}].name must be a non-empty string`);
+      }
+      if (typeof entry.type !== "string") {
+        throw badDeclaration(
+          `columns[${index}].type must be a string (one of ${TABLE_COLUMN_TYPES.join("|")})`,
+        );
+      }
+      return { name: entry.name, type: entry.type };
+    },
+  );
+
+  const spec: DeclareTableSpec = { ns, table, columns };
+
+  if (record.primary !== undefined) {
+    if (typeof record.primary !== "string") {
+      throw badDeclaration("primary must be a string naming one of the columns");
+    }
+    spec.primary = record.primary;
+  }
+  if (record.format !== undefined) {
+    if (
+      typeof record.format !== "string" ||
+      !(TABLE_FORMATS as readonly string[]).includes(record.format)
+    ) {
+      throw badDeclaration(
+        `format must be one of ${TABLE_FORMATS.join("|")}, got '${String(record.format)}'`,
+      );
+    }
+    spec.format = record.format as TableFormat;
+  }
+  for (const flag of ["legacy", "force"] as const) {
+    if (record[flag] === undefined) continue;
+    if (typeof record[flag] !== "boolean") {
+      throw badDeclaration(`${flag} must be a boolean`);
+    }
+    spec[flag] = record[flag] as boolean;
+  }
+  return spec;
 }
 
 // ---------------------------------------------------------------------------
@@ -924,6 +1051,66 @@ function createTableRoutes(): Router {
         outcome: result.outcome,
         inserted: result.outcome === "inserted",
         row: result.row,
+      });
+    }),
+  );
+
+  /**
+   * POST /api/ns/:ns/tables/:table/declare — create/replace a table declaration.
+   *
+   * ADOPT-DECLARED-001: declaration was host-CLI-only (and then MCP-only), so
+   * an agent on the network could not create the table it wanted to write to.
+   * This route parses an HTTP declaration body into the transport-neutral
+   * spec and calls declareTable() — the SAME core as `duckbrain tables declare`
+   * and the MCP `tables_declare` tool. No second writer: the schema.json path
+   * still validates before the atomic switch, journals under the DDL fence and
+   * re-loads through the real registry loader.
+   *
+   * Authz is the namespace write grant plus the per-table write grant, exactly
+   * like the row-insert verb — declaring is a write, and a token restricted to
+   * specific tables cannot invent a new one.
+   *
+   * Status: 201 when the declaration is new, 200 when an identical contract
+   * already existed (idempotent re-declare) or `force` replaced it. The body
+   * carries the resulting declaration so the caller never has to GET it back.
+   */
+  router.post(
+    "/:table/declare",
+    requireNamespaceGrant((req) => param(req, "ns")),
+    requireTableGrant(grantNs, grantTable, "write"),
+    asyncHandler(async (req: Request, res: Response) => {
+      const ns = param(req, "ns");
+      const tableName = param(req, "table");
+      const spec = parseDeclarationBody(ns, tableName, req.body);
+      let result: DeclareTableResult;
+      try {
+        result = await declareTable(spec);
+      } catch (error) {
+        if (error instanceof TableDeclareError) {
+          // `usage` → the request is malformed (400); `refusal` → the state on
+          // disk refused a well-formed request (409). The message is the CLI's
+          // own text, so all three surfaces refuse identically.
+          throw error.kind === "refusal"
+            ? new ApiError(error.message, 409, "DECLARATION_REFUSED")
+            : new ApiError(error.message, 400, "INVALID_DECLARATION");
+        }
+        throw error;
+      }
+      let declaration: TableDeclaration | undefined;
+      try {
+        declaration = resolveTableDeclaration(ns, tableName);
+      } catch {
+        // The declaration is on disk and proven loadable by declareTable();
+        // a registry miss here is a reporting gap, not a failed write.
+        declaration = undefined;
+      }
+      res.status(result.replacedExisting ? 200 : 201).json({
+        namespace: result.ns,
+        table: result.table,
+        path: result.path,
+        format: result.format,
+        replacedExisting: result.replacedExisting,
+        ...(declaration ? { declaration } : {}),
       });
     }),
   );

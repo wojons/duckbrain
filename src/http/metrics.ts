@@ -8,10 +8,11 @@
  * the single scrape surface: `GET /metrics`, rendered by `prom-client` (the
  * official Node.js Prometheus client) in the text exposition format 0.0.4.
  *
- * Fifteen families are exposed (spec §3.1/§3.2: the six MVP families of
+ * Seventeen families are exposed (spec §3.1/§3.2: the six MVP families of
  * OBSDB-001, the two read-path depth families of OBSDB-002, the three
- * embedding-path families of OBSDB-003, and the four git write-path families
- * of OBSDB-004):
+ * embedding-path families of OBSDB-003, the four git write-path families of
+ * OBSDB-004, and — with OBSDB-005 and ADOPT-DECLARED-001 — storage, ledger,
+ * recall and declaration-adoption families):
  *
  *   duckbrain_http_up                        gauge      — answer a scrape at all
  *   duckbrain_health_status                  gauge      — 2 healthy / 1 degraded / 0 hung
@@ -28,6 +29,8 @@
  *   duckbrain_read_duration_seconds          histogram  — route/method (OBSDB-002)
  *   duckbrain_rejected_total                 counter    — reason/route (OBSDB-002)
  *   duckbrain_build_info                     gauge 1    — version/node
+ *   duckbrain_table_declaration_namespaces   gauge      — format=schema.json|legacy (ADOPT-DECLARED-001)
+ *   duckbrain_table_declarations             gauge      — format=schema.json|legacy (ADOPT-DECLARED-001)
  *
  * The three OBSDB-003 families are owned by the EMBEDDING layer, not by this
  * module: `src/embedding/metrics.ts` holds them as process-wide counters
@@ -91,6 +94,13 @@ import {
   READ_LEDGER_METRIC_NAMES,
   registerReadLedgerMetrics,
 } from "./readLedger";
+import {
+  createDeclarationSampler,
+  DECLARATION_METRIC_NAMES,
+  DECLARATION_SCAN_TTL_MS,
+  type DeclarationCensus,
+  type DeclarationSampler,
+} from "../metrics/declarations";
 
 /** The two OBSDB-005 storage gauges, sampled at collect time. */
 export const STORAGE_NAMESPACES_BYTES = "duckbrain_storage_namespaces_bytes";
@@ -101,6 +111,14 @@ export const STORAGE_METRIC_NAMES = [
   STORAGE_NAMESPACES_BYTES,
   STORAGE_EMBEDDING_CACHE_BYTES,
 ] as const;
+
+/**
+ * ADOPT-DECLARED-001: declaration adoption — namespaces per declaration SHAPE,
+ * and the declared-table totals behind them. Sampled at collect time from the
+ * same namespaces root as the storage gauges.
+ */
+export const DECLARATION_NAMESPACES = DECLARATION_METRIC_NAMES[0];
+export const DECLARATION_TABLES = DECLARATION_METRIC_NAMES[1];
 
 /** The six+two families this endpoint owns, in exposition order. */
 export const METRIC_NAMES = [
@@ -120,6 +138,8 @@ export const METRIC_NAMES = [
   // produces the fact (src/http/readLedger.ts, src/metrics/recall.ts) and are
   // attached here.
   ...STORAGE_METRIC_NAMES,
+  // ADOPT-DECLARED-001: is the declared-schema path actually adopted?
+  ...DECLARATION_METRIC_NAMES,
   ...READ_LEDGER_METRIC_NAMES,
   ...RECALL_METRIC_NAMES,
   "duckbrain_reads_total",
@@ -614,6 +634,80 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     help: "Bytes under .embeddings/ directories inside the namespaces root — the derivable embedding cache, reclaimable by a rebuild.",
     registers: [registry],
     collect: publishStorage,
+  });
+
+  // ADOPT-DECLARED-001: the declared-schema path had zero production adoption
+  // (0 schema.json vs 949 legacy .table.json on 2026-11-04) while every SUPA-6
+  // feature rode it. Adoption is now a moving number rather than a one-off
+  // `find`: namespaces per shape, plus the declared-table totals behind them.
+  const declarationSampler: DeclarationSampler | null = storagePath
+    ? createDeclarationSampler({
+        namespacesPath: storagePath,
+        ttlMs: options.storageScanTtlMs ?? DECLARATION_SCAN_TTL_MS,
+        now,
+      })
+    : null;
+
+  let declarationNamespaces!: Gauge;
+  let declarationTables!: Gauge;
+
+  /** Same single-flight rule as publishStorage: both gauges, one walk. */
+  let publishingDeclarations: Promise<void> | null = null;
+  const declarationFormats = ["schema.json", "legacy"] as const;
+  const publishDeclarations = (): Promise<void> => {
+    if (publishingDeclarations) return publishingDeclarations;
+    const run = (async (): Promise<void> => {
+      const withdraw = (): void => {
+        for (const format of declarationFormats) {
+          declarationNamespaces.remove({ format });
+          declarationTables.remove({ format });
+        }
+      };
+      if (!declarationSampler) {
+        withdraw();
+        return;
+      }
+      let census: DeclarationCensus | null = null;
+      try {
+        census = await declarationSampler.read();
+      } catch {
+        census = null; // unmeasurable is not "nobody adopted"
+      }
+      if (!census) {
+        withdraw();
+        return;
+      }
+      declarationNamespaces.set(
+        { format: "schema.json" },
+        census.namespacesWithSchemaJson,
+      );
+      declarationNamespaces.set(
+        { format: "legacy" },
+        census.namespacesWithLegacy,
+      );
+      declarationTables.set({ format: "schema.json" }, census.tablesInSchemaJson);
+      declarationTables.set({ format: "legacy" }, census.tablesLegacy);
+    })();
+    publishingDeclarations = run.finally(() => {
+      publishingDeclarations = null;
+    });
+    return publishingDeclarations;
+  };
+
+  declarationNamespaces = new Gauge({
+    name: DECLARATION_NAMESPACES,
+    help: "Namespaces holding each table-declaration shape (format=schema.json is the SUPA-6 persistent schema, format=legacy is tables/<table>.table.json); a flat 0 for schema.json means nobody has adopted the documented path.",
+    labelNames: ["format"],
+    registers: [registry],
+    collect: publishDeclarations,
+  });
+
+  declarationTables = new Gauge({
+    name: DECLARATION_TABLES,
+    help: "Declared tables per declaration shape across the store (format=schema.json counts schema.json table entries, format=legacy counts tables/*.table.json files).",
+    labelNames: ["format"],
+    registers: [registry],
+    collect: publishDeclarations,
   });
 
   // OBSDB-005: the read ledger's rotation counter (src/http/readLedger.ts) and

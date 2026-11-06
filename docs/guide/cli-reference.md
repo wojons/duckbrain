@@ -630,6 +630,13 @@ conflicting existing declaration of the same table name is refused.
 **Safety:** additive/metadata-only until `--force`, which REPLACES an
 existing declaration — run a plain declare first to see the conflict.
 
+The same declaration exists on the other two surfaces and goes through this
+same core (`declareTable()`): `POST /api/ns/:ns/tables/:table/declare` (see
+`docs/api/http-api.md`) and the MCP `tables_declare` tool. Declare NEW tables
+without `--legacy`: the SUPA-6 `schema.json` path is the one whose inserts carry
+change records; the shape decision is recorded in
+`docs/decisions/ADOPT-DECLARED-001-declaration-shape.md`.
+
 ```bash
 duckbrain tables declare e2e-supagap widgets --column id=integer --column name=varchar --primary id
 duckbrain tables declare notes events --column id=bigint --column at=timestamp --legacy

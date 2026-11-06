@@ -165,6 +165,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
       // counter file).
       "duckbrain_storage_namespaces_bytes gauge",
       "duckbrain_storage_embedding_cache_bytes gauge",
+      // ADOPT-DECLARED-001: declaration adoption per shape (sampled at collect
+      // time from the same namespaces root).
+      "duckbrain_table_declaration_namespaces gauge",
+      "duckbrain_table_declarations gauge",
       "duckbrain_read_ledger_rotation_total counter",
       "duckbrain_recall_packs_total counter",
       "duckbrain_recall_packs_nonempty_total counter",

@@ -1042,6 +1042,7 @@ Every route below is wrapped in the namespace-grant check exactly like
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/ns/:ns/tables` | List declared tables |
+| `POST` | `/api/ns/:ns/tables/:table/declare` | Declare a table (same core as the CLI verb and the MCP tool) |
 | `GET` | `/api/ns/:ns/tables/:table` | Read rows (filter / order / page) |
 | `POST` | `/api/ns/:ns/tables/:table` | Insert row(s) |
 | `PATCH` | `/api/ns/:ns/tables/:table?pk=eq.<value>` | Update rows by primary key |
@@ -1051,8 +1052,19 @@ Every route below is wrapped in the namespace-grant check exactly like
 #### Declare a table
 
 Tables are served ONLY from declarations on disk — a fresh install has no
-declarations and the layer stays empty until you create one. The CLI verb
-writes the SUPA-6 persistent schema (merging into an existing
+declarations and the layer stays empty until you create one. There are three
+transports and **one implementation** (`declareTable()` in
+`src/tables/declare.ts`): the CLI verb, the HTTP route below, and the MCP
+`tables_declare` tool. They validate identically, journal identically and
+refuse identically.
+
+**Recommended path for a new table: declare it over HTTP (or MCP) without
+`legacy`**, so `schema.json` is written and inserts ride the SUPA-2 serializer
+(validation → ordered write → audit + DB-SUPA-5 change record → commit). See
+`docs/decisions/ADOPT-DECLARED-001-declaration-shape.md` for why the 949
+pre-existing legacy declarations are NOT migrated as part of this route.
+
+The CLI verb writes the SUPA-6 persistent schema (merging into an existing
 `schema.json`) or the legacy per-table file:
 
 ```bash
@@ -1103,6 +1115,53 @@ writes `namespaces/<ns>/tables/<table>.table.json` (the historical
 declaration shape) instead of `schema.json`. Re-declaring an identical
 contract is idempotent. The schema switch goes through the DDL fence and is
 journaled under `<ns>/.duckbrain-ddl/` like every other schema change.
+
+#### `POST /api/ns/:ns/tables/:table/declare` — declare over HTTP
+
+An agent with an API key can create the table it wants to write to; no shell on
+the box is required. The body is the same document the MCP `tables_declare` tool
+takes:
+
+```json
+{
+  "columns": [
+    { "name": "id", "type": "integer" },
+    { "name": "label", "type": "varchar" }
+  ],
+  "primary": "id",
+  "format": "jsonl-objects",
+  "legacy": false,
+  "force": false
+}
+```
+
+`columns` is required (each `{name, type}`, types as in the CLI). `primary`
+defaults to the first column; `format` defaults to `jsonl-objects`. Unknown
+fields are rejected rather than ignored, so a typo cannot silently declare
+nothing.
+
+```bash
+curl -s -X POST "http://localhost:3000/api/ns/e2e-supagap/tables/widgets/declare" \
+  -H "x-api-key: $DUCKBRAIN_API_KEY" -H "Content-Type: application/json" \
+  -d '{"columns":[{"name":"id","type":"integer"},{"name":"name","type":"varchar"}],"primary":"id"}'
+# 201 {"namespace":"e2e-supagap","table":"widgets","path":"…/schema.json",
+#      "format":"schema.json","replacedExisting":false,"declaration":{…}}
+```
+
+| Status | Meaning |
+|---|---|
+| `201` | Declaration written; `declaration` is the resulting REST contract |
+| `200` | Identical contract already existed, or `force` replaced a different one |
+| `400` `INVALID_DECLARATION` | Body shape or column names/types are invalid (the CLI's own message) |
+| `403` `FORBIDDEN` | No namespace grant, or no per-table **write** grant for this table |
+| `409` `DECLARATION_REFUSED` | Well-formed, refused by state on disk (conflicting contract without `force`) |
+
+The route is a **sub-resource** of the table (`/:table/declare`) rather than the
+row-insert verb `POST /:table`: overloading the data verb would make an insert
+whose columns happened to look like a declaration write schema instead of rows.
+Declaring is a write, so it is gated exactly like `POST /:table` — namespace
+grant plus per-table write grant — and a token restricted to specific tables
+cannot invent a new one.
 
 #### `GET /api/ns/:ns/tables` — discovery
 
