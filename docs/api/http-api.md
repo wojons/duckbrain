@@ -1601,6 +1601,141 @@ default**, and `confirm: true` required alongside `dryRun: false`. Every run
 writes one lifecycle-ledger line. `GET /api/compaction/stats` is unchanged and
 stays available to namespace-granted readers.
 
+### Object store — `s3` verbs (SURFACE-S3-001)
+
+`duckbrain s3 status|sync|clear|ghosts` used to be shell-only, so a remote
+agent could read and write memories but could not answer "is this namespace
+pushed?", push it, or finish the compaction runbook's cleanup. These routes
+mount under the namespace they act on, so the token's namespace grant is
+graded on the same value the handler touches.
+
+| Route | Role | What it does |
+|-------|------|--------------|
+| `GET /api/ns/:ns/s3` | any namespace-granted token | Object counts (local, remote, bookkeeping, data), drift, last push, resolved bucket/prefix |
+| `POST /api/ns/:ns/s3/sync` | admin or writer | Run `s3 sync <ns>` through the same engine, lock and deadline watchdog; answer with the CLI's counts |
+| `GET`/`POST /api/ns/:ns/s3/ghosts` | any namespace-granted token | Is this namespace ghost sync state? Plus the full ghost plan |
+| `POST /api/ns/:ns/s3/ghosts/clear` | admin | Prune **this** namespace's ghost manifest + stale mapping (confirm required) |
+| `POST /api/ns/:ns/s3/clear` | admin | DESTROY the namespace's remote objects (dry run by default; confirm + reason) |
+
+Every run appends one line to `<namespaces>/.s3state/lifecycle.log` with
+`op`, `surface: "rest"`, `principal` and the outcome counts.
+
+**Drift, and why it is not `local - remote`.** The engine stores its own
+checksum ledger as a bucket object under `<prefix>/<ns>/.s3state/`. Counting
+that as data would make every healthy namespace look one object ahead of disk
+forever, so `objects.remote` is the raw listing, `objects.bookkeeping` is the
+subset that is the engine's own state, `objects.data` is the difference, and
+`drift.objects` is `local - data`. `drift.state` is one of `in-sync`,
+`local-ahead`, `remote-ahead`, `unknown` (listing failed or `probe=false` —
+never `0`) and `s3-disabled`.
+
+#### `GET /api/ns/:ns/s3?probe=false`
+
+```bash
+curl "http://localhost:3000/api/ns/fleet-quality/s3" -H "X-API-Key: $KEY"
+```
+
+```json
+{
+  "success": true,
+  "namespace": "fleet-quality",
+  "enabled": true,
+  "store": { "endpoint": "https://s3.example", "bucket": "duckbrain", "prefix": "duckbrain", "pathStyle": true },
+  "objects": { "local": 2884, "remote": 2885, "bookkeeping": 1, "data": 2884 },
+  "bytes": { "local": 2318849 },
+  "drift": { "state": "in-sync", "objects": 0 },
+  "lastPushAt": "2026-11-06T09:14:02.117Z"
+}
+```
+
+`probe=false` skips the bucket listing (no network): `objects.remote`,
+`objects.bookkeeping` and `objects.data` are `null` and `drift.state` is
+`unknown`.
+
+#### `POST /api/ns/:ns/s3/sync`
+
+Body: `{ "direction": "push" | "pull" }` (default `push`). Same engine, same
+cross-process lock, same per-object verification and deadline as
+`duckbrain s3 sync`.
+
+```bash
+curl -X POST "http://localhost:3000/api/ns/fleet-quality/s3/sync" \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d '{"direction":"push"}'
+```
+
+```json
+{
+  "success": true,
+  "namespace": "fleet-quality",
+  "direction": "push",
+  "uploaded": 4, "downloaded": 0, "skipped": 2880, "failed": 0,
+  "verified": 0, "unverified": 0, "durationMs": 812,
+  "checksumLedger": "pushed",
+  "failures": [],
+  "summary": "[S3] push fleet-quality: uploaded=4 downloaded=0 skipped=2880 in 812ms"
+}
+```
+
+| Status | Code | Meaning |
+|--------|------|---------|
+| 400 | `VALIDATION_ERROR` | `direction` is not `push`/`pull` |
+| 404 | `NAMESPACE_NOT_FOUND` | Push for a namespace with no local directory (use `pull` to restore one) |
+| 409 | `SYNC_IN_PROGRESS` | Another sync holds the namespaces-root lock — retry when it finishes; nothing was done |
+| 409 | `S3_DISABLED` | `s3.enabled` is false on this daemon |
+| 502 | `SYNC_FAILED` | The run itself failed; the message names the leg |
+
+A run with object-level failures answers `success: false` and lists them in
+`failures[]` — a partial push never reads as success. Progress is not streamed:
+the route is request-scoped, which is why the engine's own deadline (not a
+client disconnect) bounds the work.
+
+#### `GET`/`POST /api/ns/:ns/s3/ghosts`
+
+Ghost sync state = a sync manifest (or a registry mapping) whose namespace
+directory is gone; those namespaces stay on every push cadence and retry
+`ENOENT` forever. The response names this namespace and carries the whole plan:
+
+```json
+{
+  "success": true,
+  "namespace": "dead-a",
+  "isGhost": true,
+  "thisNamespace": { "ghostManifest": { "ns": "dead-a", "lastSyncAt": "2026-09-01T00:00:00Z" }, "ghostMapping": null },
+  "ghosts": { "manifests": [ … ], "mappings": [ … ], "total": 2 }
+}
+```
+
+Listing works while S3 is disabled — it reads local state files only.
+
+#### `POST /api/ns/:ns/s3/ghosts/clear`
+
+Body: `{ "confirm": true, "reason": "…" }`. Prunes the ghost manifest and stale
+registry mapping for **the namespace in the path only** — the CLI sweeps
+everything, a route mounted under one namespace must not prune a sibling's
+state. Returns `cleared: false` (200) when the namespace was not a ghost.
+
+#### `POST /api/ns/:ns/s3/clear`
+
+Body: `{ "dryRun": true (default), "confirm": false, "reason": "…" }`.
+Destroying remote objects requires `dryRun: false` **and** `confirm: true`
+**and** a `reason`; the plan is re-listed at execution time, so it destroys
+exactly what it announced. Disk is never touched.
+
+`missing or wrong` answers `400 CONFIRMATION_REQUIRED` / `400 VALIDATION_ERROR`;
+a failed deletion answers `502 S3_CLEAR_FAILED`. An `enabled: false` store is a
+`409 S3_DISABLED`.
+
+#### What stays CLI-only
+
+`s3 query` (arbitrary SQL over the bucket through DuckDB httpfs, needing a
+host-side credential decision) and `s3 config` (prints the resolved store, a
+host diagnostic) stay on the CLI. The reasons are recorded in
+[ops-surface-decisions.md](ops-surface-decisions.md). No MCP tool was added for
+any of these verbs: an agent reaches every one of them over HTTP with its API
+key, which is what the compaction runbook needs, and a second surface would be
+a second thing to keep in sync (`docs/api/surface-parity.md` tracks the
+matrix).
+
 ### Compaction
 
 Compaction operates on the current namespace's git-backed memory store (see `POST /api/namespaces/switch`). Both routes are namespace-grant-checked: `?namespace=` — or `namespace` in the squash body — selects the namespace they operate on, and a token without a grant for it is rejected with `403 Forbidden` before the tool runs, exactly like `/api/memories`.

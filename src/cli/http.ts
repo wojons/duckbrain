@@ -60,6 +60,9 @@ import { createCompactionRoutes } from "../http/routes/compaction.js";
 // SURFACE-HTTP-OPS-001: the operations half of the surface (prune, s3 status,
 // consolidate) — admin-only, dry-run by default where destructive.
 import { createOpsRoutes } from "../http/routes/ops.js";
+// SURFACE-S3-001: the durability plane's own verbs (status, sync, ghosts,
+// clear) scoped to one namespace — the CLI verb an agent could not take.
+import { createS3Routes } from "../http/routes/s3.js";
 import {
   createTableRoutes,
   createNamespaceOpenApiRoutes,
@@ -856,6 +859,9 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   app.use("/api/events", createEventsRoutes);
   app.use("/api/compaction", createCompactionRoutes);
   app.use("/api/ops", createOpsRoutes);
+  // SURFACE-S3-001: object-store verbs under the namespace they touch, so the
+  // namespace grant is graded on the same value the handler acts on.
+  app.use("/api/ns/:ns/s3", createS3Routes());
 
   // DB-SUPA-3: generic table→REST resource layer (declared tables only).
   // The factory is CALLED (passing the function itself would install it as

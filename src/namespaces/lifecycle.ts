@@ -417,6 +417,13 @@ export function sweepGhostSyncState(
     requestedBy: string;
     reason?: string;
     configDir?: string;
+    /**
+     * SURFACE-S3-001: restrict the sweep to these namespace names. The CLI
+     * sweeps everything (the operator sees the whole listing first); the HTTP
+     * route is mounted under ONE namespace and must not prune a sibling's
+     * state, so it passes exactly the namespace in its path.
+     */
+    only?: readonly string[];
   },
 ): GhostSweepResult {
   if (!opts.confirm) {
@@ -438,9 +445,19 @@ export function sweepGhostSyncState(
   }
 
   const nsRoot = path.resolve(namespacesPath);
-  const found = findGhostSyncState(nsRoot, {
+  const discovered = findGhostSyncState(nsRoot, {
     configDir: opts.configDir ?? ".",
   });
+  // SURFACE-S3-001: an `only` scope narrows the DISCOVERED plan — it can
+  // never widen the blast radius, only restrict it to the namespaces the
+  // caller may touch (the HTTP route is mounted under exactly one).
+  const scopeNames = opts.only ? new Set(opts.only) : null;
+  const found = scopeNames
+    ? {
+        ghostManifests: discovered.ghostManifests.filter((g) => scopeNames.has(g.ns)),
+        ghostMappings: discovered.ghostMappings.filter((g) => scopeNames.has(g.name)),
+      }
+    : discovered;
 
   const manifestsPruned: string[] = [];
   for (const g of found.ghostManifests) {
@@ -465,6 +482,7 @@ export function sweepGhostSyncState(
     op: "sweep-ghost-sync-state",
     requestedBy: opts.requestedBy,
     reason: opts.reason ?? "",
+    scope: opts.only ?? null,
     manifestsPruned,
     mappingsRemoved,
   });

@@ -29,7 +29,7 @@ test also fails when the committed block is stale.
      Do not edit by hand: `pnpm docs:surface` rewrites this block, and
      src/surface/parity.test.ts fails when it is stale. -->
 
-**67 capabilities** cover 49 HTTP routes, 24 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
+**67 capabilities** cover 55 HTTP routes, 24 MCP tools and 30 CLI verbs. `pending` means the surface does not implement it yet; `n/a` carries the reason it never will.
 
 ### Memory records
 
@@ -88,12 +88,12 @@ test also fails when the committed block is stale.
 
 | Capability | CLI | HTTP | MCP |
 | --- | --- | --- | --- |
-| `s3.status` — Object-store sync status (last push, object count, drift) | `s3 status` | `GET /api/ops/s3/status` | **pending** |
-| `s3.sync` — Trigger an S3 push/pull for a namespace | `s3 sync` | **pending** | **pending** |
+| `s3.status` — Object-store sync status (last push, object count, drift) | `s3 status` | `GET /api/ops/s3/status`, `GET /api/ns/:ns/s3` | **pending** |
+| `s3.sync` — Trigger an S3 push/pull for a namespace | `s3 sync` | `POST /api/ns/:ns/s3/sync` | **pending** |
 | `s3.query` — SQL over the object store's manifest/segments | `s3 query` | **pending** | **pending** |
 | `s3.config` — Show the resolved S3 configuration | `s3 config` | **pending** | **pending** |
-| `s3.clear` — Clear remote objects for a namespace (destructive, confirm) | `s3 clear` | **pending** | **pending** |
-| `s3.ghosts` — List/remove ghost objects left by compaction | `s3 ghosts` | **pending** | **pending** |
+| `s3.clear` — Clear remote objects for a namespace (destructive, confirm) | `s3 clear` | `POST /api/ns/:ns/s3/clear` | **pending** |
+| `s3.ghosts` — List/remove ghost objects left by compaction | `s3 ghosts` | `GET /api/ns/:ns/s3/ghosts`, `POST /api/ns/:ns/s3/ghosts`, `POST /api/ns/:ns/s3/ghosts/clear` | **pending** |
 
 ### Operations plane
 
@@ -212,11 +212,11 @@ test also fails when the committed block is stale.
 - `table.transaction` — missing cli, mcp
 - `query.sql` — missing http
 - `s3.status` — missing mcp
-- `s3.sync` — missing http, mcp
+- `s3.sync` — missing mcp
 - `s3.query` — missing http, mcp
 - `s3.config` — missing http, mcp
-- `s3.clear` — missing http, mcp
-- `s3.ghosts` — missing http, mcp
+- `s3.clear` — missing mcp
+- `s3.ghosts` — missing mcp
 - `ops.health` — missing cli, mcp
 - `ops.metrics` — missing cli, mcp
 - `ops.stats` — missing cli, mcp

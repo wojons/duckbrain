@@ -296,14 +296,19 @@ export const CAPABILITIES: readonly Capability[] = [
   // ── s3 durability plane ──────────────────────────────────────────────────
   {
     id: "s3.status",
+    // SURFACE-S3-001: the per-namespace form (object count, drift, last push)
+    // joins the fleet-wide report the ops surface already served.
     summary: "Object-store sync status (last push, object count, drift)",
     cli: { verb: "s3", sub: "status", dispatcher: S3_DISPATCHER },
-    http: ["GET /api/ops/s3/status"],
+    http: ["GET /api/ops/s3/status", "GET /api/ns/:ns/s3"],
   },
   {
     id: "s3.sync",
+    // SURFACE-S3-001: sync is reachable over HTTP now — same engine, same
+    // lock (a concurrent trigger is 409, not a queue), deadline-bounded.
     summary: "Trigger an S3 push/pull for a namespace",
     cli: { verb: "s3", sub: "sync", dispatcher: S3_DISPATCHER },
+    http: ["POST /api/ns/:ns/s3/sync"],
   },
   {
     id: "s3.query",
@@ -317,13 +322,24 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "s3.clear",
+    // SURFACE-S3-001: destructive, so dry run by default plus confirm +
+    // who/why; admin-only (see src/http/routes/s3.ts).
     summary: "Clear remote objects for a namespace (destructive, confirm)",
     cli: { verb: "s3", sub: "clear", dispatcher: S3_DISPATCHER },
+    http: ["POST /api/ns/:ns/s3/clear"],
   },
   {
     id: "s3.ghosts",
+    // SURFACE-S3-001: the compaction runbook's cleanup step (list + scoped
+    // sweep) now has a route, so an agent can finish the runbook without a
+    // shell.
     summary: "List/remove ghost objects left by compaction",
     cli: { verb: "s3", sub: "ghosts", dispatcher: S3_DISPATCHER },
+    http: [
+      "GET /api/ns/:ns/s3/ghosts",
+      "POST /api/ns/:ns/s3/ghosts",
+      "POST /api/ns/:ns/s3/ghosts/clear",
+    ],
   },
 
   // ── observability / ops plane ────────────────────────────────────────────
