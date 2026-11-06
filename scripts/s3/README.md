@@ -42,6 +42,7 @@ makes the failure loud through the alert gate instead of a silent cron.
 
 | File | Deployed as | Role |
 |------|-------------|------|
+| `duckbrain-s3-sync-all.sh` | systemd user timer `duckbrain-s3-sync.timer` (1 h after the previous pass) | **the** `s3 sync all push` entry point (S3-SYNC-STOPPED-001): clears a crashed run's stale `.s3state/.lock`, then `exec`s the SOURCE CLI (`node --import tsx bin/duckbrain.ts`) so a landed fix runs without a rebuild. The engine writes the run record + per-namespace push records that `s3 status` and the two freshness gauges read |
 | `duckbrain-s3-unified.sh` | cron (15 min) | the wrapper: one cron for all layers, internal cadence via markers; holds the flock |
 | `duckbrain-s3-native-sync.sh` | called by the wrapper every run | native data-delta sync (`duckbrain.js s3 sync all push`) + the stale-`.s3state/.lock` recovery |
 | `duckbrain-s3-daily.sh` | called by the wrapper ≤ once/24h | git-history layer entry — `exec`s `duckbrain-s3-push.sh current/git s3daily` |

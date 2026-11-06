@@ -1,0 +1,14 @@
+[Unit]
+Description=Hourly DuckBrain S3 mirror push (S3-SYNC-STOPPED-001)
+
+[Timer]
+# Measured from the END of the previous pass (OnUnitInactiveSec), not the clock:
+# a slow pass therefore delays the next one instead of stacking on top of it,
+# and systemd refuses to start a oneshot that is still running.
+OnBootSec=10min
+OnUnitInactiveSec=1h
+AccuracySec=1min
+Unit=duckbrain-s3-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -31,6 +31,16 @@ import {
   type FileMeta,
 } from "./manifest";
 import type { S3Config } from "./config";
+// S3-SYNC-STOPPED-001: the syncable-file population and the freshness records.
+// walk.ts carries no SDK dependency, so importing it here adds nothing to the
+// CLI/MCP load path that PERF-004 deferred.
+import { walkLocal, type LocalFile } from "./walk.js";
+import {
+  loadPushState,
+  savePushRun,
+  savePushState,
+  type PushRunRecord,
+} from "./freshness.js";
 import { isPidAlive } from "../utils/pidfile";
 import { createHash } from "crypto";
 
@@ -292,17 +302,6 @@ function remoteIdentity(
   return "transfer";
 }
 
-/** Directories never synced (per-namespace repo internals). */
-const EXCLUDED_DIRS = new Set([
-  ".git",
-  ".s3state",
-  ".embeddings",
-  "node_modules",
-]);
-/** Extensions never synced (rebuildable caches / temp files). */
-const EXCLUDED_EXTENSIONS = new Set([".db", ".parquet", ".tmp", ".bak"]);
-const EXCLUDED_FILES = new Set([".DS_Store"]);
-
 /**
  * S3-PULL-INTEGRITY-001 — the published checksum ledger.
  *
@@ -402,7 +401,7 @@ export interface SyncFailure {
    * lists this path but the remote listing has no object for it. Nothing was
    * transferred and nothing local was touched — the BACKUP is incomplete.
    */
-  kind: "transfer" | "verification" | "missing";
+  kind: "transfer" | "verification" | "missing" | "stale" | "unpushed";
   detail: string;
 }
 
@@ -441,43 +440,14 @@ export interface SyncStats {
   checksumLedger: "pushed" | "present" | "absent";
 }
 
-export interface LocalFile {
-  relPath: string;
-  size: number;
-  mtimeMs: number;
-}
-
-/** Recursively walk a namespace dir, returning syncable files (relPath → meta). */
-export function walkLocal(nsPath: string): Map<string, LocalFile> {
-  const out = new Map<string, LocalFile>();
-  const visit = (dir: string, prefix: string): void => {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      const rel = prefix ? `${prefix}/${e.name}` : e.name;
-      if (e.isDirectory()) {
-        if (EXCLUDED_DIRS.has(e.name)) continue;
-        visit(path.join(dir, e.name), rel);
-      } else if (e.isFile()) {
-        const ext = path.extname(e.name).toLowerCase();
-        if (EXCLUDED_EXTENSIONS.has(ext)) continue;
-        if (EXCLUDED_FILES.has(e.name)) continue;
-        try {
-          const st = fs.statSync(path.join(dir, e.name));
-          out.set(rel, { relPath: rel, size: st.size, mtimeMs: st.mtimeMs });
-        } catch {
-          // file vanished mid-walk — skip
-        }
-      }
-    }
-  };
-  visit(nsPath, "");
-  return out;
-}
+/**
+ * S3-SYNC-STOPPED-001: the walk (and its exclusion rules) lives in ./walk so
+ * the freshness surface can measure the same population without importing this
+ * engine. Re-exported here because every existing caller imports it from
+ * ./sync.
+ */
+export { walkLocal };
+export type { LocalFile };
 
 export function remoteKeyFor(
   cfg: S3Config,
@@ -746,6 +716,12 @@ export async function pushNamespace(
   );
   let uploaded = 0;
   /**
+   * S3-SYNC-STOPPED-001: a PUT that threw was warned about and then forgotten,
+   * so a push that moved 9 of 10 objects still looked clean. Counting them is
+   * what lets the freshness record say "this pass was not a complete push".
+   */
+  let failedUploads = 0;
+  /**
    * S3-GIT-008: the manifest records ONLY files whose bytes are provably on
    * the remote — either uploaded successfully in this pass, or skipped as
    * unchanged-and-confirmed (identical identity + size) against the remote
@@ -808,6 +784,7 @@ export async function pushNamespace(
       } catch (err) {
         // Failed PUT: loud warn, and NOT added to syncedFiles — the next pass
         // retries this object (S3-GIT-008).
+        failedUploads += 1;
         console.warn(
           `[S3] push ${ns}/${file.relPath} failed: ${(err as Error).message}`,
         );
@@ -861,6 +838,30 @@ export async function pushNamespace(
       `[S3] push ${ns}: checksum ledger NOT published (${detail}) — the namespace is restorable but its restore cannot be verified`,
     );
   }
+
+  /**
+   * S3-SYNC-STOPPED-001: record WHEN this host last completed a CLEAN push.
+   *
+   * `lastSyncAt` in the sync manifest cannot answer that — the pull writes the
+   * same field, so after a restore the host looks freshly pushed. This record
+   * advances only on a clean pass (every planned object uploaded and the
+   * checksum ledger published); a dirty pass records the attempt and keeps the
+   * previous clean time, which is exactly what "how stale is the mirror" means.
+   */
+  const clean = failedUploads === 0 && failures.length === 0;
+  const attemptedAt = new Date().toISOString();
+  const previousPush = loadPushState(namespacesPath, ns);
+  savePushState(namespacesPath, {
+    version: 1,
+    ns,
+    lastPushAt: clean ? attemptedAt : (previousPush?.lastPushAt ?? null),
+    lastPushAttemptAt: attemptedAt,
+    lastPushOk: clean,
+    uploaded,
+    skipped: deltas.skipped,
+    failedUploads,
+    failures: failures.length,
+  });
 
   return {
     ns,
@@ -999,6 +1000,98 @@ export async function pullNamespace(
       `[S3] pull ${ns}: no usable checksum ledger — the remote listing is the only evidence available, so this pull CANNOT claim completeness (a remote object that is absent is indistinguishable from one that was never pushed). Re-push the namespace to publish one.`,
     );
   }
+  /**
+   * S3-SYNC-STOPPED-001 (AC3) — a mirror OLDER than this tree is not a source,
+   * and a pull that restores from it while reporting success is worse than one
+   * that refuses: on 2026-11-05 `pull hermes` into an empty tree printed
+   * "downloaded=6 skipped=0" and exited 0 while the live namespace held 8
+   * files / 118 records written after the mirror's last push.
+   *
+   * Completeness as shipped (S3-PULL-COMPLETENESS-001) verified the ledger's
+   * paths against the remote listing — but the ledger is published by the same
+   * push, so a stale mirror always agrees with itself. The only evidence that
+   * is not self-referential is the LOCAL tree, and here it is:
+   *
+   *   stale     — a local syncable file was written AFTER the last sync
+   *               (manifest.lastSyncAt, or the published ledger's generatedAt
+   *               on a host with no manifest). Those bytes are in no push, so
+   *               a restore from this mirror cannot contain them.
+   *   unpushed  — a local syncable path has no object in the remote listing at
+   *               all. Nothing to verify and nothing to download; the file is
+   *               local-only, which is what "the backup is behind" looks like.
+   *
+   * Both are pre-flight: when either fires nothing is downloaded and no
+   * manifest is re-blessed, so a refused pull cannot itself look like a sync.
+   */
+  const MAX_STALE_NAMED = 20;
+  const stalenessFailures: SyncFailure[] = [];
+  const markerIso = manifest?.lastSyncAt ?? null;
+  const markerMs = markerIso ? Date.parse(markerIso) : NaN;
+  // GATED ON A LOCAL SYNC RECORD. Without a manifest this tree has no claim
+  // about what the mirror should contain — that is the fresh-machine restore,
+  // where local files are whatever the operator happened to have and the pull
+  // is the authority. With a manifest the tree DOES know its last sync, so a
+  // file newer than it, or absent remotely, is a named gap.
+  if (manifest && Number.isFinite(markerMs)) {
+    // Same millisecond-resolution rule as freshness.ts: a file written in the
+    // same ms as the marker is not evidence of drift.
+    const newer = [...local.entries()]
+      .filter(([, f]) => Math.floor(f.mtimeMs) > markerMs)
+      .map(([rel]) => rel)
+      .sort();
+    for (const relPath of newer.slice(0, MAX_STALE_NAMED)) {
+      stalenessFailures.push({
+        ns,
+        key: `${prefix}${relPath}`,
+        relPath,
+        kind: "stale",
+        detail: `written locally after the last sync (${markerIso}) — this mirror cannot contain it, so a restore from it would lose this file; nothing was written`,
+      });
+    }
+    if (newer.length > MAX_STALE_NAMED) {
+      stalenessFailures.push({
+        ns,
+        key: `${prefix}${newer[MAX_STALE_NAMED]}`,
+        relPath: newer[MAX_STALE_NAMED],
+        kind: "stale",
+        detail: `${newer.length - MAX_STALE_NAMED} further local file(s) are newer than the last sync (${markerIso}); push first, then pull`,
+      });
+    }
+  }
+  const localOnly = manifest
+    ? [...local.keys()]
+        .filter((rel) => !remote.has(`${prefix}${rel}`))
+        .sort()
+    : [];
+  for (const relPath of localOnly.slice(0, MAX_STALE_NAMED)) {
+    stalenessFailures.push({
+      ns,
+      key: `${prefix}${relPath}`,
+      relPath,
+      kind: "unpushed",
+      detail: `exists locally but has NO object in the remote listing — the mirror does not contain this file (never pushed, or the push has not reached it)`,
+    });
+  }
+  if (localOnly.length > MAX_STALE_NAMED) {
+    stalenessFailures.push({
+      ns,
+      key: `${prefix}${localOnly[MAX_STALE_NAMED]}`,
+      relPath: localOnly[MAX_STALE_NAMED],
+      kind: "unpushed",
+      detail: `${localOnly.length - MAX_STALE_NAMED} further local path(s) are absent from the remote listing; push first, then pull`,
+    });
+  }
+  const blockedByStaleness = stalenessFailures.length > 0;
+  if (blockedByStaleness) {
+    console.error(
+      `[S3] pull ${ns}: REFUSED — the mirror is older than this tree (${stalenessFailures.length} local path(s) not represented remotely). Nothing was downloaded or overwritten; push first. Use \`s3 sync ${ns} push\` to close the gap.`,
+    );
+    for (const failure of stalenessFailures) {
+      logObjectFailure(
+        `${ns}/${failure.relPath} NOT RESTORED (${failure.kind}): ${failure.detail} [key ${failure.key}]`,
+      );
+    }
+  }
   let downloaded = 0;
   /** relPaths whose bytes were written to disk this pass. */
   const repaired = new Set<string>();
@@ -1008,7 +1101,7 @@ export async function pullNamespace(
   // S3-PULL-INTEGRITY-001: counters the caller can act on. A pull used to
   // report only `downloaded`, so a rejected/corrupt object was invisible in
   // the summary and the CLI said "0 failed".
-  const failures: SyncFailure[] = [];
+  const failures: SyncFailure[] = [...stalenessFailures];
   const unverifiedKeys: string[] = [];
   let verified = 0;
   let unverified = 0;
@@ -1029,6 +1122,25 @@ export async function pullNamespace(
     logObjectFailure(
       `${ns}/${relPath} FAILED (missing): in the checksum ledger but not in the remote listing [key ${prefix}${relPath}]`,
     );
+  }
+
+  if (blockedByStaleness) {
+    // Refusal is a terminal pre-flight verdict: no download, no manifest
+    // refresh (a refused pull must not record the local tree as synced).
+    return {
+      ns,
+      direction: "pull",
+      uploaded: 0,
+      downloaded: 0,
+      skipped: deltas.skipped,
+      durationMs: Date.now() - start,
+      verified: 0,
+      unverified: 0,
+      unverifiedKeys: [],
+      failed: failures.length,
+      failures,
+      checksumLedger: ledger ? "present" : "absent",
+    };
   }
 
   await runPool(
@@ -1475,6 +1587,36 @@ export async function syncAllNamespacesResult(
 ): Promise<SyncAllResult> {
   const stats: SyncStats[] = [];
   const failures: { namespace: string; error: string }[] = [];
+  /**
+   * S3-SYNC-STOPPED-001: `sync all push` is the scheduled job, and a schedule
+   * that dies leaves no trace unless the pass itself is a record. The start
+   * record carries `finishedAt: null`; only a completed pass overwrites it, so
+   * `s3 status` can say "started 3h ago and never finished" instead of showing
+   * the last good run and implying health.
+   */
+  const runStartedAt = new Date().toISOString();
+  const writeRun = (record: PushRunRecord): void => {
+    try {
+      savePushRun(namespacesPath, record);
+    } catch {
+      // A read-only or full state dir must not fail the sync itself; the
+      // freshness surface then reports "no run record" rather than a lie.
+    }
+  };
+  if (direction === "push") {
+    writeRun({
+      version: 1,
+      command: "sync all push",
+      startedAt: runStartedAt,
+      finishedAt: null,
+      ok: null,
+      attempted: null,
+      succeeded: null,
+      failed: null,
+      uploaded: null,
+      error: null,
+    });
+  }
   let localEntries: string[] = [];
   try {
     localEntries = fs
@@ -1508,6 +1650,15 @@ export async function syncAllNamespacesResult(
       // failures. Before this they only reached a console.warn inside
       // pullNamespace, so `sync all pull` counted the namespace as succeeded
       // and the CLI printed "0 failed" over a corrupt restore.
+      // S3-SYNC-STOPPED-001: a scheduled pass is only auditable if it says
+      // what each namespace did while it does it — the old summary printed one
+      // line after the LAST namespace, so a run that spent an hour on the
+      // first three looked identical to a hung one in the journal.
+      if (nsStats && direction === "push") {
+        console.log(
+          `[S3] push ${ns}: uploaded=${nsStats.uploaded} skipped=${nsStats.skipped} failed=${nsStats.failed} in ${nsStats.durationMs}ms`,
+        );
+      }
       if (nsStats && nsStats.failed > 0) {
         const first = nsStats.failures[0];
         failures.push({
@@ -1521,13 +1672,28 @@ export async function syncAllNamespacesResult(
       console.warn(`[S3] sync ${ns} failed: ${message}`);
     }
   }
-  return {
+  const result = {
     stats,
     attempted: nsList.length,
     succeeded: nsList.length - failures.length,
     failed: failures.length,
     failures,
   };
+  if (direction === "push") {
+    writeRun({
+      version: 1,
+      command: "sync all push",
+      startedAt: runStartedAt,
+      finishedAt: new Date().toISOString(),
+      ok: failures.length === 0,
+      attempted: result.attempted,
+      succeeded: result.succeeded,
+      failed: result.failed,
+      uploaded: stats.reduce((acc, s) => acc + s.uploaded, 0),
+      error: failures.length > 0 ? `${failures[0].namespace}: ${failures[0].error}` : null,
+    });
+  }
+  return result;
 }
 
 /**

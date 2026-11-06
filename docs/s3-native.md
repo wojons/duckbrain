@@ -408,6 +408,129 @@ is fine — the daemon's first write path re-runs init/commit itself). The full
 paste-able sequence (clone → pull → git reinit → serve) is in
 [README.md → Fresh-machine DR restore](../README.md#fresh-machine-dr-restore-paste-able).
 
+### Freshness: a stale mirror used to look complete (S3-SYNC-STOPPED-001)
+
+The mirror went **eight days** without a push (2026-10-28 → 2026-11-05) while
+every surface read green, and nothing in the product could have said otherwise:
+
+- `s3 status` printed `lastSync=<timestamp>` — a fact nobody compares to a
+  clock, and one the **pull** writes too, so a restore made a host look freshly
+  pushed;
+- no surface counted the files written since that timestamp;
+- `pull` checked completeness against the checksum ledger published by the
+  **same** stale push, so a mirror that had not moved since October was
+  indistinguishable from a current one. Pulling `hermes` into an empty tree
+  restored 6 objects, reported `downloaded=6 skipped=0`, and exited 0 while the
+  live namespace held 14 syncable files and 271 records.
+
+Three facts are now recorded and reported.
+
+**Push record** — `.s3state/<ns>.push.json`, written by every push:
+
+```json
+{ "version": 1, "ns": "hermes", "lastPushAt": "2026-11-06T18:36:36.259Z",
+  "lastPushAttemptAt": "2026-11-06T18:36:36.259Z", "lastPushOk": true,
+  "uploaded": 14, "skipped": 0, "failedUploads": 0, "failures": 0 }
+```
+
+`lastPushAt` advances **only on a clean pass** (every planned object uploaded
+and the checksum ledger published). A pass with a failed PUT keeps the previous
+clean time, so "how stale is the mirror" cannot be improved by a failed push.
+
+**Pass record** — `.s3state/last-push-run.json`, written by every
+`sync all push`:
+
+```json
+{ "version": 1, "command": "sync all push", "startedAt": "...",
+  "finishedAt": "...", "ok": true, "attempted": 294, "succeeded": 294,
+  "failed": 0, "uploaded": 1528, "error": null }
+```
+
+`finishedAt: null` means the pass **started and never wrote a terminal state**
+(killed, hung, host died) — the difference between "the schedule is firing" and
+"the schedule fired once, in October".
+
+**`s3 status` reports both** — per namespace the age of the last clean push,
+whether the last attempt failed, and how many local files that push does not
+cover (named in the JSON path):
+
+```
+Last pushed run: ok at 2026-11-06T19:02:11Z (3m ago) attempted=294 succeeded=294 failed=0 uploaded=1528
+  hermes: local=14 remote=15 lastSync=2026-11-06T18:36:35.597Z lastPush=2026-11-06T18:36:36.259Z (4s ago) unpushed=0
+```
+
+A file counts as unpushed when it was written after the last clean push, when
+no sync manifest covers it (nothing ever confirmed it exists remotely), or when
+the host has neither a push record nor a manifest (nothing can testify that any
+of the tree reached the mirror). One walk feeds both `local=` and the freshness
+number, so the scheduler namespace's 258k files are stats, not reads.
+
+**Pull refuses a mirror older than the tree.** With a local sync manifest
+present, `pull` is now a pre-flight check as well as a transfer:
+
+- a local syncable file written **after** `manifest.lastSyncAt` → failure
+  `kind: stale`, the file is named, **nothing is downloaded**;
+- a local path with **no object** in the remote listing → failure
+  `kind: unpushed`, named the same way.
+
+Both make the command exit nonzero and name the files a restore would lose
+(`failed=22` for `hermes` on 2026-11-06, exit 22). A tree with no manifest — the
+fresh-machine restore — is deliberately **not** gated: it has no claim about
+what the mirror should contain, and the pull is the authority there.
+
+### The schedule is a systemd timer, not a memory
+
+`ops/systemd/duckbrain-s3-sync.service` runs
+`scripts/s3/duckbrain-s3-sync-all.sh`, which `exec`s
+`node --import tsx bin/duckbrain.ts s3 sync all push` from the checkout (source,
+not `dist/`: a scheduled backup must run the code that is in the repo). The
+timer fires **one hour after the previous pass finished** (`OnUnitInactiveSec`),
+so a slow pass delays the next one instead of stacking, and systemd will not
+start a oneshot that is still running. There is no wall-clock kill: the engine's
+per-namespace stall watchdog is what detects a hang (S3-DEADLINE-001).
+
+```bash
+cp ops/systemd/duckbrain-s3-sync.service ops/systemd/duckbrain-s3-sync.timer \
+   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now duckbrain-s3-sync.timer
+systemctl --user list-timers duckbrain-s3-sync.timer     # next fire
+journalctl --user -u duckbrain-s3-sync.service -f        # one line per namespace
+```
+
+The timer is the durable schedule; `.s3state/last-push-run.json` is the
+authority on whether it actually ran (a timer that fires into a failing pass
+still looks scheduled — check the record, not the unit).
+
+### Alerting on a stale mirror
+
+Two aggregate gauges on `GET /metrics` (no namespace label — names are user
+data, and the store holds ~300 of them; the per-namespace breakdown is `s3
+status`):
+
+```
+duckbrain_s3_last_push_age_seconds   age of the OLDEST clean push; +Inf when a
+                                     namespace has no clean push on record
+duckbrain_s3_unpushed_files          local syncable files the last clean push
+                                     does not cover, across all namespaces
+```
+
+```yaml
+- alert: DuckbrainS3MirrorStale
+  expr: duckbrain_s3_last_push_age_seconds > 7200
+  for: 10m
+  annotations:
+    summary: "DuckBrain S3 mirror is {{ $value }}s behind (schedule stopped?)"
+- alert: DuckbrainS3BacklogGrowing
+  expr: duckbrain_s3_unpushed_files > 5000
+  for: 30m
+```
+
+Both are sampled at collect time from the same root (5-minute reuse window, one
+stat-walk of the store); a walk that cannot finish publishes **no sample**
+rather than a partial count, so a missing series means "unmeasured", never
+"fresh".
+
 ## Namespace deletion — delete-disk vs clear-s3
 
 Deletion is TWO separate operations (`src/namespaces/lifecycle.ts`): removing the local copy and destroying the remote S3 objects. Never conflate them.

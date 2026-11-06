@@ -16,6 +16,12 @@ import { getConfig, resolveDuckbrainRoot, resolveNamespacesPath } from "../confi
 import { safeJsonStringify } from "../utils/serialize";
 import { S3ConfigSchema, resolveEffectiveEndpoint } from "./config";
 import { loadManifest } from "./manifest";
+import {
+  freshnessFromFiles,
+  loadPushRun,
+  loadPushState,
+  type PushRunRecord,
+} from "./freshness";
 import { censusOnDiskNamespaces } from "../namespaces/census";
 import {
   walkLocal,
@@ -56,6 +62,17 @@ export interface S3StatusRow {
   ns: string;
   local: number;
   remote: number | null;
+  /**
+   * S3-SYNC-STOPPED-001: staleness as a number, not an inference. `lastSync`
+   * (the manifest) is written by pull as well as push, so it cannot answer
+   * "when did this host last PUT these bytes" — `lastPushAt` can.
+   */
+  lastPushAt?: string | null;
+  lastPushAgeSeconds?: number | null;
+  lastPushOk?: boolean | null;
+  /** Local syncable files not covered by the last clean push (names in JSON). */
+  unpushed?: number;
+  unpushedSample?: string[];
   lastSync: string | null;
   registered: boolean;
   /** Set when the remote listing failed for this namespace (remote is null). */
@@ -179,6 +196,13 @@ export interface S3StatusReport {
   namespaces: S3StatusRow[];
   /** Rows the text renderer hides behind STATUS_ROW_LIMIT (0 = complete). */
   hidden: number;
+  /**
+   * S3-SYNC-STOPPED-001: the last `sync all push` pass this host recorded.
+   * `finishedAt: null` means the pass STARTED and never wrote a terminal
+   * state (killed / hung / host died) — the difference between "the schedule
+   * is firing" and "the schedule fired once, in October".
+   */
+  lastRun: PushRunRecord | null;
 }
 
 export interface S3StatusReportOptions {
@@ -220,6 +244,7 @@ export async function collectS3StatusReport(
       total: 0,
       namespaces: [],
       hidden: 0,
+      lastRun: null,
     };
   }
 
@@ -237,10 +262,19 @@ export async function collectS3StatusReport(
   const limit = full ? resolved.length : Math.min(resolved.length, STATUS_ROW_LIMIT);
 
   const client = probe ? buildClient(s3) : null;
+  const nowMs = Date.now();
   const rows: S3StatusRow[] = [];
   for (const ns of resolved.slice(0, limit)) {
     const manifest = loadManifest(nsRoot, ns);
-    const localCount = walkLocal(path.join(nsRoot, ns)).size;
+    // ONE walk feeds both `local=` and the freshness measurement.
+    const localFiles = walkLocal(path.join(nsRoot, ns));
+    const localCount = localFiles.size;
+    const freshness = freshnessFromFiles(
+      ns,
+      localFiles,
+      loadPushState(nsRoot, ns),
+      { now: nowMs, manifest },
+    );
     let remoteCount: number | null = null;
     let listError: string | undefined;
     if (client) {
@@ -264,6 +298,11 @@ export async function collectS3StatusReport(
       remote: remoteCount,
       lastSync: manifest?.lastSyncAt ?? null,
       registered: registered.has(ns),
+      lastPushAt: freshness.lastPushAt,
+      lastPushAgeSeconds: freshness.pushAgeSeconds,
+      lastPushOk: freshness.lastPushOk,
+      unpushed: freshness.unpushed,
+      unpushedSample: freshness.unpushedSample,
       ...(listError === undefined ? {} : { listError }),
     });
   }
@@ -279,7 +318,48 @@ export async function collectS3StatusReport(
     total: resolved.length,
     namespaces: rows,
     hidden: resolved.length - rows.length,
+    lastRun: loadPushRun(nsRoot),
   };
+}
+
+/** "8d 3h" / "12m" / "45s" — an age a human can compare to a calendar. */
+export function formatAge(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds)) return "unknown";
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 120) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 120) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
+}
+
+/** One line describing the last `sync all push` pass (S3-SYNC-STOPPED-001). */
+export function describePushRun(
+  run: PushRunRecord | null,
+  nowMs: number,
+): string {
+  if (!run) {
+    return "NEVER — no `sync all push` pass has recorded a run on this host";
+  }
+  const startedMs = Date.parse(run.startedAt);
+  const startedAge = Number.isFinite(startedMs)
+    ? formatAge((nowMs - startedMs) / 1000)
+    : "unknown";
+  if (run.finishedAt === null) {
+    return `RUNNING/DIED — started ${run.startedAt} (${startedAge} ago), never finished`;
+  }
+  const state = run.ok ? "ok" : "FAILED";
+  const counts =
+    run.attempted === null
+      ? ""
+      : ` attempted=${run.attempted} succeeded=${run.succeeded} failed=${run.failed} uploaded=${run.uploaded ?? 0}`;
+  const error = run.error ? ` — ${run.error}` : "";
+  const finishedAge = Number.isFinite(Date.parse(run.finishedAt))
+    ? formatAge((nowMs - Date.parse(run.finishedAt)) / 1000)
+    : "unknown";
+  return `${state} at ${run.finishedAt} (${finishedAge} ago)${counts}${error}`;
 }
 
 export async function s3Status(
@@ -327,6 +407,7 @@ export async function s3Status(
           bucket: report.bucket,
           prefix: report.prefix,
           total: report.namespaces.length,
+          lastRun: report.lastRun,
           namespaces: report.namespaces,
         },
         null,
@@ -339,10 +420,21 @@ export async function s3Status(
   // Total count is always printed — a cap without a denominator is exactly the
   // "looks complete but isn't" failure S3-STATUS-001 exists to kill.
   console.log(`Namespaces: ${report.total}`);
+  // S3-SYNC-STOPPED-001: the pass record sits ABOVE the rows because it is the
+  // schedule's own heartbeat — a namespace row can look fine while nothing has
+  // run for eight days.
+  console.log(`Last pushed run: ${describePushRun(report.lastRun, Date.now())}`);
   for (const row of report.namespaces) {
+    const push =
+      row.lastPushAt === null || row.lastPushAt === undefined
+        ? `lastPush=never (this host) unpushed=${row.unpushed ?? 0}`
+        : `lastPush=${row.lastPushAt} (${formatAge(row.lastPushAgeSeconds ?? null)} ago)${row.lastPushOk === false ? " [last attempt FAILED]" : ""} unpushed=${row.unpushed ?? 0}`;
     console.log(
-      `  ${row.ns}: local=${row.local} remote=${row.remote ?? "?"} lastSync=${row.lastSync ?? "never"}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
+      `  ${row.ns}: local=${row.local} remote=${row.remote ?? "?"} lastSync=${row.lastSync ?? "never"} ${push}${row.registered ? "" : " (on-disk only — no config mapping)"}`,
     );
+    if ((row.unpushed ?? 0) > 0 && (row.unpushedSample?.length ?? 0) > 0) {
+      console.log(`    unpushed: ${row.unpushedSample!.join(", ")}${(row.unpushed ?? 0) > row.unpushedSample!.length ? `, … (+${(row.unpushed ?? 0) - row.unpushedSample!.length} more)` : ""}`);
+    }
   }
   if (report.hidden > 0) {
     console.log(`  ... and ${report.hidden} more (use --full to see all)`);

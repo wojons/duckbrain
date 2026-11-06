@@ -1,0 +1,23 @@
+[Unit]
+Description=DuckBrain S3 mirror push, all namespaces (S3-SYNC-STOPPED-001)
+Documentation=file:///%h/duckbrain/docs/s3-native.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/duckbrain
+# Source CLI, not dist/: a scheduled backup must run the code in the checkout,
+# not whatever was compiled last (see scripts/s3/duckbrain-s3-sync-all.sh).
+ExecStart=%h/duckbrain/scripts/s3/duckbrain-s3-sync-all.sh
+# A first pass over the whole store (495k syncable files / ~9 GB, 294
+# namespaces on the reference host) legitimately takes tens of minutes; six
+# namespaces are too big for any fixed short cap (S3-DEADLINE-001). The engine's
+# per-namespace stall watchdog is what detects a hang, so there is deliberately
+# NO wall-clock kill here: killing a healthy pass recreates the stale mirror.
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

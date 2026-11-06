@@ -169,6 +169,10 @@ describe("OBSDB-001: /metrics exposition shape", () => {
       // time from the same namespaces root).
       "duckbrain_table_declaration_namespaces gauge",
       "duckbrain_table_declarations gauge",
+      // S3-SYNC-STOPPED-001: mirror freshness (age of the oldest clean push,
+      // and the count of local files that push does not cover).
+      "duckbrain_s3_last_push_age_seconds gauge",
+      "duckbrain_s3_unpushed_files gauge",
       "duckbrain_read_ledger_rotation_total counter",
       "duckbrain_recall_packs_total counter",
       "duckbrain_recall_packs_nonempty_total counter",

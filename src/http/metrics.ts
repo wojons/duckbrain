@@ -95,6 +95,11 @@ import {
   registerReadLedgerMetrics,
 } from "./readLedger";
 import {
+  createFreshnessSampler,
+  type FreshnessSampler,
+  type FreshnessSummary,
+} from "../s3/freshness";
+import {
   createDeclarationSampler,
   DECLARATION_METRIC_NAMES,
   DECLARATION_SCAN_TTL_MS,
@@ -117,6 +122,22 @@ export const STORAGE_METRIC_NAMES = [
  * and the declared-table totals behind them. Sampled at collect time from the
  * same namespaces root as the storage gauges.
  */
+/**
+ * S3-SYNC-STOPPED-001: is the S3 mirror actually moving? The 2026-10-28 →
+ * 2026-11-05 outage was invisible because no time series existed for "when did
+ * we last push" or "how much is not in the backup". Both are aggregate on
+ * purpose: a namespace name may never become a label (spec §3 cardinality —
+ * the store has ~300 namespaces and namespace names are user data). The
+ * per-namespace breakdown lives in `s3 status`.
+ */
+export const S3_LAST_PUSH_AGE_SECONDS = "duckbrain_s3_last_push_age_seconds";
+export const S3_UNPUSHED_FILES = "duckbrain_s3_unpushed_files";
+
+export const S3_METRIC_NAMES = [
+  S3_LAST_PUSH_AGE_SECONDS,
+  S3_UNPUSHED_FILES,
+] as const;
+
 export const DECLARATION_NAMESPACES = DECLARATION_METRIC_NAMES[0];
 export const DECLARATION_TABLES = DECLARATION_METRIC_NAMES[1];
 
@@ -140,6 +161,8 @@ export const METRIC_NAMES = [
   ...STORAGE_METRIC_NAMES,
   // ADOPT-DECLARED-001: is the declared-schema path actually adopted?
   ...DECLARATION_METRIC_NAMES,
+  // S3-SYNC-STOPPED-001: freshness of the backup mirror.
+  ...S3_METRIC_NAMES,
   ...READ_LEDGER_METRIC_NAMES,
   ...RECALL_METRIC_NAMES,
   "duckbrain_reads_total",
@@ -258,6 +281,12 @@ export interface HttpMetricsOptions {
   recallCounterFile?: string;
   /** Reuse window for one storage walk (default STORAGE_SCAN_TTL_MS = 60 s). */
   storageScanTtlMs?: number;
+  /**
+   * Reuse window for the S3 freshness walk (default 5 minutes). The walk stats
+   * every syncable file in the store (~495k files on the reference host), so it
+   * is deliberately slower than the byte-counting storage walk.
+   */
+  s3FreshnessScanTtlMs?: number;
   /** Measurement seam (tests): defaults to the real tree walk. */
   measureStorage?: (namespacesPath: string) => Promise<StorageUsage>;
 }
@@ -708,6 +737,70 @@ export function createHttpMetrics(options: HttpMetricsOptions): HttpMetrics {
     labelNames: ["format"],
     registers: [registry],
     collect: publishDeclarations,
+  });
+
+  // S3-SYNC-STOPPED-001: mirror freshness, sampled at collect time from the
+  // same namespaces root (push records + file mtimes; no network).
+  //
+  // `last_push_age_seconds` is +Inf when any namespace has NO clean push on
+  // record — "never pushed" is infinitely stale, and an alert
+  // `duckbrain_s3_last_push_age_seconds > 3600` then fires on it instead of
+  // reading 0 and calling a mirror that never existed fresh.
+  const s3FreshnessSampler: FreshnessSampler | null = storagePath
+    ? createFreshnessSampler({
+        namespacesPath: storagePath,
+        ttlMs: options.s3FreshnessScanTtlMs ?? STORAGE_SCAN_TTL_MS * 5,
+        now,
+      })
+    : null;
+
+  let s3LastPushAge!: Gauge;
+  let s3UnpushedFiles!: Gauge;
+
+  let publishingFreshness: Promise<void> | null = null;
+  const publishFreshness = (): Promise<void> => {
+    if (publishingFreshness) return publishingFreshness;
+    const run = (async (): Promise<void> => {
+      let summary: FreshnessSummary | null = null;
+      if (s3FreshnessSampler) {
+        try {
+          summary = await s3FreshnessSampler.read();
+        } catch {
+          summary = null;
+        }
+      }
+      // No namespaces measured (root missing / empty / walk over budget) is NO
+      // MEASUREMENT, never "008 bytes of unpushed data" or "fresh".
+      if (!summary || summary.namespaces === 0) {
+        s3LastPushAge.remove();
+        s3UnpushedFiles.remove();
+        return;
+      }
+      s3LastPushAge.set(
+        summary.neverPushed > 0
+          ? Number.POSITIVE_INFINITY
+          : (summary.maxPushAgeSeconds ?? Number.POSITIVE_INFINITY),
+      );
+      s3UnpushedFiles.set(summary.unpushedFiles);
+    })();
+    publishingFreshness = run.finally(() => {
+      publishingFreshness = null;
+    });
+    return publishingFreshness;
+  };
+
+  s3LastPushAge = new Gauge({
+    name: S3_LAST_PUSH_AGE_SECONDS,
+    help: "Age in seconds of the OLDEST clean S3 push across namespaces (the snapshot mirror's staleness); +Inf when a namespace has no clean push on record, so a missing schedule can never read as fresh.",
+    registers: [registry],
+    collect: publishFreshness,
+  });
+
+  s3UnpushedFiles = new Gauge({
+    name: S3_UNPUSHED_FILES,
+    help: "Local syncable files across all namespaces that the last clean S3 push does not cover (written after it, or never recorded as pushed) — the set a restore from the mirror would lose.",
+    registers: [registry],
+    collect: publishFreshness,
   });
 
   // OBSDB-005: the read ledger's rotation counter (src/http/readLedger.ts) and
