@@ -50,6 +50,10 @@ available to agents as the MCP tool \`tables_declare\`.
 Options:
   --column <name>=<type>   Declared column (repeatable, at least one).
                            Types: ${TABLE_COLUMN_TYPES.join("|")}
+                           integer and double persist as declared float64
+                           (JSON numbers, safe to +/- 2^53); use bigint for
+                           exact 64-bit values, which persist as canonical
+                           base-10 strings.
   --primary <col>          Primary key column (must be a declared column).
                            Defaults to the FIRST declared column.
   --format <fmt>           Row shape: jsonl-objects (default) or

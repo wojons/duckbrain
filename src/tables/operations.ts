@@ -963,15 +963,68 @@ export const TRANSACTION_MAX_ACTIONS = 100;
 /** Bound on the bytes an envelope may snapshot for rollback. */
 export const TRANSACTION_SNAPSHOT_MAX_BYTES = 64 * 1024 * 1024;
 
-/** Type a URL-supplied primary key into the column's API representation. */
+/**
+ * Coerce a primary key that arrived as URL TEXT into the representation the
+ * declaration actually stores.
+ *
+ * REST-UPSERT-NUMERIC-PK-001: this used to hand the raw string to the declared
+ * validator for every `schema.json` table, on the assumption the validator would
+ * normalise it. It does not — a declared `float64` requires a real JSON number,
+ * so `PUT /tables/cards/8` answered 422 while the same upsert on a `string` key
+ * answered 201. The URL segment is always text; the stored row is not.
+ *
+ * Declared v1 types split three ways:
+ *   - `float64` must become a JSON number (the validator rejects text);
+ *   - `boolean` must become true/false;
+ *   - `int64`, `timestamp`, `string`, `bytes`, `json` are canonical TEXT on the
+ *     wire and in storage, so the segment passes through unchanged.
+ */
+function declaredPkValue(
+  col: TableDeclaration["columns"][number],
+  value: string,
+): unknown {
+  switch (col.declaredType) {
+    case "float64": {
+      const numeric = Number(value);
+      if (value.trim() === "" || !Number.isFinite(numeric)) {
+        throw new ApiError(
+          `Primary key '${col.name}' is a float64 and requires a finite number, got ${JSON.stringify(value)}`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      return numeric === 0 ? 0 : numeric;
+    }
+    case "boolean": {
+      if (value === "true") return true;
+      if (value === "false") return false;
+      throw new ApiError(
+        `Primary key '${col.name}' is a boolean and requires true|false, got ${JSON.stringify(value)}`,
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+    case "int64": {
+      if (!/^-?\d+$/.test(value)) {
+        throw new ApiError(
+          `Primary key '${col.name}' is an int64 and requires a canonical base-10 integer, got ${JSON.stringify(value)}`,
+          400,
+          "VALIDATION_ERROR",
+        );
+      }
+      return value;
+    }
+    default:
+      // string / timestamp / bytes / json: canonical text, pass through.
+      return value;
+  }
+}
+
 function typedPkValue(
   col: TableDeclaration["columns"][number],
   value: string,
 ): unknown {
-  // Declared v1 (SUPA-6) representations are canonical STRINGS for int64 /
-  // timestamp / bytes — hand them through and let the declared validator
-  // normalise; legacy `.table.json` declarations take real JSON primitives.
-  if (col.declaredType !== undefined) return value;
+  if (col.declaredType !== undefined) return declaredPkValue(col, value);
   switch (col.type) {
     case "integer":
     case "bigint": {

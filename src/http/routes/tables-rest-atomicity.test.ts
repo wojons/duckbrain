@@ -52,6 +52,16 @@ function schemaDocument(): unknown {
           { name: "tier", type: "string", nullable: true },
         ],
       },
+      counters: {
+        schemaVersion: 1,
+        storage: { path: "tables/counters/current.jsonl" },
+        rowShape: "object",
+        keyColumns: ["id"],
+        columns: [
+          { name: "id", type: "float64", nullable: false },
+          { name: "label", type: "string", nullable: true },
+        ],
+      },
       orders: {
         schemaVersion: 1,
         storage: { path: "tables/orders/current.jsonl" },
@@ -231,6 +241,44 @@ describe("PUT /tables/:table/:pk — upsert over HTTP", () => {
       .map((line) => JSON.parse(line));
     expect(rows.filter((row: any) => row.id === "c1")).toHaveLength(1);
     expect(rows.find((row: any) => row.id === "c1").name).toBe("Ada Lovelace");
+  });
+
+  // REST-UPSERT-NUMERIC-PK-001: the URL segment is text, the declared column is
+  // not. Before the fix this path answered 422 "expected a finite JSON number".
+  it("answers 201 then 200 for a FLOAT64 primary key and stores a JSON number", async () => {
+    const app = createApp();
+    const created = await httpRequest(app, "PUT", `${base}/counters/7`, {
+      body: { label: "first" },
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.outcome).toBe("inserted");
+    expect(created.body.row).toEqual({ id: 7, label: "first" });
+    expect(typeof (created.body.row as any).id).toBe("number");
+
+    const replaced = await httpRequest(app, "PUT", `${base}/counters/7`, {
+      body: { label: "second" },
+    });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.outcome).toBe("updated");
+    expect(replaced.body.row).toEqual({ id: 7, label: "second" });
+
+    const rows = fs
+      .readFileSync(path.join(nsDir, "tables/counters/current.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(7);
+    expect(typeof rows[0].id).toBe("number");
+  });
+
+  it("refuses a non-numeric key for a FLOAT64 primary key with 400, not 422", async () => {
+    const app = createApp();
+    const res = await httpRequest(app, "PUT", `${base}/counters/not-a-number`, {
+      body: { label: "x" },
+    });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toContain("float64");
   });
 
   it("answers 404 for an undeclared table", async () => {
