@@ -26,11 +26,13 @@ import {
   censusNamespace,
   classifyCorruptMessage,
   listCandidateNamespaces,
+  mergeNamespaceResults,
   runCensus,
 } from "./changelogCensus.js";
 
 const CLEAN_NS = "clean-ns";
 const ORPHAN_NS = "orphan-ns";
+const MULTI_NS = "multi-ns";
 const DECLARED = {
   name: "widgets",
   format: "jsonl-objects",
@@ -121,6 +123,7 @@ function changeRecord(
 
 let cleanHead = "";
 let orphanHead = "";
+let middleCorruptCommit = "";
 
 beforeAll(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "duckbrain-changelog-census-"));
@@ -140,6 +143,43 @@ beforeAll(() => {
       key: { id: "9" },
     }),
   ]);
+
+  // Three commits with the failure in the MIDDLE: a corrupt commit does not
+  // stop the walk, so a namespace reports its whole-history count rather than
+  // only its first offender.
+  const multiPath = path.join(root, MULTI_NS);
+  const firstLine = JSON.stringify({ id: "1", name: "alpha" });
+  seedNamespace(MULTI_NS, [firstLine], [changeRecord(MULTI_NS, firstLine)]);
+  const ghostLine = JSON.stringify({ id: "7", name: "ghost" });
+  fs.writeFileSync(
+    path.join(multiPath, "tables", "widgets.jsonl"),
+    `${firstLine}\n`,
+    "utf-8",
+  );
+  fs.appendFileSync(
+    path.join(multiPath, AUDIT_DIR, "current.jsonl"),
+    `${JSON.stringify(
+      changeRecord(MULTI_NS, ghostLine, {
+        op: "update",
+        seq: 2,
+        key: { id: "7" },
+      }),
+    )}\n`,
+    "utf-8",
+  );
+  middleCorruptCommit = commitAll(multiPath, `${MULTI_NS}: orphan update`);
+  const thirdLine = JSON.stringify({ id: "2", name: "beta" });
+  fs.writeFileSync(
+    path.join(multiPath, "tables", "widgets.jsonl"),
+    `${firstLine}\n${thirdLine}\n`,
+    "utf-8",
+  );
+  fs.appendFileSync(
+    path.join(multiPath, AUDIT_DIR, "current.jsonl"),
+    `${JSON.stringify(changeRecord(MULTI_NS, thirdLine, { seq: 3, key: { id: "2" } }))}\n`,
+    "utf-8",
+  );
+  commitAll(multiPath, `${MULTI_NS}: third commit`);
 });
 
 afterAll(() => {
@@ -150,7 +190,11 @@ describe("changelog corrupt census", () => {
   it("lists only git-backed namespaces that carry an audit ledger", () => {
     fs.mkdirSync(path.join(root, "not-a-repo"), { recursive: true });
     fs.mkdirSync(path.join(root, ".hidden"), { recursive: true });
-    expect(listCandidateNamespaces(root)).toEqual([CLEAN_NS, ORPHAN_NS]);
+    expect(listCandidateNamespaces(root)).toEqual([
+      CLEAN_NS,
+      MULTI_NS,
+      ORPHAN_NS,
+    ]);
   });
 
   it("reports a clean namespace as clean and derives its change records", () => {
@@ -200,20 +244,23 @@ describe("changelog corrupt census", () => {
     const first = buildCensusReport(
       root,
       2,
-      runCensus(root, [CLEAN_NS, ORPHAN_NS], 5),
+      runCensus(root, [CLEAN_NS, MULTI_NS, ORPHAN_NS], 5),
     );
     const second = buildCensusReport(
       root,
       2,
-      runCensus(root, [ORPHAN_NS, CLEAN_NS], 5),
+      runCensus(root, [ORPHAN_NS, MULTI_NS, CLEAN_NS], 5),
     );
 
     // Byte-identical: no timestamps, no durations, stable namespace order.
     expect(JSON.stringify(second)).toBe(JSON.stringify(first));
-    expect(first.namespacesCorrupt).toBe(1);
-    expect(first.corruptCommits).toBe(1);
-    expect(first.commitsScanned).toBe(2);
-    expect(first.corrupt[0].namespace).toBe(ORPHAN_NS);
+    expect(first.namespacesCorrupt).toBe(2);
+    expect(first.corruptCommits).toBe(2);
+    expect(first.commitsScanned).toBe(5);
+    expect(first.corrupt.map((hit) => hit.namespace)).toEqual([
+      MULTI_NS,
+      ORPHAN_NS,
+    ]);
 
     expect(
       [
@@ -239,6 +286,31 @@ describe("changelog corrupt census", () => {
         "utf-8",
       ),
     ).toBe(before.audit);
+  });
+
+  it("reports every corrupt commit, not only the first, across a history", () => {
+    const result = censusNamespace(root, MULTI_NS, 5);
+    expect(result.commits).toBe(3);
+    expect(result.corruptCommits).toBe(1);
+    expect(result.classes).toEqual({ "unresolvable-row-image": 1 });
+    expect(result.samples[0].commit).toBe(middleCorruptCommit);
+    // The clean commits on either side still derive their records.
+    expect(result.derivedChanges).toBe(2);
+  });
+
+  it("merges commit-range slices into the whole-history report", () => {
+    const whole = censusNamespace(root, MULTI_NS, 5);
+    const slices = [0, 1, 2].map((offset) =>
+      censusNamespace(root, MULTI_NS, 5, { offset, limit: 1 }),
+    );
+    expect(slices.map((slice) => slice.commits)).toEqual([1, 1, 1]);
+    expect(mergeNamespaceResults(slices, 5)).toEqual(whole);
+    // Out-of-order slices still surface the history's first offender.
+    const merged = mergeNamespaceResults(
+      [slices[0], slices[1], slices[2]],
+      5,
+    );
+    expect(merged.samples[0].commit).toBe(middleCorruptCommit);
   });
 
   it("classifies the failure families the repair decision turns on", () => {

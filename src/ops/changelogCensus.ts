@@ -139,10 +139,16 @@ export function listCandidateNamespaces(root: string): string[] {
  * walk continues so a namespace reports its full corrupt-commit count rather
  * than only its first offender.
  */
+export interface CommitRange {
+  offset: number;
+  limit: number;
+}
+
 export function censusNamespace(
   root: string,
   namespace: string,
   sampleLimit: number,
+  range?: CommitRange,
 ): NamespaceResult {
   const repoDir = path.join(root, namespace);
   const head = resolveHeadSha(repoDir);
@@ -160,7 +166,12 @@ export function censusNamespace(
       error: "namespace repository has no committed HEAD",
     };
   }
-  const commits = firstParentCommits(repoDir);
+  const history = firstParentCommits(repoDir);
+  // A slice of the first-parent history: the reports of all slices, merged in
+  // history order, are the whole-history report (see mergeNamespaceResults).
+  const commits = range
+    ? history.slice(range.offset, range.offset + range.limit)
+    : history;
   let derivedChanges = 0;
   let corruptCommits = 0;
   const classes: Record<string, number> = {};
@@ -229,14 +240,57 @@ export function runCensus(
   namespaces: string[],
   sampleLimit: number,
   onResult?: (result: NamespaceResult) => void,
+  range?: CommitRange,
 ): NamespaceResult[] {
   const results: NamespaceResult[] = [];
   for (const namespace of namespaces) {
-    const result = censusNamespace(root, namespace, sampleLimit);
+    const result = censusNamespace(root, namespace, sampleLimit, range);
     results.push(result);
     onResult?.(result);
   }
   return results;
+}
+
+/**
+ * Merge per-slice results of ONE namespace, in history order, into the
+ * whole-history result: counts sum, class tallies sum, and the samples keep
+ * history order so the first one is still the namespace's first offender.
+ */
+export function mergeNamespaceResults(
+  parts: NamespaceResult[],
+  sampleLimit: number,
+): NamespaceResult {
+  const first = parts[0];
+  const classes: Record<string, number> = {};
+  const samples: CorruptSample[] = [];
+  let commits = 0;
+  let derivedChanges = 0;
+  let corruptCommits = 0;
+  let error: string | null = null;
+  for (const part of parts) {
+    commits += part.commits;
+    derivedChanges += part.derivedChanges;
+    corruptCommits += part.corruptCommits;
+    for (const [name, count] of Object.entries(part.classes)) {
+      classes[name] = (classes[name] ?? 0) + count;
+    }
+    for (const sample of part.samples) {
+      if (samples.length < sampleLimit) samples.push(sample);
+    }
+    if (part.status === "error") error = part.error;
+  }
+  return {
+    namespace: first.namespace,
+    head: first.head,
+    commits,
+    derivedChanges,
+    corruptCommits,
+    classes,
+    samples,
+    samplesTruncated: Math.max(0, corruptCommits - samples.length),
+    status: error !== null ? "error" : corruptCommits > 0 ? "corrupt" : "clean",
+    error,
+  };
 }
 
 /** Assemble the deterministic report body (sorted, no timestamps/durations). */
