@@ -646,12 +646,50 @@ export async function insertTableRows(
   // honours the mode (fdatasync + directory fsync) and the response reports
   // what it achieved, not what was configured.
   const configured = durabilityHeaderFor(ns);
-  const appended = appendRowsToTable(
-    namespaceDir(ns),
-    declaration,
-    coerced,
-    configured,
-  );
+  const nsDirAbs = namespaceDir(ns);
+  const appended = appendRowsToTable(nsDirAbs, declaration, coerced, configured);
+  // DB-SUPA-5 parity for the legacy `.table.json` declaration path: an
+  // accepted INSERT is a change record like every other accepted mutation.
+  //
+  // Without this, `.table.json` tables carried no birth record in the ledger,
+  // which cost two things. (1) The feed never replayed an insert (the record
+  // did not exist) while UPDATE and DELETE for the same table produced
+  // records — a silent hole in the change stream. (2) An insert deleted
+  // inside ONE commit window left a tombstone naming a row image that exists
+  // at NEITHER ref, and `sameWindowBirthAndDeath()` (REPLAY-BIRTH-DEATH-001)
+  // recognises that case ONLY as a matched pair of records with the same
+  // content hash. With no birth record the pair cannot form, so
+  // deriveCommitChanges threw and every subscriber of the namespace got a
+  // permanent `CHANGELOG_CORRUPT` (reproduced on 2026-11-06 against
+  // origin/main from a fresh clone: POST then DELETE inside the commit
+  // debounce => `GET /api/ns/harden/changes` answered 500 for good).
+  //
+  // The hash must name the bytes that were appended, so it is built from the
+  // same `serializeRowLine` the append used (positional vs object shape
+  // included), never re-read after the fact. Tables with no declared primary
+  // key are append-only logs the REST verbs cannot address, so they keep the
+  // record-less shape.
+  if (declaration.primary !== null) {
+    const files = resolveTableFiles(nsDirAbs, declaration);
+    const targetPath =
+      files.length > 0
+        ? files[files.length - 1]!.absPath
+        : deriveSyntheticFilePath(nsDirAbs, declaration);
+    const relativeTarget = namespaceRelativePath(nsDirAbs, targetPath);
+    for (const row of coerced) {
+      await recordTableMutationAudit(
+        ns,
+        declaration.name,
+        "insert",
+        principal?.name ?? null,
+        {
+          targetPath: relativeTarget,
+          dataLine: serializeRowLine(declaration, row),
+          row,
+        },
+      );
+    }
+  }
   return {
     inserted: appended.inserted,
     durability: { configured, achieved: appended.achieved },
