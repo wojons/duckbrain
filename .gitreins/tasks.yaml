@@ -3356,5 +3356,6 @@ tasks:
   - 'PROOF: the frozen-copy census for namespaces scheduler and pokemon-global reports
     malformed-change-record count 0 with no new corrupt class; FAILIF: the class count
     stays above 0 or a previously clean namespace becomes corrupt'
-  status: in_progress
+  status: complete
   created_at: '2026-11-08T02:51:27.380921+00:00'
+  completed_at: '2026-11-08T10:32:07.420853+00:00'

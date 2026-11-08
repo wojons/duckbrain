@@ -1,0 +1,47 @@
+{
+  "wave_id": "duckbrain-foreman-2026-11-08-02-49-40",
+  "project": "duckbrain",
+  "block": "HARDEN-DUCKBRAIN (HARDENING LOOP contract HARDEN-DUCKBRAIN-001)",
+  "created_at": "2026-11-08T02:55:00Z",
+  "reason": "Resume of the block named by the previous tick's closeout event (HARDEN-DUCKBRAIN-009 filed at 02:44Z). Block has >=2 mutually independent ready rows (008 src/ops+realtime code, 009 .gitignore+measurement), slots=6 (16 cores, loadavg 4.5).",
+  "slots": 6,
+  "wave_size": 2,
+  "base_sha": "a0401ef6",
+  "base_ref": "origin/main",
+  "model": "openai-codex/gpt-6-luna",
+  "workers": [
+    {
+      "row": "HARDEN-DUCKBRAIN-008",
+      "worktree": "/home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-008",
+      "branch": "wt/HARDEN-DUCKBRAIN-008",
+      "base_sha": "a0401ef6",
+      "brief": "/tmp/brief-HARDEN-DUCKBRAIN-008.md",
+      "surface": "src/http/realtime/replay.ts deriveCommitChanges + src/serialization/changeRecord.ts + src/ops/changelogCensus.test.ts + test-counts.json",
+      "independent_from": [
+        "HARDEN-DUCKBRAIN-009"
+      ],
+      "status": "dispatched"
+    },
+    {
+      "row": "HARDEN-DUCKBRAIN-009",
+      "worktree": "/home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-009",
+      "branch": "wt/HARDEN-DUCKBRAIN-009",
+      "base_sha": "a0401ef6",
+      "brief": "/tmp/brief-HARDEN-DUCKBRAIN-009.md",
+      "surface": ".gitignore + docs note; no src/ touch",
+      "independent_from": [
+        "HARDEN-DUCKBRAIN-008"
+      ],
+      "status": "dispatched"
+    }
+  ],
+  "retention_decision_HARDEN-DUCKBRAIN-009": "KEEP .gitreins/rescued-20261105 (418MB, only copy of reaped worktrees' judge history; no deletion, no relocation). Keep .gitreins/history on disk as runtime evidence; both become invisible to git porcelain via .gitignore. Tracked files under .gitreins/ are unaffected by ignore rules.",
+  "merge_order": [
+    "HARDEN-DUCKBRAIN-009",
+    "HARDEN-DUCKBRAIN-008"
+  ],
+  "notes": "009 merged first (tiny, no src overlap) to keep the 008 gate run on a tree whose porcelain is not polluted by 31k untracked evidence paths.",
+  "recovery_status": "recovered",
+  "recovery_result": "HARDEN-DUCKBRAIN-009 landed: commit a800333e (ancestor of main, rc=0) and its board row was closed complete by that tick. HARDEN-DUCKBRAIN-008 produced NO commit but left salvageable uncommitted work in /home/kara/worktrees/duckbrain-HARDEN-DUCKBRAIN-008 (changeRecord.ts legacy schema + replay.ts legacy branch + replay-legacy-row-image.test.ts) — recovered by tick duckbrain-foreman-2026-11-08-10-07-19 (salvage, not re-dispatch). Worktrees retained until the salvage merges.",
+  "finished_at": "2026-11-08T10:20:00Z"
+}
