@@ -59,6 +59,11 @@ packages/ui/src/**/*.js
 .coding-hermes/board/*.duckdb
 .gitreins/usage.jsonl
 
+# HARDEN-DUCKBRAIN-009: keep rescue archives and runtime judge history in place;
+# ignore them so their untracked evidence does not flood porcelain output.
+.gitreins/rescued-*/
+.gitreins/history/
+
 # dagger local state (stray artifact, never track)
 dagger.db
 dagger.db-shm
