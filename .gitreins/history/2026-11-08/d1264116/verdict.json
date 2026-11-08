@@ -1,0 +1,121 @@
+{
+  "task_id": "PERF-DUCKBRAIN-002",
+  "task_title": "PERF-DUCKBRAIN-002 (bench-script half): 500ms latency assertion + non-zero exit",
+  "task_criteria": [
+    "Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row."
+  ],
+  "passed": true,
+  "worktree": "/home/kara/duckbrain",
+  "branch": "main",
+  "commit": "0d43addbef55b47fa6f72320f032cf4a8008e26e",
+  "pass_class": "judged",
+  "tier2_skipped": false,
+  "working_tree_content_fingerprint": "1ebfea2c522c7bbb3cdbe5ce5c604a70998ddbabaa7e3fdaafccc0ed296a1021",
+  "working_tree_dirty_path_count": 31090,
+  "items": [
+    {
+      "criterion": "Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row.",
+      "status": "PASS",
+      "detail": "Default ceiling: scripts/perf/latency-assertion.mjs:2-3 (`rawCeiling === undefined ? 500 : Number(rawCeiling)`); direct probe printed `default ceiling: {\"pass\":true,\"ceilingMs\":500}` and `default breach: {\"pass\":false,\"ceilingMs\":500,\"namespace\":\"ns\",\"sampleMs\":501}`. FAIL line + exit: scripts/perf/perf001-list-latency.mjs:84-89 (`result=FAIL namespace=... sample_ms=... ceiling_ms=...` then `process.exit(1)`). RED arm run live against :3000 with DUCKBRAIN_API_KEY_FILE=$HOME/.duckbrain/foreman-status.token and PERF_ASSERT_MS=1 -> `/tmp/red3.log`: `result=FAIL namespace=coding-hermes sample_ms=1353.6 ceiling_ms=1` (a direct non-detached run also returned EXIT=1). GREEN arm same daemon, PERF_ASSERT_MS=60000 -> `/tmp/green2.log`: `result=PASS ceiling_ms=60000` and `EXIT=0`. Auth seam: perf001-list-latency.mjs:21-24 reads DUCKBRAIN_API_KEY_FILE and sends `x-api-key`; without it the run dies `Error: coding-hermes run 1: HTTP 401` EXIT=1 (/tmp/noauth.log), with it the same URL answers 200 and the run completes \u2014 the token file format (raw 65-byte key, trimmed) matches what src/auth/middleware.ts:201-215 expects. Scope: `git show --name-only HEAD` = scripts/perf/latency-assertion.mjs, scripts/perf/perf001-list-latency.mjs, src/perf/perf-latency-assertion.test.ts, test-counts.json (283/2400 bumped in the same commit). Suite: `npx vitest run` -> `Test Files  283 passed (283)` / `Tests  2400 passed (2400)` / `EXIT=0` (/tmp/fullsuite.log); the new test alone: `Test Files 1 passed (1) / Tests 4 passed (4)`. No mutation: `git ls-files namespaces` empty and `git status --short namespaces` clean; file counts still 20054 (coding-hermes) / 29088 (fleet-quality), matching the pre-change magnitudes; :3000 /health uptime 58,990s (~16.4h) at review time, i.e. not restarted in this row."
+    }
+  ],
+  "merge_recommendation": "no_concerns_found",
+  "stages": {
+    "tier1": {
+      "id": "tier1",
+      "passed": true,
+      "any_failed": false,
+      "summary": "  \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10",
+      "steps": [
+        {
+          "id": "secrets",
+          "type": "script",
+          "passed": true,
+          "output": "secrets: scanners=gitleaks+builtin cross-check\nscanners: nice=nice -n 10\n9:20PM INF scanned ~25984549 bytes (25.98 MB) in 3.16s\n9:20PM INF no leaks found\nsecrets: gitleaks: clean\nWARN: hook_timeout=300s <= test_timeout=1800s in /home/kara/duckbrain: the guard would be cut off mid-run and report a fail-open PASS. Raising this run's budget to 1920s \u2014 set guards.hook_timeout above guards.test_timeout to fix it at the source.\nsecrets: builtin cross-check: Scanned 486703 files \u2014 clean (excluded harness state: .gitreins/**)\nsensitive-path override applied: .npmrc\nsensitive-path override applied: .env.example\nsecrets: builtin cross-check status: clean\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log",
+            "secrets_scanners": [
+              "gitleaks",
+              "builtin"
+            ]
+          }
+        },
+        {
+          "id": "tests",
+          "type": "script",
+          "passed": true,
+          "output": "scanners: nice=nice -n 10\n\n RUN  v5.0.5 /home/kara/duckbrain\n\n(node:1302872) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n[duckbrain] STALE BUILD: dist/ is 72923s older than src/ \u2014 you are running code that predates the current source. Run `pnpm build:cli` (source newer than the build is not in this binary).\n[duckbrain] Cleared stale DuckDB connections\n(node:1312700) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n[duckbrain] MCP server started in stdio mode\n(node:1317730) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1322916) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1325392) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1326485) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1327209) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1327711) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328106) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328146) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328173) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328225) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n\n\u2026 [243 chars omitted \u2014 3 line(s)] \u2026\n(node:1328281) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328388) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328373) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328580) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328617) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328760) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:1328852) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n\n Test Files  283 passed (283)\n      Tests  2400 passed (2400)\n   Start at  21:20:56\n   Duration  74.08s (tests 79%, import 20%, setup 1%, worker 1%)\n\n    Isolate  283 workers spawned \u00b7 ~81ms startup each (spawn + environment, per file)\n             at least ~5.64s faster with isolate: false \u2014 reuses workers across files instead of one per file\n\n",
+          "error": "",
+          "data": {
+            "exit_code": 0,
+            "guard_log": "/home/kara/duckbrain/.gitreins/logs/guard-20261104T143342.918838Z.log"
+          }
+        }
+      ],
+      "coverage": "secrets+tests"
+    },
+    "tier2": {
+      "id": "tier2",
+      "passed": true,
+      "any_failed": false,
+      "summary": "COMPLETE\n  \u2713 Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row.: Default ceiling: scripts/perf/latency-assertion.mjs:2-3 (`rawCeiling === undefined ? 500 : Number(rawCeiling)`); direct probe printed `default ceiling: {\"pass\":true,\"ceilingMs\":500}` and `default breach: {\"pass\":false,\"ceilingMs\":500,\"namespace\":\"ns\",\"sampleMs\":501}`. FAIL line + exit: scripts/perf/perf001-list-latency.mjs:84-89 (`result=FAIL namespace=... sample_ms=... ceiling_ms=...` then `process.exit(1)`). RED arm run live against :3000 with DUCKBRAIN_API_KEY_FILE=$HOME/.duckbrain/foreman-status.token and PERF_ASSERT_MS=1 -> `/tmp/red3.log`: `result=FAIL namespace=coding-hermes sample_ms=1353.6 ceiling_ms=1` (a direct non-detached run also returned EXIT=1). GREEN arm same daemon, PERF_ASSERT_MS=60000 -> `/tmp/green2.log`: `result=PASS ceiling_ms=60000` and `EXIT=0`. Auth seam: perf001-list-latency.mjs:21-24 reads DUCKBRAIN_API_KEY_FILE and sends `x-api-key`; without it the run dies `Error: coding-hermes run 1: HTTP 401` EXIT=1 (/tmp/noauth.log), with it the same URL answers 200 and the run completes \u2014 the token file format (raw 65-byte key, trimmed) matches what src/auth/middleware.ts:201-215 expects. Scope: `git show --name-only HEAD` = scripts/perf/latency-assertion.mjs, scripts/perf/perf001-list-latency.mjs, src/perf/perf-latency-assertion.test.ts, test-counts.json (283/2400 bumped in the same commit). Suite: `npx vitest run` -> `Test Files  283 passed (283)` / `Tests  2400 passed (2400)` / `EXIT=0` (/tmp/fullsuite.log); the new test alone: `Test Files 1 passed (1) / Tests 4 passed (4)`. No mutation: `git ls-files namespaces` empty and `git status --short namespaces` clean; file counts still 20054 (coding-hermes) / 29088 (fleet-quality), matching the pre-change magnitudes; :3000 /health uptime 58,990s (~16.4h) at review time, i.e. not restarted in this row.\n",
+      "steps": [
+        {
+          "id": "tier2",
+          "type": "ai_eval",
+          "passed": true,
+          "output": "COMPLETE\n  \u2713 Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row.: Default ceiling: scripts/perf/latency-assertion.mjs:2-3 (`rawCeiling === undefined ? 500 : Number(rawCeiling)`); direct probe printed `default ceiling: {\"pass\":true,\"ceilingMs\":500}` and `default breach: {\"pass\":false,\"ceilingMs\":500,\"namespace\":\"ns\",\"sampleMs\":501}`. FAIL line + exit: scripts/perf/perf001-list-latency.mjs:84-89 (`result=FAIL namespace=... sample_ms=... ceiling_ms=...` then `process.exit(1)`). RED arm run live against :3000 with DUCKBRAIN_API_KEY_FILE=$HOME/.duckbrain/foreman-status.token and PERF_ASSERT_MS=1 -> `/tmp/red3.log`: `result=FAIL namespace=coding-hermes sample_ms=1353.6 ceiling_ms=1` (a direct non-detached run also returned EXIT=1). GREEN arm same daemon, PERF_ASSERT_MS=60000 -> `/tmp/green2.log`: `result=PASS ceiling_ms=60000` and `EXIT=0`. Auth seam: perf001-list-latency.mjs:21-24 reads DUCKBRAIN_API_KEY_FILE and sends `x-api-key`; without it the run dies `Error: coding-hermes run 1: HTTP 401` EXIT=1 (/tmp/noauth.log), with it the same URL answers 200 and the run completes \u2014 the token file format (raw 65-byte key, trimmed) matches what src/auth/middleware.ts:201-215 expects. Scope: `git show --name-only HEAD` = scripts/perf/latency-assertion.mjs, scripts/perf/perf001-list-latency.mjs, src/perf/perf-latency-assertion.test.ts, test-counts.json (283/2400 bumped in the same commit). Suite: `npx vitest run` -> `Test Files  283 passed (283)` / `Tests  2400 passed (2400)` / `EXIT=0` (/tmp/fullsuite.log); the new test alone: `Test Files 1 passed (1) / Tests 4 passed (4)`. No mutation: `git ls-files namespaces` empty and `git status --short namespaces` clean; file counts still 20054 (coding-hermes) / 29088 (fleet-quality), matching the pre-change magnitudes; :3000 /health uptime 58,990s (~16.4h) at review time, i.e. not restarted in this row.\n",
+          "error": "",
+          "data": {
+            "verdict": "COMPLETE",
+            "items": [
+              {
+                "criterion": "Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row.",
+                "status": "PASS",
+                "detail": "Default ceiling: scripts/perf/latency-assertion.mjs:2-3 (`rawCeiling === undefined ? 500 : Number(rawCeiling)`); direct probe printed `default ceiling: {\"pass\":true,\"ceilingMs\":500}` and `default breach: {\"pass\":false,\"ceilingMs\":500,\"namespace\":\"ns\",\"sampleMs\":501}`. FAIL line + exit: scripts/perf/perf001-list-latency.mjs:84-89 (`result=FAIL namespace=... sample_ms=... ceiling_ms=...` then `process.exit(1)`). RED arm run live against :3000 with DUCKBRAIN_API_KEY_FILE=$HOME/.duckbrain/foreman-status.token and PERF_ASSERT_MS=1 -> `/tmp/red3.log`: `result=FAIL namespace=coding-hermes sample_ms=1353.6 ceiling_ms=1` (a direct non-detached run also returned EXIT=1). GREEN arm same daemon, PERF_ASSERT_MS=60000 -> `/tmp/green2.log`: `result=PASS ceiling_ms=60000` and `EXIT=0`. Auth seam: perf001-list-latency.mjs:21-24 reads DUCKBRAIN_API_KEY_FILE and sends `x-api-key`; without it the run dies `Error: coding-hermes run 1: HTTP 401` EXIT=1 (/tmp/noauth.log), with it the same URL answers 200 and the run completes \u2014 the token file format (raw 65-byte key, trimmed) matches what src/auth/middleware.ts:201-215 expects. Scope: `git show --name-only HEAD` = scripts/perf/latency-assertion.mjs, scripts/perf/perf001-list-latency.mjs, src/perf/perf-latency-assertion.test.ts, test-counts.json (283/2400 bumped in the same commit). Suite: `npx vitest run` -> `Test Files  283 passed (283)` / `Tests  2400 passed (2400)` / `EXIT=0` (/tmp/fullsuite.log); the new test alone: `Test Files 1 passed (1) / Tests 4 passed (4)`. No mutation: `git ls-files namespaces` empty and `git status --short namespaces` clean; file counts still 20054 (coding-hermes) / 29088 (fleet-quality), matching the pre-change magnitudes; :3000 /health uptime 58,990s (~16.4h) at review time, i.e. not restarted in this row.",
+                "resolution_probability": 0.47
+              }
+            ],
+            "summary": "",
+            "provenance": {
+              "model": "deepseek-v4-flash",
+              "base_url_source": "GITREINS_LLM_BASE_URL",
+              "api_key_source": "GITREINS_LLM_API_KEY"
+            }
+          }
+        }
+      ],
+      "model": "deepseek-v4-flash",
+      "base_url_source": "GITREINS_LLM_BASE_URL",
+      "api_key_source": "GITREINS_LLM_API_KEY"
+    }
+  },
+  "summary": "Judge Result: PERF-DUCKBRAIN-002\n\nStage tier1: PASS\n    \u2713 secrets: secrets: scanners=gitleaks+builtin cross-check\n  \u2713 tests: scanners: nice=nice -n 10\n\nStage tier2: PASS\n  COMPLETE\n  \u2713 Bench script asserts the 500ms ceiling and fails loudly: scripts/perf/perf001-list-latency.mjs defines a default PERF_ASSERT_MS=500 latency ceiling and exits non-zero (process.exit(1)) with a machine-readable FAIL summary line when any sample exceeds it; a RED arm proves the gate bites (run with PERF_ASSERT_MS=1 against a daemon -> prints result=FAIL and exits 1); a GREEN arm proves it can pass (PERF_ASSERT_MS above the measured latency -> prints result=PASS and exits 0); the script can target an authenticated daemon by reading a token file named in DUCKBRAIN_API_KEY_FILE and sending it as the x-api-key header (the live :3000 port answers 401 without it), so the live acceptance run in PERF-DUCKBRAIN-002 criterion 3 is executable; the change is confined to the perf script plus one new test that exercises the threshold helper, and pnpm test:run stays green. No production mutation: no namespace data is squashed and no daemon is restarted in this row.: Default ceiling: scripts/perf/latency-assertion.mjs:2-3 (`rawCeiling === undefined ? 500 : Number(rawCeiling)`); direct probe printed `default ceiling: {\"pass\":true,\"ceilingMs\":500}` and `default breach: {\"pass\":false,\"ceilingMs\":500,\"namespace\":\"ns\",\"sampleMs\":501}`. FAIL line + exit: scripts/perf/perf001-list-latency.mjs:84-89 (`result=FAIL namespace=... sample_ms=... ceiling_ms=...` then `process.exit(1)`). RED arm run live against :3000 with DUCKBRAIN_API_KEY_FILE=$HOME/.duckbrain/foreman-status.token and PERF_ASSERT_MS=1 -> `/tmp/red3.log`: `result=FAIL namespace=coding-hermes sample_ms=1353.6 ceiling_ms=1` (a direct non-detached run also returned EXIT=1). GREEN arm same daemon, PERF_ASSERT_MS=60000 -> `/tmp/green2.log`: `result=PASS ceiling_ms=60000` and `EXIT=0`. Auth seam: perf001-list-latency.mjs:21-24 reads DUCKBRAIN_API_KEY_FILE and sends `x-api-key`; without it the run dies `Error: coding-hermes run 1: HTTP 401` EXIT=1 (/tmp/noauth.log), with it the same URL answers 200 and the run completes \u2014 the token file format (raw 65-byte key, trimmed) matches what src/auth/middleware.ts:201-215 expects. Scope: `git show --name-only HEAD` = scripts/perf/latency-assertion.mjs, scripts/perf/perf001-list-latency.mjs, src/perf/perf-latency-assertion.test.ts, test-counts.json (283/2400 bumped in the same commit). Suite: `npx vitest run` -> `Test Files  283 passed (283)` / `Tests  2400 passed (2400)` / `EXIT=0` (/tmp/fullsuite.log); the new test alone: `Test Files 1 passed (1) / Tests 4 passed (4)`. No mutation: `git ls-files namespaces` empty and `git status --short namespaces` clean; file counts still 20054 (coding-hermes) / 29088 (fleet-quality), matching the pre-change magnitudes; :3000 /health uptime 58,990s (~16.4h) at review time, i.e. not restarted in this row.\n\n\nOverall: PASS \u2713",
+  "evaluated_at": "2026-11-08T02:35:06.125816",
+  "supersedes": null,
+  "superseded_by": null,
+  "evidence": {
+    "collected_at": "2026-11-08T02:35:06.162487+00:00",
+    "items": [
+      {
+        "name": "patch",
+        "label": "Landed commit patch",
+        "file": "commit.patch",
+        "bytes": 2272,
+        "truncated": false,
+        "source": "git show a50955261e9d"
+      },
+      {
+        "name": "worktree",
+        "label": "Working-tree diff (graded)",
+        "file": "worktree.patch",
+        "bytes": 76755,
+        "truncated": false,
+        "source": "git diff HEAD (working tree)"
+      }
+    ],
+    "task_id": "PERF-DUCKBRAIN-002"
+  }
+}

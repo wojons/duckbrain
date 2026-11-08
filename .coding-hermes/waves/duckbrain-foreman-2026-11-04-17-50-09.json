@@ -1,0 +1,34 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-04-17-50-09",
+  "block": "PERF-DUCKBRAIN-002",
+  "path": "serial-fallback",
+  "wave_size": 1,
+  "wave_budget": 1,
+  "slots_computed": 1,
+  "slots_note": "nproc=16 loadavg=22.04 -> max(1,min(6,16-ceil(22.04)))=1; WAVE_BUDGET=1 also caps at 1. Serial path by sizing, not idle.",
+  "reason_serial": "slots < 2 and WAVE_BUDGET=1",
+  "resume_first": {
+    "prior_tick_closeout": "duckbrain-foreman-2026-11-04-14-43-55 closed block PERF-DUCKBRAIN-001 PARTIAL/BLOCKED and filed PERF-DUCKBRAIN-002",
+    "dangling_lifecycle": "gitreins task PERF-DUCKBRAIN-002 was created+started at 2026-11-04T17:01:19Z by an execution that wrote no board event and no commit; this tick resumes that exact task instead of re-creating it",
+    "row_scope": "only criterion 5 (bench-script assertion + auth header) is non-owner-gated; criteria 1-4 mutate live namespaces / restart :3000 and stay owner-gated"
+  },
+  "rows": [
+    {
+      "task_id": "PERF-DUCKBRAIN-002",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-002",
+      "branch": "wt/PERF-DUCKBRAIN-002",
+      "base": "origin/main",
+      "base_sha": "f77c5675",
+      "brief": "/home/kara/.hermes/cache/scratch/tick-2026-11-04-17-50-09/brief-PERF-DUCKBRAIN-002.txt",
+      "model": "glm-5.3-flash",
+      "provider": "zai-glm-default",
+      "independent_of": []
+    }
+  ],
+  "workers": [],
+  "created_at": "2026-11-04T12:57:00-05:00",
+  "recovery_status": "recovered-no-work",
+  "recovery_result": "Recovered by duckbrain-foreman-2026-11-08-02-04-01. workers=[] is accurate: this wave never dispatched. Its only row branched as wt/PERF-DUCKBRAIN-002, which was still a ZERO-COMMIT branch at its base f77c5675 (rev-list f77c5675..wt/PERF-DUCKBRAIN-002 = 0) and whose worktree /home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-002 no longer existed. Nothing to gate, rebase or merge: the branch was removed. The gitreins task PERF-DUCKBRAIN-002 stayed in_progress from 2026-11-04T17:01:19Z with no commit and no board event; the recovery tick resumed that same task (no re-create) and dispatched its AC5 bench-script slice in worktree duckbrain-PERF-DUCKBRAIN-002-bench from base aa3ba932, recorded in .coding-hermes/waves/duckbrain-foreman-2026-11-08-02-04-01.json. Criteria 1-4 and 6 of PERF-DUCKBRAIN-002 stay owner-gated (live namespace mutation + :3000 relaunch).",
+  "recovered_by_tick": "duckbrain-foreman-2026-11-08-02-04-01",
+  "finished_at": "2026-11-08T02:22:00-05:00"
+}

@@ -3078,8 +3078,9 @@ tasks:
     confined to the perf script plus one new test that exercises the threshold helper,
     and pnpm test:run stays green. No production mutation: no namespace data is squashed
     and no daemon is restarted in this row.'
-  status: in_progress
+  status: complete
   created_at: '2026-11-04T17:01:19.751191+00:00'
+  completed_at: '2026-11-08T02:20:55.971029+00:00'
 - id: OBSDB-004
   title: 'OBSDB-004: git commit/push write path on the metrics surface'
   criteria:
@@ -3229,3 +3230,114 @@ tasks:
   - The full suite is green and test-counts.json is bumped in the same commit.
   status: pending
   created_at: '2026-11-06T07:57:57.788514+00:00'
+- id: SURFACE-PARITY-001
+  title: 'SURFACE-PARITY-001: nothing prevents surface drift between CLI, HTTP and
+    MCP'
+  criteria:
+  - One file (src/surface/capabilities.ts) lists each capability with the surface(s)
+    it is exposed on and, for each ABSENT surface, either an n/a reason or nothing
+    (pending).
+  - 'A test FAILS when code and file disagree in either direction: a verb implemented
+    on a surface but absent from the matrix, and a verb in the matrix marked present
+    that no longer exists. Proved by deleting one route and one MCP registration and
+    showing the test fails naming both.'
+  - 'The test is cheap enough for the default suite (no daemon boot): it introspects
+    the real registries (Express mounts built in process, the MCP tool registry, the
+    bin command switch) rather than probing HTTP.'
+  - A generated section of the docs comes from the same source (docs/api/surface-parity.md
+    via pnpm docs:surface) and goes stale-red when the matrix changes.
+  - Do not implement the missing surfaces here; the row only makes the gap visible
+    and keeps it honest.
+  status: complete
+  created_at: '2026-11-06T10:17:25.353150+00:00'
+  completed_at: '2026-11-06T10:17:28.330881+00:00'
+- id: SURFACE-S3-001
+  title: 'SURFACE-S3-001: S3 sync/query/config have no network surface'
+  criteria:
+  - GET /api/ns/:ns/s3 exposes status (last push, object count, drift) and POST /api/ns/:ns/s3/sync
+    triggers a sync through the same implementation the CLI uses, authorized as admin
+    or writer on that namespace, returning the counts the CLI prints.
+  - 'On a scratch daemon with a local S3-compatible target: status before sync, sync,
+    status after with the pushed count increasing, and a second sync proving idempotence
+    (0 new objects).'
+  - Ghost cleanup is reachable or explicitly documented as CLI-only with the reason;
+    the route set includes POST ghosts (list) plus a destructive clear that requires
+    confirm and is audited.
+  - An MCP tool is added only if the HTTP surface lands cleanly; the deciding factor
+    is whether an agent can complete the compaction runbook end to end without a shell,
+    and the answer is stated in the row.
+  - test-counts.json is bumped in the same commit and the full suite is green.
+  status: pending
+  created_at: '2026-11-06T11:38:12.845333+00:00'
+- id: REST-OPERATORS-001
+  title: "REST-OPERATORS-001: table filter grammar \u2014 fts/plfts, isdistinct, is,\
+    \ ilike, neq alias, not. negation; 25 PostgREST operators each carry an IMPLEMENTED/DELIBERATELY-ABSENT/TODO\
+    \ decision in docs/api/http-api.md; unknown operator 400 names the operator, the\
+    \ closest supported one and the full list; every implemented operator proven on\
+    \ a scratch daemon with a matching and a non-matching row, plus a pre-fix control;\
+    \ test-counts.json bumped in the same commit and the full suite green"
+  criteria:
+  - 'The 25 PostgREST comparison operators each carry a decision in docs/api/http-api.md:
+    IMPLEMENTED, or DELIBERATELY-ABSENT with the JSONL reason, or TODO.'
+  - fts and plfts match whole tokens on a text column (the row helloworld is NOT returned
+    by fts.hello, while like.%hello% does return it), and isdistinct is NULL-safe
+    (isdistinct.5 returns the NULL-qty row, eq.5 cannot).
+  - An unknown operator returns 400 VALIDATION_ERROR naming the operator, the closest
+    supported operator and the full supported list, and the filter is never silently
+    ignored.
+  - Each implemented operator is proven on a scratch daemon (port 28700-28999, its
+    own DUCKBRAIN_NAMESPACES_PATH under scratch, never :3000) with a matching and
+    a non-matching row; the pre-fix daemon on the same data answers 500 for qty=gte.5
+    and 400 unknown-operator for fts/plfts/isdistinct/not.
+  - test-counts.json is bumped in the same commit (272 suites / 2306 tests) and the
+    full suite passes.
+  status: pending
+  created_at: '2026-11-06T12:42:24.678732+00:00'
+- id: RLS-001
+  title: 'RLS-001: declare row-level security per (namespace, table) in the schema.json
+    declaration, enforced on every data verb and the change feed'
+  criteria:
+  - A policy {read:{column,equals}, write:{column,equals}} is declared in the SAME
+    schema.json table definition (no second format); column must be a declared column
+    and equals is a literal or a .id/.name principal reference; malformed policy is
+    a declaration error, never silently no policy.
+  - 'Enforced AFTER the existing grant check on GET, PATCH, DELETE, PUT, insert, the
+    transaction envelope and the change feed: excluded rows are neither revealed nor
+    mutated, and the feed applies the same predicate on replay and live delivery.'
+  - A PATCH that matches only rows the policy excludes returns the SAME {updated:0}
+    shape as a PATCH that matched nothing (no existence oracle).
+  - A row missing the policy column is DENIED (never treated as everybody's row).
+  - Row-policy denials are audited in the namespace audit with reason 'row_policy',
+    distinct from the grant layer's 'table_grant'.
+  - 'Two principals on a scratch daemon: principal A writes 3 rows; principal B sees
+    0 of them, cannot PATCH/DELETE them, and A still sees its own 3.'
+  - test-counts.json is bumped in the same commit and the full suite (pnpm test:run)
+    is green.
+  status: complete
+  created_at: '2026-11-06T13:57:05.132130+00:00'
+  completed_at: '2026-11-06T13:57:09.807032+00:00'
+- id: TESTQ-2026-11-06-1
+  title: 'TESTQ-2026-11-06-1: /health CORS test must accept the GAP-030 200|503 pair
+    (CI red for 34 runs)'
+  criteria:
+  - 'GET /health with Origin carries access-control-allow-origin: * on BOTH 200 and
+    503 (GAP-030 pair accepted) instead of requiring 200'
+  - 'Other assertions in http-cors-example-app-001.test.ts are not weakened: preflight
+    204, 401-with-CORS, expose-headers stay exact'
+  - 'Red-proof: with DUCKBRAIN_EMBEDDING_PROVIDER=lmstudio DUCKBRAIN_EMBEDDING_BASE_URL=http://127.0.0.1:1
+    the file PASSES after the fix and FAILED before it'
+  - CI is green on the fix commit from a fresh push run (not a rerun of an older SHA)
+  - 'Suite/test counts unchanged: test-counts.json stays 274 suites / 2329 tests'
+  status: pending
+  created_at: '2026-11-06T15:11:08.043442+00:00'
+- id: REST-UPSERT-NUMERIC-PK-001
+  title: Numeric primary key upsert
+  criteria:
+  - PUT upsert on a schema.json table with a numeric primary key returns 201 then
+    200 and stores a JSON number
+  - A non-numeric key on a float64 primary key is refused with 400 naming the declared
+    type
+  - Full suite green with test-counts.json synced in the same commit
+  status: complete
+  created_at: '2026-11-07T05:57:10.196933+00:00'
+  completed_at: '2026-11-07T05:59:58.105470+00:00'

@@ -1,0 +1,53 @@
+commit a50955261e9d972e0c7f1f15ffb1bbe00811d3e5
+Author:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+AuthorDate: Sat Nov 7 21:25:02 2026 -0500
+Commit:     totalwindupflightsystems <totalwindupflightsystems@gmail.com>
+CommitDate: Sat Nov 7 21:25:02 2026 -0500
+
+    fix(perf): type-declare the latency-assertion helper (CI type check red)
+    
+    0d43addb added scripts/perf/latency-assertion.mjs and a TypeScript test that imports
+    it. `pnpm run build:cli` (tsconfig.build.json) does not cover the test tree, so the
+    worker's local gate passed while CI's `pnpm tsc --noEmit` failed:
+    
+      src/perf/perf-latency-assertion.test.ts(2,33): error TS7016: Could not find a
+      declaration file for module '../../scripts/perf/latency-assertion.mjs'.
+    
+    The helper stays .mjs (plain node imports it from perf001-list-latency.mjs without a
+    loader), so the fix is a sidecar declaration at scripts/perf/latency-assertion.d.mts,
+    which TS resolves for a .mjs specifier.
+    
+    Reproduced the red locally first (same TS7016, rc=1), then after the declaration:
+    `pnpm tsc --noEmit` rc=0, and the new test still runs 4/4 pass.
+    
+    Co-authored-by: Alexis Okuwa <wojonstech@gmail.com>
+---
+ scripts/perf/latency-assertion.d.mts | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/scripts/perf/latency-assertion.d.mts b/scripts/perf/latency-assertion.d.mts
+new file mode 100644
+index 00000000..4838d942
+--- /dev/null
++++ b/scripts/perf/latency-assertion.d.mts
+@@ -0,0 +1,20 @@
++/**
++ * Types for the plain-Node helper `latency-assertion.mjs`.
++ *
++ * The helper is a `.mjs` module so `scripts/perf/perf001-list-latency.mjs` can import it
++ * from plain node without a loader, but the unit test that exercises it is TypeScript.
++ * Without this declaration `tsc --noEmit` (CI "Run type check") fails TS7016 on the
++ * import; `build:cli` alone does not cover the test tree, which is how that red reached
++ * main on 0d43addb.
++ */
++export interface LatencyVerdict {
++  pass: boolean;
++  ceilingMs: number;
++  namespace?: string;
++  sampleMs?: number;
++}
++
++export function evaluateLatency(
++  samplesByNamespace: Record<string, readonly number[]>,
++  env?: Record<string, string | undefined>,
++): LatencyVerdict;

@@ -1,0 +1,55 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-08-02-04-01",
+  "block": "PERF-DUCKBRAIN-002",
+  "path": "serial-fallback",
+  "wave_size": 1,
+  "wave_budget": 9,
+  "slots_computed": 6,
+  "slots_note": "nproc=16 loadavg_1m=9.15 -> max(1,min(6,16-ceil(9.15)))=6; WAVE_BUDGET=9. Serial by availability, not by load: the resumed block has exactly ONE row whose remaining acceptance criterion is not owner-gated.",
+  "reason_serial": "only one dispatchable independent row after recovery (PERF-DUCKBRAIN-002 AC5). The block's other criteria (1-4,6) mutate live namespaces and restart :3000 and stay owner-gated.",
+  "recovery": {
+    "manifest": ".coding-hermes/waves/duckbrain-foreman-2026-11-04-17-50-09.json",
+    "workers_recorded": 0,
+    "worker_branch": "wt/PERF-DUCKBRAIN-002",
+    "worker_branch_ahead_of_base": 0,
+    "worker_branch_base": "f77c5675",
+    "worktree_present": false,
+    "result": "zero-commit branch at its base, no worktree, no worker ever dispatched: nothing to gate, merge or rebase. Branch removed; manifest closed with recovery_status=recovered-no-work.",
+    "recovered_outside_named_wave": {
+      "branch": "wt/HARDEN-DUCKBRAIN-007",
+      "commits": ["e0e42fc1", "aa3ba932"],
+      "what": "read-only CHANGELOG_CORRUPT census (AC1+AC2 of HARDEN-DUCKBRAIN-007) sat unmerged in a worktree the row counted as done",
+      "action": "rebased onto aa3ba932-precursor 43fc8f42, test-counts.json regenerated from a live 282-suite/2396-test run, suite+build green, fast-forwarded to main and pushed as aa3ba932"
+    }
+  },
+  "rows": [
+    {
+      "task_id": "PERF-DUCKBRAIN-002",
+      "slice": "AC5 — bench-script 500ms assertion + auth header",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-DUCKBRAIN-002-bench",
+      "branch": "wt/PERF-DUCKBRAIN-002-bench",
+      "base": "origin/main",
+      "base_sha": "aa3ba932",
+      "brief": "/home/kara/.hermes/cache/scratch/db-foreman-2026-11-08-02-04-01/brief-PERF-DUCKBRAIN-002-bench.txt",
+      "model": "gpt-6-luna",
+      "provider": "openai-codex",
+      "gitreins_task": "PERF-DUCKBRAIN-002 (already in_progress since 2026-11-04T17:01:19Z — resumed, not re-created)",
+      "independent_of": []
+    }
+  ],
+  "workers": [
+    {
+      "task_id": "PERF-DUCKBRAIN-002",
+      "worker": "gpt-6-luna@openai-codex",
+      "status": "exited 0",
+      "commit": "0d43addb",
+      "merged_sha": "0d43addb",
+      "followup_commit": "a5095526",
+      "followup_reason": "CI 'Run type check' failed TS7016 on 0d43addb (declaration missing for the .mjs helper import); foreman-added scripts/perf/latency-assertion.d.mts, tsc --noEmit rc=0",
+      "verdict": ".gitreins/history/2026-11-08/d1264116/verdict.json (id d0d1a79f, passed=true, commit=0d43addb, tier1 PASS, tier2 PASS)"
+    }
+  ],
+  "created_at": "2026-11-08T02:04:01-05:00",
+  "finished_at": "2026-11-08T02:41:00-05:00",
+  "result": "AC5 landed (0d43addb + declaration fix a5095526). AC1-4 and AC6 remain owner-gated: production segment compaction + :3000 relaunch. Live default-ceiling run FAILs (coding-hermes 1746.8ms warm median 1084.9ms vs 500ms) — that is the owner-gated half's quantified case, not a regression."
+}
