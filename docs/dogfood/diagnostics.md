@@ -979,3 +979,10 @@ The isolated HTTP and CLI workflow passed at HEAD `db695496bbfc68fd24e24940f095f
 The status parser has a silent wrong-state path: `status --namespace=dogfood1027` selects the requested namespace, while `status --namespace dogfood1027` exits 0, prints `Namespace: true`, and falls back to the default path. Use equals-form options until DF-2026-9 is fixed.
 
 The bunker install agent installed the clean dependency tree and recorded a build-only `fresh-install` cell, but did not record the README health/create/write/read smoke. The evidence is PARTIAL/UNPROVEN and corroborates the same-tick install/collision evidence already filed under DF-2026-7; no duplicate install row was retained. The agent was destroyed and verified absent from the server census.
+
+
+## Run 19 — 2026-11-08 HTTP compatibility and fresh-install re-proof
+
+At published product HEAD 43c22c81191a0a1661c9acc3fc9617946f45e262, an isolated scratch daemon completed the core namespace → write → exact-key read → list → key-tree → keyword-search workflow. The legacy `GET /api/search` compatibility route returned 301 `Location: /api/memories?q=` for a request carrying `contains=real%20user` and `namespace=dogfood-realuse`, silently dropping both inputs. Direct `/api/memories?q=...&namespace=...` worked and returned a highlighted hit. This is DF-2026-21; use the direct route until the compatibility redirect is repaired.
+
+Install evidence is explicit and bounded: bunker-mvp was online, but its agents reported `net: shared` and therefore did not prove tenant isolation. The detached battery recorded fresh-install OK (6s, pnpm 12.4.2), tests OK, Docker build OK, and compose config OK. Collection remained RUNNING until the run-owned agent was destroyed. The first destroy refused on two live operator processes; `bunker destroy 34b4e7d3 --server bunker-mvp --force` succeeded, and the fresh census plus `info` proved absence.
