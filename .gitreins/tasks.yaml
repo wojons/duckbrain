@@ -3341,3 +3341,20 @@ tasks:
   status: complete
   created_at: '2026-11-07T05:57:10.196933+00:00'
   completed_at: '2026-11-07T05:59:58.105470+00:00'
+- id: HARDEN-DUCKBRAIN-008
+  title: Legacy row-image audit records derive instead of CHANGELOG_CORRUPT
+  criteria:
+  - 'PROOF: a legacy row-image record (production shape: ts/ns/table/op/principal/outcome/seq/row,
+    no contentHash/targetPath/tombstone/schemaVersion) returns one DerivedChange whose
+    row is the inline row image and whose key follows the declared key columns; FAILIF:
+    deriveCommitChanges still throws ''is malformed'' for that record on the merged
+    tree'
+  - 'PROOF: hash-format records with a fabricated contentHash, legacy records missing
+    a declared key column, legacy delete records with row:null, ns-mismatched records
+    and tombstone/op-mismatched records all still throw; FAILIF: any of those five
+    guards passes silently'
+  - 'PROOF: the frozen-copy census for namespaces scheduler and pokemon-global reports
+    malformed-change-record count 0 with no new corrupt class; FAILIF: the class count
+    stays above 0 or a previously clean namespace becomes corrupt'
+  status: in_progress
+  created_at: '2026-11-08T02:51:27.380921+00:00'

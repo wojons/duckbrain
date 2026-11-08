@@ -83,6 +83,37 @@ export const ChangeRecordSchema = z.object({
 
 export type ChangeRecord = z.infer<typeof ChangeRecordSchema>;
 
+/**
+ * Pre-SCHED-GAP-1574 accepted audit row carrying its row image inline.
+ *
+ * Production shape (verified on the frozen `pokemon-global` copy at commit
+ * 99862a2f, `_audit/current.jsonl:1`) keeps `key`, `targetPath`, `tombstone`
+ * and `schemaVersion` and carries `row` — it simply has NO `contentHash`.
+ * The minimal shape (only `row` plus the envelope) is also accepted, in which
+ * case the missing fields are derived. A record that reaches this branch with
+ * no usable row image is corrupt: a tombstone must still name the row it
+ * deleted.
+ */
+export const LegacyRowImageChangeRecordSchema = z.object({
+  ts: z.string().min(1),
+  ns: z.string().min(1),
+  table: z.string().min(1),
+  op: z.enum(CHANGE_OPERATIONS),
+  principal: z.string().nullable().optional(),
+  outcome: z.literal("accepted"),
+  seq: z.number().int().positive().optional(),
+  targetPath: z.string().min(1).optional(),
+  tombstone: z.boolean().optional(),
+  schemaVersion: z.number().int().positive().optional(),
+  row: z.unknown().refine((row) => row !== null && row !== undefined, {
+    message: "legacy change record has no row image",
+  }),
+});
+
+export type LegacyRowImageChangeRecord = z.infer<
+  typeof LegacyRowImageChangeRecordSchema
+>;
+
 /** An audit line that claims to be a change record (marker field present). */
 export function isChangeRecordCandidate(
   entry: Record<string, unknown>,

@@ -36,9 +36,11 @@ import {
   isAuditSegmentFile,
 } from "../../serialization/auditLedger";
 import {
+  LegacyRowImageChangeRecordSchema,
   ChangeRecordSchema,
   contentHashFor,
   declaredKeyColumns,
+  declaredSchemaVersion,
   isChangeRecordCandidate,
   isSafeRepoRelativePath,
   keyMaterialFor,
@@ -56,12 +58,8 @@ import {
 export interface DerivedChange {
   commit: string;
   ordinal: number;
-  record: ChangeRecord;
-  /**
-   * The row image, resolved from the committed data file at
-   * `record.targetPath` and verified against `record.contentHash`
-   * (SCHED-GAP-1574 — the ledger stores the hash, not the row).
-   */
+  record: ChangeRecord & { row?: unknown };
+  /** Row image resolved from committed data by hash or legacy inline image. */
   row: unknown;
   committedAt: string;
 }
@@ -458,27 +456,126 @@ export function deriveCommitChanges(
     // Denial rows and marker-less audit rows are legitimate ledger content but
     // are not change records. A line carrying ANY change-record marker must
     // validate completely — a partial record is corrupt, not a skipped event.
+    // NOTE: do not widen this predicate to envelope-only rows (ts/ns/table/op/
+    // principal/outcome/seq with no row and no hash): early scheduler-era rows
+    // carry no replayable payload and were always skipped by the marker test.
+    // Widening it turns 658 historical commits into `malformed-change-record`.
     if (!isChangeRecordCandidate(entry)) continue;
 
-    const validation = ChangeRecordSchema.safeParse(entry);
-    if (!validation.success) {
-      throw corrupt(
-        `accepted change record at '${AUDIT_DIR}/${added.segment}:${added.line}' ` +
-          `is malformed: ${validation.error.issues
-            .map(
-              (issue) =>
-                `${issue.path.map(String).join(".") || "general"}: ${issue.message}`,
-            )
-            .join(", ")}`,
-        {
-          commit: childRef,
-          parent: parentRef,
-          path: `${AUDIT_DIR}/${added.segment}`,
-          line: added.line,
-        },
+    // SCHED-GAP-1574 legacy shape: the ledger predates `contentHash` and carries
+    // the row image inline instead. Detection is `row` present + no string
+    // contentHash — the production rows also keep key/targetPath/tombstone/
+    // schemaVersion, so keying on the ABSENCE of those fields missed them.
+    const legacy =
+      typeof entry.contentHash !== "string" &&
+      Object.prototype.hasOwnProperty.call(entry, "row");
+    let record: ChangeRecord & { row?: unknown };
+    let legacyRow: unknown;
+    if (legacy) {
+      const validation = LegacyRowImageChangeRecordSchema.safeParse(entry);
+      if (!validation.success) {
+        throw corrupt(
+          `accepted legacy change record at '${AUDIT_DIR}/${added.segment}:${added.line}' ` +
+            `is malformed: ${validation.error.issues
+              .map(
+                (issue) =>
+                  `${issue.path.map(String).join(".") || "general"}: ${issue.message}`,
+              )
+              .join(", ")}`,
+          {
+            commit: childRef,
+            parent: parentRef,
+            path: `${AUDIT_DIR}/${added.segment}`,
+            line: added.line,
+          },
+        );
+      }
+      const legacyRecord = validation.data;
+      const missingLegacyKeys = missingKeyColumns(
+        options.namespacePath,
+        legacyRecord.table,
+        legacyRecord.row,
       );
+      if (missingLegacyKeys.length > 0) {
+        throw corrupt(
+          `legacy change record at '${AUDIT_DIR}/${added.segment}:${added.line}' is missing declared key ` +
+            `column(s) ${missingLegacyKeys.join(", ")}`,
+          {
+            commit: childRef,
+            parent: parentRef,
+            path: `${AUDIT_DIR}/${added.segment}`,
+            line: added.line,
+          },
+        );
+      }
+      const key = keyMaterialFor(
+        options.namespacePath,
+        legacyRecord.table,
+        legacyRecord.row,
+      );
+      const providedKey = (entry as Record<string, unknown>).key;
+      if (
+        typeof providedKey === "object" &&
+        providedKey !== null &&
+        !Array.isArray(providedKey) &&
+        JSON.stringify(providedKey) !== JSON.stringify(key)
+      ) {
+        throw corrupt(
+          `legacy change record at '${AUDIT_DIR}/${added.segment}:${added.line}' declares key ` +
+            `${JSON.stringify(providedKey)} but its row image yields ${JSON.stringify(key)}`,
+          {
+            commit: childRef,
+            parent: parentRef,
+            path: `${AUDIT_DIR}/${added.segment}`,
+            line: added.line,
+          },
+        );
+      }
+      const legacyTargetPath =
+        legacyRecord.targetPath ?? `tables/${legacyRecord.table}.jsonl`;
+      if (!isSafeRepoRelativePath(legacyTargetPath)) {
+        throw corrupt(
+          `legacy change record at '${AUDIT_DIR}/${added.segment}:${added.line}' targets ` +
+            `an unsafe path '${legacyTargetPath}'`,
+          {
+            commit: childRef,
+            parent: parentRef,
+            path: `${AUDIT_DIR}/${added.segment}`,
+            line: added.line,
+          },
+        );
+      }
+      legacyRow = legacyRecord.row;
+      record = {
+        ...legacyRecord,
+        targetPath: legacyTargetPath,
+        contentHash: contentHashFor(`${JSON.stringify(legacyRecord.row)}\n`),
+        key,
+        tombstone: legacyRecord.op === "delete",
+        schemaVersion: declaredSchemaVersion(options.namespacePath, legacyRecord.table),
+        row: legacyRecord.row,
+      };
+    } else {
+      const validation = ChangeRecordSchema.safeParse(entry);
+      if (!validation.success) {
+        throw corrupt(
+          `accepted change record at '${AUDIT_DIR}/${added.segment}:${added.line}' ` +
+            `is malformed: ${validation.error.issues
+              .map(
+                (issue) =>
+                  `${issue.path.map(String).join(".") || "general"}: ${issue.message}`,
+              )
+              .join(", ")}`,
+          {
+            commit: childRef,
+            parent: parentRef,
+            path: `${AUDIT_DIR}/${added.segment}`,
+            line: added.line,
+          },
+        );
+      }
+      record = validation.data;
     }
-    const record = validation.data;
     if (record.ns !== options.ns) {
       throw corrupt(
         `change record at '${AUDIT_DIR}/${added.segment}:${added.line}' claims namespace ` +
@@ -527,46 +624,48 @@ export function deriveCommitChanges(
     //     from turning the whole feed into `CHANGELOG_CORRUPT`.
     // The fallback never accepts a fabricated digest: the hash must still match
     // byte-for-byte a line that really was committed in the target file.
-    let resolved: { row: unknown } | null = null;
+    let resolved: { row: unknown } | null =
+      legacyRow === undefined ? null : { row: legacyRow };
     let resolveFailure: unknown = null;
-    try {
-      resolved = resolveDataRowByHash(
-        repoDir,
-        childRef,
-        record.targetPath,
-        record.contentHash,
-      );
-    } catch (error) {
-      resolveFailure = error;
-    }
-    if (resolved === null && parentRef !== null) {
+    if (!legacy) {
       try {
         resolved = resolveDataRowByHash(
           repoDir,
-          parentRef,
+          childRef,
           record.targetPath,
           record.contentHash,
         );
-        if (resolved !== null) resolveFailure = null;
-      } catch {
-        // Keep the child-ref failure: it names the commit the record claims.
+      } catch (error) {
+        resolveFailure = error;
       }
-    }
-    // Last resort for non-tombstone records: a row image that was superseded
-    // inside this same commit window (never committed) has no line at either
-    // ref, but the row for its declared key IS in the committed target. A
-    // tombstone is deliberately excluded — "this row was deleted" must name a
-    // row that was really committed before the delete.
-    if (resolved === null && !record.tombstone) {
-      resolved = resolveDataRowByKey(
-        repoDir,
-        childRef,
-        options.namespacePath,
-        record.table,
-        record.targetPath,
-        record.key,
-      );
-      if (resolved !== null) resolveFailure = null;
+      if (resolved === null && parentRef !== null) {
+        try {
+          resolved = resolveDataRowByHash(
+            repoDir,
+            parentRef,
+            record.targetPath,
+            record.contentHash,
+          );
+          if (resolved !== null) resolveFailure = null;
+        } catch {
+          // Keep the child-ref failure: it names the commit the record claims.
+        }
+      }
+      // Last resort for non-tombstone records: a row image that was superseded
+      // inside this same commit window (never committed) has no line at either
+      // ref, but the row for its declared key IS in the committed target. A
+      // tombstone is deliberately excluded.
+      if (resolved === null && !record.tombstone) {
+        resolved = resolveDataRowByKey(
+          repoDir,
+          childRef,
+          options.namespacePath,
+          record.table,
+          record.targetPath,
+          record.key,
+        );
+        if (resolved !== null) resolveFailure = null;
+      }
     }
     if (resolved === null) {
       // Born-and-died inside this commit: the insert and its tombstone name
