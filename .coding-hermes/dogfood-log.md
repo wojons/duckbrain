@@ -793,3 +793,18 @@ diagnostics section appended to `docs/dogfood/diagnostics.md`, and a verified-co
 permission change, no credential minted, foreman NOT woken (read-only lane). Untouched and
 not mine: `/tmp/df-dkb-1027/` + the other session's daemon on :3137, `bunker-mvp` agent
 `crier-lab`, production :3000.
+
+
+## 2026-11-08 — tick duckbrain-dogfood-2026-11-08-04-06-52 — Verdict: PROMISING-BUT-ROUGH
+
+Target: published HEAD 43c22c81191a0a1661c9acc3fc9617946f45e262 (origin/main parity 0/0), canonical checkout /home/kara/duckbrain; stand-in /home/kara/.hermes/stand-in/dogfood/duckbrain carried the board but is not a Git root. Real-use path: scratch HTTP daemon with isolated HOME/config/namespaces, --auth=none, port 3199. Created namespace, POSTed a concept memory, read it back by key, listed memories, listed keys, exercised keyword search, and sent an invalid key.
+
+Result: the core memory loop worked: namespace HTTP 201, write HTTP 201, exact-key read HTTP 200 with identical UUID/content, list and keys HTTP 200, keyword search via /api/memories?q= HTTP 200 with highlighted match, invalid key HTTP 400 with actionable VALIDATION_ERROR. The legacy documented compatibility route GET /api/search?namespace=dogfood-realuse&contains=real%20user returned HTTP 301 Location: /api/memories?q=, dropping both query and namespace. Finding DF-2026-21 was minted by board_next_id.py and read back once with its paired task_created event; boardctl validate remained RESULT: OK with the pre-existing 714 warning count.
+
+Performance: warm exact-key and list calls each measured about 0.01s wall for five runs on the one-memory scratch namespace; cold daemon health answered in about 0.01s after readiness. No user-noticeable performance finding and no PERF row. The first timing script had a shell-formatting error after the successful functional probes; its timing output is not used as evidence.
+
+Install leg: install-proven / isolation-UNVERIFIED. bunker-mvp was online and the direct census showed the run-owned agent 34b4e7d3, but every registered agent reported net: shared (no tenant network isolation). bunker-qa.sh launch accepted the canonical /home/kara/duckbrain input and detached a battery; collect evidence recorded fresh-install OK (pnpm 12.4.2, 6s), tests OK (rc=0), docker_build OK (rc=0), compose_config OK, with the battery still RUNNING at closeout and agent left intact. This is not a clean completed battery: final teardown and remaining cells were not available before the tick close. The wrapper also adopted a recent tick-death orphan during collection. No SKIPPED-install-bunker row: the host and install path were usable; isolation is the explicit unverified boundary.
+
+Evidence: /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-run.out; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652/; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-bunker/evidence.jsonl and collect-final.out; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-validate-after.txt. No product code, docs, skills, or dogfood log were changed yet; no scheduler state, permissions, visibility, or credentials changed; foreman not woken.
+
+ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 target=43c22c81191a0a1661c9acc3fc9617946f45e262 row=DF-2026-21 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-run.out+/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-bunker/evidence.jsonl
