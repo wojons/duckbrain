@@ -14,9 +14,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { evaluateLatency } from "./latency-assertion.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:28731";
 const namespacesPath = process.env.DUCKBRAIN_NAMESPACES_PATH;
+const apiKeyFile = process.env.DUCKBRAIN_API_KEY_FILE;
+const requestHeaders = apiKeyFile
+  ? { "x-api-key": fs.readFileSync(apiKeyFile, "utf8").trim() }
+  : undefined;
 if (!namespacesPath) {
   console.error("Set DUCKBRAIN_NAMESPACES_PATH to the benchmark data copy.");
   process.exit(2);
@@ -44,6 +49,7 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
+const allSamples = {};
 for (const namespace of ["coding-hermes", "fleet-quality"]) {
   const namespacePath = path.join(namespacesPath, namespace);
   if (!fs.statSync(namespacePath).isDirectory()) {
@@ -58,7 +64,7 @@ for (const namespace of ["coding-hermes", "fleet-quality"]) {
     url.searchParams.set("namespace", namespace);
     url.searchParams.set("limit", "10");
     const started = performance.now();
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: requestHeaders });
     const elapsedMs = performance.now() - started;
     if (!response.ok) {
       throw new Error(`${namespace} run ${run + 1}: HTTP ${response.status}`);
@@ -69,7 +75,16 @@ for (const namespace of ["coding-hermes", "fleet-quality"]) {
     }
     samplesMs.push(elapsedMs);
   }
+  allSamples[namespace] = samplesMs;
   console.log(
     `${namespace}: files=${fileCount} limit=10 cold_ms=${samplesMs[0].toFixed(1)} warm_ms=${samplesMs.slice(1).map((n) => n.toFixed(1)).join(",")} warm_median_ms=${median(samplesMs.slice(1)).toFixed(1)}`,
   );
+}
+
+const verdict = evaluateLatency(allSamples);
+if (verdict.pass) {
+  console.log(`result=PASS ceiling_ms=${verdict.ceilingMs}`);
+} else {
+  console.log(`result=FAIL namespace=${verdict.namespace} sample_ms=${verdict.sampleMs.toFixed(1)} ceiling_ms=${verdict.ceilingMs}`);
+  process.exit(1);
 }
