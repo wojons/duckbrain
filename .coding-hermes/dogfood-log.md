@@ -808,3 +808,10 @@ Install leg: install-proven / isolation-UNVERIFIED. bunker-mvp was online and th
 Evidence: /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-run.out; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652/; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-bunker/evidence.jsonl and collect-final.out; /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-validate-after.txt. No product code, docs, skills, or dogfood log were changed yet; no scheduler state, permissions, visibility, or credentials changed; foreman not woken.
 
 ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 target=43c22c81191a0a1661c9acc3fc9617946f45e262 row=DF-2026-21 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-run.out+/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-bunker/evidence.jsonl
+
+
+### Correction — 2026-11-08 tick closeout install teardown
+
+The earlier entry recorded the install battery as still running because collection had not finished. Fresh closeout evidence supersedes that transient state: agent 34b4e7d3 remained running through the final collect, the first destroy refused with `destroy refused: live_processes` naming pid 2651230 (tail) and pid 2691764 (node), and the explicit run-owned `bunker destroy 34b4e7d3 --server bunker-mvp --force` then returned rc=0. A fresh `bunker list --server bunker-mvp --status all` omitted 34b4e7d3 and `bunker info 34b4e7d3` returned `not_found`. The install result remains install-proven / isolation-UNVERIFIED because the host reported shared network isolation; teardown is now verified.
+
+ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 correction=teardown-verified agent=34b4e7d3 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261108-040652-bunker/destroy-force.out
