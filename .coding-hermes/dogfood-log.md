@@ -827,3 +827,13 @@ Install leg census re-run fresh, not inherited: `bunker status --server bunker-m
 Left behind: this log line only. No board row, no product code, no docs, no scheduler state, no visibility or permission change, no credential minted; foreman not woken (read-only lane).
 
 ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 fire=duplicate-record-only target=619ee64a7ba2c57400c6bdc9b65673bbcb6cf902 row=DF-2026-21 evidence=/home/kara/.hermes/cache/scratch/dkb-dogfood-20261108-040652-dupfire-before.md
+
+## 2026-11-08c — DUPLICATE FIRE tick duckbrain-dogfood-2026-11-08-04-06-52 — records-only, nothing re-measured, no rows added.
+
+Fresh proof: HEAD and origin/main are both 0612a976f939a7e1a5c8f6982f5efed0454f0254 (parity 0/0); committed DF-2026-21 occurs once with one task_created event, duplicate task ids are zero, and boardctl validate remains RESULT: OK with the same 714 legacy warnings. Product paths are unchanged since the measured 43c22c81191a0a1661c9acc3fc9617946f45e262 (only board/log/docs/skill closeout artifacts changed), so no user operation or performance arm was re-run.
+
+Fresh install census: bunker-mvp is ONLINE; /tmp is private but Net mode is shared (not tenant isolation), so a launch would be install-proven / isolation-UNVERIFIED, not SKIPPED-install-bunker. The four listed agents were left untouched.
+
+Left behind: this records-only log line and the fresh census at /home/kara/.hermes/cache/scratch/dkb-dogfood-20261108-040652-dupfire-closeout.txt. No board, product code, docs, scheduler, visibility, permission, or credential changes; foreman not woken.
+
+ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 fire=duplicate-record-only-c target=0612a976f939a7e1a5c8f6982f5efed0454f0254 row=DF-2026-21 evidence=/home/kara/.hermes/cache/scratch/dkb-dogfood-20261108-040652-dupfire-closeout.txt
