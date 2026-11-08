@@ -65,6 +65,10 @@ curl -X POST http://127.0.0.1:3000/mcp -H 'Content-Type: application/json' \
 # content field is "embedding_text" (NOT "content") — see pitfall #1
 ```
 
+## Legacy HTTP compatibility routes
+
+`GET /api/search` is a legacy 301 alias, but its current redirect implementation only reads `q` and redirects to `/api/memories?q=`. Do not use it for keyword search with `contains=` or for a namespaced request until DF-2026-21 is fixed; use `GET /api/memories?q=<term>&namespace=<ns>` directly. The same compatibility surface should preserve the query parameters and namespace when repaired.
+
 ## Authentication
 
 Hardened deployments run the daemon with `--auth=apikey`; then EVERY request
