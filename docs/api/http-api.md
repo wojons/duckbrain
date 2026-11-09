@@ -265,6 +265,13 @@ These endpoints redirect (301) to the new REST API for backward compatibility:
 | `GET /api/timeline` | `/api/memories?limit=` |
 | `GET /api/search` | `/api/memories?q=` |
 
+`GET /api/search` additionally forwards the documented search query names —
+`q`, `contains`, `namespace`, `limit` and `allNamespaces` — into the redirect
+target whenever the request carries them, percent-encoded (DF-2026-21). `q` is
+always present in the target (empty when the request omits it); any other
+query name is not forwarded, because `GET /api/memories` refuses unknown
+parameters.
+
 ### CLI Execution
 
 `POST /cli`
