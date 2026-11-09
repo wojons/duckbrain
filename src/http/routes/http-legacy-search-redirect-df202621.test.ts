@@ -42,7 +42,7 @@ import {
   getRandomPort,
   curl,
   DAEMON_READY_TIMEOUT_MS,
-} from "./helpers";
+} from "../../../tests/helpers";
 
 const port = getRandomPort();
 let server: ChildProcess;
