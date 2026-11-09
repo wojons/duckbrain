@@ -1419,3 +1419,5 @@
 {"id":8598,"timestamp":"2026-11-09T12:55:10Z","event_type":"task_created","task_id":"QA-DUCKBRAIN-023","actor":"foreman","detail":"{\"id\":\"QA-DUCKBRAIN-023\",\"status\":\"pending\"}","tick_number":null}
 {"id":8599,"timestamp":"2026-11-09T12:55:20Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-023","actor":"foreman","detail":"{\"status\":\"pending\"}","tick_number":null}
 {"id":8600,"timestamp":"2026-11-09T12:57:03Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-022","actor":"foreman","detail":"{\"status\":\"pending\"}","tick_number":null}
+{"id":8601,"timestamp":"2026-11-09T13:26:07Z","event_type":"task_created","task_id":"QA-DUCKBRAIN-024","actor":"foreman","detail":"{\"id\":\"QA-DUCKBRAIN-024\",\"status\":\"pending\"}","tick_number":null}
+{"id":8602,"timestamp":"2026-11-09T13:27:48Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-018","actor":"foreman","detail":"{\"title\":\"Degraded daemon is never 'ready': a daemon-boot test burns 60s and skips — root cause is ALL_PROXY poisoning waitForUrl's loopback probe (QA-DUCKBRAIN-024); the curl -sf premise is REFUTED at HEAD\"}","tick_number":null}
