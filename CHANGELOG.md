@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.2.0] - 2026-11-03
 
-Range: `v1.1.0`..`HEAD` — 400 commits (382 non-merge; 28 `feat`, 35 `fix`,
+Range: `v1.1.0`..`HEAD` — 401 commits (383 non-merge; 28 `feat`, 35 `fix`,
 4 `perf`; 67 material non-merge commits). The post-prep range
-`1364dc4f`..`HEAD` contains 145 commits (143 non-merge; 25 material
+`1364dc4f`..`HEAD` contains 146 commits (144 non-merge; 25 material
 `feat`/`fix`/`perf` commits). Board, QA-ledger and releng bookkeeping is omitted
 by design; the entries below are the product-visible changes.
 
