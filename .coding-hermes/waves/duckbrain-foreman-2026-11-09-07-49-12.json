@@ -18,5 +18,8 @@
       "worker_process": "proc_08e6697c8d6c / pid 2671085",
       "liveness": "process terminated after commits landed; session record showed 53 messages and final evidence output"
     }
-  ]
+  ],
+  "finished_at": "2026-11-09T11:10:26-05:00",
+  "recovery_status": "complete",
+  "recovery_result": "Implementation already landed on main as merge 202d07372288ac99b3d1f8e6bce9b044a53913c3; branch tip e5590b96b7f1390a1cba7555615c825bfb1724f0 is an ancestor of main, so no merge was performed. Direct merged-tree gate PASS (gitreins guard --full; 285 files / 2410 tests). CHANGELOG acceptance arm A is satisfied. Board row remains pending because acceptance arm B (v1.1.0 back-fill or explicit tag-only decision) is still open. Worktree had no registered Git worktree and contained no files; preserved directory moved to tick scratch before branch cleanup."
 }
