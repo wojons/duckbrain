@@ -548,6 +548,28 @@ function createBucketKeyResolver(
 }
 
 /**
+ * DF-2026-21: normalize one Express query value for the legacy /api/search
+ * redirect. Strings pass through; a repeated parameter (string array) joins
+ * with the same "," coercion the old string concatenation produced; nested
+ * object shapes are not a documented search value and are dropped rather
+ * than stringified into the Location. Returns undefined when nothing
+ * forwardable is present.
+ */
+function stringifyLegacySearchValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => typeof entry === "string")
+  ) {
+    return (value as string[]).join(",");
+  }
+  return undefined;
+}
+
+/**
  * Create Express app with MCP transport, auth, and rate limiting
  *
  * Middleware order (critical):
@@ -926,7 +948,37 @@ export function createHttpServer(options: HttpServerOptions = {}): Express {
   });
 
   app.get("/api/search", (req: Request, res: Response) => {
-    res.redirect(301, "/api/memories?q=" + (req.query.q || ""));
+    // DF-2026-21: the legacy search alias used to forward only `q` via raw
+    // string concatenation, so `contains`, `namespace`, `limit` and
+    // `allNamespaces` were silently dropped (dogfood 2026-11-08: a request
+    // carrying contains=real%20user&namespace=dogfood-realuse got back
+    // `Location: /api/memories?q=`), and any value with a reserved
+    // character (&, =, #, space) corrupted the Location itself. Forward the
+    // documented search query names when present, encoded via
+    // URLSearchParams so no value can smuggle a second parameter into the
+    // target. `q` stays present even when empty to preserve the historical
+    // `/api/memories?q=` contract the docs table and existing clients rely
+    // on; the memories route refuses unknown params (DF-0926-02), so
+    // anything else is NOT forwarded — clients must hit /api/memories
+    // directly for the wider documented surface.
+    const query = (req.query ?? {}) as Record<string, unknown>;
+    const target = new URLSearchParams();
+    target.set("q", stringifyLegacySearchValue(query.q) ?? "");
+    for (const name of [
+      "contains",
+      "namespace",
+      "limit",
+      "allNamespaces",
+    ] as const) {
+      const value = stringifyLegacySearchValue(query[name]);
+      if (value !== undefined) {
+        target.set(name, value);
+      }
+    }
+    // URLSearchParams serializes spaces as `+` (form encoding). Percent
+    // bytes are unambiguous for every client that follows a Location
+    // header, so normalize before handing the target to Express.
+    res.redirect(301, "/api/memories?" + target.toString().replace(/\+/g, "%20"));
   });
 
   // Error handling (must be after all routes)
