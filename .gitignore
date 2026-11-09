@@ -77,3 +77,5 @@ duckbrain.config.json
 .scc/
 stray-archives/
 .stryker-tmp/
+.gitreins/verdicts/
+metrics/
