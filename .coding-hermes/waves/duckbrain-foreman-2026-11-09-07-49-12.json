@@ -1,0 +1,22 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-09-07-49-12",
+  "selected_block": "RELEASE-2026-11-09-001",
+  "wave_budget": 8,
+  "wave_size": 1,
+  "selection_reason": "block_drive ranked this 94%-complete block first; it has one pending ready row, so the wave contract fell back to a single worker",
+  "dispatch_recovery": "Manifest was written after dispatch because the initial dispatch preceded manifest creation; no second worker was launched and the worker tree/branch are recorded below.",
+  "workers": [
+    {
+      "task_id": "RELEASE-2026-11-09-001",
+      "worktree": "/home/kara/worktrees/duckbrain-RELEASE-2026-11-09-001",
+      "branch": "wt/RELEASE-2026-11-09-001",
+      "base_sha": "57bd829629cbc22b73a40de9fd8f5c5b3d1f7866",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-20261109-074912/RELEASE-2026-11-09-001-brief.md",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "commits": ["c67d70c9", "b162c7bc", "add7d89f9"],
+      "worker_process": "proc_08e6697c8d6c / pid 2671085",
+      "liveness": "process terminated after commits landed; session record showed 53 messages and final evidence output"
+    }
+  ]
+}
