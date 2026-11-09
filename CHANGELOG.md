@@ -6,10 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.2.0] - 2026-11-03
 
-Range: `v1.1.0`..`v1.2.0` — 254 commits (16 `feat`, 25 `fix`, 2 `perf`,
-12 `docs`, 12 `test`, 3 `ci`, 54 `chore`, 85 board, plus releng/merge/qa).
-Board, QA-ledger and releng bookkeeping is omitted by design; the entries below
-are the product-visible changes.
+Range: `v1.1.0`..`HEAD` — 397 commits (379 non-merge; 28 `feat`, 35 `fix`,
+4 `perf`; 67 material non-merge commits). The post-prep range
+`1364dc4f`..`HEAD` contains 142 commits (140 non-merge; 25 material
+`feat`/`fix`/`perf` commits). Board, QA-ledger and releng bookkeeping is omitted
+by design; the entries below are the product-visible changes.
 
 ### Added
 
@@ -52,6 +53,17 @@ are the product-visible changes.
   alongside memories.
 - **Role and per-table grants enforced on every generic-table verb**
   (DB-SUPA-4-R2) — the grant layer is now enforcement, not documentation.
+- **The operations plane** — HTTP now exposes namespace pruning, S3 status,
+  and consolidation (`bd23bde6`), while MCP exposes declared-table CRUD,
+  declaration, search, and query (`1c2e3f0f`).
+- **Atomic declared-table writes** — table upsert, an atomic transaction
+  envelope, and declared-relation embedding (`e18fb3c2`).
+- **A DuckBrain-backed task board example** (`654b3c5b`).
+- **Prometheus and storage observability** — `/metrics` now exposes storage
+  growth, ledger churn, recall usefulness, read latency, refusal counts, and
+  embedding request/cache outcomes (`035d21d8`, `933b39d9`, `a530621c`,
+  `781a3ba3`).
+- **Visible commit/push write-path instrumentation** (`eb96389c`).
 
 ### Changed
 
@@ -59,15 +71,33 @@ are the product-visible changes.
   (DF-2026-12), so the published entrypoint is covered like the source CLI.
 - The test-count gate reads a generated `test-counts.json` instead of the
   agent-instruction file (DF-2026-13).
+- **Rate limiting** now keys buckets on the authenticated principal rather
+  than the peer IP (`91d92c51`), and liveness probes are not rate-limited
+  (`121aa62c`).
+- **Release validation and corruption census tooling** now cover both lockfiles
+  offline and provide read-only and full production `CHANGELOG_CORRUPT`
+  censuses (`a68cb2c8`, `e0e42fc1`, `aa3ba932`). The latency assertion helper
+  is type-declared and the performance benchmark enforces its 500 ms ceiling
+  (`a5095526`, `0d43addb`).
 
 ### Fixed
 
 - **Search** — keyword matches are preserved for exact ticket queries
   (INT-CI-035); an absent ticket-ID query is refused instead of silently
   matching nothing (TESTQ-2026-10-30-1); a `.tmp.jsonl` caught in flight no
-  longer trips the namespace leak-walk (DF-2026-11).
+  longer trips the namespace leak-walk (DF-2026-11); and the legacy
+  `/api/search` redirect preserves `q`, `contains`, `namespace`, `limit`, and
+  `allNamespaces` (`58c92472`).
+- **Replay audit records** are derived from legacy row images instead of being
+  misclassified as `CHANGELOG_CORRUPT` (`609c9718`).
 - **HTTP error classification** — a malformed-id DELETE and an empty-body POST
   answer 4xx instead of 5xx (DF-2026-5, DF-2026-6).
+- **Generic-table durability and filtering** — writes report ACHIEVED durability
+  and are barriered (`47b1d5d0`); URL primary keys use text declarations
+  (`887622ec`); `pk=eq` filters work on GET reads (`a6df3394`); and table POST
+  carries `X-Durability` (`d4439116`).
+- **CLI distribution** — a stale `dist/` announces itself instead of answering
+  confidently with the wrong version (`a797a34c`).
 - **CLI flags** — `--namespace` accepts the space-separated form and an unknown
   namespace in `status` fails loudly rather than defaulting (DF-2026-9).
 - **QA and dogfood harness** — the dogfood runner fails closed before spawning a
@@ -79,6 +109,11 @@ are the product-visible changes.
   mislabelled builtin path-class finding, not a gitleaks scope disagreement;
   the summariser now reports the finding line instead of an unrelated echo.
 - **Users author scans are bounded** (PERF-014).
+
+### Performance
+
+- **Recall list latency** — the plain list path is bounded to top-k results,
+  and cold and warm samples are labelled distinctly (`e623f99e`, `0f712522`).
 
 ## [1.1.0] - 2026-10-21
 
