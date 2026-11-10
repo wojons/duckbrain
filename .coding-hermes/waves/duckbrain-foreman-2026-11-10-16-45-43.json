@@ -45,5 +45,14 @@
       "status": "dispatching"
     }
   ],
-  "merge_policy": "serial, rebase on origin/main, deletions must be 0, vitest full suite + tsc on the merged tree per merge"
+  "merge_policy": "serial, rebase on origin/main, deletions must be 0, vitest full suite + tsc on the merged tree per merge",
+  "recovery_status": "complete",
+  "recovery_result": {
+    "QA-DUCKBRAIN-021": "already landed at 0d1b9e5332d239240da855535f0a38de54bf1b3c; acceptance re-run on current main; worktree and branch removed",
+    "QA-DUCKBRAIN-023": "already landed at 950a281b210b39a27f96700928d0c99fea461b06; acceptance re-run on current main; worktree and branch removed",
+    "QA-DUCKBRAIN-022": "implementation landed at 7c0d88e72881d25f4755703c12f62efd9395d60b; branch retained as evidence because inherited worktree contained an uncommitted follow-up delta; delta archived at /home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-10-19-38-05-recovery/worktree-evidence-archive/QA-DUCKBRAIN-022-uncommitted.patch; no re-dispatch",
+    "acceptance": "021 focused regression 14/14 and tsc clean; 022 focused regression 9/9 and tsc clean; 023 focused regression included in 21-test run; main already contained all three implementation SHAs",
+    "remote_cleanup": "021 and 023 had no origin branches; local merged branches deleted; 022 preserved"
+  },
+  "finished_at": "2026-11-10T19:46:00-05:00"
 }
