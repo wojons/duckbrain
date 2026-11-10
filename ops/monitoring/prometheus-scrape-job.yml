@@ -1,0 +1,28 @@
+# DuckBrain — Prometheus scrape job (OBSDB-007 step 2)
+#
+# Fleet Prometheus (fleet-monitor, mon-prometheus container) cannot reach a service port on the
+# public interface, but it CAN reach this host over the tailnet — proven from the monitor:
+#   $ curl -s -o /dev/null -w '%{http_code} %{time_total}\n' http://100.97.236.14:3000/metrics
+#   200 1.876253
+#
+# /metrics is deliberately credential-free (every other path answers 401), so no api key is
+# needed in this job and none may be added: an auth header here would make the scrape 401 and
+# silently stop the series.
+#
+# Deploy: append to scrape_configs in fleet-monitor /root/fleet-monitoring/prometheus/prometheus.yml
+# (bind-mounted read-only at /etc/prometheus/prometheus.yml), then
+#   curl -X POST http://127.0.0.1:9090/-/reload    # --web.enable-lifecycle is on; no restart
+# Verify:
+#   curl -sG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=up{job="duckbrain"}'
+#   curl -sG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(duckbrain_http_up)'
+
+  - job_name: duckbrain
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ["100.97.236.14:3000"]
+        labels:
+          host: karahermes-mde-7840hs
+          role: memory
+          environment: prod

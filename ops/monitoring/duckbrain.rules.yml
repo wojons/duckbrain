@@ -1,0 +1,87 @@
+# DuckBrain — Prometheus alert rules (OBSDB-007 step 3)
+#
+# Deploy target: fleet-monitor, /root/fleet-monitoring/alerts/rules/duckbrain.yml
+# (bind-mounted into mon-prometheus at /etc/prometheus/rules/).
+# Validate before reload:  docker exec mon-prometheus promtool check rules /etc/prometheus/rules/duckbrain.yml
+# Reload without restart:  curl -X POST http://127.0.0.1:9090/-/reload   (--web.enable-lifecycle is on)
+#
+# Design constraint from OBSDB-007 step 4: liveness keys off `duckbrain_http_up`, a gauge the
+# daemon always exports (208 samples on a cold scrape). Never key liveness off
+# absent(duckbrain_reads_total) — that counter has no series at all until the first read, so an
+# absent()-based rule reports "down" on a perfectly healthy idle instance (OBSDB-006's false silence).
+
+groups:
+  - name: duckbrain
+    interval: 30s
+    rules:
+      - alert: DuckBrainDown
+        expr: duckbrain_http_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          lane: duckbrain
+        annotations:
+          summary: "duckbrain reports itself down (duckbrain_http_up == 0)"
+          description: |-
+            The daemon is answering /metrics but its own health gauge is 0, i.e. the HTTP API
+            surface it serves is degraded from the inside. Check
+            `curl -s http://127.0.0.1:3000/health` and
+            `journalctl --user -u duckbrain-http.service -n 100` before touching anything.
+          runbook: docs/runbook.md#duckbrain-down
+
+      - alert: DuckBrainTargetDown
+        expr: up{job="duckbrain"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          lane: duckbrain
+        annotations:
+          summary: "duckbrain target is not scrapable (up{job=\"duckbrain\"} == 0)"
+          description: |-
+            The scrape itself fails: process dead, port closed, or /metrics timing out. This is
+            the "no metrics at all" case — DuckBrainDown cannot fire because no samples arrive.
+            The host-side watchdog (duckbrain-http-health.timer) probes /health every 60s and
+            duckbrain-http-recover.timer restarts after 3 consecutive failures.
+          runbook: docs/runbook.md#duckbrain-down
+
+      - alert: DuckBrainEmbeddingProviderDegraded
+        expr: duckbrain_embedding_provider_healthy == 0
+        for: 5m
+        labels:
+          severity: warning
+          lane: duckbrain
+        annotations:
+          summary: "duckbrain embedding provider {{ $labels.provider }} is unhealthy"
+          description: |-
+            Semantic recall degrades to silence when the embedding provider is down: writes still
+            succeed, but /api/memories?q= and MCP recall stop returning semantic matches
+            (OBSDB-006's failure mode). Check the provider quota/auth before restarting the
+            daemon — the daemon is not the fault.
+          runbook: docs/runbook.md#embedding-provider-degraded
+
+      - alert: DuckBrainErrorRatioRising
+        expr: |
+          (
+            sum(rate(duckbrain_reads_total{status_class=~"4xx|5xx"}[5m]))
+            / clamp_min(sum(rate(duckbrain_reads_total[5m])), 1e-9)
+          ) > 0.15
+          and
+          (
+            sum(rate(duckbrain_reads_total{status_class=~"4xx|5xx"}[5m]))
+            / clamp_min(sum(rate(duckbrain_reads_total[5m])), 1e-9)
+          ) > 3 * (
+            sum(rate(duckbrain_reads_total{status_class=~"4xx|5xx"}[30m]))
+            / clamp_min(sum(rate(duckbrain_reads_total[30m])), 1e-9)
+          )
+        for: 10m
+        labels:
+          severity: warning
+          lane: duckbrain
+        annotations:
+          summary: "duckbrain read error ratio {{ $value | humanizePercentage }} over 15% and 3x its 30m baseline"
+          description: |-
+            A rising share of reads are 4xx/5xx. Both the absolute floor (15%) and the trend
+            (3x the 30m baseline) must hold, so a steady known-4xx workload (probe sweeps hitting
+            unknown keys) does not page. Split by route:
+            sum by (route, status_class) (rate(duckbrain_reads_total{status_class=~"4xx|5xx"}[5m]))
+          runbook: docs/runbook.md#error-ratio
