@@ -1,0 +1,49 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-10-16-45-43",
+  "created_at": "2026-11-10T16:52:00-05:00",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "block": "QA-DUCKBRAIN",
+  "base_ref": "origin/main",
+  "base_sha": "f94d4ded",
+  "wave_budget": 12,
+  "nproc": 16,
+  "loadavg_at_selection": 2.5,
+  "slots": 6,
+  "wave_size": 3,
+  "why_this_block": "Largest ready block on the board (10 pending rows, 0 blocked_on). Three of its rows are settled PRODUCT defects with live-verified premises (reproduced against the base tree by the foreman), distinct files and no shared seam. The other seven rows ride the QA-harness seams (ALL_PROXY/network-cut, ANSI grader, snapshot paths) and were deliberately left for a later tick so this wave has no intra-wave collision.",
+  "independence_check": "QA-DUCKBRAIN-021 -> src/config/*; QA-DUCKBRAIN-022 -> src/storage/jsonl.ts + status/squash + read surfaces; QA-DUCKBRAIN-023 -> src/utils/keyTree.ts + /api/keys. No depends_on edges between them (all three rows carry no blocked_on and no depends_on). Only adjacency: 022 and 023 both read HTTP routes, but different route files and different assertions.",
+  "worker_model": "deepseek/deepseek-v4.1-flash",
+  "worker_provider": "xkiro",
+  "workers_skill": "coding-hermes-worker",
+  "rows": [
+    {
+      "task_id": "QA-DUCKBRAIN-021",
+      "title": "corrupt/schema-invalid config silently swapped for defaults",
+      "priority": "P2",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-021",
+      "branch": "wt/QA-DUCKBRAIN-021",
+      "brief": "/home/kara/.hermes/cache/scratch/tick-duckbrain-2026-11-10-16-45-43/brief-QA-DUCKBRAIN-021.md",
+      "status": "dispatching"
+    },
+    {
+      "task_id": "QA-DUCKBRAIN-022",
+      "title": "torn line in an active partition silently dropped by every serving read",
+      "priority": "P2",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-022",
+      "branch": "wt/QA-DUCKBRAIN-022",
+      "brief": "/home/kara/.hermes/cache/scratch/tick-duckbrain-2026-11-10-16-45-43/brief-QA-DUCKBRAIN-022.md",
+      "status": "dispatching"
+    },
+    {
+      "task_id": "QA-DUCKBRAIN-023",
+      "title": "/api/keys folder memoryCount is sum of depths, not memories",
+      "priority": "P3",
+      "worktree": "/home/kara/worktrees/duckbrain-QA-DUCKBRAIN-023",
+      "branch": "wt/QA-DUCKBRAIN-023",
+      "brief": "/home/kara/.hermes/cache/scratch/tick-duckbrain-2026-11-10-16-45-43/brief-QA-DUCKBRAIN-023.md",
+      "status": "dispatching"
+    }
+  ],
+  "merge_policy": "serial, rebase on origin/main, deletions must be 0, vitest full suite + tsc on the merged tree per merge"
+}

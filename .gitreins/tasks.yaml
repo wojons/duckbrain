@@ -3359,3 +3359,62 @@ tasks:
   status: complete
   created_at: '2026-11-08T02:51:27.380921+00:00'
   completed_at: '2026-11-08T10:32:07.420853+00:00'
+- id: QA-DUCKBRAIN-021
+  title: "P2 \u2014 a corrupt or schema-invalid duckbrain.config.json is silently\
+    \ swapped for defaults: reads then target the wrong store root and print \"No\
+    \ memories found\" with exit 0"
+  criteria:
+  - "1) Given a config file whose JSON is malformed and a namespace store that contains\
+    \ key K, `duckbrain recall K` must not exit 0 with \"No memories found\": it exits\
+    \ non-zero and names the offending config path, or it refuses to run at all. 2)\
+    \ Same for a valid-JSON schema violation (namespacesPath = 12345): no silent swap\
+    \ to defaults; the error names the field. 3) The HTTP daemon started with a malformed\
+    \ config must not report /health healthy while serving a different store root\
+    \ \u2014 either it exits non-zero at boot or /health reports the config failure.\
+    \ 4) Proof of fix: rerun the three arms in the row's reasoning (valid write+read,\
+    \ corrupt JSON read, schema-invalid read) \u2014 arms 2 and 3 must fail loudly\
+    \ and the valid arm must still find the record; paste the exit codes and first\
+    \ error line in the row."
+  status: in_progress
+  created_at: '2026-11-10T16:57:29.233254+00:00'
+- id: QA-DUCKBRAIN-022
+  title: "P2 \u2014 a torn/corrupt line in an ACTIVE partition is silently dropped\
+    \ by every serving read (exit 0, 'Status: OK', no count) and the only repair verb\
+    \ never scans current.jsonl"
+  criteria:
+  - '1) A read of a namespace whose active chunk contains a malformed line must not
+    silently return a short page: either the read exits non-zero naming the file and
+    line, or it emits an explicit warning/field stating N records were skipped and
+    where. Prove with the exact three-arm sequence in the reasoning (torn line ->
+    recall, search, status). 2) `duckbrain status --namespace=<ns>` must not report
+    ''Status: OK'' for a namespace whose active chunk has a malformed line: it reports
+    the corruption (or the same explicit skipped-record count). 3) The repair path
+    must reach the malformed active chunk: `squash --segments --partition=<domain/YYYY-MM>
+    --dry-run` on a partition holding N records must report N, not 0, and a real (non-dry)
+    run must either repair or refuse with a named reason. 4) Serving reads and readFromJsonl
+    must share one corruption policy: the same namespace must not throw on one command
+    and silently truncate on another. 5) The HTTP/MCP surfaces inherit the same signal
+    (GET /api/memories and MCP recall report the skip count or fail), since they read
+    the same DuckDB path. 6) Regression: a fully valid namespace still reads with
+    no new warnings, and the existing suite is green.'
+  status: in_progress
+  created_at: '2026-11-10T16:57:30.100214+00:00'
+- id: QA-DUCKBRAIN-023
+  title: "P3 \u2014 GET /api/keys reports folder memoryCount as the SUM OF DEPTHS,\
+    \ not the number of memories (3 nested memories -> folder says 6)"
+  criteria:
+  - '1) GET /api/keys for a namespace holding /a/b/c, /a/b/d and /x/y must report
+    folder counts equal to the number of distinct memory keys beneath each folder:
+    /a = 2, /a/b = 2, /x = 1, each leaf = 1 (today: 6, 4, 2). Counts must not depend
+    on nesting depth.
+
+    2) Add a regression test that builds a 3-level key tree and asserts exact folder
+    counts; it must fail at the current HEAD and pass after the fix.
+
+    3) GET /api/keys folder counts must agree with GET /api/memories total for the
+    same namespace (both count distinct keys; /api/memories is already correct).
+
+    4) No change to CLI `list-keys` text output (renderKeyTreeText prints no counts
+    today).'
+  status: in_progress
+  created_at: '2026-11-10T16:57:30.940300+00:00'
