@@ -1440,3 +1440,7 @@
 {"id": 8618, "timestamp": "2026-11-10T15:40:00Z", "event_type": "task_created", "task_id": "DBR-003", "actor": "foreman", "detail": "{\"id\":\"DBR-003\",\"status\":\"pending\"}", "tick_number": null}
 {"id": 8619, "timestamp": "2026-11-10T15:40:00Z", "event_type": "task_created", "task_id": "DBR-004", "actor": "foreman", "detail": "{\"id\":\"DBR-004\",\"status\":\"pending\"}", "tick_number": null}
 {"id": 8620, "timestamp": "2026-11-10T15:40:00Z", "event_type": "task_created", "task_id": "DBR-005", "actor": "foreman", "detail": "{\"id\":\"DBR-005\",\"status\":\"pending\"}", "tick_number": null}
+{"id": 8621, "timestamp": "2026-11-10T17:49:28Z", "event_type": "task_completed", "task_id": "QA-DUCKBRAIN-021", "actor": "foreman", "detail": "{\"status\":\"complete\"}", "tick_number": null}
+{"id": 8622, "timestamp": "2026-11-10T17:49:32Z", "event_type": "task_completed", "task_id": "QA-DUCKBRAIN-023", "actor": "foreman", "detail": "{\"status\":\"complete\"}", "tick_number": null}
+{"id": 8623, "timestamp": "2026-11-10T17:49:43Z", "event_type": "task_created", "task_id": "QA-DUCKBRAIN-026", "actor": "foreman", "detail": "{\"id\":\"QA-DUCKBRAIN-026\",\"status\":\"pending\"}", "tick_number": null}
+{"id": 8624, "timestamp": "2026-11-10T17:49:43Z", "event_type": "task_created", "task_id": "QA-DUCKBRAIN-027", "actor": "foreman", "detail": "{\"id\":\"QA-DUCKBRAIN-027\",\"status\":\"pending\"}", "tick_number": null}
