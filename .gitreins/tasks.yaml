@@ -3375,8 +3375,9 @@ tasks:
     \ corrupt JSON read, schema-invalid read) \u2014 arms 2 and 3 must fail loudly\
     \ and the valid arm must still find the record; paste the exit codes and first\
     \ error line in the row."
-  status: in_progress
+  status: complete
   created_at: '2026-11-10T16:57:29.233254+00:00'
+  completed_at: '2026-11-10T17:29:40.562786+00:00'
 - id: QA-DUCKBRAIN-022
   title: "P2 \u2014 a torn/corrupt line in an ACTIVE partition is silently dropped\
     \ by every serving read (exit 0, 'Status: OK', no count) and the only repair verb\
@@ -3397,8 +3398,9 @@ tasks:
     (GET /api/memories and MCP recall report the skip count or fail), since they read
     the same DuckDB path. 6) Regression: a fully valid namespace still reads with
     no new warnings, and the existing suite is green.'
-  status: in_progress
+  status: complete
   created_at: '2026-11-10T16:57:30.100214+00:00'
+  completed_at: '2026-11-10T17:59:25.511380+00:00'
 - id: QA-DUCKBRAIN-023
   title: "P3 \u2014 GET /api/keys reports folder memoryCount as the SUM OF DEPTHS,\
     \ not the number of memories (3 nested memories -> folder says 6)"
@@ -3416,5 +3418,6 @@ tasks:
 
     4) No change to CLI `list-keys` text output (renderKeyTreeText prints no counts
     today).'
-  status: in_progress
+  status: complete
   created_at: '2026-11-10T16:57:30.940300+00:00'
+  completed_at: '2026-11-10T17:36:23.480046+00:00'
