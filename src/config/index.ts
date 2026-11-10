@@ -374,16 +374,107 @@ export function statConfigFile(configDir: string = "."): ConfigFileStamp | null 
 }
 
 /**
+ * QA-DUCKBRAIN-021: failure classes for the config FILE itself.
+ *
+ * - `unreadable` — the file exists but cannot be read (permissions, I/O).
+ * - `malformed-json` — the file's bytes are not valid JSON (truncated write,
+ *   hand-edit typo, merge marker, empty file).
+ * - `schema-invalid` — valid JSON that violates `DuckBrainConfigSchema`.
+ */
+export type ConfigFileErrorReason =
+  | "unreadable"
+  | "malformed-json"
+  | "schema-invalid";
+
+/** Collapse whitespace so the message is always a single stderr line. */
+function singleLine(text: string): string {
+  return text.replace(/\s*\r?\n\s*/g, " ").trim();
+}
+
+/** Turn an unknown thrown value into a short, single-line detail string. */
+function detailOf(error: unknown): string {
+  if (error instanceof Error) return singleLine(error.message);
+  return singleLine(String(error));
+}
+
+/**
+ * QA-DUCKBRAIN-021: a corrupt or schema-invalid `duckbrain.config.json` is a
+ * FATAL configuration failure, not a warning.
+ *
+ * Before this type existed, `readFileConfig` swallowed parse/validation errors
+ * and returned `DuckBrainConfigSchema.parse({})` — schema DEFAULTS. Because
+ * `namespacesPath` has a default, that silently retargeted every read at the
+ * default store root: `duckbrain recall <key>` printed "No memories found"
+ * with exit 0 while the record sat in the configured store, and an HTTP daemon
+ * booted on a malformed config answered /health ok while serving a different
+ * root. Absence of the file is NOT corruption and still yields defaults.
+ *
+ * Carries the offending `configPath` and, for schema errors, the offending
+ * `fields` (dotted paths) so callers can print one actionable line.
+ */
+export class ConfigFileError extends Error {
+  /** Absolute-or-as-given path of the offending config file. */
+  readonly configPath: string;
+  /** Which class of failure occurred. */
+  readonly reason: ConfigFileErrorReason;
+  /** Offending fields (dotted paths); empty for unreadable/malformed JSON. */
+  readonly fields: string[];
+
+  constructor(
+    configPath: string,
+    reason: ConfigFileErrorReason,
+    detail: string,
+    fields: string[] = [],
+  ) {
+    const fieldPart = fields.length > 0 ? ` (field: ${fields.join(", ")})` : "";
+    super(
+      singleLine(
+        `Invalid DuckBrain config at ${configPath}: ${detail}${fieldPart}. ` +
+          `Refusing to fall back to defaults — fix or remove the file.`,
+      ),
+    );
+    this.name = "ConfigFileError";
+    this.configPath = configPath;
+    this.reason = reason;
+    this.fields = fields;
+  }
+}
+
+/** Dotted field paths + messages from a zod failure, e.g. `namespacesPath`. */
+function zodIssues(error: z.ZodError): { fields: string[]; detail: string } {
+  const issues = error.issues ?? [];
+  const fields = issues.map((issue) =>
+    issue.path.length > 0 ? issue.path.join(".") : "<root>",
+  );
+  const detail = issues
+    .map((issue) => {
+      const where = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+      return `${where}${issue.message}`;
+    })
+    .join("; ");
+  return {
+    fields: Array.from(new Set(fields)),
+    detail: detail || "schema validation failed",
+  };
+}
+
+/**
  * Read and validate the config FILE without applying env overrides.
  *
- * Returns the schema-parsed config exactly as it lives on disk (or schema
- * defaults when the file is missing or invalid). This is the authoritative
- * on-disk state — updateConfig() merges against THIS, not the env-overridden
- * getConfig(), so env-only fields (DUCKBRAIN_NAMESPACES_PATH) never leak into
- * the file. (GAP-007)
+ * Returns the schema-parsed config exactly as it lives on disk. A MISSING file
+ * legitimately means "defaults" (a fresh clone carries no instance config).
+ * A file that exists but cannot be read, cannot be parsed, or fails schema
+ * validation throws `ConfigFileError` — never a silent fallback to defaults
+ * (QA-DUCKBRAIN-021): a defaulted `namespacesPath` selects a DIFFERENT store
+ * root, which turns corruption into wrong answers with a zero exit code.
+ *
+ * This is the authoritative on-disk state — updateConfig() merges against
+ * THIS, not the env-overridden getConfig(), so env-only fields
+ * (DUCKBRAIN_NAMESPACES_PATH) never leak into the file. (GAP-007)
  *
  * @param configDir - Directory containing config file
  * @returns Validated config from file (no env overrides applied)
+ * @throws {ConfigFileError} when the file exists but is unreadable/malformed/invalid
  */
 function readFileConfig(configDir: string): DuckBrainConfig {
   const configPath = getConfigPath(configDir);
@@ -392,14 +483,31 @@ function readFileConfig(configDir: string): DuckBrainConfig {
     return DuckBrainConfigSchema.parse({});
   }
 
+  let text: string;
+  try {
+    text = fs.readFileSync(configPath, "utf-8");
+  } catch (error) {
+    // A file that vanished between the existsSync and the read is legitimate
+    // absence, not corruption — keep the documented defaults path.
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return DuckBrainConfigSchema.parse({});
+    }
+    throw new ConfigFileError(
+      configPath,
+      "unreadable",
+      `cannot read file (${detailOf(error)})`,
+    );
+  }
+
   let raw: unknown;
   try {
-    raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  } catch {
-    console.warn(
-      `Warning: Could not parse config at ${configPath}, using defaults`,
+    raw = JSON.parse(text);
+  } catch (error) {
+    throw new ConfigFileError(
+      configPath,
+      "malformed-json",
+      `malformed JSON (${detailOf(error)})`,
     );
-    return DuckBrainConfigSchema.parse({});
   }
 
   // SUPA-1: an invalid durability block is a durability-contract violation, not
@@ -414,16 +522,19 @@ function readFileConfig(configDir: string): DuckBrainConfig {
     return DuckBrainConfigSchema.parse(raw);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.warn(
-        `Warning: Config validation failed at ${configPath}:`,
-        (error as any).issues.map((i: any) => i.message).join(", "),
-      );
-    } else {
-      console.warn(
-        `Warning: Could not parse config at ${configPath}, using defaults`,
+      const { fields, detail } = zodIssues(error);
+      throw new ConfigFileError(
+        configPath,
+        "schema-invalid",
+        `schema validation failed — ${detail}`,
+        fields,
       );
     }
-    return DuckBrainConfigSchema.parse({});
+    throw new ConfigFileError(
+      configPath,
+      "malformed-json",
+      `could not interpret file contents (${detailOf(error)})`,
+    );
   }
 }
 

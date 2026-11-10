@@ -38,7 +38,7 @@ import { FileAuthStore, matchApiKey } from "../auth/storeSchema.js";
 import { authorizeTableAccess } from "../auth/roles.js";
 import { createDenialAuditor } from "../serialization/audit.js";
 import { setSerializerAuthorizationHook } from "../serialization/namespaceWriter.js";
-import { resolveNamespacesPath } from "../config/index.js";
+import { resolveNamespacesPath, ConfigFileError } from "../config/index.js";
 import {
   rateLimitMiddleware,
   RateLimitConfig,
@@ -1565,6 +1565,14 @@ export async function startHttpMode(
     // premature exit when only socket listening.
     console.error("[duckbrain] HTTP server ready");
   } catch (error) {
+    // QA-DUCKBRAIN-021: a corrupt/invalid config file must never degrade into
+    // "healthy daemon serving a different root". createHttpServer() resolves the
+    // store root before bind, so this is a boot-time refusal: one actionable
+    // line, non-zero exit, no stack spew.
+    if (error instanceof ConfigFileError) {
+      console.error(`[duckbrain] ${error.message}`);
+      process.exit(1);
+    }
     console.error("[duckbrain] Failed to start HTTP server:", error);
     process.exit(1);
   }
