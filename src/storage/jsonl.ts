@@ -14,6 +14,7 @@ import { MemorySchema, type MemoryType } from "../schema/memory";
 import { safeJsonStringify } from "../utils/serialize";
 import { resolveDurabilityMode, resolveNamespacesPath } from "../config";
 import { DurabilityError } from "./durability-errors";
+import { warnOnCorruption, type CorruptionReport } from "./corruption";
 
 /**
  * Maximum lines per chunk file before creating new one
@@ -391,34 +392,83 @@ export function appendToJsonl(filePath: string, record: MemoryType): number {
  * @param filePath - Full path to JSONL file
  * @param limit - Maximum records to return (optional)
  * @returns Array of validated MemoryType records
- * @throws Error if file doesn't exist or validation fails
  */
-export function readFromJsonl(filePath: string, limit?: number): MemoryType[] {
+export interface JsonlReadResult {
+  /** Records that parsed AND validated. */
+  records: MemoryType[];
+  /** QA-DUCKBRAIN-022: malformed lines this read skipped (never throws). */
+  corruption: CorruptionReport;
+}
+
+/**
+ * Read memory records from JSONL file, returning the corruption report too.
+ *
+ * QA-DUCKBRAIN-022 (AC4): a malformed line must not make this reader throw
+ * while the DuckDB serving read path silently truncates the same bytes. Both
+ * now skip the bad record, count it through `src/storage/corruption.ts`, and
+ * warn on stderr — one policy, one message.
+ *
+ * @param filePath - Full path to JSONL file
+ * @param limit - Maximum records to return (optional). The whole file is
+ *   still scanned so the skipped count stays exact.
+ */
+export function readFromJsonlWithReport(
+  filePath: string,
+  limit?: number,
+): JsonlReadResult {
+  const records: MemoryType[] = [];
+
   if (!fs.existsSync(filePath)) {
-    return [];
+    return { records, corruption: { skipped: 0, files: [] } };
   }
 
   const content = fs.readFileSync(filePath, "utf-8");
-  const lines = content.split("\n").filter((l) => l.trim() !== "");
-  const records: MemoryType[] = [];
+  const lines = content.split("\n");
+
+  let skipped = 0;
+  let firstBadLine = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    if (limit && records.length >= limit) {
-      break;
+    const line = lines[i] ?? "";
+    if (line.trim() === "") continue;
+
+    let validated: MemoryType;
+    try {
+      validated = MemorySchema.parse(JSON.parse(line));
+    } catch {
+      skipped += 1;
+      if (firstBadLine === 0) firstBadLine = i + 1;
+      continue;
     }
 
-    try {
-      const parsed = JSON.parse(lines[i]);
-      const validated = MemorySchema.parse(parsed);
+    if (!limit || records.length < limit) {
       records.push(validated);
-    } catch (error) {
-      throw new Error(
-        `Invalid JSON or schema at line ${i + 1}: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
     }
   }
 
-  return records;
+  const corruption: CorruptionReport =
+    skipped > 0
+      ? {
+          skipped,
+          files: [{ path: path.resolve(filePath), line: firstBadLine, skipped }],
+        }
+      : { skipped: 0, files: [] };
+
+  if (corruption.skipped > 0) warnOnCorruption(corruption);
+
+  return { records, corruption };
+}
+
+/**
+ * Read memory records from JSONL file
+ *
+ * @param filePath - Full path to JSONL file
+ * @param limit - Maximum records to return (optional)
+ * @returns Array of validated MemoryType records. Malformed lines are
+ *   skipped and reported on stderr (see `readFromJsonlWithReport`).
+ */
+export function readFromJsonl(filePath: string, limit?: number): MemoryType[] {
+  return readFromJsonlWithReport(filePath, limit).records;
 }
 
 /**

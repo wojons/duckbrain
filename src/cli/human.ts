@@ -29,6 +29,7 @@ import { squashTool, getCompactionStatsTool } from "../mcp/tools/squash";
 import { executeSegmentConsolidation } from "../storage/segment-consolidation";
 import { getConfig, setConfig, registerNamespace } from "../config/index";
 import { resolveNamespacesPath } from "../config/index";
+import { auditNamespace, describeCorruption } from "../storage/corruption";
 import { deleteNamespaceFromDisk } from "../namespaces/lifecycle";
 // PERF-004 — lazy S3: clearNamespaceFromS3/planS3Clear pull in
 // @aws-sdk/client-s3; defer to the clear-s3 command that actually needs it
@@ -454,6 +455,21 @@ function collectAttrFilters(
 }
 
 /**
+ * QA-DUCKBRAIN-022: namespace directory names under the resolved store root.
+ * Used to audit every namespace touched by a cross-namespace search.
+ */
+function listNamespaceDirs(): string[] {
+  try {
+    return fs
+      .readdirSync(resolveNamespacesPath(), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Recall command
  */
 async function recallCommand(args: string[]): Promise<void> {
@@ -578,6 +594,10 @@ async function recallCommand(args: string[]): Promise<void> {
 
   try {
     const result = await recallTool(input);
+
+    // QA-DUCKBRAIN-022 (AC1): the serving read tolerates a torn line
+    // (ignore_errors=true) — so a short page has to announce itself.
+    auditNamespace(resolveNamespacePath(input.namespace));
 
     if (result.memories && result.memories.length > 0) {
       console.log(`Found ${result.memories.length} memories:`);
@@ -717,6 +737,19 @@ async function searchCommand(args: string[]): Promise<void> {
     if (result.error) {
       console.error(`✗ ${result.error}`);
       process.exit(1);
+    }
+
+    // QA-DUCKBRAIN-022 (AC1): a malformed chunk line must not shrink results
+    // silently — warn before the page is printed. Cross-namespace searches
+    // audit every namespace they touched.
+    if (allNamespaces) {
+      for (const ns of listNamespaceDirs()) {
+        auditNamespace(resolveNamespacePath(ns));
+      }
+    } else {
+      auditNamespace(
+        resolveNamespacePath(flags.namespace || getDefaultNamespace()),
+      );
     }
 
     if (result.memories.length > 0) {
@@ -1362,6 +1395,24 @@ async function statusCommand(args: string[]): Promise<void> {
     console.log(`================`);
     console.log(`Namespace: ${namespace}`);
     console.log(`Path: ${nsPath}`);
+
+    // QA-DUCKBRAIN-022 (AC2): "Status: OK" over a torn chunk is a lie — the
+    // serving reads silently drop that record. Audit the same chunk files the
+    // readers use and name the corruption instead.
+    const corruption = auditNamespace(nsPath, false);
+    if (corruption.skipped > 0) {
+      console.log(`Status: DEGRADED`);
+      console.log(`Corruption: ${describeCorruption(corruption)}`);
+      // describeCorruption names the first corrupt file; list the rest only
+      // when there is more than one, so the common single-file case stays terse.
+      for (const file of corruption.files.length > 1 ? corruption.files : []) {
+        console.log(
+          `  ${file.path}:${file.line} (${file.skipped} malformed ${file.skipped === 1 ? "record" : "records"})`,
+        );
+      }
+      process.exit(1);
+    }
+
     console.log(`Status: OK`);
   } catch (error) {
     console.error("Error:", error instanceof Error ? error.message : error);

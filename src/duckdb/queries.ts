@@ -14,6 +14,11 @@ import path from "path";
 import fs from "fs";
 import { deepConvertBigInts } from "../utils/serialize";
 import { compareChunkNames } from "../storage/jsonl";
+import {
+  scanMalformedLines,
+  warnOnCorruption,
+  type CorruptionReport,
+} from "../storage/corruption";
 
 /**
  * Parse DuckDB STRUCT format string into a JavaScript object
@@ -163,6 +168,24 @@ export function collectJsonlFiles(partitionPaths: string[]): string[] {
     jsonlFiles.push(...files);
   }
   return jsonlFiles;
+}
+
+/**
+ * QA-DUCKBRAIN-022: report malformed lines the serving read is about to skip.
+ *
+ * The serving path reads chunks with `read_json(..., ignore_errors=true)` —
+ * deliberate (one torn line must not take a namespace down) but until now
+ * silent, so a crash-truncated record vanished from `recall`/`search` with
+ * no trace. This audits the same file list through the shared scanner
+ * (`src/storage/corruption.ts`) and emits the same warning the JSONL reader
+ * emits, so both readers report one count for one namespace (AC4).
+ */
+export function auditServingChunks(jsonlFiles: string[]): CorruptionReport {
+  const report = scanMalformedLines(jsonlFiles);
+  if (report.skipped > 0) {
+    warnOnCorruption(report);
+  }
+  return report;
 }
 
 /**
@@ -449,6 +472,9 @@ export function queryMemories(
     return [];
   }
 
+  // QA-DUCKBRAIN-022: never serve a short page silently.
+  auditServingChunks(jsonlFiles);
+
   // Build WHERE clause based on filters - use template literals instead of
   // prepared statements to avoid DuckDB Node.js binding issues with parameter
   // placeholders
@@ -578,6 +604,9 @@ export function countMemories(
   if (jsonlFiles.length === 0) {
     return Promise.resolve(0);
   }
+
+  // QA-DUCKBRAIN-022: a count computed over a truncated ingest must say so.
+  auditServingChunks(jsonlFiles);
 
   const innerConditions = buildWhereConditions(filters);
   const innerWhereClause =
@@ -940,6 +969,9 @@ export async function queryMemoriesWithTotal(
   if (jsonlFiles.length === 0) {
     return empty;
   }
+
+  // QA-DUCKBRAIN-022: the total must not silently omit skipped rows.
+  auditServingChunks(jsonlFiles);
 
   if (isPlainList(filters)) {
     const bounded = await queryPlainListBounded(db, jsonlFiles, filters ?? {});
