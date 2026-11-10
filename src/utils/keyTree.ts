@@ -14,13 +14,21 @@ import { KeyNode } from "../http/types/api";
  * Keys are stored with a leading slash (e.g. "/projects/duckbrain/status");
  * empty segments produced by splitting on "/" are filtered out so the root
  * level starts at the first real segment.
+ *
+ * `memoryCount` on a node is the number of DISTINCT memory keys at or beneath
+ * that path. A folder always counts each memory once, however deeply it is
+ * nested (QA-DUCKBRAIN-023): /a/b/c + /a/b/d + /x/y gives /a = 2, /a/b = 2,
+ * /x = 1 — not the old depth-summed 6, 4, 2.
  */
 export function buildKeyTree(keys: string[], maxDepth: number = 10): KeyNode[] {
   const root: KeyNode[] = [];
   const nodeMap = new Map<string, KeyNode>();
 
-  // Sort keys for consistent ordering
-  const sortedKeys = [...keys].sort();
+  // Sort keys for consistent ordering. Deduplicate first: the count contract
+  // is DISTINCT memory keys, so a key repeated in the flat list (multiple
+  // revisions, or a caller that did not pre-group) must not inflate its
+  // ancestors.
+  const sortedKeys = [...new Set(keys)].sort();
 
   for (const key of sortedKeys) {
     const parts = key.split("/").filter((p) => p !== "");
@@ -56,18 +64,22 @@ export function buildKeyTree(keys: string[], maxDepth: number = 10): KeyNode[] {
           root.push(node);
         }
       }
+    }
 
-      // Increment memory count for all parent nodes
-      let countPath = currentPath;
-      while (countPath) {
-        const node = nodeMap.get(countPath);
-        if (node) {
-          node.memoryCount = (node.memoryCount || 0) + 1;
-        }
-        // Get parent path
-        const lastSlash = countPath.lastIndexOf("/");
-        countPath = lastSlash > 0 ? countPath.substring(0, lastSlash) : "";
+    // Increment memory count for the key's own node and every ancestor, ONCE
+    // per distinct key. This used to run inside the per-segment loop above, so
+    // a key at depth N added N to each ancestor and folders reported the sum
+    // of depths ("/a" = 6 for /a/b/c + /a/b/d + /x/y) instead of the number of
+    // memories beneath them (QA-DUCKBRAIN-023).
+    let countPath = currentPath;
+    while (countPath) {
+      const node = nodeMap.get(countPath);
+      if (node) {
+        node.memoryCount = (node.memoryCount || 0) + 1;
       }
+      // Get parent path
+      const lastSlash = countPath.lastIndexOf("/");
+      countPath = lastSlash > 0 ? countPath.substring(0, lastSlash) : "";
     }
   }
 
