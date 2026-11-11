@@ -1,7 +1,44 @@
-# DuckBrain release evidence — pass 7 (2026-11-10 07:51Z)
+# DuckBrain release evidence — pass 8 (2026-11-11 10:14Z)
 
-Satellite tick: `duckbrain-releng-2026-11-10-05-41-03`. Scope: verification only.
+Satellite tick: `duckbrain-releng-2026-11-11-10-03-09`. Scope: verification only. Pass 7 is retained below.
 Decision: **NO-GO** — no tag, no Release object, no force-move, `v1.1.0` untouched.
+
+Certified candidate: `9cdf6d5d583153c0863a1c4cf2b5b3734ebdf8a7`.
+
+## Current pass — 2026-11-11 10:14Z
+
+### Candidate and baseline
+
+- Canonical remote: `origin=https://github.com/wojons/duckbrain.git` (`wojons/duckbrain`); default branch `main`.
+- `HEAD`, `origin/main`, and `git ls-remote origin refs/heads/main` agree at `9cdf6d5d583153c0863a1c4cf2b5b3734ebdf8a7`; parity is `0/0`.
+- Baseline `v1.1.0` remains immutable: remote annotated tag object `6def80e0f0ddfbed700819e25e99a08d7e0e58ca`, peeled commit `b65ba2e475c106c815d2baab4291983863616e55`.
+- Delta from the prior certified candidate `a8ee14f2` is bookkeeping only: `docs/release-evidence-2026-11-10-0751.md` plus `.coding-hermes/board/tasks.jsonl`, with no shipped-code path. The intervening `d3740340` candidate was followed by the board carrier `9cdf6d5d`.
+
+### Commit census and semver
+
+`v1.1.0..9cdf6d5d` contains 451 commits total and 432 non-merge commits. Conventional-prefix counts are: `feat` 28, `fix` 38, `perf` 5, `docs` 25, `chore` 73, `board` 172, `test` 15, other 95. The post-prep range `1364dc4f..9cdf6d5d` contains 196 commits. No declared `type!:` subject was found. A `BREAKING CHANGE` text hit came from the prose of the prior readiness commit, not a breaking-change footer; verified declaration count is zero. Proposed bump remains `v1.2.0` minor, not major.
+
+The current tip adds three material fix commits after the earlier coverage measurement: `7c0d88e7`, `950a281b`, and `0d1b9e53`. The `[1.2.0]` section still has 32 entries, but the per-SHA citation check reports those three as missing. This reopens CHANGELOG coverage as an executable blocker; the stale numeric preamble is also still reserved for the final cut-time refresh.
+
+### Hosted CI
+
+Exact candidate CI is green: run `43001175002`, `CI`, head SHA `9cdf6d5d583153c0863a1c4cf2b5b3734ebdf8a7`, completed/success. Jobs `test` and `docker` both succeeded; the test job completed all integration and red-proof steps. The preceding candidate run `43000488174` on `d3740340` also completed/success. Older runs `43000417834` and `43000042042` failed on their own SHAs and are not inherited onto this candidate.
+
+### Release tooling and artifacts
+
+The repository-owned release path is `.github/workflows/release.yml`: an annotated `v*` tag triggers exact-main-CI verification and `gh release create --verify-tag` using the matching CHANGELOG section. No Makefile release target, `scripts/release*`, GoReleaser config, npm publish step, or configured Docker registry push exists. The documented scope explicitly keeps npm and registry publication out of release; Docker is local/operator-built only. Package strategy evidence from the prior pass remains `pnpm pack` and local Docker build, not published assets.
+
+Version hygiene is not ready: `package.json` is `1.2.0`, while `package-lock.json` is `1.1.0`, the README badge is `1.1.0`, and both CLI help literals plus the CI help assertion still say `1.1.0`. The open `RELEASE-VERSION-001` row remains live.
+
+Release surface: only GitHub Release `v1.0.0` exists. `v1.1.0` has a remote tag but no Release object; `v1.2.0` tag and Release are absent. No tag, Release, artifact publication, or force-move was performed.
+
+### GitReins, dogfood, deployed posture
+
+No current all-green GitReins verdict is bound to `9cdf6d5d`. The latest stored verdicts are bound to other commits; the current working verdict is stale/degraded evidence and includes a dirty-tree count, so it is not a candidate release gate. Dogfood/QA remains non-waiving evidence: open release-relevant rows include `QA-DUCKBRAIN-022` (in progress), `QA-DUCKBRAIN-028` (judge hang), `PERF-DUCKBRAIN-002` (blocked on owner-gated production compaction), and `DF-0923-05-R2` (packaging/upgrade path). These are not a repo-defined publication precondition, but they remain open posture findings. Deployed binary provenance remains unmeasured; the live service exposes no loaded-commit field.
+
+### Decision and unblock path
+
+**NO-GO.** Exact candidate CI is green, but the cut is blocked by version-surface drift and the newly re-opened three-SHA CHANGELOG citation gap. The existing pending rows `RELEASE-2026-11-09-001` and `RELEASE-VERSION-001` remain the canonical follow-up rows; no duplicate RELEASE row was filed. Unblock in order: land the version-surface fix; cite `7c0d88e7`, `950a281b`, and `0d1b9e53` in the `[1.2.0]` section; at the final tag commit refresh the measured Range preamble; re-run exact-SHA CI; then create `v1.2.0` once all cut gates are green. Keep `v1.1.0` unchanged.
 
 ## 1. Candidate identity
 
