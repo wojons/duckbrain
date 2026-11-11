@@ -23,6 +23,7 @@
 
 import fs from "fs";
 import path from "path";
+import { Mutex } from "async-mutex";
 import { ApiError, ValidationError } from "../http/middleware/errorHandler";
 import { listTables, getTable, namespaceDir, type TableDeclaration } from "../schema/table-registry";
 import { getDeclaredTable, assertNamespaceSchemaUsable } from "../serialization/schemaRegistry";
@@ -586,6 +587,74 @@ async function acquireNamespaceWriteLockWaiting(
 }
 
 /**
+ * INSERT refused because its declared primary key already exists (409).
+ *
+ * Before this, `insertTableRows` only validated that a row HAD a primary key
+ * (AUG-045). A second POST carrying the same id appended a duplicate row, so
+ * `?pk=eq.<v>` matched two rows and a PATCH/DELETE addressed by that key could
+ * hit both — silent corruption instead of an error. The multi-op transaction
+ * path already refused this shape (`applyTransactionActionLocked`, 409); the
+ * plain insert path now refuses it in the same way.
+ */
+export class DuplicateKeyError extends ValidationError {
+  constructor(table: string, column: string, value: unknown) {
+    super(
+      `Duplicate primary key for table '${table}': ${column}=${String(value)} already exists`,
+      { pk: String(value) },
+    );
+    this.name = "DuplicateKeyError";
+    this.status = 409;
+    this.code = "DUPLICATE_KEY";
+  }
+}
+
+const insertGates = new Map<string, Mutex>();
+
+/**
+ * Serialises insert admission for one namespace inside this process, so the
+ * duplicate-key lookup and the enqueues it guards form ONE critical section.
+ */
+function withInsertGate<T>(ns: string, task: () => Promise<T>): Promise<T> {
+  let gate = insertGates.get(ns);
+  if (!gate) {
+    gate = new Mutex();
+    insertGates.set(ns, gate);
+  }
+  return gate.runExclusive(task);
+}
+
+/**
+ * Refuse the whole batch when any incoming row's declared primary key is
+ * already stored, or repeats another row of the same batch.
+ *
+ * MUST be called inside the insert critical section (per-namespace insert gate
+ * plus the namespace write lock): `findRowByPk` reads the committed rows, so
+ * the lookup and the write it guards have to be one critical section or two
+ * concurrent inserts could both pass.
+ */
+function assertNoDuplicatePrimaryKeys(
+  nsDir: string,
+  declaration: ReturnType<typeof resolveTableDeclaration>,
+  rows: Record<string, unknown>[],
+): void {
+  const primary = declaration.primary;
+  if (primary === null) return;
+  const column = declaration.columns.find((entry) => entry.name === primary);
+  if (!column) return;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const key = String(row[primary]);
+    if (seen.has(key)) {
+      throw new DuplicateKeyError(declaration.name, primary, key);
+    }
+    seen.add(key);
+    if (findRowByPk(nsDir, declaration, column, key) !== null) {
+      throw new DuplicateKeyError(declaration.name, primary, key);
+    }
+  }
+}
+
+/**
  * INSERT rows into a declared table.
  *
  * A DB-SUPA-6 `schema.json` declaration writes through the SUPA-2 serializer
@@ -668,39 +737,60 @@ export async function insertTableRows(
     }));
     const writer = getNamespaceWriter(ns);
     const partition = partitionForStoragePath(declaration.glob);
-    let inserted = 0;
-    for (const row of coerced) {
-      const record = storedRowFromApiRow(
-        declaredColumns,
-        declaration.format === "jsonl-positional" ? "positional" : "object",
-        row,
-      );
-      const result = await writer.enqueue({
-        ns,
-        table: declaration.name,
-        op: "insert",
-        record,
-        principal,
-        targetPath: declaration.glob,
-        ...(partition ? { partitionPath: partition } : {}),
-      });
-      if (!result.ok) {
-        const status =
-          result.code === "VALIDATION_ERROR"
-            ? 422
-            : result.code === "NOT_FOUND"
-              ? 404
-              : result.code === "FORBIDDEN"
-                ? 403
-                : result.code === "SERIALIZER_LOCKED" ||
-                    result.code === "SERIALIZER_FENCED" ||
-                    result.code === "SERVER_SHUTTING_DOWN"
-                  ? 503
-                  : 500;
-        throw new ApiError(result.message, status, result.code);
+    // Uniqueness and the writes it guards are one critical section: the
+    // per-namespace insert gate serialises concurrent inserts inside this
+    // process (the serializer's flush takes the write lock asynchronously, so
+    // holding that lock across an enqueue would deadlock), and the write lock
+    // itself excludes another writer process for the duration of the lookup.
+    const inserted = await withInsertGate(ns, async () => {
+      const checkLock = await acquireNamespaceWriteLockWaiting(ns);
+      if (!checkLock) {
+        throw new ApiError(
+          `Namespace '${ns}' is locked by another writer process`,
+          503,
+          "SERIALIZER_LOCKED",
+        );
       }
-      inserted += 1;
-    }
+      try {
+        assertNoDuplicatePrimaryKeys(namespaceDir(ns), declaration, coerced);
+      } finally {
+        releaseNamespaceWriteLock(checkLock);
+      }
+      let count = 0;
+      for (const row of coerced) {
+        const record = storedRowFromApiRow(
+          declaredColumns,
+          declaration.format === "jsonl-positional" ? "positional" : "object",
+          row,
+        );
+        const result = await writer.enqueue({
+          ns,
+          table: declaration.name,
+          op: "insert",
+          record,
+          principal,
+          targetPath: declaration.glob,
+          ...(partition ? { partitionPath: partition } : {}),
+        });
+        if (!result.ok) {
+          const status =
+            result.code === "VALIDATION_ERROR"
+              ? 422
+              : result.code === "NOT_FOUND"
+                ? 404
+                : result.code === "FORBIDDEN"
+                  ? 403
+                  : result.code === "SERIALIZER_LOCKED" ||
+                      result.code === "SERIALIZER_FENCED" ||
+                      result.code === "SERVER_SHUTTING_DOWN"
+                    ? 503
+                    : 500;
+          throw new ApiError(result.message, status, result.code);
+        }
+        count += 1;
+      }
+      return count;
+    });
     const configured = durabilityHeaderFor(ns);
     return { inserted, durability: { configured, achieved: configured } };
   }
@@ -710,7 +800,25 @@ export async function insertTableRows(
   // what it achieved, not what was configured.
   const configured = durabilityHeaderFor(ns);
   const nsDirAbs = namespaceDir(ns);
-  const appended = appendRowsToTable(nsDirAbs, declaration, coerced, configured);
+  // The existence check and the append it guards are ONE critical section:
+  // two concurrent inserts of the same key must not both see "free" and both
+  // append. The audience below is enqueued after the lock is released (its
+  // flush takes the lock itself).
+  const lock = await acquireNamespaceWriteLockWaiting(ns);
+  if (!lock) {
+    throw new ApiError(
+      `Namespace '${ns}' is locked by another writer process`,
+      503,
+      "SERIALIZER_LOCKED",
+    );
+  }
+  let appended: ReturnType<typeof appendRowsToTable>;
+  try {
+    assertNoDuplicatePrimaryKeys(nsDirAbs, declaration, coerced);
+    appended = appendRowsToTable(nsDirAbs, declaration, coerced, configured);
+  } finally {
+    releaseNamespaceWriteLock(lock);
+  }
   // DB-SUPA-5 parity for the legacy `.table.json` declaration path: an
   // accepted INSERT is a change record like every other accepted mutation.
   //

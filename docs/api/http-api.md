@@ -1333,6 +1333,27 @@ curl -X POST http://localhost:3000/api/ns/my-ns/tables/items \
 {"id": 3, "name": "widget", "qty": 30}'
 ```
 
+#### Duplicate primary keys — `409 DUPLICATE_KEY`
+
+A table declares at most one primary key (`primary`). An insert whose key is
+already stored is **refused**; nothing is appended.
+
+```json
+{
+  "error": "Duplicate primary key for table 'widgets': id=1 already exists",
+  "code": "DUPLICATE_KEY",
+  "fields": { "pk": "1" }
+}
+```
+
+- `fields.pk` carries the colliding key value (as a string).
+- The check runs under the namespace write lock, so two concurrent inserts of
+  the same key cannot both succeed.
+- A batch is **all-or-nothing**: one colliding key refuses the whole batch, and
+  a key repeated inside a single batch is refused the same way.
+- There is no `on_conflict` / merge-duplicates mode; update by key with
+  `PATCH ...?pk=eq.<value>` instead.
+
 #### `PATCH` / `DELETE` — mutation by primary key
 
 Both require an equality filter on the table's declared primary key:
