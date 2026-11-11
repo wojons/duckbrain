@@ -211,7 +211,33 @@ function validateTableDeclaration(
         "TABLE_REGISTRY_ERROR",
       );
     }
-    columns.push({ name: colName, type: colType as TableColumnTypeName });
+    const references = col_.references;
+    if (references !== undefined) {
+      if (
+        typeof references !== "object" ||
+        references === null ||
+        Array.isArray(references) ||
+        typeof (references as Record<string, unknown>).table !== "string" ||
+        typeof (references as Record<string, unknown>).column !== "string"
+      ) {
+        throw new ApiError(
+          `Invalid table declaration ${fileName}: column '${colName}' references must be {table, column}`,
+          500,
+          "TABLE_REGISTRY_ERROR",
+        );
+      }
+    }
+    columns.push({
+      name: colName,
+      type: colType as TableColumnTypeName,
+      ...(references !== undefined
+        ? {
+            references: {
+              ...(references as { table: string; column: string }),
+            },
+          }
+        : {}),
+    });
   }
 
   const primary = raw_.primary ?? null;

@@ -138,18 +138,24 @@ const TableDeclareInputSchema = z.object({
   namespace: NamespaceArg,
   table: z
     .string()
-    .describe("Table name (lowercase letters, digits, '-', '_'; schema.json rules apply)"),
+    .describe(
+      "Table name (lowercase letters, digits, '-', '_'; schema.json rules apply)",
+    ),
   columns: z
     .array(
       z.object({
         name: z.string().describe("Column name"),
         type: z
           .string()
-          .describe("Column type: varchar|integer|bigint|double|boolean|timestamp|json"),
+          .describe(
+            "Column type: varchar|integer|bigint|double|boolean|timestamp|json",
+          ),
       }),
     )
     .min(1)
-    .describe("Declared columns; the first is the primary key unless `primary` is given"),
+    .describe(
+      "Declared columns; the first is the primary key unless `primary` is given",
+    ),
   primary: z
     .string()
     .optional()
@@ -163,11 +169,15 @@ const TableDeclareInputSchema = z.object({
       read: z
         .object({ column: z.string(), equals: z.string() })
         .optional()
-        .describe("Row-level READ policy: { column, equals } — equals is a literal or .id/.name"),
+        .describe(
+          "Row-level READ policy: { column, equals } — equals is a literal or .id/.name",
+        ),
       write: z
         .object({ column: z.string(), equals: z.string() })
         .optional()
-        .describe("Row-level WRITE policy: { column, equals } — equals is a literal or .id/.name"),
+        .describe(
+          "Row-level WRITE policy: { column, equals } — equals is a literal or .id/.name",
+        ),
     })
     .optional()
     .describe(
@@ -176,11 +186,15 @@ const TableDeclareInputSchema = z.object({
   legacy: z
     .boolean()
     .optional()
-    .describe("Write tables/<table>.table.json instead of the SUPA-6 schema.json"),
+    .describe(
+      "Write tables/<table>.table.json instead of the SUPA-6 schema.json",
+    ),
   force: z
     .boolean()
     .optional()
-    .describe("Replace an existing declaration of the same table with a different contract"),
+    .describe(
+      "Replace an existing declaration of the same table with a different contract",
+    ),
 });
 
 export interface TableDeclareOutput {
@@ -315,12 +329,23 @@ const TableSelectInputSchema = z.object({
     .union([z.string(), z.array(z.string())])
     .optional()
     .describe("Order: 'col.asc' or 'col.desc' (repeatable)"),
-  limit: z.number().int().positive().optional().describe("Max rows (hard cap 1000)"),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Max rows (hard cap 1000)"),
   offset: z.number().int().nonnegative().optional().describe("Rows to skip"),
   count: z
     .enum(["exact"])
     .optional()
     .describe("count=exact → return totalCount for the filter"),
+  select: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .describe(
+      "Projection: '*' or comma-separated declared columns; use relation(*) for a declared embed",
+    ),
 });
 
 /**
@@ -348,16 +373,14 @@ export async function tableSelectTool(
     // Resolve first so the unknown-column rule (and its message) is applied by
     // the shared filterParams, exactly like the REST querystring path.
     const declaration = resolveTableDeclaration(namespace, args.table);
-    const filters = filterParams(
-      { ...(args.filters ?? {}) },
-      declaration,
-    );
+    const filters = filterParams({ ...(args.filters ?? {}) }, declaration);
     const { rows, totalCount } = await selectTableRows(namespace, args.table, {
       filters,
       order: args.order,
       limit: args.limit,
       offset: args.offset,
       wantCount: args.count === "exact",
+      select: args.select,
       // RLS-001: the declared row policy applies to this transport too.
       principal: resolveToolPrincipal(context),
       auditPolicyDenial: resolveToolDenialAuditor(context),
@@ -618,7 +641,7 @@ export const tableSelectToolDef = {
   name: "table_select",
   title: "Select Table Rows",
   description:
-    "Read rows from a declared table with PostgREST-style filters (eq/ne/neq/gt/gte/lt/lte/like/ilike/in/is/isdistinct/fts/plfts, not.-negatable), order, limit/offset and an optional exact count.",
+    "Read rows from a declared table with PostgREST-style filters, select projection (including declared relation embeds), order, limit/offset and an optional exact count.",
   inputSchema: TableSelectInputSchema,
   handler: tableSelectTool,
 };
@@ -649,7 +672,14 @@ export const queryToolDef = {
   handler: queryTool,
 };
 
-export { TableDeclareInputSchema, TableInsertInputSchema, TableSelectInputSchema, TableUpdateInputSchema, TableDeleteInputSchema, QueryInputSchema };
+export {
+  TableDeclareInputSchema,
+  TableInsertInputSchema,
+  TableSelectInputSchema,
+  TableUpdateInputSchema,
+  TableDeleteInputSchema,
+  QueryInputSchema,
+};
 
 /** Every data-plane tool, in registration order. */
 export const tableToolDefs = [

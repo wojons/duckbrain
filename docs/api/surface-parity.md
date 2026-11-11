@@ -71,7 +71,7 @@ test also fails when the committed block is stale.
 | Capability | CLI | HTTP | MCP |
 | --- | --- | --- | --- |
 | `table.list` — List declared tables and their schemas | `tables` | `GET /api/ns/:ns/tables` | `table_list` |
-| `table.read` — Read rows from a declared table | **pending** | `GET /api/ns/:ns/tables/:table` | `table_select` |
+| `table.read` — Read rows from a declared table (filters/order/paging, `select` projection, declared embeds) | **pending** | `GET /api/ns/:ns/tables/:table?select=...` | `table_select` (`select`) |
 | `table.insert` — Insert rows into a declared table | **pending** | `POST /api/ns/:ns/tables/:table` | `table_insert` |
 | `table.update` — Update rows by primary key (PATCH and PUT/:pk forms) | **pending** | `PATCH /api/ns/:ns/tables/:table`, `PUT /api/ns/:ns/tables/:table/:pk` | `table_update` |
 | `table.delete` — Delete rows from a declared table | **pending** | `DELETE /api/ns/:ns/tables/:table` | `table_delete` |

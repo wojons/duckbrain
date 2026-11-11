@@ -25,8 +25,16 @@ import fs from "fs";
 import path from "path";
 import { Mutex } from "async-mutex";
 import { ApiError, ValidationError } from "../http/middleware/errorHandler";
-import { listTables, getTable, namespaceDir, type TableDeclaration } from "../schema/table-registry";
-import { getDeclaredTable, assertNamespaceSchemaUsable } from "../serialization/schemaRegistry";
+import {
+  listTables,
+  getTable,
+  namespaceDir,
+  type TableDeclaration,
+} from "../schema/table-registry";
+import {
+  getDeclaredTable,
+  assertNamespaceSchemaUsable,
+} from "../serialization/schemaRegistry";
 import type { RegisteredTableDeclaration } from "../serialization/registry";
 import {
   buildSelectPlan,
@@ -44,7 +52,10 @@ import {
   type RowLineLocation,
 } from "../duckdb/table-store";
 import { getNamespaceWriter } from "../serialization/namespaceWriter";
-import { acceptedTableMutationRecord, type AuditEntry } from "../serialization/audit";
+import {
+  acceptedTableMutationRecord,
+  type AuditEntry,
+} from "../serialization/audit";
 import {
   acquireNamespaceWriteLock,
   releaseNamespaceWriteLock,
@@ -57,7 +68,10 @@ import {
   type AchievedWriteMode,
   type WriteMode,
 } from "../storage/durability";
-import { assertNamespaceDdlUsable, partitionForStoragePath } from "../serialization/ddl";
+import {
+  assertNamespaceDdlUsable,
+  partitionForStoragePath,
+} from "../serialization/ddl";
 import { storedRowFromApiRow } from "../serialization/schemaTypes";
 import type { AuthPrincipal } from "../auth/middleware";
 import {
@@ -107,7 +121,8 @@ export function asLegacyDeclaration(
     format: "jsonl-objects" as const,
     columns: decl.columns.map((c) => ({
       name: c.name,
-      type: (DECLARED_TO_LEGACY[c.type] ?? "varchar") as TableDeclaration["columns"][number]["type"],
+      type: (DECLARED_TO_LEGACY[c.type] ??
+        "varchar") as TableDeclaration["columns"][number]["type"],
       nullable: c.nullable,
       ...(c.references ? { references: { ...c.references } } : {}),
     })),
@@ -206,6 +221,7 @@ const RESERVED_QUERY_KEYS = new Set([
   "count",
   "pk",
   "embed",
+  "select",
 ]);
 
 /**
@@ -313,6 +329,8 @@ export interface SelectTableInput {
   limit?: unknown;
   offset?: unknown;
   wantCount?: boolean;
+  /** PostgREST projection: declared columns and one-level relation embeds. */
+  select?: string | string[] | undefined;
   /**
    * REST-ATOMICITY-001 AC-3: declared relations to EMBED, one level deep.
    * Each name must be the `references.table` of a column on this table.
@@ -348,6 +366,7 @@ export async function selectTableRows(
   input: SelectTableInput = {},
 ): Promise<SelectTableResult> {
   const declaration = resolveTableDeclaration(ns, table);
+  const projection = parseSelectProjection(input.select, declaration);
   // RLS-001: grant says "may touch this table"; policy says "which rows".
   const policy = resolveRowPolicy(declaration.policy, "read", input.principal);
   if (policy.kind === "deny") {
@@ -366,6 +385,7 @@ export async function selectTableRows(
     limit: input.limit as never,
     offset: input.offset as never,
     wantCount: input.wantCount === true,
+    selectedColumns: projection.columns,
     ...(policy.kind === "filter" ? { rowPolicy: policy.filter } : {}),
   });
   const { rows: rawRows, totalCount } = await executeSelectPlan(
@@ -383,6 +403,7 @@ export async function selectTableRows(
       buildSelectPlan(declaration, {
         filters: input.filters ?? {},
         wantCount: true,
+        selectedColumns: projection.columns,
       }),
     );
     if ((unfiltered.totalCount ?? 0) > 0) {
@@ -400,7 +421,9 @@ export async function selectTableRows(
     .map((c) => c.name);
   const rows = rawRows.map((row) => {
     if (jsonCols.length === 0) return row as Record<string, unknown>;
-    const shaped: Record<string, unknown> = { ...(row as Record<string, unknown>) };
+    const shaped: Record<string, unknown> = {
+      ...(row as Record<string, unknown>),
+    };
     for (const name of jsonCols) {
       const cell = shaped[name];
       if (typeof cell === "string") {
@@ -413,13 +436,112 @@ export async function selectTableRows(
     }
     return shaped;
   });
-  const embeds = normalizeEmbeds(input.embed);
+  const embeds = [
+    ...new Set([...projection.embeds, ...normalizeEmbeds(input.embed)]),
+  ];
   const withEmbeds =
-    embeds.length > 0 ? embedDeclaredRelations(ns, declaration, rows, embeds) : rows;
-  return { declaration, rows: withEmbeds, totalCount };
+    embeds.length > 0
+      ? embedDeclaredRelations(ns, declaration, rows, embeds)
+      : rows;
+  const selected = new Set(projection.columns);
+  const projectedRows = withEmbeds.map((row) => {
+    const projected: Record<string, unknown> = {};
+    for (const column of projection.columns) {
+      projected[column] = row[column];
+    }
+    for (const relation of projection.embeds) {
+      projected[relation] = row[relation];
+    }
+    // Preserve the legacy `embed=` behavior when no select projection was supplied.
+    if (input.select === undefined) {
+      for (const [key, value] of Object.entries(row)) {
+        if (!selected.has(key)) projected[key] = value;
+      }
+    }
+    return projected;
+  });
+  return { declaration, rows: projectedRows, totalCount };
 }
 
 /** `?embed=a,b` / `?embed=a` / `["a","b"]` → names (order preserved). */
+interface SelectProjection {
+  columns: string[];
+  embeds: string[];
+}
+
+function splitSelectItems(raw: string | string[]): string[] {
+  const source = Array.isArray(raw) ? raw.join(",") : raw;
+  const items: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "(") depth += 1;
+    else if (char === ")") depth -= 1;
+    else if (char === "," && depth === 0) {
+      items.push(source.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) {
+    throw new ApiError(
+      "Invalid select projection: unbalanced parentheses",
+      400,
+      "VALIDATION_ERROR",
+    );
+  }
+  items.push(source.slice(start).trim());
+  return items.filter((item) => item.length > 0);
+}
+
+function parseSelectProjection(
+  raw: string | string[] | undefined,
+  declaration: TableDeclaration,
+): SelectProjection {
+  if (raw === undefined) {
+    return {
+      columns: declaration.columns.map((column) => column.name),
+      embeds: [],
+    };
+  }
+  const columns: string[] = [];
+  const embeds: string[] = [];
+  for (const item of splitSelectItems(raw)) {
+    if (item === "*") {
+      columns.push(...declaration.columns.map((column) => column.name));
+      continue;
+    }
+    const embed = item.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(\*\)$/);
+    if (embed) {
+      const relation = embed[1]!;
+      if (
+        !declaration.columns.some(
+          (column) => column.references?.table === relation,
+        )
+      ) {
+        throw new UnsupportedQueryError(
+          `Unsupported select relation '${relation}' on table '${declaration.name}': the relation is not declared`,
+          { relation },
+        );
+      }
+      embeds.push(relation);
+      continue;
+    }
+    if (!declaration.columns.some((column) => column.name === item)) {
+      throw new ApiError(
+        `Unknown select column '${item}' (table '${declaration.name}' declares: ${declaration.columns.map((column) => column.name).join(", ")})`,
+        400,
+        "UNKNOWN_COLUMN",
+      );
+    }
+    columns.push(item);
+  }
+  return {
+    columns: [...new Set(columns)],
+    embeds: [...new Set(embeds)],
+  };
+}
+
 function normalizeEmbeds(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const parts = Array.isArray(raw) ? raw : String(raw).split(",");
@@ -472,7 +594,9 @@ function embedDeclaredRelations(
     }
     const target = resolveTableDeclaration(ns, name);
     const targetKeyName = referencing.references!.column;
-    const targetKey = target.columns.find((column) => column.name === targetKeyName);
+    const targetKey = target.columns.find(
+      (column) => column.name === targetKeyName,
+    );
     if (!targetKey) {
       throw new ApiError(
         `Table '${name}' has no column '${targetKeyName}' named by '${declaration.name}.${referencing.name}.references'`,
@@ -952,9 +1076,16 @@ export async function updateTableRows(
         ...patchBody,
       });
       for (const key of Object.keys(patchBody)) coercedBody[key] = merged[key];
-      patchOutcome = patchRowsByPk(nsDir, declaration, col, value, coercedBody, {
-        mode: configured,
-      });
+      patchOutcome = patchRowsByPk(
+        nsDir,
+        declaration,
+        col,
+        value,
+        coercedBody,
+        {
+          mode: configured,
+        },
+      );
       mutated = patchOutcome.mutated;
       if (mutated > 0) {
         // DB-SUPA-5: the change record's `contentHash` must name the row line
@@ -1309,9 +1440,12 @@ export async function upsertTableRow(
   let resultRow: Record<string, unknown> = {};
   let achieved: AchievedWriteMode = configured;
   let policyDenial: string | null = null;
-  let record:
-    | { op: "insert" | "update"; targetPath: string; dataLine: string; row: unknown }
-    | null = null;
+  let record: {
+    op: "insert" | "update";
+    targetPath: string;
+    dataLine: string;
+    row: unknown;
+  } | null = null;
   try {
     const existing = findRowByPk(nsDir, declaration, col, value);
     if (existing !== null) {
@@ -1391,7 +1525,12 @@ export async function upsertTableRow(
         policyDenial = policyDecision.message;
         throw new PolicyRefusal(policyDecision.message);
       }
-      const appended = appendRowsToTable(nsDir, declaration, [candidate], configured);
+      const appended = appendRowsToTable(
+        nsDir,
+        declaration,
+        [candidate],
+        configured,
+      );
       achieved = appended.achieved;
       resultRow = candidate;
       const files = resolveTableFiles(nsDir, declaration);
@@ -1433,11 +1572,17 @@ export async function upsertTableRow(
       "AUDIT_APPEND_FAILED",
     );
   }
-  await recordTableMutationAudit(ns, declaration.name, record.op, principal?.name ?? null, {
-    targetPath: record.targetPath,
-    dataLine: record.dataLine,
-    row: record.row,
-  });
+  await recordTableMutationAudit(
+    ns,
+    declaration.name,
+    record.op,
+    principal?.name ?? null,
+    {
+      targetPath: record.targetPath,
+      dataLine: record.dataLine,
+      row: record.row,
+    },
+  );
   return { outcome, row: resultRow, durability: { configured, achieved } };
 }
 
@@ -1486,8 +1631,7 @@ export interface TableTransactionFailure {
 }
 
 export type TableTransactionOutcome =
-  | TableTransactionSuccess
-  | TableTransactionFailure;
+  TableTransactionSuccess | TableTransactionFailure;
 
 /**
  * Fault-injection seam. Production callers never pass hooks; the rollback
@@ -1566,13 +1710,20 @@ function prepareTransactionActions(
     let pkCol: PreparedTransactionAction["pkCol"] = null;
     let pkValue: string | null = null;
     if (action.op !== "insert") {
-      const filter = resolvePkFilter(declaration, action.pk, action.op.toUpperCase());
+      const filter = resolvePkFilter(
+        declaration,
+        action.pk,
+        action.op.toUpperCase(),
+      );
       pkCol = filter.col;
       pkValue = filter.value;
     }
     let row: Record<string, unknown> | null = null;
     let patch: Record<string, unknown> | null = null;
-    const objectBody = (value: unknown, what: string): Record<string, unknown> => {
+    const objectBody = (
+      value: unknown,
+      what: string,
+    ): Record<string, unknown> => {
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
         throw new ApiError(
           `Transaction action ${index} (${action.op} ${action.table}): ${what} must be a JSON object`,
@@ -1800,9 +1951,16 @@ function applyTransactionActionLocked(
         throw new ApiError(policyDecision.message, 403, "FORBIDDEN");
       }
     }
-    const mutated = patchRowsByPk(nsDir, declaration, pkCol, pkValue, prepared.patch!, {
-      mode: "buffered",
-    });
+    const mutated = patchRowsByPk(
+      nsDir,
+      declaration,
+      pkCol,
+      pkValue,
+      prepared.patch!,
+      {
+        mode: "buffered",
+      },
+    );
     if (mutated.mutated === 0) {
       throw new ApiError(
         `update '${table}' matched no row for ?pk=eq.${pkValue}`,
@@ -1862,7 +2020,13 @@ function applyTransactionActionLocked(
       });
       throw new ApiError(policyDecision.message, 403, "FORBIDDEN");
     }
-    const removed = deleteRowsByPk(nsDir, declaration, pkCol, pkValue, "buffered");
+    const removed = deleteRowsByPk(
+      nsDir,
+      declaration,
+      pkCol,
+      pkValue,
+      "buffered",
+    );
     if (removed.mutated === 0) {
       throw new ApiError(
         `delete '${table}' matched no row for ?pk=eq.${pkValue}`,
@@ -1978,11 +2142,20 @@ export async function runTableTransaction(
   principal?: AuthPrincipal,
   options: TableTransactionOptions = {},
 ): Promise<TableTransactionOutcome> {
-  const prepared = prepareTransactionActions(ns, rawActions, principal, options.auditPolicyDenial);
-  const declarations = [...new Map(
-    prepared.map((entry) => [entry.declaration.name, entry.declaration]),
-  ).values()];
-  if (declarations.some((declaration) => declaration.source === "schema.json")) {
+  const prepared = prepareTransactionActions(
+    ns,
+    rawActions,
+    principal,
+    options.auditPolicyDenial,
+  );
+  const declarations = [
+    ...new Map(
+      prepared.map((entry) => [entry.declaration.name, entry.declaration]),
+    ).values(),
+  ];
+  if (
+    declarations.some((declaration) => declaration.source === "schema.json")
+  ) {
     assertNamespaceDdlUsable(ns);
     assertNamespaceSchemaUsable(ns);
   }
@@ -2036,7 +2209,10 @@ export async function runTableTransaction(
         );
       }
       const status = error instanceof ApiError ? error.status : 500;
-      const code = error instanceof ApiError ? error.code ?? "TRANSACTION_FAILED" : "TRANSACTION_FAILED";
+      const code =
+        error instanceof ApiError
+          ? (error.code ?? "TRANSACTION_FAILED")
+          : "TRANSACTION_FAILED";
       const message = error instanceof Error ? error.message : String(error);
       const failedAction = results.length;
       const failedEntry = prepared[failedAction];
@@ -2061,11 +2237,17 @@ export async function runTableTransaction(
   // One change record per action, appended through the serializer AFTER the
   // lock is released (its flush takes the same lock).
   for (const record of records) {
-    await recordTableMutationAudit(ns, record.table, record.op, principal?.name ?? null, {
-      targetPath: record.targetPath,
-      dataLine: record.dataLine,
-      row: record.row,
-    });
+    await recordTableMutationAudit(
+      ns,
+      record.table,
+      record.op,
+      principal?.name ?? null,
+      {
+        targetPath: record.targetPath,
+        dataLine: record.dataLine,
+        row: record.row,
+      },
+    );
   }
 
   return {

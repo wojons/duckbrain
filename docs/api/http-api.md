@@ -1205,6 +1205,19 @@ curl http://localhost:3000/api/ns/my-ns/tables
 Returns a JSON array of rows (declared `json` columns come back as real JSON
 values, not strings).
 
+**Projection** uses `select=<item>,<item>`:
+
+- `select=id` returns objects whose only key is `id`.
+- `select=*` returns all declared columns.
+- `select=*,child(*)` embeds a declared relation under `child`. The relation must
+  be declared by a column reference; an undeclared relation returns `400
+  UNSUPPORTED_QUERY` naming the relation rather than returning an unembedded row.
+- An unknown column such as `select=id,nope` returns `400 UNKNOWN_COLUMN` and
+  names both the column and the table's declared column set.
+
+The MCP `table_select` tool accepts the same projection in its `select` argument,
+so both transports use the same projection and refusal rules.
+
 **Filters** are `<column>=<op>.<value>` query parameters, using PostgREST
 conventions. The supported set is fixed and auditable — every operator below
 is either implemented, deliberately absent (with the reason a JSONL document
