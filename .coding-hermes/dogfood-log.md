@@ -856,3 +856,26 @@ ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 target=fa6bb86f7abca3869ee51
 The install battery reached terminal collection after the initial log entry: 25 evidence rows were harvested. Fresh cells: fresh-install OK (5.9s, pnpm 12.4.2), tests OK, docker_build OK, compose_config OK, UI probe OK; ci-pass FAIL (act install step), upgrade FAIL (`duckbrain@1.0.0` npm E404), chaos-disconnect UNVERIFIED, chaos-shutdown FAIL before stop chain, chaos-corruption FAIL staging the scratch state file, chaos-resource INFO expected OOM, chaos-errorpath INFO environment gap. The bunker host still reported shared network mode, so isolation remains unverified. Agent `20808aa1` was destroyed with rc=0; `bunker info` returned not_found and a fresh list omitted it. This supersedes the earlier RUNNING/agent-left-intact wording; product verdict and README-19-R2 remain unchanged.
 
 ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 correction=install-terminal-and-teardown-verified agent=20808aa1 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/bunker/evidence.jsonl
+
+## 2026-11-11b — DUPLICATE FIRE tick duckbrain-dogfood-2026-11-11-04-58-53 — records-only, nothing re-measured, no rows added.
+
+The scheduler dispatched this tick id again about three minutes after the first fire's install-closeout commit landed (003bc301, 2026-11-11 00:48:58 -0500 = 05:48:58Z; this fire began 05:51:34Z). Already-worked confirmed on two surfaces: the log body carries the id four times (main entry, its ch:trace, the closeout-correction heading, its ch:trace), and HEAD *is* the correction commit.
+
+Proof at 003bc3013ef5fcffa6a4e23f187e2ccad2cd9e49 (fetched first): parity `git rev-list --left-right --count HEAD...origin/main` = 0/0, both refs resolve to 003bc301. Committed board carries `README-19-R2` exactly once (jq count 1, status pending, P2, created_at 2026-11-11T05:23:18Z) with exactly one `task_created` event (id 8631); `jq -r .id | sort | uniq -d` over the 566 committed rows is empty. `boardctl validate` from the canonical checkout: RESULT: OK (712 warnings) — fewer than the 714 legacy warnings recorded on 2026-11-08, so no new warning class.
+
+Product unchanged since the measured target: `git diff --name-only fa6bb86f7abca3869ee51f310fc8e76b62709f0a HEAD` lists only `.coding-hermes/board/{tasks,events}.jsonl`, `.coding-hermes/dogfood-log.md`, `docs/dogfood/2026-11-11-http-keyword-crash.md` and `docs/dogfood/diagnostics.md` — zero product code. Since the tip under test is identical, no real-use arm and no performance arm was re-run; the first fire's numbers stand unmodified.
+
+Prior-run claims re-verified against its own artifacts instead of trusted (read-only):
+- warm health mean 8.93 ms ± 1.14 ms, range 7.60–10.94 ms, 10/10 rc 0 — matches `artifacts/warm-health.json` exactly (mean 0.00892972).
+- warm exact-key mean 15.51 ms ± 1.44 ms, range 12.83–17.86 ms, 10/10 rc 0 — matches the same file (0.01551246).
+- cold daemon-to-health mean 445.47 ms ± 64.70 ms, range 369.67–539.35 ms, 5/5 rc 0 — matches `artifacts/cold-health.json` (0.44547034).
+- crash premise: `artifacts/http-probes.txt` records `[contains] rc=52 http=` (no HTTP response) and `run/daemon.log` contains `*** stack smashing detected ***: terminated` twice. The row's premise is real and its evidence is intact.
+- install leg: `bunker/evidence.jsonl` holds 27 rows (launch + 25 cells + collect): fresh-install OK, tests OK, docker_build OK, compose_config OK, ui-probe OK, ci-pass FAIL, upgrade FAIL, chaos-shutdown FAIL, chaos-corruption FAIL, chaos-disconnect UNVERIFIED, two INFO. Run-owned agent 20808aa1 is absent (`bunker info 20808aa1` → `not_found`), corroborating the recorded force-destroy.
+
+Evidence-integrity note for the foreman reading README-19-R2 (not a product defect, no row filed): in `artifacts/http-probes.txt` the `[contains]`, `[semantic]`, `[invalid-key]` and `[missing-route]` blocks all carry the *same* keys-tree JSON body, which is the last successful response body left in the probe's output file. The `rc=52`/`rc=7` values are genuine (the daemon was dead, so curl produced no body); the JSON under them is stale, not a response. Read the rc and the daemon log for those four probes, not the body.
+
+Fresh install census, not inherited: `bunker status --server bunker-mvp` = ONLINE v0.2.1, uptime 5d2h, `/tmp: private`, `Net mode: shared — NOT tenant isolation`, 5/50 agents. A launch this fire would still grade `install-proven / isolation-UNVERIFIED`, so this is not a `SKIPPED-install-bunker` case. The five agents present (`ci-e2e-01`, `cf-node`, `f7c5e1ef`, `b6ac6e1d`, `d6035ac5`) belong to other lanes and were left untouched.
+
+Left behind: this log line only. No board row, no product code, no docs, no skill, no scheduler state, no visibility or permission change, no credential minted; foreman not woken (read-only fire).
+
+ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 fire=duplicate-record-only-b target=003bc3013ef5fcffa6a4e23f187e2ccad2cd9e49 row=README-19-R2 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/dupfire-entry.md
