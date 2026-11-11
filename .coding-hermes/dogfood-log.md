@@ -849,3 +849,10 @@ Install leg: bunker-mvp ONLINE and bunkerd active; bunker-qa launch accepted can
 Left behind: docs/dogfood/2026-11-11-http-keyword-crash.md; this log entry; board rows README-19-R2 plus task_created event; external evidence under /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/. No product code, no visibility/permission change, no credential minted, no scheduler state change, foreman not woken.
 
 ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 target=fa6bb86f7abca3869ee51f310fc8e76b62709f0a row=README-19-R2 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/artifacts/http-probes.txt+/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/bunker/evidence.jsonl
+
+
+## 2026-11-11 closeout correction — tick duckbrain-dogfood-2026-11-11-04-58-53
+
+The install battery reached terminal collection after the initial log entry: 25 evidence rows were harvested. Fresh cells: fresh-install OK (5.9s, pnpm 12.4.2), tests OK, docker_build OK, compose_config OK, UI probe OK; ci-pass FAIL (act install step), upgrade FAIL (`duckbrain@1.0.0` npm E404), chaos-disconnect UNVERIFIED, chaos-shutdown FAIL before stop chain, chaos-corruption FAIL staging the scratch state file, chaos-resource INFO expected OOM, chaos-errorpath INFO environment gap. The bunker host still reported shared network mode, so isolation remains unverified. Agent `20808aa1` was destroyed with rc=0; `bunker info` returned not_found and a fresh list omitted it. This supersedes the earlier RUNNING/agent-left-intact wording; product verdict and README-19-R2 remain unchanged.
+
+ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 correction=install-terminal-and-teardown-verified agent=20808aa1 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/bunker/evidence.jsonl
