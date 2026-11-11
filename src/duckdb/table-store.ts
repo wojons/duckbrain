@@ -387,12 +387,18 @@ interface Predicate {
  * `?` — including fts patterns, which are built as parameters rather than
  * interpolated into the statement.
  */
-function sqlPredicate(col: TableColumn, op: FilterOp, operand: string): Predicate {
+function sqlPredicate(
+  col: TableColumn,
+  op: FilterOp,
+  operand: string,
+): Predicate {
   const id = compareExpression(col);
   const text = textExpression(col);
   const ph = castPlaceholder(col);
   const bound = (): unknown[] => [
-    operand === "null" || operand === "" ? null : coercePrimitiveOperand(operand, col.type),
+    operand === "null" || operand === ""
+      ? null
+      : coercePrimitiveOperand(operand, col.type),
   ];
   switch (op) {
     case "eq":
@@ -424,7 +430,10 @@ function sqlPredicate(col: TableColumn, op: FilterOp, operand: string): Predicat
       if (value === "null" || value === "unknown") {
         return { sql: `${id} IS NULL`, params: [] };
       }
-      return { sql: `${id} IS ${value === "true" ? "TRUE" : "FALSE"}`, params: [] };
+      return {
+        sql: `${id} IS ${value === "true" ? "TRUE" : "FALSE"}`,
+        params: [],
+      };
     }
     case "isdistinct": {
       // PostgREST: col=isdistinct.value → IS DISTINCT FROM, NULL-safe.
@@ -445,7 +454,10 @@ function sqlPredicate(col: TableColumn, op: FilterOp, operand: string): Predicat
         return `regexp_matches(${text}, ?)`;
       });
       return {
-        sql: predicates.length === 1 ? predicates[0]! : predicates.map((p) => `(${p})`).join(" AND "),
+        sql:
+          predicates.length === 1
+            ? predicates[0]!
+            : predicates.map((p) => `(${p})`).join(" AND "),
         params,
       };
     }
@@ -469,6 +481,8 @@ export interface SelectOptions {
   limit?: unknown;
   offset?: unknown;
   wantCount?: boolean;
+  /** Selected declared columns; omitted means the complete declared row. */
+  selectedColumns?: string[];
   /**
    * RLS-001: the row-level policy already resolved for this request's
    * principal (`{ column, value }`). It is pushed into the SAME WHERE clause
@@ -640,7 +654,10 @@ export function buildSelectPlan(
     whereParts.push(built.sql);
   }
 
+  const selectedColumns =
+    opts.selectedColumns ?? declaration.columns.map((column) => column.name);
   const columnsSql = declaration.columns
+    .filter((column) => selectedColumns.includes(column.name))
     .map((c) => selectProjection(c))
     .join(", ");
   // The FROM clause is injected at EXECUTION time (executeSelectPlan) from

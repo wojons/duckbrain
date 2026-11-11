@@ -194,7 +194,11 @@ export function parseDeclarationBody(
   }
   const columns: Array<{ name: string; type: string }> = record.columns.map(
     (column, index) => {
-      if (typeof column !== "object" || column === null || Array.isArray(column)) {
+      if (
+        typeof column !== "object" ||
+        column === null ||
+        Array.isArray(column)
+      ) {
         throw badDeclaration(`columns[${index}] must be a {name, type} object`);
       }
       const entry = column as Record<string, unknown>;
@@ -207,7 +211,9 @@ export function parseDeclarationBody(
         );
       }
       if (typeof entry.name !== "string" || entry.name.length === 0) {
-        throw badDeclaration(`columns[${index}].name must be a non-empty string`);
+        throw badDeclaration(
+          `columns[${index}].name must be a non-empty string`,
+        );
       }
       if (typeof entry.type !== "string") {
         throw badDeclaration(
@@ -222,7 +228,9 @@ export function parseDeclarationBody(
 
   if (record.primary !== undefined) {
     if (typeof record.primary !== "string") {
-      throw badDeclaration("primary must be a string naming one of the columns");
+      throw badDeclaration(
+        "primary must be a string naming one of the columns",
+      );
     }
     spec.primary = record.primary;
   }
@@ -324,6 +332,14 @@ function filterParameters(
     });
   }
   params.push(
+    {
+      name: "select",
+      in: "query",
+      description:
+        "Projection: comma-separated declared columns; `*` selects all columns and `relation(*)` embeds a declared relation.",
+      required: false,
+      schema: { type: "string" },
+    },
     {
       name: "order",
       in: "query",
@@ -457,7 +473,9 @@ function tablePathItem(declaration: TableDeclaration): Record<string, unknown> {
  * REST-ATOMICITY-001: the upsert resource (`/tables/:table/:pk`) as its own
  * path — a PUT to a key-addressed resource, not a verb on the collection.
  */
-function tableUpsertPathItem(declaration: TableDeclaration): Record<string, unknown> {
+function tableUpsertPathItem(
+  declaration: TableDeclaration,
+): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   for (const col of declaration.columns) {
     properties[col.name] = columnSchema(col);
@@ -485,8 +503,12 @@ function tableUpsertPathItem(declaration: TableDeclaration): Record<string, unkn
         content: { "application/json": { schema: rowSchema } },
       },
       responses: {
-        "201": { description: "Inserted (outcome: inserted, body carries the row)" },
-        "200": { description: "Replaced (outcome: updated, body carries the row)" },
+        "201": {
+          description: "Inserted (outcome: inserted, body carries the row)",
+        },
+        "200": {
+          description: "Replaced (outcome: updated, body carries the row)",
+        },
         "409": apiErrorSchemaRef,
       },
     },
@@ -535,7 +557,8 @@ function transactionPathItem(): Record<string, unknown> {
       },
       responses: {
         "200": {
-          description: "Applied — `applied`, `results[]` and the achieved durability",
+          description:
+            "Applied — `applied`, `results[]` and the achieved durability",
         },
         "409": apiErrorSchemaRef,
         "413": apiErrorSchemaRef,
@@ -602,12 +625,16 @@ function declareTablePathItem(): Record<string, unknown> {
       requestBody: {
         required: true,
         content: {
-          "application/json": { schema: { $ref: "#/components/schemas/TableDeclarationRequest" } },
+          "application/json": {
+            schema: { $ref: "#/components/schemas/TableDeclarationRequest" },
+          },
         },
       },
       responses: {
         "201": { description: "Declared (new contract)." },
-        "200": { description: "Idempotent re-declare, or `force` replacement." },
+        "200": {
+          description: "Idempotent re-declare, or `force` replacement.",
+        },
         "400": apiErrorSchemaRef,
         "403": apiErrorSchemaRef,
         "409": apiErrorSchemaRef,
@@ -914,7 +941,8 @@ export function generateOpenApi(
     },
     put: {
       operationId: "updateMemory",
-      summary: "Update a memory (new version; the previous version stays in the ledger)",
+      summary:
+        "Update a memory (new version; the previous version stays in the ledger)",
       parameters: [
         {
           name: "id",
@@ -928,7 +956,9 @@ export function generateOpenApi(
       requestBody: {
         required: true,
         content: {
-          "application/json": { schema: { $ref: "#/components/schemas/MemoryUpdateRequest" } },
+          "application/json": {
+            schema: { $ref: "#/components/schemas/MemoryUpdateRequest" },
+          },
         },
       },
       responses: {
@@ -988,7 +1018,8 @@ export function generateOpenApi(
       ],
       responses: {
         "200": {
-          description: "SSE stream of JSON frames (one `data:` line per frame).",
+          description:
+            "SSE stream of JSON frames (one `data:` line per frame).",
           content: {
             "text/event-stream": { schema: { type: "string" } },
           },
@@ -1058,7 +1089,10 @@ export function generateOpenApi(
           required: ["name", "format", "columns", "primary", "glob"],
           properties: {
             name: { type: "string" },
-            format: { type: "string", enum: ["jsonl-objects", "jsonl-positional"] },
+            format: {
+              type: "string",
+              enum: ["jsonl-objects", "jsonl-positional"],
+            },
             columns: {
               type: "array",
               items: {
@@ -1066,7 +1100,18 @@ export function generateOpenApi(
                 required: ["name", "type"],
                 properties: {
                   name: { type: "string" },
-                  type: { type: "string", enum: ["varchar", "integer", "bigint", "double", "boolean", "timestamp", "json"] },
+                  type: {
+                    type: "string",
+                    enum: [
+                      "varchar",
+                      "integer",
+                      "bigint",
+                      "double",
+                      "boolean",
+                      "timestamp",
+                      "json",
+                    ],
+                  },
                 },
               },
             },
@@ -1087,11 +1132,17 @@ export function generateOpenApi(
               items: {
                 type: "object",
                 required: ["name", "type"],
-                properties: { name: { type: "string" }, type: { type: "string" } },
+                properties: {
+                  name: { type: "string" },
+                  type: { type: "string" },
+                },
               },
             },
             primary: { type: "string" },
-            format: { type: "string", enum: ["jsonl-objects", "jsonl-positional"] },
+            format: {
+              type: "string",
+              enum: ["jsonl-objects", "jsonl-positional"],
+            },
             policy: { type: "object", additionalProperties: true },
             legacy: { type: "boolean" },
             force: { type: "boolean" },
@@ -1163,6 +1214,7 @@ function createTableRoutes(): Router {
         limit: req.query.limit,
         offset: req.query.offset,
         wantCount: wantsExactCount(req),
+        select: req.query.select as string | string[] | undefined,
         // REST-ATOMICITY-001: one-level embedding over DECLARED relations.
         embed: req.query.embed as string | string[] | undefined,
       });
