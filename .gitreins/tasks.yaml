@@ -3421,3 +3421,22 @@ tasks:
   status: complete
   created_at: '2026-11-10T16:57:30.940300+00:00'
   completed_at: '2026-11-10T17:36:23.480046+00:00'
+- id: REST-LOGIC-FILTERS-001
+  title: Reject logical filters with typed 400
+  criteria:
+  - ?or=/?and=/?not.and return 400 UNSUPPORTED_QUERY naming the operator; tables-grammar.test.ts
+    asserts the 400 and no rows; http-api.md lists them under DELIBERATELY-ABSENT
+  status: complete
+  created_at: '2026-11-11T08:48:43.066110+00:00'
+  completed_at: '2026-11-11T09:11:52.603526+00:00'
+- id: REST-PK-UNIQUENESS-001
+  title: Refuse duplicate primary keys (409) and honor Idempotency-Key on table writes
+  criteria:
+  - duplicate insert refused 409 DUPLICATE_KEY inside the namespace write lock; identical
+    Idempotency-Key replay returns the original result with no second row; same key+different
+    body 409 IDEMPOTENCY_CONFLICT durable across restart; pk-addressed PATCH/DELETE
+    on a duplicated table affects one row or refuses with an ambiguity error; read-only
+    tables audit-keys reports duplicates; tests cover all five
+  status: complete
+  created_at: '2026-11-11T08:49:34.501100+00:00'
+  completed_at: '2026-11-11T09:51:58.634233+00:00'

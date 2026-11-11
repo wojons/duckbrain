@@ -7,8 +7,8 @@
   "base_ref": "origin/main",
   "base_sha": "bba62bd9",
   "started_at": "2026-11-11T08:50:00Z",
-  "finished_at": null,
-  "status": "dispatched",
+  "finished_at": "2026-11-11T04:57:31-05:00",
+  "status": "finished",
   "wave_budget": 12,
   "slots": 6,
   "slots_reason": "nproc=16, loadavg(1m)=2.79 -> 16-3=13, capped at 6 by skill",
@@ -47,5 +47,51 @@
       "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-11-08-38-09/brief-REST-PK-UNIQUENESS-001.md",
       "status": "dispatched"
     }
-  ]
+  ],
+  "results": [
+    {
+      "task_id": "REST-LOGIC-FILTERS-001",
+      "outcome": "merged",
+      "commit": "8e115285",
+      "rebase": "bba62bd9->fe780d55 (SCHED-GAP-1609)",
+      "tests": "7 grammar tests; full suite 289 files/2447 tests PASS",
+      "gitreins": {
+        "tier1": "PASS",
+        "tier2": "PASS",
+        "verdict": "2ffd5eed"
+      }
+    },
+    {
+      "task_id": "REST-PK-UNIQUENESS-001",
+      "outcome": "partial-merged-row-open",
+      "commit": "ba0c22dc",
+      "attempts": 2,
+      "attempt1": "stalled 45min/118 api calls/0 writes, context-compression loop, killed pid 3388801, worktree clean",
+      "attempt2": "delivered dup-key half in 22min, pid 4028971",
+      "tests": "6 tests in tables-write-uniqueness.test.ts; full suite on merged tree 290 files/2453 tests PASS",
+      "gitreins": {
+        "tier1": "PASS",
+        "tier2": "FAIL",
+        "verdict": "e61a0db4",
+        "reason": "4 of 5 ACs absent"
+      },
+      "split_into": [
+        "REST-IDEMPOTENCY-001",
+        "REST-PK-AMBIGUITY-001",
+        "TABLES-AUDIT-KEYS-001"
+      ]
+    }
+  ],
+  "closeout": {
+    "block": "rest-pillar-b",
+    "landed": 1,
+    "partial": 1,
+    "split_rows": 3,
+    "excluded_rows": [
+      "REST-SELECT-001 (shared read-path grammar seam + shared test file)",
+      "DF-0923-05-R2 (OWNER-GATED: npm publication vs clone-only)"
+    ],
+    "main_before": "bba62bd9",
+    "main_after": "ba0c22dc"
+  }
 }
