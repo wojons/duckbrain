@@ -837,3 +837,15 @@ Fresh install census: bunker-mvp is ONLINE; /tmp is private but Net mode is shar
 Left behind: this records-only log line and the fresh census at /home/kara/.hermes/cache/scratch/dkb-dogfood-20261108-040652-dupfire-closeout.txt. No board, product code, docs, scheduler, visibility, permission, or credential changes; foreman not woken.
 
 ch:trace tick=duckbrain-dogfood-2026-11-08-04-06-52 fire=duplicate-record-only-c target=0612a976f939a7e1a5c8f6982f5efed0454f0254 row=DF-2026-21 evidence=/home/kara/.hermes/cache/scratch/dkb-dogfood-20261108-040652-dupfire-closeout.txt
+
+## 2026-11-11 — tick duckbrain-dogfood-2026-11-11-04-58-53 — Verdict: DOES-NOT-DELIVER
+
+Target: published HEAD fa6bb86f7abca3869ee51f310fc8e76b62709f0a (origin/main parity 0/0); canonical checkout /home/kara/duckbrain; supplied stand-in /home/kara/.hermes/stand-in/dogfood/duckbrain is not a Git root. Real-use path: clean no-auth scratch daemon from a no-hardlinks clone, isolated HOME/config, port 3198, namespace dogfood. Namespace create 201, write 201, exact-key read 200, plain list 200, key tree 200. The documented offline keyword fallback GET /api/memories?namespace=dogfood&contains=dogfood returned curl rc 52 with an empty reply; daemon log printed `*** stack smashing detected ***: terminated` and the process died. Existing README-19 owns this mechanism; recurrence filed as README-19-R2 (one task row + one task_created event). CLI remember returned rc 0; CLI recall --prefix=/cli/ returned rc 0 but printed 2 memories including an unrelated /dogfood/real-use row, overlapping existing pending DB-8, no duplicate filed.
+
+Performance: hyperfine warm health mean 8.93 ms ± 1.14 ms (10/10 rc 0, range 7.60–10.94 ms); warm exact-key mean 15.51 ms ± 1.44 ms (10/10 rc 0, range 12.83–17.86 ms); cold daemon-to-health mean 445.47 ms ± 64.70 ms (5/5 rc 0, range 369.67–539.35 ms). No user-noticeable successful-path wait, no PERF row, no profile.
+
+Install leg: bunker-mvp ONLINE and bunkerd active; bunker-qa launch accepted canonical /home/kara/duckbrain, agent 20808aa1, collection remained RUNNING at closeout. Harvested toolchains OK, fresh-install OK (pnpm 12.4.2, 5.9s), tests OK, docker_build OK, compose_config OK, lint N/A. Host reports shared network mode, so isolation is unverified. Not SKIPPED-install-bunker: host and install path were usable. Agent remains running because destroying a running battery would erase evidence; owning lane must collect terminal cells and destroy/verify absence.
+
+Left behind: docs/dogfood/2026-11-11-http-keyword-crash.md; this log entry; board rows README-19-R2 plus task_created event; external evidence under /home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/. No product code, no visibility/permission change, no credential minted, no scheduler state change, foreman not woken.
+
+ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 target=fa6bb86f7abca3869ee51f310fc8e76b62709f0a row=README-19-R2 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/artifacts/http-probes.txt+/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/bunker/evidence.jsonl

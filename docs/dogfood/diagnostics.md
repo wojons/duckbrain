@@ -981,6 +981,12 @@ The status parser has a silent wrong-state path: `status --namespace=dogfood1027
 The bunker install agent installed the clean dependency tree and recorded a build-only `fresh-install` cell, but did not record the README health/create/write/read smoke. The evidence is PARTIAL/UNPROVEN and corroborates the same-tick install/collision evidence already filed under DF-2026-7; no duplicate install row was retained. The agent was destroyed and verified absent from the server census.
 
 
+## Run 20 — 2026-11-11 HTTP keyword fallback crash re-proof
+
+At published HEAD `fa6bb86f7abca3869ee51f310fc8e76b62709f0a`, a clean no-auth daemon with an isolated HOME/config completed namespace creation, memory write, exact-key read, plain list, and key-tree reads. The documented offline keyword request `GET /api/memories?namespace=dogfood&contains=dogfood` then returned curl rc 52 with no HTTP response and terminated the daemon with `*** stack smashing detected ***: terminated`. The plain list request on the same daemon was healthy immediately before it. This is the existing `README-19` mechanism reproduced on the newer tip; the recurrence is `README-19-R2`, not a new sibling. Evidence is in `docs/dogfood/2026-11-11-http-keyword-crash.md` and the external run bundle named there.
+
+The fresh-machine leg was usable but incomplete at closeout: bunker-mvp was online, fresh install/tests/docker/compose cells were OK, network isolation was reported shared, and the battery remained RUNNING on agent `20808aa1`. Do not call this a clean install pass until collection reaches a terminal result and teardown is verified.
+
 ## Run 19 — 2026-11-08 HTTP compatibility and fresh-install re-proof
 
 At published product HEAD 43c22c81191a0a1661c9acc3fc9617946f45e262, an isolated scratch daemon completed the core namespace → write → exact-key read → list → key-tree → keyword-search workflow. The legacy `GET /api/search` compatibility route returned 301 `Location: /api/memories?q=` for a request carrying `contains=real%20user` and `namespace=dogfood-realuse`, silently dropping both inputs. Direct `/api/memories?q=...&namespace=...` worked and returned a highlighted hit. This is DF-2026-21; use the direct route until the compatibility redirect is repaired.
