@@ -274,7 +274,8 @@ export function parseDeclarationBody(
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
   // json columns arrive parsed (objects/arrays) — serialize compactly.
-  const s = typeof value === "object" ? JSON.stringify(value) : String(value);
+  const s =
+    typeof value === "object" ? (JSON.stringify(value) ?? "") : String(value);
   if (/[",\r\n]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }
@@ -284,12 +285,16 @@ function csvEscape(value: unknown): string {
 function renderCsv(
   declaration: TableDeclaration,
   rows: Record<string, unknown>[],
+  fields: string[] = declaration.columns.map((column) => column.name),
 ): string {
-  const header = declaration.columns.map((c) => csvEscape(c.name)).join(",");
+  const columns = fields.map((field) => csvEscape(field));
   const lines = rows.map((row) =>
-    declaration.columns.map((c) => csvEscape(row[c.name])).join(","),
+    fields.map((field) => {
+      const embed = field.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(\*\)$/);
+      return csvEscape(embed ? row[embed[1]!] : row[field]);
+    }).join(","),
   );
-  return [header, ...lines].join("\r\n") + "\r\n";
+  return [columns.join(","), ...lines].join("\r\n") + "\r\n";
 }
 
 // ---------------------------------------------------------------------------
@@ -1198,7 +1203,7 @@ function createTableRoutes(): Router {
       const ns = param(req, "ns");
       const tableName = param(req, "table");
       const declaration = resolveTableDeclaration(ns, tableName);
-      const { rows, totalCount } = await selectTableRows(ns, tableName, {
+      const { rows, totalCount, projection } = await selectTableRows(ns, tableName, {
         // SURFACE-MCP-DATA-001: the same filter/order/paging vocabulary the
         // MCP table_select tool passes, so both transports answer identically.
         filters: filterParams(
@@ -1226,7 +1231,7 @@ function createTableRoutes(): Router {
       const accept = String(req.headers.accept ?? "");
       if (accept.includes("text/csv")) {
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
-        res.send(renderCsv(declaration, rows));
+        res.send(renderCsv(declaration, rows, projection.fields));
         return;
       }
       res.json(rows);

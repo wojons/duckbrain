@@ -100,6 +100,7 @@ interface HttpResult {
 function httpGet(
   app: ReturnType<typeof createHttpServer>,
   reqPath: string,
+  headers: Record<string, string> = {},
 ): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
     const server: Server = createServer(app);
@@ -112,7 +113,7 @@ function httpGet(
           port,
           path: reqPath,
           method: "GET",
-          headers: { Host: "localhost" },
+          headers: { Host: "localhost", ...headers },
         },
         (res: http.IncomingMessage) => {
           const chunks: Buffer[] = [];
@@ -122,7 +123,12 @@ function httpGet(
             server.close();
             resolve({
               status: res.statusCode ?? 0,
-              body: text.length > 0 ? JSON.parse(text) : null,
+              body:
+                res.headers["content-type"]?.includes("text/csv")
+                  ? text
+                  : text.length > 0
+                    ? JSON.parse(text)
+                    : null,
             });
           });
         },
@@ -231,6 +237,55 @@ describe("REST-LOGIC-FILTERS-001: logical filter groups are refused, not dropped
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(3);
     for (const row of res.body) expect(Object.keys(row)).toEqual(["id"]);
+  });
+
+  it("REST-SELECT-001: CSV ?select=id has one cell per row", async () => {
+    const res = await httpGet(
+      createHttpServer({ authType: "none" }),
+      `${base}/widgets?select=id`,
+      { Accept: "text/csv" },
+    );
+    expect(res.status).toBe(200);
+    const lines = String(res.body).trim().split("\r\n");
+    expect(lines[0]).toBe("id");
+    expect(lines.slice(1)).toHaveLength(3);
+    for (const line of lines.slice(1)) {
+      expect(line.split(",")).toHaveLength(1);
+      expect(line).not.toContain(",,");
+    }
+  });
+
+  it("REST-SELECT-001: CSV ?select=id,name keeps requested column order", async () => {
+    const res = await httpGet(
+      createHttpServer({ authType: "none" }),
+      `${base}/widgets?select=id,name`,
+      { Accept: "text/csv" },
+    );
+    expect(res.status).toBe(200);
+    expect(String(res.body).split("\r\n")[0]).toBe("id,name");
+  });
+
+  it("REST-SELECT-001: CSV ?select=* keeps the declared column list", async () => {
+    const res = await httpGet(
+      createHttpServer({ authType: "none" }),
+      `${base}/widgets?select=*`,
+      { Accept: "text/csv" },
+    );
+    expect(res.status).toBe(200);
+    expect(String(res.body).split("\r\n")[0]).toBe("id,name,qty,child_id");
+  });
+
+  it("REST-SELECT-001: CSV embeds are JSON-encoded in one escaped cell", async () => {
+    const res = await httpGet(
+      createHttpServer({ authType: "none" }),
+      `${base}/widgets?select=*,children(*)`,
+      { Accept: "text/csv" },
+    );
+    expect(res.status).toBe(200);
+    const lines = String(res.body).trim().split("\r\n");
+    expect(lines[0]).toBe("id,name,qty,child_id,children(*)");
+    expect(lines[1]).toContain('"{""id"":7,""label"":""child""}"');
+    expect(lines[1]).not.toContain("undefined");
   });
 
   it("REST-SELECT-001: unknown projection columns refuse with declared columns", async () => {

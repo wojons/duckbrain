@@ -347,10 +347,18 @@ export interface SelectTableInput {
   auditPolicyDenial?: PolicyAuditSink | undefined;
 }
 
+export interface SelectProjection {
+  columns: string[];
+  embeds: string[];
+  /** Expanded select items in the caller's requested order for CSV rendering. */
+  fields: string[];
+}
+
 export interface SelectTableResult {
   declaration: TableDeclaration;
   rows: Record<string, unknown>[];
   totalCount: number | null;
+  projection: SelectProjection;
 }
 
 /**
@@ -460,15 +468,10 @@ export async function selectTableRows(
     }
     return projected;
   });
-  return { declaration, rows: projectedRows, totalCount };
+  return { declaration, rows: projectedRows, totalCount, projection };
 }
 
 /** `?embed=a,b` / `?embed=a` / `["a","b"]` → names (order preserved). */
-interface SelectProjection {
-  columns: string[];
-  embeds: string[];
-}
-
 function splitSelectItems(raw: string | string[]): string[] {
   const source = Array.isArray(raw) ? raw.join(",") : raw;
   const items: string[] = [];
@@ -499,16 +502,17 @@ function parseSelectProjection(
   declaration: TableDeclaration,
 ): SelectProjection {
   if (raw === undefined) {
-    return {
-      columns: declaration.columns.map((column) => column.name),
-      embeds: [],
-    };
+    const columns = declaration.columns.map((column) => column.name);
+    return { columns, embeds: [], fields: columns };
   }
   const columns: string[] = [];
   const embeds: string[] = [];
+  const fields: string[] = [];
   for (const item of splitSelectItems(raw)) {
     if (item === "*") {
-      columns.push(...declaration.columns.map((column) => column.name));
+      const expanded = declaration.columns.map((column) => column.name);
+      columns.push(...expanded);
+      fields.push(...expanded);
       continue;
     }
     const embed = item.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(\*\)$/);
@@ -525,6 +529,7 @@ function parseSelectProjection(
         );
       }
       embeds.push(relation);
+      fields.push(item);
       continue;
     }
     if (!declaration.columns.some((column) => column.name === item)) {
@@ -535,10 +540,12 @@ function parseSelectProjection(
       );
     }
     columns.push(item);
+    fields.push(item);
   }
   return {
     columns: [...new Set(columns)],
     embeds: [...new Set(embeds)],
+    fields,
   };
 }
 
