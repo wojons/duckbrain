@@ -3440,3 +3440,19 @@ tasks:
   status: complete
   created_at: '2026-11-11T08:49:34.501100+00:00'
   completed_at: '2026-11-11T09:51:58.634233+00:00'
+- id: REST-SELECT-001
+  title: Implement REST and MCP select projection
+  criteria:
+  - GET select projection, unknown-column rejection, embed refusal, MCP parity, tests,
+    docs, and full suite
+  status: complete
+  created_at: '2026-11-11T10:34:47.648629+00:00'
+  completed_at: '2026-11-11T12:00:13.927623+00:00'
+- id: TABLES-AUDIT-KEYS-001
+  title: Implement duplicate primary-key audit
+  criteria:
+  - Read-only audit surface reports duplicate keys, is non-mutating, nonzero on findings,
+    with tests
+  status: complete
+  created_at: '2026-11-11T10:34:48.850765+00:00'
+  completed_at: '2026-11-11T11:51:36.718435+00:00'

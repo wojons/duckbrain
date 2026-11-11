@@ -1,0 +1,24 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-11-10-16-08",
+  "kind": "wave",
+  "block": "REST-SELECT-001",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "base_ref": "origin/main",
+  "base_sha": "438740111d5d693cc272f0fa7a0b2b6b4f5078f0",
+  "wave_budget": 12,
+  "slots": 6,
+  "slots_reason": "nproc=16, loadavg1=4.83 at sizing; 16-ceil(4.83)=11, capped at 6",
+  "selection": "resume prior REST pillar block after REST-LOGIC-FILTERS-001 landed; REST-SELECT-001 shares the read grammar seam and is now the block target; TABLES-AUDIT-KEYS-001 is independent and was admitted as the second wave row",
+  "independence": [
+    {"task_id":"REST-SELECT-001","files":["src/http/routes/tables.ts","src/tables/operations.ts","src/mcp/tools/tables.ts","src/http/routes/tables-grammar.test.ts","docs/api/http-api.md","docs/surface-parity.md"],"seam":"select projection/read grammar"},
+    {"task_id":"TABLES-AUDIT-KEYS-001","files":["src/tables/audit.ts","src/cli/human.ts or src/http/routes/tables.ts","src/**audit*test.ts","docs/api/http-api.md"],"seam":"duplicate-key audit"}
+  ],
+  "worktrees": [
+    {"task_id":"REST-SELECT-001","worktree":"/home/kara/worktrees/duckbrain-REST-SELECT-001","branch":"wt/REST-SELECT-001","base_sha":"438740111d5d693cc272f0fa7a0b2b6b4f5078f0","brief":"/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-11-10-16-08/attempt-1/brief-REST-SELECT-001.txt"},
+    {"task_id":"TABLES-AUDIT-KEYS-001","worktree":"/home/kara/worktrees/duckbrain-TABLES-AUDIT-KEYS-001","branch":"wt/TABLES-AUDIT-KEYS-001","base_sha":"438740111d5d693cc272f0fa7a0b2b6b4f5078f0","brief":"/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-11-10-16-08/attempt-1/brief-TABLES-AUDIT-KEYS-001.txt"}
+  ],
+  "worker_model":"openai/gpt-6.1-terra",
+  "worker_provider":"xkiro",
+  "status":"manifest-written-before-dispatch"
+}
