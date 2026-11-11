@@ -191,6 +191,8 @@ export interface ListLaneScoresArgs {
     score?: string;
     /** Filter by tags. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?tags=eq.5, ?tags=not.is.null, ?tags=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md. */
     tags?: string;
+    /** Projection: comma-separated declared columns; `*` selects all columns and `relation(*)` embeds a declared relation. */
+    select?: string;
     /** Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc). */
     order?: string;
     /** Row limit (default 100, hard cap 1000 — larger values clamp). */
@@ -235,6 +237,8 @@ export interface ListNotesArgs {
     score?: string;
     /** Filter by created. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?created=eq.5, ?created=not.is.null, ?created=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md. */
     created?: string;
+    /** Projection: comma-separated declared columns; `*` selects all columns and `relation(*)` embeds a declared relation. */
+    select?: string;
     /** Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc). */
     order?: string;
     /** Row limit (default 100, hard cap 1000 — larger values clamp). */

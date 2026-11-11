@@ -1177,6 +1177,15 @@
             }
           },
           {
+            "description": "Projection: comma-separated declared columns; `*` selects all columns and `relation(*)` embeds a declared relation.",
+            "in": "query",
+            "name": "select",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Ordering: comma-separated col.asc / col.desc list (e.g. order=qty.desc,name.asc).",
             "in": "query",
             "name": "order",
@@ -1433,6 +1442,15 @@
             "description": "Filter by created. PostgREST conventions: eq|ne|neq|gt|gte|lt|lte|like|ilike|in|is|isdistinct|fts|plfts, any of them negated with the not. prefix (e.g. ?created=eq.5, ?created=not.is.null, ?created=fts.alpha,beta). The full 25-operator coverage table is in docs/api/http-api.md.",
             "in": "query",
             "name": "created",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Projection: comma-separated declared columns; `*` selects all columns and `relation(*)` embeds a declared relation.",
+            "in": "query",
+            "name": "select",
             "required": false,
             "schema": {
               "type": "string"
