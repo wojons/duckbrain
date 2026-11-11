@@ -23,7 +23,7 @@
 
 import fs from "fs";
 import path from "path";
-import { ApiError } from "../http/middleware/errorHandler";
+import { ApiError, ValidationError } from "../http/middleware/errorHandler";
 import { listTables, getTable, namespaceDir, type TableDeclaration } from "../schema/table-registry";
 import { getDeclaredTable, assertNamespaceSchemaUsable } from "../serialization/schemaRegistry";
 import type { RegisteredTableDeclaration } from "../serialization/registry";
@@ -208,6 +208,65 @@ const RESERVED_QUERY_KEYS = new Set([
 ]);
 
 /**
+ * REST-LOGIC-FILTERS-001: PostgREST LOGICAL filter GROUPS — `?or=(…)`,
+ * `?and=(…)`, and the negated forms `?not.and=(…)` / `?not.or=(…)` (a bare
+ * `not` is the same control word).
+ *
+ * These are control words, not column operators: this store's query grammar
+ * implements the per-column predicate vocabulary (eq/ne/…/fts) and has no
+ * boolean predicate tree to hang a group on. Left unhandled they fell through
+ * the unknown-column rule below — the value `(id.eq.1,id.eq.2)` matches no
+ * `op.value` shape — so the filter was silently DROPPED and the request
+ * answered 200 with every row, while the caller believed the filter applied.
+ * A silent wrong answer is worse than a refusal, so they are now refused by
+ * name like every other unimplemented operator.
+ *
+ * The code is `UNSUPPORTED_QUERY` (not `VALIDATION_ERROR`) because the request
+ * is well-formed PostgREST: the server declines to run it. The check runs
+ * before any key is copied into the filter map, so an `?or=` alongside a valid
+ * column filter fails the WHOLE request — no partial WHERE is ever executed.
+ *
+ * MCP lands here too: `table_select` (src/mcp/tools/tables.ts) calls this same
+ * function with its `filters` argument map, so a logical group on that
+ * transport is refused with the identical status, code and message.
+ */
+const LOGICAL_FILTER_KEYS = new Set(["or", "and", "not", "not.and", "not.or"]);
+
+/**
+ * REST-LOGIC-FILTERS-001: the refusal for a request the server UNDERSTANDS but
+ * does not implement — deliberately NOT a plain `ApiError`, because the caller
+ * needs to see WHICH control key was refused.
+ *
+ * It reuses the `fields` surface the REST error envelope already publishes
+ * (`ValidationError.fields`, spread into the JSON body by the error handler) so
+ * the offending operator rides `fields.operator` exactly as
+ * docs/specs/SUPA-3-rest.md AC-2 asks, rather than a second error envelope.
+ * Only the machine-readable `code` differs (`UNSUPPORTED_QUERY`, not
+ * `VALIDATION_ERROR`): the request is well-formed PostgREST, the server
+ * declines to run it, and a caller switches on the code to tell those apart.
+ */
+class UnsupportedQueryError extends ValidationError {
+  constructor(message: string, fields: Record<string, string>) {
+    super(message, fields);
+    this.name = "UnsupportedQueryError";
+    this.code = "UNSUPPORTED_QUERY";
+  }
+}
+
+function assertNoLogicalFilters(
+  query: Record<string, unknown>,
+  declaration: TableDeclaration,
+): void {
+  for (const key of Object.keys(query)) {
+    if (!LOGICAL_FILTER_KEYS.has(key)) continue;
+    throw new UnsupportedQueryError(
+      `Unsupported logical filter '${key}' on table '${declaration.name}': logical filter groups (?or=, ?and=, ?not.and=, ?not.or=) are not part of the supported query vocabulary — this store ANDs per-column predicates and has no boolean group, so the request is refused instead of being answered with an unfiltered scan`,
+      { operator: key },
+    );
+  }
+}
+
+/**
  * Extract only the querystring entries that look like column filters.
  *
  * Accepts a plain query object (Express `req.query` or an MCP argument map),
@@ -217,6 +276,10 @@ export function filterParams(
   query: Record<string, unknown>,
   declaration: TableDeclaration,
 ): Record<string, string | string[]> {
+  // REST-LOGIC-FILTERS-001: refuse logical groups BEFORE anything is copied,
+  // so a refused request can never carry a partial WHERE built from the other
+  // keys it happened to pass.
+  assertNoLogicalFilters(query, declaration);
   const out: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(query)) {
     if (RESERVED_QUERY_KEYS.has(key)) continue;

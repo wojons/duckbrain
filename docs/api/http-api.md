@@ -1235,6 +1235,10 @@ store gives), or a tracked TODO. Nothing is silently dropped.
 | `nxr` | DELIBERATELY-ABSENT | Range "does not extend right": no range type |
 | `nxl` | DELIBERATELY-ABSENT | Range "does not extend left": no range type |
 | `adj` | DELIBERATELY-ABSENT | Range "adjacent": no range type |
+| `or` | DELIBERATELY-ABSENT | Logical filter groups are not part of the supported query vocabulary: this store ANDs per-column predicates and has no boolean predicate tree to hang a group on. `?or=(id.eq.1,id.eq.2)` is refused with `400 UNSUPPORTED_QUERY` naming `or`, never silently ignored (a dropped group used to answer 200 with **every** row, so the caller believed the filter applied) |
+| `and` | DELIBERATELY-ABSENT | Same as `or`: several `&`-joined filters already express an AND of per-column predicates, and a nested group is not supported; `?and=(…)` is refused with `400 UNSUPPORTED_QUERY` rather than silently ignored |
+| `not.and` | DELIBERATELY-ABSENT | Negation applies per **column** (`?name=not.eq.widget`), never to a group; `?not.and=(…)` is refused with `400 UNSUPPORTED_QUERY` rather than silently ignored |
+| `not.or` | DELIBERATELY-ABSENT | Same as `not.and`: there is no boolean group to negate; `?not.or=(…)` is refused with `400 UNSUPPORTED_QUERY` rather than silently ignored |
 
 - A value with no operator prefix is `eq`: `?qty=5` is `?qty=eq.5`.
 - `in` takes a comma-separated, parenthesized list:
@@ -1263,6 +1267,16 @@ store gives), or a tracked TODO. Nothing is silently dropped.
   naming the operator, the closest supported operator
   (`closest supported: 'lte'`) and the full supported list. A filter is never
   ignored: an operator this grammar does not know is an error, not a no-op.
+- **Logical filter groups** (`?or=(…)`, `?and=(…)`, `?not.and=(…)`,
+  `?not.or=(…)`, and a bare `?not=`) are control KEYS rather than column
+  operators, and are not part of the supported query vocabulary: they return
+  `400 UNSUPPORTED_QUERY` and the error names the offending key. The refusal is
+  for the WHOLE request — a valid column filter sent alongside an `?or=` is
+  never applied on its own, so no partial `WHERE` is ever executed. (Before
+  this was refused the group fell through the unknown-key rule and the request
+  answered 200 with every row, which is why it is now a named error rather than
+  a silent skip.) The same check is shared with the MCP `table_select` tool, so
+  a logical group in its `filters` map is refused identically.
 
 **Ordering:** `order=<column>.asc` or `order=<column>.desc`, comma-separated
 for multiple keys (`order=qty.desc,name.asc`).
