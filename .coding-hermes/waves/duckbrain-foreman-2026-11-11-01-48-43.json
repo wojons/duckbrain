@@ -34,6 +34,14 @@
   "next_owner_action": "Owner must choose and authorize npm publication plus package-name ownership, or explicitly approve clone-only distribution and the corresponding bunker-qa.sh upgrade-cell removal and DF-0923-05 note decision.",
   "gitreins": "none:owner-decision-no-implementation-task",
   "ci": "observed-only; recent exact-head runs green on 0d82f317eb0d556cf37198333f5b16b8102c009a",
-  "status": "pending",
-  "trace": "ch:trace row=DF-0923-05-R2 tick=duckbrain-foreman-2026-11-11-01-48-43 status=pending tier=T3 evidence=live:npm-404+release-workflow-scan+README-contract witness=live:current-head memory=predeclared:/project/duckbrain/foreman/ticks/duckbrain-foreman-2026-11-11-01-48-43"
+  "status": "finished",
+  "trace": "ch:trace row=DF-0923-05-R2 tick=duckbrain-foreman-2026-11-11-01-48-43 status=pending tier=T3 evidence=live:npm-404+release-workflow-scan+README-contract witness=live:current-head memory=predeclared:/project/duckbrain/foreman/ticks/duckbrain-foreman-2026-11-11-01-48-43",
+  "finished_at": "2026-11-11T08:45:45Z",
+  "recovery": {
+    "tick": "duckbrain-foreman-2026-11-11-08-38-09",
+    "worker_branches_found": 0,
+    "worktrees_found": 0,
+    "recovered": "zero-worker owner-gated wave: no branch or worktree was ever created, nothing to merge; manifest closed as evidence",
+    "verified_at": "2026-11-11T08:45:45Z"
+  }
 }
