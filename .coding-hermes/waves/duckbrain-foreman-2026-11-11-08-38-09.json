@@ -1,0 +1,51 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-11-08-38-09",
+  "kind": "wave",
+  "block": "REST pillar-b query surface",
+  "project": "duckbrain",
+  "workdir": "/home/kara/duckbrain",
+  "base_ref": "origin/main",
+  "base_sha": "bba62bd9",
+  "started_at": "2026-11-11T08:50:00Z",
+  "finished_at": null,
+  "status": "dispatched",
+  "wave_budget": 12,
+  "slots": 6,
+  "slots_reason": "nproc=16, loadavg(1m)=2.79 -> 16-3=13, capped at 6 by skill",
+  "worker_model": "deepseek/deepseek-v4.1-flash",
+  "worker_provider": "xkiro",
+  "recovery": {
+    "recovered_manifest": ".coding-hermes/waves/duckbrain-foreman-2026-11-11-01-48-43.json",
+    "state": "closed (0 workers, nothing to merge)"
+  },
+  "excluded_rows": [
+    {
+      "id": "REST-SELECT-001",
+      "reason": "shares the read-path grammar seam AND the new test file src/http/routes/tables-grammar.test.ts with REST-LOGIC-FILTERS-001; cannot ride the same wave. Next tick / repopulate after the merge."
+    },
+    {
+      "id": "DF-0923-05-R2",
+      "reason": "OWNER-GATED (npm publication vs clone-only) — not dispatchable."
+    }
+  ],
+  "workers": [
+    {
+      "task_id": "REST-LOGIC-FILTERS-001",
+      "title": "Reject logical filters (or/and/not/Where) with a typed 400 instead of silently returning all rows",
+      "worktree": "/home/kara/worktrees/duckbrain-REST-LOGIC-FILTERS-001",
+      "branch": "wt/REST-LOGIC-FILTERS-001",
+      "base_sha": "bba62bd9",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-11-08-38-09/brief-REST-LOGIC-FILTERS-001.md",
+      "status": "dispatched"
+    },
+    {
+      "task_id": "REST-PK-UNIQUENESS-001",
+      "title": "Duplicate primary key on tables insert/upsert returns a typed 409 instead of silently appending an unreachable row",
+      "worktree": "/home/kara/worktrees/duckbrain-REST-PK-UNIQUENESS-001",
+      "branch": "wt/REST-PK-UNIQUENESS-001",
+      "base_sha": "bba62bd9",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-11-08-38-09/brief-REST-PK-UNIQUENESS-001.md",
+      "status": "dispatched"
+    }
+  ]
+}
