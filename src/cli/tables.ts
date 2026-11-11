@@ -25,8 +25,13 @@
 
 import path from "path";
 import { resolveNamespacesPath } from "../config/index.js";
-import { TABLE_COLUMN_TYPES, TABLE_FORMATS, type TableFormat } from "../schema/table-registry.js";
+import {
+  TABLE_COLUMN_TYPES,
+  TABLE_FORMATS,
+  type TableFormat,
+} from "../schema/table-registry.js";
 import { declareTable, TableDeclareError } from "../tables/declare.js";
+import { auditNamespaceTableKeys } from "../tables/audit.js";
 
 /** Example JSON value per CLI type, for the printed curl POST example. */
 const EXAMPLE_VALUE: Record<string, string> = {
@@ -69,6 +74,11 @@ Examples:
   duckbrain tables declare e2e-supagap widgets --column id=integer --column name=varchar --primary id
   duckbrain tables declare notes events --column id=bigint --column at=timestamp --legacy`;
 
+export const TABLES_AUDIT_KEYS_USAGE = `Usage: duckbrain tables audit-keys --namespace <namespace>
+
+Read every declared table and report duplicate primary-key values. Tables
+without a primary key are reported explicitly. This command is read-only.`;
+
 /** A usage/validation failure. The bin layer prints it and exits 1. */
 export class TablesCliError extends Error {}
 
@@ -77,7 +87,41 @@ function fail(message: string): never {
 }
 
 function printHelp(): void {
-  console.log(TABLES_DECLARE_USAGE);
+  console.log(`${TABLES_DECLARE_USAGE}\n\n${TABLES_AUDIT_KEYS_USAGE}`);
+}
+
+interface AuditKeysArgs {
+  namespace: string;
+}
+
+function parseAuditKeysArgs(argv: string[]): AuditKeysArgs | null {
+  let namespace: string | undefined;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]!;
+    if (arg === "--help" || arg === "-h") {
+      console.log(TABLES_AUDIT_KEYS_USAGE);
+      return null;
+    }
+    if (arg === "--namespace") {
+      namespace = argv[++i];
+      if (!namespace) fail("--namespace requires a value");
+      continue;
+    }
+    if (arg.startsWith("--namespace=")) {
+      namespace = arg.slice("--namespace=".length);
+      if (!namespace) fail("--namespace requires a value");
+      continue;
+    }
+    fail(`Unknown option '${arg}'`);
+  }
+  if (!namespace) fail("--namespace is required");
+  return { namespace };
+}
+
+function printAuditKeys(
+  audit: ReturnType<typeof auditNamespaceTableKeys>,
+): void {
+  console.log(JSON.stringify(audit, null, 2));
 }
 
 // ---------------------------------------------------------------------------
@@ -224,9 +268,8 @@ function printNextSteps(
 
 /**
  * Run `duckbrain tables ...`. Resolves with the process exit code (0 on
- * success); throws TablesCliError for usage/validation failures, which the
- * bin entry prints and turns into exit 1. Only the `declare` subcommand
- * exists today; `tables --help` documents it.
+ * success); throws TablesCliError for usage/validation failures, which the bin
+ * entry prints and turns into exit 1.
  */
 export async function runTablesCli(argv: string[]): Promise<number> {
   const [sub, ...rest] = argv;
@@ -234,9 +277,16 @@ export async function runTablesCli(argv: string[]): Promise<number> {
     printHelp();
     return 0;
   }
+  if (sub === "audit-keys") {
+    const args = parseAuditKeysArgs(rest);
+    if (args === null) return 0;
+    const audit = auditNamespaceTableKeys(args.namespace);
+    printAuditKeys(audit);
+    return audit.duplicateKeys === 0 ? 0 : 1;
+  }
   if (sub !== "declare")
     fail(
-      `Unknown tables subcommand: '${sub}' (expected: declare; run "duckbrain tables --help")`,
+      `Unknown tables subcommand: '${sub}' (expected: declare or audit-keys; run "duckbrain tables --help")`,
     );
 
   const args = parseDeclareArgs(rest);
@@ -268,11 +318,15 @@ export async function runTablesCli(argv: string[]): Promise<number> {
   const nsDir = path.join(path.resolve(resolveNamespacesPath()), result.ns);
   const example = exampleBodyFor(args.columns);
   if (result.format === "legacy") {
-    console.log(`Declared table '${result.table}' in ${result.path} (legacy .table.json).`);
+    console.log(
+      `Declared table '${result.table}' in ${result.path} (legacy .table.json).`,
+    );
     printNextSteps(result.ns, nsDir, result.table, false, example);
     return 0;
   }
-  console.log(`Declared table '${result.table}' in ${result.path} (schema.json, SUPA-6).`);
+  console.log(
+    `Declared table '${result.table}' in ${result.path} (schema.json, SUPA-6).`,
+  );
   printNextSteps(result.ns, nsDir, result.table, true, example);
   return 0;
 }
