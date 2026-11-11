@@ -3456,3 +3456,13 @@ tasks:
   status: complete
   created_at: '2026-11-11T10:34:48.850765+00:00'
   completed_at: '2026-11-11T11:51:36.718435+00:00'
+- id: REST-SELECT-001-R2
+  title: Honour the ?select= projection on the CSV response path
+  criteria:
+  - 'Accept: text/csv with ?select=id returns header exactly id and single-cell rows;
+    ?select=id,name returns header id,name; ?select=* keeps the full declared header;
+    embed projections are JSON-encoded rather than crashing; tests in src/http/routes/tables-grammar.test.ts
+    cover all four; pnpm build:cli, pnpm tsc --noEmit and pnpm test:run stay green'
+  status: complete
+  created_at: '2026-11-11T12:37:49.324761+00:00'
+  completed_at: '2026-11-11T12:37:53.781629+00:00'
