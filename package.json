@@ -3,7 +3,11 @@
   "version": "1.2.0",
   "packageManager": "pnpm@12.4.2",
   "description": "AI Memory System - MCP server with persistent, version-controlled memory",
-  "main": "index.js",
+  "main": "bin/duckbrain.js",
+  "files": [
+    "bin/duckbrain.js",
+    "dist/"
+  ],
   "bin": {
     "duckbrain": "./bin/duckbrain.js"
   },

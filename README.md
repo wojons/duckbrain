@@ -68,13 +68,12 @@ See [docs/guide/positioning.md](docs/guide/positioning.md) for the full four-sta
 
 ### Installation
 
-> **DuckBrain is not published to npm — install from git.** `npm install -g
-duckbrain`, `pnpm add -g duckbrain`, and `npx duckbrain` all fail with
-> **E404 Not Found** because no registry package exists. The only supported
-> install is **git clone + `pnpm install`**, below. Once cloned, the optional
-> bare `duckbrain` command on PATH comes from a one-line symlink — see
-> "The `duckbrain` CLI" below (pnpm has no working global-install equivalent
-> for this repo, and npm offers nothing to install).
+> **Install from git** using the instructions below. The release workflow
+> contains an npm publish step, but publication requires an `NPM_TOKEN` and
+> owner authorization; actual publication is outside this change's scope.
+> Do not assume a registry release exists until it has been verified. Once
+> cloned, the optional bare `duckbrain` command comes from a symlink — see
+> "The `duckbrain` CLI" below.
 
 #### Prerequisites
 
@@ -144,7 +143,7 @@ curl -s 'http://127.0.0.1:3000/api/memories/key/quickstart/hello?namespace=quick
 
 Success looks like: the final read returns a JSON memory object with `"key": "/quickstart/hello"` and `"content": "first memory from the quickstart"`. Connection refused on step 2 means the daemon didn't start — check the background job's output. A 404 ("Namespace does not exist") on steps 4–5 means step 3's namespace create didn't land on this daemon — the create is idempotent, so re-run it and write again. A write that fails with a 500 naming `user.name`/`user.email` should not occur anymore: with no git identity the write is stamped `Anonymous <anonymous@duckbrain.local>` (see "Fresh-host extras" above). The snippet above starts the daemon with `--auth=none` explicitly because the default is now `apikey` — a fresh daemon with no `--auth` flag requires API-key authentication and rejects unauthenticated writes with 401. For anything but local development, bootstrap a key store (`duckbrain token` creates the store if missing) and start with `--auth=apikey` (see [docs/api/http-api.md](docs/api/http-api.md)). Stop the background daemon with `kill %1` when done.
 
-When exposing the daemon past loopback, note the DNS-rebinding host guard: `--allowed-hosts` / `DUCKBRAIN_ALLOWED_HOSTS` extend the accepted Host headers instead of `--bind-all` — see [docs/guide/deployment.md](docs/guide/deployment.md). To pick up later releases, update the same clone (`git pull && pnpm install`) — there is no package-manager upgrade path, because DuckBrain is not published to npm.
+When exposing the daemon past loopback, note the DNS-rebinding host guard: `--allowed-hosts` / `DUCKBRAIN_ALLOWED_HOSTS` extend the accepted Host headers instead of `--bind-all` — see [docs/guide/deployment.md](docs/guide/deployment.md). To pick up later releases from source, update the same clone (`git pull && pnpm install`). Registry availability must be verified separately.
 
 ### Running DuckBrain
 
@@ -186,11 +185,9 @@ ln -s "$PWD/bin/duckbrain.js" ~/.local/bin/duckbrain
 node bin/duckbrain.js <command>
 ```
 
-There is deliberately no package-manager global install documented here: the
-project is not on npm (see the note atop Installation), and pnpm 12 offers no
-working equivalent for this repo (`pnpm link` rejects the old `--global` form,
-and `pnpm add -g <tarball>` leaves out the gated duckdb native-binding
-download, producing a CLI that crashes at startup).
+A package-manager global install is not documented here: registry publication
+has not been verified, and pnpm 12's local tarball install has previously omitted
+the gated duckdb native-binding download, causing the CLI to crash at startup.
 
 ## CLI memory verbs
 

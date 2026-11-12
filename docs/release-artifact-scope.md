@@ -4,7 +4,7 @@ What a DuckBrain release cuts, what it deliberately does not, and how to verify
 it. Written for RELEASE-2026-10-26-001 (A2) so a release sweep stops guessing
 which surfaces are in scope.
 
-## The one action a release performs
+## Release workflow
 
 Push an **annotated** tag `vX.Y.Z` at a commit that is already on `main` **and
 already has a green `CI` push run for that exact commit**. `.github/workflows/release.yml`
@@ -16,24 +16,28 @@ verifies that run through the API and then publishes a GitHub Release:
 - the tag must already exist (`--verify-tag`) and the release must not already
   exist — releases are immutable here
 
-Nothing else. There is no build matrix, no artifact upload, no publish token.
+Before creating the GitHub Release, the workflow builds the CLI and runs its
+npm publish step. This requires an `NPM_TOKEN` secret with npm publishing
+credentials and owner authorization. Provisioning credentials and actually
+publishing are outside this change's scope; the step's presence is not evidence
+that a package has been published. There is no build matrix or artifact upload.
 
 ## In scope
 
 | Surface | How it is produced | Who |
 | --- | --- | --- |
 | Git tag `vX.Y.Z` | `git tag -a` on a green-CI `main` commit, pushed | the release operator |
+| npm package | `release.yml` -> `npm publish --access public`, after build and tag/version check | CI, subject to credentials and owner authorization |
 | GitHub Release + notes | `release.yml` -> `gh release create` | CI, on tag push |
 | Source tree at the tag | the tag itself (clone and check out) | GitHub |
 | Docker image | **built locally / by the operator** from `Dockerfile` (`node:22-slim`, entrypoint `bin/duckbrain.ts`, default `http --port=3000 --bind-all`) | operator |
 
 ## Out of scope — do not do these
 
-- **No npm publish.** The package is named `duckbrain` and declares a `bin`, so
-  a stray `npm publish` would succeed and squat the name. Releases are cut from
-  the tag; the CLI is run from source (`node --import tsx bin/duckbrain.ts`) or
-  from the Docker image. If a publish policy is ever wanted, it is a separate
-  decision with its own row — it is not part of a release cut.
+- **No unauthorized npm publish.** The workflow includes an npm publish step,
+  but provisioning `NPM_TOKEN` and authorizing or performing publication are
+  owner decisions outside this change's scope. Do not publish manually without
+  authorization.
 - **No container-registry push.** No workflow pushes to ghcr.io or Docker Hub,
   and no image reference is published by a release. If an image is needed, the
   operator builds `Dockerfile` and distributes it explicitly.
