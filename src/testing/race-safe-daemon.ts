@@ -26,7 +26,7 @@
  *      rmdir (a third, pre-existing flake source). Cleanup of a temp dir must
  *      never red a test: retry briefly, then leave the orphan (harmless).
  *
- * ch:trace row=INT-CI-027-R2 spec=.coding-hermes/board/tasks.jsonl#INT-CI-027-R2 wave=duckbrain-foreman-2026-11-12-18-16-42#serial test=src/cli/http.test.ts::DOGFOOD-008 doc=none:code-fix prompt=/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-12-18-16-42/attempt-1/brief-INT-CI-027-R2.md evidence=focused-test-output witness=commit verdict=foreman-owned commit=<worker-sha> memory=foreman-owned
+ * ch:trace row=INT-CI-027-R2 spec=.coding-hermes/board/tasks.jsonl#INT-CI-027-R2 wave=none:serial-dispatch test=src/cli/http.test.ts::DOGFOOD-008 doc=none:code-fix prompt=none:worker-brief-external evidence=src/cli/http.test.ts::DOGFOOD-008 witness=commit verdict=foreman-owned commit=c915e31eede092dc2c4ca237f8a09d1ab89a2ac9 memory=none:foreman-closeout
  * STATUS: complete
  * TIER: T2
  * EVIDENCE: src/cli/http.test.ts
