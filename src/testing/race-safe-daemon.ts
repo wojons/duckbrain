@@ -25,6 +25,11 @@
  *      while we walk the tree, so a single rmSync throws ENOTEMPTY from
  *      rmdir (a third, pre-existing flake source). Cleanup of a temp dir must
  *      never red a test: retry briefly, then leave the orphan (harmless).
+ *
+ * ch:trace row=INT-CI-027-R2 spec=.coding-hermes/board/tasks.jsonl#INT-CI-027-R2 wave=duckbrain-foreman-2026-11-12-18-16-42#serial test=src/cli/http.test.ts::DOGFOOD-008 doc=none:code-fix prompt=/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-12-18-16-42/attempt-1/brief-INT-CI-027-R2.md evidence=focused-test-output witness=commit verdict=foreman-owned commit=<worker-sha> memory=foreman-owned
+ * STATUS: complete
+ * TIER: T2
+ * EVIDENCE: src/cli/http.test.ts
  */
 
 import { spawnSync, type ChildProcess } from "child_process";
@@ -76,6 +81,43 @@ export async function findFreePort(): Promise<number> {
     });
     server.on("error", reject);
   });
+}
+
+export type PortPicker = () => Promise<number>;
+
+/**
+ * Pick two distinct ports for daemons that will be started together.
+ *
+ * findFreePort releases its probe socket before returning, so the two calls
+ * must not be treated as an atomic allocation. In particular, a mocked picker
+ * and a random picker can both return the same port. Re-pick the second port
+ * (and restart the pair after an EADDRINUSE from an injected picker) rather
+ * than letting the later identity assertion report a misleading foreign
+ * listener.
+ */
+export async function findFreePortPair(
+  pickPort: PortPicker = findFreePort,
+): Promise<[number, number]> {
+  for (let firstAttempt = 0; firstAttempt < 200; firstAttempt++) {
+    let port1: number;
+    try {
+      port1 = await pickPort();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") continue;
+      throw error;
+    }
+
+    for (let secondAttempt = 0; secondAttempt < 200; secondAttempt++) {
+      try {
+        const port2 = await pickPort();
+        if (port1 !== port2) return [port1, port2];
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") continue;
+        throw error;
+      }
+    }
+  }
+  throw new Error("could not allocate two distinct free ports");
 }
 
 /**
@@ -244,7 +286,7 @@ export async function assertDaemonIsOurs(
   if (daemon.child.exitCode !== null || daemon.child.signalCode !== null) {
     throw new Error(
       `scratch daemon on port ${daemon.port} exited (code ${daemon.child.exitCode}) ` +
-        `before it could be verified — a foreign process most likely owns the port`,
+        `before it could be verified — bind failed with EADDRINUSE (port collision)`,
     );
   }
 

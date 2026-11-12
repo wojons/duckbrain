@@ -10,6 +10,7 @@ import path from "path";
 import { startHttpMode, createHttpServer } from "./http";
 import {
   findFreePort,
+  findFreePortPair,
   waitForHealth,
   waitForClose,
   assertDaemonIsOurs,
@@ -86,6 +87,43 @@ describe("HTTP server entry point", () => {
 });
 
 describe("DOGFOOD-008 per-instance pidfile", () => {
+  it("re-picks duplicate and EADDRINUSE ports when allocating a pair", async () => {
+    const collision = Object.assign(new Error("listen EADDRINUSE"), {
+      code: "EADDRINUSE",
+    });
+    const picked: Array<number | Error> = [24567, 24567, collision, 24568];
+    const pair = await findFreePortPair(async () => {
+      const next = picked.shift() ?? 24569;
+      if (next instanceof Error) throw next;
+      return next;
+    });
+
+    expect(pair).toEqual([24567, 24568]);
+  });
+
+  it("names EADDRINUSE when a daemon exits before identity verification", async () => {
+    const child = { exitCode: 1, signalCode: null } as ChildProcess;
+
+    await expect(
+      assertDaemonIsOurs({
+        port: 24567,
+        child,
+        nsPath: "/tmp/unused-namespaces",
+        dataDir: "/tmp/unused-data",
+        sentinel: "unused-sentinel",
+      }),
+    ).rejects.toThrow("EADDRINUSE (port collision)");
+    await expect(
+      assertDaemonIsOurs({
+        port: 24567,
+        child,
+        nsPath: "/tmp/unused-namespaces",
+        dataDir: "/tmp/unused-data",
+        sentinel: "unused-sentinel",
+      }),
+    ).rejects.not.toThrow("foreign process most likely owns the port");
+  });
+
   it("writes and removes a per-instance pidfile on shutdown", async () => {
     const port = await findFreePort();
     const { dataDir, nsPath } = prepareDataDir("duckbrain-http-pid-test-");
@@ -115,8 +153,7 @@ describe("DOGFOOD-008 per-instance pidfile", () => {
   }, 30000);
 
   it("concurrent instances on different ports do not clobber each other's pidfiles", async () => {
-    const port1 = await findFreePort();
-    const port2 = await findFreePort();
+    const [port1, port2] = await findFreePortPair();
     const { dataDir: dataDir1, nsPath: nsPath1 } = prepareDataDir(
       "duckbrain-http-pid-concurrent-1-",
     );
