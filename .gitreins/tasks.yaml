@@ -3472,5 +3472,6 @@ tasks:
   - release.yml gains a working npm publish step wired to releases; workflow parses;
     docs note that actual publishing requires npm credentials/owner authorization
     (out of scope)
-  status: in_progress
+  status: complete
   created_at: '2026-11-12T09:44:56.423462+00:00'
+  completed_at: '2026-11-12T09:54:45.640242+00:00'

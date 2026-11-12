@@ -1478,12 +1478,14 @@
 {"id":8656,"task_id":"SEC-AUTHZ-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
 {"id":8657,"task_id":"ROLLOUT-DUCKBRAIN-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
 {"id":8658,"task_id":"QA-DUCKBRAIN-FOREMAN-1","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8650,"task_id":"DECLARE-MIGRATE-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T20:11:36Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8651,"task_id":"QA-DUCKBRAIN-FOREMAN-3","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T20:20:48Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8652,"task_id":"HARDEN-DUCKBRAIN-002","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8653,"task_id":"OBSDB-007","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8654,"task_id":"PERF-DUCKBRAIN-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8655,"task_id":"PERF-DUCKBRAIN-002","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8656,"task_id":"SEC-AUTHZ-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8657,"task_id":"ROLLOUT-DUCKBRAIN-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
-+{"id":8658,"task_id":"QA-DUCKBRAIN-FOREMAN-1","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
+{"id":8650,"task_id":"DECLARE-MIGRATE-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T20:11:36Z","detail":"{\"status\":\"pending\"}"}
+{"id":8651,"task_id":"QA-DUCKBRAIN-FOREMAN-3","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T20:20:48Z","detail":"{\"status\":\"pending\"}"}
+{"id":8652,"task_id":"HARDEN-DUCKBRAIN-002","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
+{"id":8653,"task_id":"OBSDB-007","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
+{"id":8654,"task_id":"PERF-DUCKBRAIN-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
+{"id":8655,"task_id":"PERF-DUCKBRAIN-002","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
+{"id":8656,"task_id":"SEC-AUTHZ-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:53Z","detail":"{\"status\":\"pending\"}"}
+{"id":8657,"task_id":"ROLLOUT-DUCKBRAIN-001","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
+{"id":8658,"task_id":"QA-DUCKBRAIN-FOREMAN-1","event_type":"task_updated","actor":"foreman","tick_number":null,"timestamp":"2026-11-11T21:11:54Z","detail":"{\"status\":\"pending\"}"}
+{"id": 8659, "timestamp": "2026-11-12T10:05:44Z", "event_type": "task_dispatched", "task_id": "DF-0923-05-R2", "actor": "duckbrain-foreman", "detail": "{\"tick\": \"duckbrain-foreman-2026-11-12-09-41-13\", \"block\": \"DF-0923-05-R2\", \"path\": \"serial (single ready row; slots=6, no wave composed)\", \"worker_model\": \"openai/gpt-6.1-terra@xkiro\"}", "tick_number": null}
+{"id": 8660, "timestamp": "2026-11-12T10:05:44Z", "event_type": "task_completed", "task_id": "DF-0923-05-R2", "actor": "duckbrain-foreman", "detail": "{\"tick\": \"duckbrain-foreman-2026-11-12-09-41-13\", \"commit\": \"462b41ea86fbb9775b7bdc21b4d8eb88e81a8932\", \"remote_parity\": \"0/0\", \"guard\": \"PASS\", \"gate\": \"pushed origin+ghgitlab, 0 unpushed\", \"note\": \"serial path; npm publish step added; actual publishing awaits owner credentials/authorization\"}", "tick_number": null}
