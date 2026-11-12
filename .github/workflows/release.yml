@@ -54,6 +54,25 @@ jobs:
           fi
           echo "CI for $sha: success — safe to publish."
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      # Publishing requires npm credentials and owner authorization; provisioning
+      # those credentials and actually publishing are outside this change's scope.
+      - name: Publish package to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package version $version." >&2
+            exit 1
+          fi
+          npm publish --access public
+
       - name: Write release notes from CHANGELOG
         id: notes
         run: |
