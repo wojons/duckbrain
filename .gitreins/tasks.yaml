@@ -3466,3 +3466,11 @@ tasks:
   status: complete
   created_at: '2026-11-11T12:37:49.324761+00:00'
   completed_at: '2026-11-11T12:37:53.781629+00:00'
+- id: DF-0923-05-R2
+  title: Add npm publish step to release workflow so duckbrain@1.0.0 can be published
+  criteria:
+  - release.yml gains a working npm publish step wired to releases; workflow parses;
+    docs note that actual publishing requires npm credentials/owner authorization
+    (out of scope)
+  status: in_progress
+  created_at: '2026-11-12T09:44:56.423462+00:00'
