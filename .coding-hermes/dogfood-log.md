@@ -983,3 +983,66 @@ Verdict: unchanged — **FAILED** for the tick on the product legs (`search` abo
 records defect left open by rule (five rows lack `task_created` provenance) and one harness residue pending TTL.
 
 ch:trace tick=duckbrain-dogfood-2026-11-14-10-01-04 target=b5b97b344b8eaef219312dd1e250e7b05b61a2bf fire=continuation-refire rows=README-19-R3,README-23,DOC-25,DOGFOOD-032,DOGFOOD-033 events_missing=5 repair=OPEN-blocked-by-write-gate agent=67aeb9f5-live-until-2026-11-14T14:20:30Z
+
+## 2026-11-14d — continuation refire, executor 3: two corrections, one new product defect, teardown PROVEN (tick `duckbrain-dogfood-2026-11-14-10-01-04`)
+
+Fired again at 11:26Z. Nothing was modified except this log and the five board rows below — no product code, no existing row, no repo visibility.
+
+1. **CORRECTION — "search aborts on the current tip" does not replay.** I ran README-19-R3's own command
+   verbatim (`duckbrain search "cli write path" --namespace=default`) against the same namespace root (3 files,
+   unchanged mtimes) and the same binary (HEAD `f494b924`; `git diff --stat b5b97b34..HEAD` touches board +
+   this log + `docs/dogfood/` report + `skills/duckbrain-usage`, **zero lines of `src/`**). Result: **rc=0 in
+   0.35 s, both hits printed**, no abort, no glibc line. A fresh namespace roundtrip (`remember` → `search
+   "heap corruption"`) also returned 1 correct hit, rc=0, 0.62 s. So the death is real but **intermittent**: a
+   sequential replay is not enough to call the verb broken, and R3's "still aborts on the tip" over-states the
+   evidence. Filed **README-19-R4** (recurrence of README-19-R3) with the numbers and a falsifiable fix test.
+
+2. **NEW PRODUCT DEFECT — the CLI cannot be used concurrently.** 6 parallel `search` invocations → **5 died**;
+   8 parallel → **7 died** (12 of 14), every failure `✗ Connection Error: Connection was never established or
+   has been closed already`, rc=1, while **5 sequential runs passed**. One DuckDB file per namespace, a
+   per-process singleton (`src/duckdb/connection.ts:312` `getSingletonConnection`, `:393` `closeAllConnections`)
+   that every process nukes at startup (`bin/duckbrain.ts:492-497`), and no lock-wait or retry → cross-process
+   contention; same class as the in-repo BUG-032 / BUG-034 prior art. **Filed QA-DUCKBRAIN-033.** This is a
+   better lead on the 134 than R3's data-dependence theory: contention, not data.
+
+3. **CORRECTION — `act` was present and it ran.** The per-leg `ci.log` pulled off the agent opens
+   `time="2026-11-14T10:28:37Z" ... Using docker host 'unix:///run/bunker/67aeb9f5/docker.sock'` and shows a
+   real act run: checkout OK → Set up pnpm OK → Use Node.js 22 OK → `Install from a clean store and
+   smoke-test the CLI` → **`Job failed` in 9.98 s with zero inner error text**. So (a) executor 2's line
+   "act is absent on the host, so the ci-pass cell is unverified" is **wrong** — the cell was graded FAIL by an
+   act that ran against this very agent — and (b) `-q` swallows the failing step's output, which makes
+   harness-red indistinguishable from product-red. Hosted CI is green at both `b5b97b34` (#43556882513) and
+   `f494b924` (#43589417317). **Filed QA-DUCKBRAIN-035.**
+
+4. **TEARDOWN PROVEN — this supersedes executor 2's "verify after 14:20:30Z".** destroy-verify FAILed at
+   `10:43:27Z` ("bunker destroy FAILED after 3 attempts (last rc=1)", "may hold a slot until the ~4h TTL") and
+   the agent was still serving `bunker info` / `bunker exec` at `11:26Z`. One
+   `bunker destroy 67aeb9f5 --server bunker-mvp --force --timeout 30m` exited 0, and the follow-up census
+   showed it absent (4 → 3 agents). Its evidence and per-leg logs were copied off first (`qa-logs-3813958/`:
+   `ci.log`, `tests.log`, `native.log`, `disc.log`, …). **Filed QA-DUCKBRAIN-034** for the leak itself: a
+   FAILed teardown that nothing retries holds a host slot and a full tree, and it would have destroyed the
+   very logs that made this fire possible.
+
+5. **PROVENANCE.** This fire's five rows DO carry paired `task_created` events (`8685`–`8689`, via
+   `boardctl event --no-tick-write`), and `boardctl validate` is `OK`. The five rows from executor 2
+   (README-19-R3, README-23, DOC-25, DOGFOOD-032, DOGFOOD-033) are still without events — that repair was
+   blocked by the write gate and is **not** retried here, by rule. (The ids read `8685`–`8689`, not the
+   `8683`–`8687` first appended: a releng lane landed events `8683`/`8684` on origin while this fire was
+   running, so the rebase renumbered mine past origin's max and kept a `renumbered_from` field.)
+
+6. **PERF (Step 2b) — measured, nothing to file.** `duckbrain --version` 0.33–0.34 s (startup floor); recall on
+   a brand-new namespace **0.33 s / 109 MB** cold, **0.32–0.34 s** warm ×5; recall with data **0.38–0.39 s /
+   133 MB**; search with data **0.41–0.43 s / 147 MB**. Essentially all of the wall time is the ~330 ms Node
+   CLI startup — the data path adds ~50–100 ms. **No PERF row**: a user would not feel this, and filing it
+   would devalue the real findings. The one big number today (a 106 s *failed* search) is the abort bug, i.e. a
+   correctness defect, not a perf one.
+
+7. **Small, separate finding:** `recall --limit` is silently ignored — `--limit 1|3|7` all echo
+   `Validated input: { limit: 10, … }`. **Filed QA-DUCKBRAIN-036** (P3; evidence scope stated in the row: no
+   namespace here holds more than one memory, so result-count truncation was not observable).
+
+Verdict: **FAILED** stands for the tick, but the attribution is now correct — not "search is broken on the tip"
+(it is not: 0.35 s green on an exact replay) but "**search cannot be trusted under concurrency**" (12/14
+failures), which is reproducible, quantified and fixable.
+
+ch:trace tick=duckbrain-dogfood-2026-11-14-10-01-04 target=b5b97b344b8eaef219312dd1e250e7b05b61a2bf fire=continuation-refire-3 rows=README-19-R4,QA-DUCKBRAIN-033,QA-DUCKBRAIN-034,QA-DUCKBRAIN-035,QA-DUCKBRAIN-036 events=8685-8689 agent=67aeb9f5-DESTROYED-proven perf=no-finding
