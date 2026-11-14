@@ -614,6 +614,28 @@ the one env var that overrides the endpoint on BOTH sync and push paths.
     "mismatched tags <meta> and </head>" parse error instead of naming the
     impostor.
 
+35. **`duckbrain search` aborts the process instead of returning hits
+   (re-measured 2026-11-14, README-19-R3).** On tip `b5b97b34` the keyword
+   verb dies with `rc=134` and `Fatal glibc error: malloc.c:2371
+   (sysmalloc): assertion failed` — heap metadata corruption in the native
+   `duckdb` binding, not an embeddings problem (`search` is documented as
+   pure full-text). Two runs on two namespace roots: 106,435 ms then
+   13,006 ms, same abort, no hits printed either time. Do not put `search`
+   in a script or agent loop on this build; use `recall --key=` for one key,
+   `list-keys --prefix=` for enumeration, or the HTTP API's
+   `?contains=<term>` (which answers 200 on the same store). Same
+   native-heap class as README-19 / README-19-R2 (daemon
+   `*** stack smashing detected ***`); `src/search/query.ts:403`
+   (`keywordSearch`) is the hot path.
+
+36. **The shipped `duckbrain.config.example.json` does not boot
+   (re-measured 2026-11-14, README-23).** It ships an *enabled* `s3` block
+   whose endpoint is a placeholder, and the config schema rejects it, so
+   the daemon exits before serving — even though `README.md:98` calls that
+   file the template to copy. Boot from a 3-key config instead:
+   `{"defaultNamespace":"default","namespacesPath":"./<dir>","gitBatching":
+   {"maxLines":100,"maxSeconds":30,"enabled":true}}`.
+
 ## HTTP examples quickstart (the working path, 2026-09-26)
 
 Boot a scratch daemon and run the on-ramp flow that actually works (explicit

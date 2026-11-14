@@ -899,3 +899,45 @@ Observation recorded instead of rowed: one tick id has now been dispatched three
 Left behind: this log entry only. No board row, no product code, no docs, no skill, no scheduler state, no visibility or permission change, no credential minted; foreman not woken (read-only fire).
 
 ch:trace tick=duckbrain-dogfood-2026-11-11-04-58-53 fire=duplicate-record-only-c target=485a86f003e52f5f5cd06684a485e260c7d96329 row=README-19-R2 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-20261111-045853/dupfire-c-census.md
+
+## 2026-11-14 — `search` kills the process, install is green and the suite is red (tick `duckbrain-dogfood-2026-11-14-10-01-04`)
+
+Used DuckBrain the way a user with something to remember would: boot an isolated daemon, make
+namespaces, `remember`, `recall`, declare and fill a table, read it back through every documented
+PostgREST filter and both response formats, then consume the MCP stdio server from a hand-written
+client in three fresh namespaces. Almost all of it works, cleanly and fast. The one verb a user
+reaches for once the store has content does not: `duckbrain search` dies with `rc=134` and
+`Fatal glibc error: malloc.c:2371 (sysmalloc): assertion failed`, printing no hits, on two
+different namespace roots — 106,435 ms and 13,006 ms, same abort. That is heap corruption in the
+native `duckdb` binding reached via `src/search/query.ts:403`, the third surface of the README-19
+class after `README-19` and `README-19-R2`, so it renews rather than closes the original finding
+(`README-19-R3`).
+
+Fresh-machine install is genuinely proven: bunker agent `67aeb9f5` on `bunker-mvp`, a machine that
+had never seen the repo, `pnpm install --frozen-lockfile` in 5.8 s, lint and docker-build cells OK.
+Then the suite came back red — `Test Files 1 failed | 291 passed (292)`, `Tests 1 failed | 2467
+passed (2468)` — on `src/http/routes/realtime-fanout.test.ts:213`, a heartbeat-frame count that
+asserts `>= 2` and observed 1 under full-suite load; the same file passes 5/5 in isolation on the
+same tip. Filed as `DOGFOOD-033`: a new user's first `pnpm test` after install fails for reasons
+that have nothing to do with their change. Two harness failures (`upgrade`, `chaos-shutdown`) and a
+leaked agent (`destroy`) are recorded in the report, not on this board — they are the ephemeral
+leg's defects, not DuckBrain's. `act` is absent on the host, so the `ci-pass` cell is unverified
+rather than red.
+
+Performance was measured, warm and cold, and is not a finding: key reads ~15 ms, table reads and
+memory writes sub-50 ms across ten calls each, boot to first HTTP answer sub-second, deep index
+warm-up backgrounded. Nothing a user would notice — so no `PERF-` row was filed, by design. The
+13 s and 106 s above are a crash, not a latency regression, and are filed as one.
+
+Docs cost a user two dead ends: `duckbrain.config.example.json` is named as the template to copy
+and cannot boot (enabled `s3` block with a placeholder endpoint fails schema validation →
+`README-23`), and `examples/mcp-client/README.md` teaches a `remember` call that can never succeed
+because it omits the required `attributes`/`embedding_text` (`DOC-25`). CLI verbs also dump internal
+debug lines onto stdout, so the documented `| jq` pipe fails (`DOGFOOD-032`).
+
+Verdict: **FAILED** for the tick — the product is useful and usable on the HTTP API and on
+`remember`/`recall`, and untrustworthy on search. Detail and reproduction commands:
+`docs/dogfood/2026-11-14-cli-search-abort-and-fresh-install.md`. Usage skill gained pitfalls 35–36
+(search aborts; example config does not boot) so the next consumer avoids both.
+
+ch:trace tick=duckbrain-dogfood-2026-11-14-10-01-04 target=b5b97b344b8eaef219312dd1e250e7b05b61a2bf row=README-19-R3,README-23,DOC-25,DOGFOOD-032,DOGFOOD-033 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-2026-11-14-10-01-04/evidence
