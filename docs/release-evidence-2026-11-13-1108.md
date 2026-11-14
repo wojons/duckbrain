@@ -49,3 +49,35 @@ Decision: NO CUT. The candidate is `f494b924ba6a72b2e5db37ca12c5b4ef31ebfb52` on
 2. At the final candidate, update the `[1.2.0]` Range preamble and add citations for `c915e31e`, `7c0d88e7`, `950a281b`, and `0d1b9e53`; re-run the citation check and exact-SHA CI.
 3. Reconcile the open `v1.1.0` Release-object decision in `RELEASE-2026-11-09-001`; do not move the immutable tag.
 4. Re-run the final release checks, then use the repository-owned tag workflow. Verify the new tag, GitHub Release, Release notes, and tag-triggered workflow before delivery.
+
+## Pass 11 — 2026-11-14 11:15 scheduler tick (re-fire)
+
+Carried, not re-decided. Decision remains **NO CUT** for `v1.2.0`, barred by the same two rows. No tag, GitHub Release, npm publish, image push, or tag mutation in this pass.
+
+This tick id fired twice. Pass 10 measured candidate `f494b924ba6a72b2e5db37ca12c5b4ef31ebfb52` at 11:18–11:37Z; the scheduler then re-entered the same tick. The product tree did not move: `git diff --name-only f494b924..31515490` returns exactly three paths, all release bookkeeping — `docs/release-evidence-2026-11-13-1108.md`, `.coding-hermes/board/tasks.jsonl`, `.coding-hermes/board/events.jsonl`. Excluding those, **0 product paths differ**.
+
+### Delta evidence table
+
+| Gate | Re-measured at `31515490` | Result |
+| --- | --- | --- |
+| Candidate | `31515490e24d0ad049b9f8f4abba4d08a4de90bf` == `origin/main` == `origin/HEAD`; forge default `main`; `wojons/duckbrain` | PASS |
+| Exact carrier CI | GitHub Actions run `43590915580`, push on `main`, completed/success; `test=success`, `docker=success` | PASS |
+| Change census `v1.1.0..tip` | 503 total, 483 non-merge; `feat=28`, `fix=39`, `perf=4` → material 71; breaking declarations 0, `type!:` subjects 0 | PASS — minor `v1.2.0` |
+| Version surfaces | `package.json=1.2.0`; `package-lock.json` root and `packages[""]` both `1.1.0`; README badge `1.1.0`; installed CLI `duckbrain --help` prints `DuckBrain v1.1.0`; shipped `1.1.0` literals at `bin/duckbrain.ts:48`, `src/cli/human.ts:2364`, `src/mcp/server.ts:58`, `src/http/routes/tables.ts:1043`, `src/ssh/client.ts:51`, and a pinned assertion in `src/http/metrics.test.ts:121,193` | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG coverage | `[1.2.0]` still has exactly 32 bullets. Preamble still claims `397 commits (379 non-merge; 28 feat, 35 fix, 4 perf)` against measured 503/483 (28/39/4), and `1364dc4f..HEAD` as 142/140/25 against measured 248/29. None of `c915e31e`, `7c0d88e7`, `950a281b`, `0d1b9e53` is cited by SHA or by its own finding id (`INT-CI-027`, `QA-DUCKBRAIN-022`, `-023`, `-021`), which is the citation class this section actually uses | BLOCKED — `RELEASE-2026-11-09-001` |
+| Publisher path | Tag-push `.github/workflows/release.yml` only. It refuses unless the tagged commit's `main` push run concluded success, requires `GITHUB_REF_NAME == v$(package.json version)`, builds Release notes by extracting the `[X.Y.Z]` CHANGELOG section verbatim, and refuses when the Release already exists. Still no `scripts/release*`, Makefile release target, or GoReleaser | PASS — owned path |
+| Release surface | `git ls-remote` tags: `v1.0.0`, `v1.1.0` only; `gh release list` returns `v1.0.0` only; `v1.2.0` absent; `v1.1.0` still has no Release object | NO CUT |
+| Deployed surface | `duckbrain-http.service` listener PID `879548`, started 2026-11-14 02:33:34 -05, `GET http://127.0.0.1:3000/health` → 200 `healthy`; no loaded-commit field in the payload, so freshness against `31515490` stays UNMEASURED | UNMEASURED |
+| Open rows | 96 non-terminal: `pending=85`, `in_progress=6`, `blocked=5`; priority 2 P0 / 30 P1 / 40 P2 / 18 P3 / 4 P4 / 2 P5 — identical to Pass 10 | CARRIED |
+
+### Why the blocker matters more than the pass count
+
+`release.yml` derives the Release body from the `[1.2.0]` section, so the stale numeric preamble ships verbatim to end users on every cut until `RELEASE-2026-11-09-001` lands. The preamble is structurally unable to stay true: it is a fixed snapshot that no commit refreshes, so it drifts on every subsequent commit — 106 commits and 4 material fixes of drift since it was written.
+
+### Lane note
+
+Two passes 20 minutes apart on a byte-identical product tree produce no new release information. The lane's `cooldown_s` is 86400, so a second entry for the same tick id is a scheduler re-entry rather than cadence. Gating this lane on a material product commit (or on an owner ruling for `RELEASE-VERSION-001` / `RELEASE-2026-11-09-001`) would be worth more than another scheduled sweep over bookkeeping-only commits.
+
+### Unchanged required unblock
+
+No new row was filed; both blockers remain owned. (1) `RELEASE-VERSION-001` aligns `package-lock.json`, README badge, CLI banner, MCP/API `version` literals and the pinned test assertion to `1.2.0` — classify `src/ssh/client.ts:51 CURRENT_VERSION` first, since it may be a protocol constant rather than the package version. (2) `RELEASE-2026-11-09-001` rewrites the `[1.2.0]` preamble to the measured range and cites the four post-prep material fixes. Then obtain exact-SHA CI on the new tip and cut through the repository-owned tag workflow.
