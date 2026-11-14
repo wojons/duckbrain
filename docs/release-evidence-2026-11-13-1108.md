@@ -81,3 +81,42 @@ Two passes 20 minutes apart on a byte-identical product tree produce no new rele
 ### Unchanged required unblock
 
 No new row was filed; both blockers remain owned. (1) `RELEASE-VERSION-001` aligns `package-lock.json`, README badge, CLI banner, MCP/API `version` literals and the pinned test assertion to `1.2.0` — classify `src/ssh/client.ts:51 CURRENT_VERSION` first, since it may be a protocol constant rather than the package version. (2) `RELEASE-2026-11-09-001` rewrites the `[1.2.0]` preamble to the measured range and cites the four post-prep material fixes. Then obtain exact-SHA CI on the new tip and cut through the repository-owned tag workflow.
+
+## Pass 12 — 2026-11-14 12:05 UTC scheduler tick
+
+Decision: NO CUT. Candidate `b35a05b6a1072972f1b815cd4d15b55ae3d7be13` is `origin/main`; this is a carried product tree relative to pass 11 because the only intervening non-board/non-gitreins path is the dogfood log. The proposed bump remains minor `v1.2.0`; no breaking subject or `BREAKING CHANGE` footer was found. No tag, Release, npm publish, Docker registry push, or existing-tag mutation was performed.
+
+### Evidence table
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Identity | Canonical release remote `origin=https://github.com/wojons/duckbrain.git`; GitHub `wojons/duckbrain`; forge default `main`; local `HEAD` and `origin/main` both `b35a05b6a1072972f1b815cd4d15b55ae3d7be13` | PASS |
+| Baseline | Remote `v1.1.0` tag object `6def80e0f0ddfbed700819e25e99a08d7e0e58ca`, peeled commit `b65ba2e475c106c815d2baab4291983863616e55`; unchanged; `v1.2.0` absent | PASS |
+| Change census | `v1.1.0..candidate`: 505 total / 485 non-merge; `feat=28`, `fix=39`, `perf=4`, `docs=28`, `chore=83`, `test=15`, `ci=4`, `style=1`, `other=283`; material `feat/fix/perf=71`; `type!` subjects 0; `BREAKING CHANGE` footers 0 | PASS — minor `v1.2.0` |
+| Exact candidate CI | GitHub Actions CI run `43592606330`, push on `main`, completed `success`; test job `132440352679` success and docker job `132441104354` success; exact head SHA matches candidate | PASS |
+| Version surfaces | `package.json=1.2.0`; root `package-lock.json` and its root package entry `1.1.0`; README badge `1.1.0`; CI help assertion and CLI help, MCP/API, tables, and SSH version literals still include `1.1.0` | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG coverage | `[1.2.0]` remains 32 bullets; numeric preamble remains stale (`397/379`, `28/35/4`, post-prep `142/140/25` versus current `505/485`, `28/39/4`, post-prep `248/29`); cited material gaps remain `c915e31e`, `7c0d88e7`, `950a281b`, `0d1b9e53` | BLOCKED — `RELEASE-2026-11-09-001` |
+| Release tooling | Repository-owned publisher is tag-triggered `.github/workflows/release.yml`; no Makefile release target, `scripts/release*`, or GoReleaser. The workflow builds and attempts npm publish using `NPM_TOKEN`, then creates the GitHub Release; Docker is local/operator-only and no registry is configured | PASS — owned path identified |
+| Release surface | Remote tags are only `v1.0.0` and `v1.1.0`; only GitHub Release `v1.0.0` exists; `gh release view v1.1.0` returns not found; `v1.2.0` absent | NO CUT |
+| GitReins | Latest exact-candidate verdict is not present. The newest available PASS is `b4a8cff9` for `INT-CI-027-R2`, evaluated at `fe22d731`; other recent verdicts are bound to older SHAs. No candidate-bound verdict is borrowed | UNVERIFIED / non-waiving |
+| Dogfood/QA | Current dogfood log records FAILED release-relevant findings at the current campaign: concurrent CLI search failed `12/14` parallel invocations while `5/5` sequential passed; CI-pass act leg failed in `9.98s`; teardown required a forced retry. Hosted CI is independently green. Findings are tracked by `QA-DUCKBRAIN-033/034/035/036` and `README-19-R4` | FINDINGS / non-waiving |
+| Deployed surface | `duckbrain-http.service` PID `879548`, started `2026-11-14 02:33:35 -05`; `/health` returned HTTP 200 healthy at `2026-11-14T12:05:19Z`, but the payload exposes no loaded commit/source provenance | UNMEASURED freshness |
+| Board posture | Remote board has 90 pending, 6 in_progress, and 5 blocked rows; release rows `RELEASE-2026-10-26-001`, `RELEASE-2026-11-01-001`, `RELEASE-2026-11-09-001`, and `RELEASE-VERSION-001` remain non-terminal | FINDINGS |
+
+### Known issues
+
+- `RELEASE-VERSION-001`: version surfaces still disagree, so a v1.2.0 artifact would not have one reliable self-identifying version.
+- `RELEASE-2026-11-09-001`: release notes still carry a stale range preamble and four uncited material fixes; `release.yml` publishes this section verbatim.
+- `QA-DUCKBRAIN-033` / `README-19-R4`: concurrent CLI search is not reliable; 12 of 14 parallel invocations failed while sequential probes passed.
+- `QA-DUCKBRAIN-035`: the clean-machine `act` leg failed during install with no inner error text; the cell is not a hosted-CI substitute.
+- `QA-DUCKBRAIN-034`: bunker teardown needed a forced retry; the captured logs were preserved, but teardown automation remains a QA finding.
+- Deployed commit provenance is unavailable from `/health`; the running daemon cannot be certified against this candidate.
+
+### Required unblock
+
+1. Land `RELEASE-VERSION-001`, re-run exact-SHA CI, and verify the version-surface drift is gone.
+2. At the final candidate, refresh the `[1.2.0]` numeric preamble and add the four missing material citations, then re-run the citation check and exact-SHA CI.
+3. Reconcile the open v1.1.0 Release-object decision without moving the immutable `v1.1.0` tag.
+4. After all gates are green, use the repository-owned tag workflow; verify the tag, GitHub Release, npm publication result, Release notes, and tag-triggered workflow.
+
+No tag, Release object, registry push, or existing-tag mutation was performed in this pass.
