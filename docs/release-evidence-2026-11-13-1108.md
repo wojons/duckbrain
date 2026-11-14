@@ -197,3 +197,17 @@ Decision: NO CUT — and this pass carries the first CI red on the release tip. 
 
 Side effect disclosed: this pass fast-forwarded the canonical checkout onto `origin/main` and landed an orphaned unpushed board-only QA commit (originally `24ca0eb2`, rebased to `59f8149d`, annotating `DOGFOOD-033` and `QA-DUCKBRAIN-017-R2`) so the board write could proceed on a tip that matches the remote.
 
+### Pass 14 addendum — CI intermittency correction (same tick, after push)
+
+The carrier CI reading above is red at `33de38cf` and `0e855e40` but NOT a stable red. Four consecutive push-to-main runs on `main`:
+
+| Commit | Run | Conclusion |
+| --- | --- | --- |
+| `33de38cf` | `43599598086` | failure — `EnvironmentTeardownError: Closing rpc while "onUserConsoleLog" was pending` (`http-cors-example-app-001.test.ts`) |
+| `0e855e40` | `43599849297` | failure — `ENOTEMPTY: directory not empty, rmdir '/tmp/cors-example-app-jELn1A/taskboard/.git'` (same file) |
+| `9a170af5` | `43600750621` | success — `test` + `docker` |
+| `f2235e6b` (this pass's board commit) | `43601139600` | success — `test` + `docker` |
+
+So the defect is intermittent: two consecutive reds followed by two greens, with 2468/2468 tests passing in every run and failure isolated to the same suite's teardown. This does not soften the cut gate — it sharpens it. `release.yml` hard-fails when the tagged sha's push-to-main run is not `success`, so a green reading at tag time is luck rather than certification, and a red tag run would abort the release mid-flight. `TESTQ-2026-11-13-1` therefore remains a cut gate (recommend P1) but is now correctly characterized as a flaky teardown, not a broken main.
+
+
