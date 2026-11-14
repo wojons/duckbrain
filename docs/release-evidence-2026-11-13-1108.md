@@ -1,6 +1,6 @@
 # DuckBrain release readiness — 2026-11-13
 
-Certified product candidate: b35a05b6a1072972f1b815cd4d15b55ae3d7be13 (GitHub origin/main at measurement). Decision: NO CUT; proposed v1.2.0. Subsequent evidence/board carriers are not release candidates. Original November 13 measurement: dab23922a71ea02bf1fc93c01881b891f93258b8; retained historical sections below are superseded by Pass 12.
+Certified product candidate: b35a05b6a1072972f1b815cd4d15b55ae3d7be13 (product tree certified at origin/main; current tip 6940179f08e2727e25f79bdd2662e1e60819909e is bookkeeping-only carrier movement). Decision: NO CUT; proposed v1.2.0. Subsequent evidence/board carriers are not product candidates. Original November 13 measurement: dab23922a71ea02bf1fc93c01881b891f93258b8; retained historical sections below are superseded by Pass 13.
 
 Baseline v1.1.0 is annotated tag object 6def80e0f0ddfbed700819e25e99a08d7e0e58ca, peeled b65ba2e475c106c815d2baab4291983863616e55. Range contains 468 non-merge commits: 28 conventional feat, 39 fix, 4 perf, 397 other. No anchored BREAKING CHANGE footer or conventional type! subject found. This is a prefix census, not a full material-change census.
 
@@ -120,3 +120,43 @@ Decision: NO CUT. Candidate `b35a05b6a1072972f1b815cd4d15b55ae3d7be13` is `origi
 4. After all gates are green, use the repository-owned tag workflow; verify the tag, GitHub Release, npm publication result, Release notes, and tag-triggered workflow.
 
 No tag, Release object, registry push, or existing-tag mutation was performed in this pass.
+
+
+## Pass 13 — 2026-11-14 13:18 UTC scheduler tick
+
+Decision: NO CUT. The product candidate remains `b35a05b6a1072972f1b815cd4d15b55ae3d7be13`; the current `origin/main` tip is `6940179f08e2727e25f79bdd2662e1e60819909e`, and the 11 intervening paths are only board/evidence bookkeeping (`.coding-hermes/board/events.jsonl`, `.coding-hermes/board/tasks.jsonl`, `docs/release-evidence-2026-11-13-1108.md`). The product tree therefore carries from the prior certification. The proposed bump remains minor `v1.2.0`; no breaking subject or `BREAKING CHANGE` footer was found. No tag, Release, npm publish, Docker registry push, or existing-tag mutation was performed.
+
+### Evidence table
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Identity | Canonical release remote `origin=https://github.com/wojons/duckbrain.git`; GitHub `wojons/duckbrain`; forge default `main`; product candidate `b35a05b6a1072972f1b815cd4d15b55ae3d7be13`; current carrier tip `6940179f08e2727e25f79bdd2662e1e60819909e` | PASS — candidate carried |
+| Baseline | Remote annotated `v1.1.0` tag object `6def80e0f0ddfbed700819e25e99a08d7e0e58ca`, peeled commit `b65ba2e475c106c815d2baab4291983863616e55`; remote tags remain only `v1.0.0` and `v1.1.0`; `v1.2.0` absent | PASS — immutable baseline |
+| Change census | `v1.1.0..6940179f`: 516 total / 496 non-merge; classes: `feat=28`, `fix=39`, `perf=4`, `docs=30`, `chore=83`, `test=15`, `ci=4`, `style=1`, `other=292`; material prefix count `feat/fix/perf=71`; breaking subjects `0`; `BREAKING CHANGE` footers `0`. The 11-commit movement from b35 to 694 changes no product source paths | PASS — minor `v1.2.0` remains proposed |
+| Exact candidate CI | GitHub Actions CI run `43592606330`, exact product candidate `b35a05b6a1072972f1b815cd4d15b55ae3d7be13`, completed `success`; test job `132440352679` and docker job `132441104354` both success. Current board/evidence carrier `6940179f08e2727e25f79bdd2662e1e60819909e` has separate CI run `43597526076`, completed `success`, with check-runs `2` and check-suites `1` | PASS — candidate and carrier separately bound |
+| Version surfaces | `package.json=1.2.0`; root `package-lock.json` and root package entry `1.1.0`; README badge `1.1.0`; CI help assertion, `bin/duckbrain.ts`, `src/cli/human.ts`, MCP/API, tables, SSH, and metrics test literals still include `1.1.0` | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG coverage | `[1.2.0]` has 32 bullets. Numeric preamble still says `397/379` and `28/35/4`; measured at the carried product candidate is `505/485` and `28/39/4`. Four post-prep material commits remain uncited: `c915e31e` (`INT-CI-027-R2`), `7c0d88e7` (`QA-DUCKBRAIN-022`), `950a281b` (`QA-DUCKBRAIN-023`), and `0d1b9e53` (`QA-DUCKBRAIN-021`). The current carrier re-measurement is `516/496`, with the same product candidate and no product-path change | BLOCKED — `RELEASE-2026-11-09-001` |
+| Release tooling | Repository-owned publisher is tag-triggered `.github/workflows/release.yml`; no Makefile release target, `scripts/release*`, or GoReleaser. It requires exact main CI success, matching `package.json` version, then runs `npm publish` using `NPM_TOKEN` before `gh release create`; `gh secret list` reports zero repository secrets. Dockerfile exists but no registry publish is configured; `pnpm run build:cli`, `pnpm pack --dry-run` (`duckbrain-1.2.0.tgz`), and `pnpm docs:check` all passed in a detached checkout, but no artifact was published | BLOCKED for publish — npm credential absent |
+| GitReins | No committed verdict evaluates exact product candidate `b35a05b6a1072972f1b815cd4d15b55ae3d7be13` or current carrier `6940179f08e2727e25f79bdd2662e1e60819909e`; latest inspected PASS records are bound to older commits | UNVERIFIED / non-waiving |
+| Dogfood/QA | Latest committed dogfood report `docs/dogfood/2026-11-14-cli-search-abort-and-fresh-install.md` targets `b5b97b344b8eaef219312dd1e250e7b05b61a2bf`: CLI `search` aborts `rc=134` with a glibc heap assertion; clean-machine tests are `291/292` files and `2467/2468` tests; parallel search and harness findings remain tracked by `QA-DUCKBRAIN-033/034/035/036` and `README-19-R4` | FINDINGS / non-waiving |
+| Deployed surface | `duckbrain-http.service` PID `879548`, started `2026-11-14 02:33:35 -05`; `/health` returned healthy, but payload has no loaded commit/source provenance (`commit`, `commitSha`, `sourceRevision` all null) | UNMEASURED freshness |
+| Release surface | `gh release list` shows only `v1.0.0`; `gh release view v1.1.0` and `v1.2.0` both report not found; `v1.0.0` has zero assets and an empty body. Remote `v1.1.0` remains unchanged | NO CUT |
+| Board posture | Remote board distribution is `pending=90`, `in_progress=6`, `blocked=5`, `complete=487`; release rows `RELEASE-2026-10-26-001`, `RELEASE-2026-11-01-001`, `RELEASE-2026-11-09-001`, and `RELEASE-VERSION-001` remain non-terminal | FINDINGS |
+
+### Known issues
+
+- `RELEASE-VERSION-001`: package metadata is `1.2.0` while shipped version surfaces and the CI help assertion still say `1.1.0`; a v1.2.0 artifact would self-identify inconsistently.
+- `RELEASE-2026-11-09-001`: `release.yml` publishes the stale `[1.2.0]` section verbatim; its numeric range and four material citations remain uncorrected.
+- `README-19-R4` / `QA-DUCKBRAIN-033`: concurrent CLI search is unreliable; the dogfood campaign recorded 12/14 parallel failures while sequential probes passed.
+- `DOGFOOD-033`: the fresh-machine suite failed 1 of 2468 tests under parallel load; isolated execution passed.
+- `QA-DUCKBRAIN-035` and `QA-DUCKBRAIN-034`: the local `act` install leg is not a hosted-CI substitute, and bunker teardown required a forced retry.
+- Deployed commit provenance is unavailable from `/health`; the running daemon cannot be certified against this candidate.
+
+### Required unblock
+
+1. Land `RELEASE-VERSION-001`, then obtain new exact-SHA CI on the resulting tip.
+2. At the final candidate, refresh the `[1.2.0]` preamble and add the four missing material citations; rerun the citation check and exact-SHA CI.
+3. Resolve npm publication authorization/credentials or make the repository-owned workflow's intended artifact scope executable; the current workflow cannot complete with zero repository secrets.
+4. After those gates are green, use the repository-owned tag workflow and verify the remote tag, tag CI, GitHub Release, notes, and publication result. Do not move `v1.1.0`.
+
+No tag, Release object, npm publish, Docker push, or existing-tag mutation was performed in this pass.
