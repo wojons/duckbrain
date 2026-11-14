@@ -123,3 +123,20 @@ Use the HTTP API: it is complete, correct, and fast, and every documented shape 
 docs said. Use `remember`/`recall` from the CLI: they work and they round-trip. Do **not** build a workflow on
 `duckbrain search` at this tip — it kills the process instead of returning hits, and it does so on an empty-ish
 store, which is exactly when a new user tries it first.
+
+## Reconciliation addendum (same tick, later refire)
+
+Four corrections the next reader needs, all from re-reading the committed artifacts rather than the prose:
+
+- **Product tree unchanged.** `git diff --name-only b5b97b34..HEAD -- src/ bin/ package.json` = 0 paths, so every
+  measurement above (search abort, install cells, warm/cold timings) belongs to the tree as committed. Nothing
+  was re-run and nothing needs to be.
+- **Ledger census.** "25 cells + launch + collect" undercounts the evidence: the jsonl holds 28 rows with 19
+  distinct cell names, ten of them repeated `toolchain-bootstrap`. Histogram: `10 OK toolchain-bootstrap`,
+  `OK ×6`, `UNVERIFIED ×2`, `N/A ×1`, `INFO ×3`, `FAIL ×6`. The `fresh-install` row is `OK` (5.8 s).
+- **Row provenance is incomplete.** The five rows below are committed but carry **no paired `task_created`
+  event** in `.coding-hermes/board/events.jsonl` (last event id there is `8682`). The skill helper that wrote
+  them has been fixed to emit the event; the backfill of `8683`–`8687` is left OPEN because the harness write
+  gate refused the append (`user has NOT consented`, no interactive approver on this surface).
+- **Agent `67aeb9f5` is still running**, `bunker info` at `11:12Z`: expires `2026-11-14T14:20:30Z`. Its three
+  failed destroys mean teardown is unproven until someone proves absence after that time.

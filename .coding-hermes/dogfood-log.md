@@ -941,3 +941,45 @@ Verdict: **FAILED** for the tick — the product is useful and usable on the HTT
 (search aborts; example config does not boot) so the next consumer avoids both.
 
 ch:trace tick=duckbrain-dogfood-2026-11-14-10-01-04 target=b5b97b344b8eaef219312dd1e250e7b05b61a2bf row=README-19-R3,README-23,DOC-25,DOGFOOD-032,DOGFOOD-033 evidence=/home/kara/.hermes/cache/scratch/duckbrain-dogfood-2026-11-14-10-01-04/evidence
+
+## 2026-11-14 — same tick, continuation refire: a provenance hole, a corrected ledger census, a live leaked agent (tick `duckbrain-dogfood-2026-11-14-10-01-04`)
+
+Refired against the same target. Product legs are **inherited, not re-run**, and that is proven rather than
+assumed: `git diff --name-only b5b97b34..HEAD -- src/ bin/ package.json` returns **0 paths**, so the tree that
+aborted on `search` and that installed in 5.8 s on bunker is byte-identical to the one measured above. Remote
+parity `HEAD...origin/main` = `0 0`; all five rows present in the pushed tree; usage-skill pitfalls 35/36
+present in the committed blob. Nothing new was measured about DuckBrain's behaviour, because nothing changed.
+
+What this fire did find is records integrity, and it is worth more than a re-measurement:
+
+1. **Five rows, zero provenance events.** `README-19-R3`, `README-23`, `DOC-25`, `DOGFOOD-032`, `DOGFOOD-033`
+   are committed, and `git show HEAD:.coding-hermes/board/events.jsonl` carries **no `task_created` event for
+   any of them** (count 0 for each id; the ledger's last event is id `8682`, a foreman audit at
+   `2026-11-14T04:30:00Z`). Row creation and event creation are separate proof obligations and this tick walked
+   only the first. Root cause is the skill's own helper: `scripts/append-rows-verify.sh` appended `tasks.jsonl`
+   with its full ladder and never called the owning event writer. **Fixed in this fire** — the helper now emits
+   the paired `task_created` through `boardctl -C <boarddir> event --type task_created --task-id <id>
+   --actor <ACTOR> --detail-text '{"id":"<id>","status":"<status>"}' --no-tick-write`, exits `6` when the event
+   does not land, and re-counts the event at the end (`event-ok`); boot-tested on a throwaway board (row +
+   event id 2, pairing count 1). The **repair itself is left explicitly OPEN**: the backfill of events
+   `8683`–`8687` was attempted and **blocked by the harness write gate** ("the user has NOT consented" after a
+   five-minute silent approval), and the gate's rule is not to retry or route around it. Row statuses are
+   correct; only provenance is missing, and the foreman or an interactive session can close it with the one-line
+   `boardctl event` call above per row.
+2. **Ledger census corrected.** The report says "25 cells + launch + collect"; the ledger holds **28 rows with
+   19 distinct cell names**, ten of them repeated `toolchain-bootstrap` rows. Status histogram, read from the
+   jsonl: `10 OK toolchain-bootstrap`, `OK ×6` (fresh-install, launch, collect, docker_build, compose_config,
+   ui-probe), `UNVERIFIED ×2` (ci-act, chaos-disconnect), `N/A ×1` (lint), `INFO ×3` (docker-deploy,
+   chaos-resource, chaos-errorpath), `FAIL ×6` (tests, upgrade, ci-pass, destroy-verify, chaos-shutdown,
+   chaos-corruption). The `fresh-install` row itself is `OK`, `pnpm` 12.4.2, `Done in 5.8s`. Publish the
+   histogram, never a bare cell count.
+3. **The leaked agent is still alive.** `bunker info 67aeb9f5 --server bunker-mvp` at `11:12Z`: status
+   `running`, created `2026-11-14T10:20:30Z`, **expires `2026-11-14T14:20:30Z`**; host census `3/50` agents with
+   `20 orphan keys` in residue. The battery's own destroy failed three times (`rc=1`), so teardown is NOT
+   proven: the next fire must prove absence with `bunker list --status all` after `14:20:30Z` instead of
+   assuming the TTL reaped it.
+
+Verdict: unchanged — **FAILED** for the tick on the product legs (`search` aborts the process), now with one
+records defect left open by rule (five rows lack `task_created` provenance) and one harness residue pending TTL.
+
+ch:trace tick=duckbrain-dogfood-2026-11-14-10-01-04 target=b5b97b344b8eaef219312dd1e250e7b05b61a2bf fire=continuation-refire rows=README-19-R3,README-23,DOC-25,DOGFOOD-032,DOGFOOD-033 events_missing=5 repair=OPEN-blocked-by-write-gate agent=67aeb9f5-live-until-2026-11-14T14:20:30Z
