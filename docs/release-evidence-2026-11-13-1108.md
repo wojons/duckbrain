@@ -160,3 +160,40 @@ Decision: NO CUT. The product candidate remains `b35a05b6a1072972f1b815cd4d15b55
 4. After those gates are green, use the repository-owned tag workflow and verify the remote tag, tag CI, GitHub Release, notes, and publication result. Do not move `v1.1.0`.
 
 No tag, Release object, npm publish, Docker push, or existing-tag mutation was performed in this pass.
+
+## Pass 14 — 2026-11-14 13:44 UTC scheduler tick (re-fire of `duckbrain-releng-2026-11-14-11-15-29`)
+
+Decision: NO CUT — and this pass carries the first CI red on the release tip. The product candidate remains `b35a05b6a1072972f1b815cd4d15b55ae3d7be13`; `origin/main` is now `0e855e40` (board record of pass 13) via `33de38cf` (pass-13 evidence). `git diff --name-only b35a05b6 0e855e40` yields exactly three bookkeeping paths (`.coding-hermes/board/events.jsonl`, `.coding-hermes/board/tasks.jsonl`, `docs/release-evidence-2026-11-13-1108.md`), so the product tree still carries from certification. No tag, Release, npm publish, Docker push, or existing-tag mutation was performed.
+
+### Evidence table
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Identity | Canonical remote `origin=https://github.com/wojons/duckbrain.git`; GitHub `wojons/duckbrain`; default `main`; product candidate `b35a05b6`; carrier tip `0e855e40` | PASS — candidate carried |
+| Baseline | Remote tags remain only `v1.0.0` and `v1.1.0`; `v1.1.0` object `6def80e0f0ddfbed700819e25e99a08d7e0e58ca` unchanged; `v1.2.0` absent | PASS — immutable baseline |
+| Change census | `v1.1.0..0e855e40`: 518 total / 498 non-merge; non-merge classes `chore=83`, `fix=39`, `docs=31`, `feat=28`, `test=15`, `perf=4`, `ci=4`, `style=1`, `revert=1`; breaking subjects `0`; `BREAKING CHANGE` footers `0` | PASS — minor `v1.2.0` remains proposed |
+| Exact candidate CI | Product candidate `b35a05b6` run `43592606330` success (test `132440352679`, docker `132441104354`) — unchanged from pass 13 | PASS — candidate receipt valid |
+| Carrier CI on tip | `33de38cf` run `43599598086` **failure**; `0e855e40` run `43599849297` **failure**. Both: `Test Files 292 passed (292)`, `Tests 2468 passed (2468)`, `Errors 1 error`, exit 1 — an unhandled teardown error originating in `src/cli/http-cors-example-app-001.test.ts` (`EnvironmentTeardownError: [vitest-worker]: Closing rpc while "onUserConsoleLog" was pending` at 33de38cf; `Error: ENOTEMPTY: directory not empty, rmdir '/tmp/cors-example-app-jELn1A/taskboard/.git'` at 0e855e40). Previous green carrier receipt was `6940179f` run `43597526076` | **RED — cut gate closed** |
+| Release-workflow consequence | `release.yml` step 1 requires the tagged sha's push-to-main CI run conclusion `== success`; a tag pushed on a red/intermittent tip fails there before notes or publish, so the cut cannot be certified while this recurs | BLOCKED |
+| Version surfaces | `package.json=1.2.0` (and live `duckbrain --version` prints `v1.2.0`) vs `README.md:3` badge `1.1.0`, `src/mcp/server.ts:58` `1.1.0`, `src/ssh/client.ts:51` `CURRENT_VERSION="1.1.0"`, `src/http/routes/tables.ts:1043` `1.1.0` (plus `src/http/metrics.test.ts:121,193`) | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG coverage | `[1.2.0]` preamble still claims `397` commits / `379` non-merge / `28 feat` / `35 fix` / `4 perf`; measured at `0e855e40` is `518` / `498` / `28` / `39` / `4`. Four material commits remain uncited: `c915e31e`, `7c0d88e7`, `950a281b`, `0d1b9e53` | BLOCKED — `RELEASE-2026-11-09-001` |
+| Release tooling | Repository-owned publisher is tag-triggered `.github/workflows/release.yml` (no Makefile target, `scripts/release*`, or GoReleaser). CI workflow triggers on push to `main`/`develop` only; `release.yml` triggers on `v*` tags; `gh secret list --repo wojons/duckbrain` returns zero secrets, so its `npm publish` step cannot authenticate | BLOCKED for publish — credential absent, owner-gated |
+| GitReins | Newest committed verdict `.gitreins/history/2026-11-14/b4a8cff9/verdict.json` binds task `INT-CI-027-R2` to commit `fe22d731` — neither the candidate `b35a05b6` nor the tip `0e855e40` | UNVERIFIED / non-waiving |
+| Dogfood/QA | Latest committed dogfood report still targets `b5b97b34`; `QA-DUCKBRAIN-033/034/035/036` and `README-19-R4` remain open | FINDINGS / non-waiving |
+| Deployed surface | PID `879548` started `2026-11-14 02:33:34 -05`, cwd `/home/kara/duckbrain`, entry `bin/duckbrain.js` mtime `2026-11-06 23:21`, `dist/bin/duckbrain.js` mtime `2026-11-13 23:25`; `/health` payload carries no `commit`/`commitSha`/`sourceRevision` | UNMEASURED freshness |
+| Release surface | `gh release list` shows only `v1.0.0`; `gh release view v1.1.0` → "release not found" | NO CUT |
+
+### New blocking finding
+
+`TESTQ-2026-11-13-1` (P2, pending) describes exactly this defect — `http-cors-example-app-001.test.ts` dying at suite teardown — first observed at `253f31da` (run `43415616493`). It has now recurred on two consecutive tips (`33de38cf`, `0e855e40`) whose only changed paths are bookkeeping, which rules out content causation and makes the test's teardown race the sole reason CI is red on `main`. Because `release.yml` refuses to publish without a green push-to-main run on the tagged sha, this P2 row is presently the hard gate on an owner-authorized v1.2.0 cut and should be escalated to P1 and dispatched before any further cut prep. Fix hint for the foreman: the suite removes its temporary `taskboard/.git` while a spawned git child can still be writing into it, and the worker RPC can still be logging at close — the teardown needs to await child exit and use a retrying recursive force-remove rather than a bare `rmdir`.
+
+### Required unblock (ordered, supersedes the pass-13 list)
+
+1. Fix the `http-cors-example-app-001` teardown race (`TESTQ-2026-11-13-1`) and obtain a green push-to-main CI run on the resulting tip.
+2. Land `RELEASE-VERSION-001` (four stale surfaces above), then obtain new exact-SHA CI on the resulting tip.
+3. At the final candidate, refresh the `[1.2.0]` preamble and add the four missing material citations; rerun the citation check and exact-SHA CI.
+4. Resolve npm publication authorization/credentials, or record that the repository-owned workflow's publish scope is intentionally owner-gated.
+5. Only then tag through the repository-owned workflow; verify remote tag, tag CI, Release, notes, and publication. Never move `v1.1.0`.
+
+Side effect disclosed: this pass fast-forwarded the canonical checkout onto `origin/main` and landed an orphaned unpushed board-only QA commit (originally `24ca0eb2`, rebased to `59f8149d`, annotating `DOGFOOD-033` and `QA-DUCKBRAIN-017-R2`) so the board write could proceed on a tip that matches the remote.
+
