@@ -1,6 +1,6 @@
 # DuckBrain release readiness — 2026-11-13
 
-Candidate: dab23922a71ea02bf1fc93c01881b891f93258b8 (origin/main). Decision: NO CUT; proposed v1.2.0, subject to release preparation and re-gating.
+Certified product candidate: b35a05b6a1072972f1b815cd4d15b55ae3d7be13 (GitHub origin/main at measurement). Decision: NO CUT; proposed v1.2.0. Subsequent evidence/board carriers are not release candidates. Original November 13 measurement: dab23922a71ea02bf1fc93c01881b891f93258b8; retained historical sections below are superseded by Pass 12.
 
 Baseline v1.1.0 is annotated tag object 6def80e0f0ddfbed700819e25e99a08d7e0e58ca, peeled b65ba2e475c106c815d2baab4291983863616e55. Range contains 468 non-merge commits: 28 conventional feat, 39 fix, 4 perf, 397 other. No anchored BREAKING CHANGE footer or conventional type! subject found. This is a prefix census, not a full material-change census.
 
