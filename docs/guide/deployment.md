@@ -156,10 +156,22 @@ What each asset guarantees:
   `$XDG_STATE_HOME/duckbrain/crash-evidence/`, or
   `~/.local/state/duckbrain/crash-evidence/` when `XDG_STATE_HOME` is unset.
   A bundle contains the exit classification, systemd memory fields, recent
-  unit journal lines, `/proc/meminfo`, cgroup peak snapshots, and any V8
-  `*.report.*` diagnostic reports. After a crash, list the timestamped bundle,
-  read `evidence.json` and `journal.txt`, then inspect `v8-reports.json` and
-  the `v8-*` files when present.
+  unit journal lines, `/proc/meminfo`, the unit's memory peaks, and every
+  V8 diagnostic report written into the crash-evidence directory during this
+  invocation. Peaks come from `systemctl --user show <unit>` first
+  (`MemoryPeak` / `MemorySwapPeak`, which survive the exit — exactly the
+  `ExecStopPost` case) and fall back to `/sys/fs/cgroup<ControlGroup>/…`
+  only when systemd has no value; each entry in
+  `evidence.json.probes.cgroupMemoryPeak` / `cgroupMemorySwapPeak` records
+  `value`, `source` (`systemd-memory-peak` or `cgroupfs:<absolute path>`)
+  and the raw `ControlGroup` it came from, so a recorded peak always names
+  whose cgroup it measured. Report collection is name-agnostic: every
+  regular file in the report directory newer than the unit's
+  `ActiveEnterTimestamp` (minus small slack, or this run's clock when
+  systemd has no timestamp) is copied verbatim under its original name, the
+  sources are left in place, and `v8-reports.json` lists what was copied and
+  what was skipped with the reason. After a crash, list the timestamped
+  bundle and read `evidence.json`, `journal.txt`, and `v8-reports.json`.
 
 - `duckbrain-http-health.service` + `.timer` — probes `/health` every
   minute via `scripts/health-check.js`. **Alive = HTTP 200 or 503** (503

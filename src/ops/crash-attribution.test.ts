@@ -90,6 +90,151 @@ describe("crash attribution", () => {
     expect(evidence).toContain("MemoryMax=8589934592");
   });
 
+  it("takes daemon peak values from systemd and records their source", () => {
+    const evidenceDir = tempDir();
+    const daemonPeak = "6443728896";
+    const daemonSwapPeak = "4609269760";
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const result = runCrashAttribution({
+      env: env(),
+      evidenceDir,
+      now: new Date("2026-11-15T12:34:56.789Z"),
+      deps: {
+        runCommand: (command, args) => {
+          calls.push({ command, args });
+          return successfulProbe(
+            command === "systemctl"
+              ? `MemoryPeak=${daemonPeak}\nMemorySwapPeak=${daemonSwapPeak}\nControlGroup=/user.slice/duckbrain.service\nActiveEnterTimestamp=2026-11-15T12:00:00.000Z\nInvocationID=abc123\n`
+              : "",
+          );
+        },
+      },
+    });
+
+    const evidence = JSON.parse(
+      fs.readFileSync(path.join(result.bundlePath as string, "evidence.json"), "utf8"),
+    );
+    const systemctl = calls.find((call) => call.command === "systemctl");
+    expect(systemctl?.args).toEqual([
+      "--user",
+      "show",
+      "duckbrain-http.service",
+      "--property",
+      "MemoryPeak,MemorySwapPeak,ControlGroup,ActiveEnterTimestamp,InvocationID,MemoryHigh,MemoryMax",
+    ]);
+    expect(evidence.probes.cgroupMemoryPeak).toMatchObject({
+      value: Number(daemonPeak),
+      source: "systemd-memory-peak",
+      rawControlGroup: "/user.slice/duckbrain.service",
+    });
+    expect(evidence.probes.cgroupMemorySwapPeak).toMatchObject({
+      value: Number(daemonSwapPeak),
+      source: "systemd-memory-peak",
+      rawControlGroup: "/user.slice/duckbrain.service",
+    });
+  });
+
+  it("does not derive daemon peaks from the invoking process cgroup", () => {
+    const source = fs.readFileSync(path.join(__dirname, "crash-attribution.ts"), "utf8");
+    expect(source).not.toContain("/sys/fs/cgroup/memory.peak");
+    expect(source).not.toContain("/proc/self/cgroup");
+  });
+
+  it("collects every recent regular report file regardless of its name", () => {
+    const evidenceDir = tempDir();
+    const reportName = "2011abc-node-report-1234.json";
+    const reportPath = path.join(evidenceDir, reportName);
+    fs.writeFileSync(reportPath, "{\"diagnostic\":true}\n");
+    const now = new Date("2026-11-15T12:34:56.789Z");
+    fs.utimesSync(reportPath, now, now);
+
+    const result = runCrashAttribution({
+      env: env(),
+      evidenceDir,
+      now,
+      deps: {
+        runCommand: (command) =>
+          successfulProbe(
+            command === "systemctl"
+              ? "MemoryPeak=4294967296\nMemorySwapPeak=9663676416\nControlGroup=/user.slice/duckbrain.service\n"
+              : "",
+          ),
+      },
+    });
+
+    expect(fs.readFileSync(path.join(result.bundlePath as string, reportName), "utf8")).toBe(
+      "{\"diagnostic\":true}\n",
+    );
+    expect(fs.readFileSync(reportPath, "utf8")).toBe("{\"diagnostic\":true}\n");
+    const reports = JSON.parse(
+      fs.readFileSync(path.join(result.bundlePath as string, "v8-reports.json"), "utf8"),
+    ) as Array<Record<string, unknown>>;
+    expect(reports).toContainEqual(
+      expect.objectContaining({ name: reportName, action: "copied", ok: true }),
+    );
+  });
+
+  it("skips report files older than the invocation window and says why", () => {
+    const evidenceDir = tempDir();
+    const staleName = "stale-node-report-99.json";
+    const stalePath = path.join(evidenceDir, staleName);
+    fs.writeFileSync(stalePath, "{}\n");
+    const now = new Date("2026-11-15T12:34:56.789Z");
+    const stale = new Date("2026-11-15T09:00:00.000Z");
+    fs.utimesSync(stalePath, stale, stale);
+
+    const result = runCrashAttribution({
+      env: env(),
+      evidenceDir,
+      now,
+      deps: {
+        runCommand: (command) =>
+          successfulProbe(
+            command === "systemctl"
+              ? "MemoryPeak=4294967296\nControlGroup=/user.slice/duckbrain.service\nActiveEnterTimestamp=2026-11-15T12:30:00.000Z\n"
+              : "",
+          ),
+      },
+    });
+
+    expect(fs.existsSync(path.join(result.bundlePath as string, staleName))).toBe(false);
+    const reports = JSON.parse(
+      fs.readFileSync(path.join(result.bundlePath as string, "v8-reports.json"), "utf8"),
+    ) as Array<Record<string, unknown>>;
+    expect(reports).toContainEqual(
+      expect.objectContaining({
+        name: staleName,
+        action: "skipped",
+        ok: false,
+        reason: expect.stringContaining("before invocation window"),
+      }),
+    );
+  });
+
+  it("falls back to the unit ControlGroup and never to an unresolved root peak path", () => {
+    const evidenceDir = tempDir();
+    const result = runCrashAttribution({
+      env: env(),
+      evidenceDir,
+      now: new Date("2026-11-15T12:34:56.789Z"),
+      deps: {
+        runCommand: (command) =>
+          successfulProbe(command === "systemctl" ? "MemoryPeak=0\nMemorySwapPeak=not-a-number\n" : ""),
+      },
+    });
+
+    const evidence = JSON.parse(
+      fs.readFileSync(path.join(result.bundlePath as string, "evidence.json"), "utf8"),
+    );
+    expect(evidence.probes.cgroupMemoryPeak).toMatchObject({
+      value: null,
+      source: "cgroupfs:<unresolved>",
+      rawControlGroup: "",
+    });
+    expect(String(evidence.probes.cgroupMemoryPeak.error)).toContain("ControlGroup was empty");
+    expect(JSON.stringify(evidence.probes.cgroupMemorySwapPeak)).not.toContain("\"/sys/fs/cgroup/memory");
+  });
+
   it("records a failing external command without throwing", () => {
     const evidenceDir = tempDir();
     const result = runCrashAttribution({
