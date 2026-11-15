@@ -1530,3 +1530,6 @@
 {"id":8699,"timestamp":"2026-11-15T04:35:45Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-029","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}"}
 {"id":8700,"timestamp":"2026-11-15T04:35:48Z","event_type":"task_updated","task_id":"QA-DUCKBRAIN-032","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}"}
 {"id":8701,"timestamp":"2026-11-15T05:09:13Z","event_type":"task_created","task_id":"PERF-015","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"PERF-015\",\"status\":\"pending\"}"}
+{"id":8702,"timestamp":"2026-11-15T12:23:23Z","event_type":"task_created","task_id":"RELEASE-2026-11-15-001","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"RELEASE-2026-11-15-001\",\"status\":\"pending\"}"}
+{"id":8703,"timestamp":"2026-11-15T12:25:14Z","event_type":"task_created","task_id":"RELEASE-2026-11-15-002","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"RELEASE-2026-11-15-002\",\"status\":\"pending\"}"}
+{"id":8704,"timestamp":"2026-11-15T12:25:27Z","event_type":"task_created","task_id":"INT-CI-037","actor":"foreman","renumbered_from":null,"detail":"{\"id\":\"INT-CI-037\",\"status\":\"pending\"}"}
