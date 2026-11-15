@@ -3504,5 +3504,6 @@ tasks:
     in <5s, pgrep -c ''git log --all'' <= ~10 during the request, author set equal
     to the pre-change control set) is rerun by the foreman on the rebuilt dist + restarted
     duckbrain-http.service.'
-  status: in_progress
+  status: complete
   created_at: '2026-11-15T14:29:42.983774+00:00'
+  completed_at: '2026-11-15T15:08:48.989772+00:00'
