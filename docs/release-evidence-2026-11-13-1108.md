@@ -267,3 +267,57 @@ Decision: **NO CUT**. Proposed bump unchanged: **minor `v1.2.0`**. This pass re-
 ### Mutation scope
 
 No tag created or moved, no Release object created, no npm publish, no Docker image push, no existing row closed. This pass appends this section and rebinds the rolling row `RELEASE-2026-11-09-001` to candidate `e1a0fae3`, this artifact's digest, and CI run `43714546414`; the board carrier commit that binds the digest follows this evidence commit.
+
+## Pass 16 — 2026-11-15 13:19 UTC scheduler tick (re-fire of `duckbrain-releng-2026-11-15-12-18-45`)
+
+Verification-only pass at tip `3dee8fca` (`fix(OPS-014): quote NODE_OPTIONS ...`, 2026-11-15 08:09:01 -05), which is `origin/main`. Decision: **NO CUT** for `v1.2.0`. The candidate moved two commits past pass 15 (`d4462fd6` → `0b46c160` carrier → `3e2b8708` feat OPS-014 → `3dee8fca` fix OPS-014) and both new gates are worse, not better.
+
+### Evidence table
+
+| Surface | Verified this pass | Verdict |
+| --- | --- | --- |
+| Candidate | `git rev-parse HEAD` = `3dee8fca` = `origin/main`; two commits past the pass-15 tip | — |
+| **CI on the candidate** | `gh api repos/wojons/duckbrain/actions/runs/43717514063` → workflow `CI`, head `3dee8fca`, event `push`, created `2026-11-15T13:09:28Z`, **conclusion `failure`**; the only failing job is `test` and its only failing step is `Assert test-counts.json matches live suite` (`docker` skipped) | **RED — hard blocker (new)** |
+| Last green | `43716407292` at `0b46c160`, success, `12:56:44Z`. Main went red exactly when the OPS-014 pair landed on top of the releng carrier | attribution |
+| Count drift cause | `test-counts.json` says `{"suites":292,"tests":2468}`; the gate measured 293 suites / 2476 tests. OPS-014 added `src/ops/crash-attribution.test.ts` (+1 suite, +8 tests) and did not regenerate the manifest in the same commit, which the manifest's own `provenance` field requires | **recurrence** |
+| Registry (last 8 main runs) | `3dee8fca` failure · `0b46c160` success · `a15e43c7` failure · `e1a0fae3` success · `d4462fd6` success · `1b9e722f` success · `ffb14fcb` success · `7e77a18e` success | 2 of 8 red |
+| **GitReins** | `.gitreins/history/2026-11-15/3a658d32/verdict.json` → task `OPS-014`, commit `3dee8fca49f5e45436da015bdc608fd4e26e3c4e`, **`passed:false`**. Tier-2 FAIL: cgroup peaks resolved from the invoking worker scope, V8 report collection by filename prefix, no test asserting peak provenance. Rework live in `/home/kara/worktrees/duckbrain-OPS-014` (attempt 2) | **FAIL on candidate (new)** |
+| Prior verdict | `.gitreins/history/2026-11-14/b4a8cff9` is task-bound to `fe22d731` — 44 commits behind. Nothing borrowed | non-waiving |
+| Census | `v1.1.0..HEAD`: 540 commits, 520 non-merge, 29 `feat`, 40 `fix`, 9 `perf`, **0** breaking (no `BREAKING CHANGE` body, no `!` commit) → minor; `v1.2.0` is the right number. `1364dc4f..HEAD`: 285 / 281 / 36 material | minor confirmed |
+| Version surfaces | `package.json` 1.2.0 vs `package-lock.json` root 1.1.0 (line 3) and `packages[""].version` 1.1.0 (line 9); `src/cli/human.ts:2364` and `bin/duckbrain.ts` still print `DuckBrain v1.1.0 - AI Memory System`; `README.md:3` badge 1.1.0; `.github/workflows/ci.yml:47` greps for the stale banner so CI is green **on a wrong value** | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG | `[1.2.0] - 2026-11-03` preamble still claims 397 / 379 / 28 / 35 / 4 and post-prep 142 / 140 / 25 against measured 540 / 520 / 29 / 40 / 9 and 285 / 281 / 36. **New:** `grep -iE 'OPS-014\|crash attribution\|crash-attribution\|memory cap\|NODE_OPTIONS' CHANGELOG.md` → 0 hits, so the section does not mention OPS-014 at all, and pass-15's "every material commit is cited" no longer holds | BLOCKED — `RELEASE-2026-11-15-002` (3 items now) |
+| npm channel | `registry.npmjs.org` → E404; never published. `actions/secrets` → `total_count=0`, so `NPM_TOKEN` is unset. `release.yml` orders verify → build → npm publish → notes → `gh release create`, so a tag push dies with the tag public and no Release object | BLOCKED — `RELEASE-2026-11-15-001` |
+| Authorization | `APPROVE_V1_2_0_CUT` appears 2× in `tasks.jsonl` and 1× in `events.jsonl`; **all** occurrences sit inside requirement text or an audit event. No event on the board is authored by an owner actor | BLOCKED — `RELEASE-2026-10-26-001` part (B) |
+| Deployed surface | `duckbrain-http.service` PID 879548 started `2026-11-14 02:33:34 -05`, executing `dist/bin/duckbrain.js` built `2026-11-13 23:25:22` (nearest commit `fe22d731`). Tip is **44 commits ahead** of that build, and `bin/duckbrain.js` prefers a prebuilt `dist` (the trap filed as `QA-DUCKBRAIN-026`). `/health` exposes no loaded commit | STALE — owner-gated, do not restart on this evidence |
+| Release tooling | Owned path is tag-triggered `.github/workflows/release.yml` (no Makefile release target, no `scripts/release*`, no GoReleaser). It refuses a tag whose tagged-SHA main run is not `success`, refuses a tag ≠ `package.json` version, refuses an existing Release | PASS — owned path identified |
+| Dogfood / QA | No candidate-bound clean-machine battery this pass. Open: `DOGFOOD-033`, `QA-DUCKBRAIN-033`, `-037`, `-032`, `-036`, `-026` | FINDINGS / non-waiving |
+| Posture | Public repo, default branch `main`. No credential material read beyond the Actions-secret **count** | PASS |
+
+### What changed since pass 15
+
+Pass 15 concluded NO CUT at `e1a0fae3`/`d4462fd6` with three gates (version surfaces, npm owner gate, authorization) plus prep debt. This pass adds two independent, agent-verifiable blockers on the new tip: **CI is red** (count gate) and the **candidate carries a FAIL judge verdict** (OPS-014). Neither existed at `d4462fd6`. The three pass-15 gates are unchanged and still open. Net: the candidate is further from releasable, not closer.
+
+### Blocker classes (this pass)
+
+| Class | Count | Items |
+| --- | --- | --- |
+| CI red on the candidate | 1 | `43717514063` — `test-counts.json` 292/2468 vs live 293/2476. Class row `QA-DUCKBRAIN-029` refreshed to this instance |
+| Candidate judge verdict FAIL | 1 | `.gitreins/history/2026-11-15/3a658d32` on `3dee8fca`; rework in flight, no PASS covers this tip |
+| Owner gate + credential | 1 | npm never published + 0 Actions secrets → `RELEASE-2026-11-15-001` |
+| Product defect on the candidate tree | 1 | version surfaces split, CI pins the stale string → `RELEASE-VERSION-001` |
+| Prep / evidence debt | 1 | `RELEASE-2026-11-15-002` — preamble stale, OPS-014 uncovered, npm bin normalization |
+| Authorization ambiguity | 1 | literal inscription still absent as an owner event → `RELEASE-2026-10-26-001` part (B) |
+| Premise falsified | 0 | — |
+
+### Required unblock (ordered, supersedes the pass-15 list)
+
+1. **Fix the count gate after the OPS-014 rework lands** — regenerate `test-counts.json` from the live vitest summary (generator: `scripts/sync-agents-md-counts.sh`) in the *same* commit as the final suite/test change, then obtain a green exact-SHA run on the new tip. Doing it before the rework lands will drift again, because the rework adds three tests by design.
+2. `RELEASE-VERSION-001` — fix the four stale `1.1.0` surfaces (`src/cli/human.ts:2364`, `bin/duckbrain.ts`, `README.md:3`, and the `ci.yml:47` assertion that pins the banner) plus `package-lock.json` root fields, then re-green CI.
+3. `RELEASE-2026-11-15-002` — restate the `[1.2.0]` preamble at the tag SHA, add the missing OPS-014 entry, normalize `package.json` `bin`.
+4. Owner — mint an npm automation token with publish rights on the unscoped public package `duckbrain`, add it as the `NPM_TOKEN` secret, and state first-publication approval.
+5. Owner — one sentence settling `APPROVE_V1_2_0_CUT` either way; releng will not tag on the looser reading.
+6. Only then tag through `release.yml` and verify remote tag, tag CI, Release object, notes body, npm publication. Never move `v1.1.0`.
+
+### Mutation scope
+
+No tag created or moved, no Release object, no npm publish, no Docker push, no daemon restart, no row closed, no worker dispatched by releng. Board writes this pass: `RELEASE-2026-10-26-001` (canonical contract re-bound to `3dee8fca` + run `43717514063`), `RELEASE-2026-11-15-002` (numbers refreshed, third item added), `QA-DUCKBRAIN-029` (premise refreshed to the current instance) and audit events `8706`–`8708`.
