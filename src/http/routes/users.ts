@@ -6,172 +6,219 @@
  */
 
 import { Router, Request, Response } from "express";
-import { spawn as spawnProcess, type ChildProcess } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
+import { runGitAsync } from "../../git/exec";
 import { listNamespacesTool } from "../../mcp/tools/namespace";
+import { getDuckDBConnection } from "../../duckdb/connection";
 import { asyncHandler } from "../middleware/errorHandler";
 import { getPrincipal } from "../../auth/middleware";
-import {
-  collectAuthorsForNamespaces,
-  type AuthorNamespace,
-} from "./authorAggregation";
+import path from "path";
+import fs from "fs";
 
-export { collectAuthorsForNamespaces } from "./authorAggregation";
-export type {
-  AuthorAggregationOptions,
-  AuthorLookup,
-  AuthorNamespace,
-} from "./authorAggregation";
+const router: Router = Router();
 
-type Spawn = typeof spawnProcess;
+/** Finite per-git bound for one namespace's author scan (was the execSync timeout). */
+const GIT_LOG_TIMEOUT_MS = 5000;
+/** Bounded output: a chatty/looping log cannot grow the capture without limit. */
+const GIT_LOG_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+/** Maximum number of namespace author scans allowed to run concurrently. */
+const AUTHOR_SCAN_CONCURRENCY = 32;
 
-export interface UsersRouteOptions {
-  /** Override the child path in tests or alternate distributions. */
-  childPath?: string;
-  /** Override process spawning to exercise the failure fallback. */
-  spawn?: Spawn;
-  /** Inject the already grant-filtered namespace listing in route tests. */
-  listNamespaces?: typeof listNamespacesTool;
+type AuthorNamespace = { path: string };
+type AuthorLookup = (namespacePath: string) => Promise<string[]>;
+
+interface AuthorAggregationOptions {
+  concurrency?: number;
+  getGitAuthors?: AuthorLookup;
+  getDbAuthors?: AuthorLookup;
 }
-
-const AUTHOR_CHILD_TIMEOUT_MS = 120_000;
-const AUTHOR_CHILD_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 
 /**
- * Resolve the shipped child beside this route. Source-mode test runners use
- * tsx to execute the TypeScript sibling; compiled distributions use the JS
- * sibling emitted by tsc.
+ * Aggregate authors with a bounded worker pool.
+ *
+ * Each worker keeps the existing per-namespace ordering: it tries git first
+ * and queries DuckDB only when that namespace has no git authors. Git errors
+ * are treated as empty output so one failed repository still gets its
+ * namespace-local fallback.
  */
-function resolveAuthorChildPath(): string {
-  const compiledPath = path.join(__dirname, "authorAggregationChild.js");
-  if (fs.existsSync(compiledPath)) return compiledPath;
-  return path.join(__dirname, "authorAggregationChild.ts");
-}
-
-function childArguments(childPath: string): string[] {
-  if (childPath.endsWith(".ts")) {
-    return ["--max-old-space-size=256", "-r", require.resolve("tsx/cjs"), childPath];
-  }
-  return ["--max-old-space-size=256", childPath];
-}
-
-/** Run the child protocol, returning null for every failure mode. */
-function collectAuthorsInChild(
+export async function collectAuthorsForNamespaces(
   namespaces: AuthorNamespace[],
-  childPath: string,
-  spawn: Spawn,
-): Promise<string[] | null> {
-  return new Promise((resolve) => {
-    let settled = false;
-    let stdout = "";
-    let outputBytes = 0;
-    let timer: NodeJS.Timeout | undefined;
-    let child: ChildProcess;
+  options: AuthorAggregationOptions = {},
+): Promise<string[]> {
+  const getGitAuthors = options.getGitAuthors ?? getAuthorsFromGit;
+  const getDbAuthors = options.getDbAuthors ?? getAuthorsFromDb;
+  const requestedConcurrency = options.concurrency ?? AUTHOR_SCAN_CONCURRENCY;
+  const workerCount = Math.min(
+    namespaces.length,
+    Math.max(1, Math.floor(requestedConcurrency)),
+  );
+  const allAuthors = new Set<string>();
+  let nextIndex = 0;
 
-    const finish = (authors: string[] | null): void => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      resolve(authors);
-    };
+  const worker = async (): Promise<void> => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= namespaces.length) return;
 
-    try {
-      child = spawn(process.execPath, childArguments(childPath), {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch {
-      finish(null);
-      return;
-    }
-
-    timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      finish(null);
-    }, AUTHOR_CHILD_TIMEOUT_MS);
-
-    child.on("error", () => finish(null));
-    child.stdout?.on("data", (chunk: Buffer | string) => {
-      const bytes = Buffer.byteLength(chunk);
-      outputBytes += bytes;
-      if (outputBytes > AUTHOR_CHILD_MAX_BUFFER_BYTES) {
-        child.kill("SIGKILL");
-        finish(null);
-        return;
-      }
-      stdout += chunk.toString();
-    });
-    // Drain stderr so a chatty child cannot block on a full pipe. The child
-    // writes diagnostics there only; nothing on stderr reaches the response.
-    child.stderr?.on("data", () => undefined);
-    child.stderr?.on("error", () => undefined);
-    child.stdin?.on("error", () => finish(null));
-    child.on("close", (code) => {
-      if (code !== 0) {
-        finish(null);
-        return;
-      }
+      const namespace = namespaces[index];
+      let gitAuthors: string[];
       try {
-        const parsed: unknown = JSON.parse(stdout);
-        if (
-          !parsed ||
-          typeof parsed !== "object" ||
-          !("authors" in parsed) ||
-          !Array.isArray(parsed.authors) ||
-          !parsed.authors.every((author): author is string => typeof author === "string")
-        ) {
-          finish(null);
+        gitAuthors = await getGitAuthors(namespace.path);
+      } catch {
+        gitAuthors = [];
+      }
+
+      const authors =
+        gitAuthors.length > 0 ? gitAuthors : await getDbAuthors(namespace.path);
+      for (const author of authors) {
+        allAuthors.add(author);
+      }
+    }
+  };
+
+  if (workerCount > 0) {
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  }
+
+  return [...allAuthors].sort();
+}
+
+/**
+ * Extract unique authors from a git repository using git log.
+ * Returns empty array if git is unavailable or repo has no commits.
+ *
+ * OPS-007: the spawn is bounded AND asynchronous (src/git/exec.ts) — it used
+ * to be `execSync` inside the GET /users handler loop, so one slow namespace
+ * repo stalled the event loop (and /health) for the whole scan. The caller
+ * awaits it sequentially, which keeps the previous per-namespace semantics
+ * while leaving the loop free between namespaces. Never rejects: a git error,
+ * timeout or empty log yields [] and the route falls back to DuckDB.
+ */
+async function getAuthorsFromGit(repoPath: string): Promise<string[]> {
+  try {
+    const output = (
+      await runGitAsync(["log", "--all", "--format=%aN"], repoPath, {
+        timeoutMs: GIT_LOG_TIMEOUT_MS,
+        maxBufferBytes: GIT_LOG_MAX_BUFFER_BYTES,
+      })
+    ).trim();
+
+    if (!output) return [];
+
+    // Split, trim, deduplicate, and filter empty lines
+    return [
+      ...new Set(
+        output
+          .split("\n")
+          .map((a) => a.trim())
+          .filter(Boolean),
+      ),
+    ];
+  } catch {
+    // Git not available or repo has no commits
+    return [];
+  }
+}
+
+/**
+ * Fallback: extract unique authors from DuckDB memory entries.
+ * Scans partition JSONL files for distinct author values.
+ */
+function getAuthorsFromDb(namespacePath: string): Promise<string[]> {
+  return new Promise<string[]>((resolve) => {
+    try {
+      const db = getDuckDBConnection("singleton", namespacePath);
+
+      // Get all partition paths from manifest
+      const manifestPath = path.join(namespacePath, "manifest.json");
+      if (!fs.existsSync(manifestPath)) {
+        resolve([]);
+        return;
+      }
+
+      let manifest: { partitions?: string[] };
+      try {
+        manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      } catch {
+        resolve([]);
+        return;
+      }
+
+      const partitionPaths: string[] = (manifest.partitions || [])
+        .map((p: string) => path.join(namespacePath, p))
+        .filter((p: string) => fs.existsSync(p));
+
+      if (partitionPaths.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      // Build file list
+      const jsonlFiles: string[] = [];
+      for (const pp of partitionPaths) {
+        try {
+          const files = fs
+            .readdirSync(pp)
+            .filter((f: string) => f.endsWith(".jsonl"))
+            .map((f: string) => path.join(pp, f).replace(/\\/g, "/"));
+          jsonlFiles.push(...files);
+        } catch {
+          /* skip inaccessible partitions */
+        }
+      }
+
+      if (jsonlFiles.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const fileList = jsonlFiles.map((f: string) => `'${f}'`).join(", ");
+      const sql = `SELECT DISTINCT author FROM read_json([${fileList}], format='newline_delimited') WHERE author IS NOT NULL ORDER BY author`;
+
+      db.all(sql, (err: any, result: any) => {
+        if (err || !result || !Array.isArray(result)) {
+          resolve([]);
           return;
         }
-        finish(parsed.authors);
-      } catch {
-        finish(null);
-      }
-    });
-
-    child.stdin?.end(JSON.stringify({
-      namespacePaths: namespaces.map((namespace) => namespace.path),
-    }));
+        const authors = result
+          .map((row: any) => row.author as string)
+          .filter(Boolean);
+        resolve(authors);
+      });
+    } catch {
+      resolve([]);
+    }
   });
 }
 
-function createUsersRouter(options: UsersRouteOptions = {}): Router {
-  const router: Router = Router();
-  const childPath = options.childPath ?? resolveAuthorChildPath();
-  const spawn = options.spawn ?? spawnProcess;
-  const listNamespaces = options.listNamespaces ?? listNamespacesTool;
+/**
+ * GET /users
+ * List unique authors across all namespaces from git commit history.
+ * Falls back to DuckDB memory data if git is unavailable.
+ */
+router.get(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
+    // card t_667d7e6c: author aggregation follows the caller's grant — the
+    // namespace set handed to the tool is grant-filtered, so a scoped token
+    // neither learns foreign namespace names through this route's scan nor
+    // receives their authors. The response shape is unchanged ({users,count});
+    // the aggregated set simply shrinks with the visible namespace set.
+    const namespacesResult = await listNamespacesTool(
+      {},
+      { principal: getPrincipal(req) },
+    );
 
-  router.get(
-    "/",
-    asyncHandler(async (req: Request, res: Response) => {
-      const namespacesResult = await listNamespaces(
-        {},
-        { principal: getPrincipal(req) },
-      );
+    if (!namespacesResult.success) {
+      res.json({ users: [] });
+      return;
+    }
 
-      if (!namespacesResult.success) {
-        res.json({ users: [] });
-        return;
-      }
+    const users = await collectAuthorsForNamespaces(
+      namespacesResult.namespaces,
+    );
+    res.json({ users, count: users.length });
+  }),
+);
 
-      const childAuthors = await collectAuthorsInChild(
-        namespacesResult.namespaces,
-        childPath,
-        spawn,
-      );
-      const users =
-        childAuthors === null
-          ? await collectAuthorsForNamespaces(namespacesResult.namespaces)
-          : [...new Set(childAuthors)].sort();
-      res.json({ users, count: users.length });
-    }),
-  );
-
-  return router;
-}
-
-// Keep the existing mount surface for production callers while exposing a
-// factory for tests that need to force child startup failures.
-export const createUsersRoutes = createUsersRouter();
-export { createUsersRouter };
-export default createUsersRoutes;
+export { router as createUsersRoutes };
+export default router;

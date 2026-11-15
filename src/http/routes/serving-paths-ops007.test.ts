@@ -430,11 +430,15 @@ describe("OPS-007: GET /users never blocks the event loop on git", () => {
     // break the response — the fallback path ran, the route stayed 200.
     expect(body.users.length).toBeGreaterThanOrEqual(2);
 
-    // PERF-015 runs the per-namespace git scans in a separate child process;
-    // this parent-side mock intentionally cannot observe that process's git
-    // calls. The child protocol and its bounded parent lifecycle are covered
-    // by authorAggregation-perf015.test.ts and the route remains responsive
-    // while the child is running.
+    // Bounded child execution: every async git call carried a finite timeout.
+    const authorCalls = rec.execFileCalls.filter((c) => c.argv.includes("log"));
+    expect(authorCalls.length).toBeGreaterThan(0);
+    for (const call of authorCalls) {
+      expect(call.argv).toContain("--format=%aN");
+      expect(call.timeoutMs).toBeDefined();
+      expect(call.timeoutMs!).toBeGreaterThan(0);
+      expect(call.timeoutMs!).toBeLessThanOrEqual(5000);
+    }
   });
 });
 
