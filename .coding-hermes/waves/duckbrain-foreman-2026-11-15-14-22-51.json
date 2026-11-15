@@ -1,0 +1,67 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-15-14-22-51",
+  "project": "duckbrain",
+  "created_at": "2026-11-15T14:30:00Z",
+  "block": {
+    "id": "PERF-015",
+    "goal": "GET /users latency: author aggregation moved out of the 1.58G-RSS daemon",
+    "done": 9,
+    "pending": 1,
+    "complete_ratio": 0.9
+  },
+  "block_selection_reason": "Resume block from the last tick event (duckbrain-foreman-2026-11-15-12-41-40) was OPS-014, which is now complete with no ready rows, so resume did not apply. block_drive.py --top 10 ranks PERF-015 first (1 pending, 9/10 done, P1) - the nearly-complete block rule selects it: finishing it removes a standing claim. PERF-015 is a singleton-wrapped block (the other 9 PERF rows are complete), so no wave can be composed from it; combined with slots=1 (see box_sizing) this tick is the serial path by both criteria.",
+  "box_sizing": {
+    "nproc": 16,
+    "loadavg_at_selection": [20.81, 20.33, 21.99],
+    "slots_formula": "max(1, min(6, nproc - ceil(loadavg))) = max(1, min(6, 16 - 21)) = 1",
+    "slots": 1,
+    "wave_budget": 8,
+    "path": "serial",
+    "why": "Host load 20.81 on 16 cores leaves < 2 slots, and the selected block is a singleton anyway; WAVE_BUDGET=8 is a ceiling, not a target. Serial with one worker, per the loaded-box rule - not an idle tick."
+  },
+  "wave_size": 1,
+  "workers": [
+    {
+      "task_id": "PERF-015",
+      "title": "GET /users runs the per-namespace author aggregation in a fork-light child process",
+      "priority": "P1",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-015",
+      "branch": "wt/PERF-015",
+      "base": "origin/main",
+      "base_sha": "736909b5",
+      "brief": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-15-14-22-51/brief-PERF-015.txt",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "ownership": "worker implements + tests + pushes wt/PERF-015; foreman judges, merges, rebuilds dist, restarts duckbrain-http.service, and runs the live acceptance",
+      "depends_on": null,
+      "exercisable": true
+    }
+  ],
+  "exclusions": [
+    {
+      "what": "HORIZON-DECISIONS-001",
+      "why": "owner ruling - a written decision, not buildable work; never dispatch a worker for it"
+    },
+    {
+      "what": "REST-* / DDL-EVOLVE-001 / AUTH-TOKEN-MINT-001 / SDK-DIST-001 / JUDGE-TIER2-001",
+      "why": "not in the selected block; one block per tick"
+    },
+    {
+      "what": "PERF-DUCKBRAIN-001/002, PERF-BASELINE-001",
+      "why": "separate blocks with pending rows; not adjacent to PERF-015's acceptance target"
+    }
+  ],
+  "control_capture": {
+    "arm": "live GET /users on the pre-change daemon, captured immediately before the change",
+    "script": "/home/kara/.hermes/cache/scratch/duckbrain-foreman-2026-11-15-14-22-51/control-capture.sh",
+    "outputs": "control-users-body.json, control-summary.txt, control-git-census.txt",
+    "purpose": "the row's corrected acceptance is set-equality against a same-store control captured BEFORE the change; this is that control"
+  },
+  "post_merge_acceptance": [
+    "rebuild dist (npm run build:cli) in the canonical checkout",
+    "systemctl --user restart duckbrain-http.service",
+    "curl -m 300 GET /users -> 200 in < 5s",
+    "author SET equals control-summary authors_sha256 (order-insensitive), count reported honestly",
+    "git log --all child census during the request reported honestly (a fork-light helper still forks 338 times; the criterion's <= ~10 bound was a proxy for 'not inline' and is superseded by the child-process proof)"
+  ]
+}

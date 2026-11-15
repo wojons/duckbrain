@@ -3489,3 +3489,20 @@ tasks:
   status: complete
   created_at: '2026-11-15T12:48:34.512187+00:00'
   completed_at: '2026-11-15T13:46:59.829185+00:00'
+- id: PERF-015
+  title: 'PERF-015: fork 338 namespace author scans from a fork-light helper instead
+    of the 1.58G-RSS daemon'
+  criteria:
+  - 'src/http/routes/users.ts runs the per-namespace author aggregation (one git log
+    --all fork per visible namespace) inline in the 1.58G-RSS daemon, so GET /users
+    costs 94-138s; the identical scan completes in 1.848s from a fork-light process.
+    Acceptance: (1) the aggregation executes in a child/helper process with a small
+    V8 heap, not inline in the request handler; (2) a unit or integration test proves
+    the route still returns {users,count} with the same author SET as the direct in-process
+    aggregation for the same namespace set; (3) affected suites pass (npx vitest run
+    on the users/route tests) and tsc build succeeds; (4) the live acceptance (200
+    in <5s, pgrep -c ''git log --all'' <= ~10 during the request, author set equal
+    to the pre-change control set) is rerun by the foreman on the rebuilt dist + restarted
+    duckbrain-http.service.'
+  status: in_progress
+  created_at: '2026-11-15T14:29:42.983774+00:00'
