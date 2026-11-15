@@ -131,6 +131,8 @@ cp ops/systemd/duckbrain-http.service \
    ops/systemd/duckbrain-http-recover.service \
    ops/systemd/duckbrain-http-recover.timer \
    ~/.config/systemd/user/
+# The service asset also installs the crash-attribution wrapper at this path:
+# %h/duckbrain/scripts/crash-attribution.js
 systemctl --user daemon-reload
 systemctl --user enable --now duckbrain-http.service
 systemctl --user enable --now duckbrain-http-health.timer
@@ -144,6 +146,21 @@ What each asset guarantees:
   `StartLimitBurst=10` (crash-loop rate limit), `KillSignal=SIGTERM` +
   `TimeoutStopSec=30` (bounded graceful window before SIGKILL). Edit
   `ExecStart` only to change the port or add flags; keep everything else.
+  It also enforces `MemoryHigh=6442450944` (6G), `MemoryMax=8589934592`
+  (8G), and `NODE_OPTIONS=--max-old-space-size=3072`. These limits preserve
+  the discipline learned from the 2026-11-14 SEGV (4G RSS peak against a 4G
+  MemoryHigh and a 9G swap peak); do not remove them during deployment.
+- On every non-clean exit, `ExecStopPost` runs
+  `scripts/crash-attribution.js`. It is a best-effort, bounded capture and
+  never changes the service result. Evidence bundles land by default in
+  `$XDG_STATE_HOME/duckbrain/crash-evidence/`, or
+  `~/.local/state/duckbrain/crash-evidence/` when `XDG_STATE_HOME` is unset.
+  A bundle contains the exit classification, systemd memory fields, recent
+  unit journal lines, `/proc/meminfo`, cgroup peak snapshots, and any V8
+  `*.report.*` diagnostic reports. After a crash, list the timestamped bundle,
+  read `evidence.json` and `journal.txt`, then inspect `v8-reports.json` and
+  the `v8-*` files when present.
+
 - `duckbrain-http-health.service` + `.timer` — probes `/health` every
   minute via `scripts/health-check.js`. **Alive = HTTP 200 or 503** (503
   "degraded" is the intentional embedding-health contract — the daemon
