@@ -1,6 +1,6 @@
 # DuckBrain release readiness — 2026-11-13
 
-Certified product candidate: b35a05b6a1072972f1b815cd4d15b55ae3d7be13 (product tree certified at origin/main; current tip 6940179f08e2727e25f79bdd2662e1e60819909e is bookkeeping-only carrier movement). Decision: NO CUT; proposed v1.2.0. Subsequent evidence/board carriers are not product candidates. Original November 13 measurement: dab23922a71ea02bf1fc93c01881b891f93258b8; retained historical sections below are superseded by Pass 13.
+Certified product candidate: b35a05b6a1072972f1b815cd4d15b55ae3d7be13, re-certified at the 2026-11-15 tip e1a0fae341ce69af0c2d7226429485558e940103 (59 top-level entries each; only .coding-hermes and docs differ, so no product path moved since the certification). Decision: NO CUT; proposed v1.2.0. Subsequent evidence/board carriers are not product candidates. Original November 13 measurement: dab23922a71ea02bf1fc93c01881b891f93258b8; retained historical sections below are superseded by Pass 15, the last section in this file.
 
 Baseline v1.1.0 is annotated tag object 6def80e0f0ddfbed700819e25e99a08d7e0e58ca, peeled b65ba2e475c106c815d2baab4291983863616e55. Range contains 468 non-merge commits: 28 conventional feat, 39 fix, 4 perf, 397 other. No anchored BREAKING CHANGE footer or conventional type! subject found. This is a prefix census, not a full material-change census.
 
@@ -211,3 +211,59 @@ The carrier CI reading above is red at `33de38cf` and `0e855e40` but NOT a stabl
 So the defect is intermittent: two consecutive reds followed by two greens, with 2468/2468 tests passing in every run and failure isolated to the same suite's teardown. This does not soften the cut gate — it sharpens it. `release.yml` hard-fails when the tagged sha's push-to-main run is not `success`, so a green reading at tag time is luck rather than certification, and a red tag run would abort the release mid-flight. `TESTQ-2026-11-13-1` therefore remains a cut gate (recommend P1) but is now correctly characterized as a flaky teardown, not a broken main.
 
 
+
+## Pass 15 — 2026-11-15 12:18 UTC scheduler tick (re-fire of `duckbrain-releng-2026-11-15-12-18-45`)
+
+Decision: **NO CUT**. Proposed bump unchanged: **minor `v1.2.0`**. This pass re-measured everything at the current tip instead of carrying pass 14's readings; it did not create a second readiness row (the same tick id's earlier fire already filed `RELEASE-2026-11-15-001`, `RELEASE-2026-11-15-002` and refreshed `RELEASE-VERSION-001`).
+
+### Evidence table
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Identity | GitHub `wojons/duckbrain` (public); release remote `origin=https://github.com/wojons/duckbrain.git`; forge default branch `main`; `HEAD == origin/main == ls-remote` at `e1a0fae341ce69af0c2d7226429485558e940103` | PASS |
+| Baseline | Annotated tag object `6def80e0f0ddfbed700819e25e99a08d7e0e58ca`, peeled `b65ba2e475c106c815d2baab4291983863616e55`; unchanged | PASS |
+| Product identity | Certified product candidate `b35a05b6` vs tip `e1a0fae3`: 59 top-level entries each, only `.coding-hermes` and `docs` differ; `src/`, `bin/`, `package.json`, `scripts/`, `.github/` byte-identical (last product commit touching `src/` or `bin/` is `c915e31e`, 2026-11-12) | PASS — product tree carried |
+| Change census | `v1.1.0..e1a0fae3`: **516 non-merge**, 485 conventional, 31 non-conventional. `feat=28`, `fix=39`, `perf=9`, `docs=31`, `chore=83`, `test=15`, `ci=4`, `board=215`, `dogfood=13`, `releng=10`, `qa=7`, `qa-cron=6`, `tables=5`, `pm=5`, `evidence=4`, `ops=4`, plus 6 one-off types (style, revert, cleanup, foreman, gitreins, supervisor, wip). Material `feat+fix+perf=76`; `!` subjects `0`; line-start `BREAKING CHANGE` footers `0` | PASS — minor `v1.2.0` |
+| Exact candidate CI | GitHub Actions run `43714546414`, `push` on `main`, `completed/success` at `e1a0fae3`; job `test=success`, job `docker=success` | PASS |
+| CI stability | Last red is run `43681602671` at `6dffd705` (2026-11-15T05:33:40Z): job `test` failed at step "Run tests", job `docker` skipped. Seven consecutive push-to-main successes follow it (06:04Z → 12:34Z). The failing test case for that red is **UNVERIFIED this pass** — `gh run view --log-failed` returned 0 bytes; `TESTQ-2026-11-13-1` (P2, pending) remains the tracking row for the `http-cors-example-app-001` teardown flake | PASS at tip / flake row open |
+| Release channel | `gh release list` returns only `v1.0.0`. Tag `v1.1.0` (`b65ba2e4`) still has **no Release object**; `v1.2.0` absent locally and remotely; remote tags are only `v1.0.0`, `v1.1.0` | NO CUT |
+| npm channel | `npm view duckbrain` → `E404 Not Found` from `registry.npmjs.org`: the package has **never been published**, so any publish is a **first publication** on that distribution channel and needs explicit owner confirmation | BLOCKED — `RELEASE-2026-11-15-001` |
+| Publish credentials | `gh api repos/wojons/duckbrain/actions/secrets --jq .total_count` → `0`. `release.yml` orders: verify tagged commit's CI → pnpm build:cli → `npm publish` with `NODE_AUTH_TOKEN=secrets.NPM_TOKEN` → notes → `gh release create`. With zero secrets the publish step dies **after the tag is already public**, and the Release object is never created — exactly the orphan state `v1.1.0` is in | BLOCKED — `RELEASE-2026-11-15-001` |
+| Version surfaces | `package.json` `1.2.0`; stale `1.1.0` literals at `src/cli/human.ts:2364` and `bin/duckbrain.ts:48`; README badge `README.md:3` says `1.1.0`; CI asserts the stale banner at `.github/workflows/ci.yml:47`. Live: `node bin/duckbrain.js help` prints `DuckBrain v1.1.0 - AI Memory System` while `--version` prints `duckbrain v1.2.0` | BLOCKED — `RELEASE-VERSION-001` |
+| CHANGELOG | `[1.2.0] - 2026-11-03` section exists at line 7 and is what `release.yml` slurps verbatim as the Release body, but its preamble claims 397 commits / 379 non-merge / 28 `feat` / 35 `fix` / 4 `perf` / 67 material, against measured 516 non-merge / 28 / 39 / 9 / 76 at this candidate | BLOCKED — `RELEASE-2026-11-15-002` |
+| Release tooling | Owned path is tag-triggered `.github/workflows/release.yml` (no Makefile release target, no `scripts/release*`, no GoReleaser). It refuses a tag whose tagged-SHA main run is not `success`, refuses a tag that does not equal `package.json` version, and refuses an existing Release | PASS — owned path identified |
+| GitReins | Newest tracked verdict `.gitreins/history/2026-11-14/b4a8cff9/verdict.json` is task-bound to commit `fe22d731` (tier1 PASS, tier2 PASS) — **not** the candidate. No candidate-bound verdict exists; nothing borrowed | UNVERIFIED / non-waiving |
+| Dogfood / QA | No candidate-bound clean-machine battery this pass. Open findings on the board: `DOGFOOD-033` (P2, fresh-machine suite RED — realtime-fanout heartbeat), `QA-DUCKBRAIN-033` (P2, 12/14 concurrent CLI calls fail), `QA-DUCKBRAIN-037` (P2, production `docker compose up` false-green), `QA-DUCKBRAIN-032`/`-036` (P3) | FINDINGS / non-waiving |
+| Deployed surface | `duckbrain-http.service`, PID `879548`, started 2026-11-14 02:33:34 -05; `GET http://127.0.0.1:3000/health` → 200, `status=healthy`, embedding provider healthy. `/health` exposes no loaded commit, so freshness versus this candidate is UNMEASURED (do not restart on this evidence). Installed CLI `/home/kara/.hermes/node/bin/duckbrain --version` → `v1.2.0` | UNMEASURED freshness |
+| Posture | Public GitHub repo, forge default `main`. No credential or secret material was read beyond the Actions-secret **count** | PASS |
+
+### Blocker classes (this pass)
+
+| Class | Count | Items |
+| --- | --- | --- |
+| Owner gate + credential (first publication) | 1 | npm channel never published (registry 404) and repository has 0 Actions secrets → `NPM_TOKEN` absent → tag push produces a public orphan tag. `RELEASE-2026-11-15-001` |
+| Product defect open on the candidate tree | 1 | Version surfaces still say `1.1.0` while `package.json` says `1.2.0`, and CI pins the stale string. `RELEASE-VERSION-001` |
+| Prep / evidence debt | 2 | CHANGELOG `[1.2.0]` numeric preamble stale by 119 commits (`RELEASE-2026-11-15-002`); no candidate-bound GitReins verdict or clean-machine battery |
+| Flake gate | 1 | `TESTQ-2026-11-13-1` — `http-cors-example-app-001` teardown flake; `release.yml` has no retry, so a red tag run aborts the release mid-flight |
+| Premise falsified | 0 | — |
+
+### Known issues that must ship in any future release notes
+
+- `DOGFOOD-033` — fresh-machine full suite is RED (`realtime-fanout` heartbeat under load); workaround: run the suite on a quiet host.
+- `QA-DUCKBRAIN-033` — the documented CLI cannot be used concurrently (12 of 14 parallel invocations fail); workaround: one CLI process at a time.
+- `QA-DUCKBRAIN-037` — production `docker compose up` is a false-green first run.
+- `DOGFOOD-032` — CLI verbs pollute stdout with internal debug lines (`[duckbrain] Cleared stale DuckDB connections`).
+- `QA-DUCKBRAIN-036` — `duckbrain recall --limit` is silently ignored.
+- `DOGFOOD-033`/`TESTQ-2026-11-13-1` — release CI can red on an unrelated suite teardown.
+
+### Required unblock (ordered)
+
+1. `RELEASE-VERSION-001` — fix the four stale `1.1.0` surfaces (CLI help literal in both `src/cli/human.ts:2364` and `bin/duckbrain.ts:48`, README badge, and the `ci.yml:47` assertion that pins the stale banner), then obtain a fresh exact-SHA CI run on the resulting tip.
+2. `RELEASE-2026-11-15-002` — re-state the `[1.2.0]` preamble at the cut SHA and normalize `package.json` `bin` (`npm pkg fix`) so the published tarball is not silently rewritten.
+3. Owner — mint an npm automation token with publish rights on the unscoped public package `duckbrain`, add it as the `NPM_TOKEN` repository secret, and state first-publication approval. **Without this, pushing a `v1.2.0` tag publishes a public tag and fails the release**, leaving the same orphan the repo already carries for `v1.1.0`.
+4. Fix or accept `TESTQ-2026-11-13-1`; `release.yml` hard-fails on a non-`success` tagged run.
+5. Only then tag through `release.yml` and verify remote tag, tag CI, Release object, notes body, and npm publication. Never move `v1.1.0`.
+
+### Mutation scope
+
+No tag created or moved, no Release object created, no npm publish, no Docker image push, no existing row closed. This pass appends this section and rebinds the rolling row `RELEASE-2026-11-09-001` to candidate `e1a0fae3`, this artifact's digest, and CI run `43714546414`; the board carrier commit that binds the digest follows this evidence commit.
