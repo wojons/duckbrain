@@ -26,7 +26,7 @@ MemoryHigh=6442450944
 MemoryMax=8589934592
 Environment=NODE_ENV=production
 # V8 diagnostic reports are retained beside the crash evidence bundle.
-Environment=NODE_OPTIONS=--max-old-space-size=3072 --report-on-fatalerror --report-directory=%h/.local/state/duckbrain/crash-evidence --report-compact
+Environment="NODE_OPTIONS=--max-old-space-size=3072 --report-on-fatalerror --report-directory=%h/.local/state/duckbrain/crash-evidence --report-compact"
 # Capture non-clean exits; '-' makes evidence collection best effort.
 ExecStopPost=-node %h/duckbrain/scripts/crash-attribution.js
 

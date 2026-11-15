@@ -135,4 +135,25 @@ describe("systemd deployment asset", () => {
     expect(unit).toContain("--report-directory=%h/.local/state/duckbrain/crash-evidence");
     expect(unit).toMatch(/^ExecStopPost=-.*crash-attribution\.js$/m);
   });
+
+  it("quotes every Environment= value that contains a space", () => {
+    // systemd splits Environment= on spaces: an unquoted multi-flag value is
+    // silently truncated to its first assignment and every later flag is
+    // dropped with "Invalid environment assignment, ignoring" (verified with
+    // `systemd-analyze verify`). A quoted single assignment is the only form
+    // that actually delivers all the V8 report flags to the daemon.
+    const unit = fs.readFileSync(unitPath, "utf8");
+    const nodeOptions = unit
+      .split("\n")
+      .filter((line) => line.startsWith("Environment=") && line.includes("NODE_OPTIONS="));
+    expect(nodeOptions).toHaveLength(1);
+    expect(nodeOptions[0]).toMatch(/^Environment="NODE_OPTIONS=[^"]+"$/);
+
+    for (const line of unit.split("\n")) {
+      if (!line.startsWith("Environment=")) continue;
+      const value = line.slice("Environment=".length);
+      if (!/\s/.test(value)) continue;
+      expect(value).toMatch(/^"/);
+    }
+  });
 });
