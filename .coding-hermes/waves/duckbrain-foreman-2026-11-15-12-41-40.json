@@ -1,0 +1,25 @@
+{
+  "tick": "duckbrain-foreman-2026-11-15-12-41-40",
+  "project": "duckbrain",
+  "repo": "/home/kara/duckbrain",
+  "block": "OPS-014",
+  "path": "serial-1",
+  "wave_budget": 2,
+  "slots": 6,
+  "reason_no_wave": "block OPS-014 has exactly 1 ready pending row (OPS-014); wave needs >=2 mutually independent ready rows in the same block",
+  "base": "origin/main",
+  "base_sha": "e1a0fae3",
+  "rows": [
+    {
+      "id": "OPS-014",
+      "worktree": "/home/kara/worktrees/duckbrain-OPS-014",
+      "branch": "wt/OPS-014",
+      "base_sha": "e1a0fae3",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-OPS-014.txt",
+      "model": "openai/gpt-6.1-terra",
+      "provider": "xkiro",
+      "depends_on": []
+    }
+  ],
+  "created_utc": "2026-11-15T17:52:00Z"
+}

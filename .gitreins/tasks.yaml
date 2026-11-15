@@ -3475,3 +3475,17 @@ tasks:
   status: complete
   created_at: '2026-11-12T09:44:56.423462+00:00'
   completed_at: '2026-11-12T10:21:31.461997+00:00'
+- id: OPS-014
+  title: 'OPS-014: no core retained after the :3000 SEGV leaves the fault unattributable;
+    repo unit also lacks the live memory cap'
+  criteria:
+  - The repo-owned systemd assets encode the live memory discipline (MemoryHigh 6G,
+    MemoryMax 8G, NODE_OPTIONS max-old-space-size 3072) so a fresh deploy from ops/systemd
+    reproduces it; a crash-attribution path captures a retained artifact (journal
+    + node diagnostic report + cgroup memory peaks) for the NEXT non-zero exit so
+    a recurrence is attributable rather than just an exit line; acceptance probes
+    on the live daemon stay green (health 200, NRestarts unchanged, cgroup memory.high
+    = 6442450944); no live unit is started, stopped or restarted by this change
+  status: complete
+  created_at: '2026-11-15T12:48:34.512187+00:00'
+  completed_at: '2026-11-15T13:09:34.809543+00:00'
