@@ -321,3 +321,9 @@ Pass 15 concluded NO CUT at `e1a0fae3`/`d4462fd6` with three gates (version surf
 ### Mutation scope
 
 No tag created or moved, no Release object, no npm publish, no Docker push, no daemon restart, no row closed, no worker dispatched by releng. Board writes this pass: `RELEASE-2026-10-26-001` (canonical contract re-bound to `3dee8fca` + run `43717514063`), `RELEASE-2026-11-15-002` (numbers refreshed, third item added), `QA-DUCKBRAIN-029` (premise refreshed to the current instance) and audit events `8706`–`8708`.
+
+### Pass 16 addendum — carrier-commit CI (same tick, after push)
+
+The carrier commit `abbfe327` (docs + board rows only; `git show --numstat` = 3 files, no source or test change) triggered CI run `43718751308`, which concluded **failure** at the same single step, `Assert test-counts.json matches live suite`. This is the *pre-existing* manifest drift recorded above, not a regression introduced by the evidence commit: the committed tree changes no suite and no test, so the gate compares the same 292/2468 manifest against the same live suite.
+
+Recorded explicitly so the next tick does not attribute red at `abbfe327` to the releng commit, and so no reader concludes the carrier "broke main". Main has been red since `3dee8fca` for one reason: `test-counts.json` must be regenerated in the same commit as the suite/test change that invalidated it, after the OPS-014 rework lands.
