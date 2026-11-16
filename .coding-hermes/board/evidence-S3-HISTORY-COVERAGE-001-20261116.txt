@@ -1,0 +1,77 @@
+OPS tick duckbrain-ops-2026-11-16-20-27-09 — evidence for row S3-HISTORY-COVERAGE-001
+Captured 2026-11-16 (America/Bogota, -05), host path prefixes rendered as ~ per repo publication rule.
+
+== 1. Row selected ==
+S3-HISTORY-COVERAGE-001 (P1, pending, filed 2026-11-09T06:56:22Z, no prior foreman_note/blocked_reason).
+Its arm 5 names the live host and the namespace `hermes` explicitly:
+  "5) On the live host, status names every unmapped namespace and `hermes` is no longer among them."
+Arms 1-4 require product code (status field, --json surface, `s3 history wire`, admin-path wiring) and are
+out of an ops tick's remit; they stay unmet.
+
+== 2. Live measurements (read-only) ==
+
+$ ls -d ~/duckbrain/namespaces/*/.git | wc -l          -> 272 repos
+$ grep -l 's3://' ~/duckbrain/namespaces/*/.git/config | wc -l   -> 219 (pre-fix) / 220 (post-fix)
+  => 53 namespaces had no s3:// remote pre-fix, 52 post-fix. Row title said "38 of 238"; the pool has
+     grown since filing. Measured denominator here is 272 repos, not the row's 238.
+
+$ git -C ~/duckbrain/namespaces/hermes remote -v        -> (no remote before this tick)
+$ cd ~/duckbrain/namespaces/hermes && git ls-remote s3://duckbrain/current/git/hermes
+  -> rc=0, NO refs printed  (prefix existed, was empty — confirms the row's "entirely empty" claim)
+
+Staleness of namespaces that DO have a mirror (local HEAD vs S3 ref):
+  hermes          STALE  local=7bc6ca53... s3=5a9a9b3c...
+  hermes-memory   STALE  local=1dbc44f1... s3=4393aa97...
+  hermes-agent    STALE  local=54d5c719... s3=82b1e8e0...
+  hermes-dagger   STALE  local=3b167513... s3=c62c1638...
+  coding-hermes   STALE  local=282a64e4... s3=875ecaa5...
+  cos             NO-REMOTE-REF
+  ci              NO-REMOTE-REF
+  plans           NO-REMOTE-REF
+  => 5/8 sampled STALE, 3/8 have no ref at all.
+
+Age of the mirrored refs (git log -1 of the S3-bound commit):
+  hermes-memory s3ref=4393aa97 date=2026-10-27 11:05:19 -0500  local=1dbc44f1 2026-11-16 15:59:20 -0500
+  hermes-agent  s3ref=82b1e8e0 date=2026-10-25 05:57:16 -0500  local=54d5c71  2026-11-04 14:11:52 -0500
+  coding-hermes s3ref=875ecaa5 date=2026-10-27 14:00:19 -0500  local=282a64e4 2026-11-16 15:45:03 -0500
+
+== 3. Root cause of the freeze (measured, not inferred) ==
+$ stat -c '%n mtime=%y' ~/.hermes/state/s3-git-push.last
+  ~/.hermes/state/s3-git-push.last mtime=2026-10-27 15:27:04 -0500 bytes=11 (1793130343)
+$ jq '.jobs[]|select(.id=="1229f45f3ea4")' ~/.hermes/cron/jobs.json
+  name="DuckBrain S3 unified backup (15min)" script=duckbrain-s3-unified.sh
+  enabled=false state=paused paused_at=2026-10-28T00:13:10-05:00 paused_reason=null
+  last_run_at=2026-10-28T00:12:36-05:00 last_status=ok repeat.completed=5033
+  origin={"platform":"telegram","chat_id":"-1003310984808",...,"user_id":"6849342682"}
+=> The only producer of the git-history push layer is paused, and the pause originates from the owner's
+   Telegram session at 2026-10-28T00:13 -05:00. The mirrored refs stop 2026-10-25..10-27, matching the
+   marker file and the pause. Not re-enabled by this tick: owner gate, and a lane may not restore
+   capacity the owner removed.
+
+== 4. Fix executed (bounded, reversible, inside the project worktree) ==
+$ cd ~/duckbrain/namespaces/hermes && git remote add s3daily s3://duckbrain/current/git/hermes
+$ timeout 300 git push --set-upstream s3daily master     -> rc=0
+Readback:
+$ git ls-remote s3daily                                 -> ref present, equals HEAD at push time
+$ git -C ~/duckbrain/namespaces/hermes merge-base --is-ancestor 5a9a9b3c HEAD   -> ANCESTOR=yes
+  (the pushed commit is in the namespace's current history; the branch has since advanced because the
+   daemon commits continuously, which is expected drift once a producer is absent)
+Coverage after the fix: 220/272 configs carry an s3:// URL (was 219).
+Reversal: `git remote remove s3daily` in ~/duckbrain/namespaces/hermes (leaves the S3 objects; they are
+the backup and must not be deleted).
+
+== 5. Deliberately NOT done ==
+- Cron 1229f45f3ea4 NOT re-enabled (owner paused it 2026-10-28; ROLLOUT-DUCKBRAIN-001 gates S3 rollout).
+- The other 52 unwired namespaces NOT bulk-wired: mass remote creation plus a manual push loop is not a
+  bounded change, and it goes stale again the moment the producer stays paused — the owner gate is the
+  real fix.
+- duckbrain-http.service NOT restarted. Measured, fault named:
+  MainPID=1986129 ActiveEnter=2026-11-15 10:14:21 -05 NRestarts=0
+  fds_total=1154 fds_deleted=1069 soft_limit=524288 memory=1513549824
+  An earlier sample this tick read 1159/1072, so the deleted-FD set is flat-to-decreasing churn inside a
+  524288 limit, not an unbounded leak; /health answered 200 in 0.68s. Restart would be a probe, not a fix.
+
+== 6. What the next fire must do ==
+Owner decision on cron 1229f45f3ea4 is the single unblocking action for every arm of this row that
+concerns staleness. Until then, a per-namespace manual push is the only way to keep any single
+namespace's history off-box.
