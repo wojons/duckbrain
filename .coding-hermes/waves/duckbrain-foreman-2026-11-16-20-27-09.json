@@ -1,0 +1,45 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-16-20-27-09",
+  "project": "duckbrain",
+  "mode": "serial",
+  "mode_reason": "slots=4 (nproc 16, loadavg 11.37 -> ceil 12, 16-12=4, min(6,4)) but the resumed block PERF-015 is a singleton block (pending=1, ready=1, done=9/10) so there are no mutually independent rows to fan out; WAVE_BUDGET=6 unused",
+  "block": "PERF-015",
+  "resumed_from": "duckbrain-foreman-2026-11-15-22-03-24 (last tick's event names PERF-015, still ready)",
+  "rows": [
+    {
+      "id": "PERF-015",
+      "title": "GET /users author aggregation in a fork-light child (rework attempt 4: finish the in-flight per-file read_json fallback)",
+      "branch": "wt/PERF-015",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-015",
+      "base_commit": "a3d5fdbf",
+      "in_flight_uncommitted": "src/http/routes/authorAggregation.ts (+130/-99, attempt 3 never committed; tsc --noEmit rc 0)",
+      "worker_model": "openai/gpt-6.1-terra",
+      "worker_provider": "xkiro",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-PERF-015-r4.txt",
+      "attempts": [
+        {"attempt": 2, "commit": "a3d5fdbf", "verdict": "rejected", "why": "author set 17 vs control 21 (4 lost) although latency 2.416s -> 1.312s and peak concurrent git log 1 vs 15"},
+        {"attempt": 3, "commit": null, "verdict": "uncommitted", "why": "worker wrote the per-file read_json + instrumentation diff and gate-passed tsc, then stopped before committing"}
+      ],
+      "rework_feedback": [
+        "measurement first: paired/alternating control vs candidate on the same bootstrap (:3100 main vs :3101 worktree, DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces)",
+        "candidate author set must be a SUPERSET of the 21-author control set recorded at ctl-cli-arm1.json",
+        "keep peak concurrent 'git log --all' <= 10; raise GIT_LOG_TIMEOUT_MS instead of raising concurrency",
+        "commit the OPS-007 bound test plus a deterministic in-memory fallback test"
+      ]
+    }
+  ],
+  "measurement_harness": {
+    "control_arm_recorded": "/home/kara/.hermes/cache/scratch/ctl-cli-arm1.json (21 authors, 2.416s, peak_git=15)",
+    "control_cmd": "cd /home/kara/duckbrain && DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces node bin/duckbrain.js http --port=3100 --auth=none --rate-limit=1000",
+    "candidate_cmd": "cd /home/kara/worktrees/duckbrain-PERF-015 && DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces node bin/duckbrain.js http --port=3101 --auth=none --rate-limit=1000",
+    "measure_cmd": "python3 /home/kara/.hermes/cache/scratch/perf015-arm.py <url>/users 600 > arm.json && python3 /home/kara/.hermes/cache/scratch/perf015-summarize.py arm.json"
+  },
+  "ci_at_tick_start": {
+    "repo": "wojons/duckbrain",
+    "runs": [
+      {"headBranch": "main", "conclusion": "success", "createdAt": "2026-11-16T17:31:50Z"},
+      {"headBranch": "main", "conclusion": "success", "createdAt": "2026-11-16T15:28:07Z"},
+      {"headBranch": "main", "conclusion": "success", "createdAt": "2026-11-16T14:48:14Z"}
+    ]
+  }
+}
