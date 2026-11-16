@@ -115,3 +115,31 @@ Board totals at tip: 489 `complete`, 104 `pending`, 6 `in_progress`, 5 `blocked`
 5. Re-run a clean-machine dogfood battery at the eventual candidate SHA → clears `-005`.
 
 Until 1-4 hold, `v1.2.0` should not be tagged. This pass creates no tag.
+
+## Pass 19 - re-fire 2: tip moved, product tree did not
+
+- Fire: same tick `duckbrain-releng-2026-11-16-13-20-45`, third firing (pass 19 = `21135690`, addendum = `b2bd7bb1`, this = measurement only).
+- Tip re-measured: `origin/main` = `HEAD` = `b2bd7bb1`, parity `0/0`, fetch clean.
+- Product identity re-derived, not carried: `git diff --name-only 9f2ddbee b2bd7bb1` returns only
+  `.coding-hermes/board/tasks.jsonl` (M) and `docs/release-evidence-2026-11-16-1320.md` (A); sha-inclusive
+  `git ls-tree -r` over every non-bookkeeping path fingerprints `e23fb4ac756d3f3d` at both `9f2ddbee`
+  and `b2bd7bb1`. The certified product tree is unchanged; only the carrier moved.
+- CI on the new tip, cited separately from the pass-19 runs: `43879570797` (push/main, `b2bd7bb1`,
+  completed **success**, 2026-11-16T13:49:53Z -> 13:54:01Z). Pass 19 cited `43741076346` (candidate)
+  and `43878298591` (`21135690`); the `b2bd7bb1` run had not been read before this fire.
+- Deployed surface re-measured: `dist/bin/duckbrain.js` mtime 2026-11-15 17:41:27 -05 (22:41Z) and
+  `find src bin -newer dist/bin/duckbrain.js` = **0 files**, so the artifact now post-dates all product
+  source; the unit `duckbrain-http.service` ActiveEnterTimestamp 2026-11-15 10:14:21 -05 (15:14Z) is
+  **2h27m older than the artifact**, so the daemon still serves a pre-rebuild build. `-004` stands:
+  artifact current, restart owed.
+- GitReins binding: `grep -RIl b2bd7bb1 .gitreins/history` = **0**, so no verdict names this tip; the
+  tree-level carry from OPS-014 PASS at `00ca0bc2` is what binds it. Absent, not green.
+- Row hygiene defect found this fire: `RELEASE-2026-11-09-001` carried `commit_hash` `9d9de8cd`
+  (a pass-5 board carrier) and no field naming `b2bd7bb1` anywhere in the row body. Refreshed in the
+  same commit: `commit_hash` unbound, `detail.tip_head` / `detail.tip_ci_run` / `detail.re_fire` added,
+  artifact digest re-stamped to the bytes this commit contains.
+- Audit event for this tick is recorded in this artifact only: `.coding-hermes/board/events.jsonl`
+  carries foreign uncommitted edits in the shared checkout, so appending would sweep another writer's
+  work into this commit.
+- Side effects: no tag created/moved/deleted, no Release object, no npm publish, no image build or push,
+  no unit started/stopped/restarted, no product file touched. **Decision unchanged: NO CUT.**
