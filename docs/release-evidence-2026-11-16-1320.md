@@ -4,6 +4,7 @@
 - Repo under release management: `/home/kara/duckbrain` (`wojons/duckbrain`, org derived from `git remote -v`)
 - Candidate: `origin/main` = `HEAD` = `9f2ddbeec86e7a3448f7797f1e910c60159f3c75`
 - **Decision: NO CUT** (19th consecutive pass). Nothing is tagged, no Release object, no npm publish, no image push, no row closed.
+- Authority: a **minor** cut needs no new owner inscription — the owner authorized the v1.2.0 minor cut on 2026-11-11 (recorded in pending `RELEASE-2026-10-26-001`, the canonical cut contract). This pass therefore holds the cut on **readiness gates only**, not on missing authorization. `RELEASE-2026-10-26-001` stays pending and is not closed by this sweep.
 
 ## 1. Release inventory since the last release
 
@@ -93,6 +94,7 @@ The real staleness finding is ordering:
 
 | row | status | why it blocks a cut |
 |---|---|---|
+| `RELEASE-2026-10-26-001` | pending | canonical v1.2.0 cut contract; authorized, not satisfiable while the rows below are open |
 | `RELEASE-2026-11-15-001` | pending | npm channel unclaimed + 0 Actions secrets; workflow order orphans the tag (owner-gated) |
 | `RELEASE-VERSION-001` | pending | five stale `1.1.0` surfaces; tag passes the gate, CLI still says v1.1.0 |
 | `RELEASE-2026-11-15-002` | pending | CHANGELOG `[1.2.0]` counts wrong (397/379/28/35/4 vs 558/537/29/41/10) and are slurped into the Release body |
