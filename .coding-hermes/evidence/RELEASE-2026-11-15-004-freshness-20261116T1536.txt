@@ -1,0 +1,56 @@
+RELEASE-2026-11-15-004 — deploy-freshness evidence
+tick: duckbrain-ops-2026-11-16-20-27-09   host: karaHermes-mde-7840hs   captured: 2026-11-16T15:35:19-05:00
+
+== now
+2026-11-16T15:34:09-05:00
+== head
+3a00f929
+0	0
+== dist
+2026-11-15 17:41:27.159656351 -0500 18709 dist/bin/duckbrain.js
+== newest source commit
+d63f285328be82e19bfd7ee90a372afdba3d78c7 2026-11-15T10:13:57-05:00 Revert "Merge wt/PERF-015: run the /users author aggregation in a fork-light child process"
+== stale dist files (mtime older than their source)
+stale_count=0
+== unit
+ActiveState=active
+SubState=running
+ActiveEnterTimestamp=Sun 2026-11-15 10:14:21 -05
+MainPID=1986129
+NRestarts=0
+ExecMainStartTimestamp=Sun 2026-11-15 10:14:21 -05
+== health
+http=200 t=0.003978
+{"status":"healthy","uptime":105588.387981997,"timestamp":"2026-11-16T20:34:10.327Z","embedding":{"provider":"openai","model":"qwen/qwen3-embedding-8b","healthy":true,"providers":[{"id":"openai","healthy":true,"note":"ok"}]},"keys_error":null,"durability":{"defaultMode":"buffered","overrides":{}},"deadline_exceeded":[]}
+
+== build-input commits in window 10:13:57..17:41:27 (11-15)
+d63f2853 2026-11-15T10:13:57-05:00 Revert "Merge wt/PERF-015: run the /users author aggregation in a fork-light child process"
+count=1
+== build stamp in dist?
+== CI on main (tip)
+3a00f929 CI completed/success 2026-11-16T17:31:50Z
+531cb3cd CI completed/success 2026-11-16T15:28:07Z
+ec7b9190 CI completed/success 2026-11-16T14:48:14Z
+
+== disk
+/dev/nvme0n1p2  1.8T  1.1T  614G  65% /
+/dev/nvme0n1p2  1.8T  1.1T  614G  65% /
+/dev/nvme0n1p2  1.8T  1.1T  614G  65% /
+== live store
+9.2G	/home/kara/.duckbrain-live
+total 24
+drwxrwxr-x   2 kara kara  4096 Nov  3 19:11 data
+drwx------   2 kara kara  4096 Nov  3 19:11 metrics
+-rw-rw-r--   1 kara kara   622 Nov  3 19:08 rsync.log
+== snapshot units/timers
+Mon 2026-11-16 15:35:09 -05    824ms Mon 2026-11-16 15:34:02 -05        1min 5s ago duckbrain-http-health.timer                   duckbrain-http-health.service
+Mon 2026-11-16 15:35:29 -05      21s Mon 2026-11-16 15:34:29 -05            38s ago stray-duckbrain-reaper.timer                  stray-duckbrain-reaper.service
+Mon 2026-11-16 15:35:30 -05      22s Mon 2026-11-16 15:34:33 -05            34s ago duckbrain-http-recover.timer                  duckbrain-http-recover.service
+Mon 2026-11-16 16:04:31 -05    29min Mon 2026-11-16 14:49:33 -05          45min ago duckbrain-s3-sync.timer                       duckbrain-s3-sync.service
+Mon 2026-11-16 18:16:42 -05 2h 41min Mon 2026-11-16 12:15:26 -05       3h 19min ago heading-backup.timer                          heading-backup.service
+== service mem
+MemoryCurrent=2291089408
+MemoryHigh=6442450944
+MemoryMax=8589934592
+== namespace count
+288
