@@ -4,7 +4,7 @@
  * exercise the extracted aggregation seam without touching namespace state.
  */
 import { describe, expect, it } from "vitest";
-import { collectAuthorsForNamespaces } from "./users";
+import { collectAuthorsForNamespaces } from "./authorAggregation";
 
 describe("collectAuthorsForNamespaces", () => {
   it("bounds concurrent git scans and preserves per-namespace fallback", async () => {
