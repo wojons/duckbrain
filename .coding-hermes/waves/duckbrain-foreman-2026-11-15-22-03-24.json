@@ -1,0 +1,43 @@
+{
+  "tick_id": "duckbrain-foreman-2026-11-15-22-03-24",
+  "project": "duckbrain",
+  "mode": "serial",
+  "mode_reason": "slots=2 (nproc 16, load 14) but the chosen block PERF-015 has exactly 1 ready row (pending=1, done=9/10); no independent rows to fan out",
+  "block": "PERF-015",
+  "rows": [
+    {
+      "id": "PERF-015",
+      "title": "GET /users author aggregation in a fork-light child (rework attempt 3)",
+      "branch": "wt/PERF-015",
+      "worktree": "/home/kara/worktrees/duckbrain-PERF-015",
+      "base_commit": "9daab0b3",
+      "worker_model": "openai/gpt-6.1-terra",
+      "worker_provider": "xkiro",
+      "brief": "/home/kara/.hermes/cache/scratch/brief-PERF-015-r3.txt",
+      "attempts": [
+        {
+          "attempt": 2,
+          "commit": "a3d5fdbf",
+          "verdict": "rejected",
+          "why": "author set 17 vs control 21 (4 lost) although latency 2.416s -> 1.312s and peak concurrent git log 1 vs 15",
+          "arm_files": ["/home/kara/.hermes/cache/scratch/ctl-cli-arm1.json", "/home/kara/.hermes/cache/scratch/cand-dist-arm1.json"]
+        }
+      ],
+      "rework_feedback": [
+        "instrument every zero-author namespace (git failure kind, manifest/partition presence, DuckDB error) before fixing; an empty result must be distinguishable from a failure",
+        "stop swallowing fallback errors: namespaces whose rows do not resolve through manifest partitions (83/288 have duckdb.db) must not silently yield []",
+        "keep peak concurrent 'git log --all' <= 10; raise GIT_LOG_TIMEOUT_MS instead of raising concurrency past the bound",
+        "commit the staged OPS-007 bound test plus a deterministic in-memory fallback test that fails on the current swallow-and-return-[] behaviour",
+        "acceptance must be measured on the same bootstrap: control on :3100 (main 9f2ddbee) vs candidate on :3101, both dist-built CLI with DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces"
+      ]
+    }
+  ],
+  "measurement_harness": {
+    "note": "credential-free; the live daemon on :3000 is apikey-gated so both arms are the real CLI with --auth=none and an explicitly pinned store",
+    "control_cmd": "cd /home/kara/duckbrain && DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces node bin/duckbrain.js http --port=3100 --auth=none --rate-limit=1000",
+    "candidate_cmd": "cd /home/kara/worktrees/duckbrain-PERF-015 && DUCKBRAIN_NAMESPACES_PATH=/home/kara/.duckbrain-live/namespaces node bin/duckbrain.js http --port=3101 --auth=none --rate-limit=1000",
+    "measure_cmd": "python3 /home/kara/.hermes/cache/scratch/perf015-arm.py <url>/users 600 > arm.json && python3 /home/kara/.hermes/cache/scratch/perf015-summarize.py arm.json"
+  },
+  "created_at": "2026-11-15T22:08:00-05:00",
+  "updated_at": "2026-11-15T23:52:00-05:00"
+}
