@@ -143,3 +143,23 @@ Until 1-4 hold, `v1.2.0` should not be tagged. This pass creates no tag.
   work into this commit.
 - Side effects: no tag created/moved/deleted, no Release object, no npm publish, no image build or push,
   no unit started/stopped/restarted, no product file touched. **Decision unchanged: NO CUT.**
+
+### Correction C1: deployed-staleness delta corrected, and why it matters
+
+- **My arithmetic was wrong.** The re-fire section above says the unit's ActiveEnterTimestamp is
+  "2h27m older" than the artifact. The measured instants are `2026-11-15 10:14:21 -05` (unit) and
+  `2026-11-15 17:41:27 -05` (`dist/bin/duckbrain.js`); the delta is **447 minutes = 7h27m**,
+  computed as `(date -d '2026-11-15 17:41:27' +%s) - (date -d '2026-11-15 10:14:21' +%s)`.
+  Verdict unchanged (NO CUT), but the staleness window is 5h larger than the first report said.
+- **Consequence for `RELEASE-2026-11-15-004`.** That row's `foreman_note` records the deploy arms as
+  holding: `dist` mtime `2026-11-15 10:14:06.86 -05` versus restart `10:14:21 -05`, `MainPID=1986129`,
+  `NRestarts=0`. Those measurements were true when taken and are now **falsified by a later rebuild**:
+  the same `dist/bin/duckbrain.js` carries mtime `2026-11-15 17:41:27 -05` and the daemon has not been
+  restarted since, so the currently served build is behind the currently deployed artifact. Re-measured
+  live at this fire: `/health` 200, `uptime` 84550s, `MainPID=1986129`, `ActiveEnterTimestamp`
+  `2026-11-15 10:14:21 -05`; `uptime` matches that restart instant, so no restart has happened since.
+  The row stays `pending`; its acceptance is **owed again**, not satisfied.
+- Lesson for the gate: a deploy-acceptance measurement is valid only while the artifact's mtime is older
+  than the restart instant. Any later `pnpm build:cli` silently re-opens the row. A release check must
+  compare `dist` mtime against `ActiveEnterTimestamp` at the moment of the check, never trust a stored
+  "arms hold" note.
