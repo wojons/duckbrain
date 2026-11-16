@@ -163,3 +163,71 @@ Until 1-4 hold, `v1.2.0` should not be tagged. This pass creates no tag.
   than the restart instant. Any later `pnpm build:cli` silently re-opens the row. A release check must
   compare `dist` mtime against `ActiveEnterTimestamp` at the moment of the check, never trust a stored
   "arms hold" note.
+
+### Re-fire 3 (2026-11-16T15:2xZ) — measured deltas only
+
+Same tick id, third fire. Nothing re-decided, nothing re-tagged; every number below was re-measured at
+this fire rather than carried.
+
+| check | this fire | delta vs re-fire 2 |
+|---|---|---|
+| `origin/main` tip | `ec7b9190` (parity `0 0`, branch `main`) | unchanged |
+| CI on tip | run `43889593024`, `completed/success`, `ec7b9190`, created `2026-11-16T14:48:14Z` | new run, green (fire 2's tip run was `43885439657` attempt 2) |
+| newer runs than that | none (`43889593024` is the newest) | — |
+| product diff `b2bd7bb1..ec7b9190` (board/ledger/docs/reports excluded) | **0 files** | unchanged |
+| commits `v1.1.0^{commit}..origin/main` | 562 all / 541 non-merge | +4 all / +4 non-merge (evidence commits only) |
+| open `RELEASE-*` rows | 11 | unchanged |
+| `/health` | **HTTP 503, `status:"degraded"`** | **changed: fire 2 measured 200** |
+| daemon | `active/running`, `MainPID=1986129`, `ActiveEnterTimestamp 2026-11-15 10:14:21 -05`, `NRestarts` 0 | unchanged — still no restart since the rebuild |
+| `dist/bin/duckbrain.js` | mtime `2026-11-15 17:41:27 -05`; **0** files under `src/`+`bin/` newer | unchanged |
+| version surfaces | `node dist/bin/duckbrain.js --version` → `duckbrain v1.2.0`; `/home/kara/.hermes/node/bin/duckbrain --version` → `v1.2.0`; `package.json` → `1.2.0` | all three agree at this fire |
+| npm channel | `npm view duckbrain version` → **E404 Not Found** (`registry.npmjs.org/duckbrain`) | confirms `RELEASE-2026-11-15-001`: no published package exists |
+| gitreins | **0** verdict files reference `ec7b9190` or `5bc47f1d`; newest verdict in this checkout is `2026-08-07` (`DOGFOOD-002`) | unchanged: no tier evidence is bound to the candidate here |
+
+**The one new finding: `/health` is environment-coupled, and the deploy gate depends on it.**
+
+Body returned at `2026-11-16T15:23:24Z`:
+
+```json
+{"status":"degraded","uptime":86942.397739842,
+ "embedding":{"provider":"","model":"qwen/qwen3-embedding-8b","healthy":false,
+   "providers":[{"id":"openai","healthy":false,
+     "note":"timeout: the embed probe exceeded its 8000ms health budget (health-probe budget, NOT DUCKBRAIN_EMBEDDING_TIMEOUT_MS) — the provider may still be usable for real queries"}]},
+ "keys_error":null,"durability":{"defaultMode":"buffered","overrides":{}},"deadline_exceeded":[]}
+```
+
+Reading it plainly:
+
+- The daemon is **not hung**. A first probe at `15:22Z` timed out at 8 s while load was `8.16 / 13.77 / 21.85`
+  on 22 runnable threads; the immediate retry answered `503` in **9.5 ms** over TCP and `6.4 ms` over
+  `/tmp/duckbrain.sock`. The listener is up (`ss` shows `node` pid `1986129` on `0.0.0.0:3000`).
+- The 503 is one subsystem: the **third-party** embedding health probe missed its 8 000 ms budget. The
+  payload says so itself, including that the provider "may still be usable for real queries" because the
+  probe budget is not `DUCKBRAIN_EMBEDDING_TIMEOUT_MS`.
+- Nothing in the product tree can change this: the tree is byte-identical to what fire 2 measured.
+  So this is an **environment/gate-shape** fact, not a regression signal.
+
+Consequence for `RELEASE-2026-11-15-004`, whose acceptance reads "prove it: `/health` 200, MainPID changed
+with a fresh `ActiveEnterTimestamp`":
+
+- The `health 200` leg is **not obtainable** whenever the embedding probe is slow — including right now, at
+  15:23Z, on an unchanged tree. A worker dispatched to satisfy it today would restart a healthy daemon and
+  still miss the criterion, or would report a false failure.
+- Filed as `RELEASE-2026-11-16-002`: scope that leg to the daemon's own subsystems (or fix/raise the probe
+  budget, or allow an explicit `healthy:false` note as a pass for a *third-party* dependency), then the
+  restart proof in `004` becomes judgeable. The row does **not** ask for a product change.
+
+**Carried without change:** `RELEASE-2026-11-15-004` stays `pending` and its restart acceptance is still
+owed (the daemon has not restarted since the `17:41:27 -05` rebuild; `uptime` at 15:23Z was 86 942 s, which
+matches the 10:14:21 -05 start). `RELEASE-2026-11-15-001` (npm publish path unproven) is now backed by a
+registry-level E404 rather than an unset-secret inference. `RELEASE-2026-11-16-001` (nondeterministic
+durability gate) stays live: at `src/storage/durability.test.ts` the probe at line 339
+(`filesystemSupportsODirect()`) decides line 347's branch, and the "no O_DIRECT" arm asserts that
+`appendJsonlDirect` must throw `DURABILITY_UNSUPPORTED` — a runner whose probe is transiently false while
+the append path succeeds fails that assertion. That is exactly attempt 1 of run `43885439657`.
+
+**Side effects of this fire:** no tag created, moved or deleted; no GitHub Release object; no npm publish;
+no image build or push; no unit started, stopped or restarted; no product file touched. Board append is one
+row (`RELEASE-2026-11-16-002`); `.coding-hermes/board/events.jsonl`, `.gitreins/tasks.yaml` and
+`.coding-hermes/waves/duckbrain-foreman-2026-11-15-22-03-24.json` carry **foreign** uncommitted edits in this
+shared checkout and were deliberately left out of the commit. **Decision unchanged: NO CUT.**
