@@ -1563,3 +1563,9 @@
 {"id":8732,"timestamp":"2026-11-17 12:02:39.374161","event_type":"task_updated","task_id":"QA-DUCKBRAIN-036","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
 {"id":8733,"timestamp":"2026-11-17 12:05:37.639198","event_type":"task_updated","task_id":"DOGFOOD-033","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
 {"id":8734,"timestamp":"2026-11-17 12:37:16.269235","event_type":"task_updated","task_id":"QA-DUCKBRAIN-035","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8735,"timestamp":"2026-11-17 16:39:51.478865","event_type":"task_updated","task_id":"REST-PK-UNIQUENESS-001","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8736,"timestamp":"2026-11-17 16:40:15.785971","event_type":"task_updated","task_id":"INT-CI-027-R2","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8737,"timestamp":"2026-11-17 16:40:15.878548","event_type":"task_updated","task_id":"HARDEN-DUCKBRAIN-008","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8738,"timestamp":"2026-11-17 16:40:21.071336","event_type":"task_updated","task_id":"QA-DUCKBRAIN-022","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8739,"timestamp":"2026-11-17 16:40:21.186687","event_type":"task_updated","task_id":"JUDGE-TIER2-001","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
+{"id":8740,"timestamp":"2026-11-17 16:40:21.307087","event_type":"task_updated","task_id":"S3-READ-AMPLIFICATION-001","actor":"foreman","renumbered_from":null,"detail":"{\"status\":\"pending\"}","tick_number":null,"ts":null}
