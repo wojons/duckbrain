@@ -1139,3 +1139,72 @@ v1.15.0 (pitfalls 37–40 + the correction to pitfall 35's workaround), and the 
 `tests.log` failure excerpt and the solo-green run).
 
 ch:trace tick=duckbrain-dogfood-2026-11-17-11-52-37 target=2a8321ff rows_filed=QA-DUCKBRAIN-042,QA-DUCKBRAIN-043,DOC-26 rows_annotated=QA-DUCKBRAIN-036,DOGFOOD-033 evidence=.coding-hermes/evidence/dogfood-2026-11-17/ install=fresh-install-OK/tests-FAIL/RUNNING agent=faf390f4 perf=no-finding
+
+### DELTA — duplicate delivery of tick `duckbrain-dogfood-2026-11-17-11-52-37` (provenance + the named-UNVERIFIED legs)
+
+**This delivery re-walked nothing.** `grep -c 'duckbrain-dogfood-2026-11-17-11-52-37'
+~/.hermes/logs/gateway.log` → **2** (two inbound dispatches, one per delivery), and this log already
+carried the entry above with its own ch:trace line. Per the duplicate-fire rule the job is provenance
+verification, residue teardown, and the leg the earlier entry itself labelled UNVERIFIED.
+
+**Provenance, graded at the remote tip (`origin/main` == local HEAD, `rev-list --left-right --count`
+→ `0  0`, so the earlier fire's commits are the authoritative blobs):**
+
+- Rows present and still `pending`: `QA-DUCKBRAIN-042` (P1), `QA-DUCKBRAIN-043` (P2), `DOC-26` (P3);
+  annotations present on `QA-DUCKBRAIN-036` (P3) and `DOGFOOD-033` (P2).
+- Paired creation events present, one per row, distinct numeric ids: `task_created` 8729 / 8730 / 8731.
+- Left-behind artifacts all PRESENT in `git show origin/main:<path>`: integration report
+  `docs/dogfood/2026-11-17-prefix-filter-and-listkeys.md` (149 lines), `docs/dogfood/diagnostics.md`
+  with exactly one `## Run 21` heading (1047-line file), `skills/duckbrain-usage/SKILL.md` at
+  `version: 1.15.0` (782 lines).
+
+**Record correction (counts, in this file and nowhere else).** The entry above says "11 scripts". The
+committed evidence directory holds **42 files**, of which **12 are script files** — 8 `.py`
+(`probe_rest`, `probe_mcp`, `probe_validity`, `probe_perf`, `seed_corpus`, `file_rows`,
+`append_log`, `append_diagnostics`) and 4 `.sh` (`probe_prefix`, `probe_search_repeat`,
+`journey_read`, `journey_lifecycle`). The 11 is exactly the row count of the `## Scripts` table in
+`.coding-hermes/evidence/dogfood-2026-11-17/INDEX.md`; the twelfth file, `append_log.py`, is the
+append helper and is not a probe. Precise statement: **11 documented probes + 1 helper = 12 script
+files.** Nothing is missing from the tree — only the sentence's unit was loose.
+
+**Residue teardown — proven, and one stale field in the record.** `bunker info faf390f4 --server
+bunker-mvp` → `not_found: agent "faf390f4" not found`, so the install agent is destroyed and this
+tick owns no residue. Correction to the earlier ch:trace line, whose field reads `RUNNING agent=faf390f4`:
+that field was written mid-battery and never updated; the entry's own body ("battery COMPLETED, agent
+destroyed") is the true terminal state, re-proved here at 12:48Z. **Foreign agent, left alone by rule:**
+`c3a0807b` (running, created 2026-11-17T12:46:21Z, 0 B) is named in no board row, no spawn log and no
+dogfood record — not this lane's, not destroyed.
+
+**The earlier entry's UNVERIFIED legs, closed as far as this host permits:**
+
+1. *Install isolation* was recorded UNVERIFIED because the battery's cell could not prove it. It is now
+   answered from a second, independent surface: `bunker list --server bunker-mvp` reports for **every**
+   agent on that host `net: shared — host network namespace (no network isolation: shared loopback,
+   global port space) — NOT tenant isolation`. So the battery was not withholding a pass — the host
+   offers no network tenant isolation at all, by design. Grade stays **not-isolated**, now by host
+   contract rather than by inference, and `docker-deploy`/`chaos-shutdown` SKIPPED on the compose
+   lifecycle safety gate remains SKIPPED, not a pass.
+2. *Defect liveness of the P1* (the row a foreman will pick up next) — no product file has moved since
+   the measured SHA (`74a77c6a`, `868e66ee`, `6f2e6832` touch only `docs/`, `skills/`,
+   `.coding-hermes/` and evidence), **and** the defect is visible at HEAD directly:
+   `git show origin/main:src/cli/human.ts` lines **577–579** still read `input.mode = "prefix";
+   input.prefix = flags.prefix;` — the CLI is still building the field the recall tool does not accept
+   (`keyPrefix`), so `QA-DUCKBRAIN-042` is live, not stale. Dist freshness re-proved on the same pass:
+   no file under `src/` or `bin/` is newer than `dist/bin/duckbrain.js` (Nov 17 05:56), so the CLI the
+   earlier fire drove was tip code.
+
+**Still UNVERIFIED, and why** (unchanged from the earlier entry, not re-attempted): `search` at
+production scale (would require rebuilding a live namespace's index); auth/token/role surfaces (that
+run used an explicit `--auth=none` loopback scratch daemon — SEC-AUTHZ-001's ground).
+
+**Board-health observation, no row filed:** `.coding-hermes/board/events.jsonl` at `origin/main` is
+1565 lines of which 1459 carry an `id`, and **23 ids are duplicated** — numeric `1`–`6`, `8023`,
+`8108`, `8239`, `8378`, `8650`–`8658` (`5` three times) plus four string ids
+(`ACTIVITY-ROOT-CAUSE-CORRECTION`, `DF-1013-04`, `INT-CI-022`, `OBS-DUCKBRAIN-001`). It is pre-existing
+lineage debris, is not caused by this tick, and no board row owns it (the id text `duplicate` appears in
+no row); naming it here so the next records pass does not re-derive it. This tick's own events
+(8729/8730/8731) are unique. No id was minted this fire, so no id is reserved.
+
+**writes made by this delivery:** this DELTA section only. No board row, no product file, no config,
+no visibility change.
+ch:trace tick=duckbrain-dogfood-2026-11-17-11-52-37 delivery=2 mode=duplicate-fire rows_filed=0 provenance=verified residue=faf390f4-destroyed foreign=c3a0807b isolation=not-isolated-by-host p1-liveness=live@src/cli/human.ts:577
